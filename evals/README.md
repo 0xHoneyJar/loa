@@ -500,3 +500,33 @@ EVAL_PROMPT_TREE=/path/to/worktree EVAL_MODEL=claude-sonnet-5 EVAL_EFFORT=medium
 `compare.sh` refuses a baseline whose `prompt_tree_sha` equals the tree under comparison, whose
 `captured_at_commit` is not a descendant of the suite's `ab.floor_commit`, or whose `corpus_sha256`
 drifted (`evals/tests/recall-baseline-freshness.bats`). Tests: `evals/tests/{execute-agent,eval-recall-grader,implement-discipline-grader,recall-baseline-freshness}.bats`.
+
+## Control arms and the record corpus (cycle-129 FR-2)
+
+Each recall suite pre-registers control arms in `ab.arms` (review: `baseline`, `no_companion`
+(informational), `no_karpathy`, `no_rule_files`; audit: `baseline`, `no_audit_delta`) and the verdict rule
+in `ab.threshold`. `execute-agent.sh` applies an arm (`LOA_EVAL_ARM`) to the sandbox copy only, after
+materialisation and immediately before the executor starts, and fails the trial (exit 2) when a toggle
+cannot take effect; `executor.json` records `arm`, `arm_toggles`, `arm_evidence`, `source_commit`,
+`models_used` and `refusal_fallbacks`. The executor never inherits the calling Claude Code session's
+coupling, and its subagent model is pinned to `EVAL_MODEL`.
+
+The record fixtures `pr-11` … `pr-18` are the round-1 states of sprints 247–254, built by
+`harness/seed-corpus-from-record.sh` from `review-prs/record-pairs.tsv` and the `record/cycle-12x-a2a`
+branches. A feedback finding becomes a label only when the fix commit touches the file it cites. Labels
+live in the hidden `review-prs/labels/pr-NN.tsv` (never in the sandbox-copied `pr-NN/`), every drop is
+explained in `labels/pr-NN.dropped.txt`, and hand curation is the data file `labels/curation.tsv`,
+re-applied on every seed. `fix` rows (the hunks the fix commit changed) feed the grader's refuted share
+only. A label file is approved with `seed-corpus-from-record.sh --approve pr-NN --by "<who> <date>"`;
+`run-arms.sh` refuses unapproved fixtures unless `--allow-unapproved`.
+
+```bash
+# one suite, one batch, against a detached worktree pinned at the source commit
+./evals/harness/run-arms.sh --suite review-recall --arms baseline,no_companion,no_karpathy,no_rule_files \
+  --fixtures pr-01,pr-02,pr-03,pr-04,pr-05,pr-06,pr-07,pr-08 --trials 3 --source-commit 864069f2 --dry-run
+./evals/harness/report.sh --arms            # refuses until STATUS.json is complete; --partial for interim
+./evals/harness/compare.sh --ab --arm-a evals/results/arms/review-recall/<batch>/baseline \
+  --arm-b evals/results/arms/review-recall/<batch>/no_karpathy --metric recall
+```
+
+Tests: `evals/tests/{arm-toggles,run-arms,arms-report,seed-corpus}.bats`.

@@ -434,7 +434,10 @@ execute_task() {
           '{run_id:$run_id,task_id:$task_id,trial:$trial,timestamp:$timestamp,duration_ms:$duration_ms,
             model_version:$model_version,status:"error",graders:[],executor:$executor,
             composite:{strategy:"all_must_pass",pass:false,score:0},
-            error:{type:"agent_error",message:$msg},schema_version:$schema_version}' \
+            error:{type:"agent_error",message:$msg},schema_version:$schema_version,
+            arm:(env.LOA_EVAL_ARM // ($executor.arm? // "baseline")),
+            source_commit:($executor.source_commit? // env.LOA_EVAL_SOURCE_COMMIT // null),
+            model_id:($executor.model_id? // null)}' \
           >> "$task_result_file"
         _keep_trial_artifacts "$task_file" "$sandbox_path" "$task_id" "$trial_num"
         "$HARNESS_DIR/sandbox.sh" destroy --trial-id "$trial_id" 2>/dev/null || true
@@ -495,7 +498,9 @@ execute_task() {
       '{run_id:$run_id,task_id:$task_id,trial:$trial,timestamp:$timestamp,duration_ms:$duration_ms,
         model_version:$model_version,status:$status,graders:$graders,composite:$composite,
         error:$error,schema_version:$schema_version}
-       + (if $executor == null then {} else {executor:$executor} end)' \
+       + (if $executor == null then {} else {executor:$executor, arm:($executor.arm // "baseline"),
+            source_commit:($executor.source_commit // $executor.prompt_tree_commit // null),
+            model_id:($executor.model_id // null)} end)' \
       >> "$task_result_file"
 
     # Keep per-trial agent outputs (AC-9.2 wants them committed with the A/B)

@@ -31,7 +31,11 @@
 #               E2E/end-to-end task; a plan whose header **Date:** is on or
 #               after SEAMS_REQUIRED_FROM needs a '### Seams Under Test' table
 #               in every sprint block (older plans WARN; an undated plan WARNs when
-#               archived or a fixture and fails when live under grimoires/loa/)
+#               archived or a fixture and fails when live under grimoires/loa/);
+#               from KINDS_REQUIRED_FROM on, every task line under '### Technical
+#               Tasks' and '### Task N.E2E' ends with exactly one 'kind:
+#               mechanical|judgment|operator' token (same date rules; WARN on a
+#               judgment task that names only script files or script/lint/generate)
 #   bug-triage: bug_id matches the bug-triaging ID grammar; its sibling
 #               .run/bugs/<id>/state.json has a schema_version; a PII scan
 #               via pii-filter.sh (skipped if unavailable)
@@ -113,6 +117,9 @@ Options:
   --json        Emit a JSON result object to stdout
   -h, --help    Show this help message
 
+sprint: plans dated from 2026-10-14 end every task line with
+  ' · kind: mechanical|judgment|operator' (older plans WARN).
+
 Exit codes:
   0  pass (WARN-level info may still be printed)
   1  fail (exact repair text on stderr)
@@ -162,6 +169,7 @@ info_lines=()
 # prd
 # =============================================================================
 validate_prd() {
+    # @guard validator:prd.sections
     local sections
     sections=$(grep -nE '^## ' -- "$FILE" || true)
 
@@ -177,6 +185,7 @@ validate_prd() {
             # and the bold form ('> **Sources**:') — discovering-requirements'
             # <output_format> prescribes the bold form while its Phase-8
             # example uses the plain one.
+            # @guard validator:prd.sources
             if ! grep -qE '^> (\*\*)?Sources(\*\*)?:' <<< "$body"; then
                 violations+=("PRD section '${heading# }' (line $lineno) has no '> Sources:' line in its body — add one per discovering-requirements Phase 8 template")
             fi
@@ -191,6 +200,7 @@ validate_prd() {
 # =============================================================================
 # Derived verbatim from designing-architecture/SKILL.md Phase 4 "Required
 # sections" list + resources/templates/sdd-template.md's numbered H2s.
+# @guard validator:sdd.sections
 SDD_REQUIRED_SECTIONS=(
     "1. Project Architecture"
     "2. Software Stack"
@@ -242,6 +252,7 @@ validate_sdd() {
 # Derived verbatim from planning-sprints/resources/templates/sprint-template.md.
 # R2 review (cycle-119): 'Security Considerations' appears only in the
 # template's Sprint-1 example (Sprint 2 omits it) — WARN-only, not required.
+# @guard validator:sprint.sections
 SPRINT_REQUIRED_SECTIONS=(
     "Sprint Goal"
     "Deliverables"
@@ -287,6 +298,7 @@ validate_sprint() {
         done
     done <<< "$sprint_headings"
 
+    # @guard validator:sprint.goal-ids
     # Goal ID coverage: every G-N referenced in the plan body must appear in
     # a goal-mapping table under any '## Appendix' section.
     local appendix_body
@@ -309,6 +321,7 @@ validate_sprint() {
 
     validate_sprint_deferred
     validate_sprint_seams
+    validate_sprint_kinds
     validate_sprint_beads
 
     # Final sprint E2E/validation task (WARN only).
@@ -324,6 +337,7 @@ validate_sprint() {
 # =============================================================================
 BUG_ID_REGEX='^[0-9]{8}-(i[0-9]+-)?[0-9a-f]{6}$'
 
+# @guard validator:bug-triage.schema
 validate_bug_triage() {
     local bug_id
     bug_id=$(grep -m1 -E '^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:' -- "$FILE" | sed -E 's/^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:[[:space:]]*//' | xargs || true)
@@ -384,6 +398,7 @@ _translation_find_report() {
 # Citation-resolution scan for one file. Matches both `(path:L##[-L##])`
 # and bare table-cell `path:L##` with a single regex — the surrounding
 # parens/pipes are not part of the match, so one pass covers both forms.
+# @guard validator:translation.citations
 _validate_translation_citations() {
     local f="$1" in_fence=false lineno=0 line
     # Held in a single-quoted variable (never a bare literal in a =~/== RHS)
@@ -561,6 +576,7 @@ _dec_context_why() {
     printf '%s\n' "$out"
 }
 
+# @guard validator:decisions.schema
 validate_decisions() {
     if ! _dec_have_yq4; then
         violations+=("--type decisions needs Mike Farah yq v4 (https://github.com/mikefarah/yq); install it and re-run")
@@ -574,6 +590,7 @@ validate_decisions() {
     local pending=false
     case "$(basename -- "$FILE")" in decisions-pending.yaml*) pending=true ;; esac
 
+    # @guard validator:decisions.append-only
     local base="null"
     if [[ -n "$BASE_FILE" ]]; then
         if [[ ! -f "$BASE_FILE" ]] || ! base="$(yq -o=json -I0 '.' "$BASE_FILE" 2>/dev/null)" || [[ -z "$base" ]]; then
@@ -786,6 +803,7 @@ _prd_prose_lines() {
     ' "$FILE"
 }
 
+# @guard validator:prd.assumption-tags
 validate_prd_assumptions() {
     local prose
     prose="$(_prd_prose_lines)"
@@ -854,6 +872,7 @@ validate_prd_assumptions() {
 # =============================================================================
 # The PRD is the sibling prd.md of the sprint file. A requirement is deferred when its
 # '### FR-N' block holds a **Deferred:** line; a task line citing FR-N WARNs.
+# @guard validator:sprint.deferred
 validate_sprint_deferred() {
     local prd; prd="$(dirname -- "$FILE")/prd.md"
     [[ -f "$prd" ]] || return 0
@@ -886,6 +905,7 @@ validate_sprint_deferred() {
 # lib/md-fence.awk (CommonMark lengths and characters); headings inside it do not count.
 SEAMS_REQUIRED_FROM="2026-10-13"
 
+# @guard validator:sprint.seams
 validate_sprint_seams() {
     local fence_src
     if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
@@ -940,8 +960,113 @@ validate_sprint_seams() {
 }
 
 # =============================================================================
+# sprint: a 'kind:' tag ends every task line (grimoires/loa/sdd.md D-10.1; DEC-0144, DEC-0154)
+# =============================================================================
+# Gated on the header **Date:** exactly as the Seams rule above: from KINDS_REQUIRED_FROM
+# on, every top-level '- [ ]' / '- [x]' line under '### Technical Tasks', and every
+# '- [ ] Task ...' line under a '### Task N.E2E' heading, inside a '## Sprint N' block,
+# ends with exactly one 'kind: mechanical|judgment|operator' token (whitespace around the
+# colon allowed, nothing but whitespace after the value; the ⇐ dependency marker may be
+# absent). Older and undated plans WARN once; a live plan without a parseable header date
+# fails. Inline code spans are not tokens. A 'judgment' task that names only *.sh, *.py or
+# *.ts files, or the verbs script, lint or generate, WARNs (never fails).
+# @guard validator:sprint.kinds
+KINDS_REQUIRED_FROM="2026-10-14"
+
+validate_sprint_kinds() {
+    local fence_src
+    if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
+        violations+=("cannot read ${SCRIPT_DIR}/lib/md-fence.awk; the sprint kind: check needs it (reinstall the framework scripts)")
+        return 0
+    fi
+    local plan_date
+    plan_date="$(LC_ALL=C awk "$fence_src"'
+        md_fence($0) { next }
+        /^## / { exit }
+        /^\*\*Date:?\*\*:?/ { if (match($0, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) print substr($0, RSTART, RLENGTH); exit }
+    ' "$FILE")"
+    local enforce=false canon="" root=""
+    if [[ -n "$plan_date" ]]; then
+        [[ "$plan_date" < "$KINDS_REQUIRED_FROM" ]] || enforce=true
+    else
+        canon="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)/$(basename -- "$FILE")" || canon=""
+        root="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || root=""
+        if [[ -n "$root" ]]; then
+            case "$canon" in
+                "${root}/grimoires/loa/archive/"*) ;;
+                "${root}/grimoires/loa/"*)
+                    violations+=("a sprint plan carries **Date:** YYYY-MM-DD in its header (before the first '## ' heading); ${FILE} has none that parses, so the kind: rule (from ${KINDS_REQUIRED_FROM}) cannot be judged")
+                    return 0 ;;
+            esac
+        fi
+    fi
+    local findings
+    findings="$(LC_ALL=C awk "$fence_src"'
+        function ntok(s,   n) {
+            n = 0
+            while (match(s, /(^|[^A-Za-z0-9_])kind[[:space:]]*:/)) { n++; s = substr(s, RSTART + RLENGTH) }
+            return n
+        }
+        md_fence($0) { next }
+        /^## / { insp = ($0 ~ /^## Sprint [0-9]/); sec = 0; next }
+        !insp { next }
+        /^### / {
+            sec = 0
+            if ($0 ~ /^### Technical Tasks[[:space:]]*$/) sec = 1
+            else if ($0 ~ /^### Task [0-9A-Za-z]+\.E2E([^A-Za-z0-9]|$)/) sec = 2
+            next
+        }
+        !sec || $0 !~ /^- \[[ xX]\] / { next }
+        sec == 2 && $0 !~ /^- \[[ xX]\] Task / { next }
+        {
+            raw = $0; t = raw
+            gsub(/`[^`]*`/, "", t)
+            n = ntok(t)
+            if (n == 0) { printf "M\t%d\t0\n", NR; next }
+            if (n > 1) { printf "D\t%d\t%d\n", NR, n; next }
+            if (raw !~ /(^|[^A-Za-z0-9_])kind[[:space:]]*:[[:space:]]*(mechanical|judgment|operator)[[:space:]]*$/) {
+                if (t ~ /(^|[^A-Za-z0-9_])kind[[:space:]]*:[[:space:]]*(mechanical|judgment|operator)([^A-Za-z0-9_]|$)/) printf "T\t%d\t0\n", NR
+                else printf "U\t%d\t0\n", NR
+                next
+            }
+            if (raw !~ /judgment[[:space:]]*$/) next
+            files = 0; code = 0; s = raw
+            while (match(s, /[A-Za-z0-9_.\/*-]+\.(sh|py|ts|js|md|yaml|yml|json|tsv|bats|txt|toml)([^A-Za-z0-9_]|$)/)) {
+                tok = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
+                files++
+                if (tok ~ /\.(sh|py|ts)([^A-Za-z0-9_]|$)/) code++
+            }
+            v = tolower(t)
+            if ((files > 0 && files == code) || v ~ /(^|[^a-z0-9_])(script|lint|generate)([^a-z0-9_]|$)/) printf "J\t%d\t0\n", NR
+        }
+    ' "$FILE")"
+    [[ -n "$findings" ]] || return 0
+    local code ln extra
+    local -a bad=()
+    while IFS=$'\t' read -r code ln extra; do
+        case "$code" in
+            J) warnings+=("$FILE:$ln: a task tagged kind: judgment names only *.sh/*.py/*.ts files or the verbs script, lint, generate; if a script could do it reliably, tag it kind: mechanical") ;;
+            M) bad+=("$FILE:$ln: a task line has no kind: token; end it with ' · kind: mechanical|judgment|operator'") ;;
+            D) bad+=("$FILE:$ln: a task line carries ${extra} kind: tokens; keep exactly one, at the end of the line") ;;
+            T) bad+=("$FILE:$ln: a task line has text after its kind: value; the kind: token ends the line") ;;
+            U) bad+=("$FILE:$ln: a task line's kind: value is not one of mechanical, judgment, operator (lower case)") ;;
+        esac
+    done <<< "$findings"
+    [[ ${#bad[@]} -gt 0 ]] || return 0
+    if [[ "$enforce" == "true" ]]; then
+        local b
+        for b in "${bad[@]}"; do
+            violations+=("${b} (a plan dated ${plan_date}, on or after ${KINDS_REQUIRED_FROM}, tags every task; see planning-sprints/resources/templates/sprint-template.md)")
+        done
+    else
+        warnings+=("${plan_date:-undated} plan: ${#bad[@]} task line(s) without a valid kind: tag; the tag is required for plans dated from ${KINDS_REQUIRED_FROM}")
+    fi
+}
+
+# =============================================================================
 # sdd: Open Questions rows marked Resolved name their DEC row (WARN only, D-3.16)
 # =============================================================================
+# @guard validator:sdd.open-questions
 validate_sdd_open_questions() {
     local hits
     hits="$(awk '
@@ -1069,6 +1194,7 @@ _br_json_array() {
 # sprint: no question bead carries a sprint: label or sits under a sprint epic
 # (grimoires/loa/sdd.md D-4.7 d, A16)
 # =============================================================================
+# @guard validator:sprint.beads-crosscheck
 validate_sprint_beads() {
     if ! _beads_crosscheck_available; then
         info_lines+=("beads cross-check skipped (needs br, ${PROJECT_ROOT}/.beads and the plan inside the project): question beads were not checked for sprint labels")
@@ -1111,6 +1237,7 @@ MAP_SECTIONS=("Destination" "Decisions so far" "Not yet specified" "Out of scope
 MAP_STATUSES="charting handed-off closed abandoned"
 BEAD_ID_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 
+# @guard validator:map.schema
 validate_map() {
     local slug status epic
     slug="$(_md_header Slug)"; status="$(_md_header Status)"; epic="$(_md_header Epic)"
@@ -1187,6 +1314,7 @@ validate_map() {
     _validate_map_beads "$epic" "$status" "$slug"
 }
 
+# @guard validator:map.beads
 _validate_map_beads() {
     local epic="$1" status="$2" slug="$3" epic_json all
     if ! epic_json="$(_br_json_array show "$epic" --json)" || [[ "$(jq 'length' <<< "$epic_json" 2>/dev/null)" != "1" ]]; then
@@ -1249,6 +1377,7 @@ _validate_map_beads() {
 # =============================================================================
 SPIKE_SECTIONS=("Question" "What was built" "Verdict" "Pointer" "Decided by")
 
+# @guard validator:spike.sections
 validate_spike() {
     local s body
     for s in "${SPIKE_SECTIONS[@]}"; do
@@ -1294,6 +1423,7 @@ GLOSSARY_MAX_CHARS=300
 GLOSSARY_MAX_ALIASES=6
 GLOSSARY_MAX_ALIASES_TOTAL=40
 
+# @guard validator:glossary.entries
 validate_glossary() {
     local kind msg fence_src
     # The CommonMark fence tracker shared with tools/check-glossary-terms.sh.

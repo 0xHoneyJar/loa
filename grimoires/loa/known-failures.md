@@ -1659,7 +1659,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
 **Recurrence count**: 4
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
-**Upstream issue**: none yet — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
+**Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
 
 ### Attempts

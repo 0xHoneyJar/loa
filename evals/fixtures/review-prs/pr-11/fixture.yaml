@@ -1,0 +1,17 @@
+name: pr-11
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-247 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 247
+base_commit: "a775f14ddc631f50c844fb5ee7d8923f7f4ddff2"
+head_commit: "7246ae55a4fea334e1c0a6163b064f20fa14cf2e"
+fix_commit: "4b289413cc23c72e76e607b9fb4e38d0398d2455"
+record_ref: "origin/record/cycle-126-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md"
+  - "grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md"

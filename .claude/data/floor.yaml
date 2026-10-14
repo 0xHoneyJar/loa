@@ -1,0 +1,58 @@
+# .claude/data/floor.yaml — the one tracked floor source (cycle-129 SDD D-9.2, DEC-0166).
+#
+# The floor is the set of guards, config keys and files no profile, knob or
+# cycle task may weaken. Readers:
+#   - .claude/scripts/guard-yield.sh and tests/unit/guard-origins.bats: the
+#     `floor: true` rows of .claude/data/guard-origins.yaml equal floor_guards.
+#   - tests/unit/floor-snapshot.bats: every floor_files entry (and the corpus
+#     rows named under floor_corpus) is byte-identical to origin/main.
+#   - tests/unit/profile-floor.bats (Sprint 2): profiles.yaml names no floor_keys.
+# Both bats suites pin this file's sha256; an edit fails until the pin is
+# deliberately updated in the same change (see the FLOOR_SHA256 constant).
+schema_version: 1
+
+floor_guards:
+  - fence:FR-1.2b
+  - fence:FR-SZ
+  - fence:FR-SZ-COPY
+  - fence:FR-SZ-DD
+  - fence:FR-SZ-EXTRACT
+  - fence:FR-SZ-INPLACE
+  - fence:FR-SZ-INTERP
+  - fence:FR-SZ-LINK
+  - fence:FR-SZ-REDIR
+  - fence:FR-SZ-TEE
+  - fence:FR-SZ2
+  - fence:FR-SZ2-COPY
+  - fence:FR-SZ2-INPLACE
+  - fence:FR-SZ2-REDIR
+  - fence:FR-SZ2-RM
+  - fence:FR-SZ2-TEE
+  - gate:verdict-derive
+  - gate:adversarial-review-gate
+  - policy:permission-deny-list
+  - policy:verdict-one-way-rule
+  - policy:operator-only-commands
+
+floor_keys:
+  - flatline_protocol.code_review.enabled
+  - flatline_protocol.security_audit.enabled
+  - "flatline_protocol.*.companion_voice"
+  - "destructive_command_guard.*"
+  - "implement_gate.*"
+  - hounfour.locality
+
+# Paths whose bytes must not change relative to origin/main during a cycle.
+floor_files:
+  - .claude/scripts/verdict-derive.sh
+  - .claude/hooks/safety/adversarial-review-gate.sh
+  - .claude/hooks/settings.deny.json
+  - .claude/data/user-invoked-commands.txt
+
+# Fence-corpus rows (by their `rule` field) that must not change relative to
+# origin/main. A trailing `*` is a prefix match.
+floor_corpus:
+  file: tests/fixtures/fence-corpus/corpus.jsonl
+  rules:
+    - FR-1.2b
+    - "FR-SZ*"

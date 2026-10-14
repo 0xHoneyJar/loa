@@ -132,7 +132,7 @@ failure scenario.
 <zone_constraints>
 ## Zone Constraints
 
-Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; app zone (`src/`, `lib/`, `app/`) = **Read-only**.
+Zones per the frontmatter `zones:` and CLAUDE.loa.md: the app zone is **Read-only**.
 </zone_constraints>
 
 <integrity_precheck>
@@ -215,6 +215,8 @@ Read, in order:
 
 Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
 
+**Task kinds**: A `kind: mechanical` task delivered as skill prose or instructions the model re-executes is a MEDIUM (Karpathy ladder); a `kind: operator` task completed unattended without a `decision:unblock` ticket or a DEC row is a MEDIUM.
+
 Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> --json -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
@@ -279,7 +281,7 @@ Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocki
 </subagent_report_check>
 
 <checklists>
-Checklists, Red Flags (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and Mermaid standards: `resources/REFERENCE.md`.
+Checklists, Red Flags and Mermaid standards: `resources/REFERENCE.md`.
 </checklists>
 
 <complexity_review>

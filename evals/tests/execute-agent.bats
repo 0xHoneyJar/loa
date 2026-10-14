@@ -130,6 +130,33 @@ make_tree() {  # make_tree <dir> <effort-line-or-empty>
   grep -q "^HOME=$HOME\$" "$STUB_ENV_FILE"
 }
 
+@test "EA-11 session decoupling (cycle-129): a parent Claude Code session's coupling is stripped and the subagent model is pinned to EVAL_MODEL; models_used lists every model's output" {
+  export CLAUDE_CODE_SUBAGENT_MODEL=opus CLAUDE_CODE_CHILD_SESSION=1 CLAUDE_CODE_SESSION_ID=parent-session \
+    CLAUDE_CODE_MESSAGING_SOCKET=/run/x.sock CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+  run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
+  [ "$status" -eq 0 ]
+  grep -q '^CLAUDE_CODE_SUBAGENT_MODEL=claude-sonnet-5$' "$STUB_ENV_FILE"
+  grep -q '^CLAUDE_CODE_CHILD_SESSION=$' "$STUB_ENV_FILE"
+  grep -q '^CLAUDE_CODE_SESSION_ID=$' "$STUB_ENV_FILE"
+  grep -q '^CLAUDE_CODE_MESSAGING_SOCKET=$' "$STUB_ENV_FILE"
+  grep -q '^CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=$' "$STUB_ENV_FILE"
+  [ "$(jq -c '.models_used' "$WS/.eval/executor.json")" = '{"claude-sonnet-5-20260401":42}' ]
+  [ "$(jq -c '.refusal_fallbacks' "$WS/.eval/executor.json")" = '[]' ]
+}
+
+@test "EA-12 a safeguard refusal fallback (system/model_refusal_fallback) is recorded with both models and the category" {
+  printf '%s\n' \
+    '{"type":"system","subtype":"init","model":"claude-fable-5-1"}' \
+    '{"type":"system","subtype":"model_refusal_fallback","trigger":"refusal","scope":"session","original_model":"claude-fable-5-1","fallback_model":"global.anthropic.claude-opus-5-5","api_refusal_category":"cyber"}' \
+    '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"usage":{"input_tokens":1,"output_tokens":2},"modelUsage":{"claude-fable-5-1":{"outputTokens":30},"global.anthropic.claude-opus-5-5":{"outputTokens":70}}}' \
+    > "$T/events.jsonl"
+  STUB_EVENTS_FILE="$T/events.jsonl" run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.refusal_fallbacks' "$WS/.eval/executor.json")" = '[{"from":"claude-fable-5-1","to":"global.anthropic.claude-opus-5-5","category":"cyber","scope":"session"}]' ]
+  [ "$(jq -r '.model_id' "$WS/.eval/executor.json")" = "global.anthropic.claude-opus-5-5" ]
+  [ "$(jq -c '.models_used' "$WS/.eval/executor.json")" = '{"claude-fable-5-1":30,"global.anthropic.claude-opus-5-5":70}' ]
+}
+
 @test "EA-4 effort: skill frontmatter forwarded, EVAL_EFFORT overrides, absent or invalid yields no flag" {
   local tree="$T/tree"
   make_tree "$tree" "effort: xhigh"

@@ -4,8 +4,9 @@
 #
 # tools/check-prompt-budget.sh enforces the byte budgets of the always-loaded
 # prompt surface: SKILL.md ≤ 16,384 B (charged with unconditionally-read
-# resources), CLAUDE.loa.md ≤ 10,240 B, protocols total ≤ 200,000 B (warn
-# above 143,360 B). Passes at exactly the limit, fails one byte over.
+# resources), CLAUDE.loa.md ≤ 10,240 B, protocols total ≤ 160,000 B (warn
+# above 114,688 B). Passes at exactly the limit, fails one byte over.
+# PB-10 pins the workflow's header comment to the tool's constants.
 # PB-9 is the live gate: red until the Sprint 3 audit lands.
 # =============================================================================
 
@@ -107,4 +108,17 @@ fill() {  # fill <path> <bytes> — exactly <bytes> bytes of text
     run "$TOOL" --root "$PROJECT_ROOT"
     echo "$output"
     [ "$status" -eq 0 ]
+}
+
+@test "PB-10 the workflow header comment states the tool's four budget constants" {
+    local wf="$PROJECT_ROOT/.github/workflows/check-prompt-budget.yml" line nums header n f
+    line="$(grep -E '^SKILL_LIMIT, LOA_LIMIT, PROTO_FAIL, PROTO_WARN = ' "$TOOL")"
+    [ -n "$line" ] || { echo "constants line not found in $TOOL"; return 1; }
+    nums="$(sed 's/.*= //' <<< "$line" | tr ',' ' ')"
+    [ "$(wc -w <<< "$nums" | tr -d ' ')" -eq 4 ]
+    header="$(awk '/^on:/ { exit } /^#/ { print }' "$wf")"
+    for n in $nums; do
+        f="$(LC_ALL=C awk -v n="$n" 'BEGIN { s = ""; while (length(n) > 3) { s = "," substr(n, length(n) - 2) s; n = substr(n, 1, length(n) - 3) } print n s }')"
+        [[ "$header" == *"$f B"* ]] || { echo "workflow header comment does not state $f B (tool constant $n)"; return 1; }
+    done
 }

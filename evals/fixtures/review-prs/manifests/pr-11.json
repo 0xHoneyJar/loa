@@ -1,0 +1,218 @@
+{
+  "fixture": "pr-11",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "247",
+    "record_ref": "origin/record/cycle-126-a2a",
+    "head_commit": "7246ae55a4fea334e1c0a6163b064f20fa14cf2e",
+    "fix_commit": "4b289413cc23c72e76e607b9fb4e38d0398d2455"
+  },
+  "defects": [
+    {
+      "id": "L01-the-unverified-zone-flag-is-computed-onc",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2304,
+      "anchors": [
+        1992,
+        2304
+      ],
+      "must_match": "RATE_LIMIT_UNVERIFIED",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22",
+      "source_commit": "7246ae55",
+      "synthetic": false
+    },
+    {
+      "id": "L02-the-read-append-cycle-takes-no-interproc",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "anchor_line": 264,
+      "anchors": [
+        264,
+        277,
+        292
+      ],
+      "must_match": "record_observed",
+      "severity": "high",
+      "category": "concurrency",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30",
+      "source_commit": "7246ae55",
+      "synthetic": false
+    },
+    {
+      "id": "L03-the-premium-multiplies-already-floored-p",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "anchor_line": 165,
+      "anchors": [
+        165,
+        171
+      ],
+      "must_match": "# traffic; output-side: output + reasoning).",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38",
+      "source_commit": "7246ae55",
+      "synthetic": false
+    },
+    {
+      "id": "L04-store-and-catalog-paths-are-read-through",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "anchor_line": 225,
+      "must_match": "def load_observed(path: Optional[str] = None)",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L59",
+      "source_commit": "7246ae55",
+      "synthetic": false
+    },
+    {
+      "id": "L05-local-filesystem-path-in-the-envelope",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2004,
+      "anchors": [
+        2004,
+        2022
+      ],
+      "must_match": "nonlocal _last_walk_exit_code",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65",
+      "source_commit": "7246ae55",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1992,
+      "end": 1992,
+      "source": "fix/4b289413cc23:1992-1992"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2004,
+      "end": 2004,
+      "source": "fix/4b289413cc23:2004-2004"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2022,
+      "end": 2022,
+      "source": "fix/4b289413cc23:2022-2022"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2032,
+      "end": 2032,
+      "source": "fix/4b289413cc23:2032-2032"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2110,
+      "end": 2110,
+      "source": "fix/4b289413cc23:2110-2110"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2256,
+      "end": 2256,
+      "source": "fix/4b289413cc23:2256-2256"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2297,
+      "end": 2297,
+      "source": "fix/4b289413cc23:2297-2297"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 111,
+      "end": 111,
+      "source": "fix/4b289413cc23:111-111"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 165,
+      "end": 165,
+      "source": "fix/4b289413cc23:165-165"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 171,
+      "end": 175,
+      "source": "fix/4b289413cc23:171-175"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 290,
+      "end": 290,
+      "source": "fix/4b289413cc23:290-290"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 295,
+      "end": 295,
+      "source": "fix/4b289413cc23:295-295"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 30,
+      "end": 30,
+      "source": "fix/4b289413cc23:30-30"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 278,
+      "end": 278,
+      "source": "fix/4b289413cc23:278-278"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 292,
+      "end": 293,
+      "source": "fix/4b289413cc23:292-293"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/adapters/tests/test_ceiling_e2e.py",
+      "start": 267,
+      "end": 267,
+      "source": "fix/4b289413cc23:267-267"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/adapters/tests/test_ceiling_policy.py",
+      "start": 272,
+      "end": 272,
+      "source": "fix/4b289413cc23:272-272"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/adapters/tests/test_long_context_pricing.py",
+      "start": 66,
+      "end": 66,
+      "source": "fix/4b289413cc23:66-66"
+    }
+  ]
+}

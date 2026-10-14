@@ -1,0 +1,7 @@
+| Rule | Why |
+|------|-----|
+| NEVER write application code outside `/implement` (OR a construct with declared `workflow.gates`), and NEVER reach implementation except via `/run sprint-plan`, `/run sprint-N`, or `/bug` against an existing sprint plan (OR when a construct with declared `workflow.gates` owns the current workflow) | Bypasses review+audit; /run adds the circuit breaker. Fences: implement-gate.sh fail-asks Write/Edit App-Zone writes outside /implement//bug; disallowed-tools strips pure-review skills' write tools; the adversarial gates. Bash-path App-Zone writes stay review-territory. |
+| NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate only displays session progress. |
+| NEVER skip `/review-sprint` and `/audit-sprint` quality gates (Yield when construct declares `review: skip` or `audit: skip`) | The only check that code meets its acceptance criteria and security standards. |
+| NEVER use `/bug` for feature work that doesn't reference an observed failure | `/bug` bypasses PRD/SDD gates; feature work must go through `/plan` |
+| NEVER implement code directly when `/spiraling` is invoked with a task — dispatch through the harness pipeline (`/run sprint-plan`, `/simstim`, or `spiral-harness.sh`) | `/spiraling` is context, not an orchestrator; without harness dispatch every quality gate (Flatline, Review, Audit, Bridgebuilder) is bypassed. |

@@ -41,7 +41,8 @@ A/B arm comparison:
          audit   the recall gates + tokens_ratio (mean tokens per call B/A <= 0.5)
          discipline  mean pass rate B >= A
   Invalid (exit 2): model id skew across arms/trials, a dirty prompt tree,
-  identical prompt trees.
+  identical prompt trees (except control arms: distinct `arm` ids on one
+  pinned source), source_commit skew across trials, or across control arms.
 
 Exit codes:
   0  No regressions

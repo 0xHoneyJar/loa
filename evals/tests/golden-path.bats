@@ -20,6 +20,9 @@ setup() {
   cp "$repo_root/.claude/scripts/golden-path.sh" "$TEST_DIR/.claude/scripts/golden-path.sh"
   cp "$repo_root/.claude/scripts/bootstrap.sh" "$TEST_DIR/.claude/scripts/bootstrap.sh"
   cp "$repo_root/.claude/scripts/path-lib.sh" "$TEST_DIR/.claude/scripts/path-lib.sh"
+  # golden-path.sh sources compat-lib.sh since cycle-128 (sprint-253); without
+  # it every case failed in setup
+  cp "$repo_root/.claude/scripts/compat-lib.sh" "$TEST_DIR/.claude/scripts/compat-lib.sh"
 
   # Create minimal config so path-lib uses defaults
   touch "$TEST_DIR/.loa.config.yaml"

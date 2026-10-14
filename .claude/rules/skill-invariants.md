@@ -1,3 +1,14 @@
+---
+paths:
+  - ".claude/skills/**/SKILL.md"
+  - ".claude/agents/**"
+  - ".claude/data/agent-types.yaml"
+  - ".claude/scripts/validate-skill-capabilities.sh"
+origin: enacted
+version: 1
+enacted_by: cycle-083
+---
+
 # Skill Frontmatter Invariants
 
 SKILL.md frontmatter keys interact across two permission layers: the skill's own `capabilities` / `allowed-tools` declarations, and Claude Code's per-agent-type tool allowlist. When the two disagree, the agent-type allowlist wins — silently. Agents that declare write capability but dispatch through a read-only agent type produce correct output and then refuse to persist it.

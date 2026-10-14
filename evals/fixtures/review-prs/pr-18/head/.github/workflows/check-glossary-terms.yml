@@ -1,0 +1,56 @@
+name: Glossary Terms
+
+# cycle-128 FR-6 (grimoires/loa/sdd.md D-6.2, D-6.3): every backticked framework
+# term in the kernel (.claude/loa/CLAUDE.loa.md) resolves to an entry or alias in
+# the framework glossary (.claude/loa/GLOSSARY.md), or to an allowlisted code
+# identifier (.claude/data/glossary-allowlist.txt, at most 30 entries).
+# tools/check-glossary-terms.sh is the gate; the two control steps prove the
+# gate itself still bites. This check is Loa's own: it runs in this repository
+# only, never in a project that mounts the framework.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  glossary-terms:
+    name: Kernel terms resolve to the glossary
+    if: github.repository == '0xHoneyJar/loa'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        # actions/checkout@v4.3.1 (pinned per cycle-098 supply-chain pattern)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check kernel terms against the glossary
+        run: |
+          set -euo pipefail
+          bash tools/check-glossary-terms.sh --report
+          bash .claude/scripts/validate-artifact.sh --type glossary --file .claude/loa/GLOSSARY.md
+          bash .claude/scripts/validate-artifact.sh --type glossary --file GLOSSARY.md
+
+      - name: Positive control (the gate rejects the miss fixture with exit 1)
+        if: success()   # controls prove the gate bites; a real failure above stays the visible failure
+        run: |
+          set -euo pipefail
+          d=tests/fixtures/glossary/miss
+          rc=0
+          bash tools/check-glossary-terms.sh --kernel "$d/kernel.md" --glossary "$d/GLOSSARY.md" --allowlist "$d/allowlist.txt" || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::check-glossary-terms.sh did not reject $d with exit 1 (got $rc)"
+            exit 1
+          fi
+          echo "OK: miss fixture rejected"
+
+      - name: Negative control (the gate accepts the ok fixture)
+        if: success()   # controls prove the gate bites; a real failure above stays the visible failure
+        run: |
+          set -euo pipefail
+          d=tests/fixtures/glossary/ok
+          if ! bash tools/check-glossary-terms.sh --kernel "$d/kernel.md" --glossary "$d/GLOSSARY.md" --allowlist "$d/allowlist.txt"; then
+            echo "::error::check-glossary-terms.sh false-positive on $d"
+            exit 1
+          fi
+          echo "OK: ok fixture accepted"

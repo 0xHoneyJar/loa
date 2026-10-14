@@ -5491,3 +5491,2019 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0172"
+    created_at: "2026-10-14T00:24:00Z"
+    updated_at: "2026-10-14T00:24:00Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "The FR-2 arm executor is Opus 5.5 (homogeneous); Fable's safeguard fallback makes a Fable run model-skewed; amends D33 (D38)"
+    decision: "run-arms.sh pins --model global.anthropic.claude-opus-5-5 for every batch; implementer B's proof trial on claude-fable-5-1 was refused by a safeguard (category cyber) and the CLI fell back to Opus 5.5 for the rest of the session with no flag to disable the fallback, so a Fable run mixes models unpredictably and reads inconclusive under the pre-registered skew rule; the model-transfer assumption (arms measured on Opus 5.5, the production gates run on Fable 5.1) is recorded in the arms report header and next to every kernel-row change the arms clear"
+    rationale: "the fixtures are security code, the very class the safeguards refuse; a homogeneous executor gives a measurement, a heterogeneous one gives an inconclusive by construction (sprint-255 reviewer-b.md Known Limitations)"
+    alternatives_considered:
+      - option: "keep Fable and accept the fallback as part of the gate"
+        rejected_because: "the fallback is per-session and nondeterministic, so trials of one arm would run on different models"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D38)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:24:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D38)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0173"
+    created_at: "2026-10-14T00:24:52Z"
+    updated_at: "2026-10-14T00:24:52Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "Arm batches are cost-gated: batch 1 runs now; batch 2 runs at full trials only if its projection from batch 1 stays under the sprint-248 spend (D39)"
+    decision: "batch 1 (pr-01..pr-08, 144 trials) starts after the Sprint 1 commit; the lead reads its MANIFEST cost and mean trial time, projects batch 2 (record fixtures, diffs 10-60 times larger) from them, and starts batch 2 at the pre-registered 3 trials only if the projection stays under 1,500 USD list (the sprint-248 dissent spend the operator absorbed); otherwise batch 2 runs one trial per fixture as a sizing pass, the record arms read inconclusive by pre-registration, and the Sprint 2 diet takes the D-2.4 fallback for them"
+    rationale: "an unattended cycle must not commit several thousand metered dollars on a projection nobody has seen (B measured 3.2-3.5 USD and 5-9 min per pr-01 trial; batch 2 is estimated at 18-30 h)"
+    alternatives_considered:
+      - option: "start both batches now at full trials"
+        rejected_because: "the cost of batch 2 is unmeasured and could exceed anything the operator has approved"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D39)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:24:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D39)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0174"
+    created_at: "2026-10-14T00:28:22Z"
+    updated_at: "2026-10-14T00:28:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: hook-guard.sh gets its own row (hook:hook-guard.sh, origin #1180) with the four unique registrations it wraps, so the register has 30 ho..."
+    decision: "hook-guard.sh gets its own row (hook:hook-guard.sh, origin #1180) with the four unique registrations it wraps, so the register has 30 hook rows where the SDD counted 29."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0175"
+    created_at: "2026-10-14T00:28:23Z"
+    updated_at: "2026-10-14T00:28:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Hook ids for scripts outside .claude/hooks/ are hook:scripts/<name>, keeping them distinct from hooks-dir root files such as hook:loa-kf..."
+    decision: "Hook ids for scripts outside .claude/hooks/ are hook:scripts/<name>, keeping them distinct from hooks-dir root files such as hook:loa-kf-surface.sh."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0176"
+    created_at: "2026-10-14T00:28:23Z"
+    updated_at: "2026-10-14T00:28:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: A registration with no matcher is written as the bare event (SessionStart), not SessionStart:."
+    decision: "A registration with no matcher is written as the bare event (SessionStart), not SessionStart:."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0177"
+    created_at: "2026-10-14T00:28:24Z"
+    updated_at: "2026-10-14T00:28:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The fence register has 34 ids: the 32 emit_block ids plus FR-SZ (override bypass row) and FR-SZ2 (bounded-marker allow row), which exist..."
+    decision: "The fence register has 34 ids: the 32 emit_block ids plus FR-SZ (override bypass row) and FR-SZ2 (bounded-marker allow row), which exist only as literal pattern_id: audit constants. Both are floor: true, per \"every fence:FR-SZ* and fence:FR-SZ2* id\"."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0178"
+    created_at: "2026-10-14T00:28:25Z"
+    updated_at: "2026-10-14T00:28:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The FR-1.2b marker sits above the if that guards the call, 4 lines above emit_block, not directly above it. This keeps my hunk away from..."
+    decision: "The FR-1.2b marker sits above the if that guards the call, 4 lines above emit_block, not directly above it. This keeps my hunk away from line 749, the message string implementer C edits, so the 3-way apply does not see adjacent changes."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0179"
+    created_at: "2026-10-14T00:28:26Z"
+    updated_at: "2026-10-14T00:28:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The replay: true field is added to all four fence audit-row writers (block, FR-MERGE-2 override, FR-SZ bypass, FR-SZ2 marker), not only..."
+    decision: "The replay: true field is added to all four fence audit-row writers (block, FR-MERGE-2 override, FR-SZ bypass, FR-SZ2 marker), not only emit_block. Rows are byte-identical when the variable is unset."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0180"
+    created_at: "2026-10-14T00:28:27Z"
+    updated_at: "2026-10-14T00:28:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: A burst fallback is added to the replay rule: a UTC minute holding 10 or more block rows is a replay. The SDD's cwd fallback caught zero..."
+    decision: "A burst fallback is added to the replay rule: a UTC minute holding 10 or more block rows is a replay. The SDD's cwd fallback caught zero of this host's replays because every row's cwd is the repository root."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0181"
+    created_at: "2026-10-14T00:28:28Z"
+    updated_at: "2026-10-14T00:28:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: outside_repo treats both this checkout and its main worktree (from git rev-parse --git-common-dir) as inside the repository. Other workt..."
+    decision: "outside_repo treats both this checkout and its main worktree (from git rev-parse --git-common-dir) as inside the repository. Other worktrees count as outside, which matches the inventory's \"scratch or worktree path\" FP class."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0182"
+    created_at: "2026-10-14T00:28:28Z"
+    updated_at: "2026-10-14T00:28:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Gate and policy rows carry an extra script: field naming the implementing file, so the lint can check that each gate's script exists. ga..."
+    decision: "Gate and policy rows carry an extra script: field naming the implementing file, so the lint can check that each gate's script exists. gate:success-criteria points at implementing-tasks/SKILL.md (class prose). gate:dissent-budget points at adversarial-review.sh, knob flatline_protocol.code_review.budget_cents. gate:kinds points at validate-artifact.sh ahead of C's rule."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0183"
+    created_at: "2026-10-14T00:28:29Z"
+    updated_at: "2026-10-14T00:28:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Hook rows carry registrations in the map, and the script fails (exit 5) when they differ from settings.json. A new registration therefor..."
+    decision: "Hook rows carry registrations in the map, and the script fails (exit 5) when they differ from settings.json. A new registration therefore needs a map edit, which is the lint's purpose."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0184"
+    created_at: "2026-10-14T00:28:30Z"
+    updated_at: "2026-10-14T00:28:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Status calls: the mutation loggers, permission-audit.sh and the Karpathy diff check are telemetry. The three team guards are dormant wit..."
+    decision: "Status calls: the mutation loggers, permission-audit.sh and the Karpathy diff check are telemetry. The three team guards are dormant with LOA_TEAM_MEMBER. implement-gate.sh is active with implement_gate.mode. fence:LEGACY is active with a note that check_and_block has no caller (there is no unreachable status)."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-11)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0185"
+    created_at: "2026-10-14T00:28:31Z"
+    updated_at: "2026-10-14T00:28:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Class calls follow the inventory: blocking or asking hooks are harness; session-start surfaces, reminders and loggers are script; the Ka..."
+    decision: "Class calls follow the inventory: blocking or asking hooks are harness; session-start surfaces, reminders and loggers are script; the Karpathy check is harness with telemetry status."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-12)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0186"
+    created_at: "2026-10-14T00:28:31Z"
+    updated_at: "2026-10-14T00:28:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The hook rows for block-destructive-bash.sh and adversarial-review-gate.sh are floor: false; the floor is carried by the fence-id rows a..."
+    decision: "The hook rows for block-destructive-bash.sh and adversarial-review-gate.sh are floor: false; the floor is carried by the fence-id rows and gate:adversarial-review-gate, exactly as floor.yaml lists."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0187"
+    created_at: "2026-10-14T00:28:32Z"
+    updated_at: "2026-10-14T00:28:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Validator rule ids beyond the prompt's minimum list are sprint.goal-ids, sprint.deferred, bug-triage.schema, translation.citations, map...."
+    decision: "Validator rule ids beyond the prompt's minimum list are sprint.goal-ids, sprint.deferred, bug-triage.schema, translation.citations, map.schema, map.beads, spike.sections and glossary.entries. The map.*, spike.* and glossary.* families became concrete ids because * is not in the id pattern. WARN-only rules such as SDD framework versions and the final-sprint E2E warning got no marker."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-14)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0188"
+    created_at: "2026-10-14T00:28:33Z"
+    updated_at: "2026-10-14T00:28:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: --json writes the files and prints the yield JSON on stdout, with the summary on stderr. --check never reads the audit log, so CI needs..."
+    decision: "--json writes the files and prints the yield JSON on stdout, with the summary on stderr. --check never reads the audit log, so CI needs none."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-15)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0189"
+    created_at: "2026-10-14T00:28:34Z"
+    updated_at: "2026-10-14T00:28:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: Extra flags --settings, --fence, --validator, --hooks-ref and --now exist for fixture tests and reproducible runs."
+    decision: "Extra flags --settings, --fence, --validator, --hooks-ref and --now exist for fixture tests and reproducible runs."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-16)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0190"
+    created_at: "2026-10-14T00:28:35Z"
+    updated_at: "2026-10-14T00:28:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The hooks table's \"## All Hook Registrations\" intro now names .claude/settings.json and the generator. The unregistered stop-input-probe..."
+    decision: "The hooks table's \"## All Hook Registrations\" intro now names .claude/settings.json and the generator. The unregistered stop-input-probe.sh row became a sentence below the generated block."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-17)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0191"
+    created_at: "2026-10-14T00:28:36Z"
+    updated_at: "2026-10-14T00:28:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl A: The CI step sits after the yq install, because the script needs yq, and before the first test step."
+    decision: "The CI step sits after the yq install, because the script needs yq, and before the first test step."
+    rationale: "implementer A's judgment call during cycle-129 sprint-255, recorded in reviewer-a.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-18)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-a.md#assumptions (impl-A-18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0192"
+    created_at: "2026-10-14T00:28:36Z"
+    updated_at: "2026-10-14T00:28:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Labels live in the hidden review-prs/labels/pr-NN.tsv, not pr-NN/labels.tsv, because the sandbox copies the whole fixture directory."
+    decision: "Labels live in the hidden review-prs/labels/pr-NN.tsv, not pr-NN/labels.tsv, because the sandbox copies the whole fixture directory."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-19)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0193"
+    created_at: "2026-10-14T00:28:37Z"
+    updated_at: "2026-10-14T00:28:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Fixture scope excludes grimoires/, .beads/, .run/, evals/results/, CHANGELOG.md, .claude/checksums.json, REPO-MAP.md, lock files and bin..."
+    decision: "Fixture scope excludes grimoires/, .beads/, .run/, evals/results/, CHANGELOG.md, .claude/checksums.json, REPO-MAP.md, lock files and binaries; renames are detected (-M)."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-20)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0194"
+    created_at: "2026-10-14T00:28:38Z"
+    updated_at: "2026-10-14T00:28:38Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: fix_commit is the last commit that closed the sprint's feedback, so head..fix covers every round. A label's file must be in the fixture..."
+    decision: "fix_commit is the last commit that closed the sprint's feedback, so head..fix covers every round. A label's file must be in the fixture as well as touched by the fix (a reviewer can only cite head/ files)."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-21)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0195"
+    created_at: "2026-10-14T00:28:39Z"
+    updated_at: "2026-10-14T00:28:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: A finding's locus is its first path cite. A bullet that opens with prose, a finding that calls itself pre-existing, and later-round sect..."
+    decision: "A finding's locus is its first path cite. A bullet that opens with prose, a finding that calls itself pre-existing, and later-round sections are not labels."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-22)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0196"
+    created_at: "2026-10-14T00:28:40Z"
+    updated_at: "2026-10-14T00:28:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: The anchor priority is: a quoted code snippet that is unique in the file (comment lines ignored in code), then fix hunks near the cited..."
+    decision: "The anchor priority is: a quoted code snippet that is unique in the file (comment lines ignored in code), then fix hunks near the cited line or inside the cited symbol, then the definition line of a short function. A file-level finding is anchored on the file's fix hunks only when there are at most four; at most four anchors per label."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-23)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0197"
+    created_at: "2026-10-14T00:28:41Z"
+    updated_at: "2026-10-14T00:28:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Curation rows (labels/curation.tsv): pr-11 L04 re-anchored on load_observed; pr-12 L02 on result=$(_fold_companion; pr-12 L04 and L06 on..."
+    decision: "Curation rows (labels/curation.tsv): pr-11 L04 re-anchored on load_observed; pr-12 L02 on result=$(_fold_companion; pr-12 L04 and L06 on the companion fork line; pr-12 L07 on _adv_cred_present; pr-13 L01 on the LOA_CONTEXT_CLASS comparisons; pr-17 L17 on san1. pr-14 L03 is dropped (the sanitiser it names does not exist at head). pr-18 L04 is dropped (a byte-budget note with no code site)."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-24)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0198"
+    created_at: "2026-10-14T00:28:41Z"
+    updated_at: "2026-10-14T00:28:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Recall counts feedback labels only. fix rows feed refuted share only. The grader moves to 1.2.0, adding fields without changing the reca..."
+    decision: "Recall counts feedback labels only. fix rows feed refuted share only. The grader moves to 1.2.0, adding fields without changing the recall rule."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-25)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0199"
+    created_at: "2026-10-14T00:28:42Z"
+    updated_at: "2026-10-14T00:28:42Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: The baseline-spread rule gates recall-rule violations only; a refuted-share violation is recall loss."
+    decision: "The baseline-spread rule gates recall-rule violations only; a refuted-share violation is recall loss."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-26)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0200"
+    created_at: "2026-10-14T00:28:43Z"
+    updated_at: "2026-10-14T00:28:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Label files stay # approved-by: pending; approval is the lead's (--approve), and run-arms.sh refuses unapproved fixtures unless --allow-..."
+    decision: "Label files stay # approved-by: pending; approval is the lead's (--approve), and run-arms.sh refuses unapproved fixtures unless --allow-unapproved."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-27)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0201"
+    created_at: "2026-10-14T00:28:44Z"
+    updated_at: "2026-10-14T00:28:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: In arm mode, every arm gets the source tree's .loa.config.yaml, so only the toggled key differs between arms."
+    decision: "In arm mode, every arm gets the source tree's .loa.config.yaml, so only the toggled key differs between arms."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-28)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0202"
+    created_at: "2026-10-14T00:28:45Z"
+    updated_at: "2026-10-14T00:28:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Results are per batch (<suite>/<batch>/) with a suite-level aggregate STATUS.json, so a second batch never shares a writer with the first."
+    decision: "Results are per batch (<suite>/<batch>/) with a suite-level aggregate STATUS.json, so a second batch never shares a writer with the first."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-29)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0203"
+    created_at: "2026-10-14T00:28:46Z"
+    updated_at: "2026-10-14T00:28:46Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Secret-shaped strings in verbatim copies become REDACTED-TEST-SECRET consistently in base/, head/ and head.diff (line numbers unchanged)..."
+    decision: "Secret-shaped strings in verbatim copies become REDACTED-TEST-SECRET consistently in base/, head/ and head.diff (line numbers unchanged), and the count is recorded in labels/pr-NN.dropped.txt."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-30)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-30)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0204"
+    created_at: "2026-10-14T00:28:47Z"
+    updated_at: "2026-10-14T00:28:47Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Record-fixture tasks get per_trial: 3600 (pr-01 … pr-10 keep 1500)."
+    decision: "Record-fixture tasks get per_trial: 3600 (pr-01 … pr-10 keep 1500)."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-31)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-31)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0205"
+    created_at: "2026-10-14T00:28:48Z"
+    updated_at: "2026-10-14T00:28:48Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: I ran a second single real trial after the decoupling fix, with the transcript kept. The first trial's model split had to be explained b..."
+    decision: "I ran a second single real trial after the decoupling fix, with the transcript kept. The first trial's model split had to be explained before any batch starts. No other real trial was run."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-32)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-32)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0206"
+    created_at: "2026-10-14T00:28:49Z"
+    updated_at: "2026-10-14T00:28:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Batch 1 is pr-01 … pr-08 and excludes the clean controls pr-09/pr-10, keeping the pre-registered 288 runs."
+    decision: "Batch 1 is pr-01 … pr-08 and excludes the clean controls pr-09/pr-10, keeping the pre-registered 288 runs."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-33)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-33)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0207"
+    created_at: "2026-10-14T00:28:49Z"
+    updated_at: "2026-10-14T00:28:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: The transport retry waits 300 s by default (a session or rate limit needs time), and the bootstrap seed is fixed per (suite, arm), so re..."
+    decision: "The transport retry waits 300 s by default (a session or rate limit needs time), and the bootstrap seed is fixed per (suite, arm), so reports are reproducible."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-34)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-34)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0208"
+    created_at: "2026-10-14T00:28:50Z"
+    updated_at: "2026-10-14T00:28:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: Label categories come from a keyword heuristic over the title (security, concurrency, error-handling, test, docs, logic); they are descr..."
+    decision: "Label categories come from a keyword heuristic over the title (security, concurrency, error-handling, test, docs, logic); they are descriptive only."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-35)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-35)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0209"
+    created_at: "2026-10-14T00:28:51Z"
+    updated_at: "2026-10-14T00:28:51Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl B: golden-path.bats is fixed in place (it is under evals/, which this task owns)."
+    decision: "golden-path.bats is fixed in place (it is under evals/, which this task owns)."
+    rationale: "implementer B's judgment call during cycle-129 sprint-255, recorded in reviewer-b.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-36)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-b.md#assumptions (impl-B-36)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0210"
+    created_at: "2026-10-14T00:28:52Z"
+    updated_at: "2026-10-14T00:28:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The removed bytes are the zone sentence (repeats the frontmatter zones: block and the kernel's Three-Zone table) and the Red Flags paren..."
+    decision: "The removed bytes are the zone sentence (repeats the frontmatter zones: block and the kernel's Three-Zone table) and the Red Flags parenthetical (repeats resources/REFERENCE.md §Red Flags)."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-37)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-37)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0211"
+    created_at: "2026-10-14T00:28:53Z"
+    updated_at: "2026-10-14T00:28:53Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The axis sentence sits in Phase 2 after the \"check the acceptance criteria\" paragraph, prefixed **Task kinds**:, with the prompt's sente..."
+    decision: "The axis sentence sits in Phase 2 after the \"check the acceptance criteria\" paragraph, prefixed **Task kinds**:, with the prompt's sentence verbatim."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-38)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-38)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0212"
+    created_at: "2026-10-14T00:28:54Z"
+    updated_at: "2026-10-14T00:28:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: Only top-level checkbox lines are task lines; in a ### Task N.E2E block only - [ ] Task … lines count, so acceptance checkboxes there ar..."
+    decision: "Only top-level checkbox lines are task lines; in a ### Task N.E2E block only - [ ] Task … lines count, so acceptance checkboxes there are not tasks."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-39)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-39)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0213"
+    created_at: "2026-10-14T00:28:55Z"
+    updated_at: "2026-10-14T00:28:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: Inline code spans are not tokens: they are stripped before counting, and a tag inside backticks does not satisfy the rule."
+    decision: "Inline code spans are not tokens: they are stripped before counting, and a tag inside backticks does not satisfy the rule."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-40)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-40)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0214"
+    created_at: "2026-10-14T00:28:56Z"
+    updated_at: "2026-10-14T00:28:56Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The kind keyword and its value are lower case only."
+    decision: "The kind keyword and its value are lower case only."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-41)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-41)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0215"
+    created_at: "2026-10-14T00:28:57Z"
+    updated_at: "2026-10-14T00:28:57Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: A pre-date or undated non-live plan gets one aggregated WARN; a live undated plan gets one violation and the rule stops, as the Seams ga..."
+    decision: "A pre-date or undated non-live plan gets one aggregated WARN; a live undated plan gets one violation and the rule stops, as the Seams gate does."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-42)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-42)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0216"
+    created_at: "2026-10-14T00:28:58Z"
+    updated_at: "2026-10-14T00:28:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The judgment WARN fires when at least one recognised file token is present and all are .sh/.py/.ts, or when script, lint or generate app..."
+    decision: "The judgment WARN fires when at least one recognised file token is present and all are .sh/.py/.ts, or when script, lint or generate appears as a whole word outside inline code."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-43)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-43)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0217"
+    created_at: "2026-10-14T00:28:58Z"
+    updated_at: "2026-10-14T00:28:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The Seams suite's fixture task line gains · kind: mechanical; without it SEAMS-12's 2026-10-14 plan fails the new rule."
+    decision: "The Seams suite's fixture task line gains · kind: mechanical; without it SEAMS-12's 2026-10-14 plan fails the new rule."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-44)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-44)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0218"
+    created_at: "2026-10-14T00:28:59Z"
+    updated_at: "2026-10-14T00:28:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The template tags its Sprint 1 and Sprint 2 example task lines, with the two-line kind explanation as an HTML comment beside the existin..."
+    decision: "The template tags its Sprint 1 and Sprint 2 example task lines, with the two-line kind explanation as an HTML comment beside the existing annotation comments."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-45)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:28:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-45)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0219"
+    created_at: "2026-10-14T00:29:00Z"
+    updated_at: "2026-10-14T00:29:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The eval task uses the .yml extension so evals/suites/review-recall.yaml (include tasks/review-recall/**/*.yaml) does not pick it up; ru..."
+    decision: "The eval task uses the .yml extension so evals/suites/review-recall.yaml (include tasks/review-recall/**/*.yaml) does not pick it up; run-eval.sh --task still finds it."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-46)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-46)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0220"
+    created_at: "2026-10-14T00:29:01Z"
+    updated_at: "2026-10-14T00:29:01Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The eval grader is pattern-match.sh with [*][*]MEDIUM[*][*].*[Mm]echanical, because validate-task.sh refuses | and \\ in grader args and..."
+    decision: "The eval grader is pattern-match.sh with [*][*]MEDIUM[*][*].*[Mm]echanical, because validate-task.sh refuses | and \\ in grader args and the recall grader needs a manifest in B's corpus."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-47)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-47)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0221"
+    created_at: "2026-10-14T00:29:02Z"
+    updated_at: "2026-10-14T00:29:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The fixture lives under evals/fixtures/review-kinds/, outside B's review-prs/ corpus and its SHA256SUMS."
+    decision: "The fixture lives under evals/fixtures/review-kinds/, outside B's review-prs/ corpus and its SHA256SUMS."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-48)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-48)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0222"
+    created_at: "2026-10-14T00:29:03Z"
+    updated_at: "2026-10-14T00:29:03Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: cycle-ratio.sh uses committer timestamps with both ends inclusive; prose bytes are the byte length of each added or removed .md line wit..."
+    decision: "cycle-ratio.sh uses committer timestamps with both ends inclusive; prose bytes are the byte length of each added or removed .md line with its newline; renames detected; binaries skipped; git runs in the current directory's repository."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-49)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-49)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0223"
+    created_at: "2026-10-14T00:29:04Z"
+    updated_at: "2026-10-14T00:29:04Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: cycle-ratio.sh reports untagged task lines in --json and on stderr, not in the kinds: line, which keeps the specified three counts."
+    decision: "cycle-ratio.sh reports untagged task lines in --json and on stderr, not in the kinds: line, which keeps the specified three counts."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-50)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-50)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0224"
+    created_at: "2026-10-14T00:29:05Z"
+    updated_at: "2026-10-14T00:29:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: Only rows with primitive_id MODELINV and a parseable ts_utc are counted."
+    decision: "Only rows with primitive_id MODELINV and a parseable ts_utc are counted."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-51)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-51)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0225"
+    created_at: "2026-10-14T00:29:06Z"
+    updated_at: "2026-10-14T00:29:06Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: Exit 2 also covers outside a repository, an unreadable plan and missing jq; a SHA starting with - is exit 3."
+    decision: "Exit 2 also covers outside a repository, an unreadable plan and missing jq; a SHA starting with - is exit 3."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-52)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-52)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0226"
+    created_at: "2026-10-14T00:29:07Z"
+    updated_at: "2026-10-14T00:29:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The new frontmatter uses the same list form with origin: enacted, version: 1, enacted_by: cycle-083, taken from the introducing commits..."
+    decision: "The new frontmatter uses the same list form with origin: enacted, version: 1, enacted_by: cycle-083, taken from the introducing commits d74b2886 and d1e548d5."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-53)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-53)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0227"
+    created_at: "2026-10-14T00:29:08Z"
+    updated_at: "2026-10-14T00:29:08Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The FR-1.2b message already ended Rules: .claude/rules/stash-safety.md; that tail became ; see .claude/rules/stash-safety.md."
+    decision: "The FR-1.2b message already ended Rules: .claude/rules/stash-safety.md; that tail became ; see .claude/rules/stash-safety.md."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-54)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-54)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0228"
+    created_at: "2026-10-14T00:29:09Z"
+    updated_at: "2026-10-14T00:29:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The implementing-tasks app-zone value is read-write, from the vocabulary none | read | read-write in use; run-bridge uses read-write for..."
+    decision: "The implementing-tasks app-zone value is read-write, from the vocabulary none | read | read-write in use; run-bridge uses read-write for its app zone; the only test pinning app read covers the review and audit skills."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-55)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-55)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0229"
+    created_at: "2026-10-14T00:29:10Z"
+    updated_at: "2026-10-14T00:29:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 impl C: The stale protocol numbers in prompt-budget.bats's header comment were corrected with the workflow comment; they are the same drift."
+    decision: "The stale protocol numbers in prompt-budget.bats's header comment were corrected with the workflow comment; they are the same drift."
+    rationale: "implementer C's judgment call during cycle-129 sprint-255, recorded in reviewer-c.md Assumptions; the lead reviewed it at integration"
+    alternatives_considered:
+      - option: "the alternative the SDD or prompt implied"
+        rejected_because: "see the implementer's report line; the lead kept the implementer's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-56)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:29:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer-c.md#assumptions (impl-C-56)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0230"
+    created_at: "2026-10-14T00:40:39Z"
+    updated_at: "2026-10-14T00:40:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 lead: The validator:sprint.kinds origin row was added by the lead at integration (origin cycle-129 D-10.1 (DEC-0144)) rather than sent back to A..."
+    decision: "The validator:sprint.kinds origin row was added by the lead at integration (origin cycle-129 D-10.1 (DEC-0144)) rather than sent back to A: a one-row data fix the lint demanded."
+    rationale: "lead integration call for cycle-129 sprint-255, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:40:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0231"
+    created_at: "2026-10-14T00:40:39Z"
+    updated_at: "2026-10-14T00:40:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 lead: The fixture dist/ copies are re-included in .gitignore (two negation lines mirroring the existing bridgebuilder-review lines) and copied f..."
+    decision: "The fixture dist/ copies are re-included in .gitignore (two negation lines mirroring the existing bridgebuilder-review lines) and copied from B's worktree, keeping B's verbatim-copy design and the frozen SHA256SUMS intact."
+    rationale: "lead integration call for cycle-129 sprint-255, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:40:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0232"
+    created_at: "2026-10-14T00:40:40Z"
+    updated_at: "2026-10-14T00:40:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 lead: All eight label files were approved after the lead read every label (--approve pr-NN --by \"lead 2026-10-14\"); nine machine-chosen anchors ..."
+    decision: "All eight label files were approved after the lead read every label (--approve pr-NN --by \"lead 2026-10-14\"); nine machine-chosen anchors had already been hand-corrected by B in labels/curation.tsv."
+    rationale: "lead integration call for cycle-129 sprint-255, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:40:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0233"
+    created_at: "2026-10-14T00:40:41Z"
+    updated_at: "2026-10-14T00:40:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 lead: The arm executor is Opus 5.5 (DEC-0172) and batch 2 is cost-gated (DEC-0173); batch 1 starts after the sprint commit, not before, because ..."
+    decision: "The arm executor is Opus 5.5 (DEC-0172) and batch 2 is cost-gated (DEC-0173); batch 1 starts after the sprint commit, not before, because the manifest records a dirty harness otherwise."
+    rationale: "lead integration call for cycle-129 sprint-255, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:40:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0234"
+    created_at: "2026-10-14T00:40:42Z"
+    updated_at: "2026-10-14T00:40:42Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S1 lead: The sprint plan's fixture numbering and AC-1.3 wording were amended to the as-built state (pr-11 … pr-18; structural register per DEC-0162..."
+    decision: "The sprint plan's fixture numbering and AC-1.3 wording were amended to the as-built state (pr-11 … pr-18; structural register per DEC-0162) rather than the fixtures renamed."
+    rationale: "lead integration call for cycle-129 sprint-255, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "ffd25258"
+    source: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T00:40:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-255/reviewer.md#decisions-taken-during-integration-lead (lead-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

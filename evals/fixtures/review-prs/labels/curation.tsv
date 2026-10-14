@@ -1,0 +1,17 @@
+# curation.tsv — the hand curation seed-corpus-from-record.sh applies after seeding (cycle-129 FR-2, SDD D-2.2).
+# One row per decision; re-seeding a fixture re-applies them, so curation survives regeneration.
+#   label   the seeded label number (L01 …), stable for a given record ref and pair
+#   action  drop    — the finding is not a label for this fixture (reason says why)
+#           anchors — replace the seeded anchors with these must_match strings (separated by " ||| "),
+#                     each on exactly one line of head/<file>
+#   reason  why, in one line (the implementation report repeats it as an [ASSUMPTION decision])
+fixture	label	action	value	reason
+pr-11	L04	anchors	def load_observed(path: Optional[str] = None)	the seeded --write-catalog row is the probe-command constant above the store, not the symlinked read
+pr-12	L02	anchors	result=$(_fold_companion	the quoted unguarded assignment is the site; the extra seeded rows were main()'s argument parser
+pr-12	L04	anchors	$companion_chain_str >/dev/null 2>&1 ) &	the defect is the backgrounded companion fork with no trap; the seeded rows sat in main()'s argument parser
+pr-12	L06	anchors	$companion_chain_str >/dev/null 2>&1 ) & ||| _walk_companion_chain() {	the >/dev/null 2>&1 the finding quotes is on the fork line; the walk function stays as the second site
+pr-12	L07	anchors	_adv_cred_present() {	the seeded _repair_model() row is the next function, not the credential pipeline
+pr-13	L01	anchors	if [[ "${LOA_CONTEXT_CLASS:-}" == "standard" ]]; then ||| elif [[ "${LOA_CONTEXT_CLASS:-}" == "long" ]]; then	the case-sensitive LOA_CONTEXT_CLASS comparisons are the site; the seeded rows were the neighbouring helper
+pr-14	L03	drop	-	the stderr sanitisers the audit describes were added after head (review rounds); head has no sanitiser to find
+pr-17	L17	anchors	san1(){ printf	san1 is the cited function; the seeded rows were the --help line and a path constant
+pr-18	L04	drop	-	a byte-budget headroom note on three skill files with no code site; a line-anchored grader cannot credit it

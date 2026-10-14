@@ -27,3 +27,11 @@ pr-09	clean	1166c97b	.claude/scripts/butterfreezone-validate.sh	-	-	-	-
 pr-09	clean	1166c97b	tests/unit/butterfreezone-validate-route-false-positive.bats	-	-	-	-
 pr-10	clean	f3f280c1	.claude/scripts/loa-doctor.sh	-	-	-	-
 pr-10	clean	f3f280c1	tests/unit/bug-725-ajv-version-probe.bats	-	-	-	-
+pr-11	record	7246ae55	labels/pr-11.tsv	-	-	-	-
+pr-12	record	6c887887	labels/pr-12.tsv	-	-	-	-
+pr-13	record	41b783a1	labels/pr-13.tsv	-	-	-	-
+pr-14	record	d785fc9a	labels/pr-14.tsv	-	-	-	-
+pr-15	record	8ad37c55	labels/pr-15.tsv	-	-	-	-
+pr-16	record	8dc4a49d	labels/pr-16.tsv	-	-	-	-
+pr-17	record	cea919ca	labels/pr-17.tsv	-	-	-	-
+pr-18	record	efacf754	labels/pr-18.tsv	-	-	-	-

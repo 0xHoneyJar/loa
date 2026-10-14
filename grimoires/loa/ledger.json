@@ -2478,7 +2478,7 @@
         {
           "global_id": 255,
           "local_label": "sprint-1",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-13T21:27:39Z",
           "completed": null,
           "theme": "Guard register and yield, control arms, task kinds, rule path-scoping",
@@ -2939,5 +2939,5 @@
     }
   ],
   "next_sprint_number": 258,
-  "last_updated": "2026-10-13T22:22:26Z"
+  "last_updated": "2026-10-13T22:30:30Z"
 }

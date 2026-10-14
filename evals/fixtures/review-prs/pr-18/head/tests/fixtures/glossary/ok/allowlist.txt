@@ -1,0 +1,2 @@
+# Fixture allowlist
+parse_it   # code identifier in the fixture kernel

@@ -1,0 +1,694 @@
+"""Anthropic provider adapter — handles Anthropic Messages API (SDD §4.2.5).
+
+Sprint 4A (cycle-102, AC-4.5e): `complete()` defaults to the streaming
+transport (`http_post_stream` + `parse_anthropic_stream`). The
+non-streaming path is preserved behind the `LOA_CHEVAL_DISABLE_STREAMING=1`
+env-var kill switch for operator one-shot backstop. Streaming eliminates
+KF-002 layer 3 (`httpx.RemoteProtocolError` at 60s wall-clock) by
+construction — see `grimoires/loa/known-failures.md` and
+`grimoires/loa/cycles/cycle-102-model-stability/sprint.md` Sprint 4A.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import Any, Dict, List, Optional
+
+from loa_cheval.providers.anthropic_streaming import parse_anthropic_stream
+from loa_cheval.providers.base import (
+    ProviderAdapter,
+    _streaming_disabled,
+    enforce_context_window,
+    http_post,
+    http_post_stream,
+    _legacy_wire,
+)
+from loa_cheval.streaming import StreamingRecoveryAbort
+from loa_cheval.types import (
+    CompletionRequest,
+    CompletionResult,
+    InvalidInputError,
+    ProviderStreamError,
+    ModelNotFoundError,
+    ProviderUnavailableError,
+    RateLimitError,
+    Usage,
+    dispatch_provider_stream_error,
+)
+from loa_cheval.routing import EmptyContentError
+
+logger = logging.getLogger("loa_cheval.providers.anthropic")
+
+# cycle-114 FR-2: valid values for the Anthropic `output_config.effort` control
+# (Opus 4.5+/Sonnet 4.6). Effort governs reasoning depth WITHOUT manual
+# thinking budgets — Opus 4.7/4.8 reject `thinking.budget_tokens` with HTTP 400.
+_VALID_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
+
+# cycle-124 FR-2 (SDD §3.2): per-family effort emission. The reference lists
+# `output_config.effort` on Opus 4.5+ / Sonnet 4.6+ / Fable; `xhigh` is not
+# accepted on the 4.6 generation (downgraded to `high`, logged); the Sonnet
+# 4.5 snapshot and Haiku 4.5 predate the control, so effort is omitted there
+# rather than 400ing the call. Keyed by model-id prefix — no catalog key.
+_EFFORT_UNSUPPORTED_PREFIXES = ("claude-sonnet-4-5", "claude-haiku-4-5")
+_EFFORT_NO_XHIGH_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
+# Every other Anthropic HTTP family accepts all five levels. Kept as a
+# positive list so the catalog invariant test can prove each id falls in
+# exactly one of the three tuples (a new id must be classified, not assumed).
+_EFFORT_FULL_PREFIXES = ("claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5")
+
+
+# cycle-124 audit (slice A): under LOA_CHEVAL_DISABLE_STREAMING the default
+# output budget is 16K with thinking on, but the non-streaming read timeout is
+# a flat 120 s — a long answer became an httpx.ReadTimeout retried four times,
+# each attempt billed. The read timeout is never shortened, only lengthened to
+# cover the requested budget at a conservative 25 tok/s, capped at 600 s.
+_NONSTREAMING_TIMEOUT_TOKENS_PER_S = 25.0
+_NONSTREAMING_TIMEOUT_CAP_S = 600.0
+_NONSTREAMING_TIMEOUT_FLOOR_TOKENS = 4096
+
+
+def _nonstreaming_read_timeout(configured: float, max_tokens: Any) -> float:
+    """Read timeout for one non-streaming call: the configured value, or
+    longer when `max_tokens` exceeds the pre-cycle 4096 default."""
+    try:
+        budget = int(max_tokens)
+    except (TypeError, ValueError):
+        return configured
+    if budget <= _NONSTREAMING_TIMEOUT_FLOOR_TOKENS:
+        return configured
+    needed = min(_NONSTREAMING_TIMEOUT_CAP_S, 30.0 + budget / _NONSTREAMING_TIMEOUT_TOKENS_PER_S)
+    return max(float(configured), needed)
+
+
+def _is_model_not_found(message: str) -> bool:
+    """True for Anthropic's model-not-found 404 (`model: <id>`), not for an
+    endpoint/config 404 (`Not Found`) — only the former is chain-walkable
+    (cycle-124 FR-3; the review panel's endpoint-typo scenario stays terminal).
+    """
+    return str(message or "").lstrip().lower().startswith("model:")
+
+
+# cycle-124 FR-1 review follow-up: the framework's own bindings run at 0.2–0.6,
+# so a per-call WARNING would fire on essentially every dispatch and bury the
+# budget/stop-reason warnings that share the channel. Warn once per model per
+# process; later drops for the same model log at INFO.
+_TEMPERATURE_DROP_WARNED: set = set()
+
+
+def _effort_for_model(model: str, effort: str) -> Optional[str]:
+    """Map a validated effort onto what `model` accepts; None ⇒ omit the field."""
+    if model.startswith(_EFFORT_UNSUPPORTED_PREFIXES):
+        logger.info("effort %r omitted: %s predates output_config.effort", effort, model)
+        return None
+    if effort == "xhigh" and model.startswith(_EFFORT_NO_XHIGH_PREFIXES):
+        logger.warning("effort xhigh downgraded to high: %s does not accept xhigh", model)
+        return "high"
+    return effort
+
+
+# cycle-109 followup #883 Bug 3 — billing-class error classification.
+# Anthropic returns HTTP 400 with these signals when the API account is
+# unable to dispatch due to billing state (credit depleted, quota
+# exceeded, invoice overdue, etc.). Without this classifier, the
+# adapter raises InvalidInputError which is TERMINAL — preventing the
+# cycle-104 within-company chain from walking to its claude-headless
+# CLI terminal. Each token below is matched case-insensitively against
+# the upstream error message.
+_BILLING_CLASS_TOKENS = (
+    "credit balance",
+    "credit_balance",
+    "quota_exceeded",
+    "quota exceeded",
+    "invoice_overdue",
+    "invoice overdue",
+    "billing_disabled",
+    "billing disabled",
+    "payment_required",
+    "payment required",
+    "insufficient_quota",
+    "insufficient quota",
+)
+
+
+def _is_billing_class_error(message: str) -> bool:
+    """Return True when an HTTP 4xx error message indicates a billing-class
+    condition (account-side, NOT request-side). Billing-class errors should
+    chain-walk via ProviderUnavailableError; param errors stay terminal via
+    InvalidInputError.
+
+    Adding a token: append to `_BILLING_CLASS_TOKENS`. Each token matches
+    case-insensitively as a substring of the upstream error message.
+    """
+    if not message:
+        return False
+    haystack = message.lower()
+    return any(token in haystack for token in _BILLING_CLASS_TOKENS)
+
+
+def _is_refusal(metadata: Optional[Dict[str, Any]]) -> bool:
+    """issue #1102: True when the provider returned stop_reason == "refusal".
+
+    A Fable/Anthropic refusal arrives as HTTP 200 + non-empty prose +
+    stop_reason "refusal". Treating it as empty-content (retryable) lets the
+    within-company chain walk instead of the flatline arbiter silently
+    passing a zero-decision gate.
+    """
+    return bool(metadata) and metadata.get("stop_reason") == "refusal"
+
+
+class AnthropicAdapter(ProviderAdapter):
+    """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
+
+    def complete(self, request: CompletionRequest) -> CompletionResult:
+        """Send completion request to Anthropic API, return normalized result.
+
+        Sprint 4A: streaming is the default path (KF-002 layer 3 mitigation).
+        Set `LOA_CHEVAL_DISABLE_STREAMING=1` to force the legacy non-streaming
+        path as a one-shot operator backstop.
+        """
+        model_config = self._get_model_config(request.model)
+
+        # Context window enforcement (SDD §4.2.4)
+        enforce_context_window(request, model_config)
+
+        # Transform request from canonical to Anthropic format
+        system_prompt, messages = _transform_messages(request.messages)
+
+        body: Dict[str, Any] = {
+            "model": request.model,
+            "messages": messages,
+            "max_tokens": request.max_tokens,
+        }
+        # #641: Opus 4 deprecated `temperature` and rejects requests that include
+        # it with HTTP 400 ("temperature is deprecated for this model"). Gate the
+        # field on a per-model wire-protocol flag. Default True preserves
+        # back-compat for Claude 3, 3.5, and pre-4 Opus models.
+        # `isinstance` guard handles malformed configs (e.g. `params: "false"` or
+        # `params: [foo]` in YAML pass dataclass construction since Python type
+        # hints aren't enforced at runtime, but would raise AttributeError on
+        # `.get()`). Lenient default → treat malformed as missing → include
+        # temperature; dataclass schema validation upstream is the strict path.
+        params = model_config.params if isinstance(model_config.params, dict) else {}
+        if params.get("temperature_supported", True):
+            body["temperature"] = request.temperature
+        elif request.temperature != 0.7:
+            # cycle-124 FR-1 (SDD §3.3): the silent omission is now visible —
+            # thinking-enabled models reject sampling params with HTTP 400, so
+            # a caller-supplied temperature (top_p / top_k are not request
+            # fields) is dropped — WARNING the first time per model, INFO after.
+            _level = logging.INFO if request.model in _TEMPERATURE_DROP_WARNED else logging.WARNING
+            _TEMPERATURE_DROP_WARNED.add(request.model)
+            logger.log(
+                _level,
+                "temperature %s dropped for %s (thinking-enabled / sampling params rejected)",
+                request.temperature, request.model,
+            )
+
+        # cycle-124 FR-1 (SDD §3.3): adaptive thinking is OFF unless requested
+        # on Opus 4.6/4.7/4.8 + Sonnet 4.6 and default-on for Opus 5 / Sonnet 5;
+        # the catalog flag makes every hop behave the same. NEVER budget_tokens
+        # (400 on 4.7+), NEVER type=disabled (400 on Fable — omit instead).
+        # LOA_CHEVAL_LEGACY_WIRE restores the pre-cycle body.
+        if params.get("thinking_adaptive") is True and not _legacy_wire():
+            body["thinking"] = {"type": "adaptive"}
+
+        if system_prompt:
+            body["system"] = system_prompt
+
+        if request.tools:
+            body["tools"] = _transform_tools_to_anthropic(request.tools)
+        if request.tool_choice:
+            body["tool_choice"] = _transform_tool_choice(request.tool_choice)
+
+        # cycle-114 FR-2: reasoning-depth control via output_config.effort.
+        # Precedence: explicit request.effort > metadata["effort"]. When unset,
+        # the body is byte-identical to the pre-cycle-114 shape (model default
+        # effort = "high"). NEVER emit thinking.budget_tokens — adaptive-thinking
+        # Opus 4.7/4.8 reject it with HTTP 400; effort is the supported control.
+        effort = request.effort or (
+            (request.metadata or {}).get("effort") if request.metadata else None
+        )
+        if effort is not None:
+            if effort not in _VALID_EFFORT:
+                raise InvalidInputError(
+                    f"invalid effort {effort!r}; expected one of "
+                    f"{sorted(_VALID_EFFORT)}"
+                )
+            effort = _effort_for_model(request.model, effort)
+        if effort is not None:
+            body.setdefault("output_config", {})["effort"] = effort
+
+        # cycle-124 FR-7 (SDD §2.2): schema-enforced output on entries that
+        # declare the `structured_json` capability — the strict subset the wire
+        # schemas are authored in. Other entries run unenforced (the caller's
+        # tolerant parser stays); LOA_CHEVAL_LEGACY_WIRE omits the key.
+        if (
+            request.output_schema is not None
+            and "structured_json" in (model_config.capabilities or [])
+            and not _legacy_wire()
+        ):
+            body.setdefault("output_config", {})["format"] = {
+                "type": "json_schema",
+                "schema": request.output_schema,
+            }
+
+        # Build headers — Anthropic uses x-api-key, not Bearer token
+        auth = self._get_auth_header()
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": auth,
+            "anthropic-version": "2023-06-01",
+        }
+
+        url = f"{self.config.endpoint}/messages"
+
+        # Sprint 4A: streaming default with operator kill switch.
+        # Detection centralized in `base._streaming_disabled()` so adapters
+        # + audit-emit share identical semantics (Sprint 4A DISS-001 closure).
+        if _streaming_disabled():
+            return self._complete_nonstreaming(url, headers, body)
+        return self._complete_streaming(url, headers, body)
+
+    def _complete_streaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Sprint 4A default path: streaming Messages API."""
+        # Anthropic Messages API expects `stream: true` in the request body
+        # to switch to SSE response format.
+        body = dict(body)
+        body["stream"] = True
+
+        start = time.monotonic()
+        with http_post_stream(
+            url=url,
+            headers=headers,
+            body=body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+        ) as resp:
+            status = resp.status_code
+
+            if status >= 400:
+                # On error, the body is regular JSON (not SSE). Drain + parse.
+                err_bytes = b"".join(resp.iter_bytes())
+                try:
+                    import json
+                    err_json = json.loads(err_bytes.decode("utf-8", errors="replace"))
+                except Exception:
+                    err_json = {"error": {"message": err_bytes.decode("utf-8", errors="replace")[:500]}}
+                if status == 429:
+                    raise RateLimitError(self.provider)
+                if status >= 500:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status}: {_extract_error_message(err_json)}",
+                    )
+                _msg = _extract_error_message(err_json)
+                # cycle-124 FR-3: model-not-found on a newly named primary id
+                # (an account that does not serve it yet) walks the within-
+                # company chain instead of failing terminally at first use.
+                if status == 404 and _is_model_not_found(_msg):
+                    raise ModelNotFoundError(
+                        self.provider,
+                        f"HTTP 404 model-not-found: {_msg}",
+                    )
+                # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+                # ProviderUnavailableError so the cycle-104 within-company
+                # chain walks to its claude-headless CLI terminal.
+                if _is_billing_class_error(_msg):
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status} billing-class: {_msg}",
+                    )
+                raise InvalidInputError(
+                    f"Anthropic API error (HTTP {status}): {_msg}"
+                )
+
+            # Parse the SSE event stream into a CompletionResult.
+            # Sprint 4A cycle-3 (BF-001): map parser-raised ValueError to
+            # typed adapter exception so the retry layer routes it via the
+            # same arms as non-streaming HTTP error paths. Mid-stream
+            # provider errors (Anthropic `error` SSE events, malformed data
+            # frames, OpenAI `response.failed`, Google SAFETY/RECITATION
+            # blocks) all surface as ValueError from the parser; without
+            # this wrapper, they would bypass RateLimitError /
+            # ProviderUnavailableError / InvalidInputError classification
+            # and the retry layer's typed-transient handling.
+            try:
+                result = parse_anthropic_stream(
+                    resp.iter_bytes(),
+                    provider=self.provider,
+                    # cycle-113 T1.7: kwargs forward to the streaming
+                    # recovery integration. Defaults pass library
+                    # thresholds through unchanged. Sprint-170 will plumb
+                    # the actual per-model streaming_recovery block from
+                    # model-config.yaml + the reasoning_class flag via
+                    # _get_model_config(body["model"]).
+                    model_data={},
+                    reasoning_class=False,
+                )
+            except StreamingRecoveryAbort as recovery_err:
+                # cycle-113 T1.7 — typed-abort translation per SDD §3.5.
+                # All three abort reasons route via ProviderUnavailableError
+                # (retryable=True) so the cycle-099 within-company chain
+                # walks to the next model. SDD §3.5 originally split the
+                # mapping with InvalidInputError for empty-content + CoT-
+                # exhausted, but that's TERMINAL (retryable=False) — it
+                # would defeat KF-002's chain-walk goal. Corrigendum to
+                # SDD §3.5 tracked alongside the §5.4 corrigendum in
+                # sprint-169 (operator pre-authorized via C113.OP-AUTH-1
+                # `lib-wins` decision class).
+                from loa_cheval.redaction import sanitize_provider_error_message
+                raise ProviderUnavailableError(
+                    self.provider,
+                    sanitize_provider_error_message(
+                        f"streaming recovery aborted: reason={recovery_err.reason} "
+                        f"tokens_before_abort={recovery_err.tokens_before_abort}"
+                    ),
+                ) from recovery_err
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: SSE buffer + per-event accumulator caps
+                # raise ProviderStreamError; dispatch through T3.1's table
+                # so retry.py sees a typed exception (e.g.
+                # ConnectionLostError for "transient" cap exhaustion).
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
+            except ValueError as parse_err:
+                # T3.3 / AC-3.3: parse_err's message comes from upstream
+                # bytes (mid-stream Anthropic error event, malformed data
+                # frame). Sanitize before reaching exception args.
+                from loa_cheval.redaction import sanitize_provider_error_message
+                raise InvalidInputError(
+                    sanitize_provider_error_message(
+                        f"Anthropic streaming error: {parse_err}"
+                    )
+                ) from parse_err
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        # Re-attach latency (the parser fills 0 when not passed).
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        _meta["schema_enforced"] = _schema_enforced(body)
+        # issue #1102: a refusal (HTTP 200 + prose + stop_reason:"refusal") must
+        # raise a retryable EmptyContentError so the within-company chain walks
+        # (caught at cheval.py `except _EmptyContentError`) instead of the
+        # flatline arbiter silently applying zero decisions.
+        if _is_refusal(_meta):
+            raise EmptyContentError(
+                provider=self.provider,
+                model_id=body["model"],
+                reason="stop_reason:refusal",
+            )
+        return CompletionResult(
+            content=result.content,
+            tool_calls=result.tool_calls,
+            thinking=result.thinking,
+            usage=result.usage,
+            model=result.model,
+            latency_ms=latency_ms,
+            provider=result.provider,
+            metadata=_meta,
+        )
+
+    def _complete_nonstreaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Legacy non-streaming path retained behind LOA_CHEVAL_DISABLE_STREAMING=1
+        kill switch (Sprint 4A operator backstop)."""
+        start = time.monotonic()
+
+        status, resp = http_post(
+            url=url,
+            headers=headers,
+            body=body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=_nonstreaming_read_timeout(self.config.read_timeout, body.get("max_tokens")),
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+
+        # Handle errors
+        if status == 429:
+            raise RateLimitError(self.provider)
+
+        if status >= 500:
+            msg = _extract_error_message(resp)
+            raise ProviderUnavailableError(self.provider, f"HTTP {status}: {msg}")
+
+        if status >= 400:
+            msg = _extract_error_message(resp)
+            # cycle-124 FR-3: 404 model-not-found is chain-walkable (see the
+            # streaming twin above).
+            if status == 404 and _is_model_not_found(msg):
+                raise ModelNotFoundError(
+                    self.provider, f"HTTP 404 model-not-found: {msg}"
+                )
+            # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+            # ProviderUnavailableError so the within-company chain walks.
+            if _is_billing_class_error(msg):
+                raise ProviderUnavailableError(
+                    self.provider,
+                    f"HTTP {status} billing-class: {msg}",
+                )
+            raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
+
+        # Parse response
+        result = self._parse_response(resp, latency_ms)
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        result.metadata = dict(result.metadata or {})
+        result.metadata["schema_enforced"] = _schema_enforced(body)
+        return result
+
+    def _parse_response(self, resp: Dict[str, Any], latency_ms: int) -> CompletionResult:
+        """Extract CompletionResult from Anthropic response (SDD §4.2.5)."""
+        content_blocks = resp.get("content", [])
+
+        text_parts: List[str] = []
+        thinking_parts: List[str] = []
+        tool_calls: List[Dict[str, Any]] = []
+
+        for block in content_blocks:
+            block_type = block.get("type", "")
+
+            if block_type == "text":
+                text_parts.append(block.get("text", ""))
+            elif block_type == "thinking":
+                # Extract thinking traces (Anthropic-specific)
+                thinking_parts.append(block.get("thinking", ""))
+            elif block_type == "tool_use":
+                # Normalize to canonical tool call format (SDD §4.2.5)
+                tool_calls.append({
+                    "id": block.get("id", ""),
+                    "function": {
+                        "name": block.get("name", ""),
+                        "arguments": _serialize_arguments(block.get("input", {})),
+                    },
+                    "type": "function",
+                })
+
+        content = "\n".join(text_parts)
+        thinking = "\n".join(thinking_parts) if thinking_parts else None
+
+        # Usage
+        usage_data = resp.get("usage", {})
+        usage = Usage(
+            input_tokens=usage_data.get("input_tokens", 0),
+            output_tokens=usage_data.get("output_tokens", 0),
+            # cycle-124 FR-4: cache telemetry on the non-streaming path
+            # (the streaming parser already carries it).
+            cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0) or 0,
+            cache_creation_input_tokens=usage_data.get("cache_creation_input_tokens", 0) or 0,
+            reasoning_tokens=0,  # Anthropic reports thinking tokens differently
+            source="actual" if usage_data else "estimated",
+        )
+
+        # cycle-103 T3.2 / AC-3.2: non-streaming path → metadata['streaming']=False.
+        # issue #1102: thread stop_reason for parity with the streaming path
+        # and raise a retryable EmptyContentError on refusal so the chain walks.
+        _meta: Dict[str, Any] = {"streaming": False}
+        stop_reason = resp.get("stop_reason")
+        if stop_reason:
+            _meta["stop_reason"] = stop_reason
+        if _is_refusal(_meta):
+            raise EmptyContentError(
+                provider=self.provider,
+                model_id=resp.get("model", "unknown"),
+                reason="stop_reason:refusal",
+            )
+        return CompletionResult(
+            content=content,
+            tool_calls=tool_calls if tool_calls else None,
+            thinking=thinking,
+            usage=usage,
+            model=resp.get("model", "unknown"),
+            latency_ms=latency_ms,
+            provider=self.provider,
+            metadata=_meta,
+        )
+
+    def validate_config(self) -> List[str]:
+        """Validate Anthropic-specific configuration."""
+        errors = []
+        if not self.config.endpoint:
+            errors.append(f"Provider '{self.provider}': endpoint is required")
+        if not self.config.auth:
+            errors.append(f"Provider '{self.provider}': auth is required")
+        if self.config.type != "anthropic":
+            errors.append(f"Provider '{self.provider}': type must be 'anthropic'")
+        return errors
+
+    def health_check(self) -> bool:
+        """Quick health probe. Anthropic doesn't have a models endpoint,
+        so we send a minimal messages request."""
+        try:
+            auth = self._get_auth_header()
+            headers = {
+                "Content-Type": "application/json",
+                "x-api-key": auth,
+                "anthropic-version": "2023-06-01",
+            }
+            body = {
+                "model": "claude-3-haiku-20240307",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+            }
+            url = f"{self.config.endpoint}/messages"
+            status, _ = http_post(url, headers, body, connect_timeout=5.0, read_timeout=10.0)
+            return status == 200
+        except Exception:
+            return False
+
+
+def _transform_messages(
+    messages: List[Dict[str, Any]],
+) -> tuple:
+    """Transform canonical messages to Anthropic format.
+
+    Anthropic requires system prompt as a separate parameter, not in messages.
+    Returns (system_prompt, anthropic_messages).
+    """
+    system_prompt = None
+    anthropic_messages = []
+    # cycle-124 FR-4 (SDD §3.3): (content, cache_control) per system message.
+    # No marker anywhere ⇒ the joined string exactly as before; any marker ⇒
+    # a list of text blocks with the marker on its block. The "\n\n" joiner is
+    # folded into the following block's text so the model sees the same
+    # characters either way. LOA_CHEVAL_LEGACY_WIRE ignores markers.
+    system_parts: List[tuple] = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            # Collect system messages — Anthropic only supports one
+            if system_prompt is None:
+                system_prompt = content
+            else:
+                system_prompt += "\n\n" + content
+            cache_control = msg.get("cache_control") if not _legacy_wire() else None
+            system_parts.append((content, cache_control if isinstance(cache_control, dict) else None))
+        elif role == "tool":
+            # Anthropic represents tool results differently
+            anthropic_messages.append({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": msg.get("tool_call_id", ""),
+                    "content": content,
+                }],
+            })
+        else:
+            anthropic_messages.append({
+                "role": role,
+                "content": content,
+            })
+
+    if any(cc for _, cc in system_parts):
+        blocks: List[Dict[str, Any]] = []
+        for i, (content, cc) in enumerate(system_parts):
+            block: Dict[str, Any] = {"type": "text", "text": content if i == 0 else "\n\n" + content}
+            if cc:
+                block["cache_control"] = cc
+            blocks.append(block)
+        return blocks, anthropic_messages
+
+    return system_prompt, anthropic_messages
+
+
+def _transform_tools_to_anthropic(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Transform OpenAI-format tools to Anthropic tool format."""
+    anthropic_tools = []
+    for tool in tools:
+        if tool.get("type") == "function":
+            func = tool.get("function", {})
+            anthropic_tools.append({
+                "name": func.get("name", ""),
+                "description": func.get("description", ""),
+                "input_schema": func.get("parameters", {"type": "object", "properties": {}}),
+            })
+    return anthropic_tools
+
+
+def _schema_enforced(body: Dict[str, Any]) -> bool:
+    """True iff the request body carried output_config.format (cycle-124 FR-7)."""
+    return "format" in (body.get("output_config") or {})
+
+
+def _transform_tool_choice(choice: str) -> Dict[str, Any]:
+    """Transform canonical tool_choice to Anthropic format.
+
+    cycle-124 FR-7: only `auto` and `none` are emitted. `required`
+    (Anthropic `any`) and any other value raise — a forced tool call is
+    incompatible with a schema-enforced answer and was never used by a
+    framework caller; silently rewriting it to `auto` hid the mistake.
+    """
+    if choice == "auto":
+        return {"type": "auto"}
+    if choice == "none":
+        return {"type": "none"}
+    raise InvalidInputError(
+        f"tool_choice {choice!r} is not supported on the Anthropic adapter; use 'auto' or 'none'"
+    )
+
+
+def _serialize_arguments(input_data: Any) -> str:
+    """Serialize tool input to JSON string (canonical format expects string arguments)."""
+    import json
+
+    if isinstance(input_data, str):
+        return input_data
+    return json.dumps(input_data)
+
+
+def _extract_error_message(resp: Dict[str, Any]) -> str:
+    """Extract error message from Anthropic error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` so secret-shape strings (AKIA /
+    PEM / Bearer / sk-ant-* / sk-* / AIza*) embedded in upstream error
+    bodies never reach exception args, audit envelopes, or operator
+    logs.
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
+    if isinstance(resp, dict):
+        error = resp.get("error", {})
+        if isinstance(error, dict):
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)

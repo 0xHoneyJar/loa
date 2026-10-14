@@ -1,0 +1,6 @@
+# pr-11 sprint-247: findings that did not become labels
+# 4 secret-shaped test string(s) redacted as REDACTED-TEST-SECRET in base/, head/ and head.diff (verbatim copies of tracked test fixtures; line numbers unchanged)
+record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L49 [low] no locator (7 fix hunks in .claude/adapters/cheval.py): on an I1 preempt (no bound) `PreflightDecision.effective_input_ceiling` is `0`, so the `[preflight] preempt … ceiling=0` line reads oddly;
+record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L51 [low] the finding calls itself pre-existing (not this change): pyflakes: `_final_entry`, `max_switches`, `provider_switches` assigned and unused.
+record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L53 [medium] no code locus (the finding opens with prose, not `path:ref`): process — the first whole-diff dissent saw 24K of 77K tokens and skipped `routing/ceiling.py` (`status_note: not an approval of unreviewed surface`);
+record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L71 [low] fix commit does not touch .claude/scripts/loa-status.sh: Catalog value interpolated into a yq path expression

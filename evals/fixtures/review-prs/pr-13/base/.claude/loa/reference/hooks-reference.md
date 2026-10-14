@@ -1,0 +1,244 @@
+# Post-Compact Recovery & Hooks Reference
+
+> Extracted from CLAUDE.loa.md for token efficiency. See: `.claude/loa/CLAUDE.loa.md` for inline summary.
+
+## Post-Compact Recovery Hooks (v1.28.0)
+
+Loa provides automatic context recovery after compaction via Claude Code hooks.
+
+### How It Works
+
+1. **PreCompact Hook**: Saves current state to `.run/compact-pending`
+2. **UserPromptSubmit Hook**: Detects marker, injects recovery reminder
+3. **One-shot delivery**: Reminder appears once, marker is deleted
+
+### Automatic Recovery
+
+When compaction is detected, you will see a recovery reminder instructing you to:
+1. Re-read this file (CLAUDE.md) for conventions
+2. Check `.run/sprint-plan-state.json` - resume if `state=RUNNING`
+3. Check `.run/bridge-state.json` - resume if `state=ITERATING` or `state=FINALIZING`
+4. Check `.run/simstim-state.json` - resume from last phase
+5. Review `grimoires/loa/NOTES.md` for learnings
+
+### Installation
+
+Hooks are in `.claude/hooks/`. To enable, merge `settings.hooks.json` into `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreCompact": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/pre-compact-marker.sh"}]}],
+    "UserPromptSubmit": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/post-compact-reminder.sh"}]}]
+  }
+}
+```
+
+See `.claude/hooks/README.md` for full documentation.
+
+## Session-Limit Capture & Resume (cycle-117 item A)
+
+Recovery after the primary Claude session/usage cap — the analogue of
+Post-Compact Recovery for a quota reset rather than a compaction event.
+
+### How It Works
+
+1. **Capture** (`.claude/scripts/session-limit-capture.sh --raw '<error text>'`):
+   When a session-limit / usage-cap error string surfaces in a tool or subagent
+   result, the agent runs this CLI with the full error text (see the
+   "Session-Limit Recovery" trigger in `CLAUDE.loa.md`). It parses the reset
+   time (TZ-aware, via `session-limit-lib.sh`) and writes
+   `.run/session-limit-state.json` with `hit_at`, `reset_at` (ISO + offset),
+   `reset_at_epoch` (plain unix epoch), and an **embedded scalar snapshot** of
+   the live sprint-plan / bridge / simstim state (never bare path references, so
+   the resume context survives even if those files are later mutated/deleted).
+
+2. **UserPromptSubmit** (`.claude/hooks/post-session-limit-reminder.sh`):
+   A **conditional** one-shot (distinct from post-compact-reminder's
+   unconditional one-shot) — it stays SILENT on every prompt while
+   `now < reset_at_epoch`, leaving the marker in place to re-check next prompt.
+   Once `now >= reset_at_epoch` it injects a single resume reminder (sprint id +
+   state, allowlist-validated + sanitized) and deletes the marker. Fail-open
+   silent on an absent/malformed marker.
+
+### Parser scope (`session-limit-lib.sh`)
+
+GNU-`date`-only today (bats CI is ubuntu-only). On macOS the shape is still
+DETECTED but the reset math returns non-zero (capture no-ops) — see the
+`loa:shortcut` marker in the lib for the BSD/perl-tier upgrade trigger.
+
+### Diagnostic probe (`.claude/hooks/safety/stop-input-probe.sh`)
+
+Ships **UNREGISTERED**, default-OFF (gated by `LOA_STOP_INPUT_PROBE=1`). It
+appends the raw Stop-hook input to `.run/stop-input-probe.jsonl` to empirically
+answer whether Stop input ever carries the session-limit error text (static
+investigation found no such field). Merge it into `settings.local.json` for one
+cap-hitting session, record the result on the PR, then remove — do NOT wire it
+into `settings.hooks.json`.
+
+## Safety Hooks (v1.37.0)
+
+### PreToolUse:Bash — Destructive Command Blocking
+
+Blocks `rm -rf`, `git push --force`, `git reset --hard`, `git clean -f` with actionable alternatives.
+
+**Script**: `.claude/hooks/safety/block-destructive-bash.sh`
+
+### PreToolUse:Bash — Team Role Guard (v1.39.0)
+
+Enforces lead-only constraints when `LOA_TEAM_MEMBER` is set (Agent Teams mode). Blocks `br` commands, `.run/*.json` overwrites, and `git commit/push` for teammates. Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard.sh`
+
+### PreToolUse:Write/Edit — Team Role Guard (v1.39.0)
+
+Extends defense-in-depth to the Write and Edit tools. When `LOA_TEAM_MEMBER` is set, blocks writes to the System Zone (`.claude/`) and top-level state files (`.run/*.json`). Allows writes to teammate-owned paths (`.run/bugs/*/`, `grimoires/`, `app/`). Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard-write.sh`
+
+### PreToolUse:Skill — Team Skill Guard (v1.39.0)
+
+Enforces the Skill Invocation Matrix mechanically when `LOA_TEAM_MEMBER` is set (Agent Teams mode). Blocks lead-only skill invocations (`/plan-and-analyze`, `/architect`, `/sprint-plan`, `/simstim`, `/run-bridge`, etc.) for teammates. Uses blocklist-based matching against `tool_input.skill`. Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-skill-guard.sh`
+
+### Stop — Run Mode Guard
+
+Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
+
+cycle-117 item C: at the "no active runs" fallthrough it also fires a best-effort, operator-configurable push (`notifications.push_command` in `.loa.config.yaml`) exactly once per terminal gate (sprint JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim COMPLETED/AWAITING_HITL/HALTED) via `push-notify-lib.sh` — a side channel that never alters the hook's exit code or stdout contract.
+
+cycle-117 item A: when an **unexpired** `.run/session-limit-state.json` is present (a session cap whose reset time has not yet passed), the background-task soft-block is swapped for a loud stderr advisory and falls through to the remaining checks — a quota-hung teammate cannot respond to TaskStop and would otherwise deadlock every Stop. Freshness (`now < reset_at_epoch`) is computed inside the guard's existing single jq call (jq builtin `now`, no extra spawn). An expired/absent/malformed marker keeps today's block (fail-open to the deadlock guard).
+
+**Script**: `.claude/hooks/safety/run-mode-stop-guard.sh`
+
+### PostToolUse:Bash — Audit Logger
+
+Logs mutating commands (git, npm, rm, mv, etc.) to `.run/audit.jsonl` in JSONL format.
+
+**Script**: `.claude/hooks/audit/mutation-logger.sh`
+
+### PostToolUse:Write/Edit — Write Audit Logger (v1.39.0)
+
+Logs Write and Edit tool file modifications to `.run/audit.jsonl` in JSONL format. Captures file path, tool name, team identity, and timestamp. Does NOT log file content (privacy, size). Complements `mutation-logger.sh` to ensure all file modifications — whether via Bash, Write, or Edit — appear in the audit trail.
+
+**Script**: `.claude/hooks/audit/write-mutation-logger.sh`
+
+## Deny Rules
+
+Template of recommended file access deny rules for credential protection. Blocks agent access to `~/.ssh/`, `~/.aws/`, `~/.kube/`, `~/.gnupg/`, and credential stores.
+
+**Template**: `.claude/hooks/settings.deny.json`
+**Installer**: `.claude/scripts/install-deny-rules.sh`
+
+## Known Scope Boundaries (cycle-114 FR-7)
+
+The safety layer is a **fence against routine destructive mistakes**, not a
+hardened security boundary. It defends two surfaces:
+
+- **Filesystem destruction** — `block-destructive-bash.sh` blocks `rm -rf` on
+  catastrophic paths, force-push, hard-reset, `DROP`/`TRUNCATE`, etc.
+- **Credential reads** — `settings.deny.json` blocks access to `~/.ssh/`,
+  `~/.aws/`, `~/.kube/`, `~/.gnupg/`, and credential stores.
+
+It does **NOT** guard:
+
+- **Network egress / data exfiltration.** There is no monitoring or restriction
+  of outbound data — `curl`/`wget` POSTs, `scp`, cloud uploads (S3, gcs), or
+  bulk transfers of repository contents are not inspected. Preventing
+  exfiltration is the **operator's responsibility**, via network policy /
+  firewall / egress proxy external to Claude Code (Claude Code's own auto-mode
+  classifier provides some bulk-exfil detection, but Loa does not add a guard).
+- **Documented bypass classes.** Newline statement separators, subshell
+  wrapping (`bash -c`, `$(...)`), `eval`/base64 decode, SQL comments containing
+  `WHERE`, python scripts loaded from disk, and `jq` absent from PATH all bypass
+  `block-destructive-bash.sh` by design — see cycle-111 SDD §11 for the full
+  accepted-bypass list and rationale. The NOTES.md size gate (cycle-124 FR-10)
+  inherits the same classes: `notes-size-guard.sh` sees Write/Edit/MultiEdit
+  payloads and `FR-NOTES` sees `>>` appends; `python -c`, `tee`, heredocs into
+  the file and other Bash writers are an accepted bypass — the writer-side gate
+  is `update-notes-learnings.sh`, and `notes-guard.sh rotate` (mv) is never
+  intercepted, so the escape hatch cannot deadlock.
+
+Treat the safety hooks as defense-in-depth against accidental damage by
+autonomous agents — not as a sandbox.
+
+## All Hook Registrations
+
+See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
+
+| Event | Matcher | Script | Purpose |
+|-------|---------|--------|---------|
+| PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
+| UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
+| UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
+| SessionStart | (all) | `hook-guard.sh session-start/loa-run-state-surface.sh` | One `Run: <state> (<age>) → <command>` line when a run is HALTED/INTERRUPTED or RUNNING idle 12h+, plus a session-limit-reset line; silent otherwise (cycle-125 FR-3; also feeds `/loa` and `workflow-state.sh`) |
+| PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+| PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
+| PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
+| PreToolUse | Edit | `safety/team-role-guard-write.sh` | Block teammate edits to System Zone, state files, and append-only files |
+| PreToolUse | Skill | `safety/team-skill-guard.sh` | Block lead-only skill invocations for teammates |
+| PreToolUse | Write/Edit/MultiEdit | `safety/notes-size-guard.sh` | Refuse a write that would grow `grimoires/loa/NOTES.md` at/over 200 KiB (shrinking edits and `notes-guard.sh rotate` pass) |
+| PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
+| PostToolUse | Write | `audit/write-mutation-logger.sh` | Log Write tool file modifications |
+| PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |
+| Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
+| PreToolUse (opt-in, UNWIRED by default) | Write/Edit | `compliance/implement-gate.sh` | ADVISORY FR-7 prototype: App Zone write outside /implement — parked; wire manually per §implement-gate.sh |
+| Stop (opt-in, UNREGISTERED by default) | (all) | `safety/stop-input-probe.sh` | DIAGNOSTIC: gated by `LOA_STOP_INPUT_PROBE=1`; dumps raw Stop input to `.run/stop-input-probe.jsonl` for one cap-hitting session — never in `settings.hooks.json` |
+
+## Compliance Hooks — Agent Hook Pattern (v1.40.0)
+
+### When to Use Agent vs Shell Hooks
+
+| Criterion | Shell Hook | Compliance Hook |
+|-----------|-----------|----------------|
+| Detection | Pattern matching (regex) | State file reading + integrity checks |
+| Failure mode | Fail-open (allow) | Fail-ask (prompt user) |
+| Performance | <10ms | <100ms (file I/O) |
+| Scope | Syntax-level (command text) | Semantic-level (active skill context) |
+
+### implement-gate.sh (FR-7 Prototype)
+
+**Type**: Command hook (ADVISORY)
+**Trigger**: PreToolUse on Write/Edit
+**Detection**: Reads `.run/sprint-plan-state.json`, `.run/simstim-state.json`, `.run/state.json`
+
+**Decision matrix**:
+
+| File Zone | State Found | State Valid | Decision |
+|-----------|------------|-------------|----------|
+| Non-App | Any | Any | `allow` |
+| App | RUNNING | Fresh + has plan_id | `allow` |
+| App | RUNNING | Stale (>24h) | `ask` |
+| App | RUNNING | Missing plan_id | `ask` |
+| App | JACKED_OUT/HALTED | — | `ask` |
+| App | Missing/corrupt | — | `ask` |
+
+**Installation**: Merge into `~/.claude/settings.json` PreToolUse hooks:
+```json
+{
+  "matcher": "Write|Edit",
+  "hooks": [{"type": "command", "command": ".claude/hooks/compliance/implement-gate.sh"}]
+}
+```
+
+**Known limitations**:
+- Cannot detect direct `/implement` without `/run` (no state file)
+- Heuristic only — not authoritative skill context (platform doesn't expose this)
+- Labeled ADVISORY in all output messages
+
+**Tests**: `tests/unit/compliance-hook.bats` (7 tests)
+
+## block-destructive-bash.sh — Full Pattern Set & Posture (moved from CLAUDE.loa.md)
+
+Blocks 12 destructive shapes: `rm -rf` (context-aware: blocks `/`, `~`, `$HOME`, `*`, `.`, `./.git`; allows `./build`, `./node_modules`, `/tmp/*`), `git push --force`/`-f`, `git reset --hard`, `git clean -f`, `git branch -D`/force-delete, `git stash drop`/`clear`, `git checkout -- <path>`, SQL `DROP {DATABASE,TABLE,SCHEMA}`, `TRUNCATE`, `DELETE FROM` no-WHERE (multi-statement loop), `kubectl delete namespace`, `kubectl delete --all`/`-A`. Audit-log trail to `.run/audit.jsonl` on every block with sanitized command + matched substring. Ported from Anthropic DCG public pattern set (cycle-111).
+
+**cycle-122 additions**: `FR-MERGE-2` blocks manual `git tag` creation (listing/inspect/delete forms allowed; audited override `LOA_ALLOW_GIT_TAG=1`) — C-MERGE-002's mechanical twin. `FR-1.2b` blocks output-swallowed `git stash push/pop/apply` (`| tail`/`| head`, `|| true`, `2>/dev/null` — the issue #555 silent-data-loss shapes); remedy: `stash_with_guard`. `FR-SZ2` blocks direct Bash writes into `.claude/` (redirect/tee/copy/sed-i/rm shapes; `.claude/overrides/` + `.claude/cache/` excluded) unless the bounded framework-dev marker (`.run/zone-guard-authorization.json`, same validation as zone-write-guard) or `LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1` authorizes — closing the single-agent System-Zone Bash gap. Same accepted-bypass classes as their parents (fence, not boundary).
+
+A separate script-level runtime layer (`dcg-exec.sh` + `destructive-command-guard.sh`, pattern packs for core/database/docker/kubernetes) validates commands executed by Loa scripts with configurable BLOCK/WARN/ALLOW actions — invocation and pack details live in those scripts' headers.
+
+**Defense-in-depth posture (cycle-111)**: this hook is a fence against routine destructive mistakes by autonomous agents — NOT a hardened security boundary. Documented accepted bypass classes (cycle-111 SDD §11): newline statement separators, subshell wrapping (`bash -c '...'` quoted-differently, `$(...)`), eval/base64 decode, SQL comments containing WHERE, python scripts loaded from disk, jq absent from PATH. ERE flavor: GNU/BSD-compatible extensions (`\s`, `\b`), NOT strict POSIX. Latency budget: p95 < 80ms across 100 invocations (bash startup + jq + 13 grep passes).
+
+**Accepted false positives (quote-blindness residue, cycle-120 C-D3)**: the inert-carrier scrub redacts a known data carrier's value (git commit `-m`, `br`/`bd -d`, `gh … create --body/--title`, `echo`/`printf`) only when the value holds **neither `$(` nor a backtick**. A lone `$` (dollar amount, `$ENV` mention, trailing bare `$`) is now permitted inside a redacted value — so `git commit -m "saved $5 by dropping find . -exec rm -rf {} +"` correctly ALLOWs. One residual false positive is **accepted by design**:
+
+- **Case A — a `$(…)` command-substitution inside a carrier value** (e.g. a multi-line commit body wrapped in `$(cat <<'EOF' … find -exec rm -rf … EOF)`). The `$(` disqualifies the value from redaction (a regex fence cannot parse subshell contents without reintroducing the #1047 bypass), so a destructive *shape* mentioned inside that subshell body still trips FR-2 and blocks a genuinely safe commit. **Workaround**: paraphrase the destructive shape in the commit body (as the cycle-119 commits did — e.g. write "find-exec-rm" rather than the literal `find … -exec rm -rf`), or drop the `$(…)` wrapper. This is a preserved false positive, never a bypass: leaving `$(`/backtick values un-redacted is what keeps command-substitution smuggling (`git commit -m "$(rm -rf /)"`) caught. Backtick command-substitution itself remains the separately-tracked, uncaught pre-existing gap (bd-bdb-backtick-bypass).

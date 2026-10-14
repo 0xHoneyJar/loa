@@ -1,0 +1,1051 @@
+{
+  "fixture": "pr-17",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "253",
+    "record_ref": "origin/record/cycle-128-a2a",
+    "head_commit": "cea919ca9301ca4d0b3f21f266a7bb7aeacc3bfa",
+    "fix_commit": "8f7932b250ed3fc04faff894b81b8904f41fcc37"
+  },
+  "defects": [
+    {
+      "id": "L01-finding",
+      "file": ".claude/agents/chart-researcher.md",
+      "anchor_line": 5,
+      "anchors": [
+        3,
+        5,
+        11,
+        38
+      ],
+      "must_match": "tools: [Read, Grep, Glob, WebFetch, Write]",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L26",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L02-with-skips-the-context-check-by-design-t",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 373,
+      "anchors": [
+        369,
+        373,
+        414
+      ],
+      "must_match": "**Status**: handed-off",
+      "severity": "medium",
+      "category": "docs",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L34",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L03-simulates-no-br-and-also-drops-jq-and-yq",
+      "file": "tests/unit/charting-lint.bats",
+      "anchor_line": 403,
+      "anchors": [
+        399,
+        403
+      ],
+      "must_match": "PATH=\"/usr/bin:/bin\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L42",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L04-as-failure-injection-is-a-no-op-under-ui",
+      "file": "tests/unit/charting-decisions.bats",
+      "anchor_line": 224,
+      "anchors": [
+        222,
+        224
+      ],
+      "must_match": "chmod a-w",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L43",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L05-the-create-parser-s-swallows-unknown-fla",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "anchor_line": 28,
+      "anchors": [
+        13,
+        28
+      ],
+      "must_match": "-*) shift 2",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L44",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L06-unlocks-from-a-row-in-the-tracked-ledger",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 637,
+      "must_match": "# grimoires/loa/sdd.md D-5.9: a spike/<slug> branch also qualifies once its",
+      "severity": "low",
+      "category": "concurrency",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L48",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L07-the-new-path-runs-a-real-on-a-spike-head",
+      "file": ".claude/scripts/run-mode-ice.sh",
+      "anchor_line": 274,
+      "anchors": [
+        257,
+        274
+      ],
+      "must_match": "git merge --no-edit \"$allowed\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L52",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L08-the-verdict-is-a-porcelain-diff-of-the-m",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "anchor_line": 42,
+      "anchors": [
+        42,
+        57,
+        62
+      ],
+      "must_match": "MAIN=\"$(git rev-parse --show-toplevel 2>/dev/null)\" || { echo \"chart-unblock-probe: not inside a git work tree\" >&2; exit 1; }",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L56",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L09-the-merge-rebase-pull-cherry-pick-rule-r",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 821,
+      "anchors": [
+        821,
+        841,
+        846
+      ],
+      "must_match": "# pushed, never merged, no PR. Blocked, on the carrier-scrubbed line model",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L64",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L10-is-an-arbitrary-execution-path-with-a-bo",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "anchor_line": 66,
+      "must_match": "(cd \"$WT\" && run_with_timeout \"$TIMEOUT\" \"$@\")",
+      "severity": "high",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L37",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L11-the-hand-off-snapshot-inlines-the-map-do",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 387,
+      "anchors": [
+        360,
+        369,
+        387
+      ],
+      "must_match": "sanitize_for_session_start L6",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L44",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L12-the-d-5-9-unlock-never-checks-that-the-s",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 642,
+      "must_match": "_fr11_spike_decided() {",
+      "severity": "medium",
+      "category": "concurrency",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L65",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L13-interprets-backslash-escapes-in-the-line",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 127,
+      "anchors": [
+        125,
+        127,
+        137
+      ],
+      "must_match": "awk -v sec=\"## $1\" -v line=\"$2\" '",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L72",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L14-the-write-subcommands-never-consult-the",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 408,
+      "anchors": [
+        398,
+        408,
+        414,
+        437
+      ],
+      "must_match": "unattended",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L79",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L15-filters-on-only-fail-open",
+      "file": ".claude/scripts/beads/get-ready-work.sh",
+      "anchor_line": 72,
+      "must_match": ".issue_type",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L86",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L16-fails-open",
+      "file": ".claude/scripts/golden-path.sh",
+      "anchor_line": 88,
+      "must_match": "_gp_is_unattended() {",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L90",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L17-in-strips-c0-and-del-only",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 51,
+      "must_match": "san1(){ printf",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L94",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L18-map-epic-check-misses-the-reply-shape",
+      "file": ".claude/scripts/beads/create-sprint-task.sh",
+      "anchor_line": 117,
+      "must_match": "# one-element array; labels are strings (older releases: {name} objects).",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L102",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L19-declarative-globs-load-every-snapshot-an",
+      "file": ".claude/commands/plan-and-analyze.md",
+      "anchor_line": 21,
+      "anchors": [
+        21,
+        44
+      ],
+      "must_match": "context_files",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L106",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    },
+    {
+      "id": "L20-dispatch-markers-the-pending-file-glob-a",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "anchor_line": 144,
+      "anchors": [
+        144,
+        438
+      ],
+      "must_match": "${SCRIPT_DIR}/../../grimoires/loa/a2a/",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L110",
+      "source_commit": "cea919ca",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 3,
+      "end": 5,
+      "source": "fix/8f7932b250ed:3-5"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 11,
+      "end": 13,
+      "source": "fix/8f7932b250ed:11-13"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 18,
+      "end": 20,
+      "source": "fix/8f7932b250ed:18-20"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 24,
+      "end": 25,
+      "source": "fix/8f7932b250ed:24-25"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 35,
+      "end": 35,
+      "source": "fix/8f7932b250ed:35-35"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/agents/chart-researcher.md",
+      "start": 43,
+      "end": 43,
+      "source": "fix/8f7932b250ed:43-43"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/commands/chart.md",
+      "start": 22,
+      "end": 24,
+      "source": "fix/8f7932b250ed:22-24"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/commands/chart.md",
+      "start": 82,
+      "end": 82,
+      "source": "fix/8f7932b250ed:82-82"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/commands/plan-and-analyze.md",
+      "start": 43,
+      "end": 48,
+      "source": "fix/8f7932b250ed:43-48"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/commands/plan-and-analyze.md",
+      "start": 189,
+      "end": 191,
+      "source": "fix/8f7932b250ed:189-191"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/data/agent-types.yaml",
+      "start": 28,
+      "end": 28,
+      "source": "fix/8f7932b250ed:28-28"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 637,
+      "end": 645,
+      "source": "fix/8f7932b250ed:637-645"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 690,
+      "end": 690,
+      "source": "fix/8f7932b250ed:690-690"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 705,
+      "end": 705,
+      "source": "fix/8f7932b250ed:705-705"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 821,
+      "end": 837,
+      "source": "fix/8f7932b250ed:821-837"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 841,
+      "end": 841,
+      "source": "fix/8f7932b250ed:841-841"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 846,
+      "end": 846,
+      "source": "fix/8f7932b250ed:846-846"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 863,
+      "end": 870,
+      "source": "fix/8f7932b250ed:863-870"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 874,
+      "end": 874,
+      "source": "fix/8f7932b250ed:874-874"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 880,
+      "end": 892,
+      "source": "fix/8f7932b250ed:880-892"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/scripts/beads/create-sprint-task.sh",
+      "start": 117,
+      "end": 121,
+      "source": "fix/8f7932b250ed:117-121"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/scripts/beads/get-ready-work.sh",
+      "start": 72,
+      "end": 72,
+      "source": "fix/8f7932b250ed:72-72"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 21,
+      "end": 21,
+      "source": "fix/8f7932b250ed:21-21"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 25,
+      "end": 32,
+      "source": "fix/8f7932b250ed:25-32"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 50,
+      "end": 51,
+      "source": "fix/8f7932b250ed:50-51"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 57,
+      "end": 57,
+      "source": "fix/8f7932b250ed:57-57"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 103,
+      "end": 103,
+      "source": "fix/8f7932b250ed:103-103"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 120,
+      "end": 120,
+      "source": "fix/8f7932b250ed:120-120"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 127,
+      "end": 127,
+      "source": "fix/8f7932b250ed:127-127"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 137,
+      "end": 137,
+      "source": "fix/8f7932b250ed:137-137"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 144,
+      "end": 144,
+      "source": "fix/8f7932b250ed:144-144"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 160,
+      "end": 160,
+      "source": "fix/8f7932b250ed:160-160"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 200,
+      "end": 200,
+      "source": "fix/8f7932b250ed:200-200"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 243,
+      "end": 243,
+      "source": "fix/8f7932b250ed:243-243"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 257,
+      "end": 257,
+      "source": "fix/8f7932b250ed:257-257"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 290,
+      "end": 296,
+      "source": "fix/8f7932b250ed:290-296"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 300,
+      "end": 304,
+      "source": "fix/8f7932b250ed:300-304"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 332,
+      "end": 332,
+      "source": "fix/8f7932b250ed:332-332"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 350,
+      "end": 353,
+      "source": "fix/8f7932b250ed:350-353"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 360,
+      "end": 364,
+      "source": "fix/8f7932b250ed:360-364"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 369,
+      "end": 392,
+      "source": "fix/8f7932b250ed:369-392"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 413,
+      "end": 413,
+      "source": "fix/8f7932b250ed:413-413"
+    },
+    {
+      "id": "F043",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 436,
+      "end": 445,
+      "source": "fix/8f7932b250ed:436-445"
+    },
+    {
+      "id": "F044",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 452,
+      "end": 458,
+      "source": "fix/8f7932b250ed:452-458"
+    },
+    {
+      "id": "F045",
+      "file": ".claude/scripts/chart-ticket.sh",
+      "start": 462,
+      "end": 464,
+      "source": "fix/8f7932b250ed:462-464"
+    },
+    {
+      "id": "F046",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 6,
+      "end": 16,
+      "source": "fix/8f7932b250ed:6-16"
+    },
+    {
+      "id": "F047",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 34,
+      "end": 34,
+      "source": "fix/8f7932b250ed:34-34"
+    },
+    {
+      "id": "F048",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 42,
+      "end": 43,
+      "source": "fix/8f7932b250ed:42-43"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 57,
+      "end": 58,
+      "source": "fix/8f7932b250ed:57-58"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 62,
+      "end": 66,
+      "source": "fix/8f7932b250ed:62-66"
+    },
+    {
+      "id": "F051",
+      "file": ".claude/scripts/chart-unblock-probe.sh",
+      "start": 71,
+      "end": 74,
+      "source": "fix/8f7932b250ed:71-74"
+    },
+    {
+      "id": "F052",
+      "file": ".claude/scripts/golden-path.sh",
+      "start": 86,
+      "end": 95,
+      "source": "fix/8f7932b250ed:86-95"
+    },
+    {
+      "id": "F053",
+      "file": ".claude/scripts/run-mode-ice.sh",
+      "start": 274,
+      "end": 275,
+      "source": "fix/8f7932b250ed:274-275"
+    },
+    {
+      "id": "F054",
+      "file": ".claude/skills/charting-decisions/SKILL.md",
+      "start": 119,
+      "end": 120,
+      "source": "fix/8f7932b250ed:119-120"
+    },
+    {
+      "id": "F055",
+      "file": ".claude/skills/charting-decisions/SKILL.md",
+      "start": 129,
+      "end": 132,
+      "source": "fix/8f7932b250ed:129-132"
+    },
+    {
+      "id": "F056",
+      "file": ".claude/skills/charting-decisions/SKILL.md",
+      "start": 145,
+      "end": 149,
+      "source": "fix/8f7932b250ed:145-149"
+    },
+    {
+      "id": "F057",
+      "file": ".claude/skills/charting-decisions/SKILL.md",
+      "start": 156,
+      "end": 156,
+      "source": "fix/8f7932b250ed:156-156"
+    },
+    {
+      "id": "F058",
+      "file": ".claude/skills/charting-decisions/resources/REFERENCE.md",
+      "start": 72,
+      "end": 72,
+      "source": "fix/8f7932b250ed:72-72"
+    },
+    {
+      "id": "F059",
+      "file": ".claude/skills/charting-decisions/resources/REFERENCE.md",
+      "start": 95,
+      "end": 95,
+      "source": "fix/8f7932b250ed:95-95"
+    },
+    {
+      "id": "F060",
+      "file": ".claude/skills/charting-decisions/resources/REFERENCE.md",
+      "start": 107,
+      "end": 112,
+      "source": "fix/8f7932b250ed:107-112"
+    },
+    {
+      "id": "F061",
+      "file": ".claude/skills/charting-decisions/resources/REFERENCE.md",
+      "start": 119,
+      "end": 123,
+      "source": "fix/8f7932b250ed:119-123"
+    },
+    {
+      "id": "F062",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 13,
+      "end": 13,
+      "source": "fix/8f7932b250ed:13-13"
+    },
+    {
+      "id": "F063",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 27,
+      "end": 28,
+      "source": "fix/8f7932b250ed:27-28"
+    },
+    {
+      "id": "F064",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 39,
+      "end": 39,
+      "source": "fix/8f7932b250ed:39-39"
+    },
+    {
+      "id": "F065",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 58,
+      "end": 60,
+      "source": "fix/8f7932b250ed:58-60"
+    },
+    {
+      "id": "F066",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 66,
+      "end": 69,
+      "source": "fix/8f7932b250ed:66-69"
+    },
+    {
+      "id": "F067",
+      "file": "tests/fixtures/charting/br-stub.sh",
+      "start": 74,
+      "end": 74,
+      "source": "fix/8f7932b250ed:74-74"
+    },
+    {
+      "id": "F068",
+      "file": "tests/fixtures/fence-corpus/corpus.jsonl",
+      "start": 136,
+      "end": 136,
+      "source": "fix/8f7932b250ed:136-136"
+    },
+    {
+      "id": "F069",
+      "file": "tests/unit/chart-frontier.bats",
+      "start": 32,
+      "end": 32,
+      "source": "fix/8f7932b250ed:32-32"
+    },
+    {
+      "id": "F070",
+      "file": "tests/unit/chart-frontier.bats",
+      "start": 50,
+      "end": 50,
+      "source": "fix/8f7932b250ed:50-50"
+    },
+    {
+      "id": "F071",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 36,
+      "end": 36,
+      "source": "fix/8f7932b250ed:36-36"
+    },
+    {
+      "id": "F072",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 58,
+      "end": 58,
+      "source": "fix/8f7932b250ed:58-58"
+    },
+    {
+      "id": "F073",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 75,
+      "end": 75,
+      "source": "fix/8f7932b250ed:75-75"
+    },
+    {
+      "id": "F074",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 82,
+      "end": 82,
+      "source": "fix/8f7932b250ed:82-82"
+    },
+    {
+      "id": "F075",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 86,
+      "end": 86,
+      "source": "fix/8f7932b250ed:86-86"
+    },
+    {
+      "id": "F076",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 96,
+      "end": 96,
+      "source": "fix/8f7932b250ed:96-96"
+    },
+    {
+      "id": "F077",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 222,
+      "end": 222,
+      "source": "fix/8f7932b250ed:222-222"
+    },
+    {
+      "id": "F078",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 270,
+      "end": 270,
+      "source": "fix/8f7932b250ed:270-270"
+    },
+    {
+      "id": "F079",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 322,
+      "end": 322,
+      "source": "fix/8f7932b250ed:322-322"
+    },
+    {
+      "id": "F080",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 339,
+      "end": 339,
+      "source": "fix/8f7932b250ed:339-339"
+    },
+    {
+      "id": "F081",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 346,
+      "end": 346,
+      "source": "fix/8f7932b250ed:346-346"
+    },
+    {
+      "id": "F082",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 350,
+      "end": 350,
+      "source": "fix/8f7932b250ed:350-350"
+    },
+    {
+      "id": "F083",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 372,
+      "end": 372,
+      "source": "fix/8f7932b250ed:372-372"
+    },
+    {
+      "id": "F084",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 376,
+      "end": 377,
+      "source": "fix/8f7932b250ed:376-377"
+    },
+    {
+      "id": "F085",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 383,
+      "end": 383,
+      "source": "fix/8f7932b250ed:383-383"
+    },
+    {
+      "id": "F086",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 393,
+      "end": 398,
+      "source": "fix/8f7932b250ed:393-398"
+    },
+    {
+      "id": "F087",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 417,
+      "end": 417,
+      "source": "fix/8f7932b250ed:417-417"
+    },
+    {
+      "id": "F088",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 426,
+      "end": 426,
+      "source": "fix/8f7932b250ed:426-426"
+    },
+    {
+      "id": "F089",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 431,
+      "end": 434,
+      "source": "fix/8f7932b250ed:431-434"
+    },
+    {
+      "id": "F090",
+      "file": "tests/unit/charting-decisions.bats",
+      "start": 439,
+      "end": 439,
+      "source": "fix/8f7932b250ed:439-439"
+    },
+    {
+      "id": "F091",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 37,
+      "end": 37,
+      "source": "fix/8f7932b250ed:37-37"
+    },
+    {
+      "id": "F092",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 58,
+      "end": 58,
+      "source": "fix/8f7932b250ed:58-58"
+    },
+    {
+      "id": "F093",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 80,
+      "end": 81,
+      "source": "fix/8f7932b250ed:80-81"
+    },
+    {
+      "id": "F094",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 88,
+      "end": 88,
+      "source": "fix/8f7932b250ed:88-88"
+    },
+    {
+      "id": "F095",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 96,
+      "end": 96,
+      "source": "fix/8f7932b250ed:96-96"
+    },
+    {
+      "id": "F096",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 153,
+      "end": 153,
+      "source": "fix/8f7932b250ed:153-153"
+    },
+    {
+      "id": "F097",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 186,
+      "end": 186,
+      "source": "fix/8f7932b250ed:186-186"
+    },
+    {
+      "id": "F098",
+      "file": "tests/unit/charting-lint.bats",
+      "start": 399,
+      "end": 405,
+      "source": "fix/8f7932b250ed:399-405"
+    },
+    {
+      "id": "F099",
+      "file": "tests/unit/golden-path-charting.bats",
+      "start": 22,
+      "end": 22,
+      "source": "fix/8f7932b250ed:22-22"
+    },
+    {
+      "id": "F100",
+      "file": "tests/unit/golden-path-charting.bats",
+      "start": 85,
+      "end": 85,
+      "source": "fix/8f7932b250ed:85-85"
+    },
+    {
+      "id": "F101",
+      "file": "tests/unit/golden-path-charting.bats",
+      "start": 154,
+      "end": 155,
+      "source": "fix/8f7932b250ed:154-155"
+    },
+    {
+      "id": "F102",
+      "file": "tests/unit/run-mode-ice.bats",
+      "start": 400,
+      "end": 400,
+      "source": "fix/8f7932b250ed:400-400"
+    },
+    {
+      "id": "F103",
+      "file": "tests/unit/skill-capabilities.bats",
+      "start": 852,
+      "end": 852,
+      "source": "fix/8f7932b250ed:852-852"
+    },
+    {
+      "id": "F104",
+      "file": "tests/unit/skill-capabilities.bats",
+      "start": 867,
+      "end": 867,
+      "source": "fix/8f7932b250ed:867-867"
+    },
+    {
+      "id": "F105",
+      "file": "tests/unit/spike-validator.bats",
+      "start": 166,
+      "end": 166,
+      "source": "fix/8f7932b250ed:166-166"
+    }
+  ]
+}

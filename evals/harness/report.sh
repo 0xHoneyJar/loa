@@ -8,18 +8,54 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat <<'USAGE'
 Usage: report.sh --run-dir <dir> [--comparison <json>] [--no-color]
+       report.sh --arms [--suite S] [--partial] [--results-dir <dir>] [--out <file>] [--date YYYY-MM-DD]
 
 Options:
   --run-dir <dir>       Run directory with results.jsonl and run-meta.json
   --comparison <json>   Comparison JSON from compare.sh
   --no-color            Disable color output
 
+Control arms (cycle-129 FR-2, SDD D-2.3):
+  --arms                Write the control-arm report from run-arms.sh results
+                        (default dir evals/results/arms/<suite>/) to
+                        evals/results/arms-report-<date>.md: per-arm recall
+                        (mean, min, max, spread), refuted share, tokens per
+                        call, the bootstrap interval of the recall drop, the
+                        pre-registered verdict and the missed labels
+  --suite S             review-recall or audit-recall (default: both present)
+  --partial             Write even when STATUS.json is not `complete`; the
+                        header says so and every verdict reads inconclusive
+
 Exit codes:
   0  Success
+  1  (--arms) refused: a suite's STATUS.json is not complete and no --partial
   2  Error
 USAGE
   exit 2
 }
+
+# --- control-arm report (cycle-129 FR-2) ---
+if [[ " $* " == *" --arms "* ]]; then
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  a_suite="" a_partial=() a_root="$REPO_ROOT/evals/results/arms" a_out="" a_date="$(date -u +%Y-%m-%d)"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --arms) shift ;;
+      --suite) a_suite="${2:-}"; shift 2 ;;
+      --partial) a_partial=(--partial); shift ;;
+      --results-dir) a_root="${2:-}"; shift 2 ;;
+      --out) a_out="${2:-}"; shift 2 ;;
+      --date) a_date="${2:-}"; shift 2 ;;
+      --help|-h) usage ;;
+      *) echo "ERROR: Unknown option for --arms: $1" >&2; exit 2 ;;
+    esac
+  done
+  case "$a_suite" in ""|review-recall|audit-recall) ;; *) echo "ERROR: --suite must be review-recall or audit-recall" >&2; exit 2 ;; esac
+  [[ "$a_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "ERROR: --date must be YYYY-MM-DD" >&2; exit 2; }
+  [[ -n "$a_out" ]] || a_out="$REPO_ROOT/evals/results/arms-report-$a_date.md"
+  exec python3 -I "$SCRIPT_DIR/arms-report.py" --results-root "$a_root" --suites-dir "$REPO_ROOT/evals/suites" \
+    --suites "$a_suite" --out "$a_out" --date "$a_date" ${a_partial[@]+"${a_partial[@]}"}
+fi
 
 # --- Colors ---
 setup_colors() {

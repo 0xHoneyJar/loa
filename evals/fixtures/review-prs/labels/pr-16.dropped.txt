@@ -1,0 +1,8 @@
+# pr-16 sprint-252: findings that did not become labels
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L25 [medium] cites no file: the block says "Unset: rounds for thorough, batch for minimal.
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L55 [medium] the finding calls itself pre-existing (not this change): secrets check scans only the final diff (pre-existing)
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L81 [low] the finding calls itself pre-existing (not this change): recovery pipes an unpinned remote script into bash (pre-existing)
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L53 [medium] duplicate of L01-treats-any-as-a-fixture-so-reaches-the-w (same anchor): `is_operator_call` is `--recorded-by decisions-command`, a free argument;
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L44 [medium] duplicate of L01-treats-any-as-a-fixture-so-reaches-the-w (same anchor): Operator-only ledger operations are authorised by a caller-supplied string
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L66 [low] duplicate of L03-the-shape-check-runs-over-a-json-stream (same anchor): Round checker printed untrusted ids unescaped (fixed, audit round)
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L71 [low] duplicate of L03-the-shape-check-runs-over-a-json-stream (same anchor): Round checker passed growing JSON through argv (fixed, audit round)

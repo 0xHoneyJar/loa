@@ -1,0 +1,143 @@
+# approved-by: lead 2026-10-14
+# fixture pr-18 | sprint-254 | record origin/record/cycle-128-a2a | base 8f7932b250ed | head efacf754c32a | fix 3758ddd0edec
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
+# L01 medium review: validate-artifact.sh` `validate_glossary` — any token on an `_Aliases_:` line resolves, with no cap, no reason and no stale or redundant reporting (those exist… [fix hunk inside lookup()]
+# L02 low review: glossary pass — an `_Aliases_:` line before any `**Term**:` is stored with an empty entry; [quoted snippet + fix hunk inside put()]
+# L03 low review: RTC-9 — the no-`timeout` shim symlinks `/usr/local/bin`, `/usr/bin` and `/bin`; [quoted snippet]
+# L05 low review: a red run with no output prints an empty block between the markers (my throwaway run). [quoted snippet + fix hunk inside finish()]
+# L06 high audit: is an unbounded, credentialed execution path granted to the review role [quoted snippet + fix hunk inside run_bounded()]
+# L07 medium audit: The temporary worktrees share `.git` with the live checkout [quoted snippet + definition of add_wt]
+# L08 low audit: The Seams rule's fence tracking and Date gate fail open [definition of validate_sprint_seams]
+# L09 low audit: Manifest coverage of the new framework file [the file's fix hunks (file-level finding)]
+defect_id	severity	category	file	must_match	label_source	source
+L01-validate-artifact-shvalidate-glossary-al	medium	security	tools/check-glossary-terms.sh	FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else add(alias, $2, $3); next }	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L26
+L01-validate-artifact-shvalidate-glossary-al	medium	security	tools/check-glossary-terms.sh	' "$WORK/names.tsv" "$WORK/allow.tsv" "$WORK/tokens.tsv" > "$WORK/resolved.tsv"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L26
+L02-glossary-pass-an-line-before-any-is-stor	low	error-handling	tools/check-glossary-terms.sh	entry == ""	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L46
+L02-glossary-pass-an-line-before-any-is-stor	low	error-handling	tools/check-glossary-terms.sh	FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else add(alias, $2, $3); next }	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L46
+L02-glossary-pass-an-line-before-any-is-stor	low	error-handling	tools/check-glossary-terms.sh	' "$WORK/names.tsv" "$WORK/allow.tsv" "$WORK/tokens.tsv" > "$WORK/resolved.tsv"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L46
+L03-rtc-9-the-no-shim-symlinks-and	low	security	tests/unit/red-test-check.bats	/usr/local/bin	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L50
+L05-a-red-run-with-no-output-prints-an-empty	low	concurrency	.claude/scripts/red-test-check.sh	finish()	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L58
+L05-a-red-run-with-no-output-prints-an-empty	low	concurrency	.claude/scripts/red-test-check.sh	if [[ -n "$TEST_FILE" ]] && ! git -C "$MAIN" cat-file -e "${RED_SHA}:${TEST_FILE#./}" 2>/dev/null; then	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L58
+L06-is-an-unbounded-credentialed-execution-p	high	security	.claude/scripts/red-test-check.sh	exec "$@"	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L33
+L06-is-an-unbounded-credentialed-execution-p	high	security	.claude/scripts/red-test-check.sh	local cwd="$1" log="$2" flag="${SCRATCH}/timed-out" tbin="" start	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L33
+L06-is-an-unbounded-credentialed-execution-p	high	security	.claude/scripts/red-test-check.sh	( cd "$cwd" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX && exec "$tbin" -k 2 "$TIMEOUT" "$@" ) > "$log" 2>&1 < /dev/null &	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L33
+L07-the-temporary-worktrees-share-with-the-l	medium	logic	.claude/scripts/red-test-check.sh	-c core.hooksPath=/dev/null	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L54
+L07-the-temporary-worktrees-share-with-the-l	medium	logic	.claude/scripts/red-test-check.sh	local path="$1" sha="$2"	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L54
+L08-the-seams-rule-s-fence-tracking-and-date	low	security	.claude/scripts/validate-artifact.sh	validate_sprint_seams() {	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L61
+L09-manifest-coverage-of-the-new-framework-f	low	logic	.claude/scripts/lib/symlink-manifest.sh	".claude/loa/GLOSSARY.md:../../${submodule}/.claude/loa/GLOSSARY.md"	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L71
+F001	-	fix	.claude/loa/GLOSSARY.md	**Beads**: The local-first task tracker that is the single source of truth for sprint tasks, decision tickets and their dependencies.	fix	fix/3758ddd0edec:7-7
+F002	-	fix	.claude/scripts/lib/symlink-manifest.sh	".claude/loa/GLOSSARY.md:../../${submodule}/.claude/loa/GLOSSARY.md"	fix	fix/3758ddd0edec:79-82
+F003	-	fix	.claude/scripts/red-test-check.sh	# the fix. This check runs the test command at the red commit and at the green revision, each in	fix	fix/3758ddd0edec:6-14
+F004	-	fix	.claude/scripts/red-test-check.sh	# The red-side verdicts (5, 3, 4) are judged first, then the green side (5, 1).	fix	fix/3758ddd0edec:18-18
+F005	-	fix	.claude/scripts/red-test-check.sh	# not-a-red patterns are heuristics over the red run's output: a test whose own assertion	fix	fix/3758ddd0edec:23-42
+F006	-	fix	.claude/scripts/red-test-check.sh	PROG="red-test-check"	fix	fix/3758ddd0edec:46-48
+F007	-	fix	.claude/scripts/red-test-check.sh	echo "usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--no-link-deps] [--timeout <s>] [--json] -- <test command...>" >&2	fix	fix/3758ddd0edec:75-75
+F008	-	fix	.claude/scripts/red-test-check.sh	TIMEOUT=600	fix	fix/3758ddd0edec:87-87
+F009	-	fix	.claude/scripts/red-test-check.sh	--setup) [[ -n "${2:-}" ]] || usage "--setup needs a command"; SETUP="$2"; shift 2 ;;	fix	fix/3758ddd0edec:93-93
+F010	-	fix	.claude/scripts/red-test-check.sh	-h|--help) sed -n '3,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;	fix	fix/3758ddd0edec:98-98
+F011	-	fix	.claude/scripts/red-test-check.sh	MAIN="$(git rev-parse --show-toplevel 2>/dev/null)" || die2 "not inside a git work tree"	fix	fix/3758ddd0edec:116-153
+F012	-	fix	.claude/scripts/red-test-check.sh	if [[ -n "$TEST_FILE" ]] && ! git -C "$MAIN" cat-file -e "${RED_SHA}:${TEST_FILE#./}" 2>/dev/null; then	fix	fix/3758ddd0edec:160-160
+F013	-	fix	.claude/scripts/red-test-check.sh	done < <(git -C "$MAIN" diff --name-only "$RED_SHA" "$GREEN_SHA" -- 2>/dev/null || true)	fix	fix/3758ddd0edec:178-178
+F014	-	fix	.claude/scripts/red-test-check.sh	git -C "$MAIN" worktree remove --force "$wt" >/dev/null 2>&1 || true	fix	fix/3758ddd0edec:196-196
+F015	-	fix	.claude/scripts/red-test-check.sh	git -C "$MAIN" worktree prune >/dev/null 2>&1 || true	fix	fix/3758ddd0edec:205-205
+F016	-	fix	.claude/scripts/red-test-check.sh	local path="$1" sha="$2"	fix	fix/3758ddd0edec:212-216
+F017	-	fix	.claude/scripts/red-test-check.sh	# Run argv with cwd $1, output to $2, bounded by TIMEOUT. Sets RUN_RC and RUN_TIMED_OUT.	fix	fix/3758ddd0edec:233-233
+F018	-	fix	.claude/scripts/red-test-check.sh	local cwd="$1" log="$2" flag="${SCRATCH}/timed-out" tbin="" start	fix	fix/3758ddd0edec:237-239
+F019	-	fix	.claude/scripts/red-test-check.sh	( cd "$cwd" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX && exec "$tbin" -k 2 "$TIMEOUT" "$@" ) > "$log" 2>&1 < /dev/null &	fix	fix/3758ddd0edec:248-250
+F020	-	fix	.claude/scripts/red-test-check.sh	run_bounded "$wt" "${SCRATCH}/setup-${name}.log" "${SETUP_ARGV[@]}"	fix	fix/3758ddd0edec:292-294
+F021	-	fix	.claude/scripts/red-test-check.sh	add_wt "$WT_GREEN" "$GREEN_SHA"	fix	fix/3758ddd0edec:304-304
+F022	-	fix	.claude/scripts/red-test-check.sh	run_bounded "$WT_RED" "${SCRATCH}/red.log" "$@"	fix	fix/3758ddd0edec:308-316
+F023	-	fix	.claude/scripts/red-test-check.sh	finish GREEN_FAILS 1	fix	fix/3758ddd0edec:345-345
+F024	-	fix	.claude/scripts/validate-artifact.sh	#               in every sprint block (older and undated plans WARN)	fix	fix/3758ddd0edec:33-33
+F025	-	fix	.claude/scripts/validate-artifact.sh	#               alias (case, '-', '_' and spaces folded); WARN on a path or file	fix	fix/3758ddd0edec:70-71
+F026	-	fix	.claude/scripts/validate-artifact.sh	# The writer's context (`dec-write-lib.sh context --why`); prints its signal lines.	fix	fix/3758ddd0edec:546-550
+F027	-	fix	.claude/scripts/validate-artifact.sh	local live_unattended=false	fix	fix/3758ddd0edec:585-585
+F028	-	fix	.claude/scripts/validate-artifact.sh	--argjson unatt "$live_unattended" --arg refre "$DEC_REF_RE" '	fix	fix/3758ddd0edec:595-596
+F029	-	fix	.claude/scripts/validate-artifact.sh	(if ($r | has("phase")) and (($r.phase | IN("discovery","architecture","sprint-planning","implementation","review","charting","spike","operations")) | not) then "V\t\($L): phase \($r.phase | tojson) is not one of discovery|architecture|sprint-planning|implementation|review|charting|spike|operations" else empty end),	fix	fix/3758ddd0edec:629-629
+F030	-	fix	.claude/scripts/validate-artifact.sh	(if ($r | has("status")) and (($r.status | IN("open","proposed","decided","superseded","rejected")) | not) then "V\t\($L): status \($r.status | tojson) is not one of open|proposed|decided|superseded|rejected" else empty end),	fix	fix/3758ddd0edec:633-635
+F031	-	fix	.claude/scripts/validate-artifact.sh	(if ($r.status // null | IN("proposed","decided","superseded")) or ($T | any(.[]; (type == "object") and .to == "proposed")) then	fix	fix/3758ddd0edec:642-642
+F032	-	fix	.claude/scripts/validate-artifact.sh	(if ($T[0] | type) != "object" or $T[0].from != null or (($T[0].to // null) | IN("open","proposed") | not) then "V\t\($L): the first transition must be null -> open|proposed" else empty end),	fix	fix/3758ddd0edec:651-651
+F033	-	fix	.claude/scripts/validate-artifact.sh	(if ($t.to == "decided" or ($t.from == "decided" and ($t.to | IN("superseded","rejected")))) and ((($t.by // "") | tostring | startswith("operator:")) | not) then "V\t\($L): transition \($t.from | tojson) -> \($t.to) needs by operator:* (only /decisions makes it)" else empty end),	fix	fix/3758ddd0edec:658-658
+F034	-	fix	.claude/scripts/validate-artifact.sh	(($r.proposed_by // null) as $v | if ($v | IN("flatline","dissent")) then	fix	fix/3758ddd0edec:670-670
+F035	-	fix	.claude/scripts/validate-artifact.sh	(if $rl - $bl > 1 then "V\t\($b.id): more than one transition appended in one write" else empty end),	fix	fix/3758ddd0edec:697-707
+F036	-	fix	.claude/scripts/validate-artifact.sh	# undated plans WARN once. Headings inside fenced code do not count.	fix	fix/3758ddd0edec:866-876
+F037	-	fix	.claude/scripts/validate-artifact.sh	if (st && tolower(c[st]) ~ /resolved/) {	fix	fix/3758ddd0edec:919-919
+F038	-	fix	.claude/scripts/validate-artifact.sh	GLOSSARY_MAX_CHARS=300	fix	fix/3758ddd0edec:1251-1254
+F039	-	fix	.claude/scripts/validate-artifact.sh	done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" '	fix	fix/3758ddd0edec:1260-1260
+F040	-	fix	.claude/scripts/validate-artifact.sh	if (x == "") return	fix	fix/3758ddd0edec:1266-1266
+F041	-	fix	.claude/scripts/validate-artifact.sh	/^[[:space:]]*(```|~~~)/ { fence = !fence; prev = "other"; next }	fix	fix/3758ddd0edec:1270-1271
+F042	-	fix	.claude/scripts/validate-artifact.sh	prev = "entry"; seen_avoid = 0; seen_alias = 0; next	fix	fix/3758ddd0edec:1299-1299
+F043	-	fix	.claude/scripts/validate-artifact.sh	for (i = 1; i <= m; i++) { p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p); claim(p, "alias") }	fix	fix/3758ddd0edec:1310-1310
+F044	-	fix	.claude/scripts/validate-artifact.sh	if (!h1) v("no H1; start with \"# Glossary: <name>\"")	fix	fix/3758ddd0edec:1318-1318
+F045	-	fix	.claude/skills/planning-sprints/SKILL.md	`deps:none` label). A sprint plan is an ordered list — the ordering knowledge exists NOW	fix	fix/3758ddd0edec:285-289
+F046	-	fix	.claude/skills/planning-sprints/SKILL.md	2. **Key Decisions** (3-5 items): The most impactful planning choices. Each decision should be one line: "• {choice made} (not {alternative rejected})"	fix	fix/3758ddd0edec:350-352
+F047	-	fix	.claude/skills/reviewing-code/SKILL.md	allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)	fix	fix/3758ddd0edec:6-6
+F048	-	fix	.claude/skills/reviewing-code/SKILL.md	- command: ".claude/scripts/red-test-check.sh"	fix	fix/3758ddd0edec:28-28
+F049	-	fix	.claude/skills/reviewing-code/SKILL.md	Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write detailed feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.	fix	fix/3758ddd0edec:88-88
+F050	-	fix	.claude/skills/reviewing-code/SKILL.md	Each finding carries a `file:line` citation of the failing statement itself — a range	fix	fix/3758ddd0edec:113-113
+F051	-	fix	.claude/skills/reviewing-code/SKILL.md	You MAY approve when every remaining finding sits under `## Observations` — medium or low	fix	fix/3758ddd0edec:128-129
+F052	-	fix	.claude/skills/reviewing-code/SKILL.md	Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.	fix	fix/3758ddd0edec:136-136
+F053	-	fix	.claude/skills/reviewing-code/SKILL.md	Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links (Discord, Linear) when present.	fix	fix/3758ddd0edec:198-198
+F054	-	fix	.claude/skills/reviewing-code/SKILL.md	5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.	fix	fix/3758ddd0edec:213-213
+F055	-	fix	.claude/skills/reviewing-code/SKILL.md	Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'.	fix	fix/3758ddd0edec:219-219
+F056	-	fix	.claude/skills/reviewing-code/SKILL.md	**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.	fix	fix/3758ddd0edec:223-223
+F057	-	fix	.claude/skills/reviewing-code/SKILL.md	**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.	fix	fix/3758ddd0edec:239-242
+F058	-	fix	.claude/skills/reviewing-code/SKILL.md	**MUST self-check before finishing**: run	fix	fix/3758ddd0edec:259-259
+F059	-	fix	.claude/skills/reviewing-code/SKILL.md	With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.	fix	fix/3758ddd0edec:293-293
+F060	-	fix	.claude/skills/reviewing-code/resources/REFERENCE.md	If any match found, **block approval** until issues are resolved.	fix	fix/3758ddd0edec:321-321
+F061	-	fix	.claude/skills/riding-codebase/SKILL.md	Before loading any files, probe the codebase to pick a loading strategy. Run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (fall back to eager loading if unavailable) for file count, lines, tokens, and size category:	fix	fix/3758ddd0edec:92-92
+F062	-	fix	.claude/skills/riding-codebase/SKILL.md	Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-load decision; for prioritized/excerpts strategies, sort by relevance score using `.claude/scripts/context-manager.sh should-load "$file" --json`. Log probe results to trajectory.	fix	fix/3758ddd0edec:100-100
+F063	-	fix	.claude/skills/riding-codebase/SKILL.md	Scan `grimoires/loa/context/` for existing documentation files, then use `AskUserQuestion` to offer the user a chance to add more (architecture docs, tribal knowledge, roadmaps) to `grimoires/loa/context/` before the interview.	fix	fix/3758ddd0edec:108-108
+F064	-	fix	.claude/skills/riding-codebase/SKILL.md	Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for HUMAN DECISION: files outside standard directories, potential temporary/WIP folders, commented-out code blocks, and potential dependency conflicts. **WRITE TO DISK.**	fix	fix/3758ddd0edec:156-156
+F065	-	fix	.claude/skills/riding-codebase/SKILL.md	For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, referencing `grimoires/loa/drift-report.md`.	fix	fix/3758ddd0edec:270-270
+F066	-	fix	tests/fixtures/glossary/ok/GLOSSARY.md	**Gadget**: A stage a widget passes through.	fix	fix/3758ddd0edec:9-9
+F067	-	fix	tests/unit/glossary-terms.bats	[[ "$output" != *"WARN"* ]]	fix	fix/3758ddd0edec:38-38
+F068	-	fix	tests/unit/glossary-terms.bats	check 'Dropped: `a/b`, `file.md`, `--flag`, `-x`, `key:value`, `call()`, `/loa`, `two words`, `>>`, `*_TEST_MODE=1`, `9lives`, `x=y`.' --report	fix	fix/3758ddd0edec:101-101
+F069	-	fix	tests/unit/glossary-terms.bats	@test "GT-9 an allowlisted token resolves; an allowlist of 31 entries fails" {	fix	fix/3758ddd0edec:105-105
+F070	-	fix	tests/unit/glossary-terms.bats	[ "$n" -ge 18 ]	fix	fix/3758ddd0edec:199-199
+F071	-	fix	tests/unit/glossary-validator.bats	glossary '**A**: B.' '' '```' 'not an entry' '_Aliases_: x' '```'	fix	fix/3758ddd0edec:165-165
+F072	-	fix	tests/unit/red-test-check.bats	# fixture shows only the main tree afterwards and that the live tree was not touched.	fix	fix/3758ddd0edec:4-4
+F073	-	fix	tests/unit/red-test-check.bats	SCRIPT="${PROJECT_ROOT}/.claude/scripts/red-test-check.sh"	fix	fix/3758ddd0edec:8-8
+F074	-	fix	tests/unit/red-test-check.bats	commit "base"	fix	fix/3758ddd0edec:20-20
+F075	-	fix	tests/unit/red-test-check.bats	commit() { git -C "$R" add -A && git -C "$R" commit -q -m "$1"; git -C "$R" rev-parse HEAD; }	fix	fix/3758ddd0edec:24-24
+F076	-	fix	tests/unit/red-test-check.bats	fix_lib() { printf 'add() { echo $(( $1 + $2 )); }\n' > "$R/lib.sh"; }	fix	fix/3758ddd0edec:34-38
+F077	-	fix	tests/unit/red-test-check.bats	[ -z "$(ls -A "$TMPDIR")" ] || { ls -la "$TMPDIR"; echo "scratch left behind"; return 1; }	fix	fix/3758ddd0edec:45-45
+F078	-	fix	tests/unit/red-test-check.bats	@test "RTC-1 red fails by assertion, green passes: exit 0 VERIFIED with the red output printed" {	fix	fix/3758ddd0edec:49-55
+F079	-	fix	tests/unit/red-test-check.bats	mkdir -p "$R/tests"; printf 'echo "PASS always"\nexit 0\n' > "$R/tests/test_decoy.sh"	fix	fix/3758ddd0edec:61-67
+F080	-	fix	tests/unit/red-test-check.bats	[[ "$output" == *"does not exist at the red commit"* ]]	fix	fix/3758ddd0edec:74-77
+F081	-	fix	tests/unit/red-test-check.bats	@test "RTC-4 a red run that exits 127 (command not found) is NOT_A_RED, exit 4" {	fix	fix/3758ddd0edec:81-87
+F082	-	fix	tests/unit/red-test-check.bats	@test "RTC-5 a bats file with a syntax error at red is NOT_A_RED, exit 4" {	fix	fix/3758ddd0edec:91-91
+F083	-	fix	tests/unit/red-test-check.bats	run rtc --red "$red" -- "$bats_bin" tests/add.bats	fix	fix/3758ddd0edec:100-103
+F084	-	fix	tests/unit/red-test-check.bats	printf 'echo "ERROR collecting tests/test_add.py"\necho "ImportError while importing test module"\nexit 2\n' > "$R/tests/test_collect.sh"	fix	fix/3758ddd0edec:108-112
+F085	-	fix	tests/unit/red-test-check.bats	@test "RTC-7 a green that still fails exits 1 GREEN_FAILS and prints the green output" {	fix	fix/3758ddd0edec:118-124
+F086	-	fix	tests/unit/red-test-check.bats	mkdir -p "$R/tests"; printf 'sleep 30 &\nwait\n' > "$R/tests/test_slow.sh"	fix	fix/3758ddd0edec:129-129
+F087	-	fix	tests/unit/red-test-check.bats	run rtc --red "$red" --timeout 1 -- sh tests/test_slow.sh	fix	fix/3758ddd0edec:133-135
+F088	-	fix	tests/unit/red-test-check.bats	for f in /usr/local/bin/* /usr/bin/* /bin/*; do	fix	fix/3758ddd0edec:143-149
+F089	-	fix	tests/unit/red-test-check.bats	run env PATH="$shim" bash -c 'cd "$1" && shift && exec "$@"' _ "$R" "$SCRIPT" --red "$red" --timeout 1 -- sh tests/test_slow.sh	fix	fix/3758ddd0edec:153-155
+F090	-	fix	tests/unit/red-test-check.bats	red="$(commit "test(bug): needs dep")"	fix	fix/3758ddd0edec:169-172
+F091	-	fix	tests/unit/red-test-check.bats	run rtc --red "$red" --no-link-deps -- sh tests/test_dep.sh	fix	fix/3758ddd0edec:178-178
+F092	-	fix	tests/unit/red-test-check.bats	red="$(commit "test(bug): needs setup")"	fix	fix/3758ddd0edec:191-197
+F093	-	fix	tests/unit/red-test-check.bats	run rtc --red "$red" --setup "false" -- sh tests/test_setup.sh	fix	fix/3758ddd0edec:201-203
+F094	-	fix	tests/unit/red-test-check.bats	run rtc --red "$green" --green "$red" -- sh tests/test_add.sh	fix	fix/3758ddd0edec:210-214
+F095	-	fix	tests/unit/red-test-check.bats	run rtc --red --upload-pack=x -- true	fix	fix/3758ddd0edec:218-218
+F096	-	fix	tests/unit/red-test-check.bats	run bash -c 'cd "$1" && "$2" --red "$3" --json -- sh tests/test_add.sh 2>/dev/null' _ "$R" "$SCRIPT" "$red"	fix	fix/3758ddd0edec:228-233
+F097	-	fix	tests/unit/red-test-check.bats	printf 'echo "PASS rewritten"\nexit 0\n' > "$R/tests/test_add.sh"; commit "weaken the test" >/dev/null	fix	fix/3758ddd0edec:241-241
+F098	-	fix	tests/unit/red-test-check.bats	local before; before="$(git -C "$R" status --porcelain)"	fix	fix/3758ddd0edec:252-252
+F099	-	fix	tests/unit/red-test-check.bats	(cd "$R" && exec "$SCRIPT" --red "$red" -- sh tests/test_slow.sh) > "${BATS_TEST_TMPDIR}/int.out" 2>&1 &	fix	fix/3758ddd0edec:260-263
+F100	-	fix	tests/unit/red-test-check.bats	@test "RTC-17 the micro-sprint template requires the separate red commit; reviewing-code names the script" {	fix	fix/3758ddd0edec:274-274
+F101	-	fix	tests/unit/red-test-check.bats	local r="$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"	fix	fix/3758ddd0edec:280-283
+F102	-	fix	tests/unit/sprint-seams.bats	[ "$(grep -c '^| Seam | Catches | Misses | Prior art |$' "$t")" -eq 2 ]	fix	fix/3758ddd0edec:117-117
+F103	-	fix	tools/check-glossary-terms.sh	# it matches ^[A-Za-z][A-Za-z0-9_-]*$, which drops paths, scripts, flags,	fix	fix/3758ddd0edec:8-10
+F104	-	fix	tools/check-glossary-terms.sh	# "#" starts a comment (give the reason there), at most 30 entries.	fix	fix/3758ddd0edec:16-16
+F105	-	fix	tools/check-glossary-terms.sh	# Exit codes: 0 every token resolves (a stale allowlist entry only WARNs)	fix	fix/3758ddd0edec:28-28
+F106	-	fix	tools/check-glossary-terms.sh	ALLOWLIST_MAX=30	fix	fix/3758ddd0edec:41-41
+F107	-	fix	tools/check-glossary-terms.sh	for f in "$KERNEL" "$GLOSSARY" "$ALLOWLIST"; do	fix	fix/3758ddd0edec:59-64
+F108	-	fix	tools/check-glossary-terms.sh	while (match(s, /`[^`]+`/)) {	fix	fix/3758ddd0edec:74-82
+F109	-	fix	tools/check-glossary-terms.sh	#    the **Term** the name belongs to. Only the "## Language" section counts.	fix	fix/3758ddd0edec:88-93
+F110	-	fix	tools/check-glossary-terms.sh	entry = t; printf "term\t%s\t%s\n", t, entry; next	fix	fix/3758ddd0edec:99-99
+F111	-	fix	tools/check-glossary-terms.sh	FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else add(alias, $2, $3); next }	fix	fix/3758ddd0edec:131-131
+F112	-	fix	tools/check-glossary-terms.sh	' "$WORK/names.tsv" "$WORK/allow.tsv" "$WORK/tokens.tsv" > "$WORK/resolved.tsv"	fix	fix/3758ddd0edec:149-149
+F113	-	fix	tools/check-glossary-terms.sh	done < "$WORK/resolved.tsv"	fix	fix/3758ddd0edec:163-163
+F114	-	fix	tools/check-glossary-terms.sh	--rawfile v <(printf '%s\n' ${violations[@]+"${violations[@]}"}) \	fix	fix/3758ddd0edec:171-174
+F115	-	fix	tools/check-glossary-terms.sh	redundant_allowlist: ($rows | map(select(.resolution == "REDUNDANT") | .token)),	fix	fix/3758ddd0edec:186-186
+F116	-	fix	tools/check-glossary-terms.sh	printf "%-11s %-24s line %-4s %s\n", $1, $2, $3, ($4 == "" ? "" : "-> " $4) }' "$WORK/resolved.tsv"	fix	fix/3758ddd0edec:194-194

@@ -1,0 +1,1474 @@
+{
+  "$schema": "../schemas/constraints.schema.json",
+  "version": "1.2.0",
+  "constraints": [
+    {
+      "id": "C-PROC-001",
+      "name": "no_code_outside_implement",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "write application code outside of `/implement` skill invocation",
+      "text_variants": {
+        "claude-loa-md": "NEVER write application code outside `/implement` (OR a construct with declared `workflow.gates`), and NEVER reach implementation except via `/run sprint-plan`, `/run sprint-N`, or `/bug` against an existing sprint plan"
+      },
+      "why": "Bypasses review+audit; /run adds the circuit breaker. Fences: implement-gate.sh fail-asks Write/Edit App-Zone writes outside /implement//bug; disallowed-tools strips pure-review skills' write tools; the adversarial gates. Bash-path App-Zone writes stay review-territory.",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct with workflow.gates is active",
+        "yield_text": "OR when a construct with declared `workflow.gates` owns the current workflow",
+        "yield_on_gates": [
+          "implement"
+        ]
+      },
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E111",
+      "severity": "critical",
+      "source_incident": "#192"
+    },
+    {
+      "id": "C-PROC-002",
+      "name": "no_taskcreate_for_sprint_tracking",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available",
+      "text_variants": {
+        "claude-loa-md": "NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available",
+        "skill-md": "Use `br` commands for task lifecycle, NOT `TaskCreate`/`TaskUpdate`"
+      },
+      "why": "Beads is the single source of truth for task lifecycle; TaskCreate only displays session progress.",
+      "condition": {
+        "when": "agent_teams_active",
+        "override_text": "In Agent Teams mode, TaskCreate/TaskUpdate serves dual purpose: team coordination (primary) and session display (secondary). Sprint lifecycle STILL uses beads exclusively.",
+        "override_rule_type": "MAY"
+      },
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent",
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E114",
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-003",
+      "name": "no_skip_to_implementation",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage",
+      "text_variants": {
+        "claude-loa-md": "NEVER skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage",
+        "skill-md": "Implementation phases MUST use `/run sprint-plan`, `/run sprint-N`, or `/bug` — NEVER implement directly"
+      },
+      "why": "`/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`.",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct with workflow.gates is active",
+        "yield_text": "OR when a construct with `workflow.gates` declares pipeline composition",
+        "yield_on_gates": [
+          "implement"
+        ]
+      },
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent",
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E115",
+      "severity": "critical",
+      "source_incident": "#216"
+    },
+    {
+      "id": "C-PROC-004",
+      "name": "no_skip_quality_gates",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "skip `/review-sprint` and `/audit-sprint` quality gates",
+      "text_variants": {
+        "claude-loa-md": "NEVER skip `/review-sprint` and `/audit-sprint` quality gates",
+        "skill-md": "Do NOT use `/implement` without `/run` — `/run` provides the review→audit cycle"
+      },
+      "why": "The only check that code meets its acceptance criteria and security standards.",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct declares review: skip or audit: skip",
+        "yield_text": "Yield when construct declares `review: skip` or `audit: skip`",
+        "yield_on_gates": [
+          "review",
+          "audit"
+        ]
+      },
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent"
+          ],
+          "render_as": "constraint_rule"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E113",
+      "severity": "critical"
+    },
+    {
+      "id": "C-PROC-005",
+      "name": "always_use_run_for_implementation",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS route implementation through `/run sprint-plan`, `/run sprint-N`, or `/bug`, checking for the existing sprint plan first",
+        "skill-md": "Phase 7 MUST invoke `/run sprint-plan` — NEVER implement code directly",
+        "protocol": "Using /run or /bug (not direct /implement) ||| For autonomous/simstim ||| /run wraps implement+review+audit"
+      },
+      "why": "Keeps implement→review→audit, the circuit breaker and requirements traceability; implement-gate.sh asks on ungated App-Zone writes.",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        },
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-PROC-006",
+      "name": "always_create_beads_tasks",
+      "category": "beads",
+      "rule_type": "ALWAYS",
+      "text": "create beads tasks from sprint plan before implementation (if beads available)",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS create beads tasks from sprint plan before implementation (if beads available)",
+        "skill-md": "If sprint plan exists but no beads tasks created, create them FIRST",
+        "protocol": "Beads tasks created ||| When beads HEALTHY ||| `br list` shows sprint tasks"
+      },
+      "why": "Tasks without beads tracking are invisible to cross-session recovery",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent",
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        },
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E112",
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-007",
+      "name": "always_complete_full_cycle",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "complete the full implement → review → audit cycle",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS complete the full implement → review → audit cycle"
+      },
+      "why": "Partial cycles leave unreviewed code in the codebase",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E116",
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-008",
+      "name": "always_check_sprint_plan",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "check for existing sprint plan before writing code",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS check for existing sprint plan before writing code",
+        "protocol": "Sprint plan exists ||| ALWAYS ||| `test -f grimoires/loa/sprint.md`"
+      },
+      "why": "Prevents ad-hoc implementation without requirements traceability",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct declares sprint: skip",
+        "yield_text": "Yield when construct declares `sprint: skip`",
+        "yield_on_gates": [
+          "sprint"
+        ]
+      },
+      "order": 3,
+      "layers": [
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        },
+        {
+          "target": "error-code",
+          "validate": "exists"
+        }
+      ],
+      "error_code": "E110",
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-009",
+      "name": "always_check_audit_feedback",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "check for unaddressed audit feedback before starting new work",
+      "text_variants": {
+        "protocol": "No unaddressed audit feedback ||| ALWAYS ||| Check `auditor-sprint-feedback.md`"
+      },
+      "why": "Audit feedback is highest priority; unaddressed findings indicate unresolved security or quality issues",
+      "order": 4,
+      "layers": [
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-010",
+      "name": "always_check_review_feedback",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "check for unaddressed review feedback before starting new work",
+      "text_variants": {
+        "protocol": "No unaddressed review feedback ||| ALWAYS ||| Check `engineer-feedback.md`"
+      },
+      "why": "Review feedback ensures code meets acceptance criteria; skipping leaves defects in the codebase",
+      "order": 5,
+      "layers": [
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-GIT-001",
+      "name": "always_on_feature_branch",
+      "category": "git_safety",
+      "rule_type": "ALWAYS",
+      "text": "work on a feature branch, never on main/master",
+      "text_variants": {
+        "protocol": "On feature branch ||| ALWAYS ||| `git branch --show-current` is not main/master"
+      },
+      "why": "Working on protected branches risks accidental pushes to production; feature branches enable PR review",
+      "order": 6,
+      "layers": [
+        {
+          "target": "protocol",
+          "file": ".claude/protocols/implementation-compliance.md",
+          "render_as": "checklist_item"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-BEADS-001",
+      "name": "beads_is_task_tracker",
+      "category": "beads",
+      "rule_type": "MUST",
+      "text": "use `br` (beads_rust) for sprint task lifecycle: create, in-progress, closed",
+      "text_variants": {
+        "claude-loa-md": "`br` (beads_rust) | Sprint task lifecycle: create, in-progress, closed | —"
+      },
+      "why": "Beads is the single source of truth for sprint task state across sessions",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "task_tracking_hierarchy",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BEADS-002",
+      "name": "taskcreate_for_session_display",
+      "category": "beads",
+      "rule_type": "MUST",
+      "text": "use `TaskCreate`/`TaskUpdate` only for session-level progress display to user, not sprint task tracking",
+      "text_variants": {
+        "claude-loa-md": "`TaskCreate`/`TaskUpdate` | Session-level progress display to user | Sprint task tracking"
+      },
+      "why": "TaskCreate tasks are invisible to beads and cross-session recovery",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "task_tracking_hierarchy",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-BEADS-003",
+      "name": "notes_for_observations",
+      "category": "beads",
+      "rule_type": "MUST",
+      "text": "use `grimoires/loa/NOTES.md` for observations, blockers, cross-session memory — not task status",
+      "text_variants": {
+        "claude-loa-md": "`grimoires/loa/NOTES.md` | Observations, blockers, cross-session memory | Task status"
+      },
+      "why": "NOTES.md is for durable memory and context, not transient task state",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "task_tracking_hierarchy",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PHASE-001",
+      "name": "no_enter_plan_mode_autonomous",
+      "category": "phase_sequencing",
+      "rule_type": "NEVER",
+      "text": "call `EnterPlanMode` — autonomous phases ARE the plan",
+      "text_variants": {
+        "skill-md": "NEVER call `EnterPlanMode` — autonomous phases ARE the plan"
+      },
+      "why": "Plan Mode would bypass quality gates; PRD/SDD/Sprint artifacts would not be created",
+      "order": 0,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#192"
+    },
+    {
+      "id": "C-PHASE-002",
+      "name": "no_enter_plan_mode_simstim",
+      "category": "phase_sequencing",
+      "rule_type": "NEVER",
+      "text": "call `EnterPlanMode` — simstim phases ARE the plan",
+      "text_variants": {
+        "skill-md": "NEVER call `EnterPlanMode` — simstim phases ARE the plan"
+      },
+      "why": "Plan Mode collapses the workflow into plan→implement, skipping DISCOVERY, ARCHITECTURE, and PLANNING phases",
+      "order": 0,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#192"
+    },
+    {
+      "id": "C-PHASE-003",
+      "name": "no_jump_to_implementation",
+      "category": "phase_sequencing",
+      "rule_type": "NEVER",
+      "text": "jump to implementation after any approval",
+      "text_variants": {
+        "skill-md": "NEVER jump to implementation after any user confirmation"
+      },
+      "why": "User approvals within phases are for THAT PHASE ONLY; jumping skips quality artifacts",
+      "order": 1,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent",
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-PHASE-004",
+      "name": "sequential_phase_completion",
+      "category": "phase_sequencing",
+      "rule_type": "MUST",
+      "text": "complete each phase before proceeding",
+      "text_variants": {
+        "skill-md": "Each phase MUST complete sequentially: 0→1→2→3→3.5→4→4.5→5→6→6.5→7→8"
+      },
+      "why": "Each phase produces artifacts that subsequent phases depend on; skipping creates gaps",
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent",
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-PHASE-006",
+      "name": "orchestrates_other_skills",
+      "category": "phase_sequencing",
+      "rule_type": "MUST",
+      "text": "orchestrate OTHER skills — each has its own workflow",
+      "text_variants": {
+        "skill-md": "This skill orchestrates OTHER skills — each has its own workflow"
+      },
+      "why": "The autonomous agent delegates to implementing-tasks, reviewing-code, etc.; it should not duplicate their logic",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "autonomous-agent"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-PHASE-007",
+      "name": "approvals_are_phase_only",
+      "category": "phase_sequencing",
+      "rule_type": "MUST",
+      "text": "treat user approvals within phases as applying to THAT PHASE ONLY",
+      "text_variants": {
+        "skill-md": "User approvals within phases are for THAT PHASE ONLY"
+      },
+      "why": "Approving a PRD does not mean approving implementation; each phase gate is independent",
+      "order": 4,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-PHASE-008",
+      "name": "only_phase7_writes_code",
+      "category": "phase_sequencing",
+      "rule_type": "MUST",
+      "text": "only write application code during Phase 7 (IMPLEMENTATION)",
+      "text_variants": {
+        "skill-md": "Only Phase 7 (IMPLEMENTATION) involves writing application code"
+      },
+      "why": "Writing code during planning phases bypasses the full quality pipeline",
+      "order": 5,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-PHASE-005",
+      "name": "run_halt_on_failure",
+      "category": "phase_sequencing",
+      "rule_type": "MUST",
+      "text": "HALT and inform user if `/run sprint-plan` fails — do NOT fall back to direct implementation",
+      "text_variants": {
+        "skill-md": "If `/run sprint-plan` fails or is unavailable, HALT and inform the user — do NOT fall back to direct implementation"
+      },
+      "why": "PR #216 was rolled back because Phase 7 bypassed /run sprint-plan; direct implementation skips the review→audit cycle loop",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "simstim-workflow"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#216"
+    },
+    {
+      "id": "C-PROC-015",
+      "name": "always_validate_bug_eligibility",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "validate bug eligibility (observed failure, stack trace, or regression) before implementation via `/bug`",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS validate bug eligibility before `/bug` implementation",
+        "skill-md": "Bug eligibility MUST be validated — observed failure, stack trace, or regression required"
+      },
+      "why": "Feature work must not bypass the PRD/SDD gates via `/bug`; an observed failure, regression or stack trace is required.",
+      "order": 10,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "bug-triaging"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-018",
+      "name": "always_read_before_write",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit"
+      },
+      "why": "The Write tool rejects writes to un-Read existing files, and blind writes clobber cross-session state.",
+      "order": 11,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#1177"
+    },
+    {
+      "id": "C-PROC-016",
+      "name": "never_use_bug_for_features",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "use `/bug` for feature work that doesn't reference an observed failure",
+      "text_variants": {
+        "claude-loa-md": "NEVER use `/bug` for feature work that doesn't reference an observed failure",
+        "skill-md": "NEVER accept feature requests through /bug — redirect to /plan"
+      },
+      "why": "`/bug` bypasses PRD/SDD gates; feature work must go through `/plan`",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "bug-triaging"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-EVAL-001",
+      "name": "never_modify_baselines_without_reason",
+      "category": "eval",
+      "rule_type": "NEVER",
+      "text": "update eval baselines without providing `--reason` explaining why the change is justified",
+      "text_variants": {
+        "claude-loa-md": "NEVER update eval baselines without providing `--reason` explaining why the change is justified",
+        "skill-md": "Baseline updates MUST include --reason flag with justification"
+      },
+      "why": "Baselines are the source of truth for regression detection; unexplained changes can mask real regressions",
+      "order": 11,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "eval-running"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-EVAL-002",
+      "name": "never_commit_eval_results",
+      "category": "eval",
+      "rule_type": "NEVER",
+      "text": "commit eval result artifacts (`evals/results/`) to version control — only baselines are committed",
+      "text_variants": {
+        "claude-loa-md": "NEVER commit eval result artifacts (`evals/results/`) to version control — only baselines are committed",
+        "skill-md": "Result artifacts are ephemeral; only baselines belong in git"
+      },
+      "why": "Result files are ephemeral CI artifacts stored via GitHub Actions artifacts; committing them pollutes history and inflates repo size",
+      "order": 12,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "eval-running"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-GUARD-001",
+      "name": "check_audit_feedback_first",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "start new work without checking for audit feedback FIRST (highest priority)",
+      "text_variants": {
+        "skill-md": "DO NOT start new work without checking for audit feedback FIRST (highest priority)"
+      },
+      "why": "Audit feedback identifies security and quality issues that must be resolved before new work compounds them",
+      "order": 0,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-GUARD-002",
+      "name": "check_review_feedback_second",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "start new work without checking for engineer feedback SECOND",
+      "text_variants": {
+        "skill-md": "DO NOT start new work without checking for engineer feedback SECOND"
+      },
+      "why": "Review feedback ensures code quality; addressing it before new work prevents accumulating technical debt",
+      "order": 1,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-GUARD-003",
+      "name": "no_assume_feedback_meaning",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "assume feedback meaning—ask clarifying questions if unclear",
+      "text_variants": {
+        "skill-md": "DO NOT assume feedback meaning—ask clarifying questions if unclear"
+      },
+      "why": "Misinterpreting feedback leads to incorrect fixes that waste cycles",
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-GUARD-004",
+      "name": "no_skip_tests",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "skip tests—comprehensive test coverage is non-negotiable",
+      "text_variants": {
+        "skill-md": "DO NOT skip tests—comprehensive test coverage is non-negotiable"
+      },
+      "why": "Untested code cannot be validated by review/audit gates and risks production regressions",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-GUARD-005",
+      "name": "no_ignore_codebase_patterns",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "ignore existing codebase patterns—follow established conventions",
+      "text_variants": {
+        "skill-md": "DO NOT ignore existing codebase patterns—follow established conventions"
+      },
+      "why": "Inconsistent patterns increase cognitive load and maintenance burden for the team",
+      "order": 4,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-GUARD-006",
+      "name": "no_skip_reading_context",
+      "category": "guardrails",
+      "rule_type": "NEVER",
+      "text": "skip reading context files—always review PRD, SDD, sprint.md",
+      "text_variants": {
+        "skill-md": "DO NOT skip reading context files—always review PRD, SDD, sprint.md"
+      },
+      "why": "Context files contain requirements and design decisions; skipping them leads to off-spec implementation",
+      "order": 5,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-GUARD-007",
+      "name": "link_to_source_discussions",
+      "category": "guardrails",
+      "rule_type": "ALWAYS",
+      "text": "link implementations to source discussions if integration context requires",
+      "text_variants": {
+        "skill-md": "DO link implementations to source discussions if integration context requires"
+      },
+      "why": "Traceability between implementation and design decisions aids future maintenance and review",
+      "order": 6,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-GUARD-008",
+      "name": "update_relevant_documentation",
+      "category": "guardrails",
+      "rule_type": "ALWAYS",
+      "text": "update relevant documentation if specified in integration context",
+      "text_variants": {
+        "skill-md": "DO update relevant documentation if specified in integration context"
+      },
+      "why": "Outdated documentation misleads future development and review cycles",
+      "order": 7,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-GUARD-009",
+      "name": "format_commits_per_standards",
+      "category": "guardrails",
+      "rule_type": "ALWAYS",
+      "text": "format commits per org standards if defined",
+      "text_variants": {
+        "skill-md": "DO format commits per org standards if defined"
+      },
+      "why": "Consistent commit messages enable automated changelogs and bisect-based debugging",
+      "order": 8,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-GUARD-010",
+      "name": "follow_semver",
+      "category": "guardrails",
+      "rule_type": "ALWAYS",
+      "text": "follow SemVer for version updates",
+      "text_variants": {
+        "skill-md": "DO follow SemVer for version updates"
+      },
+      "why": "SemVer enables consumers to safely update dependencies without breaking changes",
+      "order": 9,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-001",
+      "name": "bridge_uses_run_sprint_plan",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "use `/run sprint-plan` (not direct `/implement`) within bridge iterations",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations",
+        "skill-md": "DO use `/run sprint-plan` within bridge iterations, never direct `/implement`"
+      },
+      "why": "Bridge iterations must inherit the implement→review→audit cycle with circuit breaker protection",
+      "order": 0,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-BRIDGE-002",
+      "name": "bridge_github_trail",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "post Bridgebuilder review as PR comment after each bridge iteration",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS post Bridgebuilder review as PR comment after each bridge iteration",
+        "skill-md": "DO post Bridgebuilder review as PR comment after each bridge iteration"
+      },
+      "why": "GitHub trail provides auditable history of iterative improvement decisions",
+      "order": 1,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-003",
+      "name": "gt_grounding_required",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "ensure Grounded Truth claims cite `file:line` source references",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS ensure Grounded Truth claims cite `file:line` source references",
+        "skill-md": "DO ensure all GT claims cite `file:line` source references"
+      },
+      "why": "Ungrounded claims in GT files propagate misinformation across sessions and agents",
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "riding-codebase",
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-004",
+      "name": "lore_yaml_format",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields",
+        "skill-md": "DO use YAML format with required schema fields for all lore entries"
+      },
+      "why": "Consistent schema enables programmatic lore queries and cross-skill integration",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-005",
+      "name": "vision_traceability",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "include source bridge iteration and PR in vision entries",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS include source bridge iteration and PR in vision entries",
+        "skill-md": "DO include source bridge iteration and PR in every vision entry"
+      },
+      "why": "Vision entries without provenance cannot be traced back to the context that inspired them",
+      "order": 4,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-006",
+      "name": "load_persona",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "load and validate bridgebuilder-persona.md before enriched review iterations",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS load and validate bridgebuilder-persona.md before enriched review iterations",
+        "skill-md": "DO load and validate persona file (integrity + content check) before every review iteration"
+      },
+      "why": "Persona-less reviews produce convergence-only output without educational depth",
+      "order": 5,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-007",
+      "name": "praise_quality",
+      "category": "bridge",
+      "rule_type": "SHOULD",
+      "text": "include PRAISE findings only when warranted by genuinely good engineering decisions",
+      "text_variants": {
+        "claude-loa-md": "SHOULD include PRAISE findings only when warranted by genuinely good engineering decisions",
+        "skill-md": "SHOULD include PRAISE findings — authentic recognition is more valuable than formulaic praise"
+      },
+      "why": "Forced praise dilutes the signal; authentic recognition of quality reinforces good patterns",
+      "order": 6,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-BRIDGE-008",
+      "name": "educational_fields",
+      "category": "bridge",
+      "rule_type": "SHOULD",
+      "text": "populate educational fields (faang_parallel, metaphor, teachable_moment) only with confident, specific insights",
+      "text_variants": {
+        "claude-loa-md": "SHOULD populate educational fields (faang_parallel, metaphor, teachable_moment) only with confident, specific insights",
+        "skill-md": "SHOULD populate enriched fields — an empty field is better than a formulaic one"
+      },
+      "why": "Generic educational content wastes reviewer attention; depth over coverage",
+      "order": 7,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "run-bridge"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-MERGE-001",
+      "name": "always_shell_orchestrator",
+      "category": "merge",
+      "rule_type": "ALWAYS",
+      "text": "use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands"
+      },
+      "why": "Orchestrator provides state tracking, idempotency, and audit trail",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-002",
+      "name": "never_tag_without_semver",
+      "category": "merge",
+      "rule_type": "NEVER",
+      "text": "create tags manually — always use semver-bump.sh for version computation",
+      "text_variants": {
+        "claude-loa-md": "NEVER create tags manually — always use semver-bump.sh for version computation"
+      },
+      "why": "Manual tags bypass conventional commit parsing and may produce incorrect versions",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-003",
+      "name": "rtfm_gaps_not_blocking",
+      "category": "merge",
+      "rule_type": "MUST",
+      "text": "log RTFM gaps but MUST NOT block the pipeline on documentation drift",
+      "text_variants": {
+        "claude-loa-md": "RTFM gaps MUST be logged but MUST NOT block the pipeline"
+      },
+      "why": "Documentation drift is informational, not a release blocker",
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "deploying-infrastructure"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-MERGE-004",
+      "name": "always_idempotent_phases",
+      "category": "merge",
+      "rule_type": "ALWAYS",
+      "text": "check for existing work before acting (tag exists, release exists, CHANGELOG version present)",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS check for existing work before acting — all phases must be idempotent"
+      },
+      "why": "Retries and re-runs must not produce duplicate tags, releases, or CHANGELOG entries",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "deploying-infrastructure"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-005",
+      "name": "cycle_only_full_pipeline",
+      "category": "merge",
+      "rule_type": "MUST",
+      "text": "only run full pipeline (CHANGELOG, GT, RTFM, Release) for cycle-type PRs",
+      "text_variants": {
+        "claude-loa-md": "Full pipeline (CHANGELOG, GT, RTFM, Release) MUST only run for cycle-type PRs"
+      },
+      "why": "Bugfix and other PRs get patch bump + tag only to avoid unnecessary processing",
+      "order": 4,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "deploying-infrastructure"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-TEAM-001",
+      "name": "lead_only_planning_skills",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "restrict planning, orchestration, deployment, and lifecycle management skills to the team lead — teammates MUST NOT invoke these (see Skill Invocation Matrix for full list; enforced by `team-skill-guard.sh`)",
+      "text_variants": {
+        "claude-loa-md": "MUST restrict planning skills to team lead only — teammates implement, review, and audit only"
+      },
+      "why": "Planning artifacts (PRD, SDD, sprint plan) assume a single writer; concurrent invocation corrupts them.",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-002",
+      "name": "lead_only_beads_operations",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "serialize all beads (`br`) operations through the team lead — teammates MUST NOT run `br` commands directly",
+      "text_variants": {
+        "claude-loa-md": "MUST serialize all beads operations through team lead — teammates report via SendMessage"
+      },
+      "why": "Beads is single-writer SQLite; concurrent br sync / br close contend for the lock and can corrupt state.",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-003",
+      "name": "lead_owns_state_files",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "only the team lead writes to `.run/simstim-state.json`, `.run/bridge-state.json`, and `.run/sprint-plan-state.json` — teammates report status via SendMessage",
+      "text_variants": {
+        "claude-loa-md": "MUST only let team lead write to `.run/` state files — teammates report via SendMessage"
+      },
+      "why": "State files are read-modify-write; concurrent writers lose updates.",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-004",
+      "name": "lead_coordinates_git_operations",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "coordinate all git commit and push operations through the team lead — teammates MUST NOT commit or push directly to avoid working tree and index race conditions",
+      "text_variants": {
+        "claude-loa-md": "MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage"
+      },
+      "why": "The working tree and index are shared mutable state; concurrent commits or pushes conflict and corrupt the index.",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-005",
+      "name": "teammate_system_zone_readonly",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "teammates MUST NOT modify files in the System Zone (.claude/) — all framework configuration, constraint definitions, hook scripts, and schema files are lead-only",
+      "text_variants": {
+        "claude-loa-md": "MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook"
+      },
+      "why": "A teammate's System Zone edit changes constraints, hooks and skills for the whole team and breaks the other C-TEAM invariants.",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "bridgebuilder-horizon-pr341"
+    },
+    {
+      "id": "C-PERM-001",
+      "name": "may_question_frame",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "question the framing of requirements during `/plan-and-analyze` and bridge reviews, proposing alternative problem definitions when the analysis warrants reframing",
+      "text_variants": {
+        "claude-loa-md": "MAY question the framing of requirements during `/plan-and-analyze` and bridge reviews when analysis warrants reframing"
+      },
+      "why": "The deepest architectural insights come from questioning the frame, not just analyzing within it. Permission to ask 'is this the right problem?' enables the level of inquiry that produced findings like lot_invariant-as-social-contract and Ostrom-as-governance.",
+      "order": 0,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "discovering-requirements",
+            "bridgebuilder-review"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-002",
+      "name": "may_explore_visions",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "allocate time within a sprint for Vision Registry exploration when a captured vision is relevant to the current work",
+      "text_variants": {
+        "claude-loa-md": "MAY allocate time for Vision Registry exploration when a captured vision is relevant to current work"
+      },
+      "why": "The Vision Registry captures speculative insights but none have ever been explored. Permission to allocate effort enables the 20% creative exploration that transforms captured ideas into actionable proposals.",
+      "order": 1,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-003",
+      "name": "may_propose_alternatives",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "propose alternative approaches that challenge existing architecture during bridge reviews and `/review-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY propose alternative architectural approaches during bridge reviews and `/review-sprint`"
+      },
+      "why": "Architectural evolution requires the ability to propose alternatives. Reviews that only check conformance to existing patterns cannot discover when the pattern itself should change.",
+      "order": 2,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "reviewing-code",
+            "bridgebuilder-review"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-004",
+      "name": "may_speculate_in_planning",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "create SPECULATION findings during planning and review skills (`/plan-and-analyze`, `/architect`, `/review-sprint`, bridge reviews) — explicitly excluded from `/implement` and `/audit-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY create SPECULATION findings during planning and review skills — excluded from `/implement` and `/audit-sprint`"
+      },
+      "why": "SPECULATION is currently scoped to bridge reviews only. Extending to planning and review skills enables creative architectural thinking at the stages where it has the most impact, while excluding implementation and audit where it could rationalize unsafe changes.",
+      "order": 3,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "discovering-requirements",
+            "reviewing-code",
+            "bridgebuilder-review"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PROC-017",
+      "name": "spiral_must_dispatch_through_harness",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "implement code directly in conversation when `/spiraling` is invoked with a task — dispatch through `/run sprint-plan`, `/simstim`, or `spiral-harness.sh` instead",
+      "text_variants": {
+        "claude-loa-md": "NEVER implement code directly when `/spiraling` is invoked with a task — dispatch through the harness pipeline (`/run sprint-plan`, `/simstim`, or `spiral-harness.sh`)"
+      },
+      "why": "`/spiraling` is context, not an orchestrator; without harness dispatch every quality gate (Flatline, Review, Audit, Bridgebuilder) is bypassed.",
+      "order": 5,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": [
+            "spiraling"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#506"
+    },
+    {
+      "id": "C-PROC-011",
+      "name": "yagni_ladder",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "walk the YAGNI ladder before writing code — stop at the first rung that holds (need it? → stdlib → native → installed dependency → one line → minimum code)",
+      "text_variants": {
+        "skill-md": "DO walk the YAGNI ladder before writing code — stop at the first rung that holds (need it? → stdlib → native → installed dependency → one line → minimum code); reinventing stdlib/native features is a dominant over-engineering class"
+      },
+      "why": "Speculative code and reinvented stdlib/native features are dominant over-engineering classes; the ladder is the reflex that prevents them (adapted from ponytail, MIT)",
+      "severity": "medium",
+      "order": 13,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ]
+    }
+  ]
+}

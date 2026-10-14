@@ -1,0 +1,16 @@
+# record-pairs.tsv — the commit pairs seed-corpus-from-record.sh builds the record fixtures from (cycle-129 FR-2, DEC-0154).
+# base = the parent of the sprint's first implementation commit; head = the tree the round-1 review read (the last
+# implementation commit before the first review-round fix); fix = the last commit that closed that sprint's feedback
+# (review, audit and, for sprint-254, the Bridgebuilder round). feedback = the record-branch files under
+# grimoires/loa/a2a/sprint-<N>/ the labels are seeded from (round-1 review, the audit, the Bridgebuilder triage);
+# later review rounds are left out because they read a tree after head. Each pair is an [ASSUMPTION fact] in the
+# sprint-255 implementation report.
+sprint	fixture	base	head	fix	record_ref	feedback
+247	pr-11	7246ae55^	7246ae55	4b289413	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md
+248	pr-12	6c887887^	6c887887	51d7a1ff	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md
+249	pr-13	41b783a1^	41b783a1	36b71e4e	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md
+250	pr-14	2fcd4af8	d785fc9a	e170de3d	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md
+251	pr-15	f43949d6^	8ad37c55	263a8d4c	origin/record/cycle-127-a2a	engineer-feedback.md,auditor-sprint-feedback.md
+252	pr-16	8dc4a49d^	8dc4a49d	16f38539	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback.md
+253	pr-17	cea919ca^	cea919ca	8f7932b2	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md
+254	pr-18	efacf754^	efacf754	3758ddd0	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md,bridgebuilder-triage.md

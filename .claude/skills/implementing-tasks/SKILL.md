@@ -25,7 +25,7 @@ zones:
     permission: read-write
   app:
     paths: [src, lib, app]
-    permission: read
+    permission: read-write
 inputs:
   # ICM Layer-2 advisory manifest; a missing path WARNs, never fails.
   - path: grimoires/loa/known-failures.md

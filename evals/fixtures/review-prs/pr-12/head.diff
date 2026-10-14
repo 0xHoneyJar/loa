@@ -1,0 +1,1077 @@
+diff --git a/.claude/scripts/adversarial-review.sh b/.claude/scripts/adversarial-review.sh
+index 5497c3e7..abda7909 100755
+--- a/.claude/scripts/adversarial-review.sh
++++ b/.claude/scripts/adversarial-review.sh
+@@ -129,6 +129,7 @@ load_adversarial_config() {
+   CONF_MODEL="gpt-5.3-codex"
+   CONF_TIMEOUT=60
+   CONF_BUDGET_CENTS=150
++  CONF_COMPANION_VOICE="true"   # cycle-126 FR-2.1: the second, other-family chain (opt-out per block)
+   CONF_ESCALATION_ENABLED="true"
+   CONF_SECONDARY_BUDGET=$DEFAULT_SECONDARY_TOKEN_BUDGET
+   CONF_MAX_FILE_LINES=500
+@@ -159,6 +160,10 @@ load_adversarial_config() {
+   CONF_MODEL=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.3-codex")
+   CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")
+   CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
++  # `false // true` is true in jq/yq semantics — read the raw value and default only when absent
++  local _cv
++  _cv=$(yq eval ".flatline_protocol.${config_key}.companion_voice" "$CONFIG_FILE" 2>/dev/null || echo "null")
++  case "$_cv" in false|no|off|0) CONF_COMPANION_VOICE="false" ;; *) CONF_COMPANION_VOICE="true" ;; esac
+   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
+   CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
+   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
+@@ -438,6 +443,7 @@ _write_rejected_sidecar() {
+ # Absent keys stay absent (no null keys introduced).
+ _normalize_finding_for_validation() {
+   local finding="$1"
++  local index="${2:-}"
+   echo "$finding" | jq '
+     (if has("severity") and (.severity | type) == "string"
+      then .severity |= (gsub("^\\s+|\\s+$"; "") | ascii_upcase)
+@@ -445,9 +451,66 @@ _normalize_finding_for_validation() {
+     | (if has("category") and (.category | type) == "string"
+        then .category |= (gsub("^\\s+|\\s+$"; "") | ascii_downcase)
+        else . end)
++  ' 2>/dev/null | _derive_failure_mode "$index"
++}
++
++# cycle-126 FR-2.2 (SDD D-2.2, KF-004): `failure_mode` is derivable, not
++# required. A finding that carries everything but it gets the first sentence
++# of its `description` (≤ 200 chars) as `failure_mode` and is marked
++# `failure_mode_derived: true`; a missing `id` (the models emit `title`, not
++# `id`) is filled from the position (`DISS-NNN`, `id_derived: true`). Severity,
++# category and description are never touched, so a derived finding is gated
++# exactly like a stated one. Only the unenforced path reaches this (the call
++# site skips normalisation for schema-enforced payloads). stdin → stdout.
++_derive_failure_mode() {
++  local index="${1:-}"
++  jq --arg idx "$index" '
++    (if ((.id // "") | tostring | length) == 0 and ($idx | length) > 0
++     then .id = ("DISS-" + (($idx | tonumber) + 1 | tostring | if length < 3 then ("000" + .)[-3:] else . end))
++          | .id_derived = true
++     else . end)
++    | if ((.failure_mode // "") | tostring | length) == 0
++         and (.description | type) == "string" and (.description | length) > 0
++      then
++        (.description
++          | gsub("\\s+"; " ")
++          | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)
++          | .[0:200]) as $fm
++        | .failure_mode = $fm | .failure_mode_derived = true
++      else . end
+   ' 2>/dev/null
+ }
+ 
++# cycle-126 FR-2.4 (SDD D-2.4): the repair model — `tiny` when an Anthropic
++# credential is PRESENT (env → .env.local → .env; the value is never read
++# out), else the `claude-headless` hop; LOA_ADVERSARIAL_REPAIR_MODEL pins it.
++_adv_cred_present() {  # <provider> → 0 when a credential is present (presence only)
++  local -a vars
++  case "$1" in
++    openai) vars=(OPENAI_API_KEY) ;;
++    anthropic) vars=(ANTHROPIC_API_KEY) ;;
++    google) vars=(GOOGLE_API_KEY GEMINI_API_KEY) ;;
++    *) return 1 ;;
++  esac
++  local v f val root="$PROJECT_ROOT"
++  for v in "${vars[@]}"; do [[ -n "${!v:-}" ]] && return 0; done
++  # bats-gated seam: point the dotenv lookup at a fixture directory
++  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
++  for f in "$root/.env.local" "$root/.env"; do
++    [[ -f "$f" ]] || continue
++    for v in "${vars[@]}"; do
++      val=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | sed -e 's/^[^=]*=//' -e "s/^[\"']//" -e "s/[\"'][[:space:]]*$//" -e 's/[[:space:]]*#.*$//')
++      [[ -n "$val" ]] && return 0
++    done
++  done
++  return 1
++}
++
++_repair_model() {  # <primary model> → the model the repair round-trip uses
++  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
++  if _adv_cred_present anthropic; then echo "tiny"; else echo "claude-headless"; fi
++}
++
+ # _repair_violated_field <reject_reason>
+ # Maps a _validate_finding_reason string to the single field name it
+ # names as violated. Unknown/unmapped reasons yield "" (empty) — the
+@@ -1167,11 +1230,12 @@ while i < len(text):
+   if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
+     local rej_dir="$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}"
+     mkdir -p "$rej_dir" 2>/dev/null || true
+-    rejected_sidecar="$rej_dir/adversarial-rejected-${type}.jsonl"
++    rejected_sidecar="$rej_dir/adversarial-rejected-${type}${_ADV_SIDECAR_TAG:+-$_ADV_SIDECAR_TAG}.jsonl"
+     : > "$rejected_sidecar" 2>/dev/null || rejected_sidecar=""
+   fi
+ 
+   local validated_findings="[]"
++  local rejected_summary="[]"  # cycle-126 FR-2.2: every payload that still fails, summarised in the envelope
+   local i=0
+   local rejected_count=0
+   # cycle-119 C14 (KF-004 repair loop); always reported since cycle-124.
+@@ -1191,7 +1255,7 @@ while i < len(text):
+     # one would hide a wire-schema/prompt drift.
+     local candidate="$finding"
+     if [[ "$schema_enforced" != "true" ]]; then
+-      candidate=$(_normalize_finding_for_validation "$finding")
++      candidate=$(_normalize_finding_for_validation "$finding" "$i")
+     fi
+ 
+     if validate_finding "$candidate" "$type"; then
+@@ -1215,7 +1279,7 @@ while i < len(text):
+         local violated_field
+         violated_field=$(_repair_violated_field "$reject_reason")
+         local repaired
+-        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$model" "${CONF_TIMEOUT:-60}") \
++        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$(_repair_model "$model")" "${CONF_TIMEOUT:-60}") \
+            && [[ -n "$repaired" ]] \
+            && echo "$repaired" | jq empty >/dev/null 2>&1; then
+           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
+@@ -1247,6 +1311,16 @@ while i < len(text):
+         _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model" \
+           "$repair_attempted" "$repair_succeeded" "$schema_enforced" "$parse_path" "$resp_stop_reason"
+         rejected_count=$((rejected_count + 1))
++        rejected_summary=$(echo "$rejected_summary" | jq --argjson f "$candidate" --arg r "${sidecar_reject_reason:-unknown-reason}" '. + [{
++          severity: ($f.severity // null),
++          title: ($f.title // $f.id // null),
++          anchor: (if ($f.anchor // null) != null then $f.anchor
++                   elif ($f.location | type) == "object" then "\($f.location.file // "")#\($f.location.anchor // "")"
++                   elif ($f.location // null) != null then $f.location
++                   else ($f.stable_anchor // null) end),
++          reason: $r,
++          description_head: (($f.description // "") | tostring | .[0:160])
++        }]' 2>/dev/null || echo "$rejected_summary")
+       fi
+     fi
+     i=$((i + 1))
+@@ -1287,11 +1361,13 @@ while i < len(text):
+     --argjson cost "$cost" --argjson lat "$latency" \
+     --argjson rejc "$rejected_count" \
+     --arg rejs "$rejected_sidecar_rel" \
++    --argjson rejsum "$rejected_summary" \
+     --argjson repairmeta "$repair_metadata_json" \
+     '{findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
+       timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
+       latency_ms: $lat, status: "reviewed", degraded: false,
+       rejected_count: $rejc,
++      rejected_summary: $rejsum,
+       rejected_sidecar: (if $rejs == "" then null else $rejs end)} + $repairmeta)}'
+ }
+ 
+@@ -1719,6 +1795,138 @@ _extract_result_status() {
+   printf '%s' "$status"
+ }
+ 
++# =============================================================================
++# cycle-126 FR-2.1 (SDD D-2.1): the companion voice. A second, independent
++# chain from the OTHER provider family runs in parallel with the primary chain
++# and the two completed envelopes are aggregated (`voices_planned` 2). The
++# family is decided from the configured primary model; credential PRESENCE
++# (env → .env.local → .env, value never read) decides only where the
++# companion chain STARTS (an HTTP voice with no key is skipped straight to the
++# CLI hop); the companion's outcome is its actual completion. A companion whose
++# whole chain fails is a dropped voice (degraded, never blocking a review;
++# audit keeps its degraded rules) with a named failure class. Its rejected
++# payloads land in their own sidecar (`-companion` suffix), never the primary's.
++# =============================================================================
++_adv_family_of() {  # <model alias or id> → anthropic | openai | google | unknown
++  local m="$1" prov=""
++  if ! declare -p MODEL_PROVIDERS >/dev/null 2>&1; then
++    # shellcheck source=generated-model-maps.sh
++    [[ -f "$SCRIPT_DIR/generated-model-maps.sh" ]] && source "$SCRIPT_DIR/generated-model-maps.sh" 2>/dev/null || true
++  fi
++  if declare -p MODEL_PROVIDERS >/dev/null 2>&1; then prov="${MODEL_PROVIDERS[$m]:-}"; fi
++  if [[ -z "$prov" ]]; then
++    case "$m" in
++      anthropic:*|claude*|opus*|sonnet*|haiku*|fable*|tiny|cheap) prov="anthropic" ;;
++      openai:*|gpt-*|codex*|o[0-9]*) prov="openai" ;;
++      google:*|gemini*|agy*) prov="google" ;;
++      *) prov="unknown" ;;
++    esac
++  fi
++  echo "$prov"
++}
++
++_companion_family() {  # <primary family> → the other family (google/unknown primaries get the Anthropic chain)
++  case "$1" in
++    anthropic) echo "openai" ;;
++    *) echo "anthropic" ;;
++  esac
++}
++
++_companion_chain() {  # <family> → space-separated chain, credential presence deciding the start
++  case "$1" in
++    anthropic) if _adv_cred_present anthropic; then echo "opus claude-headless"; else echo "claude-headless"; fi ;;
++    openai)    if _adv_cred_present openai; then echo "gpt-5.5-pro gpt-5.5 codex-headless"; else echo "codex-headless"; fi ;;
++    *) echo "" ;;
++  esac
++}
++
++_companion_failure_class() {  # <last status> <last exit code> → auth|model_unavailable|quota|timeout|malformed
++  local status="$1" rc="$2"
++  case "$status" in malformed_response) echo "malformed"; return 0 ;; esac
++  case "$rc" in
++    4) echo "auth" ;;
++    6) echo "quota" ;;
++    3|124) echo "timeout" ;;
++    5) echo "malformed" ;;
++    *) echo "model_unavailable" ;;
++  esac
++}
++
++_companion_drop_reason() {  # <failure class> → verdict-quality drop-reason enum
++  case "$1" in
++    quota) echo "RateLimited" ;;
++    auth|model_unavailable) echo "ProviderUnavailable" ;;
++    malformed) echo "EmptyContent" ;;
++    *) echo "Other" ;;
++  esac
++}
++
++# Walk the companion chain (runs in a background subshell). Writes into
++# $workdir: companion.result.json, companion.final, companion.rc,
++# companion.status, companion.attempts (one per line), companion.vq (paths of
++# the attempts' verdict-quality sidecars).
++_walk_companion_chain() {  # <workdir> <type> <sprint_id> <timeout> <diff_files> <model>...
++  local workdir="$1" type="$2" sprint_id="$3" timeout="$4" diff_files="$5"; shift 5
++  local m raw rc res status final="" last_status="" last_rc=0
++  : > "$workdir/companion.attempts"; : > "$workdir/companion.vq"
++  export _ADV_SIDECAR_TAG="companion"
++  for m in "$@"; do
++    rc=0
++    local vq="$workdir/vq-companion-${m//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
++    raw=$(invoke_dissenter "$workdir/system-prompt.txt" "$workdir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
++    [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
++    res=$(process_findings "$raw" "$type" "$m" "$sprint_id" "$rc" "$diff_files")
++    status=$(_extract_result_status "$res")
++    echo "${m}:${status}" >> "$workdir/companion.attempts"
++    last_status="$status"; last_rc="$rc"
++    if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then
++      final="$m"
++      printf '%s' "$res" > "$workdir/companion.result.json"
++      break
++    fi
++  done
++  printf '%s' "${final:-${m:-}}" > "$workdir/companion.final"
++  printf '%s' "$last_rc" > "$workdir/companion.rc"
++  printf '%s' "$last_status" > "$workdir/companion.status"
++  [[ -n "$final" ]]
++}
++
++# Fold the finished companion into the primary result: findings (re-numbered
++# DISS-C-NNN, tagged with their voice), rejected_summary, verdict-quality
++# inputs (a synthetic FAILED single-voice envelope when the companion did not
++# complete), and metadata.companion_voice.
++_fold_companion() {  # <result json> <workdir> <family> <chain csv> <primary final model> → result json; sets COMPANION_VQ_FILES
++  local result="$1" workdir="$2" family="$3" chain="$4" primary_final="$5"
++  local final status rc cls="" comp_status="failed" cost_cents="null" attempts_json="[]"
++  final=$(cat "$workdir/companion.final" 2>/dev/null || true)
++  status=$(cat "$workdir/companion.status" 2>/dev/null || true)
++  rc=$(cat "$workdir/companion.rc" 2>/dev/null || echo 1)
++  [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
++  [[ -s "$workdir/companion.attempts" ]] && attempts_json=$(jq -R . < "$workdir/companion.attempts" | jq -s .)
++  rm -f "$workdir/vq-companion-synthetic.json"
++  if [[ -s "$workdir/companion.result.json" ]] && jq empty < "$workdir/companion.result.json" 2>/dev/null; then
++    comp_status="succeeded"
++    local cres; cres=$(cat "$workdir/companion.result.json")
++    cost_cents=$(echo "$cres" | jq -r '((.metadata.cost_usd // 0) * 10000 | round) / 100')
++    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" '
++      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv})) as $cf
++      | $p
++      | .findings = (($p.findings // []) | map(. + {voice: $pv})) + $cf
++      | .metadata.rejected_summary = (($p.metadata.rejected_summary // []) + (($c.metadata.rejected_summary // []) | map(. + {voice: $cv})))
++      | .metadata.rejected_count = (($p.metadata.rejected_count // 0) + ($c.metadata.rejected_count // 0))')
++  else
++    cls=$(_companion_failure_class "$status" "$rc")
++    local synth="$workdir/vq-companion-synthetic.json"
++    jq -nc --arg v "${final:-companion}" --arg r "$(_companion_drop_reason "$cls")" --argjson e "$(( rc <= 255 ? rc : 1 ))"       '{status: "FAILED", consensus_outcome: "consensus", truncation_waiver_applied: false, voices_planned: 1, voices_succeeded: 0,
++        voices_succeeded_ids: [], voices_dropped: [{voice: $v, reason: $r, exit_code: $e, blocker_risk: "unknown"}],
++        chain_health: "exhausted", confidence_floor: "low", rationale: "companion chain did not complete", single_voice_call: true}' > "$synth"
++    result=$(echo "$result" | jq --arg pv "$primary_final" '.findings = ((.findings // []) | map(. + {voice: $pv}))')
++  fi
++  echo "$result" | jq --arg fam "$family" --arg chain "$chain" --arg model "$final" --arg st "$comp_status"       --arg cls "$cls" --argjson cost "$cost_cents" --argjson att "$attempts_json"       '.metadata.companion_voice = {planned: true, family: $fam, family_basis: "configured_primary",
++        chain: ($chain | split(",")), model: (if $model == "" then null else $model end), status: $st,
++        failure_class: (if $cls == "" then null else $cls end), cost_cents: $cost, attempts: $att}'
++}
++
+ main() {
+   local type="" sprint_id="" diff_file="" context_file="" model="" budget="" timeout=""
+   local dry_run="false" json_output="true"
+@@ -1917,6 +2125,22 @@ main() {
+   local try_model status
+   local _vq_tmpdir="${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}"
+ 
++  # cycle-126 FR-2.1: plan the companion voice from the configured primary's
++  # family and start it now, in parallel with the primary walk.
++  local companion_planned="false" companion_family="" companion_chain_csv="" companion_pid=""
++  if [[ "${CONF_COMPANION_VOICE:-true}" == "true" ]]; then
++    companion_family=$(_companion_family "$(_adv_family_of "$model")")
++    local companion_chain_str
++    companion_chain_str=$(_companion_chain "$companion_family")
++    if [[ -n "$companion_chain_str" ]]; then
++      companion_planned="true"
++      companion_chain_csv="${companion_chain_str// /,}"
++      log "Companion voice ($companion_family family): $companion_chain_str"
++      # shellcheck disable=SC2086
++      ( _walk_companion_chain "$_ADVERSARIAL_WORKDIR" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >/dev/null 2>&1 ) &
++      companion_pid=$!
++    fi
++  fi
+   for try_model in "${fallback_chain[@]}"; do
+     api_exit=0
+     # Allocate per-attempt sidecar path under the adversarial workdir so
+@@ -1953,6 +2177,22 @@ main() {
+     --argjson attempts "$(printf '%s\n' "${model_attempts[@]}" | jq -R . | jq -s .)" \
+     --arg fm "$final_model" \
+     '.metadata.model_attempts = $attempts | .metadata.final_model = $fm')
++  local -a COMPANION_VQ_FILES=()
++  if [[ "$companion_planned" == "true" ]]; then
++    if [[ -n "$companion_pid" ]]; then wait "$companion_pid" 2>/dev/null || true; fi
++    result=$(_fold_companion "$result" "$_ADVERSARIAL_WORKDIR" "$companion_family" "$companion_chain_csv" "$final_model")
++    # the companion's verdict-quality inputs: its attempts' sidecars when it completed,
++    # else the synthetic FAILED envelope the fold wrote (a subshell cannot set this array)
++    if [[ -s "$_ADVERSARIAL_WORKDIR/companion.result.json" ]]; then
++      local _cvf
++      while IFS= read -r _cvf; do [[ -s "$_cvf" ]] && COMPANION_VQ_FILES+=("$_cvf"); done < "$_ADVERSARIAL_WORKDIR/companion.vq"
++    elif [[ -s "$_ADVERSARIAL_WORKDIR/vq-companion-synthetic.json" ]]; then
++      COMPANION_VQ_FILES+=("$_ADVERSARIAL_WORKDIR/vq-companion-synthetic.json")
++    fi
++    log "Companion voice: $(echo "$result" | jq -r '.metadata.companion_voice | "\(.model // "-") \(.status)\(if .failure_class then " (" + .failure_class + ")" else "" end)"')"
++  else
++    result=$(echo "$result" | jq '.metadata.companion_voice = {planned: false}')
++  fi
+ 
+   # cycle-109 Sprint 2 T2.5 — aggregate per-attempt verdict_quality
+   # envelopes via the canonical Python aggregator (SDD §5.2.1). The
+@@ -1961,9 +2201,9 @@ main() {
+   # class regressions explicitly. Fail-soft: legacy / pre-T2.3 cheval emits
+   # produce empty vq_attempt_files; in that case result.verdict_quality
+   # stays absent (downstream consumers handle).
+-  if [[ ${#vq_attempt_files[@]} -gt 0 ]]; then
++  if [[ ${#vq_attempt_files[@]} -gt 0 || ${#COMPANION_VQ_FILES[@]} -gt 0 ]]; then
+     local _vq_agg
+-    if _vq_agg=$(_adv_aggregate_envelopes "${vq_attempt_files[@]}" 2>/dev/null); then
++    if _vq_agg=$(_adv_aggregate_envelopes ${vq_attempt_files[@]+"${vq_attempt_files[@]}"} ${COMPANION_VQ_FILES[@]+"${COMPANION_VQ_FILES[@]}"} 2>/dev/null); then
+       if [[ -n "$_vq_agg" ]]; then
+         result=$(echo "$result" | jq --argjson vq "$_vq_agg" \
+           '.verdict_quality = $vq')
+diff --git a/.claude/scripts/verdict-derive.sh b/.claude/scripts/verdict-derive.sh
+index 77bf182a..22e480ec 100755
+--- a/.claude/scripts/verdict-derive.sh
++++ b/.claude/scripts/verdict-derive.sh
+@@ -40,7 +40,7 @@ REVIEW_FILE=""
+ 
+ show_help() {
+     cat <<EOF
+-Usage: $SCRIPT_NAME --file <feedback.md> --gate review|audit [--json] [--require-trailer]
++Usage: $SCRIPT_NAME --file <feedback.md> --gate review|audit [--json] [--require-trailer] [--envelope <adversarial-<gate>.json>]
+        [--review-file <engineer-feedback.md>]
+ 
+ Derive and validate the LOA-VERDICT machine trailer (C6) on a review/audit
+@@ -86,6 +86,7 @@ while [[ $# -gt 0 ]]; do
+         --json) JSON_OUTPUT=true; shift ;;
+         --require-trailer) REQUIRE_TRAILER=true; shift ;;
+         --review-file) REVIEW_FILE="${2:-}"; shift 2 ;;
++        --envelope) ENVELOPE_FILE="${2:-}"; shift 2 ;;
+         -h|--help) show_help; exit 0 ;;
+         *) echo "Unknown option: $1" >&2; show_help >&2; exit 2 ;;
+     esac
+@@ -118,6 +119,25 @@ if [[ -n "$REVIEW_FILE" ]]; then
+     fi
+ fi
+ 
++# cycle-126 FR-2.3 (SDD D-2.3): the dissent envelope beside the feedback file
++# (adversarial-<gate>.json, or --envelope) — when its metadata.rejected_summary
++# is non-empty the feedback MUST triage it under "## Rejected dissent payloads".
++if [[ -z "${ENVELOPE_FILE:-}" ]]; then
++    ENVELOPE_FILE="$(dirname -- "$FILE")/adversarial-${GATE}.json"
++    ENVELOPE_EXPLICIT=false
++else
++    ENVELOPE_EXPLICIT=true
++fi
++rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
++    [[ -f "$ENVELOPE_FILE" ]] || { [[ "$ENVELOPE_EXPLICIT" == "true" ]] && warnings+=("WARN: --envelope $ENVELOPE_FILE not found; rejected-payload contract not checked"); return 0; }
++    local n
++    n=$(jq -r '(.metadata.rejected_summary // []) | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=""
++    [[ "$n" =~ ^[0-9]+$ ]] || { warnings+=("WARN: envelope $ENVELOPE_FILE is not parseable JSON; rejected-payload contract not checked"); return 0; }
++    (( n > 0 )) || return 0
++    if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
++        violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $n schema-rejected payload(s) in metadata.rejected_summary but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
++    fi
++}
+ violations=()
+ warnings=()
+ t_verdict=""
+@@ -277,6 +297,7 @@ else
+         else
+             t_excluded_confirmed=$exc_val
+         fi
++        rejected_summary_check
+         read -r obs_crit obs_ok obs_bad < <(observations_scan "$FILE")
+         if (( obs_crit > 0 )); then
+             violations+=("$obs_crit critical finding(s) under ## Observations — critical is never excludable; move them under ## Changes Required and count them")
+diff --git a/.claude/skills/auditing-security/SKILL.md b/.claude/skills/auditing-security/SKILL.md
+index 2c4b4485..6255329a 100644
+--- a/.claude/skills/auditing-security/SKILL.md
++++ b/.claude/skills/auditing-security/SKILL.md
+@@ -165,7 +165,7 @@ ## Phase 1C: Security Dissenter Analysis
+ 
+ Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh` enforces this at `PreToolUse:Write`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes.
+ 
+-Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`, so the dissenter never sees your Phase 1A/1B findings. Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. Merge rules and the failed-run record: see `resources/ADVERSARIAL-REVIEW.md`.
++Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; when its `metadata.rejected_summary` is non-empty, triage every entry under `## Rejected dissent payloads` — `verdict-derive.sh` fails the trailer otherwise. Merge rules, failed-run record: `resources/ADVERSARIAL-REVIEW.md`.
+ 
+ ## Phase 1: Systematic Audit
+ 
+diff --git a/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md b/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md
+index 4c58dc42..475db37c 100644
+--- a/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md
++++ b/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md
+@@ -27,3 +27,38 @@ ## Failed or unavailable dissenter
+ 
+ before proceeding, and set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
+ findings from a run that completed are a normal pass, not a degraded review.
++
++## Two voices and the rejected-payload contract (cycle-126 FR-2)
++
++**Companion voice (D-2.1).** Every dissent plans a second chain from the *other* provider
++family — the primary configured on the block decides: an OpenAI-family primary gets the
++Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets the OpenAI chain
++(`gpt-5.5-pro` → `gpt-5.5` → `codex-headless`). Credential *presence* (env → `.env.local` →
++`.env`; the value is never read) decides only where the companion chain starts — with no key it
++starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
++(`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). The
++companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the primary's carry
++`voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
++status: succeeded|failed, failure_class: auth|model_unavailable|quota|timeout|malformed|null,
++cost_cents, attempts}`; a companion whose chain fails is a dropped voice (degraded for an audit,
++never blocking a review). Opt-out per block: `flatline_protocol.{code_review,security_audit}.companion_voice: false`.
++
++**Tolerant schema (D-2.2).** A finding missing only `failure_mode` is no longer dropped: the
++first sentence of its `description` (≤ 200 chars) becomes `failure_mode` and the finding is
++marked `failure_mode_derived: true` (a missing `id` is filled positionally, `id_derived: true`).
++Severity, category and description are never touched. Payloads that still fail go to the
++sidecar (`adversarial-rejected-<type>.jsonl`, `-companion` suffix for the second voice) **and**
++to `metadata.rejected_summary[]` as `{severity, title, anchor, reason, description_head}`.
++
++**The contract (D-2.3).** When `rejected_summary` is non-empty the feedback file MUST contain a
++`## Rejected dissent payloads` section with one line per entry — `- <title> (<severity>, <anchor>)
++— <reason>: triaged as <real defect → counted under the matching heading | not a defect → why>`.
++`verdict-derive.sh` reads the sibling envelope (`adversarial-<gate>.json`, or `--envelope <path>`)
++and marks the trailer INCONSISTENT (exit 1) when the section is missing. Reading a sidecar row:
++`payload` is the model's finding as normalised, `reject_reason` the clause it failed, and
++`repair_attempted` / `repair_succeeded` whether the bounded repair round-trip ran.
++
++**Repair loop (D-2.4).** The one bounded repair round-trip goes to `tiny` when an Anthropic
++credential is present, else to `claude-headless` (`LOA_ADVERSARIAL_REPAIR_MODEL` pins it) — no
++longer to the voice that produced the malformed finding. KF-004 evidence: the three real rejected
++payloads under `tests/fixtures/dissent-rejected/` now pass without a repair.
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index e70c74fe..9ec28327 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -206,10 +206,11 @@ ## Phase 2: Code Review
+ 
+ ## Phase 2.5: Adversarial Cross-Model Review
+ 
+-Runs when `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`; skipping it then
+-blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh`, override
+-only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes). Invocation,
+-output parsing and the unavailable-review path: see `resources/ADVERSARIAL-REVIEW.md`.
++Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the `COMPLETED` write
++(`adversarial-review-gate.sh`; override `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes).
++Two voices by default (`companion_voice`). When the envelope's `metadata.rejected_summary` is
++non-empty, triage every entry under `## Rejected dissent payloads` — `verdict-derive.sh` fails the
++trailer otherwise. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+ 
+ ## Phase 3: Previous Feedback Verification
+ 
+diff --git a/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md b/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md
+index 802cc971..8d3fcc0f 100644
+--- a/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md
++++ b/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md
+@@ -37,3 +37,38 @@ # Adversarial Cross-Model Review — Phase 2.5 mechanics
+ **Output**: Findings written to `grimoires/loa/a2a/{sprint_id}/adversarial-review.json`
+ 
+ **Failure mode**: If adversarial review is unavailable (timeout, API error, budget exceeded), proceed with single-model assessment and log warning. No DEGRADED marker for review (only audit).
++
++## Two voices and the rejected-payload contract (cycle-126 FR-2)
++
++**Companion voice (D-2.1).** Every dissent plans a second chain from the *other* provider
++family — the primary configured on the block decides: an OpenAI-family primary gets the
++Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets the OpenAI chain
++(`gpt-5.5-pro` → `gpt-5.5` → `codex-headless`). Credential *presence* (env → `.env.local` →
++`.env`; the value is never read) decides only where the companion chain starts — with no key it
++starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
++(`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). The
++companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the primary's carry
++`voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
++status: succeeded|failed, failure_class: auth|model_unavailable|quota|timeout|malformed|null,
++cost_cents, attempts}`; a companion whose chain fails is a dropped voice (degraded for an audit,
++never blocking a review). Opt-out per block: `flatline_protocol.{code_review,security_audit}.companion_voice: false`.
++
++**Tolerant schema (D-2.2).** A finding missing only `failure_mode` is no longer dropped: the
++first sentence of its `description` (≤ 200 chars) becomes `failure_mode` and the finding is
++marked `failure_mode_derived: true` (a missing `id` is filled positionally, `id_derived: true`).
++Severity, category and description are never touched. Payloads that still fail go to the
++sidecar (`adversarial-rejected-<type>.jsonl`, `-companion` suffix for the second voice) **and**
++to `metadata.rejected_summary[]` as `{severity, title, anchor, reason, description_head}`.
++
++**The contract (D-2.3).** When `rejected_summary` is non-empty the feedback file MUST contain a
++`## Rejected dissent payloads` section with one line per entry — `- <title> (<severity>, <anchor>)
++— <reason>: triaged as <real defect → counted under the matching heading | not a defect → why>`.
++`verdict-derive.sh` reads the sibling envelope (`adversarial-<gate>.json`, or `--envelope <path>`)
++and marks the trailer INCONSISTENT (exit 1) when the section is missing. Reading a sidecar row:
++`payload` is the model's finding as normalised, `reject_reason` the clause it failed, and
++`repair_attempted` / `repair_succeeded` whether the bounded repair round-trip ran.
++
++**Repair loop (D-2.4).** The one bounded repair round-trip goes to `tiny` when an Anthropic
++credential is present, else to `claude-headless` (`LOA_ADVERSARIAL_REPAIR_MODEL` pins it) — no
++longer to the voice that produced the malformed finding. KF-004 evidence: the three real rejected
++payloads under `tests/fixtures/dissent-rejected/` now pass without a repair.
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index ac372e74..12a11a9d 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -1391,10 +1391,17 @@ flatline_protocol:
+     enabled: false               # Opt-in: enable for /review-sprint
+     model: "gpt-5.3-codex"      # Dissenter model
+     timeout_seconds: 60          # Per-call timeout
+-    budget_cents: 150            # Max cost per dissent call
++    budget_cents: 150            # Max cost per dissent call (each voice ≤ this)
++    # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
++    # family (Anthropic primary → gpt-5.5-pro → … → codex-headless; OpenAI
++    # primary → opus → claude-headless) runs in parallel and both envelopes
++    # aggregate (voices_planned 2). Credential presence only decides where
++    # the companion chain starts (no key → the CLI hop). Set false to run one voice.
++    companion_voice: true
+     # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
+     # A dissenter finding from an UNENFORCED hop that fails validate_finding
+-    # gets ONE bounded repair round-trip to the SAME model before rejection
++    # gets ONE bounded repair round-trip (cycle-126 FR-2.4: to `tiny` when an
++    # Anthropic key is present, else to `claude-headless`) before rejection
+     # (schema-enforced payloads never enter the loop):
+     # a normalization pre-pass (case-fold severity/category + whitespace
+     # trim only, no synonym mapping) runs first; if the finding still
+@@ -1413,6 +1420,7 @@ flatline_protocol:
+     model: "gpt-5.3-codex"      # Dissenter model
+     timeout_seconds: 60
+     budget_cents: 150
++    companion_voice: true        # cycle-126 FR-2.1: see code_review
+   stable_anchors:
+     required: true               # Demote anchorless high-severity findings
+     preferred_format: "symbol"   # symbol | hunk_header | line_number
+diff --git a/tests/fixtures/dissent-rejected/01-guardrails-fail-open.json b/tests/fixtures/dissent-rejected/01-guardrails-fail-open.json
+new file mode 100644
+index 00000000..9d12387d
+--- /dev/null
++++ b/tests/fixtures/dissent-rejected/01-guardrails-fail-open.json
+@@ -0,0 +1,20 @@
++{
++  "_fixture": {
++    "source": "sprint-237 audit dissent (gpt-5.5-pro via codex-headless), chunk 4, 2026-09-22",
++    "reject_reason": "missing-or-empty-failure_mode",
++    "type": "audit",
++    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
++  },
++  "payload": {
++    "severity": "HIGH",
++    "category": "config",
++    "title": "Input guardrails fail open on missing, failing, or unparseable validation",
++    "location": {
++      "file": ".claude/skills/autonomous-agent/SKILL.md",
++      "anchor": "<input_guardrails> table row: `Script missing, non-zero exit, or unparseable output | Continue — fail-open`"
++    },
++    "description": "The autonomous skill explicitly continues execution when the guardrails orchestrator is missing, exits non-zero, or returns unparseable output. Because the guarded input is the user's invocation prompt/args and this skill has write, execute, web, and agent-spawn capabilities, an attacker only needs to trigger a validator error condition to bypass the intended pre-execution policy check and proceed into privileged workflow execution.",
++    "impact": "Malicious or policy-blocked prompts can bypass the guardrail layer entirely, undermining injection and abuse controls before the agent runs commands or writes files.",
++    "recommendation": "Fail closed for missing/unparseable/non-zero guardrail results, or at minimum fail closed for non-zero/unparseable outputs except a narrowly defined allowlisted infrastructure outage mode requiring explicit human approval."
++  }
++}
+diff --git a/tests/fixtures/dissent-rejected/02-cleanup-continues.json b/tests/fixtures/dissent-rejected/02-cleanup-continues.json
+new file mode 100644
+index 00000000..6275108c
+--- /dev/null
++++ b/tests/fixtures/dissent-rejected/02-cleanup-continues.json
+@@ -0,0 +1,20 @@
++{
++  "_fixture": {
++    "source": "sprint-237 audit dissent (gpt-5.5-pro via codex-headless), chunk 4, 2026-09-22",
++    "reject_reason": "missing-or-empty-failure_mode",
++    "type": "audit",
++    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
++  },
++  "payload": {
++    "severity": "MEDIUM",
++    "category": "config",
++    "title": "Workspace cleanup continues after unexpected failures",
++    "location": {
++      "file": ".claude/skills/autonomous-agent/resources/phase-mechanics.md",
++      "anchor": "Phase 0.0 case `*) # Other error - log and continue`"
++    },
++    "description": "Phase 0 only halts cleanup on exit code 3 or detected partial archive state, but any other cleanup failure is logged and the workflow continues. Cleanup is part of the security-critical preflight that archives prior-cycle artifacts and detects partial state; unexpected failures may leave stale artifacts, unsafe state, or prior context in place before subsequent autonomous phases execute.",
++    "impact": "This weakens isolation between runs and can lead to information disclosure or contaminated execution context if cleanup fails for reasons other than the single security-validation exit code.",
++    "recommendation": "Treat unexpected cleanup failures as blocking unless the failure mode is explicitly classified as safe. If continuity is required, require a structured cleanup result proving no partial or unsafe state remains before continuing."
++  }
++}
+diff --git a/tests/fixtures/dissent-rejected/03-message-redacted.json b/tests/fixtures/dissent-rejected/03-message-redacted.json
+new file mode 100644
+index 00000000..6db7d110
+--- /dev/null
++++ b/tests/fixtures/dissent-rejected/03-message-redacted.json
+@@ -0,0 +1,16 @@
++{
++  "_fixture": {
++    "source": "sprint-247 audit dissent (gpt-5.5-pro via codex-headless), chunk b, 2026-09-25",
++    "reject_reason": "missing-or-empty-failure_mode",
++    "type": "audit",
++    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
++  },
++  "payload": {
++    "severity": "MEDIUM",
++    "category": "info-disclosure",
++    "title": "Provider exception text is persisted as “message_redacted” without redaction",
++    "location": ".claude/adapters/cheval.py::_calibration_needed_exit",
++    "stable_anchor": "\"message_redacted\": str(_exc),",
++    "description": "The new calibration path records and emits raw provider exception text via `str(_exc)` while labeling it `message_redacted`. Provider errors can include request details, prompt fragments, account identifiers, model/provider response bodies, or operational metadata. This is especially risky because the value is added to `_modelinv_state[\"models_failed\"]` and also included in stderr JSON. Use a redaction helper or structured safe fields from `ChevalError` instead of raw exception strings."
++  }
++}
+diff --git a/tests/fixtures/dissent-rejected/README.md b/tests/fixtures/dissent-rejected/README.md
+new file mode 100644
+index 00000000..f4cf309a
+--- /dev/null
++++ b/tests/fixtures/dissent-rejected/README.md
+@@ -0,0 +1,16 @@
++# dissent-rejected — the real rejected payloads (cycle-126 Sprint 2, PRD FR-2.2, SDD D-2.2 / D-2.4)
++
++Three findings a cross-model dissenter actually produced and `adversarial-review.sh`
++silently dropped for a trivial schema mismatch (`missing-or-empty-failure_mode`,
++KF-004 class), copied verbatim from the sprint-237 and sprint-247 rejected sidecars
++with a `_fixture` header added. Two were later judged real defects by a lead.
++
++They drive two tests:
++- `tests/unit/adversarial-review-normalise.bats` — the normaliser derives
++  `failure_mode` from the first sentence of `description` (`failure_mode_derived: true`)
++  and every one becomes a finding without a repair round-trip.
++- the repair-loop case in the same file — with the normaliser bypassed and a stubbed
++  repair model, the repair path still recovers them.
++
++`payload` is exactly what the model returned (after the case-fold normaliser). Add a
++new fixture only from a real sidecar row, never a hand-written one.
+diff --git a/tests/fixtures/structured-outputs/kf004/neg-missing-id.json b/tests/fixtures/structured-outputs/kf004/neg-missing-id.json
+index 6dd03c1e..a870ed8e 100644
+--- a/tests/fixtures/structured-outputs/kf004/neg-missing-id.json
++++ b/tests/fixtures/structured-outputs/kf004/neg-missing-id.json
+@@ -1,10 +1,10 @@
+ {
+-  "_case": "negative: missing id (the Sprint 1 audit sidecar shape)",
++  "_case": "negative-turned-derivable: missing id (the Sprint 1 audit sidecar shape) — cycle-126 FR-2.2: the unenforced path fills a positional id (id_derived) and accepts the finding; the enforced path still rejects it",
+   "_type": "review",
+   "_expect": {
+     "unenforced": "reviewed",
+     "enforced": "reviewed",
+-    "unenforced_findings": 0,
++    "unenforced_findings": 1,
+     "enforced_findings": 0
+   },
+   "content": "{\"findings\":[{\"severity\":\"BLOCKING\",\"category\":\"secrets\",\"title\":\"Environment secret exposed\",\"description\":\"d\",\"failure_mode\":\"fm\"}]}",
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+new file mode 100644
+index 00000000..c4ae9b88
+--- /dev/null
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -0,0 +1,187 @@
++#!/usr/bin/env bats
++# =============================================================================
++# tests/unit/adversarial-review-companion.bats — cycle-126 Sprint 2 (PRD FR-2.1,
++# SDD D-2.1). The companion voice: a dissent plans TWO chains from different
++# provider families, walks them, aggregates both envelopes (voices_planned 2),
++# records the companion's completion-based status and failure class, and can
++# be switched off per block (`companion_voice: false`).
++#
++# Whole-run harness: main() is sourced and run with `invoke_dissenter` replaced
++# by a stub keyed on the model (canned adapter envelopes + a valid single-voice
++# verdict_quality sidecar), a temp .loa.config.yaml, and no credentials present
++# (a keyless host: the Anthropic companion chain is `claude-headless` only).
++# =============================================================================
++
++setup() {
++    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
++    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
++    SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++    export PROJECT_ROOT
++    ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
++    T="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
++    local saved_root="$PROJECT_ROOT"
++    source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
++    source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
++    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
++    PROJECT_ROOT="$saved_root"
++    export PROJECT_ROOT
++    SPRINT="sprint-comp-$$"
++    OUT_DIR="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
++    # keyless host: no env keys, an empty dotenv dir (bats-gated seam)
++    unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
++    export LOA_ADVERSARIAL_ENV_DIR="$T/env"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
++    # temp config: review enabled, primary gpt-5.5-pro with the OpenAI chain
++    CONFIG_FILE="$T/loa.config.yaml"
++    cat > "$CONFIG_FILE" <<'YAML'
++flatline_protocol:
++  code_review:
++    enabled: true
++    model: gpt-5.5-pro
++    budget_cents: 200
++    timeout_seconds: 30
++    fallback_chain:
++      - gpt-5.5
++      - codex-headless
++  security_audit:
++    enabled: true
++    model: gpt-5.5-pro
++    budget_cents: 200
++    timeout_seconds: 30
++    fallback_chain:
++      - codex-headless
++YAML
++    printf 'diff --git a/x.sh b/x.sh\n--- a/x.sh\n+++ b/x.sh\n@@ -1 +1 @@\n-a\n+b\n' > "$T/diff.patch"
++    CALLS="$T/calls.log"; : > "$CALLS"
++    # behaviour table: model → outcome (ok | walked:<hop> | auth | quota | timeout | malformed | unavailable).
++    # `walked:<hop>` models cheval's INNER fallback chain (one invocation, one sidecar whose
++    # succeeded id is the hop it landed on, the HTTP voice recorded as dropped) — the shape a
++    # keyless host produces (sprint-247: final_model gpt-5.5-pro, voices_succeeded_ids [codex-headless]).
++    declare -gA BEHAVIOUR=()
++    _vq() {  # <voice> <ok|fail|walked> <reason|hop> <exit> → single-voice verdict_quality envelope JSON
++        if [[ "$2" == "ok" ]]; then
++            jq -nc --arg v "$1" '{status:"APPROVED",consensus_outcome:"consensus",truncation_waiver_applied:false,voices_planned:1,voices_succeeded:1,voices_succeeded_ids:[$v],voices_dropped:[],chain_health:"ok",confidence_floor:"low",rationale:"stub",single_voice_call:true}'
++        elif [[ "$2" == "walked" ]]; then
++            # one voice that walked internally: INV-6 (dropped == planned − succeeded) keeps voices_dropped
++            # empty; the walk shows as chain_health degraded, the succeeded id is the hop it landed on
++            jq -nc --arg v "$1" --arg hop "$3" '{status:"DEGRADED",consensus_outcome:"consensus",truncation_waiver_applied:false,voices_planned:1,voices_succeeded:1,voices_succeeded_ids:[$hop],voices_dropped:[],chain_health:"degraded",confidence_floor:"low",rationale:("stub inner walk from " + $v),single_voice_call:true}'
++        else
++            jq -nc --arg v "$1" --arg r "$3" --argjson e "$4" '{status:"FAILED",consensus_outcome:"consensus",truncation_waiver_applied:false,voices_planned:1,voices_succeeded:0,voices_succeeded_ids:[],voices_dropped:[{voice:$v,reason:$r,exit_code:$e,blocker_risk:"unknown"}],chain_health:"exhausted",confidence_floor:"low",rationale:"stub",single_voice_call:true}'
++        fi
++    }
++    invoke_dissenter() {  # <sys> <user> <model> <timeout> <vq_sidecar> <type> [schema]
++        local model="$3" sidecar="$5"
++        echo "$model" >> "$CALLS"
++        local b="${BEHAVIOUR[$model]:-ok}"
++        case "$b" in
++            ok)
++                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
++                jq -nc --arg m "$model" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"ADVISORY\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
++                return 0 ;;
++            walked:*)
++                local hop="${b#walked:}"
++                echo "$hop" >> "$CALLS"
++                [[ -n "$sidecar" ]] && _vq "$model" walked "$hop" > "$sidecar"
++                jq -nc --arg m "$hop" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"ADVISORY\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
++                return 0 ;;
++            malformed)
++                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
++                jq -nc '{content: "not json at all", tokens_input: 1, tokens_output: 1, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
++                return 0 ;;
++            auth)        [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 4 > "$sidecar"; return 4 ;;
++            quota)       [[ -n "$sidecar" ]] && _vq "$model" fail RateLimited 6 > "$sidecar"; return 6 ;;
++            timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
++            unavailable) [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
++        esac
++    }
++    export PYTHONPATH="$PROJECT_ROOT/.claude/adapters"
++}
++teardown() {
++    local d
++    for d in "$OUT_DIR" "$OUT_DIR"-*; do
++        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
++    done
++}
++_run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/diff.patch" --json 2> "$T/stderr.log"; }
++
++@test "CMP-1 keyless host: the primary's inner chain lands on codex-headless, the Anthropic companion is claude-headless; voices_planned 2, both ids succeeded, companion status succeeded with its cost" {
++    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
++    result=$(_run_main review)
++    [ "$(jq -r '.metadata.final_model' <<<"$result")" = "gpt-5.5-pro" ]
++    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
++    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | sort | join(",")' <<<"$result")" = "claude-headless,codex-headless" ]
++    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
++    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]
++    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
++    [ "$(jq -r '.metadata.companion_voice.family' <<<"$result")" = "anthropic" ]
++    [ "$(jq '.metadata.companion_voice.cost_cents' <<<"$result")" != "null" ]
++    # keyless: the HTTP Anthropic voice (opus) was never tried
++    ! grep -qx "opus" "$CALLS"
++    grep -qx "claude-headless" "$CALLS"
++    # both voices' findings are present, the companion's re-numbered and tagged
++    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
++    [ "$(jq -r '[.findings[].voice] | sort | join(",")' <<<"$result")" = "claude-headless,gpt-5.5-pro" ]
++    [ "$(jq -r '[.findings[].id] | sort | join(",")' <<<"$result")" = "DISS-001,DISS-C-001" ]
++    [ -f "$OUT_DIR/adversarial-review.json" ]
++}
++
++@test "CMP-2 the companion chain failing (auth / quota / timeout) names the class, records the dropped voice, and the review still completes" {
++    for cls in auth quota timeout; do
++        : > "$CALLS"
++        BEHAVIOUR[claude-headless]=$cls
++        result=$(_run_main review)
++        [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
++        [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
++        [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "$cls" ]
++        [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
++        [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "gpt-5.5-pro" ]
++        [ "$(jq '[.verdict_quality.voices_dropped[].voice] | index("claude-headless") != null' <<<"$result")" = "true" ]
++        [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "FAILED" ]
++        [ "$(jq '.findings | length' <<<"$result")" = "1" ]
++    done
++}
++
++@test "CMP-3 a malformed companion is failure_class malformed; the primary's verdict is untouched" {
++    BEHAVIOUR[claude-headless]=malformed
++    result=$(_run_main review)
++    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "malformed" ]
++    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
++    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
++}
++
++@test "CMP-4 an Anthropic-family primary gets the OpenAI companion (keyless → codex-headless only)" {
++    sed -i 's/model: gpt-5.5-pro/model: opus/' "$CONFIG_FILE"
++    BEHAVIOUR[opus]=walked:claude-headless   # no key: cheval's inner chain lands on the CLI hop
++    result=$(_run_main review)
++    [ "$(jq -r '.metadata.companion_voice.family' <<<"$result")" = "openai" ]
++    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "codex-headless" ]
++    ! grep -qx "gpt-5.5-pro" "$CALLS"
++    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
++}
++
++@test "CMP-5 companion_voice: false on the block disables the second chain (voices_planned 1, planned false)" {
++    sed -i '0,/enabled: true/{s/enabled: true/enabled: true\n    companion_voice: false/}' "$CONFIG_FILE"
++    result=$(_run_main review)
++    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
++    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "false" ]
++    ! grep -qx "claude-headless" "$CALLS"
++    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
++}
++
++@test "CMP-6 with a credential present the companion chain starts at the HTTP voice (opus) before the hop" {
++    export ANTHROPIC_API_KEY="REDACTED-TEST-SECRET"
++    result=$(_run_main review)
++    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "opus" ]
++    grep -qx "opus" "$CALLS"
++    [[ "$(cat "$T/stderr.log")" != *"REDACTED-TEST-SECRET"* ]]
++    [[ "$result" != *"REDACTED-TEST-SECRET"* ]]
++}
++
++@test "CMP-7 the audit gate plans a companion too and keeps its degraded rules for a failed one" {
++    BEHAVIOUR[claude-headless]=timeout
++    result=$(_run_main audit)
++    [ "$(jq -r '.metadata.type' <<<"$result")" = "audit" ]
++    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
++    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
++    [ -f "$OUT_DIR/adversarial-audit.json" ]
++}
+diff --git a/tests/unit/adversarial-review-normalise.bats b/tests/unit/adversarial-review-normalise.bats
+new file mode 100644
+index 00000000..24a05c7d
+--- /dev/null
++++ b/tests/unit/adversarial-review-normalise.bats
+@@ -0,0 +1,130 @@
++#!/usr/bin/env bats
++# =============================================================================
++# tests/unit/adversarial-review-normalise.bats — cycle-126 Sprint 2 (PRD FR-2.2 /
++# FR-2.4, SDD D-2.2 / D-2.4). The tolerant schema: a finding missing only
++# `failure_mode` is normalised (first sentence of `description`, ≤ 200 chars,
++# `failure_mode_derived: true`) and reaches the reviewer without a repair
++# round-trip; a payload that still fails goes to the sidecar AND is summarised
++# in `metadata.rejected_summary[]`; the repair loop's model is `tiny` with an
++# Anthropic key present, `claude-headless` without.
++# Source-based harness (the pattern of adversarial-review-schema-enforced.bats).
++# =============================================================================
++
++setup() {
++    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
++    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
++    SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++    export PROJECT_ROOT
++    ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
++    FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
++    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
++    local saved_root="$PROJECT_ROOT"
++    source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
++    source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
++    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
++    PROJECT_ROOT="$saved_root"
++    export PROJECT_ROOT
++    CONF_ENABLED="true"; CONF_MODEL="gpt-5.5-pro"; CONF_TIMEOUT=60; CONF_BUDGET_CENTS=150
++    CONF_ESCALATION_ENABLED="true"; CONF_SECONDARY_BUDGET=12000; CONF_MAX_FILE_LINES=500
++    CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
++    LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
++    SPRINT="sprint-norm-$$"
++    REPAIR_CANARY="$TEST_DIR/repair-called-$$"
++    # the normaliser must make the repair unnecessary: a stub that records the call and fails
++    _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
++    unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
++}
++teardown() {
++    local d
++    for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
++        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
++    done
++}
++_env() {  # <content json string> → adapter envelope (unenforced)
++    jq -n --arg c "$1" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}'
++}
++_fixture_content() {  # all three fixtures as one findings document
++    jq -c -s '{findings: [.[] | .payload]}' "$FIXTURES"/0*.json
++}
++
++@test "NRM-1 the three real rejected payloads become findings with failure_mode_derived: true, no sidecar row, no repair call, empty rejected_summary" {
++    result=$(process_findings "$(_env "$(_fixture_content)")" "audit" "gpt-5.5-pro" "$SPRINT" "0" "")
++    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
++    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
++    [ "$(jq '[.findings[] | select(.failure_mode_derived == true)] | length' <<<"$result")" = "3" ]
++    [ "$(jq -r '.findings[0].failure_mode' <<<"$result")" = "The autonomous skill explicitly continues execution when the guardrails orchestrator is missing, exits non-zero, or returns unparseable output." ]
++    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
++    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "0" ]
++    [ ! -e "$REPAIR_CANARY" ]
++    sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-audit.jsonl"
++    [ ! -s "$sidecar" ]
++}
++
++@test "NRM-2 a derived failure_mode is the first sentence, capped at 200 characters, and never raises the severity" {
++    long=$(python3 -c 'print("A" * 350 + ". Second sentence.")')
++    doc=$(jq -nc --arg d "$long" '{findings: [{"severity":"LOW","category":"other","description":$d}]}')
++    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
++    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
++    fm=$(jq -r '.findings[0].failure_mode' <<<"$result")
++    [ "${#fm}" -le 200 ]
++    [ "$(jq -r '.findings[0].severity' <<<"$result")" = "LOW" ]
++    [ "$(jq -r '.findings[0].failure_mode_derived' <<<"$result")" = "true" ]
++}
++
++@test "NRM-3 a finding that carries its own failure_mode is untouched (no failure_mode_derived key)" {
++    doc='{"findings":[{"id":"DISS-001","severity":"HIGH","category":"config","description":"d. e.","failure_mode":"stated"}]}'
++    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
++    [ "$(jq -r '.findings[0].failure_mode' <<<"$result")" = "stated" ]
++    [ "$(jq 'has("failure_mode_derived")' <<<"$(jq '.findings[0]' <<<"$result")")" = "false" ]
++}
++
++@test "NRM-4 a payload without a severity still goes to the sidecar AND appears in rejected_summary with its reason and anchor" {
++    doc='{"findings":[{"title":"No severity here","category":"config","location":"x.sh:12","description":"Something fails when the file is missing. More."}]}'
++    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
++    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
++    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
++    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "1" ]
++    [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")" = "missing-severity" ]
++    [ "$(jq -r '.metadata.rejected_summary[0].title' <<<"$result")" = "No severity here" ]
++    [ "$(jq -r '.metadata.rejected_summary[0].anchor' <<<"$result")" = "x.sh:12" ]
++    [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
++    [[ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" == "Something fails when the file is missing."* ]]
++    sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-audit.jsonl"
++    [ "$(wc -l < "$sidecar")" = "1" ]
++    [ "$(jq -r '.reject_reason' "$sidecar")" = "missing-severity" ]
++}
++
++@test "NRM-5 the schema-enforced branch never derives (an enforced payload missing failure_mode is rejected, not repaired)" {
++    doc='{"findings":[{"id":"DISS-001","severity":"HIGH","category":"config","description":"d."}]}'
++    env=$(jq -n --arg c "$doc" '{content: $c, tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: true}')
++    result=$(process_findings "$env" "audit" "m" "$SPRINT" "0" "")
++    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
++    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
++    [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")" = "missing-or-empty-failure_mode" ]
++    [ ! -e "$REPAIR_CANARY" ]
++}
++
++@test "NRM-6 the repair loop's model is tiny with an Anthropic key present and claude-headless without (presence only, value never read)" {
++    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
++    [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
++    export ANTHROPIC_API_KEY="REDACTED-TEST-SECRET"
++    [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
++    unset ANTHROPIC_API_KEY
++    printf 'ANTHROPIC_API_KEY="from-dotenv"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
++    [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
++    export LOA_ADVERSARIAL_REPAIR_MODEL="codex-headless"
++    [ "$(_repair_model "gpt-5.5-pro")" = "codex-headless" ]
++}
++
++@test "NRM-7 with the normaliser bypassed, the repair loop still recovers the fixtures through a stubbed model and records repaired_count" {
++    # bypass the failure_mode derivation (keep the positional id) so the repair path is exercised
++    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
++    _repair_finding_via_model() {  # <finding> <type> <clause> <model> [timeout] → fixed finding (stubbed model)
++        printf '%s' "$1" | jq -c '. + {failure_mode: "stubbed repair"}'
++    }
++    result=$(process_findings "$(_env "$(_fixture_content)")" "audit" "gpt-5.5-pro" "$SPRINT" "0" "")
++    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
++    [ "$(jq '.metadata.repaired_count' <<<"$result")" = "3" ]
++    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
++}
+diff --git a/tests/unit/verdict-derive.bats b/tests/unit/verdict-derive.bats
+index 9717b4ad..cfcdd3b3 100644
+--- a/tests/unit/verdict-derive.bats
++++ b/tests/unit/verdict-derive.bats
+@@ -263,3 +263,66 @@ EOF
+     [[ "$output" == *'"consistent": false'* ]]
+     [[ "$output" == *"non-numeric"* ]]
+ }
++
++# --- cycle-126 Sprint 2 (PRD FR-2.3, SDD D-2.3): the rejected-payload contract ---------------
++
++_vd_approved_review() {  # <file> [with_section]
++    {
++        echo "All good"; echo
++        echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
++        if [[ "${2:-}" == "yes" ]]; then
++            echo "## Rejected dissent payloads"; echo
++            echo "- DISS-x (MEDIUM, x.sh:12) — triaged: not a defect (the guard exists two lines up)."; echo
++        fi
++        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
++    } > "$1"
++}
++_vd_envelope() {  # <file> <rejected_summary json array>
++    jq -n --argjson rs "$2" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: $rs}}' > "$1"
++}
++
++@test "verdict-derive: a non-empty rejected_summary in the sibling envelope without a '## Rejected dissent payloads' section is INCONSISTENT (exit 1) with the repair text" {
++    skip_if_no_jq
++    d="${TEST_TMPDIR}/s1"; mkdir -p "$d"
++    _vd_approved_review "$d/engineer-feedback.md"
++    _vd_envelope "$d/adversarial-review.json" '[{"severity":"MEDIUM","title":"t","anchor":"x.sh:12","reason":"missing-severity","description_head":"Something fails."}]'
++    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"Rejected dissent payloads"* ]]
++    [[ "$output" == *"rejected_summary"* ]]
++}
++
++@test "verdict-derive: the section present, or an empty summary, or no envelope at all → CONSISTENT (exit 0)" {
++    skip_if_no_jq
++    d="${TEST_TMPDIR}/s2"; mkdir -p "$d"
++    _vd_approved_review "$d/engineer-feedback.md" yes
++    _vd_envelope "$d/adversarial-review.json" '[{"severity":"MEDIUM","title":"t","anchor":"x.sh:12","reason":"missing-severity","description_head":"Something fails."}]'
++    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
++    [ "$status" -eq 0 ]
++    _vd_approved_review "$d/engineer-feedback.md"
++    _vd_envelope "$d/adversarial-review.json" '[]'
++    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
++    [ "$status" -eq 0 ]
++    rm "$d/adversarial-review.json"
++    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
++    [ "$status" -eq 0 ]
++}
++
++@test "verdict-derive: --envelope names the envelope explicitly; the audit gate reads adversarial-audit.json by default" {
++    skip_if_no_jq
++    d="${TEST_TMPDIR}/s3"; mkdir -p "$d"
++    _vd_approved_review "$d/engineer-feedback.md"
++    _vd_envelope "$d/elsewhere.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
++    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope "$d/elsewhere.json"
++    [ "$status" -eq 1 ]
++    {
++        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
++        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
++    } > "$d/auditor-sprint-feedback.md"
++    _vd_envelope "$d/adversarial-audit.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
++    run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit
++    [ "$status" -eq 1 ]
++    run bash -c "'$SCRIPT' --file '$d/auditor-sprint-feedback.md' --gate audit --json 2>/dev/null"
++    [ "$status" -eq 1 ]
++    echo "$output" | jq -e '.consistent == false and (.violations | length) >= 1' >/dev/null
++}

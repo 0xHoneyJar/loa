@@ -153,6 +153,11 @@ jobs:
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           sudo chmod +x /usr/local/bin/yq
 
+      # cycle-129 FR-1: the structural guard register and the generated hooks table
+      # must match what guard-yield.sh writes (no audit log is read in --check).
+      - name: Guard register drift gate (guard-yield.sh --check)
+        run: bash .claude/scripts/guard-yield.sh --check
+
       - name: Run adapter and maintenance Python regressions
         run: |
           python -m pytest -q -p no:cacheprovider \

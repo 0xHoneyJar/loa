@@ -1,0 +1,20 @@
+{
+  "_fixture": {
+    "source": "sprint-237 audit dissent (gpt-5.5-pro via codex-headless), chunk 4, 2026-09-22",
+    "reject_reason": "missing-or-empty-failure_mode",
+    "type": "audit",
+    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
+  },
+  "payload": {
+    "severity": "HIGH",
+    "category": "config",
+    "title": "Input guardrails fail open on missing, failing, or unparseable validation",
+    "location": {
+      "file": ".claude/skills/autonomous-agent/SKILL.md",
+      "anchor": "<input_guardrails> table row: `Script missing, non-zero exit, or unparseable output | Continue — fail-open`"
+    },
+    "description": "The autonomous skill explicitly continues execution when the guardrails orchestrator is missing, exits non-zero, or returns unparseable output. Because the guarded input is the user's invocation prompt/args and this skill has write, execute, web, and agent-spawn capabilities, an attacker only needs to trigger a validator error condition to bypass the intended pre-execution policy check and proceed into privileged workflow execution.",
+    "impact": "Malicious or policy-blocked prompts can bypass the guardrail layer entirely, undermining injection and abuse controls before the agent runs commands or writes files.",
+    "recommendation": "Fail closed for missing/unparseable/non-zero guardrail results, or at minimum fail closed for non-zero/unparseable outputs except a narrowly defined allowlisted infrastructure outage mode requiring explicit human approval."
+  }
+}

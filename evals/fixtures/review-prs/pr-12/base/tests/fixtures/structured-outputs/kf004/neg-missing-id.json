@@ -1,0 +1,15 @@
+{
+  "_case": "negative: missing id (the Sprint 1 audit sidecar shape)",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "reviewed",
+    "unenforced_findings": 0,
+    "enforced_findings": 0
+  },
+  "content": "{\"findings\":[{\"severity\":\"BLOCKING\",\"category\":\"secrets\",\"title\":\"Environment secret exposed\",\"description\":\"d\",\"failure_mode\":\"fm\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

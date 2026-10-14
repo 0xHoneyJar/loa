@@ -32,6 +32,7 @@ trap 'rm -rf -- "$work"' EXIT
 repo="$work/repo"; scratch="$work/scratch"
 mkdir -p "$repo" "$scratch"
 export LOA_REPO_ROOT="$work"
+export LOA_AUDIT_REPLAY=1   # audit rows this replay writes carry replay: true (cycle-129 DEC-0167)
 
 bp=0 bt=0 db=0 dt=0 rp=0 rt=0
 mismatches=()

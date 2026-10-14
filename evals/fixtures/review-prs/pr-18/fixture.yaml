@@ -1,0 +1,18 @@
+name: pr-18
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-254 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 254
+base_commit: "8f7932b250ed3fc04faff894b81b8904f41fcc37"
+head_commit: "efacf754c32a416dd40d41878ce5a10f3bd55398"
+fix_commit: "3758ddd0edecb00c459fe5ab26405d6b4fd8e75f"
+record_ref: "origin/record/cycle-128-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-254/bridgebuilder-triage.md"

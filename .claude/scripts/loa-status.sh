@@ -689,6 +689,10 @@ main() {
     echo "───────────────────────────────────────────────────────────────"
     display_providers_section
 
+    # Guards line (cycle-129 FR-1, SDD D-1.5): register counts and the host yield.
+    echo ""
+    display_guards_line
+
     # Agent-Network Primitives section (cycle-098 Sprint 1C, SDD §4.4).
     echo ""
     echo "───────────────────────────────────────────────────────────────"
@@ -924,6 +928,33 @@ display_providers_section() {
     fi
   done < <(printf '%s' "$pj" | jq -r '.providers | keys[]')
   echo "  reset: cheval --reset-breaker <provider>[:<auth_type>] · list: python3 -m loa_cheval.routing.breaker_cli --list"
+  return 0
+}
+
+# cycle-129 FR-1 (SDD D-1.5): one Guards line. Counts come from the tracked structural
+# register (grimoires/loa/guards.md), the 30-day yield from the untracked
+# .run/guard-yield.json; nothing is recomputed here. Bats-gated seams:
+# LOA_STATUS_GUARDS_FILE and LOA_STATUS_GUARD_YIELD_FILE.
+display_guards_line() {
+  local reg="$PROJECT_ROOT/grimoires/loa/guards.md" yf="$PROJECT_ROOT/.run/guard-yield.json"
+  local hint="regenerate: .claude/scripts/guard-yield.sh" n m d y
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" ]]; then
+    [[ -n "${LOA_STATUS_GUARDS_FILE:-}" ]] && reg="$LOA_STATUS_GUARDS_FILE"
+    [[ -n "${LOA_STATUS_GUARD_YIELD_FILE:-}" ]] && yf="$LOA_STATUS_GUARD_YIELD_FILE"
+  fi
+  if [[ ! -f "$reg" ]]; then
+    echo -e "${BOLD}Guards:${NC} no register (grimoires/loa/guards.md) · $hint"
+    return 0
+  fi
+  n=$(sed -n 's/^- guards: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  m=$(sed -n 's/^- guards_without_origin: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  d=$(sed -n 's/^- dormant: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  local counts="${n:-?} (${m:-?} without origin, ${d:-?} dormant)"
+  if [[ -f "$yf" ]] && y=$(jq -er '"\(.window_days | tonumber) d: \(.totals.real_blocks_30d | tonumber) real blocks, \(.totals.likely_fp_30d | tonumber) likely FP · scope \(.scope | tostring | gsub("[^A-Za-z0-9_-]"; ""))"' "$yf" 2>/dev/null); then
+    echo -e "${BOLD}Guards:${NC} $counts · $y · $hint"
+  else
+    echo -e "${BOLD}Guards:${NC} $counts · 30 d: no yield file (.run/guard-yield.json) · $hint"
+  fi
   return 0
 }
 

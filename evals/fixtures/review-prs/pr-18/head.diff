@@ -1,0 +1,2194 @@
+diff --git a/.claude/data/glossary-allowlist.txt b/.claude/data/glossary-allowlist.txt
+new file mode 100644
+index 00000000..18c71587
+--- /dev/null
++++ b/.claude/data/glossary-allowlist.txt
+@@ -0,0 +1,15 @@
++# Backticked kernel tokens that are code identifiers, not framework terms.
++# Read by tools/check-glossary-terms.sh: one token per line, "#" starts a
++# comment and every entry gives its reason. At most 30 entries; a framework
++# term belongs in .claude/loa/GLOSSARY.md, never here.
++TaskCreate            # Claude Code tool name (Task Tracking Hierarchy)
++TaskUpdate            # Claude Code tool name (Task Tracking Hierarchy)
++simplicity_intensity  # config key under the Karpathy principles
++full                  # value of simplicity_intensity
++ultra                 # value of simplicity_intensity
++audit_emit            # library function name (Agent-Network Primitives)
++audit_emit_signed     # library function name (Agent-Network Primitives)
++trust_grant           # library function name (Agent-Network Primitives)
++handoff_write         # library function name (Agent-Network Primitives)
++cycle_invoke          # library function name (Agent-Network Primitives)
++soul_validate         # library function name (Agent-Network Primitives)
+diff --git a/.claude/loa/GLOSSARY.md b/.claude/loa/GLOSSARY.md
+new file mode 100644
+index 00000000..17055865
+--- /dev/null
++++ b/.claude/loa/GLOSSARY.md
+@@ -0,0 +1,81 @@
++# Glossary: Loa framework
++
++The shared language of the Loa agent framework, for humans and agents. It is mounted into every project with the framework and defines what each word means in day-to-day work; the mythic background of the names lives in the lore, and a project's own terms belong in that project's root glossary, never here.
++
++## Language
++
++**Beads**: The local-first task tracker that is the single source of truth for sprint tasks, decision tickets and their dependencies.
++_Aliases_: br
++
++**Bridgebuilder**: The automated pull-request reviewer that posts findings on a pull request and drives the iterative improvement loop of a bridge run.
++
++**Cheval**: The model-dispatch substrate through which every call to an external model provider is routed, with fallback, budget limits and cost accounting.
++
++**Circuit breaker**: The run-mode guard that halts a run after repeated identical findings, no progress, a cycle limit or a timeout, leaving the run for the operator to resume.
++
++**Construct**: An installable package of skills, personas and grimoire paths that extends the framework for a domain and may declare its own workflow gates.
++
++**DEC row**: One entry of the decision ledger, numbered DEC-NNNN, recording a decision, its alternatives, its status and the voice that proposed or decided it.
++_Avoid_: ADR, decision note
++
++**Decision ticket**: A question-type bead under a map epic whose resolution is a decision, not a build slice.
++_Avoid_: question task
++
++**decision:grilling**: The label of a decision ticket that talking can settle, answered in interview rounds with the operator.
++
++**decision:prototype**: The label of a decision ticket the operator needs to see before answering, settled by a spike and its verdict.
++
++**decision:research**: The label of a decision ticket that needs reading or sources, answered by a read-only research report and one confirming round.
++
++**decision:unblock**: The label of a decision ticket that a read-only probe settles by showing whether a suspected blocker is real; it never builds anything.
++
++**Dissent**: A second model's independent review of the same diff, triaged before a gate verdict.
++_Avoid_: second opinion, cross-check
++
++**Flatline**: The multi-model adversarial review of planning documents, in which independent voices review and cross-score each other before findings are integrated.
++_Aliases_: Flatline Protocol
++
++**Fog of war**: Decisions an effort can tell are coming but cannot yet phrase sharply; a map keeps them under Not yet specified.
++
++**Frontier**: The open, unblocked, unclaimed decision tickets of a map; in an interview, the questions whose prerequisites are already settled.
++
++**Golden path**: The five everyday commands (loa, plan, build, review and ship) that detect where the workflow stands and route to the right truename.
++
++**Grimoire**: The project's state area of planning documents, notes, reviews and records that agents read and write across sessions.
++
++**ICE**: Intrusion Countermeasures Electronics, the git safety layer of run mode that owns branch creation, push decisions and the refusal to touch protected branches.
++
++**Implement gate**: The hook that asks before an edit to application code made outside the implement or bug workflows.
++
++**Jack in**: To start an autonomous run under run mode; a run that has finished or been stopped for good has jacked out.
++_Aliases_: jack out
++
++**Kaironic**: Stopping at the right moment rather than after a fixed count: an iterative review loop ends when successive passes stop finding material issues.
++_Avoid_: converged
++
++**Karpathy principles**: The four working rules applied on every code-touching turn: think before coding, simplicity first, surgical changes and goal-driven verification.
++
++**Known failure**: A recorded degradation with its symptom, the attempts made and a reading guide, consulted before triage so that prior dead ends are not retried.
++_Aliases_: KF
++
++**Lore**: The mythic and narrative background of the framework's names, kept apart from this glossary, which defines only working meanings.
++
++**Map epic**: The epic bead that parents an effort's decision tickets, paired with a map document of its destination, decisions so far, fog and exclusions; run mode never implements it.
++
++**Round**: One frontier of interview questions asked together and answered together.
++
++**Run mode**: Unattended execution of a sprint plan with a circuit breaker, wrapping implement, review and audit in a loop. Its states are running, halted and jacked out.
++_Aliases_: RUNNING, HALTED, JACKED_OUT
++
++**Seam**: A point where a test observes the system, declared in a sprint plan together with what it catches, what it misses and its prior art.
++
++**Spike**: A throwaway prototype on its own branch that answers one decision ticket; only its report and its verdict row reach the working branch.
++
++**Truename**: The underlying command that a golden-path command routes to, used directly by power users.
++
++**Verdict trailer**: The machine-readable last line of a review or audit feedback document, which must agree with its findings. Any critical or high finding forces a changes-required verdict.
++_Aliases_: LOA-VERDICT
++
++**Voice**: The party a decision or finding is attributed to: the operator, the agent, Flatline or dissent.
++
++**Zone**: One of the three permission regions of a repository: the System zone holds the framework and is never edited by hand, the State zone is read and written freely, and the App zone needs confirmation before a write.
+diff --git a/.claude/scripts/lib/symlink-manifest.sh b/.claude/scripts/lib/symlink-manifest.sh
+index f3e1f173..35df992e 100644
+--- a/.claude/scripts/lib/symlink-manifest.sh
++++ b/.claude/scripts/lib/symlink-manifest.sh
+@@ -76,6 +76,7 @@ get_symlink_manifest() {
+     ".claude/loa/reference:../../${submodule}/.claude/loa/reference"
+     ".claude/loa/learnings:../../${submodule}/.claude/loa/learnings"
+     ".claude/loa/feedback-ontology.yaml:../../${submodule}/.claude/loa/feedback-ontology.yaml"
++    ".claude/loa/GLOSSARY.md:../../${submodule}/.claude/loa/GLOSSARY.md"
+     ".claude/checksums.json:../${submodule}/.claude/checksums.json"
+   )
+ 
+diff --git a/.claude/scripts/mount-loa.sh b/.claude/scripts/mount-loa.sh
+index 954ee16d..de2a1829 100755
+--- a/.claude/scripts/mount-loa.sh
++++ b/.claude/scripts/mount-loa.sh
+@@ -2144,6 +2144,7 @@ EOF
+     ".claude/loa/CLAUDE.loa.md"
+     ".claude/loa/reference"
+     ".claude/loa/feedback-ontology.yaml"
++    ".claude/loa/GLOSSARY.md"
+     ".claude/loa/learnings"
+     ".claude/settings.json"
+     ".claude/checksums.json"
+diff --git a/.claude/scripts/mount-submodule.sh b/.claude/scripts/mount-submodule.sh
+index a73281b4..4fd475a0 100755
+--- a/.claude/scripts/mount-submodule.sh
++++ b/.claude/scripts/mount-submodule.sh
+@@ -1275,6 +1275,7 @@ update_gitignore_for_submodule() {
+     ".claude/loa/CLAUDE.loa.md"
+     ".claude/loa/reference"
+     ".claude/loa/feedback-ontology.yaml"
++    ".claude/loa/GLOSSARY.md"
+     ".claude/loa/learnings"
+     ".claude/settings.json"
+     ".claude/checksums.json"
+diff --git a/.claude/scripts/red-test-check.sh b/.claude/scripts/red-test-check.sh
+new file mode 100755
+index 00000000..8f84b2c0
+--- /dev/null
++++ b/.claude/scripts/red-test-check.sh
+@@ -0,0 +1,346 @@
++#!/usr/bin/env bash
++# =============================================================================
++# red-test-check.sh: verify a bug fix's red-before-green (grimoires/loa/sdd.md D-7.5..D-7.7, §5.2).
++#
++# A /bug micro-sprint commits its failing test alone ("Red commit: <sha>" in reviewer.md) before
++# the fix. This check runs the test command at the red commit and at the green revision, each in
++# its own detached worktree under `mktemp -d`, and reports whether the test failed before and
++# passes after:
++#
++#   0 VERIFIED     red fails by assertion and green passes
++#   1 GREEN_FAILS  green fails (red failed by assertion)
++#   2              usage error, a commit that does not resolve, red not a strict ancestor of
++#                  green, a worktree that cannot be created, or a failing --setup
++#   3 DECOY        the test passes at the red commit
++#   4 NOT_A_RED    --test-file absent at the red commit, or the red run failed for a
++#                  non-assertion reason (collection, compile, import, command not found)
++#   5 TIMEOUT      a run exceeded --timeout
++# The red-side verdicts (5, 3, 4) are judged first, then the green side (5, 1).
++#
++# Honest scope (as validate-ac-verification.sh states for its own check): this proves the
++# command failed before and passes after. It does not prove the assertion is right, that the
++# test exercises the bug, or that the fix is the cause; the reviewer still reads the test. The
++# not-a-red patterns are heuristics over the red run's output: a test whose own assertion
++# output contains one of them reads as NOT_A_RED (a false negative the reviewer can overrule).
++#
++# What runs where: the test argv runs with cwd = each worktree, never through `bash -c`.
++# Uncommitted state in the live tree never counts and nothing is stashed. Present dependency
++# directories (node_modules .venv vendor target .tox) are symlinked from the live tree into a
++# worktree that lacks them (--no-link-deps turns this off); a test that writes into a linked
++# directory writes into the live tree's copy. --setup is split on whitespace into an argv (no
++# shell syntax; point it at a script for anything more) and runs in each worktree first.
++# The timeout uses `timeout`, else `gtimeout`, else a bash watcher (TERM, then KILL after 2 s,
++# to the run's process group); with `timeout`/`gtimeout` a test that itself exits 124 reads as
++# a timeout. One cleanup removes both worktrees (worktree remove --force, then prune) and the
++# scratch directory on every exit path, interrupts included.
++#
++# Usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>]
++#                          [--no-link-deps] [--timeout <s>] [--json] -- <test command...>
++# Run it from inside the repository's work tree. --json prints one object on stdout:
++#   {red, green, red_exit, green_exit, verdict, red_tail, green_tail, linked_deps}
++# (the exits are null when a run did not happen). Exit 2 errors print to stderr only.
++# =============================================================================
++export LC_ALL=C
++set -euo pipefail
++
++PROG="red-test-check"
++DEP_DIRS="node_modules .venv vendor target .tox"
++TAIL_LINES=80
++
++# Not-a-red output patterns (ERE, matched on the red run's output when it failed). One entry
++# per runner; extend here, never inline.
++NOT_A_RED_PATTERNS=(
++  # bats: the file did not load (gather failure), a parse error, a missing file or command
++  'not ok [0-9]+ bats-gather-tests'
++  'syntax error near unexpected token'
++  'syntax error: unexpected end of file'
++  'Test file .* does not exist'
++  'command not found'
++  ': not found$'
++  # pytest: collection and import errors
++  'ERROR collecting'
++  'ImportError while importing'
++  # node (node:test, jest, mocha): an unresolved import or a parse error
++  'Cannot find module'
++  'SyntaxError'
++  # cargo: the crate or its tests did not build
++  'could not compile'
++  # go (1.22 toolchain): build or setup failure of the test binary
++  'build failed'
++  '\[setup failed\]'
++)
++
++usage(){
++  echo "${PROG}: $*" >&2
++  echo "usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--no-link-deps] [--timeout <s>] [--json] -- <test command...>" >&2
++  exit 2
++}
++die2(){ echo "${PROG}: $*" >&2; exit 2; }
++strip(){ tr -d '\000-\010\013-\037\177'; }
++
++RED=""
++GREEN="HEAD"
++TEST_FILE=""
++SETUP=""
++LINK_DEPS=1
++TIMEOUT=600
++JSON=0
++while [[ $# -gt 0 ]]; do
++  case "$1" in
++    --red) [[ -n "${2:-}" ]] || usage "--red needs a commit"; RED="$2"; shift 2 ;;
++    --green) [[ -n "${2:-}" ]] || usage "--green needs a revision"; GREEN="$2"; shift 2 ;;
++    --test-file) [[ -n "${2:-}" ]] || usage "--test-file needs a path"; TEST_FILE="$2"; shift 2 ;;
++    --setup) [[ -n "${2:-}" ]] || usage "--setup needs a command"; SETUP="$2"; shift 2 ;;
++    --no-link-deps) LINK_DEPS=0; shift ;;
++    --timeout) [[ "${2:-}" =~ ^[1-9][0-9]{0,4}$ ]] || usage "--timeout needs seconds (1-99999)"; TIMEOUT="$2"; shift 2 ;;
++    --json) JSON=1; shift ;;
++    --) shift; break ;;
++    -h|--help) sed -n '3,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
++    *) usage "unknown argument '$1' (the test command goes after --)" ;;
++  esac
++done
++[[ -n "$RED" ]] || usage "--red is required"
++[[ $# -gt 0 ]] || usage "a test command is required after --"
++case "$RED" in -*) usage "--red must be a commit, not an option" ;; esac
++case "$GREEN" in -*) usage "--green must be a revision, not an option" ;; esac
++case "$TEST_FILE" in
++  /*) usage "--test-file must be relative to the repository root" ;;
++  -*) usage "--test-file must be a path, not an option" ;;
++esac
++if [[ "$JSON" -eq 1 ]] && ! command -v jq >/dev/null 2>&1; then die2 "--json needs jq"; fi
++SETUP_ARGV=()
++if [[ -n "$SETUP" ]]; then
++  read -r -a SETUP_ARGV <<< "$SETUP"
++  [[ ${#SETUP_ARGV[@]} -gt 0 ]] || usage "--setup is empty"
++fi
++
++MAIN="$(git rev-parse --show-toplevel 2>/dev/null)" || die2 "not inside a git work tree"
++MAIN="$(cd "$MAIN" && pwd -P)"
++
++RED_SHA="$(git -C "$MAIN" rev-parse --verify --quiet "${RED}^{commit}")" || die2 "--red '${RED}' does not resolve to a commit"
++GREEN_SHA="$(git -C "$MAIN" rev-parse --verify --quiet "${GREEN}^{commit}")" || die2 "--green '${GREEN}' does not resolve to a commit"
++if [[ "$RED_SHA" == "$GREEN_SHA" ]] || ! git -C "$MAIN" merge-base --is-ancestor "$RED_SHA" "$GREEN_SHA"; then
++  die2 "red ${RED_SHA} is not a strict ancestor of green ${GREEN_SHA}: commit the failing test first, then the fix"
++fi
++
++RED_EXIT=""
++GREEN_EXIT=""
++RED_TAIL=""
++GREEN_TAIL=""
++LINKED=""
++
++# Report a verdict (text or JSON) and exit with its code.
++finish(){
++  local verdict="$1" code="$2"
++  if [[ "$JSON" -eq 1 ]]; then
++    jq -n --arg red "$RED_SHA" --arg green "$GREEN_SHA" --arg re "$RED_EXIT" --arg ge "$GREEN_EXIT" \
++      --arg verdict "$verdict" --arg rt "$RED_TAIL" --arg gt "$GREEN_TAIL" --arg linked "$LINKED" \
++      '{red: $red, green: $green,
++        red_exit: (if $re == "" then null else ($re | tonumber) end),
++        green_exit: (if $ge == "" then null else ($ge | tonumber) end),
++        verdict: $verdict, red_tail: $rt, green_tail: $gt,
++        linked_deps: ($linked | split(" ") | map(select(. != "")))}'
++    if [[ -n "$RED_TAIL" ]]; then
++      printf -- '--- red run (last %s lines) ---\n%s\n--- end red run ---\n' "$TAIL_LINES" "$RED_TAIL" >&2
++    fi
++  else
++    echo "${PROG}: red ${RED_SHA} exit ${RED_EXIT:-n/a}; green ${GREEN_SHA} exit ${GREEN_EXIT:-n/a}; linked deps: ${LINKED:-none}"
++    if [[ -n "$RED_EXIT" ]]; then
++      printf -- '--- red run (last %s lines) ---\n%s\n--- end red run ---\n' "$TAIL_LINES" "$RED_TAIL"
++    fi
++    if [[ -n "$GREEN_EXIT" && "$GREEN_EXIT" != "0" ]]; then
++      printf -- '--- green run (last %s lines) ---\n%s\n--- end green run ---\n' "$TAIL_LINES" "$GREEN_TAIL"
++    fi
++    echo "verdict: ${verdict}"
++  fi
++  exit "$code"
++}
++
++# D-7.6: the named test file must exist at the red commit.
++if [[ -n "$TEST_FILE" ]] && ! git -C "$MAIN" cat-file -e "${RED_SHA}:${TEST_FILE#./}" 2>/dev/null; then
++  echo "${PROG}: --test-file '${TEST_FILE}' does not exist at the red commit ${RED_SHA}: the failing test was not committed there" >&2
++  finish NOT_A_RED 4
++fi
++
++# WARN: a green that differs from red only in test files cannot be a fix.
++is_test_path(){
++  local p="$1" b
++  b="${p##*/}"
++  [[ -n "$TEST_FILE" && "$p" == "${TEST_FILE#./}" ]] && return 0
++  case "/$p" in */test/*|*/tests/*|*/spec/*|*/__tests__/*|*/testdata/*|*/fixtures/*) return 0 ;; esac
++  case "$b" in test_*|*_test.*|*.test.*|*.spec.*|*_spec.*|*.bats) return 0 ;; esac
++  return 1
++}
++nontest=0
++while IFS= read -r p; do
++  [[ -n "$p" ]] || continue
++  if ! is_test_path "$p"; then nontest=1; break; fi
++done < <(git -C "$MAIN" diff --name-only "$RED_SHA" "$GREEN_SHA" -- 2>/dev/null || true)
++if [[ "$nontest" -eq 0 ]]; then
++  echo "${PROG}: WARN: no non-test file changed between red ${RED_SHA} and green ${GREEN_SHA}; a pass there comes from test changes alone" >&2
++fi
++
++SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/red-test-check.XXXXXX")"
++SCRATCH="$(cd "$SCRATCH" && pwd -P)"
++WT_RED=""
++WT_GREEN=""
++RUN_PID=""
++WATCH_PID=""
++remove_wt(){
++  local wt="$1" d
++  [[ -n "$wt" ]] || return 0
++  # Unlink our dependency symlinks first, so nothing below can follow them into the live tree.
++  for d in $DEP_DIRS; do
++    if [[ -L "${wt}/${d}" ]]; then rm -f -- "${wt}/${d}"; fi
++  done
++  git -C "$MAIN" worktree remove --force "$wt" >/dev/null 2>&1 || true
++}
++cleanup(){
++  if [[ -n "$WATCH_PID" ]]; then kill "$WATCH_PID" 2>/dev/null || true; fi
++  if [[ -n "$RUN_PID" ]]; then
++    kill -TERM -- "-${RUN_PID}" 2>/dev/null || kill -TERM "$RUN_PID" 2>/dev/null || true
++  fi
++  remove_wt "$WT_RED"
++  remove_wt "$WT_GREEN"
++  git -C "$MAIN" worktree prune >/dev/null 2>&1 || true
++  if [[ -n "$SCRATCH" && -d "$SCRATCH" ]]; then rm -rf -- "$SCRATCH"; fi
++  return 0
++}
++trap cleanup EXIT
++trap 'exit 130' INT
++trap 'exit 143' TERM
++
++add_wt(){
++  local path="$1" sha="$2"
++  # No hook from the shared hooks directory runs for our checkout.
++  if ! git -C "$MAIN" -c core.hooksPath=/dev/null worktree add --detach "$path" "$sha" >/dev/null 2>"${SCRATCH}/wt-add.err"; then
++    strip < "${SCRATCH}/wt-add.err" >&2
++    die2 "could not create a worktree for ${sha}; nothing ran"
++  fi
++}
++
++link_deps(){
++  local wt="$1" d
++  [[ "$LINK_DEPS" -eq 1 ]] || return 0
++  for d in $DEP_DIRS; do
++    if [[ -e "${MAIN}/${d}" && ! -e "${wt}/${d}" && ! -L "${wt}/${d}" ]]; then
++      ln -s "${MAIN}/${d}" "${wt}/${d}"
++      case " $LINKED " in *" $d "*) ;; *) LINKED="${LINKED:+$LINKED }$d" ;; esac
++    fi
++  done
++}
++
++# Run argv with cwd $1, output to $2, bounded by TIMEOUT. Sets RUN_RC and RUN_TIMED_OUT.
++RUN_RC=0
++RUN_TIMED_OUT=0
++run_bounded(){
++  local cwd="$1" log="$2" flag="${SCRATCH}/timed-out" tbin="" start
++  shift 2
++  rm -f -- "$flag"
++  if command -v timeout >/dev/null 2>&1; then tbin=timeout
++  elif command -v gtimeout >/dev/null 2>&1; then tbin=gtimeout
++  fi
++  start=$SECONDS
++  # Job control gives the run its own process group, so a timeout or an interrupt stops the
++  # whole tree it spawned.
++  set -m
++  if [[ -n "$tbin" ]]; then
++    ( cd "$cwd" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX && exec "$tbin" -k 2 "$TIMEOUT" "$@" ) > "$log" 2>&1 < /dev/null &
++  else
++    ( cd "$cwd" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX && exec "$@" ) > "$log" 2>&1 < /dev/null &
++  fi
++  RUN_PID=$!
++  set +m
++  if [[ -z "$tbin" ]]; then
++    ( i=0
++      while kill -0 "$RUN_PID" 2>/dev/null; do
++        if [[ "$i" -ge "$TIMEOUT" ]]; then
++          : > "$flag"
++          kill -TERM -- "-${RUN_PID}" 2>/dev/null || kill -TERM "$RUN_PID" 2>/dev/null || true
++          sleep 2
++          kill -KILL -- "-${RUN_PID}" 2>/dev/null || kill -KILL "$RUN_PID" 2>/dev/null || true
++          exit 0
++        fi
++        sleep 1
++        i=$((i + 1))
++      done ) < /dev/null > /dev/null 2>&1 &
++    WATCH_PID=$!
++  fi
++  set +e
++  wait "$RUN_PID"
++  RUN_RC=$?
++  set -e
++  RUN_PID=""
++  if [[ -n "$WATCH_PID" ]]; then
++    kill "$WATCH_PID" 2>/dev/null || true
++    wait "$WATCH_PID" 2>/dev/null || true
++    WATCH_PID=""
++  fi
++  RUN_TIMED_OUT=0
++  if [[ -n "$tbin" ]]; then
++    if [[ "$RUN_RC" -eq 124 ]] || { [[ "$RUN_RC" -eq 137 ]] && [[ $((SECONDS - start)) -ge "$TIMEOUT" ]]; }; then RUN_TIMED_OUT=1; fi
++  elif [[ -f "$flag" ]]; then
++    RUN_TIMED_OUT=1
++  fi
++  return 0
++}
++
++prepare(){
++  local wt="$1" name="$2"
++  link_deps "$wt"
++  if [[ ${#SETUP_ARGV[@]} -gt 0 ]]; then
++    run_bounded "$wt" "${SCRATCH}/setup-${name}.log" "${SETUP_ARGV[@]}"
++    if [[ "$RUN_RC" -ne 0 || "$RUN_TIMED_OUT" -eq 1 ]]; then
++      tail -n "$TAIL_LINES" "${SCRATCH}/setup-${name}.log" | strip >&2
++      if [[ "$RUN_TIMED_OUT" -eq 1 ]]; then die2 "--setup timed out after ${TIMEOUT}s in the ${name} worktree"; fi
++      die2 "--setup exited ${RUN_RC} in the ${name} worktree"
++    fi
++  fi
++}
++
++WT_RED="${SCRATCH}/red"
++add_wt "$WT_RED" "$RED_SHA"
++WT_GREEN="${SCRATCH}/green"
++add_wt "$WT_GREEN" "$GREEN_SHA"
++prepare "$WT_RED" red
++prepare "$WT_GREEN" green
++
++run_bounded "$WT_RED" "${SCRATCH}/red.log" "$@"
++RED_EXIT="$RUN_RC"
++RED_TO="$RUN_TIMED_OUT"
++RED_TAIL="$(tail -n "$TAIL_LINES" "${SCRATCH}/red.log" | strip)"
++
++run_bounded "$WT_GREEN" "${SCRATCH}/green.log" "$@"
++GREEN_EXIT="$RUN_RC"
++GREEN_TO="$RUN_TIMED_OUT"
++GREEN_TAIL="$(tail -n "$TAIL_LINES" "${SCRATCH}/green.log" | strip)"
++
++if [[ "$RED_TO" -eq 1 ]]; then
++  echo "${PROG}: the red run exceeded ${TIMEOUT}s" >&2
++  finish TIMEOUT 5
++fi
++if [[ "$RED_EXIT" -eq 0 ]]; then
++  echo "${PROG}: the test passes at the red commit: it does not reproduce the bug" >&2
++  finish DECOY 3
++fi
++if [[ "$RED_EXIT" -eq 126 || "$RED_EXIT" -eq 127 ]]; then
++  echo "${PROG}: the red run exited ${RED_EXIT} (command not found or not executable): not an assertion failure" >&2
++  finish NOT_A_RED 4
++fi
++# Strip once into a file: `strip | grep -q` under pipefail can turn a match into a miss.
++strip < "${SCRATCH}/red.log" > "${SCRATCH}/red.clean"
++for pat in "${NOT_A_RED_PATTERNS[@]}"; do
++  if grep -qE -- "$pat" "${SCRATCH}/red.clean"; then
++    echo "${PROG}: the red run failed by a non-assertion error (matched '${pat}'): fix the test so it loads, then re-check" >&2
++    finish NOT_A_RED 4
++  fi
++done
++if [[ "$GREEN_TO" -eq 1 ]]; then
++  echo "${PROG}: the green run exceeded ${TIMEOUT}s" >&2
++  finish TIMEOUT 5
++fi
++if [[ "$GREEN_EXIT" -ne 0 ]]; then
++  echo "${PROG}: the test still fails at green ${GREEN_SHA}" >&2
++  finish GREEN_FAILS 1
++fi
++finish VERIFIED 0
+diff --git a/.claude/scripts/validate-artifact.sh b/.claude/scripts/validate-artifact.sh
+index c17af949..e9b951cc 100755
+--- a/.claude/scripts/validate-artifact.sh
++++ b/.claude/scripts/validate-artifact.sh
+@@ -8,7 +8,7 @@
+ # bug-triaging.
+ #
+ # Usage:
+-#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
++#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary --file <path>
+ #                        [--base-file <path>] [--ledger <path>] [--json]
+ #
+ # Per-type checks (see designing-architecture/planning-sprints/bug-triaging
+@@ -28,7 +28,9 @@
+ #   sprint:     every '## Sprint N' block has its 8 required sections; every
+ #               goal ID (G-N) referenced in the plan appears in the '##
+ #               Appendix' goal table; WARN if the final sprint has no
+-#               E2E/end-to-end task
++#               E2E/end-to-end task; a plan whose header **Date:** is on or
++#               after SEAMS_REQUIRED_FROM needs a '### Seams Under Test' table
++#               in every sprint block (older and undated plans WARN)
+ #   bug-triage: bug_id matches the bug-triaging ID grammar; its sibling
+ #               .run/bugs/<id>/state.json has a schema_version; a PII scan
+ #               via pii-filter.sh (skipped if unavailable)
+@@ -60,6 +62,13 @@
+ #               H2s Question, What was built, Verdict, Pointer, Decided by,
+ #               present and non-empty; Pointer names a spike/ branch or a path;
+ #               Decided by names operator or agent; no URL; PII scan
++#   glossary:   the framework .claude/loa/GLOSSARY.md or a project GLOSSARY.md
++#               (grimoires/loa/sdd.md §4.5): an H1, a context paragraph before
++#               '## Language', then one-line '**Term**: definition' entries of
++#               at most two sentences and 300 characters; _Avoid_: and
++#               _Aliases_: only directly below an entry; no duplicate term or
++#               alias (case, '-', '_' and spaces folded); WARN on a path or file
++#               extension in '## Language'; PII scan
+ #   sprint also: with br and .beads/, no question bead carries a sprint: label
+ #               or sits under a sprint epic (an info line without br)
+ #
+@@ -82,14 +91,14 @@ source "${SCRIPT_DIR}/compat-lib.sh"
+ 
+ show_help() {
+     cat <<EOF
+-Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
++Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary --file <path>
+        [--base-file <path>] [--ledger <path>] [--json]
+ 
+ Validate a Loa planning artifact against its skill-defined structural
+ contract (grep-based, fail-closed).
+ 
+ Options:
+-  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions | map | spike (required)
++  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions | map | spike | glossary (required)
+   --file PATH   Artifact file to validate (required). For --type translation,
+                 may also be a directory (validates every *.md under it).
+   --base-file PATH
+@@ -126,8 +135,8 @@ if [[ -z "$TYPE" || -z "$FILE" ]]; then
+ fi
+ 
+ case "$TYPE" in
+-    prd|sdd|sprint|bug-triage|translation|decisions|map|spike) ;;
+-    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions|map|spike (got: $TYPE)" >&2; exit 2 ;;
++    prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary) ;;
++    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary (got: $TYPE)" >&2; exit 2 ;;
+ esac
+ 
+ if [[ "$TYPE" == "translation" ]]; then
+@@ -295,6 +304,7 @@ validate_sprint() {
+     fi
+ 
+     validate_sprint_deferred
++    validate_sprint_seams
+     validate_sprint_beads
+ 
+     # Final sprint E2E/validation task (WARN only).
+@@ -847,6 +857,47 @@ validate_sprint_deferred() {
+     done <<< "$deferred"
+ }
+ 
++# =============================================================================
++# sprint: '### Seams Under Test' per sprint block (grimoires/loa/sdd.md D-7.2)
++# =============================================================================
++# Gated on the plan header's **Date:** (the first one before the first H2): from
++# SEAMS_REQUIRED_FROM on, every '## Sprint N' block (up to the next H2) must carry
++# the block with at least one table row below its separator line; older and
++# undated plans WARN once. Headings inside fenced code do not count.
++SEAMS_REQUIRED_FROM="2026-10-13"
++
++validate_sprint_seams() {
++    local plan_date
++    plan_date="$(awk '/^## / { exit } /^\*\*Date:?\*\*:?/ { print; exit }' "$FILE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)"
++    local missing
++    missing="$(awk '
++        function emit() { if (insp && rows < 1) printf "%s (line %d)\n", head, hl }
++        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
++        fence { next }
++        /^## / {
++            emit(); insp = 0
++            if ($0 ~ /^## Sprint [0-9]/) { insp = 1; head = substr($0, 4); hl = NR; rows = 0; inseam = 0 }
++            next
++        }
++        !insp { next }
++        /^###/ { inseam = ($0 ~ /^### Seams Under Test[[:space:]]*$/); sep = 0; next }
++        inseam && /^\|/ {
++            if ($0 ~ /^\|[[:space:]:|-]+$/) { sep = 1 } else if (sep) { rows++ }
++        }
++        END { emit() }
++    ' "$FILE")"
++    [[ -n "$missing" ]] || return 0
++    if [[ -n "$plan_date" && ! "$plan_date" < "$SEAMS_REQUIRED_FROM" ]]; then
++        local m
++        while IFS= read -r m; do
++            [[ -n "$m" ]] || continue
++            violations+=("sprint block '${m}' has no '### Seams Under Test' table with at least one row: a plan dated ${plan_date} (on or after ${SEAMS_REQUIRED_FROM}) needs | Seam | Catches | Misses | Prior art | per sprint — see planning-sprints/resources/templates/sprint-template.md")
++        done <<< "$missing"
++    else
++        warnings+=("${plan_date:-undated} plan: $(wc -l <<< "$missing" | tr -d ' ') sprint block(s) without a '### Seams Under Test' table; the block is required for plans dated from ${SEAMS_REQUIRED_FROM}")
++    fi
++}
++
+ # =============================================================================
+ # sdd: Open Questions rows marked Resolved name their DEC row (WARN only, D-3.16)
+ # =============================================================================
+@@ -1194,6 +1245,87 @@ validate_spike() {
+     _md_pii_scan "a spike report is tracked state, remove them"
+ }
+ 
++# =============================================================================
++# glossary: the framework or a project glossary (grimoires/loa/sdd.md D-6.4, §4.5)
++# =============================================================================
++GLOSSARY_MAX_CHARS=300
++
++validate_glossary() {
++    local kind msg
++    while IFS=$'\t' read -r kind msg; do
++        case "$kind" in
++            V) violations+=("$msg") ;;
++            W) warnings+=("$msg") ;;
++        esac
++    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" '
++        function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
++        function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
++        # names compare as the drift check matches them: case and "-", "_", " " folded
++        function norm(x) { x = tolower(x); gsub(/[-_ ]+/, " ", x); gsub(/^ | $/, "", x); return x }
++        function claim(x, what) {
++            if (x == "") return
++            if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
++            else seen[norm(x)] = what " \"" x "\" (line " NR ")"
++        }
++        /^[[:space:]]*(```|~~~)/ { fence = !fence; prev = "other"; next }
++        fence { next }
++        /^# / {
++            if (!h1) { h1 = NR; if ($0 !~ /^# Glossary: [^[:space:]]/) w("the H1 is not \"# Glossary: <name>\"") }
++            prev = "other"; next
++        }
++        /^## / {
++            hd = $0; sub(/^## +/, "", hd); sub(/[[:space:]]+$/, "", hd)
++            if (hd == "Language") { if (lang_line) v("a second \"## Language\" section (the first is on line " lang_line ")"); else lang_line = NR; lang = 1 }
++            else lang = 0
++            prev = "other"; next
++        }
++        !lang_line && h1 && $0 ~ /[^[:space:]]/ { context = 1 }
++        !lang { prev = ($0 ~ /[^[:space:]]/) ? "other" : "blank"; next }
++        $0 !~ /[^[:space:]]/ { prev = "blank"; next }
++        /^### / { prev = "other"; next }
++        {
++            if ($0 ~ /(^|[^A-Za-z0-9_])[A-Za-z0-9_.~-]+\/[A-Za-z0-9_.-]/ || $0 ~ /\.(md|sh|bash|py|ts|js|json|jsonl|yaml|yml|toml|txt|bats|lock)([^A-Za-z0-9]|$)/)
++                w("a path or file extension; glossary definitions are implementation-free")
++        }
++        /^\*\*[^*]+\*\*: [^[:space:]]/ {
++            entries++
++            t = $0; sub(/^\*\*/, "", t); sub(/\*\*: .*$/, "", t); gsub(/`/, "", t); gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
++            claim(t, "term")
++            d = $0; sub(/^\*\*[^*]+\*\*: /, "", d); sub(/[[:space:]]+$/, "", d)
++            c = d; gsub(/[\200-\277]/, "", c)   # count characters, not UTF-8 continuation bytes
++            if (length(c) > max) v("the definition of \"" t "\" is " length(c) " characters, over " max "; shorten it")
++            s = d " "; n = gsub(/[.!?]+[)"]*[[:space:]]/, "&", s); if (n == 0) n = 1
++            if (n > 2) v("the definition of \"" t "\" has " n " sentences; at most two")
++            prev = "entry"; seen_avoid = 0; seen_alias = 0; next
++        }
++        /^_(Avoid|Aliases)_:/ {
++            k = ($0 ~ /^_Avoid_:/) ? "Avoid" : "Aliases"
++            if (prev != "entry" && prev != "annot") { v("_" k "_: is not directly after an entry; put it on the line below the **Term**: line"); prev = "other"; next }
++            if ((k == "Avoid" && seen_avoid) || (k == "Aliases" && seen_alias)) v("a second _" k "_: line for \"" t "\"; merge them")
++            if (k == "Avoid") seen_avoid = 1; else seen_alias = 1
++            a = $0; sub(/^_(Avoid|Aliases)_:[[:space:]]*/, "", a)
++            if (a !~ /[^[:space:]]/) v("an empty _" k "_: line")
++            if (k == "Aliases") {
++                gsub(/`/, "", a); m = split(a, parts, /,/)
++                for (i = 1; i <= m; i++) { p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p); claim(p, "alias") }
++            }
++            prev = "annot"; next
++        }
++        /^\*\*[^*]+\*\*:/ { v("an entry needs \"**Term**: definition\" with a space and text after the colon"); prev = "other"; next }
++        { v("a line in \"## Language\" that is not an entry, an _Avoid_:/_Aliases_: line or a ### heading; a definition stays on its entry line"); prev = "other" }
++        END {
++            NR = 1
++            if (!h1) v("no H1; start with \"# Glossary: <name>\"")
++            if (!lang_line) v("no \"## Language\" section")
++            else {
++                if (!context) v("no context paragraph between the H1 and \"## Language\"; say whose language this is in one paragraph")
++                if (!entries) v("\"## Language\" has no **Term**: entries")
++            }
++        }
++    ' "$FILE")
++    _md_pii_scan "a glossary is tracked prose, remove them"
++}
++
+ case "$TYPE" in
+     prd) validate_prd ;;
+     sdd) validate_sdd ;;
+@@ -1203,6 +1335,7 @@ case "$TYPE" in
+     decisions) validate_decisions ;;
+     map) validate_map ;;
+     spike) validate_spike ;;
++    glossary) validate_glossary ;;
+ esac
+ 
+ if [[ "$JSON_OUTPUT" == "true" ]]; then
+diff --git a/.claude/skills/bug-triaging/resources/templates/micro-sprint.md b/.claude/skills/bug-triaging/resources/templates/micro-sprint.md
+index 9f865643..7feee0f2 100644
+--- a/.claude/skills/bug-triaging/resources/templates/micro-sprint.md
++++ b/.claude/skills/bug-triaging/resources/templates/micro-sprint.md
+@@ -29,6 +29,7 @@ #### Task 1: Write Failing Test [G-5]
+ - Test fails with current code, proving the bug exists
+ - Test name clearly describes the bug scenario
+ - Test is isolated (no side effects on other tests)
++- Committed alone (`test(<bug_id>): failing test`) before any fix commit; SHA recorded in `reviewer.md` as `Red commit: <sha>`
+ 
+ #### Task 2: Implement Fix [G-1, G-2]
+ - Fix root cause in {suspected_files}
+@@ -39,6 +40,7 @@ #### Task 2: Implement Fix [G-1, G-2]
+ - Failing test now passes
+ - No regressions in existing tests
+ - Fix addresses root cause (not just symptoms)
++- The fix is a later commit and does not weaken the test (`.claude/scripts/red-test-check.sh --red <Red commit> -- <test command>` exits 0)
+ 
+ ### Acceptance Criteria
+ - [ ] Bug is no longer reproducible
+diff --git a/.claude/skills/designing-architecture/SKILL.md b/.claude/skills/designing-architecture/SKILL.md
+index bc80caab..9ec1cc21 100644
+--- a/.claude/skills/designing-architecture/SKILL.md
++++ b/.claude/skills/designing-architecture/SKILL.md
+@@ -203,6 +203,7 @@ ## Phase 2: Clarification Phase
+ 
+ Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
+ A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
++Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline.
+ 
+ Wait for responses before finalizing design decisions.
+ Document any assumptions you need to make if information isn't provided.
+diff --git a/.claude/skills/discovering-requirements/SKILL.md b/.claude/skills/discovering-requirements/SKILL.md
+index e34af238..0b730b7f 100644
+--- a/.claude/skills/discovering-requirements/SKILL.md
++++ b/.claude/skills/discovering-requirements/SKILL.md
+@@ -267,6 +267,8 @@ ### Phase Topics
+ 
+ **Phase 4 anti-inference**: never expand the user's feature list with unrequested additions; if something seems missing, ask whether leaving out [X] is intentional.
+ 
++**Terms (Phases 1-7)**: Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline.
++
+ ### Pre-Generation Gate
+ 
+ When `gate_before_gen` is true, present a completeness summary (phases covered, questions/assumptions counts, up to 3 top assumptions), ask "Ready to generate PRD?" via `routing_style`, and generate only after the user confirms. Template: → `resources/REFERENCE.md` §Pre-Generation Gate.
+diff --git a/.claude/skills/planning-sprints/SKILL.md b/.claude/skills/planning-sprints/SKILL.md
+index 69d0d8d0..2ee27827 100644
+--- a/.claude/skills/planning-sprints/SKILL.md
++++ b/.claude/skills/planning-sprints/SKILL.md
+@@ -192,16 +192,17 @@ ## Phase 1: Deep Document Analysis
+    - Ambiguous requirements or acceptance criteria
+    - Missing technical specifications
+    - Unclear priorities or sequencing
+-   - Potential scope creep — if MVP is too large, recommend specific reductions
+-   - Misalignment between SDD's approach and the PRD — flag and seek clarification
+-   - Integration points needing clarification
++   - Scope creep — if MVP is too large, recommend reductions
++   - SDD/PRD misalignment — flag and seek clarification
++   - Unclear integration points
+ 
+ ## Phase 2: Strategic Questioning
+ 
+ Ask clarifying questions on priority conflicts, estimation uncertainty, resources, external dependencies, underspecified requirements and risk mitigation (full list: see `resources/REFERENCE.md` §Clarifying Questions Checklist). Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
+ A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
+ 
+-Wait for responses before proceeding. Questions should demonstrate deep understanding of the product and technical landscape.
++Ask the seams as one round: per sprint, the interfaces its tests drive, what each catches and misses, and prior art (`### Seams Under Test`).
++Wait for responses before proceeding.
+ 
+ ## Phase 3: Sprint Plan Creation
+ 
+@@ -217,7 +218,7 @@ ## Phase 3: Sprint Plan Creation
+ - Sprint Goal (1 sentence)
+ - Scope: SMALL (1-3 tasks) / MEDIUM (4-6) / LARGE (7-10) — no sprint exceeds 10 tasks
+ - Deliverables, Acceptance Criteria, and Technical Tasks (checkboxes; annotate each task's goal contribution, `→ **[G-1]**`; specific/testable examples: `resources/REFERENCE.md` §Common Anti-Patterns)
+-- Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
++- Seams Under Test, Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
+ 
+ A complete plan lets engineers start immediately without clarification.
+ 
+diff --git a/.claude/skills/planning-sprints/resources/templates/sprint-template.md b/.claude/skills/planning-sprints/resources/templates/sprint-template.md
+index edbc3037..1ac6b638 100644
+--- a/.claude/skills/planning-sprints/resources/templates/sprint-template.md
++++ b/.claude/skills/planning-sprints/resources/templates/sprint-template.md
+@@ -57,6 +57,13 @@ ### Technical Tasks
+ - [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]** ⇐ Task 1.1
+ - [ ] {Additional tasks...} → **[G-N]** ⇐ {blockers | none}
+ 
++### Seams Under Test
++<!-- One row per interface the tests drive (a CLI exit code, a function's output, a file
++     after an operation). Required for plans dated on or after 2026-10-13 (validate-artifact.sh). -->
++| Seam | Catches | Misses | Prior art |
++|------|---------|--------|-----------|
++| {interface the tests drive} | {defects a test here catches} | {what it cannot see} | {existing test to copy, or new} |
++
+ ### Dependencies
+ - {Any dependencies on previous sprints or external factors}
+ - None (first sprint)
+@@ -130,6 +137,11 @@ ### Technical Tasks
+ - [ ] {Specific technical task 1}
+ - [ ] {Specific technical task 2}
+ 
++### Seams Under Test
++| Seam | Catches | Misses | Prior art |
++|------|---------|--------|-----------|
++| {interface the tests drive} | {defects a test here catches} | {what it cannot see} | {existing test to copy, or new} |
++
+ ### Dependencies
+ - Sprint 1: {Specific dependency}
+ 
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index 2184a0d0..549265ed 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -3,7 +3,7 @@
+ description: Validate sprint implementation against acceptance criteria
+ role: review
+ effort: xhigh
+-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
++allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+ # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+ disallowed-tools:
+   - NotebookEdit
+@@ -24,6 +24,8 @@ # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+         args: ["*"]
+       - command: ".claude/scripts/qmd-context-query.sh"
+         args: ["*"]
++      - command: ".claude/scripts/red-test-check.sh"
++        args: ["*"]
+       - command: ".claude/scripts/guardrails-orchestrator.sh"
+         args: ["*"]
+       - command: "br"
+@@ -105,7 +107,7 @@ ## Adversarial Review Protocol
+ 
+ ### Coverage
+ 
+-Report every finding you actually observe — minor, uncertain, or on an otherwise clean sprint;
++Report every finding you observe — minor, uncertain, or on an otherwise clean sprint;
+ a separate mechanical step filters, and a finding you drop here is lost.
+ 
+ Each finding carries a `file:line` citation of the failing statement itself — a range
+@@ -199,7 +201,7 @@ ## Trajectory Logging
+ <workflow>
+ ## Phase -1: Scope
+ 
+-Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large sprint, or one with more than 3 tasks, splits per task (`<parallel_execution>`).
++Parallelise (`parallel_threshold`) when the scope warrants (the lead decides); a sprint with more than 3 tasks splits per task (`<parallel_execution>`).
+ 
+ ## Phase 1: Context Gathering
+ 
+@@ -207,16 +209,18 @@ ## Phase 1: Context Gathering
+ 1. `grimoires/loa/a2a/integration-context.md` if it exists
+ 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
+ 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
+-4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
+-5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
++4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
++5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
+ 
+ ## Phase 2: Code Review
+ 
+-Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the two checks below.
++Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
++
++Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'.
+ 
+ **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
++**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+ 
+ ## Phase 2.5: Adversarial Cross-Model Review
+ 
+@@ -234,7 +238,7 @@ ## Phase 4: Decision Making
+ 
+ **Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
+ 
+-**Automatic CHANGES_REQUIRED**, regardless of other findings, when
++**Automatic CHANGES_REQUIRED** when
+ `reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
+ scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
+ Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
+@@ -276,13 +280,13 @@ ## Subagent Report Check
+ </subagent_report_check>
+ 
+ <checklists>
+-Complete checklists, the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and the optional Mermaid standards: `resources/REFERENCE.md`.
++Checklists, Red Flags (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and Mermaid standards: `resources/REFERENCE.md`.
+ </checklists>
+ 
+ <complexity_review>
+ ## Complexity Review (Required)
+ 
+-Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
++Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
+ </complexity_review>
+ 
+ <beads_workflow>
+diff --git a/.claude/skills/reviewing-code/resources/REFERENCE.md b/.claude/skills/reviewing-code/resources/REFERENCE.md
+index 213756c4..55afbab1 100644
+--- a/.claude/skills/reviewing-code/resources/REFERENCE.md
++++ b/.claude/skills/reviewing-code/resources/REFERENCE.md
+@@ -26,6 +26,7 @@ ### Code Quality
+ - [ ] Consistent with project conventions
+ - [ ] Appropriate comments for complex logic
+ - [ ] No commented-out code without explanation
++- [ ] New domain terms are defined in a glossary (LOW if not)
+ 
+ ### Testing
+ - [ ] Tests exist for all new code
+diff --git a/.claude/skills/riding-codebase/SKILL.md b/.claude/skills/riding-codebase/SKILL.md
+index 132cfa19..3b6e074f 100644
+--- a/.claude/skills/riding-codebase/SKILL.md
++++ b/.claude/skills/riding-codebase/SKILL.md
+@@ -109,7 +109,7 @@ ### 1.1 Context Discovery Setup
+ 
+ ### 1.2 Analyze Existing Context (Pre-Interview)
+ 
+-If context files exist, analyze them before the interview and generate `grimoires/loa/context/context-coverage.md` listing the topics covered (skippable in the interview), the gaps still to explore, and the claims extracted to verify against code.
++If context files exist, analyze them first and write `grimoires/loa/context/context-coverage.md`: topics covered (skip in the interview), gaps to explore, claims to verify against code. Read `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md`, when present, as reality inputs.
+ 
+ ### 1.3 Interactive Discovery (Gap-Focused Interview)
+ 
+diff --git a/.github/workflows/check-glossary-terms.yml b/.github/workflows/check-glossary-terms.yml
+new file mode 100644
+index 00000000..d3e5770f
+--- /dev/null
++++ b/.github/workflows/check-glossary-terms.yml
+@@ -0,0 +1,56 @@
++name: Glossary Terms
++
++# cycle-128 FR-6 (grimoires/loa/sdd.md D-6.2, D-6.3): every backticked framework
++# term in the kernel (.claude/loa/CLAUDE.loa.md) resolves to an entry or alias in
++# the framework glossary (.claude/loa/GLOSSARY.md), or to an allowlisted code
++# identifier (.claude/data/glossary-allowlist.txt, at most 30 entries).
++# tools/check-glossary-terms.sh is the gate; the two control steps prove the
++# gate itself still bites. This check is Loa's own: it runs in this repository
++# only, never in a project that mounts the framework.
++
++on:
++  pull_request:
++  push:
++    branches: [main]
++
++jobs:
++  glossary-terms:
++    name: Kernel terms resolve to the glossary
++    if: github.repository == '0xHoneyJar/loa'
++    runs-on: ubuntu-latest
++    timeout-minutes: 5
++    steps:
++      - name: Checkout
++        # actions/checkout@v4.3.1 (pinned per cycle-098 supply-chain pattern)
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
++
++      - name: Check kernel terms against the glossary
++        run: |
++          set -euo pipefail
++          bash tools/check-glossary-terms.sh --report
++          bash .claude/scripts/validate-artifact.sh --type glossary --file .claude/loa/GLOSSARY.md
++          bash .claude/scripts/validate-artifact.sh --type glossary --file GLOSSARY.md
++
++      - name: Positive control (the gate rejects the miss fixture with exit 1)
++        if: success()   # controls prove the gate bites; a real failure above stays the visible failure
++        run: |
++          set -euo pipefail
++          d=tests/fixtures/glossary/miss
++          rc=0
++          bash tools/check-glossary-terms.sh --kernel "$d/kernel.md" --glossary "$d/GLOSSARY.md" --allowlist "$d/allowlist.txt" || rc=$?
++          if [ "$rc" -ne 1 ]; then
++            echo "::error::check-glossary-terms.sh did not reject $d with exit 1 (got $rc)"
++            exit 1
++          fi
++          echo "OK: miss fixture rejected"
++
++      - name: Negative control (the gate accepts the ok fixture)
++        if: success()   # controls prove the gate bites; a real failure above stays the visible failure
++        run: |
++          set -euo pipefail
++          d=tests/fixtures/glossary/ok
++          if ! bash tools/check-glossary-terms.sh --kernel "$d/kernel.md" --glossary "$d/GLOSSARY.md" --allowlist "$d/allowlist.txt"; then
++            echo "::error::check-glossary-terms.sh false-positive on $d"
++            exit 1
++          fi
++          echo "OK: ok fixture accepted"
+diff --git a/GLOSSARY.md b/GLOSSARY.md
+new file mode 100644
+index 00000000..d2ec8473
+--- /dev/null
++++ b/GLOSSARY.md
+@@ -0,0 +1,11 @@
++# Glossary: Loa
++
++The terms people working on the Loa repository itself use, beyond the framework vocabulary in the framework glossary that ships with Loa. In other projects this file is the project glossary: the planning skills create it lazily at the project root the first time a term needs pinning, and update it inline.
++
++## Language
++
++**Cycle**: One numbered development iteration of the framework, from its requirements document through its sprints to the merged pull request and the archived records.
++
++**Record branch**: A pushed branch that preserves a cycle's untracked review and audit records after the cycle merges, so the evidence outlives the working tree.
++
++**Zone marker**: The temporary authorization a cycle creates at its start so that its own sprints may change the System zone, and deletes at its end.
+diff --git a/tests/fixtures/glossary/miss/GLOSSARY.md b/tests/fixtures/glossary/miss/GLOSSARY.md
+new file mode 100644
+index 00000000..eede1312
+--- /dev/null
++++ b/tests/fixtures/glossary/miss/GLOSSARY.md
+@@ -0,0 +1,7 @@
++# Glossary: fixture miss
++
++The vocabulary of the positive-control fixture kernel.
++
++## Language
++
++**Widget**: A unit of work that the fixture kernel names.
+diff --git a/tests/fixtures/glossary/miss/allowlist.txt b/tests/fixtures/glossary/miss/allowlist.txt
+new file mode 100644
+index 00000000..e39da26b
+--- /dev/null
++++ b/tests/fixtures/glossary/miss/allowlist.txt
+@@ -0,0 +1 @@
++# Fixture allowlist (empty on purpose)
+diff --git a/tests/fixtures/glossary/miss/kernel.md b/tests/fixtures/glossary/miss/kernel.md
+new file mode 100644
+index 00000000..4275a554
+--- /dev/null
++++ b/tests/fixtures/glossary/miss/kernel.md
+@@ -0,0 +1,4 @@
++# Fixture kernel (positive control: one kept token misses)
++
++A `Widget` is defined, but `Sprocket` has no glossary entry, no alias and no
++allowlist line, so the drift check must exit 1 and name it.
+diff --git a/tests/fixtures/glossary/ok/GLOSSARY.md b/tests/fixtures/glossary/ok/GLOSSARY.md
+new file mode 100644
+index 00000000..e9ff9e5f
+--- /dev/null
++++ b/tests/fixtures/glossary/ok/GLOSSARY.md
+@@ -0,0 +1,10 @@
++# Glossary: fixture ok
++
++The vocabulary of the negative-control fixture kernel.
++
++## Language
++
++**Widget**: A unit of work that the fixture kernel names.
++
++**Gadget**: A stage a widget passes through.
++_Aliases_: br-like
+diff --git a/tests/fixtures/glossary/ok/allowlist.txt b/tests/fixtures/glossary/ok/allowlist.txt
+new file mode 100644
+index 00000000..08d49d19
+--- /dev/null
++++ b/tests/fixtures/glossary/ok/allowlist.txt
+@@ -0,0 +1,2 @@
++# Fixture allowlist
++parse_it   # code identifier in the fixture kernel
+diff --git a/tests/fixtures/glossary/ok/kernel.md b/tests/fixtures/glossary/ok/kernel.md
+new file mode 100644
+index 00000000..aa2543fb
+--- /dev/null
++++ b/tests/fixtures/glossary/ok/kernel.md
+@@ -0,0 +1,11 @@
++# Fixture kernel (negative control: every kept token resolves)
++
++Run a `Widget` through the `gadgets` stage (plural folds to Gadget), then
++`br-like` aliases resolve, and `parse_it` is an allowlisted code identifier.
++
++Dropped by the shape: `path/to/file`, `file.md`, `--flag`, `key: value`,
++`call()`, `/command`, `two words`.
++
++```
++`InsideFence` is ignored because it sits in fenced code.
++```
+diff --git a/tests/fixtures/sprint-seams/cycle-127-sprint.md b/tests/fixtures/sprint-seams/cycle-127-sprint.md
+new file mode 100644
+index 00000000..55566458
+--- /dev/null
++++ b/tests/fixtures/sprint-seams/cycle-127-sprint.md
+@@ -0,0 +1,103 @@
++# Sprint Plan: Operator Decisions (cycle-127)
++
++**Version:** 1.0
++**Date:** 2026-10-07
++**Status:** Draft — autonomous run (maintainer delegation with admin preapproval)
++**PRD:** `grimoires/loa/prd.md` · **SDD:** `grimoires/loa/sdd.md` · **Decision record:** `grimoires/loa/NOTES.md` § Decision Log — 2026-10-07
++**Branch:** `feature/cycle-127-operator-decisions` · **Ledger:** cycle `cycle-127-operator-decisions`, sprint 251 (= sprint-1)
++
++---
++
++## Executive Summary
++
++One sprint, one lead agent, unattended, with an Opus 5.5 implementer and Fable review and audit. Three narrow changes at existing seams (SDD §1.1): the agy route becomes opt-in and every planner treats "off" as *not planned*; `claude-opus-5-5` gets a typed catalog effort default resolved once at the cheval chokepoint; the ceiling probe gains a headless-CLI transport and is run once through this host's Bedrock route to replace the 180K shortcut with a measured, provenance-tagged bound.
++
++## Sprint Overview
++
++| Sprint | Global | Theme | FR | Exit gate |
++|---|---|---|---|---|
++| 1 (Final) | 251 | agy opt-in, Opus 5.5 effort default, ceiling probe | FR-1 … FR-3 | SC-1 … SC-4: refusal + not-planned on this host; `effort: high (catalog default)` in a dry run; probe record + catalog write (or documented attempt); review and audit APPROVED |
++
++---
++
++## Sprint 1 (Final): agy opt-in, Opus 5.5 effort default, ceiling probe
++
++**Global id:** 251 · **FR:** FR-1, FR-2, FR-3 · **SDD:** §1.2 (D-1.1 … D-1.4), §1.3 (D-2.1 … D-2.4), §1.4 (D-3.1 … D-3.4)
++
++### Sprint Goal
++On a host without `agy` and without the opt-in, no planner counts the agy route as a voice and none reports it as failed; an `opus` call with no `--effort` reasons at `high` through both adapters; the Opus 5.5 input bound on this host's route is measured and recorded with its provenance — or the attempt is recorded and 180K stays.
++
++### Deliverables
++- `hounfour.headless.agy_opt_in` (default false) read by the agy adapter (refusal, `opt_in_required`), the dissent, Flatline, Bridgebuilder registration, `run-preflight.sh` and `/loa` Providers; `.loa.config.yaml.example` key with rationale.
++- `params.default_effort` in the v3 schema; `claude-opus-5-5: high`; `resolve_effort(args, entry)` at the cheval chokepoint; MODELINV `effort_source`; `--dry-run` line.
++- `tools/ceiling-probe-live.py --transport claude-headless`; the record under `grimoires/loa/reports/`; the catalog write (`operator_set`) if clean; the 180K pin sweep; regenerated maps/registry.
++- Docs: migration addendum (gate, effort default replacing the caveat, probe transport), CHANGELOG `[Unreleased]`, cycle-126 SDD D-4.1 pointer, beads bd-ugmi (decision) and bd-9qe2 (closed).
++
++### Acceptance Criteria
++- [x] With `hounfour.headless.agy_opt_in` absent or `false`: `cheval` refuses an agy dispatch before any subprocess with a message naming the key; the dissent envelope, Flatline and Bridgebuilder record the voice as `planned: false, reason: opt_in_required` (verdict quality not DEGRADED on its account); `/loa` Providers and `run-preflight.sh` show "agy: opt-in (disabled)". With `true`, today's path runs (binary absent here → the existing `INVALID_CONFIG` "agy CLI not found" refusal, unchanged by this cycle).
++- [x] `cheval invoke --model opus --dry-run` with no `--effort` reports `effort: high (catalog default)`; `--effort low` reports `low (caller)`; the HTTP adapter emits `output_config.effort: high` and the CLI adapter passes `--effort high` for the default; `claude-opus-5` (no default) sends nothing; the MODELINV envelope carries `effort_source`; a bad `params.default_effort` fails schema validation.
++- [x] `tools/ceiling-probe-live.py --transport claude-headless` is tested (command shape, OK/size/other classification, partial → no write, `operator_set` write shape) and was run once for `claude-opus-5-5` through `claude-bedrock` within the $20 budget; the record is under `grimoires/loa/reports/`; the catalog carries either the measured `operator_set` bound with `calibrated_at` and `reprobe_trigger` or the unchanged 180K with the attempt documented; no test pins the Opus 5.5 bound by literal.
++- [x] Docs present (migration addendum, CHANGELOG, example config, SDD pointer); beads updated; every touched suite green with 0 skips; REPO-MAP + sidecar + checksums regenerated; `reviewer.md` with `## AC Verification` and the live evidence (refusal, dry-run line, `/loa` line, probe record).
++
++### Technical Tasks
++- **Task 1.1 — Failing tests.** Agy gate (adapter spy: no spawn when off), dissent `planned: false` reason, Bridgebuilder registration + verdict quality, preflight/`/loa` line; schema enum + bad value; `resolve_effort` precedence (caller > catalog > none) and both adapters' emission; probe CLI transport shape, classification, partial → no write, `operator_set` write.
++- **Task 1.2 — agy opt-in gate (FR-1).** Key + loader; adapter refusal; planner mapping in `adversarial-review.sh`, `flatline-orchestrator.sh`, Bridgebuilder `config.ts`/registration, `run-preflight.sh`, `loa-status.sh`; example config; bd-ugmi comment.
++- **Task 1.3 — Effort default (FR-2).** Schema field; catalog value; `resolve_effort` at the three `CompletionRequest` sites; MODELINV `effort_source`; `--dry-run` line; migration caveat replaced; bd-9qe2 closed.
++- **Task 1.4 — Probe transport (FR-3.1–3.2).** `--transport claude-headless` mirroring the adapter's command; record fields; `operator_set` write path; the 180K pin sweep (literal → catalog read).
++- **Task 1.5 — The probe run (FR-3.3, lead).** One run through `claude-bedrock`, budget $20; record committed; catalog written if clean; maps/registry regenerated; affected suites re-run.
++- **Task 1.6 — Docs + E2E.** Migration addendum, CHANGELOG, SDD pointer; live evidence collected into `reviewer.md` (refusal transcript, `/loa` line, dry-run line, probe record); full affected-suite table.
++
++### Task 1.5 result (2026-10-07)
++One live run through `claude-bedrock`: three needle-verified accepts (696,136 / 880,634 / 972,887 measured input tokens), two CLI pre-flight rejections at the 1,000,000 window, $12.74 CLI-reported spend, outcome `partial` (budget cap before the filler tolerance). Catalog written by the lead as `operator_set` at 936,000 (I2 clamp: 1M − 64K default output; measured 972,887 recorded in `ceiling_calibration.measured_input_tokens`). Record: `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json`. See SDD §1.6.
++
++### Dependencies
++Task 1.1 before 1.2–1.4 (test-first); 1.5 after 1.4; 1.6 last.
++
++### Testing Requirements
++Serial bats and pytest in the real tree (`env -u CLAUDE_HEADLESS_BIN -u AWS_BEARER_TOKEN_BEDROCK`); Bridgebuilder vitest; the one live probe (Task 1.5) is the only model spend besides review/audit dissent.
++
++---
++
++### Flatline review integration (2026-10-07; scoring degraded — KF-041 — integrated by judgment)
++- **Clean vs partial probe outcome (AC 3, SDD D-3.7/3.8).** *Clean*: an attempt at N accepted and verified by the echoed needle, a size-class rejection at the next step within `--tolerance-tokens`, and no `other` classification anywhere in the bisection. *Partial*: any `other` failure, a budget abort, an unverified completion counted as the bound, or inconsistent classifications (accept above a rejection). Only a clean outcome writes the catalog; a partial one writes the record and keeps the prior bound (superseded in r251-1: a partial record reaches the catalog only through `--write-partial-as-operator-set`, and the entry's `probe_outcome: partial`, `sample_size` and comment name the record — `reprobe_trigger` itself was not changed).
++- **Budget (Task 1.5).** Before the first call the probe prints the worst-case per-step cost and the step count that fits in `--budget-usd 20` at the catalog price; spend is cumulative across attempts and retries; the lead runs with `CLAUDE_HEADLESS_BIN=$HOME/.local/bin/claude-bedrock` and `AWS_BEARER_TOKEN_BEDROCK` present (the wrapper reads its own secret), then re-runs the affected suites under the usual `env -u CLAUDE_HEADLESS_BIN -u AWS_BEARER_TOKEN_BEDROCK` isolation.
++- **Conformance.** One fixture config pair (opt-in on / off) is read by every reader — the agy adapter, `adversarial-review.sh`, `flatline-orchestrator.sh`, Bridgebuilder, `run-preflight.sh`, `loa-status.sh` — and a conformance test asserts they agree; a non-boolean value fails loudly at the loader. With agy off and a *different* voice failing, verdict quality still reports DEGRADED (negative test).
++- **SC ↔ AC map.** SC-1 ↔ AC 1 (gate and planners), SC-2 ↔ AC 2 (effort), SC-3 ↔ AC 3 (probe), SC-4 ↔ AC 4 plus the review/audit gates.
++- **Loop stop condition.** The unattended loop is `/run sprint-plan`'s: at most the circuit breaker's cycles per gate; CHANGES_REQUIRED → `/implement` round; APPROVED review → `/audit-sprint`; APPROVED audit → COMPLETED → PR. Dissent ≤ 2 runs per gate for this one-sprint cycle.
++- **Scope-cut order if blocked.** FR-1 > FR-2 > FR-3 transport code > FR-3 live run (the live run may end as "attempt recorded, 180K kept" and still satisfy AC 3).
++- **Rollback.** FR-1: unset or set the key to false (default-off is the safe state); FR-2: delete the `default_effort` line from the `claude-opus-5-5` entry; FR-3: revert the catalog diff and keep the report.
++
++### Review dissent round r251-1 (2026-10-07; run 1: 58 findings, 7 BLOCKING; triage `a2a/sprint-251/review-dissent-triage-run-1.md`)
++- **Blocking, fixed.** n2 — cheval's own chain walk now plans around a gated agy hop (`models_not_planned: [{model, provider, reason: opt_in_required}]` in MODELINV, one WARN, never a breaker count; a direct `--model gemini-headless` still refuses). n8 — one routing predicate (`.claude/scripts/lib/agy-gate-lib.sh` `routes_to_agy` / `agy_opted_in` / `agy_gate_warn_once`; Python twin `loader.routes_to_agy`) used by the dissent, Flatline, preflight, `/loa`, Bridgebuilder and cheval; `tests/unit/agy-gate-conformance.bats`. n55 — SDD D-1.6 / PRD name the wire class `INVALID_CONFIG` + `failure_class: opt_in_required`. n27 — the real defect was a units gap (provider-measured bound vs a chars/3.5 estimate, ratio 1.405 on the probe filler): calibrated entries now ask `count_tokens` from 0.5 × bound (`CALIBRATED_COUNT_NEAR_BOUND`), Bridgebuilder's generated budget for a measured-unit calibration divides by 1.8 (916,000 → 508,000), a calibration measured on a foreign transport may be tightened by a verified observation on the HTTP route (`/loa`: `calibrated 936000 (claude-headless); observed N below on this route`); the catalog value stays 936,000. n1, n36, n44 refuted by probe.
++- **Advisory, fixed.** Loader fail-closed root walk and project-config-only read (n3, n7); non-boolean value WARNs (n16); `failure_class` in the error envelope and MODELINV (n5); `validate_config` early return (n4); preflight P3 wording (n11); test hygiene (n18, n13's FTA-2); Bridgebuilder `readError` state, required gate parameter, registry-backed `isAgyRouted`, strict-mode warn, opt-in named in the no-models throw (n19, n22, n23, n20); SDD D-1.7 availability WARN implemented (verifier A); adapter-derived `effort_effective` via `wire_effort` (n24), one `EFFORT_LEVELS` constant pinned to both schemas (n26), both `extra` keys read (n25). Probe: fair charging at the 1.25× cache-write rate (n35, n38, n46), TPM-window backoff and persisting-token-limit = size (n39, n45), throttle markers win over context markers (verifier B), full-diag classification (n47) and the CLI `~N tokens (limit M)` shape (C9), classifier exceptions and interrupts keep the record (n48), write prerequisites before the first call (n49), process-group kill (n50), anchored 5xx (n51), api-only flags refused on the CLI transport (n42), SYNTH-fixture coverage instead of a live-catalog skip (n40), fail-closed fake (n34), `probe_outcome` + `sample_size` structured provenance and `--write-partial-as-operator-set` (n30, n57; the live entry carries `probe_outcome: partial`, `sample_size: 5`), measured-entry assertions in the catalog-floor tests (n33), LSP-5 split (n15), docs (n29, n37, n41, n52, n53, n54, n56, n58).
++- **Refuted / declined with evidence.** n6, n9, n10, n12, n13, n17, n21, n28, n31, n32, n43, n54 (effort is already carried across the walk). Bead **bd-c2rd**: estimator calibration proper.
++- **Suites (real tree, serial).** adapters pytest 2804 passed / 6 skipped; bats agy-gate-conformance 10, flatline-tertiary-agy-opt-in 5, run-preflight 18, loa-status-providers 9, adversarial-review-companion (filtered) 46, gen-bb-registry-codegen 40, model-config-v3-schema 35, cycle-124-anthropic-catalog + schema 47 — 0 failures; Bridgebuilder 785/786 (`persona.test.ts` = KF-036); regen-model-artifacts drift-free, dist fresh; lints clean.
++
++### Review dissent round r251-2 (2026-10-07; run 2 on `059e26be`: 76 findings, 10 BLOCKING → 0 standing; triage `a2a/sprint-251/review-dissent-triage-run-2.md`)
++- **Real, fixed (MEDIUM).** n16 — the bash and Python opt-in readers disagreed on `yes/on/True/TRUE` (bash off, Python on): one strict rule on both sides — only the YAML scalar whose source text is exactly `true` opts in; other truthy spellings stay off with the one-shot type WARN; rows added to AGC-7 and the Python tests. n2/n8 — an agy-alone refusal was recorded in both `models_requested` and `models_not_planned` and counted as a planned-dropped voice: now `models_failed` (INVALID_CONFIG / `opt_in_required`) only, `models_not_planned` reserved for hops dropped before the walk, `voices_dropped` reason named, docstrings and tests pin the relation. n12/n13/n11 — `run-preflight.sh` P3 judged an agy-routed voice (opt-in on, `cli-only`, or any `gemini-headless:<m>` form) by its Google credential → false PASS without `agy`; now `routes_to_agy → cli=agy`, PF-AGY cases. n51 — the probe's `429` lookahead rejected "429." so `API Error: 429. Too many tokens` was a clean-eligible context bracket; fixed, and the throttle verdict reads the CLI's own answer (stderr only when there is no result). n65 (pre-existing, now load-bearing) — `ClaudeHeadlessAdapter._raise_for_error` mapped the CLI's own pre-flight rejection to `ProviderUnavailableError` (walked, breaker-counted); now `ProviderContextLimitError` (not walked, no breaker count), `test_claude_headless_context_limit.py`.
++- **Real, fixed (LOW/NIT).** n9 lib-missing path keeps an inline name filter (fail closed); n10 yq flavour selects the fallback; n14/n15/n17 vacuous bats assertions; n19/n20/n22/n23/n25/n26 Bridgebuilder (`readError` fail-closed for google voices, messages, template literal, startup prints, behavioural gate test); n35/n36/n40/n41 tests and `__all__`; probe n58 writability before spend, n59 `written_*` only after the write lands, n60 `write_skipped`, n62 traceback kept, n46/n49 test NITs, n63 import-time schedule assertion.
++- **Docs (lead).** n64/n71 one current Bridgebuilder value (508,000 = (936,000 − 20,000) ÷ 1.8; 916,000 as history); n69/n70 the two-case routing rule (no key clause); n72 PRD FR-3.5 / SDD D-3.8 name `--write-partial-as-operator-set`; n73 effort carried to every hop as existing behaviour; n74 "only a dispatch whose sole hop is agy-routed refuses"; n65/n75 the count_tokens gate scoped to the HTTP adapter and the headless mapping stated; n66 the lead's draft long-context pricing sentence removed (the entry carries no `pricing.long_context`).
++- **Refuted / declined with evidence (30 + 10).** Chunker mislabels n6/n7/n18/n33/n39/n40/n56/n67 (the chunker now keeps per-file headers); n1, n3, n4, n5, n21, n28, n29, n31, n34, n43, n45, n47, n48, n50, n52, n53, n54, n57, n63, n76 refuted by probe; n24, n27, n32, n37, n38, n42, n44, n55, n61, n68 declined by design. Beads: bd-y49y (pre-existing payload-schema drift on `capability_evaluation`), bd-c2rd note (per-entry tokenizer ratio).
++- **Suites (real tree, serial).** adapters pytest 2842 passed / 6 skipped; bats agy-gate-conformance 12 (AGC-6 is a load flake: failed once in the batch while the Bridgebuilder build ran, passed alone), run-preflight 19, flatline-tertiary-agy-opt-in 5, adversarial-review-companion (filtered) 47, loa-status-providers 9, gen-bb-registry-codegen 40 — 0 failures; Bridgebuilder 797/798 (`persona.test.ts` = KF-036); regen-model-artifacts drift-free, dist fresh; lints clean. No third review dissent run (≤ 2 per gate): the r251-2 delta is covered by the Fable review and the full-range audit dissent.
++
++### Review round r251-3 (2026-10-07; Fable `/review-sprint` round 1: CHANGES_REQUIRED — 1 HIGH, 3 MEDIUM, 7 LOW; `a2a/sprint-251/engineer-feedback.md`)
++- **HIGH, fixed.** The r251-2 K8 mapping classified Bedrock's tokens-per-minute throttle ("Too many tokens, please wait before trying again" — it carries the context marker `too many tokens`) as a context limit: terminal, not walked, no retry, on this host's primary route. One shared `is_throttle_message()` in `routing/ceiling.py` (the probe's `_THROTTLE` rule + `overloaded`, `too many requests`, `quota`, a 429/529 in status position; digits inside a token count never read as a status) now serves both `ClaudeHeadlessAdapter._raise_for_error` (a throttle wins → `RateLimitError`, retried then walked) and the probe's `_classify_unguarded`; the adapter test is parametrised with the four Bedrock shapes; a probe-vs-adapter conformance test feeds the same strings to both classifiers.
++- **MEDIUM, fixed.** AC 3: the K9 `_lookup_max_input_tokens` pin now reads its expectation from the catalog entry and the literal guard also sweeps the current bound's digits; AC 4: the cycle-126 SDD D-4.1 amendment carries the promised cycle-127 pointer, and the beads export was flushed (`bd-c2rd`, `bd-y49y`, `bd-n6lk`, `bd-rbkz` in `.beads/issues.jsonl`). Observation 2 (SIMPLICITY: extract a `Bisection` object from the probe's 300-line `_main_cli` on the next touch) → bead `bd-rbkz`.
++- **LOW, fixed.** Obs 4: the shared routing rule is provider-based under `cli-only` (Python through the catalog, bash through the generated maps; `deep-research-pro` → agy-alone everywhere; AGC rows). Obs 6: the context-limit remedy for a CLI hop names the chain-head HTTP entry with `--transport claude-headless`, or states that the CLI's own window refused the payload. Obs 7: SDD §5 (`effort_source` enum incl. `extra`, `effort_effective`), §6 (resolve-time WARN; headless size verdict vs throttle; the partial flag), the superseded `reprobe_trigger` sentence above, AC 1 / PRD SC-1 (the binary-absent path is the existing `INVALID_CONFIG` refusal). Obs 8: the probe suite's host-global ledger assertion dropped (the `CLAUDE_HEADLESS_BIN` sentinel is the guard). Obs 9: `cycle-124-effort-flag.bats` setup unsets the two host variables. Obs 10: AGC-6's `loa-status` timeout 180 s. Obs 5 (Bedrock adapter ignores `request.effort`, pre-existing, outside FR-2's scope) → bead `bd-n6lk`.
++- **Suites (real tree, serial).** adapters pytest 2910 passed / 6 skipped; bats agy-gate-conformance 11/1 in the batch (AGC-6 again — fails only in the batch while the audit dissent runs, passes alone every time; recorded as a load flake with LSP-1), run-preflight 20, cycle-124-effort-flag 13, loa-status-providers 9 — 0 other failures; lints clean.
++
++### Audit round r251-4 (2026-10-07; audit dissent run 1 full range 60 findings + run 2 delta 11 findings; triage `a2a/sprint-251/audit-dissent-triage.md`; commit `cbfccab2`)
++- **MEDIUM, fixed.** n22 — Bridgebuilder's merge gate subtracted not-planned voices even under a config read error, so a missing yq or malformed YAML shrank the quorum: now `mergeBlocked` with the reason, strict mode throws.
++- **Security-relevant LOW, fixed.** n6 — cheval read the opt-in from a cwd-ancestor config (a planted `/tmp/.loa.config.yaml` opted in under /tmp): anchored to cheval's install root; foreign-owned or writable configs read off. n5/n17 — exact bool tag, alias/merge-key nodes off in all three readers. n10/n15 — shell-only include guard; preflight fails closed without the lib. n52 (n45/n47/n57) — `--host-route` / `--cli-model` / `cli_version` with control characters rewrote `effective_input_ceiling` in the loaded catalog YAML: refused before any spend, dry run with the real kwargs, the written text re-parsed and asserted before `os.replace`.
++- **LOW, fixed.** Provider-map caching and fallback WARNs; throttle-status word boundaries; CLI-shape sentence anchor; shell-quoted calibrate hint; observation plausibility floor; finite CLI numbers; 1.8 budget prior; `~`-relative record paths (committed record too); schema if/then + maxLength; test sentinels; AGC-6 diagnostics.
++- **Refuted / declined with evidence.** 36 of 60 (run 1) and 6 of 11 (run 2) — chunk-visibility artefacts, pre-existing design (agy argv exposure, env-selected `CLAUDE_HEADLESS_BIN` trust model), recorded decisions (D-3.10/C1, C7), or disproved by probe.
++- **Suites.** adapters pytest 3015 passed / 6 skipped; nine bats suites 206/0; Bridgebuilder 807/808 (KF-036); lints clean. No third audit dissent run (≤ 2 per gate).
++
++## MVP Definition
++All three FRs; the probe may legitimately end with "attempt recorded, 180K kept" if the bound is unclean — that outcome still satisfies the AC. (Outcome: the live run was `partial`; the operator vouched for the last verified accept and the entry says so — `probe_outcome: partial`, `sample_size: 5`; the tool refuses such a write without `--write-partial-as-operator-set`.)
++
++## Risk Assessment
++See SDD §9. The probe is the only step with external uncertainty; it is bounded by budget and by the no-write-on-partial rule.
++
++## Success Metrics
++PRD KPIs: verdict quality on this host not DEGRADED on the agy route's account (the google-family voice, which reaches Gemini only through agy here); `effort: high` by default for `opus`; a measured Opus 5.5 bound or a documented attempt.
+diff --git a/tests/unit/glossary-terms.bats b/tests/unit/glossary-terms.bats
+new file mode 100644
+index 00000000..f973b6f4
+--- /dev/null
++++ b/tests/unit/glossary-terms.bats
+@@ -0,0 +1,199 @@
++#!/usr/bin/env bats
++# =============================================================================
++# tests/unit/glossary-terms.bats
++#
++# tools/check-glossary-terms.sh (grimoires/loa/sdd.md D-6.2, §5.3) keeps every
++# backticked span of the kernel that matches ^[A-Za-z][A-Za-z0-9_-]*$ outside
++# fenced code and fails unless each one resolves to a glossary **Term**, an
++# _Aliases_: token (case-insensitive, plural s/es folded) or an allowlist line
++# (at most 30). Every case below works on temp copies; the live kernel,
++# glossary and allowlist are only ever read.
++# =============================================================================
++
++setup() {
++    SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++    CHECK="$PROJECT_ROOT/tools/check-glossary-terms.sh"
++    KERNEL="$PROJECT_ROOT/.claude/loa/CLAUDE.loa.md"
++    GLOSSARY="$PROJECT_ROOT/.claude/loa/GLOSSARY.md"
++    ALLOW="$PROJECT_ROOT/.claude/data/glossary-allowlist.txt"
++    FIX="$PROJECT_ROOT/tests/fixtures/glossary"
++    W="$BATS_TEST_TMPDIR"
++    printf '# Glossary: t\nTest vocabulary.\n\n## Language\n\n**Widget**: A thing.\n\n**Run mode**: Unattended runs.\n_Aliases_: RUNNING, JACKED_OUT\n\n**Box**: A container.\n' > "$W/g.md"
++    printf '# test allowlist\nparse_it   # code identifier\n' > "$W/a.txt"
++}
++
++# check <kernel text>: run the checker on a temp kernel with the temp glossary and allowlist
++check() {
++    printf '%s\n' "$1" > "$W/k.md"
++    shift
++    run "$CHECK" --kernel "$W/k.md" --glossary "$W/g.md" --allowlist "$W/a.txt" "$@"
++}
++
++@test "GT-1 the live kernel, framework glossary and allowlist pass" {
++    run "$CHECK"
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"missing: 0"* ]]
++    [[ "$output" == *"PASS"* ]]
++    [[ "$output" != *"WARN"* ]]
++}
++
++@test "GT-2 removing a term from a copy of the glossary fails and names the token" {
++    grep -v '^_Aliases_: br$' "$GLOSSARY" > "$W/glossary.md"
++    run "$CHECK" --glossary "$W/glossary.md"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'MISS: `br`'* ]]
++    [[ "$output" == *"define **br**"* ]]
++    [[ "$output" == *"_Aliases_: line"* ]]
++    [[ "$output" == *"allowlist it in"* ]]
++}
++
++@test "GT-3 removing the run mode entry from a copy fails on each of its aliases" {
++    awk '/^\*\*Run mode\*\*:/ { skip = 1; next } skip && /^_Aliases_:/ { skip = 0; next } { skip = 0; print }' "$GLOSSARY" > "$W/glossary.md"
++    run "$CHECK" --glossary "$W/glossary.md"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'MISS: `RUNNING`'* ]]
++    [[ "$output" == *'MISS: `HALTED`'* ]]
++    [[ "$output" == *'MISS: `JACKED_OUT`'* ]]
++}
++
++@test "GT-4 matching is case-insensitive and folds s and es plurals" {
++    check 'Use a `widget`, two `Widgets`, `boxes` and `BOX`.' --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"defined     widget"*"-> Widget"* ]]
++    [[ "$output" == *"defined     Widgets"* ]]
++    [[ "$output" == *"defined     boxes"*"-> Box"* ]]
++    [[ "$output" == *"defined     BOX"* ]]
++}
++
++@test "GT-4b a singular token resolves to a plural term" {
++    printf '# Glossary: t\nctx\n\n## Language\n\n**Beads**: A tracker.\n\n**Matches**: Pairs.\n' > "$W/g.md"
++    check 'One `bead`, one `match`, many `BEADS`.' --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"defined     bead "*"-> Beads"* ]]
++    [[ "$output" == *"defined     match "*"-> Matches"* ]]
++}
++
++@test "GT-5 an _Aliases_: token resolves to its entry; a multi-word term matches with - or _" {
++    check 'States: `running`, `JACKED_OUT`; also `run-mode` and `run_mode`.' --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"alias       running"*"-> Run mode"* ]]
++    [[ "$output" == *"alias       JACKED_OUT"*"-> Run mode"* ]]
++    [[ "$output" == *"defined     run-mode"*"-> Run mode"* ]]
++    [[ "$output" == *"defined     run_mode"*"-> Run mode"* ]]
++}
++
++@test "GT-6 an undefined token fails; a token close to a term does not resolve by accident" {
++    check 'A `Widgetry` and a `Sprocket`.'
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'MISS: `Widgetry`'* ]]
++    [[ "$output" == *'MISS: `Sprocket`'* ]]
++    [[ "$output" == *"missing: 2"* ]]
++}
++
++@test "GT-7 tokens inside fenced code are ignored (backtick and tilde fences)" {
++    check $'Prose `Widget`.\n```bash\necho `Sprocket`\n```\n~~~\n`Gizmo`\n~~~\n  ```\n  `Indented`\n  ```'
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"kernel tokens kept: 1;"* ]]
++}
++
++@test "GT-8 the shape heuristic drops paths, files, flags, keys, calls, commands, phrases and operators" {
++    check 'Dropped: `a/b`, `file.md`, `--flag`, `-x`, `key:value`, `call()`, `/loa`, `two words`, `>>`, `*_TEST_MODE=1`, `9lives`, `x=y`.' --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"kernel tokens kept: 0;"* ]]
++}
++
++@test "GT-9 an allowlisted token resolves; an allowlist of 31 entries fails" {
++    check 'Call `parse_it`.' --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"allowlisted parse_it"* ]]
++    : > "$W/a.txt"
++    for i in $(seq 1 31); do printf 'tok%02d  # reason\n' "$i" >> "$W/a.txt"; done
++    check 'Call `tok01`.'
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"has 31 entries, over the limit of 30"* ]]
++}
++
++@test "GT-10 an allowlist of exactly 30 entries passes (stale entries only WARN)" {
++    : > "$W/a.txt"
++    for i in $(seq 1 30); do printf 'tok%02d  # reason\n' "$i" >> "$W/a.txt"; done
++    check 'Call `tok01`.'
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"allowlist entries: 30/30"* ]]
++}
++
++@test "GT-11 a stale allowlist entry WARNs and still exits 0; a redundant one WARNs too" {
++    printf 'parse_it  # used\ngone_fn   # no longer in the kernel\nwidget    # the glossary defines it\n' > "$W/a.txt"
++    check 'Call `parse_it` on a `Widget`.'
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"WARN: allowlist entry 'gone_fn'"*"no longer occurs"* ]]
++    [[ "$output" == *"WARN: allowlist entry 'widget'"*"already resolved by the glossary entry **Widget**"* ]]
++}
++
++@test "GT-12 --json carries the report fields" {
++    command -v jq >/dev/null 2>&1 || skip "jq not installed"
++    printf 'parse_it  # used\ngone_fn   # stale\n' > "$W/a.txt"
++    check 'A `Widget`, `running`, `parse_it` and a `Sprocket`.' --json
++    [ "$status" -eq 1 ]
++    echo "$output" | jq -e '
++        .ok == false and .kept == 4
++        and .counts == {defined: 1, alias: 1, allowlisted: 1, missing: 1}
++        and .missing == ["Sprocket"] and .stale_allowlist == ["gone_fn"]
++        and .allowlist_entries == 2 and .allowlist_max == 30
++        and (.tokens | map(.resolution)) == ["defined", "alias", "allowlisted", "MISS"]
++        and (.tokens[0] | .token == "Widget" and .line == 1 and .entry == "Widget")
++        and (.tokens[3].entry == null)
++        and (.violations | length) == 1 and (.warnings | length) == 1' >/dev/null
++}
++
++@test "GT-13 --json on the live files reports ok with zero misses" {
++    command -v jq >/dev/null 2>&1 || skip "jq not installed"
++    run "$CHECK" --json
++    [ "$status" -eq 0 ]
++    echo "$output" | jq -e '.ok == true and .counts.missing == 0 and .kept > 0 and .allowlist_entries <= 30' >/dev/null
++}
++
++@test "GT-14 the miss fixture exits 1 (positive control)" {
++    run "$CHECK" --kernel "$FIX/miss/kernel.md" --glossary "$FIX/miss/GLOSSARY.md" --allowlist "$FIX/miss/allowlist.txt"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'MISS: `Sprocket`'* ]]
++}
++
++@test "GT-15 the ok fixture exits 0 (negative control)" {
++    run "$CHECK" --kernel "$FIX/ok/kernel.md" --glossary "$FIX/ok/GLOSSARY.md" --allowlist "$FIX/ok/allowlist.txt" --report
++    [ "$status" -eq 0 ]
++    [[ "$output" == *"kernel tokens kept: 4; defined: 2; alias: 1; allowlisted: 1; missing: 0"* ]]
++}
++
++@test "GT-16 usage errors exit 2: unknown flag, missing path, unreadable file" {
++    run "$CHECK" --bogus
++    [ "$status" -eq 2 ]
++    run "$CHECK" --kernel
++    [ "$status" -eq 2 ]
++    run "$CHECK" --glossary "$W/nope.md"
++    [ "$status" -eq 2 ]
++    [[ "$output" == *"cannot read"* ]]
++}
++
++@test "GT-17 entries outside ## Language do not resolve tokens" {
++    printf '# Glossary: t\nctx\n\n**Widget**: Above the language section.\n\n## Language\n\n**Box**: A container.\n\n## Notes\n\n**Gizmo**: In a later section.\n' > "$W/g.md"
++    check 'A `Widget`, a `Box`, a `Gizmo`.'
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'MISS: `Widget`'* ]]
++    [[ "$output" == *'MISS: `Gizmo`'* ]]
++    [[ "$output" != *'MISS: `Box`'* ]]
++}
++
++@test "GT-18 the live allowlist stays within 30 entries and every entry carries a reason" {
++    n="$(grep -vE '^[[:space:]]*(#|$)' "$ALLOW" | wc -l | tr -d ' ')"
++    [ "$n" -le 30 ]
++    run grep -vE '^[[:space:]]*(#|$)' "$ALLOW"
++    while IFS= read -r line; do
++        [[ "$line" == *"#"?* ]] || { echo "no reason: $line"; return 1; }
++    done <<< "$output"
++}
++
++@test "GT-19 the framework glossary has at least 18 entries" {
++    n="$(grep -cE '^\*\*[^*]+\*\*: ' "$GLOSSARY")"
++    [ "$n" -ge 18 ]
++}
+diff --git a/tests/unit/glossary-validator.bats b/tests/unit/glossary-validator.bats
+new file mode 100644
+index 00000000..05f0b70a
+--- /dev/null
++++ b/tests/unit/glossary-validator.bats
+@@ -0,0 +1,165 @@
++#!/usr/bin/env bats
++# =============================================================================
++# tests/unit/glossary-validator.bats
++#
++# validate-artifact.sh --type glossary (grimoires/loa/sdd.md D-6.4, §4.5): an
++# H1, a context paragraph before '## Language', one-line '**Term**: definition'
++# entries of at most two sentences and 300 characters, _Avoid_: and _Aliases_:
++# only directly below an entry, no duplicate term or alias, WARN on a path or
++# file extension in '## Language'. Cases write temp files only.
++# =============================================================================
++
++setup() {
++    PROJECT_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
++    SCRIPT="${PROJECT_ROOT}/.claude/scripts/validate-artifact.sh"
++    G="$BATS_TEST_TMPDIR/GLOSSARY.md"
++}
++
++# glossary <language-section lines...>: a valid head plus the given body
++glossary() {
++    { printf '# Glossary: test\n\nThe vocabulary of a test project.\n\n## Language\n\n'; printf '%s\n' "$@"; } > "$G"
++}
++
++val() { run "$SCRIPT" --type glossary --file "$G" "$@"; }
++
++@test "GV-1 the framework glossary validates with no warning" {
++    run "$SCRIPT" --type glossary --file "$PROJECT_ROOT/.claude/loa/GLOSSARY.md"
++    [ "$status" -eq 0 ]
++    [[ "$output" != *"WARN"* ]]
++}
++
++@test "GV-2 the root project glossary validates with no warning" {
++    run "$SCRIPT" --type glossary --file "$PROJECT_ROOT/GLOSSARY.md"
++    [ "$status" -eq 0 ]
++    [[ "$output" != *"WARN"* ]]
++}
++
++@test "GV-3 both fixture glossaries validate" {
++    run "$SCRIPT" --type glossary --file "$PROJECT_ROOT/tests/fixtures/glossary/ok/GLOSSARY.md"
++    [ "$status" -eq 0 ]
++    run "$SCRIPT" --type glossary --file "$PROJECT_ROOT/tests/fixtures/glossary/miss/GLOSSARY.md"
++    [ "$status" -eq 0 ]
++}
++
++@test "GV-4 a well-formed entry with _Avoid_ and _Aliases_ lines passes" {
++    glossary '**Dissent**: A second review. It is triaged.' '_Avoid_: second opinion' '_Aliases_: DIS, counter-review' '' '### Group' '' '**Voice**: Who decided.'
++    val
++    [ "$status" -eq 0 ]
++}
++
++@test "GV-5 a duplicate term fails, case-insensitively" {
++    glossary '**Spike**: A prototype.' '' '**spike**: Another one.'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'term "spike" duplicates term "Spike"'* ]]
++}
++
++@test "GV-6 an alias that repeats a term or another alias fails" {
++    glossary '**Run mode**: Unattended runs.' '_Aliases_: RUNNING' '' '**Halt**: A stop.' '_Aliases_: running, run_mode'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'alias "running" duplicates alias "RUNNING"'* ]]
++    [[ "$output" == *'alias "run_mode" duplicates term "Run mode"'* ]]
++}
++
++@test "GV-7 a definition over 300 characters fails" {
++    glossary "**Long**: $(printf 'a%.0s' $(seq 1 301))."
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'the definition of "Long" is 302 characters, over 300'* ]]
++}
++
++@test "GV-8 a definition of exactly 300 characters passes; multibyte characters count once" {
++    glossary "**Edge**: $(printf 'a%.0s' $(seq 1 299))." "**Wide**: $(printf 'é%.0s' $(seq 1 299))."
++    val
++    [ "$status" -eq 0 ]
++}
++
++@test "GV-9 a three-sentence definition fails; two sentences pass" {
++    glossary '**Three**: One. Two! Three?'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'the definition of "Three" has 3 sentences; at most two'* ]]
++    glossary '**Two**: One sentence here. And a second (with a note).'
++    val
++    [ "$status" -eq 0 ]
++}
++
++@test "GV-10 _Aliases_ without an entry fails" {
++    glossary '_Aliases_: orphan' '' '**Real**: An entry.'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"_Aliases_: is not directly after an entry"* ]]
++}
++
++@test "GV-11 _Avoid_ separated from its entry by a blank line fails" {
++    glossary '**Real**: An entry.' '' '_Avoid_: other word'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"_Avoid_: is not directly after an entry"* ]]
++}
++
++@test "GV-12 a missing ## Language section fails" {
++    printf '# Glossary: test\n\nContext.\n\n## Terms\n\n**A**: B.\n' > "$G"
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *'no "## Language" section'* ]]
++}
++
++@test "GV-13 a missing H1 or context paragraph fails" {
++    printf 'Context.\n\n## Language\n\n**A**: B.\n' > "$G"
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"no H1"* ]]
++    printf '# Glossary: test\n\n## Language\n\n**A**: B.\n' > "$G"
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"no context paragraph"* ]]
++}
++
++@test "GV-14 a definition wrapped onto a second line fails" {
++    glossary '**Wrapped**: A definition that' 'continues on the next line.'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"not an entry"* ]]
++}
++
++@test "GV-15 a path or file extension in a definition WARNs and still passes" {
++    glossary '**Hook**: The guard in hooks/implement-gate that asks first.' '**Doc**: The plan in a markdown file named plan.md for review.'
++    val
++    [ "$status" -eq 0 ]
++    [[ "$output" == *":7: a path or file extension"* ]]
++    [[ "$output" == *":8: a path or file extension"* ]]
++}
++
++@test "GV-16 an empty Language section and an entry without text fail" {
++    glossary ''
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"has no **Term**: entries"* ]]
++    glossary '**Bare**:'
++    val
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"needs \"**Term**: definition\""* ]]
++}
++
++@test "GV-17 --json reports the glossary type and its violations" {
++    command -v jq >/dev/null 2>&1 || skip "jq not installed"
++    glossary '**Spike**: A prototype.' '**SPIKE**: Again.'
++    run bash -c '"$0" --type glossary --file "$1" --json 2>/dev/null' "$SCRIPT" "$G"
++    [ "$status" -eq 1 ]
++    echo "$output" | jq -e '.type == "glossary" and .pass == false and (.violations | length) == 1' >/dev/null
++}
++
++@test "GV-18 an H1 not shaped '# Glossary: <name>' WARNs" {
++    printf '# Words\n\nContext.\n\n## Language\n\n**A**: B.\n' > "$G"
++    val
++    [ "$status" -eq 0 ]
++    [[ "$output" == *'WARN:'*'the H1 is not "# Glossary: <name>"'* ]]
++}
++
++@test "GV-19 lines inside fenced code in Language are not judged" {
++    glossary '**A**: B.' '' '```' 'not an entry' '_Aliases_: x' '```'
++    val
++    [ "$status" -eq 0 ]
++}
+diff --git a/tests/unit/red-test-check.bats b/tests/unit/red-test-check.bats
+new file mode 100644
+index 00000000..d08e8a93
+--- /dev/null
++++ b/tests/unit/red-test-check.bats
+@@ -0,0 +1,284 @@
++#!/usr/bin/env bats
++# .claude/scripts/red-test-check.sh (grimoires/loa/sdd.md D-7.5..D-7.7, §5.2) against small
++# fixture repositories built per test. Every case also asserts that `git worktree list` in the
++# fixture shows only the main tree afterwards and that the live tree was not touched.
++
++setup() {
++    PROJECT_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
++    SCRIPT="${PROJECT_ROOT}/.claude/scripts/red-test-check.sh"
++    R="${BATS_TEST_TMPDIR}/repo"
++    export TMPDIR="${BATS_TEST_TMPDIR}/tmp"
++    mkdir -p "$R" "$TMPDIR"
++    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
++    git -C "$R" init -q
++    git -C "$R" config user.email t@example.invalid
++    git -C "$R" config user.name t
++    git -C "$R" config commit.gpgsign false
++    # Base: a buggy add(); node_modules is ignored, as in a real project.
++    printf 'node_modules/\n.venv/\n' > "$R/.gitignore"
++    printf 'add() { echo $(( $1 - $2 )); }\n' > "$R/lib.sh"
++    commit "base"
++}
++
++commit() { git -C "$R" add -A && git -C "$R" commit -q -m "$1"; git -C "$R" rev-parse HEAD; }
++
++# The red test: asserts add 2 3 = 5 and prints what it got.
++add_red_test() {
++    mkdir -p "$R/tests"
++    cat > "$R/tests/test_add.sh" <<'EOF'
++. ./lib.sh
++got="$(add 2 3)"
++if [ "$got" = 5 ]; then echo "PASS add"; exit 0; fi
++echo "FAIL: add 2 3: expected 5, got $got"
++exit 1
++EOF
++}
++fix_lib() { printf 'add() { echo $(( $1 + $2 )); }\n' > "$R/lib.sh"; }
++
++# Status of the fixture after a run: only the main tree, no stash, the live tree as it was.
++assert_clean() {
++    local n
++    n="$(git -C "$R" worktree list | wc -l | tr -d ' ')"
++    [ "$n" -eq 1 ] || { git -C "$R" worktree list; echo "worktrees left behind"; return 1; }
++    [ -z "$(git -C "$R" stash list)" ] || { echo "a stash was created"; return 1; }
++    [ -z "$(ls -A "$TMPDIR")" ] || { ls -la "$TMPDIR"; echo "scratch left behind"; return 1; }
++}
++
++rtc() { (cd "$R" && "$SCRIPT" "$@"); }
++
++@test "RTC-1 red fails by assertion, green passes: exit 0 VERIFIED with the red output printed" {
++    add_red_test; red="$(commit "test(bug): failing test")"
++    fix_lib; commit "fix(bug): add adds" >/dev/null
++    run rtc --red "$red" --test-file tests/test_add.sh -- sh tests/test_add.sh
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"verdict: VERIFIED"* ]]
++    [[ "$output" == *"--- red run (last 80 lines) ---"*"FAIL: add 2 3: expected 5, got -1"*"--- end red run ---"* ]]
++    [[ "$output" != *"WARN: no non-test file changed"* ]]
++    assert_clean
++}
++
++@test "RTC-2 a decoy that passes at both commits exits 3 DECOY" {
++    mkdir -p "$R/tests"; printf 'echo "PASS always"\nexit 0\n' > "$R/tests/test_decoy.sh"
++    red="$(commit "test: decoy")"
++    fix_lib; commit "fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_decoy.sh
++    [ "$status" -eq 3 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"verdict: DECOY"* ]]
++    [[ "$output" == *"PASS always"* ]]
++    assert_clean
++}
++
++@test "RTC-3 a --test-file absent at the red commit exits 4 NOT_A_RED before any worktree" {
++    printf 'x\n' > "$R/README"; red="$(commit "docs")"
++    add_red_test; fix_lib; commit "fix and test together" >/dev/null
++    run rtc --red "$red" --test-file tests/test_add.sh -- sh tests/test_add.sh
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"does not exist at the red commit"* ]]
++    [[ "$output" == *"verdict: NOT_A_RED"* ]]
++    assert_clean
++}
++
++@test "RTC-4 a red run that exits 127 (command not found) is NOT_A_RED, exit 4" {
++    mkdir -p "$R/tests"; printf 'rtc_no_such_command_xyz\n' > "$R/tests/test_missing.sh"
++    red="$(commit "test: calls a missing command")"
++    fix_lib; commit "fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_missing.sh
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"verdict: NOT_A_RED"* ]]
++    assert_clean
++}
++
++@test "RTC-5 a bats file with a syntax error at red is NOT_A_RED, exit 4" {
++    local bats_bin="${BATS_ROOT:-}/bin/bats"
++    [ -x "$bats_bin" ] || bats_bin="$(command -v bats || true)"
++    [ -n "$bats_bin" ] || skip "no bats binary to run the fixture"
++    mkdir -p "$R/tests"
++    printf '@test "add" {\n  if [ 1 = 1 ]; then\n    true\n}\n' > "$R/tests/add.bats"
++    red="$(commit "test: broken bats file")"
++    printf '@test "add" {\n  . ./lib.sh\n  [ "$(add 2 3)" = 5 ]\n}\n' > "$R/tests/add.bats"
++    fix_lib; commit "fix" >/dev/null
++    run rtc --red "$red" -- "$bats_bin" tests/add.bats
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"syntax error"* ]]
++    [[ "$output" == *"verdict: NOT_A_RED"* ]]
++    assert_clean
++}
++
++@test "RTC-6 a pytest-style collection error in the red output is NOT_A_RED, exit 4" {
++    mkdir -p "$R/tests"
++    printf 'echo "ERROR collecting tests/test_add.py"\necho "ImportError while importing test module"\nexit 2\n' > "$R/tests/test_collect.sh"
++    red="$(commit "test: does not collect")"
++    fix_lib; printf 'exit 0\n' > "$R/tests/test_collect.sh"; commit "fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_collect.sh
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"matched 'ERROR collecting'"* ]]
++    assert_clean
++}
++
++@test "RTC-7 a green that still fails exits 1 GREEN_FAILS and prints the green output" {
++    add_red_test; red="$(commit "test(bug): failing test")"
++    printf 'notes\n' > "$R/NOTES"; commit "not a fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_add.sh
++    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"verdict: GREEN_FAILS"* ]]
++    [[ "$output" == *"--- green run (last 80 lines) ---"* ]]
++    assert_clean
++}
++
++@test "RTC-8 a run past --timeout yields TIMEOUT, exit 5, and stops the run's children" {
++    mkdir -p "$R/tests"; printf 'sleep 30 &\nwait\n' > "$R/tests/test_slow.sh"
++    red="$(commit "test: slow")"
++    fix_lib; commit "fix" >/dev/null
++    local start=$SECONDS
++    run rtc --red "$red" --timeout 1 -- sh tests/test_slow.sh
++    [ "$status" -eq 5 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"TIMEOUT"* ]]
++    [ $((SECONDS - start)) -lt 20 ]
++    assert_clean
++}
++
++@test "RTC-9 without timeout/gtimeout on PATH the bash watcher yields TIMEOUT, exit 5" {
++    local shim="${BATS_TEST_TMPDIR}/shim" f b
++    mkdir -p "$shim"
++    for f in /usr/local/bin/* /usr/bin/* /bin/*; do
++        b="${f##*/}"
++        case "$b" in timeout|gtimeout) continue ;; esac
++        [ -e "$shim/$b" ] || ln -s "$f" "$shim/$b" 2>/dev/null || true
++    done
++    PATH="$shim" command -v timeout && { echo "the shim still exposes timeout"; return 1; }
++    mkdir -p "$R/tests"; printf 'sleep 30\n' > "$R/tests/test_slow.sh"
++    red="$(commit "test: slow")"
++    fix_lib; commit "fix" >/dev/null
++    local start=$SECONDS
++    run env PATH="$shim" bash -c 'cd "$1" && shift && exec "$@"' _ "$R" "$SCRIPT" --red "$red" --timeout 1 -- sh tests/test_slow.sh
++    [ "$status" -eq 5 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"verdict: TIMEOUT"* ]]
++    [ $((SECONDS - start)) -lt 20 ]
++    assert_clean
++}
++
++@test "RTC-10 a dependency present only in the live tree is linked by default; --no-link-deps makes it NOT_A_RED" {
++    mkdir -p "$R/node_modules/dep" "$R/tests"
++    printf 'dep_ok() { echo yes; }\n' > "$R/node_modules/dep/index.sh"
++    cat > "$R/tests/test_dep.sh" <<'EOF'
++[ -f node_modules/dep/index.sh ] || { echo "Error: Cannot find module 'dep'"; exit 1; }
++. ./node_modules/dep/index.sh
++. ./lib.sh
++[ "$(dep_ok)" = yes ] && [ "$(add 2 3)" = 5 ] && { echo "PASS"; exit 0; }
++echo "FAIL: add 2 3 = $(add 2 3)"; exit 1
++EOF
++    red="$(commit "test(bug): needs dep")"
++    fix_lib; commit "fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_dep.sh
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"linked deps: node_modules"* ]]
++    assert_clean
++    # the live tree's dependency survived the cleanup
++    [ -f "$R/node_modules/dep/index.sh" ]
++    run rtc --red "$red" --no-link-deps -- sh tests/test_dep.sh
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"Cannot find module"* ]]
++    assert_clean
++}
++
++@test "RTC-11 --setup runs in both worktrees before the test; a failing --setup exits 2" {
++    mkdir -p "$R/tests"
++    cat > "$R/tests/test_setup.sh" <<'EOF'
++[ -f .setup-ran ] || { echo "ImportError while importing: setup did not run"; exit 1; }
++. ./lib.sh
++[ "$(add 2 3)" = 5 ] && exit 0
++echo "FAIL: add"; exit 1
++EOF
++    red="$(commit "test(bug): needs setup")"
++    fix_lib; commit "fix" >/dev/null
++    run rtc --red "$red" -- sh tests/test_setup.sh
++    [ "$status" -eq 4 ] || { echo "$output"; return 1; }
++    assert_clean
++    run rtc --red "$red" --setup "touch .setup-ran" -- sh tests/test_setup.sh
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [ ! -e "$R/.setup-ran" ]
++    assert_clean
++    run rtc --red "$red" --setup "false" -- sh tests/test_setup.sh
++    [ "$status" -eq 2 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"--setup exited 1"* ]]
++    assert_clean
++}
++
++@test "RTC-12 red not a strict ancestor of green, or unresolvable, exits 2 and creates nothing" {
++    add_red_test; red="$(commit "test")"
++    fix_lib; green="$(commit "fix")"
++    run rtc --red "$green" --green "$red" -- sh tests/test_add.sh
++    [ "$status" -eq 2 ]; [[ "$output" == *"not a strict ancestor"* ]]
++    run rtc --red "$green" -- sh tests/test_add.sh
++    [ "$status" -eq 2 ]
++    run rtc --red deadbeefdeadbeef -- sh tests/test_add.sh
++    [ "$status" -eq 2 ]; [[ "$output" == *"does not resolve"* ]]
++    run rtc --red "$red"
++    [ "$status" -eq 2 ]; [[ "$output" == *"a test command is required"* ]]
++    run rtc --red --upload-pack=x -- true
++    [ "$status" -eq 2 ]
++    assert_clean
++}
++
++@test "RTC-13 --json prints the documented object" {
++    command -v jq >/dev/null || skip "jq not installed"
++    mkdir -p "$R/node_modules"
++    add_red_test; red="$(commit "test(bug): failing test")"
++    fix_lib; green="$(commit "fix")"
++    run bash -c 'cd "$1" && "$2" --red "$3" --json -- sh tests/test_add.sh 2>/dev/null' _ "$R" "$SCRIPT" "$red"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    jq -e --arg r "$red" --arg g "$green" '
++        (keys == ["green","green_exit","green_tail","linked_deps","red","red_exit","red_tail","verdict"])
++        and .red == $r and .green == $g and .red_exit == 1 and .green_exit == 0
++        and .verdict == "VERIFIED" and (.red_tail | test("expected 5, got -1"))
++        and (.green_tail | test("PASS add")) and .linked_deps == ["node_modules"]' <<< "$output"
++    assert_clean
++}
++
++@test "RTC-14 a green that changes only test files WARNs" {
++    add_red_test; red="$(commit "test(bug): failing test")"
++    printf 'echo "PASS rewritten"\nexit 0\n' > "$R/tests/test_add.sh"; commit "weaken the test" >/dev/null
++    run rtc --red "$red" -- sh tests/test_add.sh
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"WARN: no non-test file changed"* ]]
++    assert_clean
++}
++
++@test "RTC-15 uncommitted live edits never count, and the live tree is left as it was" {
++    add_red_test; red="$(commit "test(bug): failing test")"
++    printf 'notes\n' > "$R/NOTES"; commit "not a fix" >/dev/null
++    fix_lib    # the fix exists only as an uncommitted edit
++    local before; before="$(git -C "$R" status --porcelain)"
++    run rtc --red "$red" -- sh tests/test_add.sh
++    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
++    [ "$(git -C "$R" status --porcelain)" = "$before" ]
++    grep -q '+ \$2' "$R/lib.sh"
++    assert_clean
++}
++
++@test "RTC-16 an interrupted run (TERM) still removes both worktrees" {
++    mkdir -p "$R/tests"; printf 'sleep 30\n' > "$R/tests/test_slow.sh"
++    red="$(commit "test: slow")"
++    fix_lib; commit "fix" >/dev/null
++    (cd "$R" && exec "$SCRIPT" --red "$red" -- sh tests/test_slow.sh) > "${BATS_TEST_TMPDIR}/int.out" 2>&1 &
++    local pid=$! i=0
++    while [ "$(git -C "$R" worktree list | wc -l | tr -d ' ')" -lt 3 ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
++    [ "$(git -C "$R" worktree list | wc -l | tr -d ' ')" -eq 3 ]
++    sleep 0.5
++    kill -TERM "$pid"
++    local rc=0; wait "$pid" || rc=$?
++    [ "$rc" -eq 143 ] || { cat "${BATS_TEST_TMPDIR}/int.out"; echo "rc=$rc"; return 1; }
++    assert_clean
++}
++
++@test "RTC-17 the micro-sprint template requires the separate red commit; reviewing-code names the script" {
++    local m="$PROJECT_ROOT/.claude/skills/bug-triaging/resources/templates/micro-sprint.md"
++    local t1; t1="$(awk '/^#### Task 1:/,/^#### Task 2:/' "$m")"
++    grep -qF 'Committed alone (`test(<bug_id>): failing test`) before any fix commit' <<< "$t1"
++    grep -qF 'Red commit: <sha>' <<< "$t1"
++    awk '/^#### Task 2:/,/^### Acceptance Criteria/' "$m" | grep -qF 'The fix is a later commit and does not weaken the test'
++    local r="$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"
++    awk '/^## Phase 2: Code Review/,/^## Phase 2.5/' "$r" | grep -qF '.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>'
++    awk '/^## Phase 2: Code Review/,/^## Phase 2.5/' "$r" | grep -qF 'Tests exist at each declared `### Seams Under Test` seam'
++    grep -qF 'Bash(.claude/scripts/red-test-check.sh *)' "$r"
++}
+diff --git a/tests/unit/sprint-seams.bats b/tests/unit/sprint-seams.bats
+new file mode 100644
+index 00000000..757fd786
+--- /dev/null
++++ b/tests/unit/sprint-seams.bats
+@@ -0,0 +1,117 @@
++#!/usr/bin/env bats
++# validate-artifact.sh --type sprint: the '### Seams Under Test' rule gated on the plan's
++# header **Date:** (grimoires/loa/sdd.md D-7.2; SEAMS_REQUIRED_FROM=2026-10-13).
++
++setup() {
++    PROJECT_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
++    SCRIPT="${PROJECT_ROOT}/.claude/scripts/validate-artifact.sh"
++    T="${BATS_TEST_TMPDIR}"
++}
++
++# A plan with two sprint blocks; $1 = header date line (may be empty), $2 = seams in sprint 1
++# (yes|no|empty), $3 = seams in sprint 2 (yes|no|empty).
++seams_block() {
++    case "$1" in
++        yes) printf '### Seams Under Test\n| Seam | Catches | Misses | Prior art |\n|------|---------|--------|-----------|\n| `tool.sh` exit code | a wrong exit | prose | new |\n\n' ;;
++        empty) printf '### Seams Under Test\n| Seam | Catches | Misses | Prior art |\n|------|---------|--------|-----------|\n\n' ;;
++        *) ;;
++    esac
++}
++sprint_body() {
++    printf '### Sprint Goal\ng\n\n### Deliverables\n- [ ] d\n\n### Acceptance Criteria\n- [ ] c\n\n'
++    printf '### Technical Tasks\n- [ ] Task %s → **[G-1]**\n\n' "$2"
++    seams_block "$1"
++    printf '### Dependencies\n- none\n\n### Security Considerations\n- none\n\n'
++    printf '### Risks & Mitigation\n| Risk | Probability | Impact | Mitigation |\n|---|---|---|---|\n| r | Low | Low | m |\n\n'
++    printf '### Success Metrics\n- m\n\n'
++}
++plan() {
++    printf '# Sprint Plan: x\n\n**Version:** 1.0\n'
++    [[ -n "$1" ]] && printf '**Date:** %s\n' "$1"
++    printf '**Author:** test\n\n---\n\n'
++    printf '## Sprint 1: Foundation\n\n'; sprint_body "$2" "1.1"
++    printf '## Sprint 2 (Final): Wrap-up\n\n'; sprint_body "$3" "2.E2E: End-to-End Goal Validation"
++    printf '## Appendix\n\n| Goal ID | Goal |\n|---|---|\n| G-1 | thing |\n'
++}
++
++@test "SEAMS-1 a plan dated 2026-10-13 without the block fails and names each sprint missing it" {
++    plan 2026-10-13 yes no > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"Sprint 2 (Final): Wrap-up (line"*"has no '### Seams Under Test' table"* ]]
++    [[ "$output" != *"Sprint 1: Foundation (line"*"Seams Under Test"* ]]
++}
++
++@test "SEAMS-2 the same plan with the block in every sprint passes without a seams WARN" {
++    plan 2026-10-13 yes yes > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" != *"Seams Under Test"* ]]
++}
++
++@test "SEAMS-3 a later date also requires it; a heading with no table row counts as missing" {
++    plan 2026-11-02 empty yes > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"Sprint 1: Foundation (line"*"has no '### Seams Under Test' table with at least one row"* ]]
++}
++
++@test "SEAMS-4 a plan dated 2026-10-12 without the block passes with one WARN" {
++    plan 2026-10-12 no no > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"WARN: 2026-10-12 plan: 2 sprint block(s) without a '### Seams Under Test' table"* ]]
++    [ "$(grep -c 'Seams Under Test' <<< "$output")" -eq 1 ]
++}
++
++@test "SEAMS-5 an undated plan passes with one WARN" {
++    plan "" no no > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"WARN: undated plan: 2 sprint block(s)"* ]]
++}
++
++@test "SEAMS-6 a Date line below the first H2 is not the header date (the plan reads as undated)" {
++    { plan "" no no; printf '\n## Notes\n\n**Date:** 2026-12-01\n'; } > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" == *"WARN: undated plan"* ]]
++}
++
++@test "SEAMS-7 a Seams heading inside fenced code does not count; a block under a later H2 does not either" {
++    {
++        plan 2026-10-13 yes no | sed '/^## Appendix/,$d'
++        printf '```\n### Seams Under Test\n| Seam | Catches | Misses | Prior art |\n|---|---|---|---|\n| a | b | c | d |\n```\n\n'
++        printf '## Risk Register\n\n### Seams Under Test\n| Seam | Catches | Misses | Prior art |\n|---|---|---|---|\n| a | b | c | d |\n\n'
++        printf '## Appendix\n\n| Goal ID | Goal |\n|---|---|\n| G-1 | thing |\n'
++    } > "$T/sprint.md"
++    run "$SCRIPT" --type sprint --file "$T/sprint.md"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"Sprint 2 (Final): Wrap-up (line"*"Seams Under Test"* ]]
++}
++
++@test "SEAMS-8 this cycle's grimoires/loa/sprint.md passes" {
++    [ -f "$PROJECT_ROOT/grimoires/loa/sprint.md" ] || skip "no live sprint plan in this checkout"
++    grep -q '^\*\*Date:\*\* 2026-10-1[3-9]' "$PROJECT_ROOT/grimoires/loa/sprint.md" || skip "the live plan is not the cycle-128 plan"
++    run "$SCRIPT" --type sprint --file "$PROJECT_ROOT/grimoires/loa/sprint.md"
++    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
++    [[ "$output" != *"Seams Under Test"* ]]
++}
++
++@test "SEAMS-9 the archived cycle-127 plan (dated 2026-10-07) gains only a WARN from the rule" {
++    local f="$PROJECT_ROOT/tests/fixtures/sprint-seams/cycle-127-sprint.md"
++    run "$SCRIPT" --type sprint --file "$f"
++    [[ "$output" == *"WARN: 2026-10-07 plan: 1 sprint block(s) without a '### Seams Under Test' table"* ]]
++    [[ "$output" != *"has no '### Seams Under Test' table with"* ]]
++    # The plan predates the template's Risks & Mitigation / Success Metrics sections and fails
++    # on those alone, exactly as it did before the seams rule; the rule adds no violation.
++    local others
++    others="$(grep -v '^WARN\|^INFO' <<< "$output" | grep -vc "missing required section '### \(Risks & Mitigation\|Success Metrics\)'" || true)"
++    [ "$others" -eq 0 ]
++}
++
++@test "SEAMS-10 the shipped sprint template carries the block in each full sprint block" {
++    local t="$PROJECT_ROOT/.claude/skills/planning-sprints/resources/templates/sprint-template.md"
++    [ "$(grep -c '^### Seams Under Test$' "$t")" -eq 2 ]
++    [ "$(grep -c '^| Seam | Catches | Misses | Prior art |$' "$t")" -eq 2 ]
++}
+diff --git a/tools/check-glossary-terms.sh b/tools/check-glossary-terms.sh
+new file mode 100755
+index 00000000..acffbb86
+--- /dev/null
++++ b/tools/check-glossary-terms.sh
+@@ -0,0 +1,203 @@
++#!/usr/bin/env bash
++# =============================================================================
++# tools/check-glossary-terms.sh: does every backticked framework term in the
++# kernel resolve to a glossary entry?
++#
++# The kernel (.claude/loa/CLAUDE.loa.md) is the only extraction scope. Every
++# backticked span outside fenced code is a candidate; a span is kept only when
++# it matches ^[A-Za-z][A-Za-z0-9_-]*$, which drops paths, scripts, flags,
++# commands and config keys (anything with "/", ".", "--", ":" or "(") as well
++# as spaced phrases and operators. A kept token resolves when it matches,
++# case-insensitively, a **Term** entry or an _Aliases_: token in the glossary's
++# "## Language" section, with a plural "s" or "es" folded and "-", "_" and a
++# space treated alike; or when the allowlist names it. The allowlist holds
++# code identifiers the heuristic cannot tell from a term: one token per line,
++# "#" starts a comment (give the reason there), at most 30 entries.
++#
++# Usage:
++#   tools/check-glossary-terms.sh [--kernel PATH] [--glossary PATH]
++#                                 [--allowlist PATH] [--json] [--report]
++#
++#   --kernel PATH     default .claude/loa/CLAUDE.loa.md
++#   --glossary PATH   default .claude/loa/GLOSSARY.md
++#   --allowlist PATH  default .claude/data/glossary-allowlist.txt
++#   --json            one JSON report on stdout
++#   --report          list every kept token with its resolution
++#                     (defined, alias, allowlisted or MISS)
++#
++# Exit codes: 0 every token resolves (a stale allowlist entry only WARNs)
++#             1 a token misses, or the allowlist has more than 30 entries
++#             2 usage, or an input file is unreadable
++# =============================================================================
++set -euo pipefail
++export LC_ALL=C
++
++usage() { sed -n '/^# Usage:/,/^# Exit codes/p' "$0" | sed 's/^# \{0,1\}//'; }
++
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++KERNEL="$ROOT/.claude/loa/CLAUDE.loa.md"
++GLOSSARY="$ROOT/.claude/loa/GLOSSARY.md"
++ALLOWLIST="$ROOT/.claude/data/glossary-allowlist.txt"
++ALLOWLIST_MAX=30
++JSON=0
++REPORT=0
++ME="check-glossary-terms.sh"
++
++need_arg() { [[ $2 -ge 2 ]] || { echo "$ME: $1 needs a path" >&2; exit 2; }; }
++while [[ $# -gt 0 ]]; do
++  case "$1" in
++    --kernel)    need_arg "$1" $#; KERNEL="$2"; shift 2 ;;
++    --glossary)  need_arg "$1" $#; GLOSSARY="$2"; shift 2 ;;
++    --allowlist) need_arg "$1" $#; ALLOWLIST="$2"; shift 2 ;;
++    --json)   JSON=1; shift ;;
++    --report) REPORT=1; shift ;;
++    --help|-h) usage; exit 0 ;;
++    *) echo "$ME: unknown argument $1" >&2; usage >&2; exit 2 ;;
++  esac
++done
++
++for f in "$KERNEL" "$GLOSSARY" "$ALLOWLIST"; do
++  [[ -f "$f" && -r "$f" ]] || { echo "$ME: cannot read $f" >&2; exit 2; }
++done
++if [[ "$JSON" -eq 1 ]]; then
++  command -v jq >/dev/null 2>&1 || { echo "$ME: --json needs jq" >&2; exit 2; }
++fi
++
++# Display names: repo-relative when the file sits under the repo root.
++rel() { case "$1" in "$ROOT"/*) printf '%s' "${1#"$ROOT"/}" ;; *) printf '%s' "$1" ;; esac; }
++DK="$(rel "$KERNEL")"; DG="$(rel "$GLOSSARY")"; DA="$(rel "$ALLOWLIST")"
++
++WORK="$(mktemp -d "${TMPDIR:-/tmp}/check-glossary-terms.XXXXXX")"
++trap 'rm -rf "$WORK"' EXIT
++
++# 1. Kept kernel tokens, "line<TAB>token", first occurrence only, in order.
++awk '
++  /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
++  fence { next }
++  {
++    s = $0
++    while (match(s, /`[^`]+`/)) {
++      t = substr(s, RSTART + 1, RLENGTH - 2)
++      s = substr(s, RSTART + RLENGTH)
++      if (t ~ /^[A-Za-z][A-Za-z0-9_-]*$/ && !(t in seen)) { seen[t] = 1; printf "%d\t%s\n", NR, t }
++    }
++  }
++' "$KERNEL" > "$WORK/tokens.tsv"
++
++# 2. Glossary names, "kind<TAB>name<TAB>entry": kind is term or alias, entry is
++#    the **Term** the name belongs to. Only the "## Language" section counts.
++awk '
++  /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
++  fence { next }
++  /^## / { h = $0; sub(/^## +/, "", h); sub(/[[:space:]]+$/, "", h); lang = (h == "Language"); next }
++  /^# / { lang = 0; next }
++  !lang { next }
++  /^\*\*[^*]+\*\*:/ {
++    t = $0; sub(/^\*\*/, "", t); sub(/\*\*:.*$/, "", t); gsub(/`/, "", t)
++    gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
++    entry = t; printf "term\t%s\t%s\n", t, entry; next
++  }
++  /^_Aliases_:/ {
++    a = $0; sub(/^_Aliases_:[[:space:]]*/, "", a); gsub(/`/, "", a)
++    n = split(a, parts, /,/)
++    for (i = 1; i <= n; i++) {
++      p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
++      if (p != "") printf "alias\t%s\t%s\n", p, entry
++    }
++  }
++' "$GLOSSARY" > "$WORK/names.tsv"
++
++# 3. Allowlist entries, "line<TAB>token" (comment and blank lines dropped).
++awk '
++  { s = $0; sub(/#.*/, "", s); gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
++    if (s == "") next
++    split(s, f, /[[:space:]]+/); printf "%d\t%s\n", NR, f[1] }
++' "$ALLOWLIST" > "$WORK/allow.tsv"
++
++# 4. Resolve. "resolution<TAB>token<TAB>line<TAB>entry" for each kept token
++#    ("MISS" with an empty entry when nothing matches), then
++#    "STALE<TAB>token<TAB>allowlist-line<TAB>" for allowlist entries that no
++#    longer occur in the kernel and "REDUNDANT<TAB>…<TAB>entry" for ones the
++#    glossary already resolves.
++awk -F'\t' '
++  function norm(x) { x = tolower(x); gsub(/[-_ ]+/, " ", x); return x }
++  function put(map, k, v) { if (!(k in map)) map[k] = v }
++  # every spelling a name answers to: itself, its s and es plurals, and, for
++  # a plural name, its singular (the plural fold is applied here only)
++  function add(map, x, v) { x = norm(x); put(map, x, v); put(map, x "s", v); put(map, x "es", v)
++                            if (x ~ /es$/) put(map, substr(x, 1, length(x) - 2), v)
++                            if (x ~ /s$/) put(map, substr(x, 1, length(x) - 1), v) }
++  function lookup(map, x,   k) { k = norm(x); return (k in map) ? map[k] : "" }
++  FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else add(alias, $2, $3); next }
++  FILENAME == ARGV[2] { allow[norm($2)] = $1; allowtok[norm($2)] = $2; next }
++  {
++    used[norm($2)] = 1
++    if ((e = lookup(term, $2)) != "") r = "defined"
++    else if ((e = lookup(alias, $2)) != "") r = "alias"
++    else if (norm($2) in allow) { r = "allowlisted"; e = "" }
++    else { r = "MISS"; e = "" }
++    printf "%s\t%s\t%s\t%s\n", r, $2, $1, e
++  }
++  END {
++    for (k in allow) {
++      if (!(k in used)) printf "STALE\t%s\t%s\t\n", allowtok[k], allow[k]
++      else if ((e = lookup(term, allowtok[k])) != "" || (e = lookup(alias, allowtok[k])) != "")
++        printf "REDUNDANT\t%s\t%s\t%s\n", allowtok[k], allow[k], e
++    }
++  }
++' "$WORK/names.tsv" "$WORK/allow.tsv" "$WORK/tokens.tsv" > "$WORK/resolved.tsv"
++
++kept="$(wc -l < "$WORK/tokens.tsv" | tr -d '[:space:]')"
++allow_count="$(wc -l < "$WORK/allow.tsv" | tr -d '[:space:]')"
++n_of() { awk -F'\t' -v k="$1" '$1 == k' "$WORK/resolved.tsv" | wc -l | tr -d '[:space:]'; }
++n_def="$(n_of defined)"; n_alias="$(n_of alias)"; n_allow="$(n_of allowlisted)"; n_miss="$(n_of MISS)"
++
++violations=()
++warnings=()
++while IFS=$'\t' read -r r tok ln entry; do
++  case "$r" in
++    MISS) violations+=("MISS: \`$tok\` ($DK:$ln) has no glossary entry; define **$tok** in $DG, add it to an entry's _Aliases_: line, or, if it is a code identifier, allowlist it in $DA with a '# reason' comment") ;;
++    STALE) warnings+=("allowlist entry '$tok' ($DA:$ln) no longer occurs in $DK; remove it") ;;
++    REDUNDANT) warnings+=("allowlist entry '$tok' ($DA:$ln) is already resolved by the glossary entry **$entry**; remove it") ;;
++  esac
++done < "$WORK/resolved.tsv"
++if [[ "$allow_count" -gt "$ALLOWLIST_MAX" ]]; then
++  violations+=("the allowlist $DA has $allow_count entries, over the limit of $ALLOWLIST_MAX; define the framework terms among them in the glossary instead")
++fi
++
++if [[ "$JSON" -eq 1 ]]; then
++  jq -Rn --arg kernel "$DK" --arg glossary "$DG" --arg allowlist "$DA" \
++     --argjson allow_count "$allow_count" --argjson allow_max "$ALLOWLIST_MAX" \
++     --rawfile v <(printf '%s\n' ${violations[@]+"${violations[@]}"}) \
++     --rawfile w <(printf '%s\n' ${warnings[@]+"${warnings[@]}"}) '
++    [inputs | split("\t") | {resolution: .[0], token: .[1], line: (.[2] | tonumber), entry: .[3]}] as $rows
++    | ($rows | map(select(.resolution | IN("defined", "alias", "allowlisted", "MISS")))) as $tokens
++    | {ok: null,
++       kernel: $kernel, glossary: $glossary, allowlist: $allowlist,
++       kept: ($tokens | length),
++       counts: {defined: ($tokens | map(select(.resolution == "defined")) | length),
++                alias: ($tokens | map(select(.resolution == "alias")) | length),
++                allowlisted: ($tokens | map(select(.resolution == "allowlisted")) | length),
++                missing: ($tokens | map(select(.resolution == "MISS")) | length)},
++       allowlist_entries: $allow_count, allowlist_max: $allow_max,
++       tokens: ($tokens | map({token, line, resolution, entry: (if .entry == "" then null else .entry end)})),
++       missing: ($tokens | map(select(.resolution == "MISS") | .token)),
++       stale_allowlist: ($rows | map(select(.resolution == "STALE") | .token)),
++       redundant_allowlist: ($rows | map(select(.resolution == "REDUNDANT") | .token)),
++       violations: ($v | split("\n") | map(select(length > 0))),
++       warnings: ($w | split("\n") | map(select(length > 0)))}
++    | .ok = ((.violations | length) == 0)
++  ' < "$WORK/resolved.tsv"
++else
++  if [[ "$REPORT" -eq 1 ]]; then
++    awk -F'\t' '$1 != "STALE" && $1 != "REDUNDANT" {
++      printf "%-11s %-24s line %-4s %s\n", $1, $2, $3, ($4 == "" ? "" : "-> " $4) }' "$WORK/resolved.tsv"
++  fi
++  for w in ${warnings[@]+"${warnings[@]}"}; do echo "WARN: $w"; done
++  for v in ${violations[@]+"${violations[@]}"}; do echo "$v" >&2; done
++  echo "kernel tokens kept: $kept; defined: $n_def; alias: $n_alias; allowlisted: $n_allow; missing: $n_miss; allowlist entries: $allow_count/$ALLOWLIST_MAX"
++  if [[ ${#violations[@]} -eq 0 ]]; then echo "PASS"; else echo "FAIL" >&2; fi
++fi
++
++[[ ${#violations[@]} -eq 0 ]] || exit 1
++exit 0
