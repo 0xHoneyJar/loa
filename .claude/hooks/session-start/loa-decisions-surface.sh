@@ -45,7 +45,10 @@ if _dec_test_mode_active && [[ -n "${LOA_DEC_SURFACE_TEST_CONFIG-}" ]]; then
   enabled="${LOA_DEC_SURFACE_TEST_CONFIG}"
 elif [[ -f "$config_path" ]]; then
   if [[ $have_yq4 -eq 1 ]]; then
-    enabled="$(yq '.decisions.surface_at_session_start // false' "$config_path" 2>/dev/null || echo false)"
+    # Explicit key, else the loa.profile default (cycle-129 D-9.1).
+    # shellcheck source=../../scripts/lib/profile-lib.sh
+    source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null &&
+      enabled="$(loa_knob decisions.surface_at_session_start false 2>/dev/null || echo false)"
   else
     # top-level `decisions:` block, then an indented `surface_at_session_start: true`
     enabled="$(awk '

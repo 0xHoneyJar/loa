@@ -439,22 +439,20 @@ EOF
 # gate in verdict-derive terms.
 # =============================================================================
 
-@test "FR-5 doc-lock: run-mode Issue-Hash Tracking hashes the derived verdict; grep -A 100 survives only as the labelled fallback" {
-    local repo_root skill block
+@test "FR-5 doc-lock: the same-issue hash is computed by run-checkpoint.sh record-round from the derived verdict; the prose recipe survives only there, as the labelled no-trailer fallback (cycle-129 D-4.6)" {
+    local repo_root skill block ck
     repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
     skill="$repo_root/.claude/skills/run-mode/SKILL.md"
-    block="$(awk '/^### Issue Hash Tracking/{p=1; next} /^### /{p=0} p' "$skill")"
+    ck="$repo_root/.claude/scripts/run-checkpoint.sh"
+    block="$(awk '/^## Circuit Breaker/{p=1; next} /^## /{p=0} p' "$skill")"
 
-    [[ "$block" == *"verdict-derive.sh"* ]]
-    [[ "$block" == *"jq -Sc '{verdict,counts}'"* ]]
-    [[ "$block" == *'echo "none"'* ]]
-    [[ "$block" == *"fallback"* ]]
-
-    # The bare prose recipe appears exactly once in the whole file, and that
-    # one occurrence is inside the Issue-Hash block, on the labelled fallback line.
-    [ "$(grep -c 'grep -A 100 "## Findings' "$skill")" -eq 1 ]
-    [ "$(printf '%s\n' "$block" | grep -c 'grep -A 100 "## Findings')" -eq 1 ]
-    printf '%s\n' "$block" | grep 'grep -A 100 "## Findings' | grep -qi 'fallback'
+    [[ "$block" == *"run-checkpoint.sh record-round"* ]]
+    [ "$(grep -c 'grep -A 100 "## Findings' "$skill")" -eq 0 ]
+    # the script carries the recipe: derived verdict first, the findings-section hash only without a trailer
+    grep -q "verdict-derive.sh --json" "$ck"
+    grep -qF "jq -Sc '{verdict,counts}'" "$ck"
+    grep -F 'grep -A 100 "## Findings' "$ck" | grep -q 'hash'
+    grep -q 'no trailer' "$ck"
 }
 
 @test "FR-5 doc-lock: run-mode main-loop steps 5 and 8 phrase 'has findings' in verdict-derive terms" {

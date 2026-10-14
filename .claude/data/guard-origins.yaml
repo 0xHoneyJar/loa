@@ -207,7 +207,7 @@ guards:
     knob: implement_gate.mode
     floor: false
     registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
-    note: "ADVISORY: ask on an App Zone write outside an active implementation run, on a write to the gate's own trust inputs, and when the write cannot be evaluated; never blocks"
+    note: "implement_gate.mode ask (default: ask + row) | telemetry (allow + row) | deny (refuse an unsanctioned App Zone write while the run position is known, else ask); sanctions: derived RUNNING cache, fresh .run/implement-active.json, LOA_IMPLEMENT_GATE_OVERRIDE; trust-input writes ask in every mode; a fence only under deny"
   - id: hook:safety/notes-size-guard.sh
     kind: hook
     class: harness
@@ -810,7 +810,7 @@ guards:
     floor: false
     registrations: []
     script: .claude/hooks/compliance/implement-gate.sh
-    note: "App Zone writes outside an implementation run ask; never blocks today"
+    note: "App Zone writes outside a sanctioned implementation ask (default) or are logged (telemetry); refused only under implement_gate.mode: deny (opt-in; this repository stays on ask until the cycle-129 end flip)"
   - id: gate:success-criteria
     kind: gate
     class: prose

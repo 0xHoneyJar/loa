@@ -37,6 +37,15 @@ Record the resolved mode: `jq --arg mode "$push_mode" '.options.push_mode = $mod
 4. Atomically set: `.completion = {"pushed": true, "pr_created": true, "pr_url": $url, "skipped_reason": null} | .state = "JACKED_OUT"`.
 5. Report: "[COMPLETE] All checks passed! ✓ PR created: $pr_url" then "[JACKED_OUT] Run complete."
 
+## Jack-out
+
+Every completion path above ends here (and `/run sprint-plan` after its consolidated PR). `.state` is the
+canonical key; `.status` only mirrors it (cycle-128 wrote `.status` alone and left `.state` RUNNING):
+1. When `.run/sprint-plan-state.json` exists, atomically set
+   `.state = "JACKED_OUT" | .status = .state | .timestamps.last_activity = $ts` (jq → `.tmp` → `mv`).
+2. Run `.claude/scripts/run-checkpoint.sh derive --write`: `JACKED_OUT` is terminal, so the derivation
+   keeps it and only reports files that contradict it.
+
 ## Deleted Files Tree (PR body)
 
 Render `.run/deleted-files.log` for a PR body: if the log is missing or empty, emit

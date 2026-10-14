@@ -100,10 +100,14 @@ get_config() {
     fi
 }
 
-# Check if guardrails are enabled
+# Check if guardrails are enabled: the explicit key, else the loa.profile
+# default (cycle-129 D-9.1; `standard` reads false). get_config's `// default`
+# would read an explicit false as the default.
+# shellcheck source=lib/profile-lib.sh
+source "$SCRIPT_DIR/lib/profile-lib.sh"
 is_enabled() {
     local enabled
-    enabled=$(get_config ".guardrails.input.enabled" "true")
+    enabled=$(loa_knob guardrails.input.enabled false)
     [[ "$enabled" == "true" ]]
 }
 

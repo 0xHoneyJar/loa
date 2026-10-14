@@ -10,7 +10,8 @@ Companion to `tools/prompt-keeplist.txt` (machine-readable; read by `tests/unit/
 |---|---|---|---|
 | K-01 | CLAUDE.loa.md | Three-Zone row `System · .claude/ · NEVER edit` | the zone model is the mechanical boundary every hook assumes |
 | K-02 | CLAUDE.loa.md | "Never edit `.claude/` … `.claude/overrides/`" | a rule and its remedy travel together |
-| K-03, K-04, K-05, K-06, K-07 | CLAUDE.loa.md | the five `@constraint-generated` blocks (process_compliance_never / _always, task_tracking_hierarchy, merge_constraints, agent_teams_constraints) | registry-rendered; edited only through `generate-constraints.sh`; `prompt-audit-generated-blocks.bats` gates drift |
+| K-03, K-04, K-05, K-06 | CLAUDE.loa.md | the four `@constraint-generated` blocks (process_compliance_never / _always, task_tracking_hierarchy, merge_constraints) | registry-rendered; edited only through `generate-constraints.sh`; `prompt-audit-generated-blocks.bats` gates drift |
+| K-07 | agent-teams-reference.md | the "Rules and arming" heading | the five C-TEAM rules and the `LOA_TEAM_MEMBER` arming note; the kernel block was removed by cycle-129 (DEC-0140) and the generator omits the table while the class is empty |
 | K-08, K-09, K-10 | CLAUDE.loa.md | `LOA-VERDICT`, `verdict-derive.sh`, the one-way rule | the review/audit gate contract; the confidence dimension can never demote |
 | K-11, K-12, K-13 | CLAUDE.loa.md | `audit_emit`, `lib/jcs.sh`, `UNTRUSTED` | agent-network L1–L7 universal invariants (prose-only, no mechanical twin) — collapse to the Reference-Files pointer paragraph, never delete |
 | K-14, K-15 | CLAUDE.loa.md | `JACKED_OUT`, `sprint-plan-state.json` | run-mode state recovery after compaction (prose-only) |

@@ -31,7 +31,7 @@ setup() {
   }
   {
     # live, inside the repo
-    row "2026-10-12T08:00:00Z" "FR-SZ2-REDIR" "$ROOT" "cat > .claude/x.md <<'EOF'"            # heredoc → likely FP
+    row "2026-10-12T08:00:00Z" "FR-SZ2-REDIR" "$ROOT" "cat > .claude/x.md <<'EOF'"$'\n'"hello"$'\n'"EOF"   # complete non-executing heredoc → likely FP (FR-6 classifier via lib/heredoc-classifier.sh)
     row "2026-10-12T09:00:00Z" "P2" "/srv/elsewhere/scratch" "git push --force origin topic"    # outside repo → likely FP
     row "2026-10-12T10:00:00Z" "SP-1" "$ROOT" "br comments add bd-1 'note about spike/x merge'" # prose class, no verb → likely FP
     row "2026-10-13T23:59:00Z" "FR-2-AMBIGUOUS" "$ROOT" "cd sub && rm -rf ./.cache"             # prose class WITH verb → real

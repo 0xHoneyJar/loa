@@ -22,7 +22,11 @@ LIB="${REPO_ROOT}/.claude/scripts/lib/structured-handoff-lib.sh"
 
 # Gate on config.
 if command -v yq >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/.loa.config.yaml" ]]; then
-    enabled="$(yq '.structured_handoff.enabled // false' "${REPO_ROOT}/.loa.config.yaml" 2>/dev/null || echo false)"
+    # Explicit key, else the loa.profile default (cycle-129 D-9.1).
+    enabled="false"
+    # shellcheck source=../../scripts/lib/profile-lib.sh
+    source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null &&
+        enabled="$(loa_knob structured_handoff.enabled false 2>/dev/null || echo false)"
     [[ "$enabled" == "true" ]] || exit 0
 else
     # No config → silent (the primitive is opt-in).

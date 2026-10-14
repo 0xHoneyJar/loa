@@ -674,6 +674,7 @@ main() {
       display_run_line
       display_context_line
       display_gate_line
+      display_run_position_lines
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -688,6 +689,10 @@ main() {
     echo ""
     echo "───────────────────────────────────────────────────────────────"
     display_providers_section
+
+    # Profile line (cycle-129 FR-9, SDD D-9.3): the effective loa.profile and explicit overrides.
+    echo ""
+    display_profile_line
 
     # Guards line (cycle-129 FR-1, SDD D-1.5): register counts and the host yield.
     echo ""
@@ -931,6 +936,31 @@ display_providers_section() {
   return 0
 }
 
+# cycle-129 FR-9 (SDD D-9.3): one Profile line — the effective loa.profile and
+# the explicit keys whose value differs from it. Reads the config the Providers
+# block reads (bats-gated seam LOA_STATUS_CONFIG_FILE); the lib runs in a
+# subshell so its globals stay out of this script.
+display_profile_line() {
+  local lib="$SCRIPT_DIR/lib/profile-lib.sh" cfg line
+  if [[ ! -f "$lib" ]]; then
+    echo -e "${BOLD}Profile:${NC} unknown (lib/profile-lib.sh missing; reinstall the framework with /update-loa)"
+    return 0
+  fi
+  cfg=$(_providers_config_file)
+  line=$(
+    if [[ "$cfg" != "$CONFIG_FILE" ]]; then export LOA_PROFILE_CONFIG_FILE="$cfg"; fi
+    # shellcheck source=lib/profile-lib.sh
+    source "$lib" || exit 0
+    name=$(loa_profile 2>/dev/null) || name=standard
+    note=""
+    if [[ "$(loa_profile_source 2>/dev/null)" == "invalid" ]]; then note="unknown loa.profile, using standard; "; fi
+    ov=$(loa_profile_overrides 2>/dev/null | awk 'NF { printf "%s%s", (n++ ? ", " : ""), $0 }')
+    printf '%s (%sexplicit overrides: %s)' "${name:-standard}" "$note" "${ov:-none}"
+  ) || line=""
+  echo -e "${BOLD}Profile:${NC} ${line:-standard (explicit overrides: unavailable)}"
+  return 0
+}
+
 # cycle-129 FR-1 (SDD D-1.5): one Guards line. Counts come from the tracked structural
 # register (grimoires/loa/guards.md), the 30-day yield from the untracked
 # .run/guard-yield.json; nothing is recomputed here. Bats-gated seams:
@@ -975,6 +1005,25 @@ display_gate_line() {
   [[ -f "$detect" ]] || return 0
   line=$(PROJECT_ROOT="$PROJECT_ROOT" RUN_DIR="$PROJECT_ROOT/.run" bash "$detect" --line < /dev/null 2>/dev/null || true)
   [[ -n "$line" ]] && echo "  $line"
+  return 0
+}
+
+# cycle-129 FR-5 / FR-4(a) (SDD D-5.3): the run position the files derive against
+# the cache (`run-checkpoint.sh derive --json` — report-only, /loa writes no state;
+# printed only on drift) and the implement gate's effective mode, from the gate's
+# own parser. Bats-gated seams: LOA_STATUS_DERIVE_ROOT, LOA_STATUS_CONFIG_FILE.
+display_run_position_lines() {
+  local ck="${SCRIPT_DIR}/run-checkpoint.sh" gate="${SCRIPT_DIR}/../hooks/compliance/implement-gate.sh"
+  local root="$PROJECT_ROOT" dj line mode
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_DERIVE_ROOT:-}" ]]; then root="$LOA_STATUS_DERIVE_ROOT"; fi
+  if [[ -f "$ck" ]] && dj=$(bash "$ck" derive --json --root "$root" 2>/dev/null) \
+     && line=$(jq -er 'select(.drift == true and .cache_state != null)
+                       | "files say \(.state | tostring | gsub("[^A-Z_]"; "")), cache said \(.cache_state | tostring | gsub("[^A-Z_]"; ""))"' <<<"$dj" 2>/dev/null); then
+    echo "  Run: $line (drift) → run-checkpoint.sh derive --write"
+  fi
+  if [[ -f "$gate" ]] && mode=$(PROJECT_ROOT="$PROJECT_ROOT" bash "$gate" --effective-mode "$(_providers_config_file)" < /dev/null 2>/dev/null) && [[ -n "$mode" ]]; then
+    echo "  Gate: implement_gate.mode $mode"
+  fi
   return 0
 }
 

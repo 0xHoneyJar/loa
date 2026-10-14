@@ -3,6 +3,10 @@ name: eval
 description: Run evaluation suites against the Loa framework
 role: review
 allowed-tools: Read, Grep, Glob, Bash(evals/harness/*), Bash(bats tests/*)
+disallowed-tools:
+  - Write
+  - Edit
+  - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true

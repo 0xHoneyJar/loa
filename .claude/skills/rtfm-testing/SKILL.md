@@ -2,12 +2,16 @@
 name: rtfm
 description: Run documentation-driven testing against Ground Truth and protocols
 role: review
-allowed-tools: Read, Grep, Glob, Bash(bats tests/*), Bash(npm test *), Bash(.claude/scripts/rtfm-*)
+allowed-tools: Read, Grep, Glob, Write, Bash(bats tests/*), Bash(npm test *), Bash(.claude/scripts/rtfm-*)
+# Write: the Phase 4 report under grimoires/loa/a2a/rtfm/ only (State Zone).
+disallowed-tools:
+  - Edit
+  - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
   search_code: true
-  write_files: false
+  write_files: true
   execute_commands:
     allowed:
       - command: "bats"

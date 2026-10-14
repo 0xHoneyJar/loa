@@ -28,7 +28,7 @@ for sprint in filtered_sprints (apply --from/--to: keep sprint N iff from <= N <
   4. Update .run/sprint-plan-state.json (mark sprint completed, advance current, roll up metrics);
      `.claude/scripts/run-checkpoint.sh write --sprint <next> --phase IMPLEMENT`
 create_plan_pr()
-update_state(state: JACKED_OUT)
+update_state(state: JACKED_OUT)   # writes .state, mirrors .status: resources/completion-modes.md §Jack-out
 ```
 
 State file `.run/sprint-plan-state.json` schema (`schema_version` 2 adds `checkpoint`; readers
@@ -44,7 +44,7 @@ discards a checkpoint whose bead is not closed — beads remain the recovery sou
 
 On a HALTED sprint inside the plan loop:
 1. Atomically update `.run/sprint-plan-state.json`:
-   `jq --arg s "$failed_sprint" --arg r "$reason" '.state = "HALTED" | .failure = {"sprint": $s, "reason": $r, "timestamp": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}'`.
+   `jq --arg s "$failed_sprint" --arg r "$reason" '.state = "HALTED" | .status = .state | .failure = {"sprint": $s, "reason": $r, "timestamp": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}'`.
 2. Create the incomplete PR (template below) via
    `.claude/scripts/run-mode-ice.sh pr-create "[INCOMPLETE] Run Mode: Sprint Plan" "$body" --draft`.
 3. Report: "Sprint plan halted at $failed_sprint / Reason: $reason / Use `/run-resume` to continue

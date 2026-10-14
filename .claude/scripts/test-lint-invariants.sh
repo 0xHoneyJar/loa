@@ -64,6 +64,23 @@ assert_exit_code() {
   fi
 }
 
+# Exit 0 (all pass) or 1 (warnings only): the good fixture cannot satisfy the
+# environment-dependent invariants (live settings.json, header hash), so its
+# WARNs are expected; an ERROR (exit 2) is not.
+assert_no_errors_exit() {
+  local actual="$1"
+  local desc="$2"
+
+  TOTAL=$((TOTAL + 1))
+  if [[ "$actual" -eq 0 || "$actual" -eq 1 ]]; then
+    PASS=$((PASS + 1))
+    [[ "$VERBOSE" == "true" ]] && printf "  [PASS] %s\n" "$desc"
+  else
+    FAIL=$((FAIL + 1))
+    printf "  [FAIL] %s (expected exit 0 or 1, got %d)\n" "$desc" "$actual"
+  fi
+}
+
 assert_output_contains() {
   local output="$1"
   local pattern="$2"
@@ -237,7 +254,7 @@ parse_result "$result"
 
 # Good fixture should have no ERRORs. May have WARNs (exit 1) from
 # environment-dependent checks like deny rules.
-assert_exit_code "$RESULT_EXIT" 0 "good fixture exits 0 (all pass or warns only)"
+assert_no_errors_exit "$RESULT_EXIT" "good fixture exits 0 or 1 (all pass or warns only)"
 assert_output_contains "$RESULT_OUTPUT" "PASS" "good fixture has PASS results"
 assert_output_contains "$RESULT_OUTPUT" "pass" "good fixture summary shows passes"
 
@@ -300,7 +317,7 @@ echo "--- Test: Exit code semantics ---"
 # Good fixture: 0 = all pass (with stub test scripts)
 result=$(run_linter_in "$good_dir")
 parse_result "$result"
-assert_exit_code "$RESULT_EXIT" 0 "exit 0 = all pass (good fixture)"
+assert_no_errors_exit "$RESULT_EXIT" "exit 0 or 1 = no errors (good fixture)"
 
 # Bad fixture: 2 = errors found (missing files + invalid JSON)
 result=$(run_linter_in "$bad_dir")
@@ -327,6 +344,39 @@ else
   FAIL=$((FAIL + 1))
   printf "  [FAIL] --fix mode crashed (exit %d)\n" "$RESULT_EXIT"
 fi
+
+# =========================================================================
+# Test 6: optional Agent Teams table follows its class (cycle-129 D-4.5)
+# =========================================================================
+echo ""
+echo "--- Test: optional constraint tables ---"
+
+# 6a: empty class, no table in the kernel → the invariant passes
+result=$(run_linter_in "$good_dir")
+parse_result "$result"
+assert_output_contains "$RESULT_OUTPUT" "agent_teams_constraints: table presence matches" "empty class without the table passes"
+
+# 6b: empty class but the kernel still carries the table → ERROR (exit 2)
+stale_dir="$TMPDIR_BASE/stale-teams"
+create_good_fixture "$stale_dir"
+printf '%s\n' '' '## Agent Teams' '' '| Rule | Why |' '|------|-----|' \
+  '<!-- @constraint-generated: start agent_teams_constraints | hash:test -->' \
+  '| MUST x | y |' '<!-- @constraint-generated: end agent_teams_constraints -->' \
+  >> "$stale_dir/.claude/loa/CLAUDE.loa.md"
+result=$(run_linter_in "$stale_dir")
+parse_result "$result"
+assert_exit_code "$RESULT_EXIT" 2 "empty class with a leftover Agent Teams table exits 2"
+assert_output_contains "$RESULT_OUTPUT" "has no rows but CLAUDE.loa.md still carries" "leftover table is named"
+
+# 6c: class has rows but the kernel has no block → ERROR (exit 2)
+rows_dir="$TMPDIR_BASE/rows-teams"
+create_good_fixture "$rows_dir"
+echo '{"constraints":[{"id":"C-TEAM-001","layers":[{"target":"claude-loa-md","section":"agent_teams_constraints"}]}]}' \
+  > "$rows_dir/.claude/data/constraints.json"
+result=$(run_linter_in "$rows_dir")
+parse_result "$result"
+assert_exit_code "$RESULT_EXIT" 2 "class rows without a kernel block exits 2"
+assert_output_contains "$RESULT_OUTPUT" "has 1 row(s) but CLAUDE.loa.md has no agent_teams_constraints block" "missing block is named"
 
 # =========================================================================
 # Summary

@@ -63,13 +63,11 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:cd3fe039 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:d59facd3 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
-`LOA_GUARDRAILS_ENABLED=false`.
-
-Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+Run only if `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false` prints `true`
+and env `LOA_GUARDRAILS_ENABLED` is not `false`: write the prompt/args to a temp file (Write tool), then run
 `.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
 | Outcome | Action |
@@ -219,7 +217,7 @@ Review the code, not the report: read every modified file and its tests (verify 
 
 Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> --json -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
 
-**Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+**Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding. `SURGICAL:` reads `.run/karpathy-surgical-summary.json` and `.run/karpathy-surgical/<bead>.jsonl` (sprint beads) when present.
 
 **Fast-Gate Parity**: self-checks must match CI's fast gate — verify its formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
@@ -295,15 +293,11 @@ With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, comment, labels); prot
 </beads_workflow>
 
 <retrospective_postlude>
-<!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
-After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
-(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+<!-- @skill-include: start retrospective_postlude | hash:53d44248 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
+After the main skill logic, if `.claude/scripts/lib/profile-lib.sh knob invisible_retrospective.enabled`
+prints `true` (and `invisible_retrospective.skills` does not disable this skill), silently run the
 learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
-`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
-never when the active skill is continuous-learning itself.
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Never when the
+active skill is continuous-learning itself.
 <!-- @skill-include: end retrospective_postlude -->
 </retrospective_postlude>
-
-## Provenance
-
-Folded in from history: AC Verification auto-fail (cycle-057, #475), Fast-Gate Parity (#1086), YAGNI taxonomy (#1012).

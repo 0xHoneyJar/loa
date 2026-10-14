@@ -36,13 +36,11 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:b8c61de5 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:341e360b | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
-`LOA_GUARDRAILS_ENABLED=false`.
-
-Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+Run only if `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false` prints `true`
+and env `LOA_GUARDRAILS_ENABLED` is not `false`: write the prompt/args to a temp file (Write tool), then run
 `.claude/scripts/guardrails-orchestrator.sh --skill bug-triaging --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
 | Outcome | Action |
@@ -434,6 +432,7 @@ Next step: /implement {sprint_id}
 
 In interactive mode, the user runs `/implement` manually.
 In autonomous mode (`/run --bug`), implementation begins automatically.
+At its start `.claude/scripts/run-checkpoint.sh mark --skill bug --sprint {sprint_id}` (`.run/implement-active.json`, run-mode `state-schemas.md`; also `derive --write`); at the end `unmark`.
 
 Ledger write or beads create failures WARN and are noted in NOTES.md; a state-directory creation failure HALTs.
 

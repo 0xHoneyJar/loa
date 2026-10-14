@@ -29,6 +29,20 @@ agent_teams:
   enabled: auto    # auto: use if available | true: require | false: disable
 ```
 
+## Rules and arming
+
+These five rules govern every team. Until cycle-129 they were the C-TEAM rows of `constraints.json`, rendered into the always-loaded kernel on every turn; they now live here only (DEC-0140), because no harness surface runs on teammate spawn and the rows cost every single-agent session their bytes. The ids stay as names.
+
+| Id | Rule | Why |
+|----|------|-----|
+| C-TEAM-001 | Planning, orchestration, deployment and lifecycle skills are lead-only; teammates implement, review and audit only (the Skill Invocation Matrix below is the full list) | Planning skills produce single artifacts (PRD, SDD, sprint plan) that assume single-writer semantics; concurrent invocation would corrupt state |
+| C-TEAM-002 | All beads (`br`) operations go through the lead; teammates report via SendMessage | Beads uses SQLite with single-writer semantics; concurrent br sync or br close causes lock contention and potential corruption |
+| C-TEAM-003 | Only the lead writes `.run/` state files (`simstim-state.json`, `bridge-state.json`, `sprint-plan-state.json`); teammates report status via SendMessage | State files use read-modify-write pattern; concurrent writes cause lost updates and inconsistent reads |
+| C-TEAM-004 | Git commit and push go through the lead; teammates report completed work via SendMessage | Git's working tree and index are shared mutable state; concurrent commits or pushes cause merge conflicts, index lock failures, and corrupted state |
+| C-TEAM-005 | Teammates never modify the System Zone (`.claude/`): framework configuration, constraint definitions, hook scripts and schema files are lead-only | System Zone modifications by a teammate could alter constraint definitions, hook behavior, or skill configurations for all agents in the team, breaking the coordination invariants that other C-TEAM constraints depend on |
+
+**Arming.** The three team hooks (`team-role-guard.sh`, `team-role-guard-write.sh`, `team-skill-guard.sh`) stay registered but are no-ops until the lead exports `LOA_TEAM_MEMBER` (the teammate's name) into each teammate's environment before spawning it. Without that variable the rules above are prose the teammate is asked to follow, and the review and audit gates are the safety net. The guard register lists the three hooks as `dormant` with `LOA_TEAM_MEMBER` as their knob (`.claude/data/guard-origins.yaml`).
+
 ## Skill Invocation Matrix
 
 | Skill | Lead | Teammate | Rationale |
@@ -283,7 +297,7 @@ The `team-skill-guard.sh` hook enforces the Skill Invocation Matrix mechanically
 
 Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams constraint. Making the gap visible is honest engineering.
 
-| Constraint | Advisory (CLAUDE.md) | Mechanical (Hook) | Tool Coverage | Gaps |
+| Constraint | Advisory (Rules and arming) | Mechanical (Hook, armed by `LOA_TEAM_MEMBER`) | Tool Coverage | Gaps |
 |-----------|---------------------|-------------------|---------------|------|
 | C-TEAM-001 (planning skills lead-only) | Yes | Yes (Skill) | Skill: blocklist-based guard via `team-skill-guard.sh` | — |
 | C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect (not a gap) |
@@ -326,7 +340,7 @@ The lead is responsible for ensuring no teammate's work is merged without review
 | Variable | Purpose | Set By |
 |----------|---------|--------|
 | `LOA_TEAM_ID` | Team identifier for audit trail | Lead (before spawning) |
-| `LOA_TEAM_MEMBER` | Teammate name for audit trail | Lead (per teammate) |
+| `LOA_TEAM_MEMBER` | Teammate name for audit trail; arms the three team hooks (unset: they are no-ops) | Lead (per teammate) |
 | `LOA_CURRENT_MODEL` | Model identifier (existing) | Runtime |
 | `LOA_CURRENT_PROVIDER` | Provider identifier (existing) | Runtime |
 | `LOA_TRACE_ID` | Distributed trace ID (existing) | Runtime |
@@ -350,7 +364,7 @@ A teammate ran `br` directly instead of going through the lead. Resolution:
 
 ### Teammate ignoring constraints
 
-Teammates load CLAUDE.md but may not follow all constraints perfectly. The lead should verify teammate output before marking tasks complete. The quality gates (review + audit) serve as the safety net.
+The team rules are not in the always-loaded kernel; point teammates at "Rules and arming" above in their spawn prompt, and export `LOA_TEAM_MEMBER` so the team hooks enforce them. Teammates may still not follow every rule. The lead should verify teammate output before marking tasks complete. The quality gates (review + audit) serve as the safety net.
 
 ### State file corruption
 

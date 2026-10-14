@@ -34,10 +34,19 @@ setup() {
     grep -qF 'memory lives in `grimoires/loa/NOTES.md`' "$LOA"
 }
 
+# cycle-129 D-4.5 (DEC-0140): the five C-TEAM rows left constraints.json; their
+# rationales now live verbatim in the agent-teams reference "Rules and arming"
+# table, so a C-TEAM rationale is found there instead of in the registry.
 @test "IDR-3 the twelve constraint rationales carry their pre-diet text" {
-    run python3 -I - "$R/.claude/data/constraints.json" "$R/tests/fixtures/constraint-rationales-pre-diet.json" <<'PY'
+    run python3 -I - "$R/.claude/data/constraints.json" "$R/tests/fixtures/constraint-rationales-pre-diet.json" \
+        "$R/.claude/loa/reference/agent-teams-reference.md" <<'PY'
 import json, sys
+ref = open(sys.argv[3], encoding="utf-8").read()
 found = {}
+for line in ref.splitlines():
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) == 3 and cells[0].startswith("C-TEAM-"):
+        found[cells[0]] = cells[2]
 def walk(x):
     if isinstance(x, dict):
         if "id" in x and "why" in x:

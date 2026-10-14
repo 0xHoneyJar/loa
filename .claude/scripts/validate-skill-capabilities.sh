@@ -87,7 +87,12 @@ VALID_EFFORTS=("low" "medium" "high" "xhigh" "max")
 # "no application code" boundary is enforced by ZONES, not by removing Write.
 # Adding a new write-capable review skill is intentionally a one-line edit here
 # with reviewer visibility (mirrors WRITE_CAPABLE_AGENTS).
-REVIEW_WRITE_EXCEPTIONS=("red-teaming" "bridgebuilder-review" "spiraling" "autonomous-agent" "run-bridge" "run-mode" "reviewing-code" "auditing-security")
+# rtfm-testing (cycle-129 D-4.2): writes its Phase 4 report under
+# grimoires/loa/a2a/rtfm/; Edit and NotebookEdit are disallowed.
+REVIEW_WRITE_EXCEPTIONS=("red-teaming" "bridgebuilder-review" "spiraling" "autonomous-agent" "run-bridge" "run-mode" "reviewing-code" "auditing-security" "rtfm-testing")
+# cycle-129 D-4.2: a pure-review skill (role: review, capabilities.write_files:
+# false) must remove all three write tools through disallowed-tools.
+PURE_REVIEW_STRIP=("Write" "Edit" "NotebookEdit")
 
 # Review-class keywords for heuristic linter (SDD §20.5 ATK-A13)
 # Skills declaring role: review|audit MUST have >=2 of these in body
@@ -612,6 +617,22 @@ validate_skill() {
             done
             if [[ "$is_exception" == "false" ]] && ! has_tool "$disallowed" "Write"; then
                 log_warning "$skill_name" "role: review with capabilities.write_files: true but Write not in disallowed-tools and not a documented write-exception — C-PROC-001 is enforced only by prose (cycle-114 FR-4)" || has_error=true
+            fi
+        fi
+        # --- cycle-129 D-4.2: a pure-review skill strips the write tools ---
+        # Read without `//` (yq's alternative operator treats an explicit
+        # false as absent); accept the list or the comma-string form.
+        local pr_wf pr_dis pr_missing="" pr_t
+        pr_wf=$(echo "$frontmatter" | yq eval '.capabilities.write_files' - 2>/dev/null) || pr_wf="null"
+        if [[ "$pr_wf" == "false" ]]; then
+            pr_dis=$(echo "$frontmatter" | yq eval '.disallowed-tools | ((select(tag == "!!seq") | join(",")) // .)' - 2>/dev/null) || pr_dis=""
+            [[ "$pr_dis" == "null" ]] && pr_dis=""
+            for pr_t in "${PURE_REVIEW_STRIP[@]}"; do
+                has_tool "$pr_dis" "$pr_t" || pr_missing+="${pr_missing:+, }$pr_t"
+            done
+            if [[ -n "$pr_missing" ]]; then
+                log_error "$skill_name" "pure-review skill (role: review, capabilities.write_files: false) must carry disallowed-tools: Write, Edit, NotebookEdit — missing: ${pr_missing} (cycle-129 D-4.2)"
+                has_error=true
             fi
         fi
     fi

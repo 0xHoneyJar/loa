@@ -90,6 +90,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
 | [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 4 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
+| [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 
 ---
 
@@ -1693,3 +1694,24 @@ If both Phase 1 voices succeeded and the scorer shows gpt_score null on every it
 ### Reading guide
 
 If a cycle kickoff shows this denial text, stop the cycle: it is the harness permission mode, not a Loa defect. Record the plan decisions in NOTES, leave the branch, and ask the operator to switch permission mode or add allow rules; run-preflight P1 is the mechanical check once the mode allows it. Do not retry the same outcome via sub-agents, other paths or later turns.
+
+## KF-043: Invoking a skill with disallowed-tools in the main session removes Write/Edit/NotebookEdit for the WHOLE session, including subagents
+
+**Status**: active
+**Feature**: skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe)
+**Symptom**: After the Skill tool loads a skill whose frontmatter has disallowed-tools: Write, Edit, NotebookEdit (e.g. flatline-knowledge), the next Write fails with 'Permission to use Write has been denied'; later calls report 'Edit is disabled for this session, in subagents as well as here'. Invoking a write-capable skill (implementing-tasks) does not restore them. Bash redirects keep working (the Bash gap).
+**First observed**: 2026-10-14 cycle-129 sprint-256 Task 2.2 live harness probe, Claude Code 2.1.296
+**Recurrence count**: 1
+**Current workaround**: Never probe or invoke a disallowed-tools skill in a working lead session; use a throwaway session or a subagent (where the key is NOT enforced at all). If it happens: finish state-zone writes through Bash (a2a, grimoires, .run; the fence FR-SZ2 blocks shell writes into .claude), run-halt the run with the reason in NOTES, and start a fresh session for anything that needs Write/Edit.
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-14 | re-invoked the write-capable implementing-tasks skill to reset the tool policy | no effect: Write/Edit stayed disabled for the session | grimoires/loa/NOTES.md 2026-10-14 ~14:30 entry; a2a/sprint-256/reviewer.md §Harness probe; cycle-129 sprint-256 commit |
+
+### Reading guide
+
+This is harness behaviour, not a Loa defect: the key IS enforced in the main session (good) but session-scoped (surprising) and unenforced in subagents (recorded in skill-invariants.md). Do not retry Write/Edit, do not re-invoke skills hoping to reset, do not ask a peer session to write for you (permission laundering). Halt and resume in a new session.

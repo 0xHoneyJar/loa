@@ -10,6 +10,29 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Profile (cycle-129, DEC-0143)
+# -----------------------------------------------------------------------------
+# One knob sets the defaults of the optional surfaces as a set:
+#   known_failures.surface_at_session_start, decisions.surface_at_session_start,
+#   karpathy_principles.surgical_diff_warning,
+#   karpathy_principles.require_success_criteria, guardrails.input.enabled,
+#   guardrails.danger_level.enforce, invisible_retrospective.enabled,
+#   structured_handoff.enabled, soul_identity_doc.enabled
+# `lean` turns them all off, `full` all on, and `standard` (the default) is the
+# per-key default this file shows (soul_identity_doc.enabled, not shown here,
+# is false). A key you set explicitly anywhere in
+# this file wins over the profile. The values per profile live in
+# .claude/data/profiles.yaml; `/loa` prints the effective profile and your
+# explicit overrides. No floor key is reachable through a profile: review,
+# audit, verdict-derive, the dissent artefact gate, the deny list, the
+# destructive-command fence, the System-Zone rules and every other floor
+# config key read the same configuration under every profile
+# (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
+# An unknown value warns and falls back to standard.
+loa:
+  profile: standard   # lean | standard | full
+
+# -----------------------------------------------------------------------------
 # Ride Configuration (v1.31.0)
 # -----------------------------------------------------------------------------
 # Controls /ride codebase analysis behavior.
@@ -551,6 +574,16 @@ run_mode:
   defaults:
     max_cycles: 20
     timeout_hours: 8
+  # Run position from files (cycle-129 FR-5): `run-checkpoint.sh derive` rebuilds
+  # .run/sprint-plan-state.json (.state canonical, .status mirrored, derived_at) and
+  # .run/circuit-breaker.json from COMPLETED markers, LOA-VERDICT trailers, the ledger
+  # and git at every checkpoint. false = report-only (the caches are written as before;
+  # the rollback key).
+  file_authoritative: true
+  # Hours after which a RUNNING run with no activity derives to INTERRUPTED, and after
+  # which a derived cache (derived_at) no longer counts as a known run position for the
+  # implement gate. Positive integer.
+  stale_hours: 12
   sprint_plan:
     branch_prefix: "feature/"
     default_branch_name: "release"
@@ -575,6 +608,34 @@ run_mode:
     # conventional commit markers like "feat(sprint-1): implementation".
     # Override if your project uses a different commit convention.
     sprint_commit_pattern: '^feat\(sprint-'
+
+# -----------------------------------------------------------------------------
+# Implement gate (cycle-129 FR-4(a); hook: .claude/hooks/compliance/implement-gate.sh)
+# -----------------------------------------------------------------------------
+# PreToolUse check on Write/Edit/NotebookEdit into the App Zone (src/, lib/, app/)
+# outside an implementation run. A write is SANCTIONED (allowed, one audit row each) by:
+#   - a RUNNING run cache (.run/sprint-plan-state.json or .run/state.json, fresh
+#     last_activity, and derived_at within run_mode.stale_hours when present);
+#   - .run/implement-active.json {skill: implement|bug, sprint, started_at} younger than
+#     two hours (`run-checkpoint.sh mark` at the start of /implement and /bug, `unmark`
+#     at the end); a stale or malformed marker is logged and does not sanction;
+#   - LOA_IMPLEMENT_GATE_OVERRIDE=1 in the session environment (audited, one row per write).
+# An unsanctioned App-Zone write is then handled by `mode`:
+#   ask        (default) asks for confirmation, as before, and logs one row per ask
+#   telemetry  logs one row to .run/audit.jsonl and allows silently
+#   deny       refuses the write when the derived run position is known (the cache parses
+#              and its derived_at is within run_mode.stale_hours); an unknown position
+#              (missing, not derived, stale, unparseable) asks instead, never allows.
+#              The hook is a fence only in this mode.
+# Writes to the gate's own inputs (.run state files, .run/audit.jsonl, the marker,
+# .loa.config.yaml) ask in every mode and under every sanction.
+# `claims: authoritative` is a tighten-only modifier for any mode: a model-authored
+# tool_input.active_skill naming a non-implementation skill asks (or, under deny, is
+# denied), and never allows by itself. The legacy `mode: authoritative` means
+# mode: ask + claims: authoritative. /loa prints the effective mode on its Gate line.
+implement_gate:
+  mode: ask                      # ask | telemetry | deny
+  # claims: authoritative        # optional, tighten-only
 
 # -----------------------------------------------------------------------------
 # Notifications (cycle-117 item C)
@@ -1176,6 +1237,13 @@ destructive_command_guard:
   # Timeout for pattern matching (milliseconds)
   timeout_ms: 100
 
+  # Heredoc consumer classifier (cycle-129 FR-6). true (default): the Bash
+  # fence scans a heredoc body in full only when its consumer may execute it,
+  # and scans a non-executing body per segment. false: the pre-cycle scan
+  # (rollback key; turning it off only tightens). See hooks-reference.md,
+  # "Heredoc consumer classification".
+  heredoc_classifier: true
+
   # Security packs to load (core is always loaded)
   # Each pack adds domain-specific patterns
   packs:
@@ -1277,10 +1345,17 @@ upstream_proposals:
 # Pre-execution validation for skill invocations. Provides PII filtering,
 # injection detection, and relevance checking before skills execute.
 # Based on OpenAI's "A Practical Guide to Building Agents" guardrails pattern.
+#
+# Default OFF since cycle-129 (DEC-0161): across 82 recorded guardrail events
+# the input guardrails caught nothing, and danger-level enforcement blocked
+# the sanctioned skills seven times. Turn them on with
+# `guardrails.input.enabled: true` (the orchestrator then logs PASS/BLOCK
+# events to the trajectory) and `guardrails.danger_level.enforce: true`.
+# Both keys are part of the `loa.profile` set (`full` turns them on).
 guardrails:
   # Input guardrails (pre-execution)
   input:
-    enabled: true
+    enabled: false
 
     # PII Filter: Detect and redact sensitive data before processing
     # Actions: redact (replace with placeholder), anonymize (generic value)
@@ -1326,7 +1401,7 @@ guardrails:
   # Danger Level Enforcement: Tool risk classification
   # Levels: safe, moderate, high, critical
   danger_level:
-    enforce: true
+    enforce: false                # see the default-off note above the block
     interactive:
       safe: execute               # Execute immediately
       moderate: execute_with_notice  # Brief notice in output

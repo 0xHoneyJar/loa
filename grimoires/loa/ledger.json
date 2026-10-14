@@ -2478,9 +2478,9 @@
         {
           "global_id": 255,
           "local_label": "sprint-1",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-13T21:27:39Z",
-          "completed": null,
+          "completed": "2026-10-14T01:15:45Z",
           "theme": "Guard register and yield, control arms, task kinds, rule path-scoping",
           "epic": "bd-61r5",
           "beads": [
@@ -2501,7 +2501,7 @@
         {
           "global_id": 256,
           "local_label": "sprint-2",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-13T21:27:40Z",
           "completed": null,
           "theme": "Inert controls retired or repaired, file-authoritative run position, heredoc false positives, profile knob, prose diet",
@@ -2939,5 +2939,5 @@
     }
   ],
   "next_sprint_number": 258,
-  "last_updated": "2026-10-13T22:30:30Z"
+  "last_updated": "2026-10-14T01:15:45Z"
 }

@@ -61,13 +61,11 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:11663b90 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:957e7f01 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
-`LOA_GUARDRAILS_ENABLED=false`.
-
-Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+Run only if `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false` prints `true`
+and env `LOA_GUARDRAILS_ENABLED` is not `false`: write the prompt/args to a temp file (Write tool), then run
 `.claude/scripts/guardrails-orchestrator.sh --skill auditing-security --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
 | Outcome | Action |
@@ -283,12 +281,12 @@ With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the audit comment, the
 </beads_workflow>
 
 <retrospective_postlude>
-<!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
-After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
-(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+<!-- @skill-include: start retrospective_postlude | hash:53d44248 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
+After the main skill logic, if `.claude/scripts/lib/profile-lib.sh knob invisible_retrospective.enabled`
+prints `true` (and `invisible_retrospective.skills` does not disable this skill), silently run the
 learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
-`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
-never when the active skill is continuous-learning itself.
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Never when the
+active skill is continuous-learning itself.
 <!-- @skill-include: end retrospective_postlude -->
 </retrospective_postlude>
 

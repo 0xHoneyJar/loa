@@ -63,7 +63,16 @@ command -v yq >/dev/null 2>&1 || exit 0
 
 # Read enable / mode / max-chars / path keys. Silent on malformed YAML
 # (each yq returns the default).
-enabled="$(yq '.soul_identity_doc.enabled // false' "$config_path" 2>/dev/null || echo false)"
+# The enable key: explicit, else the loa.profile default (cycle-129 D-9.1).
+enabled="false"
+# shellcheck source=../../scripts/lib/profile-lib.sh
+if source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null; then
+    if [[ "$config_path" != "${REPO_ROOT}/.loa.config.yaml" ]]; then
+        enabled="$(LOA_PROFILE_CONFIG_FILE="$config_path" loa_knob soul_identity_doc.enabled false 2>/dev/null || echo false)"
+    else
+        enabled="$(loa_knob soul_identity_doc.enabled false 2>/dev/null || echo false)"
+    fi
+fi
 [[ "$enabled" == "true" ]] || exit 0
 
 schema_mode="$(yq '.soul_identity_doc.schema_mode // "warn"' "$config_path" 2>/dev/null || echo warn)"

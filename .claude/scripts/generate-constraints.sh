@@ -24,11 +24,22 @@ readonly -a SECTIONS=(
   "simstim_constraints|.claude/skills/simstim-workflow/SKILL.md|skill-md-constraints.jq|[\"C-PHASE-002\",\"C-PHASE-003\",\"C-PHASE-004\",\"C-PHASE-007\",\"C-PHASE-008\",\"C-PROC-005\",\"C-PHASE-005\",\"C-PROC-002\",\"C-PROC-006\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "implementing_tasks_constraints|.claude/skills/implementing-tasks/SKILL.md|skill-md-constraints.jq|[.constraints[] | select(.layers[] | select(.target == \"skill-md\" and (.skills | index(\"implementing-tasks\"))))] | sort_by(.order)"
   "merge_constraints|.claude/loa/CLAUDE.loa.md|claude-loa-md-table.jq|[.constraints[] | select(.layers[] | select(.section == \"merge_constraints\"))] | sort_by(.order)"
+  "agent_teams_constraints|.claude/loa/CLAUDE.loa.md|claude-loa-md-table.jq|[.constraints[] | select(.layers[] | select(.section == \"agent_teams_constraints\"))] | sort_by(.order)"
   "discovering_requirements_grants|.claude/skills/discovering-requirements/SKILL.md|skill-md-constraints.jq|[\"C-PERM-001\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "reviewing_code_grants|.claude/skills/reviewing-code/SKILL.md|skill-md-constraints.jq|[\"C-PERM-003\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "bridgebuilder_review_grants|.claude/skills/bridgebuilder-review/SKILL.md|skill-md-constraints.jq|[\"C-PERM-001\",\"C-PERM-003\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "run_bridge_constraints|.claude/skills/run-bridge/SKILL.md|skill-md-constraints.jq|[\"C-BRIDGE-001\",\"C-BRIDGE-002\",\"C-BRIDGE-003\",\"C-BRIDGE-004\",\"C-BRIDGE-005\",\"C-BRIDGE-006\",\"C-BRIDGE-007\",\"C-BRIDGE-008\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "deploying_infrastructure_merge|.claude/skills/deploying-infrastructure/SKILL.md|skill-md-constraints.jq|[\"C-MERGE-003\",\"C-MERGE-004\",\"C-MERGE-005\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
+)
+
+# Optional tables: section_name|heading line. When the section's filter selects
+# no rows, the whole block (the heading, the table header, the marker block and
+# one trailing blank line) is removed from the target instead of rendering an
+# empty table (cycle-129 D-4.5). Restoring rows later needs the heading block
+# back first (`--bootstrap` cannot re-create a heading): insert_generated_section
+# then fails with "Missing markers", naming the section.
+readonly -a OPTIONAL_TABLES=(
+  "agent_teams_constraints|## Agent Teams"
 )
 
 # Flags
@@ -131,6 +142,65 @@ insert_generated_section() {
     log "ERROR: Missing markers in ${file} for section '${section}'. Run with --bootstrap --confirm to insert."
     return 1
   fi
+}
+
+# Prints the heading of an optional table section; returns 1 when the section
+# is not optional.
+optional_table_heading() {
+  local section="$1" entry o_name o_heading
+  for entry in "${OPTIONAL_TABLES[@]}"; do
+    IFS='|' read -r o_name o_heading <<< "$entry"
+    if [[ "$o_name" == "$section" ]]; then
+      printf '%s\n' "$o_heading"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Removes an optional table block from FILE: the exact heading line, the
+# table-header lines between it and the start marker, the marker block, and
+# one blank line after the end marker. A file without the start marker is
+# already pruned (no-op). Anything else between the heading and the start
+# marker, a missing heading or a missing end marker is an error and leaves
+# FILE untouched.
+prune_optional_table() {
+  local file="$1" section="$2" heading="$3"
+  if ! grep -q "@constraint-generated: start ${section} " "$file"; then
+    verbose "Optional section ${section} already absent from ${file}"
+    return 0
+  fi
+  local tmp="${file}.prune-tmp" rc=0
+  awk -v heading="$heading" \
+      -v start="@constraint-generated: start ${section} " \
+      -v end="@constraint-generated: end ${section} " '
+    function flush(   i) { for (i = 1; i <= n; i++) print buf[i]; n = 0 }
+    state == "" && $0 == heading { state = "head"; n = 0; buf[++n] = $0; next }
+    state == "head" {
+      if (index($0, start)) { state = "skip"; n = 0; next }
+      if ($0 ~ /^\|/ || $0 ~ /^[[:space:]]*$/) { buf[++n] = $0; next }
+      flush(); state = ""; print; next
+    }
+    state == "skip" { if (index($0, end)) state = "after"; next }
+    state == "after" { state = "done"; if ($0 ~ /^[[:space:]]*$/) next }
+    { print }
+    END {
+      if (state == "head") flush()
+      if (state == "skip") exit 3
+      if (state == "" ) exit 4
+    }
+  ' "$file" > "$tmp" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    rm -f "$tmp"
+    case "$rc" in
+      3) log "ERROR: ${file}: no end marker for optional section '${section}'" ;;
+      4) log "ERROR: ${file}: optional section '${section}' has markers but no '${heading}' heading directly above its table" ;;
+      *) log "ERROR: ${file}: pruning optional section '${section}' failed (awk exit ${rc})" ;;
+    esac
+    return 1
+  fi
+  mv "$tmp" "$file"
+  verbose "Pruned empty optional section ${section} (${heading}) from ${file}"
 }
 
 # ============================================================================
@@ -298,6 +368,19 @@ generate_all_sections() {
       local s_data="${section_data[$section]}"
       local s_target s_template s_filter
       IFS='|' read -r s_target s_template s_filter <<< "$s_data"
+
+      local o_heading
+      if o_heading=$(optional_table_heading "$section"); then
+        local o_rows
+        o_rows=$(jq -r "$s_filter | length" "$REGISTRY")
+        if [[ "$o_rows" == "0" ]]; then
+          if [[ "$BOOTSTRAP" != "true" ]] && ! prune_optional_table "$tmp" "$section" "$o_heading"; then
+            log "ERROR: Generation failed for section '${section}' — no files modified"
+            return 1
+          fi
+          continue
+        fi
+      fi
 
       verbose "Rendering section: $section"
       local content

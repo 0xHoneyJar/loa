@@ -616,3 +616,14 @@ registry:
 # tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
 aleph:
   enabled: false
+
+# =============================================================================
+# Guardrails (cycle-129 D-4.4, DEC-0161) — the example ships both keys false.
+# This repository keeps the input guardrails on as telemetry (the orchestrator
+# logs PASS/BLOCK events to the trajectory) and turns danger-level enforcement off.
+# =============================================================================
+guardrails:
+  input:
+    enabled: true
+  danger_level:
+    enforce: false

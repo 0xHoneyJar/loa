@@ -2,7 +2,7 @@ name: Prompt Budget
 
 # cycle-124 FR-8 (AC-8.1): the always-loaded prompt surface has hard byte
 # budgets — SKILL.md ≤ 16,384 B (charged with unconditionally-read resources),
-# CLAUDE.loa.md ≤ 10,240 B, protocols total ≤ 160,000 B (warn > 114,688 B).
+# CLAUDE.loa.md ≤ 9,445 B, protocols total ≤ 160,000 B (warn > 114,688 B).
 # tools/check-prompt-budget.sh is the gate; the two sentinel steps prove the
 # gate itself still bites (a scanner that exits 0 from a syntax error must not
 # read as green).

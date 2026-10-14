@@ -161,7 +161,10 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     printf '{"plan_id":"p","state":"RUNNING","timestamps":{"last_activity":"%s"}}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ROOT/.run/sprint-plan-state.json"
     gate_with write-app-active-review.json
     [ "$(decision)" = allow ]
-    [ ! -e "$ROOT/.run/audit.jsonl" ]
+    # cycle-129 D-4.1: the sanctioned write leaves exactly one sanctioned_run row and no model_signal row
+    run jq -sc 'map([.hook, .action, .decision])' "$ROOT/.run/audit.jsonl"
+    [ "$output" = '[["implement-gate","allow","sanctioned_run"]]' ]
+    rm -f "$ROOT/.run/audit.jsonl"
     opt_in
     gate_with write-app-active-review.json
     [ "$(decision)" = ask ]
@@ -471,8 +474,275 @@ state_aged() {
     [ "$(decision)" = ask ]
 }
 
-@test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {
-    # sprint-250 review run 1, n20: a bare mid-test `! grep` cannot fail
-    run -1 grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"
-    run -1 grep -rq 'implement_gate' "$REPO/docs" "$REPO/README.md"
+@test "IG-11 the example documents implement_gate: the three modes, the claims modifier, the sanction paths and the override; the default is ask (cycle-129 D-4.1 supersedes the cycle-126 'undocumented' pin)" {
+    local ex="$REPO/.loa.config.yaml.example" block
+    # the comment block above the key, then the key's own lines
+    block=$(sed -n '/^# Implement gate/,/^implement_gate:/p' "$ex"; sed -n '/^implement_gate:/,/^[^ #]/p' "$ex")
+    grep -q '^implement_gate:' <<<"$block"
+    command -v yq >/dev/null && [ "$(yq '.implement_gate.mode' "$ex")" = ask ]
+    local w
+    for w in 'telemetry' 'deny' 'claims' 'authoritative' 'implement-active.json' 'LOA_IMPLEMENT_GATE_OVERRIDE' 'stale_hours' 'fence only'; do
+        grep -qF -- "$w" <<<"$block" || { echo "implement_gate block does not mention $w" >&2; return 1; }
+    done
+}
+
+# =============================================================================
+# cycle-129 Sprint 2 Task 2.1 (SDD D-4.1, PRD AC-4.1): the mode matrix
+# mode {unset, ask, telemetry, deny} × claims {plain, authoritative} × write {app, trust}
+# × sanction {none, run_fresh, run_stale, marker_fresh, marker_stale, override}
+# × cache {fresh, stale, missing, unparseable} (run_* sanctions define the cache themselves)
+# =============================================================================
+
+# $1 mode (unset = no key) $2 claims (plain | authoritative)
+cfg_gate() {
+    : > "$ROOT/.loa.config.yaml"
+    if [[ "$1" != unset || "$2" == authoritative ]]; then
+        printf 'implement_gate:\n' >> "$ROOT/.loa.config.yaml"
+        [[ "$1" != unset ]] && printf '  mode: %s\n' "$1" >> "$ROOT/.loa.config.yaml"
+        [[ "$2" == authoritative ]] && printf '  claims: authoritative\n' >> "$ROOT/.loa.config.yaml"
+    fi
+    return 0
+}
+
+# $1 cache: fresh | stale | missing | unparseable | run_fresh | run_stale (jq now: portable, no GNU date -d)
+cache_state() {
+    rm -f "$ROOT/.run/sprint-plan-state.json"
+    case "$1" in
+        missing) ;;
+        unparseable) printf '{"state": "RUNNING", \n' > "$ROOT/.run/sprint-plan-state.json" ;;
+        fresh)     jq -nc '{plan_id: "p", state: "COMPLETE", status: "COMPLETE", derived_at: (now | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/sprint-plan-state.json" ;;
+        stale)     jq -nc '{plan_id: "p", state: "COMPLETE", status: "COMPLETE", derived_at: (now - 13 * 3600 | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/sprint-plan-state.json" ;;
+        run_fresh) jq -nc '{plan_id: "p", state: "RUNNING", status: "RUNNING", derived_at: (now | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/sprint-plan-state.json" ;;
+        run_stale) jq -nc '{plan_id: "p", state: "RUNNING", status: "RUNNING", derived_at: (now - 13 * 3600 | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/sprint-plan-state.json" ;;
+    esac
+}
+
+# $1 sanction: none | marker_fresh | marker_stale | override (run_* handled by cache_state); echoes the override value
+marker_state() {
+    rm -f "$ROOT/.run/implement-active.json"
+    case "$1" in
+        marker_fresh) jq -nc '{skill: "implement", sprint: "sprint-256", started_at: (now | floor | todate)}' > "$ROOT/.run/implement-active.json" ;;
+        marker_stale) jq -nc '{skill: "bug", sprint: "sprint-bug-9", started_at: (now - 3 * 3600 | floor | todate)}' > "$ROOT/.run/implement-active.json" ;;
+    esac
+}
+
+# $1 path $2 claims $3 override (1 or empty) — stdout/stderr split, LOA_AUDIT_REPLAY=1
+gate_cell() {
+    if [[ "$2" == authoritative ]]; then
+        jq -nc --arg p "$1" '{tool_name: "Write", tool_input: {file_path: $p, content: "x", active_skill: "review-sprint"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    else
+        jq -nc --arg p "$1" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    fi
+    run --separate-stderr env -u LOA_IMPLEMENT_GATE_OVERRIDE ${3:+LOA_IMPLEMENT_GATE_OVERRIDE=$3} LOA_AUDIT_REPLAY=1 \
+        bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+}
+
+# allow | ask | deny | invalid:<stdout>
+decision3() {
+    if [[ -z "$output" ]]; then echo allow; return; fi
+    local d
+    d=$(jq -r 'if (has("decision") | not) and .hookSpecificOutput.hookEventName == "PreToolUse"
+                  and (.hookSpecificOutput.permissionDecisionReason | type == "string" and length > 0)
+               then .hookSpecificOutput.permissionDecision else "invalid" end' <<<"$output" 2>/dev/null) || d=invalid
+    case "$d" in ask|deny) echo "$d" ;; *) echo "invalid:$output" ;; esac
+}
+
+# The expected "<decision> <row>" for one cell; row = action/decision of the write's decision row
+expect_cell() {
+    local mode="$1" claims="$2" wclass="$3" sanction="$4" cache="$5" sanctioned=0 known=0
+    [[ "$mode" == unset ]] && mode=ask
+    if [[ "$wclass" == trust ]]; then echo "ask ask/trust_input"; return; fi
+    case "$sanction" in run_fresh|marker_fresh|override) sanctioned=1 ;; esac
+    case "$cache" in fresh|run_fresh) known=1 ;; esac
+    if [[ "$claims" == authoritative ]]; then
+        if [[ "$mode" == deny ]] && (( ! sanctioned && known )); then echo "deny deny/deny"; else echo "ask ask/ask"; fi
+        return
+    fi
+    if (( sanctioned )); then
+        case "$sanction" in run_fresh) echo "allow allow/sanctioned_run" ;; marker_fresh) echo "allow allow/sanctioned_marker" ;; *) echo "allow allow/override" ;; esac
+        return
+    fi
+    case "$mode" in
+        ask) echo "ask ask/ask" ;;
+        telemetry) echo "allow telemetry/outside_run" ;;
+        deny) if (( known )); then echo "deny deny/deny"; else echo "ask ask/unknown_position"; fi ;;
+    esac
+}
+
+# Runs every claims × write × sanction × cache cell for one mode and checks decision, row, row count, replay flag
+run_mode_matrix() {
+    local mode="$1" claims wclass sanction cache path got want row rows n_note n
+    command -v yq >/dev/null || skip "yq not installed"
+    for claims in plain authoritative; do
+        cfg_gate "$mode" "$claims"
+        for wclass in app trust; do
+            if [[ "$wclass" == app ]]; then path="$ROOT/src/x.ts"; else path="$ROOT/.run/state.json"; fi
+            for sanction in none run_fresh run_stale marker_fresh marker_stale override; do
+                for cache in fresh stale missing unparseable; do
+                    case "$sanction" in run_*) [[ "$cache" == fresh ]] || continue; cache="$sanction" ;; esac
+                    cache_state "$cache"; marker_state "$sanction"
+                    rm -f "$ROOT/.run/audit.jsonl"
+                    gate_cell "$path" "$claims" "$([[ "$sanction" == override ]] && echo 1)"
+                    local cell="mode=$mode claims=$claims write=$wclass sanction=$sanction cache=$cache"
+                    [ "$status" -eq 0 ] || { echo "$cell: exit $status" >&2; return 1; }
+                    want=$(expect_cell "$mode" "$claims" "$wclass" "$sanction" "$cache")
+                    got="$(decision3)"
+                    [ "$got" = "${want%% *}" ] || { echo "$cell: expected ${want%% *}, got $got" >&2; return 1; }
+                    # the write's decision row: the claim row (model_signal), the trust row (state_write) or the gate row
+                    row=$(jq -sr 'map(select(.action != "note" and (.hook == "implement-gate"))) | if length == 1 then "\(.[0].action)/\(.[0].decision)" else "count:\(length)" end' "$ROOT/.run/audit.jsonl" 2>/dev/null) || row="no-rows"
+                    [ "$row" = "${want#* }" ] || { echo "$cell: expected row ${want#* }, got $row" >&2; cat "$ROOT/.run/audit.jsonl" >&2; return 1; }
+                    # a stale marker logs stale_marker (and never sanctions) whenever the run path did not sanction first
+                    n_note=$(jq -s 'map(select(.decision == "stale_marker")) | length' "$ROOT/.run/audit.jsonl")
+                    if [[ "$wclass" == app && "$sanction" == marker_stale ]]; then
+                        [ "$n_note" = 1 ] || { echo "$cell: expected one stale_marker row, got $n_note" >&2; return 1; }
+                    else
+                        [ "$n_note" = 0 ] || { echo "$cell: unexpected stale_marker row" >&2; return 1; }
+                    fi
+                    # every row this gate wrote carries replay: true under LOA_AUDIT_REPLAY=1 (DEC-0167)
+                    n=$(jq -s 'map(select(.replay != true)) | length' "$ROOT/.run/audit.jsonl")
+                    [ "$n" = 0 ] || { echo "$cell: $n rows without replay: true" >&2; return 1; }
+                    # telemetry prints nothing at all
+                    if [[ "${want#* }" == telemetry/outside_run ]]; then
+                        [[ -z "$output" && -z "$stderr" ]] || { echo "$cell: telemetry printed something" >&2; return 1; }
+                    fi
+                done
+            done
+        done
+    done
+}
+
+@test "IG-24 matrix, implement_gate unset: behaves exactly as ask in every cell" {
+    run_mode_matrix unset
+}
+
+@test "IG-25 matrix, mode ask: unsanctioned App-Zone writes ask with one ask row; sanctions allow with their own row; trust inputs ask" {
+    run_mode_matrix ask
+}
+
+@test "IG-26 matrix, mode telemetry: an unsanctioned App-Zone write logs one outside_run row and prints nothing; a non-implementation claim still asks" {
+    run_mode_matrix telemetry
+}
+
+@test "IG-27 matrix, mode deny: deny only for an unsanctioned App-Zone write with a fresh derived cache; an unknown position asks; trust inputs ask" {
+    run_mode_matrix deny
+}
+
+@test "IG-28 the telemetry row has exactly the documented keys and a control-stripped path of at most 256 bytes; without LOA_AUDIT_REPLAY no replay key" {
+    command -v yq >/dev/null || skip "yq not installed"
+    cfg_gate telemetry plain
+    jq -nc --arg p "$ROOT/src/a"$'\x1b'"[31mb.ts" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr env -u LOA_AUDIT_REPLAY -u LOA_IMPLEMENT_GATE_OVERRIDE bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    [ -z "$stderr" ]
+    run jq -c 'keys' "$ROOT/.run/audit.jsonl"
+    [ "$output" = '["action","decision","hook","mode","path","ts"]' ]
+    run jq -r '[.hook, .action, .decision, .mode, .path] | join(" ")' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "implement-gate telemetry outside_run telemetry $ROOT/src/a[31mb.ts" ]
+    run -1 env LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]' "$ROOT/.run/audit.jsonl"
+    local long
+    long=$(printf 'k%.0s' {1..400})
+    rm -f "$ROOT/.run/audit.jsonl"
+    jq -nc --arg p "$ROOT/src/$long.ts" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr env -u LOA_AUDIT_REPLAY bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    run jq -j '.path' "$ROOT/.run/audit.jsonl"
+    [ "$(printf '%s' "$output" | LC_ALL=C wc -c)" -le 256 ]
+}
+
+@test "IG-29 the deny reply is a valid PreToolUse deny naming the derived position; the legacy mode: authoritative is ask + claims authoritative" {
+    command -v yq >/dev/null || skip "yq not installed"
+    cfg_gate deny plain
+    cache_state fresh
+    marker_state none
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = deny ]
+    run jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output"
+    [ "$output" = "App Zone write with no active implementation run (derived position: COMPLETE); run /implement or /bug, or set implement_gate.mode: ask" ]
+    # mode: authoritative keeps working: ask, and a review claim asks even with a fresh RUNNING cache
+    printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.config.yaml"
+    run bash "$GATE" --effective-mode "$ROOT/.loa.config.yaml"
+    [ "$output" = "ask (claims: authoritative)" ]
+    cache_state run_fresh
+    gate_cell "$ROOT/src/x.ts" authoritative ""
+    [ "$(decision3)" = ask ]
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = allow ]
+}
+
+@test "IG-30 --effective-mode reads no stdin and prints the effective mode: unset/unknown → ask, the three modes, the claims modifier" {
+    command -v yq >/dev/null || skip "yq not installed"
+    run bash "$GATE" --effective-mode "$ROOT/no-such.yaml" < /dev/null
+    [ "$output" = ask ]
+    printf 'implement_gate:\n  mode: bogus\n' > "$ROOT/.loa.config.yaml"
+    run bash "$GATE" --effective-mode "$ROOT/.loa.config.yaml"
+    [ "$output" = ask ]
+    local m
+    for m in ask telemetry deny; do
+        cfg_gate "$m" plain
+        run bash "$GATE" --effective-mode "$ROOT/.loa.config.yaml"
+        [ "$output" = "$m" ]
+    done
+    cfg_gate telemetry authoritative
+    run bash "$GATE" --effective-mode "$ROOT/.loa.config.yaml"
+    [ "$output" = "telemetry (claims: authoritative)" ]
+    # default config path is PROJECT_ROOT/.loa.config.yaml
+    run env PROJECT_ROOT="$ROOT" bash "$GATE" --effective-mode
+    [ "$output" = "telemetry (claims: authoritative)" ]
+}
+
+@test "IG-31 the implementing-skill marker is a trust input: a Write-tool write to it asks in every mode, even under a sanction" {
+    command -v yq >/dev/null || skip "yq not installed"
+    local m
+    for m in ask telemetry deny; do
+        cfg_gate "$m" plain
+        cache_state run_fresh
+        rm -f "$ROOT/.run/audit.jsonl"
+        gate_cell "$ROOT/.run/implement-active.json" plain 1
+        [ "$(decision3)" = ask ] || { echo "$m: expected ask" >&2; return 1; }
+        run jq -r '[.event, .action, .decision, .mode] | join(" ")' "$ROOT/.run/audit.jsonl"
+        [ "$output" = "compliance.state_write ask trust_input $m" ]
+    done
+}
+
+@test "IG-32 a marker for another skill, without a sprint, or dated in the future does not sanction and logs stale_marker" {
+    command -v yq >/dev/null || skip "yq not installed"
+    cfg_gate ask plain
+    cache_state missing
+    local body
+    for body in '{skill: "review", sprint: "sprint-1", started_at: (now | floor | todate)}' \
+                '{skill: "implement", started_at: (now | floor | todate)}' \
+                '{skill: "implement", sprint: "sprint-1", started_at: (now + 3600 | floor | todate)}' \
+                '{skill: "implement", sprint: "sprint-1", started_at: "yesterday"}'; do
+        jq -nc "$body" > "$ROOT/.run/implement-active.json"
+        rm -f "$ROOT/.run/audit.jsonl"
+        gate_cell "$ROOT/src/x.ts" plain ""
+        [ "$(decision3)" = ask ] || { echo "$body: expected ask" >&2; return 1; }
+        run jq -sr 'map(.decision) | join(",")' "$ROOT/.run/audit.jsonl"
+        [ "$output" = "stale_marker,ask" ] || { echo "$body: rows $output" >&2; return 1; }
+    done
+    printf 'not json' > "$ROOT/.run/implement-active.json"
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = ask ]
+}
+
+@test "IG-33 a RUNNING state.json whose derived_at is older than run_mode.stale_hours does not sanction; run_mode.stale_hours narrows the window" {
+    command -v yq >/dev/null || skip "yq not installed"
+    printf 'implement_gate:\n  mode: ask\nrun_mode:\n  stale_hours: 2\n' > "$ROOT/.loa.config.yaml"
+    marker_state none
+    cache_state missing
+    jq -nc '{state: "RUNNING", derived_at: (now - 3 * 3600 | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/state.json"
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = ask ]
+    jq -nc '{state: "RUNNING", derived_at: (now - 3600 | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/state.json"
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = allow ]
+    # a sprint-plan cache derived 3 h ago is stale under stale_hours: 2 → deny falls back to ask
+    rm -f "$ROOT/.run/state.json"
+    printf 'implement_gate:\n  mode: deny\nrun_mode:\n  stale_hours: 2\n' > "$ROOT/.loa.config.yaml"
+    jq -nc '{plan_id: "p", state: "COMPLETE", derived_at: (now - 3 * 3600 | floor | todate), timestamps: {last_activity: (now | floor | todate)}}' > "$ROOT/.run/sprint-plan-state.json"
+    rm -f "$ROOT/.run/audit.jsonl"
+    gate_cell "$ROOT/src/x.ts" plain ""
+    [ "$(decision3)" = ask ]
+    run jq -r '.decision' "$ROOT/.run/audit.jsonl"
+    [ "$output" = unknown_position ]
 }

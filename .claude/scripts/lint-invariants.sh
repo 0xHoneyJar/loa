@@ -220,6 +220,36 @@ check_constraint_blocks() {
 }
 
 # ---------------------------------------------------------------------------
+# Invariant 4b: optional constraint tables appear exactly when their class has
+# rows (cycle-129 D-4.5). generate-constraints.sh omits the "## Agent Teams"
+# table when constraints.json has no agent_teams_constraints rows; the kernel
+# must then carry neither the heading nor the marker, and must carry the
+# marker whenever the rows exist.
+# ---------------------------------------------------------------------------
+check_optional_constraint_tables() {
+  local file=".claude/loa/CLAUDE.loa.md" registry=".claude/data/constraints.json"
+  [[ -f "$file" && -f "$registry" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq empty "$registry" 2>/dev/null || return 0   # invariant 3 reports invalid JSON
+
+  local entry section heading rows has_marker has_heading
+  for entry in "agent_teams_constraints|## Agent Teams"; do
+    IFS='|' read -r section heading <<< "$entry"
+    rows=$(jq --arg s "$section" '[.constraints[]? | select(any(.layers[]?; .section == $s))] | length' "$registry" 2>/dev/null || echo 0)
+    has_marker=0; has_heading=0
+    grep -q "@constraint-generated: start ${section} " "$file" 2>/dev/null && has_marker=1
+    grep -qxF "$heading" "$file" 2>/dev/null && has_heading=1
+    if [[ "$rows" -eq 0 && ( "$has_marker" -eq 1 || "$has_heading" -eq 1 ) ]]; then
+      report "ERROR" "constraint-blocks" "${section}: constraints.json has no rows but CLAUDE.loa.md still carries the '${heading}' table — run generate-constraints.sh"
+    elif [[ "$rows" -gt 0 && "$has_marker" -eq 0 ]]; then
+      report "ERROR" "constraint-blocks" "${section}: constraints.json has ${rows} row(s) but CLAUDE.loa.md has no ${section} block — restore the '${heading}' heading block, then run generate-constraints.sh"
+    else
+      report "PASS" "constraint-blocks" "${section}: table presence matches constraints.json (${rows} row(s))"
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # Invariant 5: Required files present
 # ---------------------------------------------------------------------------
 check_required_files() {
@@ -564,6 +594,7 @@ check_system_zone
 check_claude_md
 check_constraints
 check_constraint_blocks
+check_optional_constraint_tables
 check_required_files
 check_hook_executables
 check_hooks_json

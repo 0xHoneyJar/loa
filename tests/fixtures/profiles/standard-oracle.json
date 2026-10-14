@@ -1,0 +1,81 @@
+{
+  "_comment": "Captured at b6802e4f (2026-10-14) BEFORE any cycle-129 Sprint 2 reader or config change, by evaluating each reader's own yq expression against three configs: the shipped example (.loa.config.yaml.example, what a fresh install copies), this repository's .loa.config.yaml, and an empty config (the reader's own fallback). `standard` is the value profiles.yaml must carry for the key: the post-cycle example default (DEC-0128, DEC-0143). For every key except the two guardrail keys it equals example_today. The two guardrail keys change default in this cycle (D-4.4, DEC-0161): example_today records the old default and standard the new one, side by side. tests/unit/profile-lib.bats compares profiles.yaml against this file. Note: the readers that used `// true` (guardrails.input.enabled, guardrails.danger_level.enforce, karpathy_principles.require_success_criteria) read an explicit `false` as true, because yq's alternative operator treats false like null; the values below are what those expressions returned, and none of the three configs set an explicit false for those keys at capture time.",
+  "captured_at_commit": "b6802e4f",
+  "captured_on": "2026-10-14",
+  "keys": {
+    "known_failures.surface_at_session_start": {
+      "reader": ".claude/hooks/loa-kf-surface.sh",
+      "expr": "yq '.known_failures.surface_at_session_start // false'",
+      "example_today": false,
+      "this_repo_today": true,
+      "empty_config_today": false,
+      "standard": false
+    },
+    "decisions.surface_at_session_start": {
+      "reader": ".claude/hooks/session-start/loa-decisions-surface.sh",
+      "expr": "yq '.decisions.surface_at_session_start // false'",
+      "example_today": false,
+      "this_repo_today": false,
+      "empty_config_today": false,
+      "standard": false
+    },
+    "karpathy_principles.surgical_diff_warning": {
+      "reader": ".claude/hooks/quality/karpathy-surgical-diff-check.sh",
+      "expr": "yq -r '.karpathy_principles.surgical_diff_warning | tostring | (. == \"false\" or ... \"OFF\")' (the hook runs unless an explicit false-equivalent is set)",
+      "example_today": true,
+      "this_repo_today": true,
+      "empty_config_today": true,
+      "standard": true
+    },
+    "karpathy_principles.require_success_criteria": {
+      "reader": ".claude/skills/implementing-tasks/SKILL.md (karpathy_goal_driven_gate)",
+      "expr": "yq eval '.karpathy_principles.require_success_criteria // true'",
+      "example_today": true,
+      "this_repo_today": true,
+      "empty_config_today": true,
+      "standard": true
+    },
+    "guardrails.input.enabled": {
+      "reader": ".claude/scripts/guardrails-orchestrator.sh (get_config)",
+      "expr": "yq -r '.guardrails.input.enabled // \"true\"'",
+      "example_today": true,
+      "this_repo_today": true,
+      "empty_config_today": true,
+      "standard": false,
+      "_comment": "Default changes this cycle (D-4.4, DEC-0161): the example now ships false (82 events, zero catches, seven blocks on sanctioned skills). This repository sets true explicitly so the orchestrator keeps logging. A migration item, not a profile effect."
+    },
+    "guardrails.danger_level.enforce": {
+      "reader": ".claude/scripts/danger-level-enforcer.sh (is_enforcement_enabled)",
+      "expr": "yq -r '.guardrails.danger_level.enforce // true'",
+      "example_today": true,
+      "this_repo_today": true,
+      "empty_config_today": true,
+      "standard": false,
+      "_comment": "Default changes this cycle (D-4.4, DEC-0161): the example and this repository now set false. A migration item, not a profile effect."
+    },
+    "invisible_retrospective.enabled": {
+      "reader": ".claude/data/skill-includes/retrospective_postlude.md (rendered into skills)",
+      "expr": "yq '.invisible_retrospective.enabled == true' (the prose runs the scan only on an explicit true)",
+      "example_today": true,
+      "this_repo_today": false,
+      "empty_config_today": false,
+      "standard": true
+    },
+    "structured_handoff.enabled": {
+      "reader": ".claude/hooks/session-start/loa-l6-surface-handoffs.sh",
+      "expr": "yq '.structured_handoff.enabled // false'",
+      "example_today": false,
+      "this_repo_today": false,
+      "empty_config_today": false,
+      "standard": false
+    },
+    "soul_identity_doc.enabled": {
+      "reader": ".claude/hooks/session-start/loa-l7-surface-soul.sh",
+      "expr": "yq '.soul_identity_doc.enabled // false'",
+      "example_today": false,
+      "this_repo_today": false,
+      "empty_config_today": false,
+      "standard": false
+    }
+  }
+}

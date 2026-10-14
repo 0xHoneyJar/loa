@@ -31,8 +31,10 @@ guardrails:
     enabled: true|false
 ```
 
+The effective `enabled` value is the explicit key, else the `loa.profile` default (`standard`: false): `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false`.
+
 **Exit Conditions** (skip all processing if any are true):
-- `guardrails.input.enabled: false` → Log action: DISABLED, proceed to skill
+- the effective `guardrails.input.enabled` is not `true` → Log action: DISABLED, proceed to skill
 - Environment variable `LOA_GUARDRAILS_ENABLED=false` → Log action: DISABLED, proceed
 
 ### Step 2: Run Danger Level Check

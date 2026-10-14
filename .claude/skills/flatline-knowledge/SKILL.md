@@ -3,6 +3,10 @@ name: flatline-knowledge
 description: Query Flatline protocol knowledge base via NotebookLM integration
 role: review
 allowed-tools: Read, Grep, Glob
+disallowed-tools:
+  - Write
+  - Edit
+  - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true

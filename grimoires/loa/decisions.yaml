@@ -7507,3 +7507,1827 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0235"
+    created_at: "2026-10-14T02:42:19Z"
+    updated_at: "2026-10-14T02:42:19Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: A sprint's trailer may name it as sprint-<gid> or its ledger local label (SDD D-5.1); a stale-cycle trailer that happens to use the same local label is..."
+    decision: "A sprint's trailer may name it as sprint-<gid> or its ledger local label (SDD D-5.1); a stale-cycle trailer that happens to use the same local label is the documented forged-with-the-right-id miss."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0236"
+    created_at: "2026-10-14T02:42:21Z"
+    updated_at: "2026-10-14T02:42:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: The run-state cache is .run/sprint-plan-state.json; JACKED_OUT is matched on .state OR .status, so the cycle-128 kickoff shape (state RUNNING, status J..."
+    decision: "The run-state cache is .run/sprint-plan-state.json; JACKED_OUT is matched on .state OR .status, so the cycle-128 kickoff shape (state RUNNING, status JACKED_OUT) derives JACKED_OUT with a disagreement note."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0237"
+    created_at: "2026-10-14T02:42:22Z"
+    updated_at: "2026-10-14T02:42:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: A new incomplete sprint means a ledger sprint whose sprint-<gid> and local label are both absent from derivation.sprint_ids, or from sprints.list[].id ..."
+    decision: "A new incomplete sprint means a ledger sprint whose sprint-<gid> and local label are both absent from derivation.sprint_ids, or from sprints.list[].id when the cache was never derived."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0238"
+    created_at: "2026-10-14T02:42:23Z"
+    updated_at: "2026-10-14T02:42:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: Only APPROVED with verdict-derive exit 0 counts as APPROVED in derive and in record-round; an inconsistent trailer counts as findings, as the run-mode ..."
+    decision: "Only APPROVED with verdict-derive exit 0 counts as APPROVED in derive and in record-round; an inconsistent trailer counts as findings, as the run-mode SKILL main loop says."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0239"
+    created_at: "2026-10-14T02:42:25Z"
+    updated_at: "2026-10-14T02:42:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: An APPROVED record-round writes nothing: the breaker file stays byte-identical, and same_issue and no_progress compare only non-APPROVED rounds."
+    decision: "An APPROVED record-round writes nothing: the breaker file stays byte-identical, and same_issue and no_progress compare only non-APPROVED rounds."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0240"
+    created_at: "2026-10-14T02:42:26Z"
+    updated_at: "2026-10-14T02:42:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: no_progress starts at 0 on the first round and counts consecutive equal counts; the previous counts are stored as triggers.no_progress.last_counts (a J..."
+    decision: "no_progress starts at 0 on the first round and counts consecutive equal counts; the previous counts are stored as triggers.no_progress.last_counts (a JSON string) so legacy rounds with null counts compare too."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0241"
+    created_at: "2026-10-14T02:42:27Z"
+    updated_at: "2026-10-14T02:42:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: A record-round on an already-OPEN breaker prints TRIPPED: open: breaker already OPEN and exits 10 without a second history entry, so a caller that miss..."
+    decision: "A record-round on an already-OPEN breaker prints TRIPPED: open: breaker already OPEN and exits 10 without a second history entry, so a caller that missed the first trip still halts."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0242"
+    created_at: "2026-10-14T02:42:29Z"
+    updated_at: "2026-10-14T02:42:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: A record-round call with a missing feedback file exits 2 instead of hashing none, because it is a caller error."
+    decision: "A record-round call with a missing feedback file exits 2 instead of hashing none, because it is a caller error."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0243"
+    created_at: "2026-10-14T02:42:31Z"
+    updated_at: "2026-10-14T02:42:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: --reset-ice stamps reset_at and derive ignores rounds at or before it; without this derive would raise the counters right back after a reset."
+    decision: "--reset-ice stamps reset_at and derive ignores rounds at or before it; without this derive would raise the counters right back after a reset."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0244"
+    created_at: "2026-10-14T02:42:32Z"
+    updated_at: "2026-10-14T02:42:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: derive writes nothing when the cache file is missing (no run) or unparseable (kept as evidence); it creates the breaker file from the schema defaults w..."
+    decision: "derive writes nothing when the cache file is missing (no run) or unparseable (kept as evidence); it creates the breaker file from the schema defaults when only the breaker is missing."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0245"
+    created_at: "2026-10-14T02:42:34Z"
+    updated_at: "2026-10-14T02:42:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: derive never touches .sprints.list or .sprints.completed; only .state, .status, derived_at, derivation and a defaulted schema_version are written."
+    decision: "derive never touches .sprints.list or .sprints.completed; only .state, .status, derived_at, derivation and a defaulted schema_version are written."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-11)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0246"
+    created_at: "2026-10-14T02:42:36Z"
+    updated_at: "2026-10-14T02:42:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: A cache without derived_at is an unknown position for deny, so it asks; with derived_at present it must also be fresh for the run sanction; when absent..."
+    decision: "A cache without derived_at is an unknown position for deny, so it asks; with derived_at present it must also be fresh for the run sanction; when absent, the 24 h last_activity rule alone decides the sanction."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-12)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0247"
+    created_at: "2026-10-14T02:42:37Z"
+    updated_at: "2026-10-14T02:42:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: Freshness for derived_at and the marker allows at most 300 s of clock skew ahead; the existing 24 h window for last_activity stays symmetric."
+    decision: "Freshness for derived_at and the marker allows at most 300 s of clock skew ahead; the existing 24 h window for last_activity stays symmetric."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0248"
+    created_at: "2026-10-14T02:42:38Z"
+    updated_at: "2026-10-14T02:42:38Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: The sanction order is run, then marker, then override; the override row appears only when nothing else sanctioned, so the register counts real override..."
+    decision: "The sanction order is run, then marker, then override; the override row appears only when nothing else sanctioned, so the register counts real overrides."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-14)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0249"
+    created_at: "2026-10-14T02:42:39Z"
+    updated_at: "2026-10-14T02:42:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: .run/implement-active.json joins the implement gate's trust inputs (a Write-tool write to it asks); the skills write it through run-checkpoint.sh mark,..."
+    decision: ".run/implement-active.json joins the implement gate's trust inputs (a Write-tool write to it asks); the skills write it through run-checkpoint.sh mark, which the gate never sees. Tighten-only."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-15)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0250"
+    created_at: "2026-10-14T02:42:40Z"
+    updated_at: "2026-10-14T02:42:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: Under claims: authoritative a non-implementation claim is denied, not asked, when deny would deny anyway; an ask there would loosen deny and the modifi..."
+    decision: "Under claims: authoritative a non-implementation claim is denied, not asked, when deny would deny anyway; an ask there would loosen deny and the modifier is tighten-only."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-16)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0251"
+    created_at: "2026-10-14T02:42:41Z"
+    updated_at: "2026-10-14T02:42:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: The deny reason ends 'or set implement_gate.mode: ask' per D-4.1 and the task prompt; SDD section 4.3 said telemetry, and D-4.1 is the more specific de..."
+    decision: "The deny reason ends 'or set implement_gate.mode: ask' per D-4.1 and the task prompt; SDD section 4.3 said telemetry, and D-4.1 is the more specific design text."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-17)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0252"
+    created_at: "2026-10-14T02:42:43Z"
+    updated_at: "2026-10-14T02:42:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: Trust-input rows keep their compliance.state_write shape and gain hook, action: ask, decision: trust_input and mode, so the register counts those asks ..."
+    decision: "Trust-input rows keep their compliance.state_write shape and gain hook, action: ask, decision: trust_input and mode, so the register counts those asks too."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-18)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0253"
+    created_at: "2026-10-14T02:42:44Z"
+    updated_at: "2026-10-14T02:42:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: The implementing-skill marker is managed by new verbs run-checkpoint.sh mark|unmark, which keeps the two skill sentences inside their byte budgets and ..."
+    decision: "The implementing-skill marker is managed by new verbs run-checkpoint.sh mark|unmark, which keeps the two skill sentences inside their byte budgets and the write atomic."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-19)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0254"
+    created_at: "2026-10-14T02:42:45Z"
+    updated_at: "2026-10-14T02:42:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: To fit its budget implementing-tasks/SKILL.md lost three redundant phrases: the inline br command list the lifecycle line repeats, the second fall-back..."
+    decision: "To fit its budget implementing-tasks/SKILL.md lost three redundant phrases: the inline br command list the lifecycle line repeats, the second fall-back-to-markdown sentence, and 'patterns,' in 'architecture, patterns, conventions'."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-20)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0255"
+    created_at: "2026-10-14T02:42:46Z"
+    updated_at: "2026-10-14T02:42:46Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: IG-11 used to pin implement_gate.mode as undocumented (cycle-126); it now pins it as documented, and the README and docs grep was dropped since D-4.1 s..."
+    decision: "IG-11 used to pin implement_gate.mode as undocumented (cycle-126); it now pins it as documented, and the README and docs grep was dropped since D-4.1 supersedes it."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-21)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0256"
+    created_at: "2026-10-14T02:42:47Z"
+    updated_at: "2026-10-14T02:42:47Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: The /loa Gate line comes from implement-gate.sh --effective-mode so /loa and the hook share one parser; the LOA_STATUS_CONFIG_FILE seam is reused and a..."
+    decision: "The /loa Gate line comes from implement-gate.sh --effective-mode so /loa and the hook share one parser; the LOA_STATUS_CONFIG_FILE seam is reused and a bats-gated LOA_STATUS_DERIVE_ROOT seam points derive at a fixture."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-22)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0257"
+    created_at: "2026-10-14T02:42:48Z"
+    updated_at: "2026-10-14T02:42:48Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: run-checkpoint.sh now runs under set -euo pipefail and LC_ALL=C per the conventions; its bead_closed call was rewritten to capture the exit code safely..."
+    decision: "run-checkpoint.sh now runs under set -euo pipefail and LC_ALL=C per the conventions; its bead_closed call was rewritten to capture the exit code safely."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-23)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0258"
+    created_at: "2026-10-14T02:42:49Z"
+    updated_at: "2026-10-14T02:42:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 D: PRD AC-5.1 says the drift fixture derives to JACKED_OUT while SDD D-5.4 and the task prompt say COMPLETE; the implementation follows the SDD because th..."
+    decision: "PRD AC-5.1 says the drift fixture derives to JACKED_OUT while SDD D-5.4 and the task prompt say COMPLETE; the implementation follows the SDD because the table only reaches JACKED_OUT from the cache or .completion.merged_sha."
+    rationale: "implementer D call for cycle-129 sprint-256, recorded in reviewer-d.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-24)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-d.md#assumptions (D-24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0259"
+    created_at: "2026-10-14T02:42:50Z"
+    updated_at: "2026-10-14T02:42:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: Under a quoted heredoc delimiter, $(, backticks and <( in the body are literal text and do not force a full scan; under an unquoted delimiter they do (..."
+    decision: "Under a quoted heredoc delimiter, $(, backticks and <( in the body are literal text and do not force a full scan; under an unquoted delimiter they do (corpus D137, D138)."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0260"
+    created_at: "2026-10-14T02:42:51Z"
+    updated_at: "2026-10-14T02:42:51Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: The exec-shaped flag rule (-c, -e, -x clusters, --exec, --eval, --command) is applied literally, so jq -c, grep -e and wc -c are full-scanned (fail clo..."
+    decision: "The exec-shaped flag rule (-c, -e, -x clusters, --exec, --eval, --command) is applied literally, so jq -c, grep -e and wc -c are full-scanned (fail closed)."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0261"
+    created_at: "2026-10-14T02:42:52Z"
+    updated_at: "2026-10-14T02:42:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: br flags other than exec-shaped ones are accepted on the non-executing allowlist, because br runs nothing."
+    decision: "br flags other than exec-shaped ones are accepted on the non-executing allowlist, because br runs nothing."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0262"
+    created_at: "2026-10-14T02:42:53Z"
+    updated_at: "2026-10-14T02:42:53Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: A variable command word in a heredoc body forces the full scan and is also scanned synthetically as rm, git and kubectl with the same arguments; no new..."
+    decision: "A variable command word in a heredoc body forces the full scan and is also scanned synthetically as rm, git and kubectl with the same arguments; no new pattern id is added."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0263"
+    created_at: "2026-10-14T02:42:54Z"
+    updated_at: "2026-10-14T02:42:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: The interpreter, executable-target, nested-heredoc and shebang checks run before the #1245 quoted-cat special case, which tightens that case."
+    decision: "The interpreter, executable-target, nested-heredoc and shebang checks run before the #1245 quoted-cat special case, which tightens that case."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0264"
+    created_at: "2026-10-14T02:42:55Z"
+    updated_at: "2026-10-14T02:42:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 E: The classifier's p95 was measured under a load average of about 3 (arm batch running): 45 ms knob on and 45 ms knob off; no quiet-host measurement was ..."
+    decision: "The classifier's p95 was measured under a load average of about 3 (arm batch running): 45 ms knob on and 45 ms knob off; no quiet-host measurement was taken."
+    rationale: "implementer E call for cycle-129 sprint-256, recorded in reviewer-e.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-e.md#assumptions (E-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0265"
+    created_at: "2026-10-14T02:42:56Z"
+    updated_at: "2026-10-14T02:42:56Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The profile oracle (tests/fixtures/profiles/standard-oracle.json) is each reader's own yq expression evaluated over the shipped example before any read..."
+    decision: "The profile oracle (tests/fixtures/profiles/standard-oracle.json) is each reader's own yq expression evaluated over the shipped example before any reader change, with this repository's and the empty-config values alongside; the two guardrail keys carry today's and the post-change values side by side."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0266"
+    created_at: "2026-10-14T02:42:57Z"
+    updated_at: "2026-10-14T02:42:57Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: rtfm-testing is reclassified as a report-writing review skill rather than stripped: its Phase 4 writes a State-Zone report, so write_files: true, Write..."
+    decision: "rtfm-testing is reclassified as a report-writing review skill rather than stripped: its Phase 4 writes a State-Zone report, so write_files: true, Write stays in allowed-tools, disallowed-tools strips Edit and NotebookEdit, and it joins REVIEW_WRITE_EXCEPTIONS."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0267"
+    created_at: "2026-10-14T02:42:58Z"
+    updated_at: "2026-10-14T02:42:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: generate-constraints.sh handles an empty class with an OPTIONAL_TABLES prune; agent_teams_constraints stays registered in the SECTIONS of generate-cons..."
+    decision: "generate-constraints.sh handles an empty class with an OPTIONAL_TABLES prune; agent_teams_constraints stays registered in the SECTIONS of generate-constraints.sh and validate-constraints.sh so restored rows render and validate."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0268"
+    created_at: "2026-10-14T02:42:59Z"
+    updated_at: "2026-10-14T02:42:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: Keeplist K-07 now protects the agent-teams reference's 'Rules and arming' heading, and IDR-3 reads the C-TEAM rationales from the reference table inste..."
+    decision: "Keeplist K-07 now protects the agent-teams reference's 'Rules and arming' heading, and IDR-3 reads the C-TEAM rationales from the reference table instead of constraints.json."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:42:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0269"
+    created_at: "2026-10-14T02:43:00Z"
+    updated_at: "2026-10-14T02:43:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The lint self-test's two baseline failures (a good fixture that only WARNs exits 1) were fixed by asserting exit 0 or 1, as the test's own description ..."
+    decision: "The lint self-test's two baseline failures (a good fixture that only WARNs exits 1) were fixed by asserting exit 0 or 1, as the test's own description states."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0270"
+    created_at: "2026-10-14T02:43:01Z"
+    updated_at: "2026-10-14T02:43:01Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The reviewing-code bytes for the SURGICAL axis sentence came from removing the skill's '## Provenance' footer; the no-history lint allows that footer b..."
+    decision: "The reviewing-code bytes for the SURGICAL axis sentence came from removing the skill's '## Provenance' footer; the no-history lint allows that footer but does not require it."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0271"
+    created_at: "2026-10-14T02:43:02Z"
+    updated_at: "2026-10-14T02:43:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: profile-lib.sh honours LOA_STATUS_CONFIG_FILE only under bats markers, as loa-status.sh does; LOA_PROFILE_CONFIG_FILE is ungated because hooks pass the..."
+    decision: "profile-lib.sh honours LOA_STATUS_CONFIG_FILE only under bats markers, as loa-status.sh does; LOA_PROFILE_CONFIG_FILE is ungated because hooks pass their own config seam through it."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0272"
+    created_at: "2026-10-14T02:43:03Z"
+    updated_at: "2026-10-14T02:43:03Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The effective-config cache key covers the file sizes and floor.yaml as well as the two mtimes."
+    decision: "The effective-config cache key covers the file sizes and floor.yaml as well as the two mtimes."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0273"
+    created_at: "2026-10-14T02:43:04Z"
+    updated_at: "2026-10-14T02:43:04Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: A floor-key '*' matches one or more characters including dots, and an ancestor of a floor key (such as flatline_protocol) is forbidden in a profile too..."
+    decision: "A floor-key '*' matches one or more characters including dots, and an ancestor of a floor key (such as flatline_protocol) is forbidden in a profile too."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0274"
+    created_at: "2026-10-14T02:43:05Z"
+    updated_at: "2026-10-14T02:43:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The input_guardrails skill include was rerouted through loa_knob although the prompt's reader list omitted it; it reads guardrails.input.enabled and th..."
+    decision: "The input_guardrails skill include was rerouted through loa_knob although the prompt's reader list omitted it; it reads guardrails.input.enabled and the change is -1 B."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0275"
+    created_at: "2026-10-14T02:43:06Z"
+    updated_at: "2026-10-14T02:43:06Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The surgical-diff hook's perf caches are removed; on its first run under the default state directory it deletes the two old cache files."
+    decision: "The surgical-diff hook's perf caches are removed; on its first run under the default state directory it deletes the two old cache files."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-11)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0276"
+    created_at: "2026-10-14T02:43:07Z"
+    updated_at: "2026-10-14T02:43:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The surgical-diff hook always exits 0; the old exit 5 on a non-object payload is gone, consistent with its non-blocking contract."
+    decision: "The surgical-diff hook always exits 0; the old exit 5 on a non-object payload is gone, consistent with its non-blocking contract."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-12)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0277"
+    created_at: "2026-10-14T02:43:08Z"
+    updated_at: "2026-10-14T02:43:08Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: Surgical-diff state entries gain a task field; the summary file has exactly the five specified fields (task, lines, threshold, over, updated_at)."
+    decision: "Surgical-diff state entries gain a task field; the summary file has exactly the five specified fields (task, lines, threshold, over, updated_at)."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0278"
+    created_at: "2026-10-14T02:43:09Z"
+    updated_at: "2026-10-14T02:43:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: Surgical-diff task keys are sanitised inside jq so a newline in a task label cannot truncate the key, and a leading dot becomes _ so no hidden file esc..."
+    decision: "Surgical-diff task keys are sanitised inside jq so a newline in a task label cannot truncate the key, and a leading dot becomes _ so no hidden file escapes rotation."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-14)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0279"
+    created_at: "2026-10-14T02:43:10Z"
+    updated_at: "2026-10-14T02:43:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The /loa Profile line is human output only; loa-status.sh --json does not carry the profile."
+    decision: "The /loa Profile line is human output only; loa-status.sh --json does not carry the profile."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-15)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0280"
+    created_at: "2026-10-14T02:43:11Z"
+    updated_at: "2026-10-14T02:43:11Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: The example's loa: block comment does not name implement_gate (IG-11 forbade it until D documented the gate); it points at floor.yaml for the floor key..."
+    decision: "The example's loa: block comment does not name implement_gate (IG-11 forbade it until D documented the gate); it points at floor.yaml for the floor keys."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-16)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0281"
+    created_at: "2026-10-14T02:43:12Z"
+    updated_at: "2026-10-14T02:43:12Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 F: Knob reads are presence-tested through loa_knob (getpath, null test), never yq's '//', because '//' treats an explicit false as absent and three knobs ..."
+    decision: "Knob reads are presence-tested through loa_knob (getpath, null test), never yq's '//', because '//' treats an explicit false as absent and three knobs could never be turned off."
+    rationale: "implementer F call for cycle-129 sprint-256, recorded in reviewer-f.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-17)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer-f.md#assumptions (F-17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0282"
+    created_at: "2026-10-14T02:43:14Z"
+    updated_at: "2026-10-14T02:43:14Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: Task 2.8 took the D-2.4 fallback: at the gate read (2026-10-14T02:33Z) STATUS.json was running (20 of 96 review trials, 0 failed); no kernel row was..."
+    decision: "Task 2.8 took the D-2.4 fallback: at the gate read (2026-10-14T02:33Z) STATUS.json was running (20 of 96 review trials, 0 failed); no kernel row was deleted or shortened, the cap fell to 9,445 B (measured 9,189 + 256), and the deletions are deferred under bead bd-2txz1."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0283"
+    created_at: "2026-10-14T02:43:15Z"
+    updated_at: "2026-10-14T02:43:15Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: The seven kernel rationales pinned by cycle-126's instruction-diet-revert IDR-3 (C-PROC-001, 002, 004, 005, 015, 017, 018; the sprint-250 replay A/B..."
+    decision: "The seven kernel rationales pinned by cycle-126's instruction-diet-revert IDR-3 (C-PROC-001, 002, 004, 005, 015, 017, 018; the sprint-250 replay A/B lost recall when they were trimmed) are classified review-affecting, not mechanism-describing; D-3.2's pointer shrink for C-PROC-001/005/017 waits for a no-recall-loss arm verdict."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0284"
+    created_at: "2026-10-14T02:43:15Z"
+    updated_at: "2026-10-14T02:43:15Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: Proposed move, deferred: C-PROC-002 (TaskCreate/TaskUpdate never for sprint tracking) leaves the kernel for .claude/protocols/process-compliance.md ..."
+    decision: "Proposed move, deferred: C-PROC-002 (TaskCreate/TaskUpdate never for sprint tracking) leaves the kernel for .claude/protocols/process-compliance.md with a one-line kernel pointer once the operator confirms; the register's rows are the instrument."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0285"
+    created_at: "2026-10-14T02:43:17Z"
+    updated_at: "2026-10-14T02:43:17Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: Proposed move, deferred: C-PROC-006 (create beads tasks before implementation) leaves the kernel for .claude/protocols/process-compliance.md with a ..."
+    decision: "Proposed move, deferred: C-PROC-006 (create beads tasks before implementation) leaves the kernel for .claude/protocols/process-compliance.md with a one-line kernel pointer once the operator confirms."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0286"
+    created_at: "2026-10-14T02:43:18Z"
+    updated_at: "2026-10-14T02:43:18Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: Proposed move, deferred: C-PROC-015 and C-PROC-016 (/bug eligibility) leave the kernel for .claude/protocols/process-compliance.md with a one-line k..."
+    decision: "Proposed move, deferred: C-PROC-015 and C-PROC-016 (/bug eligibility) leave the kernel for .claude/protocols/process-compliance.md with a one-line kernel pointer once the operator confirms; the IDR-3 pin on C-PROC-015 must be released by the same decision."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0287"
+    created_at: "2026-10-14T02:43:19Z"
+    updated_at: "2026-10-14T02:43:19Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: The lead authored the FR-6 corpus rows (B79-B89, D101-D142) with the Edit tool after implementer E's output was stopped by its safety classifier whi..."
+    decision: "The lead authored the FR-6 corpus rows (B79-B89, D101-D142) with the Edit tool after implementer E's output was stopped by its safety classifier while writing destructive-command fixtures; gh api -X DELETE is recorded as a documented miss (B89) because the fence has no rule for it, so the SDD's D-row became D113 (destructive body) plus B89."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0288"
+    created_at: "2026-10-14T02:43:20Z"
+    updated_at: "2026-10-14T02:43:20Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: The classifier's jq/yq in-place check was fixed at integration to match a bare -i (the glob -[A-Za-z]*i* needed a letter before the i; corpus D114 a..."
+    decision: "The classifier's jq/yq in-place check was fixed at integration to match a bare -i (the glob -[A-Za-z]*i* needed a letter before the i; corpus D114 and D115 caught it)."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0289"
+    created_at: "2026-10-14T02:43:21Z"
+    updated_at: "2026-10-14T02:43:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: .claude/scripts/lib/heredoc-classifier.sh was created as the library entry point Sprint 1's guard-yield.sh expected (sources the fence with BDB_LIB_..."
+    decision: ".claude/scripts/lib/heredoc-classifier.sh was created as the library entry point Sprint 1's guard-yield.sh expected (sources the fence with BDB_LIB_ONLY=1); the GY-3 fixture row became a complete heredoc because a header-only command is a parse failure under the classifier."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0290"
+    created_at: "2026-10-14T02:43:22Z"
+    updated_at: "2026-10-14T02:43:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: E's quoted-delimiter reading (E-1) is accepted over the SDD's unconditional substitution rule: a substitution under a quoted delimiter never runs wh..."
+    decision: "E's quoted-delimiter reading (E-1) is accepted over the SDD's unconditional substitution rule: a substitution under a quoted delimiter never runs when the heredoc is expanded, and the unquoted forms D137/D138 pin the rule where it matters."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0291"
+    created_at: "2026-10-14T02:43:23Z"
+    updated_at: "2026-10-14T02:43:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: The hooks-reference implement-gate section and the two register notes were rewritten by the lead (Task 2.9) from D's as-built tables; the register w..."
+    decision: "The hooks-reference implement-gate section and the two register notes were rewritten by the lead (Task 2.9) from D's as-built tables; the register was regenerated so the registration table carries the new note."
+    rationale: "implementer lead call for cycle-129 sprint-256, recorded in reviewer.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6802e4f"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T02:43:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#assumptions (lead-10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

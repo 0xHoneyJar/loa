@@ -58,6 +58,11 @@ Exact JSON shapes for .run/ state files. SKILL.md's procedures reference these b
 }
 ```
 
+Written by `run-checkpoint.sh record-round` (one call per review/audit verdict) and recomputed by
+`run-checkpoint.sh derive` (counters raised from the feedback history, never lowered). They add
+`triggers.no_progress.last_counts` (the previous round's counts), `last_round`, `last_trip` and,
+after `/run-resume --reset-ice`, `reset_at` (rounds before it no longer count).
+
 ## red-team-code-state
 
 ```json
@@ -102,6 +107,23 @@ Exact JSON shapes for .run/ state files. SKILL.md's procedures reference these b
 `.claude/scripts/run-checkpoint.sh write` (atomic, locked); `task` is the last CLOSED bead
 (`null` for a phase-only checkpoint). Readers accept 1 and 2; a missing or discarded checkpoint
 means sprint granularity (resume at the first open bead of `sprints.current`).
+
+Derived cache (cycle-129 FR-5): `run-checkpoint.sh derive --write` (also run by every `write`)
+rewrites `.state` (canonical) and `.status` (its mirror) from the files and adds
+`"derived_at": "<ISO-8601>"` and
+`"derivation": {"source": "files", "stale_markers": [], "legacy_feedback": [], "sprint_ids": []}`;
+`schema_version` is kept. Files without these keys are read as before. The decision table is
+in the script header; `run_mode.file_authoritative: false` makes it report-only.
+
+## implement-active-marker
+
+`.run/implement-active.json`, written by `run-checkpoint.sh mark --skill implement|bug --sprint <id>`
+at the start of `/implement` and `/bug` and removed by `run-checkpoint.sh unmark` at the end; the
+implement gate treats it as a sanction for two hours from `started_at`:
+
+```json
+{"skill": "implement", "sprint": "sprint-3", "started_at": "2026-01-19T14:30:00Z"}
+```
 
 ## bug-state-schema
 
