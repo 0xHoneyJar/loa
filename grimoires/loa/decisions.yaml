@@ -9944,3 +9944,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0311"
+    created_at: "2026-10-14T05:52:06Z"
+    updated_at: "2026-10-14T05:52:06Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: FR-GH-1 also covers gh api graphql mutations, full-URL and leading-slash paths, --hostname, and a method the fence cannot read"
+    decision: "The REST branch normalises an optional scheme-and-host prefix (including an enterprise api/v3 base) and a leading slash and treats a non-literal -X/--method value against a protected path as destructive; a GraphQL branch refuses deleteRef, create/update/deleteBranchProtectionRule, deleteRepository, updateRepository and deleteRelease; the corpus hygiene lint admits GitHub's public API host so the full-URL form can be pinned."
+    rationale: "audit r256-5 DISS-C-003"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "3d0268e1"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-27)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:52:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
