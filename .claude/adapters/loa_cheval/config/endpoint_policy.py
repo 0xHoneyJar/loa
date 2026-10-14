@@ -197,6 +197,80 @@ def _is_cli_provider(prov: Dict[str, Any]) -> bool:
     )
 
 
+def hop_is_local(merged: Dict[str, Any], provider: str, model_id: Optional[str]) -> bool:
+    """True when the ``provider:model_id`` hop passes the local-hop rule in the merged view (D-8.1): the model entry
+    (or, when the entry is silent, its provider block) says ``dispatch_group: local``, the hop is not a CLI hop (a
+    ``*-headless`` / all-``kind: cli`` provider or a ``kind: cli`` model) and the provider's endpoint host passes
+    ``local_endpoint_host``. ONE implementation for cheval's planner, the loader's fallback check and MODELINV
+    ``hop_locality`` (``hop-locality.py`` is the stdlib mirror). Fail closed: an undeclared hop is hosted."""
+    providers = (merged or {}).get("providers")
+    prov = providers.get(provider) if isinstance(providers, dict) else None
+    if not isinstance(prov, dict):
+        return False
+    models = prov.get("models") if isinstance(prov.get("models"), dict) else {}
+    entry = models.get(model_id) if model_id else None
+    entry = entry if isinstance(entry, dict) else {}
+    if (entry.get("dispatch_group") or prov.get("dispatch_group")) != "local":
+        return False
+    if _is_cli_provider(prov) or entry.get("kind") == "cli":
+        return False
+    return local_endpoint_host(prov.get("endpoint")) is not None
+
+
+LOCAL_FALLBACK_MAX_DEPTH = 8
+
+
+def resolve_hop_spec(spec: Any, aliases: Any) -> Optional[Tuple[str, str]]:
+    """``(provider, model_id)`` for a ``fallback_chain`` entry — a ``provider:model`` pin or an alias followed through
+    ``aliases`` (depth-limited, cycle-safe) — or None when it does not resolve."""
+    current = spec.strip() if isinstance(spec, str) else ""
+    table = aliases if isinstance(aliases, dict) else {}
+    seen = set()
+    for _ in range(LOCAL_FALLBACK_MAX_DEPTH + 1):
+        if not current:
+            return None
+        if ":" in current:
+            provider, _, model = current.partition(":")
+            return (provider, model) if provider and model else None
+        if current in seen:
+            return None
+        seen.add(current)
+        target = table.get(current)
+        if isinstance(target, dict):
+            target = target.get("target") or target.get("model")
+        current = target.strip() if isinstance(target, str) else ""
+    return None
+
+
+def validate_local_fallbacks(merged: Dict[str, Any]) -> None:
+    """Audit a257-1 MEDIUM-A1 (b): ONLY under ``hounfour.locality: local_voices`` (the merged root's ``locality``), a
+    model that says ``dispatch_group: local`` whose ``fallback_chain`` names an entry that fails the local-hop rule —
+    or does not resolve — is refused at load: cheval walks that chain inside one call, so the prompt would leave the
+    declared providers. Under ``hosted`` (or unset) a local model may still fall back to a hosted one."""
+    if (merged or {}).get("locality") != "local_voices":
+        return
+    providers = merged.get("providers")
+    if not isinstance(providers, dict):
+        return
+    aliases = merged.get("aliases")
+    for name, prov in providers.items():
+        if not isinstance(prov, dict) or not isinstance(prov.get("models"), dict):
+            continue
+        for model_id, entry in prov["models"].items():
+            if not isinstance(entry, dict):
+                continue
+            if (entry.get("dispatch_group") or prov.get("dispatch_group")) != "local":
+                continue
+            chain = entry.get("fallback_chain") or []
+            for spec in (chain if isinstance(chain, list) else [chain]):
+                target = resolve_hop_spec(spec, aliases)
+                if target is None or not hop_is_local(merged, target[0], target[1]):
+                    raise ConfigError(
+                        f"[CONFIG-INVALID] providers.{name}.models.{model_id}: under hounfour.locality local_voices "
+                        f"the fallback_chain reaches a hosted hop {spec}"
+                    )
+
+
 def normalise_keyless(merged: Dict[str, Any]) -> None:
     """Pre-interpolation step: a literal ``auth: "local"`` becomes ``keyless: true`` (D-8.0); ``keyless`` must be a bool."""
     providers = merged.get("providers")

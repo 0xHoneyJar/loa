@@ -159,6 +159,12 @@ export interface TrustedView {
     providers: unknown;
     locality: unknown;
     exit: unknown;
+    /** `hounfour.aliases` (audit a257-1: resolves fallback aliases; compared for head drift). */
+    aliases?: unknown;
+    /** `hounfour.secret_env_allowlist` — the list cheval's loader reads (compared for head drift). */
+    allowlist?: unknown;
+    /** A root-level `secret_env_allowlist` (compared for head drift too: it is the shape the docs once showed). */
+    rootAllowlist?: unknown;
 }
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
 export declare function yqTrustedView(text: string): TrustedView;
@@ -188,14 +194,34 @@ export declare const TRUSTED_CONFIG_ENV = "BRIDGEBUILDER_TRUSTED_CONFIG";
  *   pull request:           `BRIDGEBUILDER_TRUSTED_CONFIG` (repository settings) when set, else `.loa.config.yaml` at
  *                           `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else the PR metadata), else at
  *                           `refs/remotes/origin/main`; when none can be read, no provider declaration is trusted.
- * The head checkout is read on a pull request only to find keyless / insecure declarations the trusted source lacks,
- * which are refused by name. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
+ * The head checkout is read on a pull request to find keyless / insecure declarations the trusted source lacks, which
+ * are refused by name, and (audit a257-1 MEDIUM-A2) to compute `headDrift` — the keys cheval would read differently from
+ * the checkout than the trusted source says; main.ts refuses the run on any. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
  */
 export declare function loadTrustedConfig(opts: {
     pr?: number;
     repoRoot?: string;
     repo?: string;
 }, deps?: TrustedConfigDeps): TrustedConfig;
+/** Key-order-independent structural equality over JSON values (the yq view is JSON). */
+export declare function jsonDeepEqual(a: unknown, b: unknown): boolean;
+/**
+ * audit a257-1 MEDIUM-A2 (pure): the dotted keys that differ between the PR head's view and the trusted view —
+ * `hounfour.providers.<name>` (every field: endpoint, auth template, models, opt-ins), `hounfour.aliases.<alias>`,
+ * `hounfour.locality` (absent ⇒ `hosted`), `hounfour.secret_env_allowlist` and a root `secret_env_allowlist` (absent ⇒
+ * `[]`). An absent head file reads as all defaults; an unparsable head is drift on `.loa.config.yaml` itself (fail
+ * closed: cheval's YAML reader might accept what yq refused).
+ */
+export declare function computeHeadDrift(head: TrustedView | undefined, trusted: TrustedView, headUnreadable?: boolean): string[];
+/** Where the trusted config came from, in words, for the drift refusal. */
+export declare function trustedSourceDescription(t: TrustedConfig): string;
+/** Exit code for a multi-model run refused by trusted-config drift (distinct from 0, 3 DEGRADED and 4 FAILED). */
+export declare const EXIT_TRUSTED_CONFIG_DRIFT = 5;
+/**
+ * The refusal decision for the multi-model run (pure; main.ts prints and exits): the stderr line, or undefined when the
+ * run may proceed (local mode, or no drift).
+ */
+export declare function headDriftRefusal(t: TrustedConfig): string | undefined;
 /** One startup line naming where the trusted config was read from (main.ts prints it with the warnings). */
 export declare function trustedConfigStartupLine(t: TrustedConfig): string;
 /** The local-hop rule's wording, shared with cheval (endpoint_policy.LOCAL_RULE_TEXT) and the planner. */
@@ -223,6 +249,13 @@ export declare function localVoiceDecision(provider: string, modelId: string, tr
     declared: boolean;
     reason?: string;
 };
+/** The fallback walk's depth bound (audit a257-1 MEDIUM-A1 (c); endpoint_policy.LOCAL_FALLBACK_MAX_DEPTH). */
+export declare const LOCAL_FALLBACK_MAX_DEPTH = 8;
+/**
+ * A `fallback_chain` entry as `[provider, model]`: a `provider:model` pin, or an alias followed through the TRUSTED
+ * `hounfour.aliases` (depth-limited, cycle-safe). Undefined when it does not resolve — the caller treats that as hosted.
+ */
+export declare function resolveFallbackSpec(spec: string, aliases: Record<string, string> | undefined): [string, string] | undefined;
 /** True when the voice is local by `localVoiceDecision` (declared `dispatch_group: local` AND the endpoint honours it). */
 export declare function isLocalVoice(provider: string, modelId: string, trusted: TrustedConfig): boolean;
 /**

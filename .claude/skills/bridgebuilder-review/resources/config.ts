@@ -484,6 +484,7 @@ export function parseProviderDecls(raw: unknown, label: string, warnings: string
     const envMatch = auth !== undefined ? ENV_AUTH_RE.exec(auth) : null;
     const literalAuth = auth !== undefined && auth !== "" && !auth.includes("{env:");
     const modelGroups: Record<string, string | undefined> = {};
+    const modelFallbacks: Record<string, string[]> = {};
     let modelCount = 0;
     let cliModels = 0;
     if (e.models !== null && typeof e.models === "object" && !Array.isArray(e.models)) {
@@ -492,6 +493,12 @@ export function parseProviderDecls(raw: unknown, label: string, warnings: string
         modelGroups[mid] = typeof g === "string" ? g : undefined;
         modelCount += 1;
         if (m !== null && typeof m === "object" && (m as { kind?: unknown }).kind === "cli") cliModels += 1;
+        // (audit a257-1 MEDIUM-A1 (c): the chain cheval walks inside one call; a scalar is a one-entry chain, as in
+        // endpoint_policy.validate_local_fallbacks, and a non-string entry is "" — unresolvable, so hosted)
+        const fb = m !== null && typeof m === "object" ? (m as { fallback_chain?: unknown }).fallback_chain : undefined;
+        if (fb !== undefined && fb !== null) {
+          modelFallbacks[mid] = (Array.isArray(fb) ? fb : [fb]).map((x) => (typeof x === "string" ? x : ""));
+        }
       }
     }
     const cli = (typeof e.type === "string" && e.type.endsWith("-headless")) || (modelCount > 0 && cliModels === modelCount);
@@ -503,6 +510,7 @@ export function parseProviderDecls(raw: unknown, label: string, warnings: string
       modelGroups,
       ...(typeof e.endpoint === "string" ? { endpoint: e.endpoint } : {}),
       ...(cli ? { cli: true } : {}),
+      ...(Object.keys(modelFallbacks).length > 0 ? { modelFallbacks } : {}),
     };
   }
   return out;
@@ -510,12 +518,19 @@ export function parseProviderDecls(raw: unknown, label: string, warnings: string
 
 /** The subtree Bridgebuilder reads from a Loa config, as one yq program (the same yq the agy gate uses). */
 const TRUSTED_VIEW_YQ =
-  '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null)}';
+  '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null), ' +
+  '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null)}';
 
 export interface TrustedView {
   providers: unknown;
   locality: unknown;
   exit: unknown;
+  /** `hounfour.aliases` (audit a257-1: resolves fallback aliases; compared for head drift). */
+  aliases?: unknown;
+  /** `hounfour.secret_env_allowlist` — the list cheval's loader reads (compared for head drift). */
+  allowlist?: unknown;
+  /** A root-level `secret_env_allowlist` (compared for head drift too: it is the shape the docs once showed). */
+  rootAllowlist?: unknown;
 }
 
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
@@ -525,7 +540,10 @@ export function yqTrustedView(text: string): TrustedView {
       encoding: "utf8", timeout: 5000, input: text, stdio: ["pipe", "pipe", "pipe"],
     });
     const parsed = JSON.parse(out) as Partial<TrustedView> | null;
-    return { providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null };
+    return {
+      providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null,
+      aliases: parsed?.aliases ?? null, allowlist: parsed?.allowlist ?? null, rootAllowlist: parsed?.rootAllowlist ?? null,
+    };
   } catch (err) {
     const e = err as { stderr?: unknown; message?: string };
     const stderr = typeof e.stderr === "string" ? e.stderr.trim() : "";
@@ -609,8 +627,9 @@ export const TRUSTED_CONFIG_ENV = "BRIDGEBUILDER_TRUSTED_CONFIG";
  *   pull request:           `BRIDGEBUILDER_TRUSTED_CONFIG` (repository settings) when set, else `.loa.config.yaml` at
  *                           `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else the PR metadata), else at
  *                           `refs/remotes/origin/main`; when none can be read, no provider declaration is trusted.
- * The head checkout is read on a pull request only to find keyless / insecure declarations the trusted source lacks,
- * which are refused by name. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
+ * The head checkout is read on a pull request to find keyless / insecure declarations the trusted source lacks, which
+ * are refused by name, and (audit a257-1 MEDIUM-A2) to compute `headDrift` — the keys cheval would read differently from
+ * the checkout than the trusted source says; main.ts refuses the run on any. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
  */
 export function loadTrustedConfig(
   opts: { pr?: number; repoRoot?: string; repo?: string },
@@ -678,15 +697,23 @@ export function loadTrustedConfig(
 
   // Head-only refusal: on a PR the head checkout is attacker-controlled.
   const headOnlyRefused: string[] = [];
+  let headDrift: string[] = [];
   if (mode === "pull-request") {
     const headText = deps.readWorkingTree(wtPath);
+    let headView: TrustedView | undefined;
+    let headUnreadable = false;
     if (headText !== undefined) {
-      let headView: TrustedView | undefined;
       try {
         headView = deps.parse(headText);
       } catch {
         headView = undefined;   // (an unparsable head declares nothing Bridgebuilder would admit)
+        headUnreadable = true;
       }
+    }
+    // audit a257-1 MEDIUM-A2: cheval reads the CHECKOUT's configuration for the dispatch, so on a pull request every
+    // difference in what it would read (providers, aliases, locality, the secret allowlist) is drift, refused by name.
+    headDrift = computeHeadDrift(headView, view, headUnreadable);
+    if (headText !== undefined) {
       const headWarnings: string[] = [];
       const head = headView ? parseProviderDecls(headView.providers, "head config", headWarnings) : {};
       for (const [name, decl] of Object.entries(head)) {
@@ -718,7 +745,102 @@ export function loadTrustedConfig(
     }
   }
 
-  return { mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings };
+  return {
+    mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings,
+    aliases: stringAliases(view.aliases), headDrift,
+  };
+}
+
+/** `hounfour.aliases` as a string map (non-string targets — cheval's dict form included — read through `target`/`model`). */
+function stringAliases(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    let t: unknown = v;
+    if (t !== null && typeof t === "object" && !Array.isArray(t)) t = (t as { target?: unknown; model?: unknown }).target ?? (t as { model?: unknown }).model;
+    if (typeof t === "string" && t.trim() !== "") out[k] = t.trim();
+  }
+  return out;
+}
+
+/** Key-order-independent structural equality over JSON values (the yq view is JSON). */
+export function jsonDeepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    return a.length === bb.length && a.every((x, i) => jsonDeepEqual(x, bb[i]));
+  }
+  const ka = Object.keys(a as object);
+  const kb = Object.keys(b as object);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => Object.hasOwn(b as object, k) && jsonDeepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** One dotted-key segment for a refusal line: a plain name as-is, anything else JSON-quoted and bounded (head text). */
+function driftSegment(name: string): string {
+  return /^[A-Za-z0-9_.@+-]{1,64}$/.test(name) ? name : JSON.stringify(name.slice(0, 64));
+}
+
+/** The per-entry differences of two mappings (absent ⇒ `{}`); a non-mapping on either side is the whole key. */
+function mappingDrift(prefix: string, head: unknown, trusted: unknown, out: string[]): void {
+  const h = head ?? {};
+  const t = trusted ?? {};
+  const isMap = (x: unknown) => x !== null && typeof x === "object" && !Array.isArray(x);
+  if (!isMap(h) || !isMap(t)) {
+    if (!jsonDeepEqual(h, t)) out.push(prefix);
+    return;
+  }
+  const hm = h as Record<string, unknown>;
+  const tm = t as Record<string, unknown>;
+  const names = [...new Set([...Object.keys(hm), ...Object.keys(tm)])].sort();
+  for (const n of names) {
+    const inH = Object.hasOwn(hm, n);
+    const inT = Object.hasOwn(tm, n);
+    if (!inH || !inT || !jsonDeepEqual(hm[n], tm[n])) out.push(`${prefix}.${driftSegment(n)}`);
+  }
+}
+
+/**
+ * audit a257-1 MEDIUM-A2 (pure): the dotted keys that differ between the PR head's view and the trusted view —
+ * `hounfour.providers.<name>` (every field: endpoint, auth template, models, opt-ins), `hounfour.aliases.<alias>`,
+ * `hounfour.locality` (absent ⇒ `hosted`), `hounfour.secret_env_allowlist` and a root `secret_env_allowlist` (absent ⇒
+ * `[]`). An absent head file reads as all defaults; an unparsable head is drift on `.loa.config.yaml` itself (fail
+ * closed: cheval's YAML reader might accept what yq refused).
+ */
+export function computeHeadDrift(head: TrustedView | undefined, trusted: TrustedView, headUnreadable = false): string[] {
+  if (headUnreadable) return [".loa.config.yaml (unreadable in the PR head)"];
+  const h: Partial<TrustedView> = head ?? {};
+  const out: string[] = [];
+  mappingDrift("hounfour.providers", h.providers, trusted.providers, out);
+  mappingDrift("hounfour.aliases", h.aliases, trusted.aliases, out);
+  if (!jsonDeepEqual(h.locality ?? "hosted", trusted.locality ?? "hosted")) out.push("hounfour.locality");
+  if (!jsonDeepEqual(h.allowlist ?? [], trusted.allowlist ?? [])) out.push("hounfour.secret_env_allowlist");
+  if (!jsonDeepEqual(h.rootAllowlist ?? [], trusted.rootAllowlist ?? [])) out.push("secret_env_allowlist");
+  return out;
+}
+
+/** Where the trusted config came from, in words, for the drift refusal. */
+export function trustedSourceDescription(t: TrustedConfig): string {
+  if (t.source === "base-ref") return `the trusted config (base-ref ${t.ref ?? "unknown"})`;
+  if (t.source === "repository-settings") return `the trusted config (${TRUSTED_CONFIG_ENV})`;
+  if (t.source === "none") return "the trusted config (none could be read)";
+  return `the trusted config (${t.source})`;
+}
+
+/** Exit code for a multi-model run refused by trusted-config drift (distinct from 0, 3 DEGRADED and 4 FAILED). */
+export const EXIT_TRUSTED_CONFIG_DRIFT = 5;
+
+/**
+ * The refusal decision for the multi-model run (pure; main.ts prints and exits): the stderr line, or undefined when the
+ * run may proceed (local mode, or no drift).
+ */
+export function headDriftRefusal(t: TrustedConfig): string | undefined {
+  const drift = t.mode === "pull-request" ? (t.headDrift ?? []) : [];
+  if (drift.length === 0) return undefined;
+  return `[bridgebuilder] trusted config drift refused: ${drift.join(", ")} differ between the PR head and ` +
+    `${trustedSourceDescription(t)}; merge the base branch into the head or set ${TRUSTED_CONFIG_ENV}`;
 }
 
 /** One startup line naming where the trusted config was read from (main.ts prints it with the warnings). */
@@ -803,6 +925,41 @@ export function localVoiceDecision(
   modelId: string,
   trusted: TrustedConfig,
 ): { local: boolean; declared: boolean; reason?: string } {
+  return localVoiceDecisionAt(provider, modelId, trusted, 0, new Set<string>());
+}
+
+/** The fallback walk's depth bound (audit a257-1 MEDIUM-A1 (c); endpoint_policy.LOCAL_FALLBACK_MAX_DEPTH). */
+export const LOCAL_FALLBACK_MAX_DEPTH = 8;
+
+/**
+ * A `fallback_chain` entry as `[provider, model]`: a `provider:model` pin, or an alias followed through the TRUSTED
+ * `hounfour.aliases` (depth-limited, cycle-safe). Undefined when it does not resolve — the caller treats that as hosted.
+ */
+export function resolveFallbackSpec(spec: string, aliases: Record<string, string> | undefined): [string, string] | undefined {
+  let current = spec.trim();
+  const seen = new Set<string>();
+  for (let i = 0; i <= LOCAL_FALLBACK_MAX_DEPTH; i += 1) {
+    if (current === "") return undefined;
+    const colon = current.indexOf(":");
+    if (colon >= 0) {
+      const p = current.slice(0, colon);
+      const m = current.slice(colon + 1);
+      return p !== "" && m !== "" ? [p, m] : undefined;
+    }
+    if (seen.has(current)) return undefined;
+    seen.add(current);
+    current = aliases && Object.hasOwn(aliases, current) ? aliases[current] : "";
+  }
+  return undefined;
+}
+
+function localVoiceDecisionAt(
+  provider: string,
+  modelId: string,
+  trusted: TrustedConfig,
+  depth: number,
+  seen: Set<string>,
+): { local: boolean; declared: boolean; reason?: string } {
   const decl = Object.hasOwn(trusted.providers, provider) ? trusted.providers[provider] : undefined;
   if (!decl) return { local: false, declared: false };
   let declared: boolean;
@@ -818,6 +975,19 @@ export function localVoiceDecision(
   const verdict = localEndpointHost(decl.endpoint);
   if (!verdict.ok) {
     return { local: false, declared: true, reason: `${head} endpoint host ${verdict.host || "(none declared)"} is not ${LOCAL_RULE_TEXT}` };
+  }
+  // audit a257-1 MEDIUM-A1 (c): cheval walks the model's own fallback_chain inside one call, so the voice is local only
+  // when every entry is (by this same rule, recursively; depth-limited, a cycle back to a voice on the walk is not new).
+  const key = `${provider}:${modelId}`;
+  if (seen.has(key)) return { local: true, declared: true };
+  seen.add(key);
+  const chain = decl.modelFallbacks && Object.hasOwn(decl.modelFallbacks, modelId) ? decl.modelFallbacks[modelId] : [];
+  for (const entry of chain) {
+    const hosted = { local: false, declared: true, reason: `${head} its fallback_chain reaches hosted hop ${entry || "(unreadable entry)"}` };
+    if (depth >= LOCAL_FALLBACK_MAX_DEPTH) return hosted;
+    const target = resolveFallbackSpec(entry, trusted.aliases);
+    if (target === undefined) return hosted;
+    if (!localVoiceDecisionAt(target[0], target[1], trusted, depth + 1, seen).local) return hosted;
   }
   return { local: true, declared: true };
 }

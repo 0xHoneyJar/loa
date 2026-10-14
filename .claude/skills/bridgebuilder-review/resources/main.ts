@@ -22,6 +22,8 @@ import {
   trustedConfigStartupLine,
   applyLocality,
   singleModelLocalityRefusal,
+  headDriftRefusal,
+  EXIT_TRUSTED_CONFIG_DRIFT,
 } from "./config.js";
 import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine, type VoiceOutcome } from "./core/run-outcome.js";
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
@@ -464,6 +466,14 @@ async function main(): Promise<void> {
   config.trusted = trusted;
   console.error(trustedConfigStartupLine(trusted));
   for (const line of trusted.warnings) console.error(line);
+  // audit a257-1 MEDIUM-A2: cheval (every voice's transport) reads the CHECKOUT's configuration, so on a pull request a
+  // head whose providers, aliases, locality or secret allowlist differ from the trusted source's is refused by name
+  // before any voice is planned — exit 5, distinct from 0, 3 (DEGRADED) and 4 (FAILED). Local mode is unchanged.
+  const driftRefusal = headDriftRefusal(trusted);
+  if (driftRefusal !== undefined) {
+    console.error(driftRefusal);
+    process.exit(EXIT_TRUSTED_CONFIG_DRIFT);
+  }
 
   // Load persona via 5-level precedence chain
   const personaResult = await loadPersona(config, {

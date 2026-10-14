@@ -99,6 +99,9 @@ _hosted_in() {  # <file of hop names, one per line> → the hosted ones, as hop-
     [ "$(jq -r '.metadata.companion_voice.reason' "$env")" = "locality_refused" ]
     # the envelope names the posture and each refusal with its role
     [ "$(jq -r '.metadata.locality.mode' "$env")" = "local_voices" ]
+    # audit a257-1 LOW-A2: a review envelope is not a degraded security review, and carries no audit sentence
+    [ "$(jq -r '.metadata.locality.degraded_security_review' "$env")" = "false" ]
+    jq -e '.metadata.locality | has("note") | not' "$env" >/dev/null
     [ "$(jq -r '[.metadata.locality.refused[] | "\(.role):\(.alias):\(.provider)"] | sort | join(" ")' "$env")" = \
       "companion:claude-headless:anthropic primary:gpt-5.5:openai repair:claude-headless:anthropic repair:tiny:anthropic" ]
     [ "$(jq '.verdict_quality.voices_planned' "$env")" = "1" ]
@@ -158,6 +161,8 @@ _hosted_in() {  # <file of hop names, one per line> → the hosted ones, as hop-
     local s="locality: local_voices — with one local family the companion is not an independent second voice (duplicate_voice, or not planned), so every security audit is DEGRADED_SECURITY_REVIEW; adversarial-review-gate.sh and verdict-derive.sh treat this envelope exactly as they treat any other."
     grep -qxF "[adversarial-review] $s" "$T/stderr.log"
     [ "$(jq -r '.metadata.locality.note' "$env")" = "$s" ]
+    # audit a257-1 LOW-A2: the one-family case is machine-readable on the audit envelope
+    [ "$(jq -r '.metadata.locality.degraded_security_review' "$env")" = "true" ]
     # the config comment carries the same sentence
     grep -qF "$s" "$PROJECT_ROOT/.loa.config.yaml.example"
     # the COMPLETED gate opens on it (presence + metadata.type/model — today's check)
@@ -271,17 +276,35 @@ print("loaded"); sys.exit(0)' "$T/proj9" "$PROJECT_ROOT"
     [[ "$output" == *"[CONFIG-INVALID] providers."*"dispatch_group local"* ]] || { echo "$output"; return 1; }
 }
 
-@test "LOC-10 the suite's localbox fixture is a provider the cheval loader admits (LOW-1, r257-1)" {
-    _cfg local_voices
-    mkdir -p "$T/proj/.claude/defaults"
-    cp "$PROJECT_ROOT/.claude/defaults/model-config.yaml" "$T/proj/.claude/defaults/"
-    cp "$CONFIG_FILE" "$T/proj/.loa.config.yaml"
-    run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[2] + "/.claude/adapters")
+@test "LOC-10 the suite's localbox fixture is a provider the cheval loader admits (LOW-1, r257-1); under local_voices the loader refuses qwen-leaky's hosted fallback by name (audit a257-1 MEDIUM-A1 (b))" {
+    _load10() {
+        run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[2] + "/.claude/adapters")
 from loa_cheval.config.loader import load_config
-merged, _ = load_config(project_root=sys.argv[1])
+try:
+    merged, _ = load_config(project_root=sys.argv[1])
+except Exception as exc:
+    print(exc); sys.exit(3)
 p = merged["providers"]["localbox"]
 assert p["keyless"] is True and p["allow_insecure_endpoint"] == "127.0.0.1", p
 print("loaded", " ".join(sorted(p["models"])))' "$T/proj" "$PROJECT_ROOT"
+    }
+    mkdir -p "$T/proj/.claude/defaults"
+    cp "$PROJECT_ROOT/.claude/defaults/model-config.yaml" "$T/proj/.claude/defaults/"
+    # under hosted a local model may still fall back to the cloud: the whole fixture loads
+    _cfg hosted
+    cp "$CONFIG_FILE" "$T/proj/.loa.config.yaml"
+    _load10
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     [[ "$output" == *"loaded qwen-leaky qwen-local qwen-local-b qwen-local-c"* ]]
+    # under local_voices the loader refuses the local model whose fallback_chain reaches a hosted hop, by name …
+    _cfg local_voices
+    cp "$CONFIG_FILE" "$T/proj/.loa.config.yaml"
+    _load10
+    [ "$status" -eq 3 ] || { echo "the loader admitted qwen-leaky under local_voices: $output"; return 1; }
+    [[ "$output" == *"[CONFIG-INVALID] providers.localbox.models.qwen-leaky: under hounfour.locality local_voices the fallback_chain reaches a hosted hop openai:gpt-5.5"* ]] || { echo "$output"; return 1; }
+    # … and the rest of the fixture loads
+    yq -i 'del(.hounfour.providers.localbox.models.qwen-leaky)' "$T/proj/.loa.config.yaml"
+    _load10
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"loaded qwen-local qwen-local-b qwen-local-c"* ]]
 }

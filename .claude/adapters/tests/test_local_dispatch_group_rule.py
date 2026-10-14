@@ -214,6 +214,62 @@ def test_opted_in_policy_without_the_local_label_keeps_todays_behaviour():
         "https://api.acme.example/v1/chat/completions")
 
 
+# --- audit a257-1 LOW-A1: `localhost` is resolved and checked at request time (IP literals are never resolved) ---
+
+
+def _gai(*addrs):
+    import socket as _s
+
+    def fake(host, port, *_a, **_kw):
+        assert host == "localhost"
+        return [(_s.AF_INET6 if ":" in a else _s.AF_INET, _s.SOCK_STREAM, 6, "", (a, 0)) for a in addrs]
+    return fake
+
+
+@pytest.mark.parametrize("local", [True, False])
+def test_localhost_resolving_to_loopback_only_is_accepted(monkeypatch, local):
+    monkeypatch.setattr("socket.getaddrinfo", _gai("127.0.0.1", "::1", "127.0.1.1", "::ffff:127.0.0.1"))
+    TransportPolicy(endpoint="http://localhost:11434/v1", provider="box", local=local).check_url(
+        "http://localhost:11434/v1/chat/completions")
+
+
+@pytest.mark.parametrize("local", [True, False])
+def test_localhost_with_a_public_address_among_the_results_is_refused_by_name(monkeypatch, local):
+    monkeypatch.setattr("socket.getaddrinfo", _gai("127.0.0.1", "203.0.113.5"))
+    with pytest.raises(InvalidConfigError) as info:
+        TransportPolicy(endpoint="http://localhost:11434/v1", provider="box", local=local).check_url(
+            "http://localhost:11434/v1/chat/completions")
+    assert ("request host localhost for provider 'box' resolves to 203.0.113.5, not a loopback address "
+            "(dispatch_group local, D-7.2)") in str(info.value)
+
+
+def test_localhost_resolving_to_an_rfc1918_address_is_refused(monkeypatch):
+    monkeypatch.setattr("socket.getaddrinfo", _gai("192.168.1.10"))
+    with pytest.raises(InvalidConfigError, match="resolves to 192.168.1.10, not a loopback address"):
+        TransportPolicy(endpoint="http://localhost:11434/v1", provider="box", local=True).check_url(
+            "http://localhost:11434/v1/chat/completions")
+
+
+@pytest.mark.parametrize("fake", [
+    pytest.param(lambda *_a, **_kw: (_ for _ in ()).throw(OSError("no resolver")), id="raises"),
+    pytest.param(lambda *_a, **_kw: [], id="empty"),
+])
+def test_localhost_resolver_failure_is_refused(monkeypatch, fake):
+    monkeypatch.setattr("socket.getaddrinfo", fake)
+    with pytest.raises(InvalidConfigError) as info:
+        TransportPolicy(endpoint="http://localhost:11434/v1", provider="box", local=True).check_url(
+            "http://localhost:11434/v1/chat/completions")
+    assert "request host localhost for provider 'box' could not be resolved" in str(info.value)
+
+
+def test_an_ip_literal_is_never_resolved(monkeypatch):
+    def boom(*_a, **_kw):
+        raise AssertionError("an IP literal must not reach the resolver")
+    monkeypatch.setattr("socket.getaddrinfo", boom)
+    TransportPolicy(endpoint="http://127.0.0.1:8000/v1", provider="box", local=True).check_url(
+        "http://127.0.0.1:8000/v1/chat/completions")
+
+
 def _adapter(dispatch_group: str, endpoint: str = "https://api.acme.example/v1", optin: Any = None):
     from loa_cheval.providers.openai_adapter import OpenAIAdapter
 

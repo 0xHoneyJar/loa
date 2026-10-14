@@ -3,7 +3,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, loadTrustedConfig, trustedConfigStartupLine, applyLocality, singleModelLocalityRefusal, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, loadTrustedConfig, trustedConfigStartupLine, applyLocality, singleModelLocalityRefusal, headDriftRefusal, EXIT_TRUSTED_CONFIG_DRIFT, } from "./config.js";
 import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine } from "./core/run-outcome.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
@@ -388,6 +388,14 @@ async function main() {
     console.error(trustedConfigStartupLine(trusted));
     for (const line of trusted.warnings)
         console.error(line);
+    // audit a257-1 MEDIUM-A2: cheval (every voice's transport) reads the CHECKOUT's configuration, so on a pull request a
+    // head whose providers, aliases, locality or secret allowlist differ from the trusted source's is refused by name
+    // before any voice is planned — exit 5, distinct from 0, 3 (DEGRADED) and 4 (FAILED). Local mode is unchanged.
+    const driftRefusal = headDriftRefusal(trusted);
+    if (driftRefusal !== undefined) {
+        console.error(driftRefusal);
+        process.exit(EXIT_TRUSTED_CONFIG_DRIFT);
+    }
     // Load persona via 5-level precedence chain
     const personaResult = await loadPersona(config, {
         warn: (msg) => console.error(`[bridgebuilder] WARN: ${msg}`),

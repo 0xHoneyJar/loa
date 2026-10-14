@@ -473,15 +473,11 @@ def locality_mode_of(hounfour: Dict[str, Any]) -> Optional[str]:
 def hop_locality_of(provider: str, model_id: Optional[str], hounfour: Dict[str, Any]) -> str:
     """`local` when the hop's model declares dispatch_group `local` (D-8.0) AND the provider honours it — an
     HTTP provider whose endpoint host passes the local-hop rule (D-8.1, r257-1) — else `hosted`, so the record
-    never says local for a hop the rule calls hosted."""
-    from loa_cheval.config.endpoint_policy import local_endpoint_host
+    never says local for a hop the rule calls hosted. ONE implementation: ``endpoint_policy.hop_is_local`` (the
+    rule cheval's planner applies under ``local_voices``, audit a257-1 MEDIUM-A1)."""
+    from loa_cheval.config.endpoint_policy import hop_is_local
 
-    prov, entry = _provider_model_entry(provider, model_id, hounfour)
-    if entry.get("dispatch_group") != "local":
-        return "hosted"
-    if str(prov.get("type") or "").endswith("-headless") or entry.get("kind") == "cli":
-        return "hosted"
-    return "local" if local_endpoint_host(prov.get("endpoint")) is not None else "hosted"
+    return "local" if hop_is_local(hounfour, provider, model_id) else "hosted"
 
 
 def hop_telemetry(hop: Optional[str], hounfour: Dict[str, Any]) -> Dict[str, Any]:

@@ -3887,6 +3887,14 @@ _adv_budget_estimate() {  # <estimated input tokens> <role>=<hop>... → _ADV_BU
       log "budget: no catalog price for $_bv_hop ($_bv_role) — the fixed 10 / 30 USD per Mtok applies to this voice"
     elif (( _bv_in == 0 && _bv_out == 0 )); then
       log "budget: $_bv_hop ($_bv_role) is zero-priced in the catalog — estimated 0c"
+      # audit a257-1 LOW-A3: a zero price is expected only on an open-weight (local) entry; on any other it is a pricing
+      # overlay that would zero both this estimate and the ledger — said by name (warning only: metering is unchanged).
+      # The open_weight flag is read from the same CLI's --json row; an unreadable answer warns (fail loud).
+      local _bv_ow=""
+      _bv_ow=$(PYTHONSAFEPATH=1 PYTHONPATH="$PROJECT_ROOT/.claude/adapters" python3 -W ignore::RuntimeWarning -m loa_cheval.metering.pricing \
+        --catalog "${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" --config "${CONFIG_FILE:-}" --json --alias "$_bv_hop" 2>/dev/null \
+        | jq -r --arg a "$_bv_hop" 'select(.alias == $a) | .open_weight' 2>/dev/null | head -n 1) || _bv_ow=""
+      [[ "$_bv_ow" == "true" ]] || log "budget: zero price on $_bv_hop ($_bv_role), not marked open_weight — check the pricing overlay"
     elif [[ "$_bv_src" == "stale_catalog" ]]; then
       log "budget: $_bv_hop ($_bv_role) has a stale catalog price (price_date older than 90 days) — used as given"
     fi
@@ -4842,12 +4850,17 @@ main() {
   fi
 
   # cycle-129 FR-8 (D-8.1): a local_voices envelope says so — the refused hops by name and, on the audit gate, the
-  # DEGRADED sentence (absent under hosted: the default envelope is unchanged)
+  # DEGRADED sentence (absent under hosted: the default envelope is unchanged). Audit a257-1 LOW-A2: the one-family case
+  # is machine-readable — `degraded_security_review: true` on an audit whose companion is not an independent second
+  # voice (duplicate_voice, not planned, failed or the sole voice), with the sentence; `false` otherwise (a review, or
+  # an audit with an independent companion). verdict_quality, verdict-derive.sh and the artefact gate do not read it.
   if [[ "$CONF_LOCALITY" == "local_voices" ]]; then
     local _locj _locf="$_ADVERSARIAL_WORKDIR/locality-refused.json"
     _adv_locality_refused_json > "$_locf" 2>/dev/null || printf '[]' > "$_locf"
     if _locj=$(jq -c --slurpfile rf "$_locf" --arg t "$type" --arg s "$_ADV_LOC_DEGRADED_SENTENCE" \
-        '.metadata.locality = ({mode: "local_voices", refused: $rf[0]} + (if $t == "audit" then {note: $s} else {} end))' <<<"$result" 2>/dev/null) \
+        '(($t == "audit") and ((.metadata.companion_voice.counted_as // null) != "independent_voice")) as $dsr
+         | .metadata.locality = ({mode: "local_voices", refused: $rf[0], degraded_security_review: $dsr}
+                                 + (if $dsr then {note: $s} else {} end))' <<<"$result" 2>/dev/null) \
         && [[ -n "$_locj" ]]; then
       result="$_locj"
     fi

@@ -1226,8 +1226,10 @@ hounfour:
 # Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
 # Threat model: plain http is admitted only to the one host named in
 # allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
-# range that is never resolved through DNS, so the prompt does not cross a
-# public network unencrypted and the name cannot be rebound. For this provider
+# range. IP literals are never resolved, so the prompt does not cross a public
+# network unencrypted and the address cannot be rebound; localhost is resolved
+# and checked at request time, and any address that is not loopback (or a
+# resolver failure) refuses the request by name. For this provider
 # cheval ignores proxy environment variables, refuses redirects and keeps every
 # request under the declared endpoint path, while every other provider keeps the
 # https, loopback and private-range refusals.
@@ -2512,6 +2514,10 @@ bridgebuilder:
   # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
   # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
   # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
+  # Trusted config drift: cheval reads the checkout's configuration for the dispatch, so a pull request whose
+  # head changes hounfour.providers, hounfour.aliases, hounfour.locality or the secret allowlist is refused by
+  # name before any voice is planned (exit 5): merge the base branch into the head, or set
+  # BRIDGEBUILDER_TRUSTED_CONFIG to the configuration you vouch for.
   exit_on_degraded: 3
 
 # =============================================================================

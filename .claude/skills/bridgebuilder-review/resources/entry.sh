@@ -121,4 +121,7 @@ if [[ ! -d "${SKILL_DIR}/node_modules/zod" ]]; then
 fi
 
 # Run compiled TypeScript via Node (no npx tsx — SKP-002)
+# Exit codes: 0 the review completed; 3 completed DEGRADED (bridgebuilder.exit_on_degraded, cycle-129 D-7.7); 4 failed
+# to run (above); 5 refused before any voice was planned because the PR head's hounfour providers, aliases, locality or
+# secret allowlist differ from the trusted config (audit a257-1 MEDIUM-A2: cheval reads the checkout's configuration).
 exec node "${SKILL_DIR}/dist/main.js" "$@"

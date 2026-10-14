@@ -10872,3 +10872,387 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0340"
+    created_at: "2026-10-14T09:52:01Z"
+    updated_at: "2026-10-14T09:52:01Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S3 a257-1: Under hounfour.locality local_voices the fallback chain is enforced where the prompt is sent: cheval plans around locality (hosted chain entries d..."
+    decision: "Under hounfour.locality local_voices the fallback chain is enforced where the prompt is sent: cheval plans around locality (hosted chain entries dropped by name, an empty plan refused with MODELINV failure_class locality_refused), the loader refuses a local model whose fallback_chain reaches a hosted hop, and Bridgebuilder walks the chain in the trusted view; under hosted a local model may still fall back to the cloud."
+    rationale: "The planner alone knew fallback_chain_reaches_hosted; cheval, the one process that sends the prompt, never read hounfour.locality, so a local model with a hosted fallback left the declared providers inside one call while the inventory said local (audit a257-1 MEDIUM-A1, dissent DISS-C-001)."
+    alternatives_considered:
+      - option: "Keep the chain check in the shell planner only and document that fallback chains must be local under local_voices"
+        rejected_because: "a declared locality must be enforced, not trusted (D-8.1); Bridgebuilder and any direct cheval caller bypass the shell planner"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:52:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0341"
+    created_at: "2026-10-14T09:52:02Z"
+    updated_at: "2026-10-14T09:52:02Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S3 a257-1: On a pull request Bridgebuilder refuses by name a head whose hounfour.providers, hounfour.aliases, hounfour.locality or secret_env_allowlist diffe..."
+    decision: "On a pull request Bridgebuilder refuses by name a head whose hounfour.providers, hounfour.aliases, hounfour.locality or secret_env_allowlist differ from the trusted configuration (exit 5), because cheval reads the checkout's configuration for the dispatch; local mode is unchanged."
+    rationale: "The trusted view governed which voices Bridgebuilder accepts, but cheval-delegate spawns cheval from the working directory with the inherited environment, so a head could re-point an endpoint, re-alias a voice or widen the secret allowlist and the first request would carry a credential (audit a257-1 MEDIUM-A2, dissent DISS-C-002)."
+    alternatives_considered:
+      - option: "Pass the trusted configuration to cheval as an alternate project root"
+        rejected_because: "cheval has no configuration-path override and a synthesised project root would diverge from the catalog overlay rules; refusing drift fails closed with one sentence and is testable as a pure function"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:52:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0342"
+    created_at: "2026-10-14T09:52:03Z"
+    updated_at: "2026-10-14T09:52:03Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S3 a257-1: An http endpoint on an RFC1918 IP literal admitted through a per-provider allow_insecure_endpoint stays admitted (dissent DISS-001 accepted by des..."
+    decision: "An http endpoint on an RFC1918 IP literal admitted through a per-provider allow_insecure_endpoint stays admitted (dissent DISS-001 accepted by design): the opt-in names the exact host in the operator's own configuration and the probe reaches only that host; the repository-controlled case is the head-drift refusal."
+    rationale: "D-7.2's threat model admits loopback and RFC1918 by explicit opt-in; refusing private non-loopback probing would remove the LAN inference-box case FR-7 exists for."
+    alternatives_considered:
+      - option: "Restrict the probe and the opt-in to loopback by default"
+        rejected_because: "a LAN GPU box on 192.168/16 is the primary open-weight deployment shape; the opt-in already pins one host and never resolves a name"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:52:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0343"
+    created_at: "2026-10-14T09:52:04Z"
+    updated_at: "2026-10-14T09:52:04Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S3 a257-1: Sprint 257 ran its three dissent runs (review r1, review r2, audit r1); the audit fix round a257-1 is verified by the auditor directly against the..."
+    decision: "Sprint 257 ran its three dissent runs (review r1, review r2, audit r1); the audit fix round a257-1 is verified by the auditor directly against the tree and the suites, with no fourth run."
+    rationale: "The cap of three dissent runs per sprint stands (cycle-126 S2 lesson, DEC-0310 records the sprint-256 deviation); the fix round changes code the auditor read in full, and the suites pin every item (precedent: sprint-256 r256-5)."
+    alternatives_considered:
+      - option: "Run a fourth dissent on the audit fix range"
+        rejected_because: "exceeds the agreed cap for a round whose scope the auditor specified line by line; a fresh-context voice adds most on unread surface, not on a prescribed fix"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:52:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#findings (a257-1 item 4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0344"
+    created_at: "2026-10-14T10:28:20Z"
+    updated_at: "2026-10-14T10:28:20Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: The trusted-config drift refusal also applies on Bridgebuilder's single-model path: it runs right after the trusted config is loaded, before either pat..."
+    decision: "The trusted-config drift refusal also applies on Bridgebuilder's single-model path: it runs right after the trusted config is loaded, before either path plans a voice, because the single-model voice also dispatches through cheval from the checkout."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0345"
+    created_at: "2026-10-14T10:28:21Z"
+    updated_at: "2026-10-14T10:28:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: The localhost resolution check applies to every TransportPolicy hop (a local label or an allow_insecure_endpoint: localhost opt-in), not only local=Tru..."
+    decision: "The localhost resolution check applies to every TransportPolicy hop (a local label or an allow_insecure_endpoint: localhost opt-in), not only local=True: plain http to localhost must stay on this machine either way."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0346"
+    created_at: "2026-10-14T10:28:23Z"
+    updated_at: "2026-10-14T10:28:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: metadata.locality.degraded_security_review is true exactly when the audit's companion is not independent_voice, and the note sentence is attached only ..."
+    decision: "metadata.locality.degraded_security_review is true exactly when the audit's companion is not independent_voice, and the note sentence is attached only then; before, the sentence was attached to every local_voices audit."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0347"
+    created_at: "2026-10-14T10:28:24Z"
+    updated_at: "2026-10-14T10:28:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: Planned-around hosted hops are recorded in MODELINV models_not_planned with the new reason locality_refused (payload schema enum extended, pin test bum..."
+    decision: "Planned-around hosted hops are recorded in MODELINV models_not_planned with the new reason locality_refused (payload schema enum extended, pin test bumped), mirroring the agy precedent; the all-hosted refusal records every hop in models_failed."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0348"
+    created_at: "2026-10-14T10:28:25Z"
+    updated_at: "2026-10-14T10:28:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: hop_is_local honours a provider-block dispatch_group: local when the model entry is silent (the hop-locality.py rule); MODELINV hop_locality uses the s..."
+    decision: "hop_is_local honours a provider-block dispatch_group: local when the model entry is silent (the hop-locality.py rule); MODELINV hop_locality uses the same function, so it can say local where it said hosted for a block-labelled model."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0349"
+    created_at: "2026-10-14T10:28:26Z"
+    updated_at: "2026-10-14T10:28:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: An unparsable PR-head config is drift (.loa.config.yaml unreadable in the PR head) and an absent one reads as all defaults: fail closed, since cheval's..."
+    decision: "An unparsable PR-head config is drift (.loa.config.yaml unreadable in the PR head) and an absent one reads as all defaults: fail closed, since cheval's YAML reader may accept what yq refused."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0350"
+    created_at: "2026-10-14T10:28:27Z"
+    updated_at: "2026-10-14T10:28:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: Both hounfour.secret_env_allowlist (the key cheval's loader reads) and a root secret_env_allowlist are compared for drift, because the docs once showed..."
+    decision: "Both hounfour.secret_env_allowlist (the key cheval's loader reads) and a root secret_env_allowlist are compared for drift, because the docs once showed the root shape."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0351"
+    created_at: "2026-10-14T10:28:29Z"
+    updated_at: "2026-10-14T10:28:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 K: LocalityRefusedError.detail carries the bare message because ChevalError.__str__ prefixes [cheval] INVALID_CONFIG:; the JSON envelope and the MODELINV ..."
+    decision: "LocalityRefusedError.detail carries the bare message because ChevalError.__str__ prefixes [cheval] INVALID_CONFIG:; the JSON envelope and the MODELINV message start with 'locality: local_voices refuses every hop of <alias>'."
+    rationale: "implementer K call for cycle-129 sprint-257 audit fix round a257-1, recorded in reviewer-k.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "4184c052"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:28:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-k.md#assumptions (K-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

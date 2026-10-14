@@ -77,6 +77,11 @@ export interface ProviderDecl {
     endpoint?: string;
     /** A CLI provider (`type: *-headless`, or every model `kind: cli`): never local (D-8.1, r257-1). */
     cli?: boolean;
+    /**
+     * `models.<model_id>.fallback_chain` per declared model that has one (audit a257-1 MEDIUM-A1 (c)): cheval walks it
+     * inside one call, so a local voice is local only when every entry is. A non-string entry is kept as "" (unresolvable).
+     */
+    modelFallbacks?: Record<string, string[]>;
 }
 /** Where the trusted provider configuration was read from. */
 export type TrustedConfigSource = "working-tree" | "base-ref" | "repository-settings" | "none";
@@ -97,6 +102,15 @@ export interface TrustedConfig {
     exitOnDegraded: number;
     /** Lines to log once at startup (read failures, refusals, invalid values). */
     warnings: string[];
+    /** `hounfour.aliases` from the trusted source (string targets only) — resolves `fallback_chain` aliases (MEDIUM-A1 (c)). */
+    aliases?: Record<string, string>;
+    /**
+     * Pull-request mode only (audit a257-1 MEDIUM-A2): the dotted keys among `hounfour.providers.<name>`,
+     * `hounfour.aliases.<alias>`, `hounfour.locality` and the secret allowlists that differ between the PR head and the
+     * trusted source. cheval reads the checkout's configuration for the dispatch, so a non-empty list refuses the
+     * multi-model run (main.ts, exit 5). Always `[]` in local mode.
+     */
+    headDrift?: string[];
 }
 /** Multi-model provider configuration entry. */
 export interface MultiModelProviderEntry {

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-14T08:50:46Z",
-  "source_hash": "b4e84888ce6f026aa7ffa758e24a1ae7262055fe3bcdebff5a3c49dd5c859cf6",
+  "generated_at": "2026-10-14T10:15:43Z",
+  "source_hash": "5dc9f2234313e53dae6152a581dd0ab7bbcdde5b23b2a70b3c9b3eb3aae843c1",
   "file_count": 43,
   "files": [
     {
@@ -46,7 +46,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
-      "sha256": "06f39340b69c9f734738ba739ee4d01be9ab9fbfdf530587541c2f928c5cbcf9"
+      "sha256": "39543c7beef4919f453fb552a6182075f78554a85987b67891ef5f020f21ff2e"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
@@ -130,7 +130,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
-      "sha256": "1b13a035d7dd98ef48cbec7fd76c96ddc9a6e0e9e40984dcbd03bfee1cb33ec5"
+      "sha256": "11cbc1ed7b4e0dca7ef4fdc2c16a34ca7f122709eaf9ac478ebe2dea0cfb1866"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts",
@@ -142,7 +142,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
-      "sha256": "8509c88a4038dccde7eeea79f557a0b6cdad74fb2412c2c743ba5bf92281ec27"
+      "sha256": "6db270fc245fff889312487e40488f02cb8841201ecd2f243a16eb76cf5f36a8"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",

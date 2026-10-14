@@ -420,6 +420,43 @@ def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Di
     return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
 
 
+def _entry_is_local(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """The local-hop rule (SDD D-8.1) for one resolved hop: `endpoint_policy.hop_is_local` on the merged view, and a
+    `kind: cli` hop (the resolver's adapter_kind) is hosted whatever its label says."""
+    from loa_cheval.config.endpoint_policy import hop_is_local
+    if getattr(entry, "adapter_kind", "http") == "cli":
+        return False
+    return hop_is_local(hounfour, getattr(entry, "provider", ""), getattr(entry, "model_id", ""))
+
+
+def _plan_around_locality(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Dict[str, Any]]]:
+    """cycle-129 audit a257-1 MEDIUM-A1 (a), SDD D-8.1: under `hounfour.locality: local_voices` cheval — the process
+    that sends the prompt — plans around every hop that fails the local-hop rule, the way `_plan_around_agy` plans
+    around the agy opt-in: the hop is dropped before the walk (never dispatched, not in models_requested) with one
+    stderr line naming it, and returned as `[{model, provider, reason: locality_refused}]` for MODELINV
+    `models_not_planned`. A chain left empty raises `LocalityRefusedError` — never a silent reroute. Under `hosted` (or
+    unset) the chain is returned unchanged."""
+    if not isinstance(hounfour, dict) or hounfour.get("locality") != "local_voices":
+        return chain, []
+    from loa_cheval.types import LocalityRefusedError
+    primary = chain.entries[0] if chain.entries else None
+    hosted = [e for e in chain.entries if not _entry_is_local(e, hounfour)]
+    if not hosted:
+        return chain, []
+    for e in hosted:
+        where = "primary" if e is primary else f"fallback of {chain.primary_alias}"
+        print(f"locality: local_voices refuses hosted hop {e.provider}:{e.model_id} ({where})", file=sys.stderr)
+    if len(hosted) == len(chain.entries):
+        raise LocalityRefusedError(
+            f"locality: local_voices refuses every hop of {chain.primary_alias} "
+            f"({', '.join(e.canonical for e in hosted)}): none passes the local-hop rule (dispatch_group local on an "
+            f"HTTP provider whose endpoint host is a loopback or RFC1918 IP literal or localhost)"
+        )
+    kept = [e for e in chain.entries if e not in hosted]
+    skipped = [{"model": e.canonical, "provider": e.provider, "reason": "locality_refused"} for e in hosted]
+    return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
+
+
 def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
 
@@ -1811,6 +1848,33 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # the full resolved chain (cycle-127 review r251-1 G1: a gated agy hop is
     # planned around before models_requested is taken; r251-4 S8, audit n2).
     _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
+    # cycle-129 audit a257-1 MEDIUM-A1 (a): under hounfour.locality local_voices the hosted hops are planned around;
+    # a chain with no local hop is refused before any dispatch, with a MODELINV row (failure_class locality_refused).
+    from loa_cheval.types import LocalityRefusedError as _LocalityRefusedError
+    try:
+        _chain, _models_not_planned_loc = _plan_around_locality(_chain, hounfour)
+    except _LocalityRefusedError as _e:
+        print(_error_json(_e.code, _e.detail, retryable=False, failure_class=_e.failure_class), file=sys.stderr)
+        try:
+            _emit_modelinv(
+                models_requested=[e.canonical for e in _chain.entries],
+                models_succeeded=[],
+                models_failed=[{"model": e.canonical, "provider": e.provider, "error_class": "INVALID_CONFIG",
+                                "failure_class": _e.failure_class, "message_redacted": _e.detail}
+                               for e in _chain.entries],
+                operator_visible_warn=True,
+                capability_class=getattr(binding, "capability_class", None),
+                calling_primitive=(getattr(args, "skill", None) or agent_name),
+                models_not_planned=_models_not_planned or None,
+                **_modelinv_hop_telemetry(_chain.entries[0].canonical, hounfour),
+            )
+        except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask the refusal
+            print(f"[AUDIT-EMIT-FAILED] {type(_emit_err).__name__}: {_emit_err}", file=sys.stderr)
+        return EXIT_CODES["INVALID_CONFIG"]
+    if _models_not_planned_loc:
+        _models_not_planned = list(_models_not_planned) + _models_not_planned_loc
+        if _auth_type_resolved is not None:
+            _auth_type_resolved = _chain.entries[0].auth_type
     if _models_not_planned and _auth_type_resolved is not None:
         _auth_type_resolved = _chain.entries[0].auth_type
     _modelinv_capability_class = getattr(binding, "capability_class", None)

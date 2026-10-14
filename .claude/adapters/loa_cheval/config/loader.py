@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from loa_cheval.config.endpoint_policy import normalise_keyless, validate_providers
+from loa_cheval.config.endpoint_policy import normalise_keyless, validate_local_fallbacks, validate_providers
 from loa_cheval.config.interpolation import interpolate_config, redact_config
 from loa_cheval.types import ConfigError
 
@@ -702,6 +702,9 @@ def load_config(
     # and keyless providers must declare context_window and dispatch_group.
     # Runs on the interpolated endpoint so a templated value is checked as sent.
     validate_providers(merged)
+    # cycle-129 audit a257-1 MEDIUM-A1 (b): under hounfour.locality local_voices a
+    # dispatch_group local model whose fallback_chain reaches a hosted hop is refused.
+    validate_local_fallbacks(merged)
 
     return merged, sources
 

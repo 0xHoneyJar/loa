@@ -25,6 +25,9 @@ _cfg() {  # <model> <budget> <companion_voice> [extra code_review lines]
       models:
         fixture-zero:
           pricing: {input_per_mtok: 0, output_per_mtok: 0}
+        fixture-zero-ow:
+          open_weight: true
+          pricing: {input_per_mtok: 0, output_per_mtok: 0}
         fixture-stale:
           price_date: \"2000-01-01\"
           pricing: {input_per_mtok: 1000000, output_per_mtok: 1000000}
@@ -75,6 +78,8 @@ _big_diff() {  # a diff whose estimate is 1,000,500 input tokens (3,000,000 byte
     grep -qF "budget: fixture-zero (primary) is zero-priced in the catalog — estimated 0c" "$T/stderr.log"
     grep -qF "budget: estimate 0c over 1 planned voice(s) (primary fixture-zero 0c)" "$T/stderr.log"
     grep -qx "fixture-zero" "$CALLS"
+    # audit a257-1 LOW-A3: the zero price is on an entry not marked open_weight — said by name (the estimate is unchanged)
+    grep -qF "budget: zero price on fixture-zero (primary), not marked open_weight — check the pricing overlay" "$T/stderr.log"
     # the same run priced at the fixed rate is refused (the regression this replaces: 2000 output tokens × 30 = 6c > 0)
     _cfg mystery-model-x 0 false
     s3_run review >/dev/null
@@ -120,4 +125,13 @@ _big_diff() {  # a diff whose estimate is 1,000,500 input tokens (3,000,000 byte
     s3_run review >/dev/null
     [ "$(cat "$T/rc")" = "0" ]
     grep -qF "budget: no catalog price for fixture-priced (primary)" "$T/stderr.log"
+}
+
+@test "BUD-7 a zero-priced entry marked open_weight estimates 0c with no overlay warning (audit a257-1 LOW-A3)" {
+    _cfg fixture-zero-ow 0 false
+    s3_run review >/dev/null
+    [ "$(cat "$T/rc")" = "0" ] || { cat "$T/stderr.log"; return 1; }
+    grep -qF "budget: fixture-zero-ow (primary) is zero-priced in the catalog — estimated 0c" "$T/stderr.log"
+    ! grep -qF "budget: zero price on fixture-zero-ow" "$T/stderr.log" || { echo "an open_weight entry was warned"; return 1; }
+    grep -qx "fixture-zero-ow" "$CALLS"
 }

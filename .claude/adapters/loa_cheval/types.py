@@ -540,6 +540,18 @@ class AgyOptInRequiredError(ConfigError):
         super().__init__(message, context={"failure_class": self.failure_class})
 
 
+class LocalityRefusedError(ConfigError):
+    """Under ``hounfour.locality: local_voices`` every hop of the resolved chain fails the local-hop rule (cycle-129
+    audit a257-1 MEDIUM-A1, SDD D-8.1): cheval refuses the call before any dispatch — never a silent reroute.
+    ``failure_class: locality_refused`` (also in ``context``) is the machine-readable seam MODELINV records."""
+
+    failure_class = "locality_refused"
+
+    def __init__(self, message: str):
+        super().__init__(message, context={"failure_class": self.failure_class})
+        self.detail = message   # (the bare refusal, `locality: local_voices refuses every hop of <alias> …`)
+
+
 class AuthRevokedError(ChevalError):
     """Runtime auth-credential revocation on a CLI/subscription leg (KF-017/#1071).
 

@@ -145,6 +145,12 @@ class TransportPolicy:
                 f"request host {r_host or '(none)'} for provider '{self.provider}' is not {LOCAL_RULE_TEXT} "
                 f"(dispatch_group local, D-7.2)"
             )
+        if str(local_host(r_host)).lower() == "localhost":
+            # audit a257-1 LOW-A1: an IP literal is never resolved, but `localhost` is resolved by the system resolver
+            # (/etc/hosts, nsswitch) when the request is sent — so it is resolved here first and every address it
+            # yields must be loopback. Fail closed: a resolver failure refuses too. (Every policy hop — a local one or
+            # an `allow_insecure_endpoint: localhost` opt-in, whose plain http must stay on this machine.)
+            self._check_localhost_resolves_to_loopback()
         prefix = d_path.rstrip("/")
         same_origin = (r_scheme, r_host, r_port) == (d_scheme, d_host, d_port)
         in_path = (r_path == prefix or r_path.startswith(prefix + "/")) if prefix else True
@@ -153,6 +159,40 @@ class TransportPolicy:
                 f"request URL path {r_path!r} on {r_host!r} is outside the declared endpoint "
                 f"{self.endpoint!r} for provider '{self.provider}' (D-7.2 path-prefix rule)"
             )
+
+    def _check_localhost_resolves_to_loopback(self) -> None:
+        import ipaddress
+
+        try:
+            infos = socket.getaddrinfo("localhost", None)
+        except Exception as exc:  # noqa: BLE001 — any resolver failure refuses (fail closed)
+            raise InvalidConfigError(
+                f"request host localhost for provider '{self.provider}' could not be resolved "
+                f"({type(exc).__name__}) (dispatch_group local, D-7.2)"
+            ) from None
+        addrs = []
+        for info in infos or ():
+            try:
+                addrs.append(str(info[4][0]))
+            except (IndexError, TypeError):
+                addrs.append("(unreadable)")
+        if not addrs:
+            raise InvalidConfigError(
+                f"request host localhost for provider '{self.provider}' could not be resolved "
+                f"(no address) (dispatch_group local, D-7.2)"
+            )
+        for addr in addrs:
+            try:
+                ip = ipaddress.ip_address(addr.split("%", 1)[0])
+                mapped = getattr(ip, "ipv4_mapped", None)
+                loopback = ip.is_loopback or bool(mapped is not None and mapped.is_loopback)
+            except ValueError:
+                loopback = False
+            if not loopback:
+                raise InvalidConfigError(
+                    f"request host localhost for provider '{self.provider}' resolves to {addr[:64]}, not a loopback "
+                    f"address (dispatch_group local, D-7.2)"
+                )
 
     def refuse_redirect(self, status: int) -> None:
         if 300 <= int(status) < 400:
