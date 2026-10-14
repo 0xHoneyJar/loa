@@ -1,0 +1,7 @@
+COMPLETED 2026-10-14T05:49:07Z
+sprint: sprint-256 (cycle-129 Sprint 2 — inert controls repaired or retired, file-authoritative run position, heredoc classifier, profiles, prose-diet fallback)
+implementation: 40df53ed (base b6802e4f; review fix rounds 3263bbc4 + b6030e5b, 77455afb, 5ecf13f5; audit fix rounds 81005346, 9c4ed319; decisions a7682ba4)
+review: engineer-feedback-r1.md CHANGES_REQUIRED (0/1/0/7) → engineer-feedback-r2.md CHANGES_REQUIRED (0/1/0/3) → engineer-feedback.md APPROVED (All good, 0/0/0/3 carried); dissent adversarial-review.json three two-voice consensus runs, 0 rejected
+audit: auditor-sprint-feedback-r1.md CHANGES_REQUIRED (0/1/2/5) → auditor-sprint-feedback.md APPROVED (0/0/0/3); dissent adversarial-audit.json two two-voice consensus runs, 0 rejected; r256-5 fixes auditor-verified (DEC-0310)
+verdict-derive: review CONSISTENT APPROVED; audit CONSISTENT APPROVED (excluded_confirmed 0 = review excluded 0)
+AC-2.12 Partial: full bats sweep and vitest with the cycle PR's CI run

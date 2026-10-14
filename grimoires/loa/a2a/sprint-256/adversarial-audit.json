@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".loa.config.yaml: guardrails:\\n  input:\\n    enabled: true\\n  danger_level:\\n    enforce: false",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": ".loa.config.yaml.example: # Profile-governed (loa.profile; standard = false, full = true); see the default-off note above the block. Uncomment to pin it:\\n    # enforce: false",
+      "cross_file_justification": null,
+      "description": "This change turns two security controls off by default. The standard profile in .claude/data/profiles.yaml sets guardrails.input.enabled and guardrails.danger_level.enforce to false, the example config comments both keys out so a fresh install follows the profile, and this repository's live .loa.config.yaml now pins danger_level.enforce: false (tests/fixtures/profiles/standard-oracle.json records this_repo_today: true for that key). Fresh installs on standard or lean therefore lose PII redaction, injection detection and danger-level tool classification unless they opt into full. The input-guardrail include (.claude/data/skill-includes/input_guardrails.md) is already fail-open: a missing script, non-zero exit or unparseable output continues. Default-off removes the last enforcement path for that control. The rationale (82 events, zero catches, seven blocks on sanctioned skills) is a false-positive argument; it is not evidence the control has no value under prompt injection.",
+      "failure_mode": "A fresh install, or any repository on the standard/lean profile, runs skills with no pre-execution PII/injection screen and executes high/critical-risk tools with no danger-level gate, and nothing tells the operator the controls are off.",
+      "suggested_fix": "Keep guardrails.danger_level.enforce: true under standard and fix the seven false positives by allow-listing the sanctioned skills in the enforcer instead of disabling it. If the default must stay off, have /loa and the session-start surface print a one-line notice whenever either guardrail key resolves to false. Change the fail-open row in input_guardrails.md so a missing or crashing orchestrator at least emits a visible warning.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".loa.config.yaml.example: heredoc_classifier: true",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tests/fixtures/fence-corpus/corpus.jsonl: {\"id\":\"D133\",\"cmd\":\"cat <<EOF > notes.md\\ncommand rm -rf src\\nEOF\"",
+      "cross_file_justification": null,
+      "description": "heredoc_classifier: true makes the Bash fence stop scanning a heredoc body in full when the consumer is judged non-executing; the body is split per segment and a segment is kept only when its command word is a fence verb. The corpus pins exactly five stripped prefixes: backslash, absolute path, command, exec, sudo (D131-D135). No row pins shell reserved words or common wrappers. A body such as `if :; then rm -rf src; fi`, `{ rm -rf src; }`, `! rm -rf src`, `time rm -rf src`, `nohup rm -rf src &`, `timeout 5 rm -rf src` or `xargs rm -rf <list`, written under a quoted delimiter to notes.md, produces segments whose command word is then, {, !, time, nohup, timeout or xargs and is dropped. The fence sees one Bash call at a time, so a second call `bash notes.md` or `source notes.md` runs it; D119-D121 cover same-command execution only. The executable-target list is pinned only for .sh, .py, Makefile, rc files, git hooks, workflows, settings and package.json (D122-D125, D162-D168); Dockerfile, Justfile, .git/config aliases (!cmd), .pre-commit-config.yaml, `crontab -` and `at now <<EOF` consumers are absent. Before this change any literal rm -rf src in a heredoc body was blocked.",
+      "failure_mode": "A prompt-injected or confused agent writes a destructive script through a heredoc the fence now classifies as prose, then executes it on the next tool call; the fence that used to block step one never fires, and the corpus reports FR-6 fully green.",
+      "suggested_fix": "In the per-segment scan, treat shell reserved words (if, then, elif, else, do, while, until, {, !, time) and wrapper commands (nohup, timeout, nice, env, xargs, setsid, doas, busybox) as transparent prefixes before matching the command word. Add a block row for each shape and for crontab -, at, Dockerfile, Justfile, .git/config and .pre-commit-config.yaml targets; if the hook already handles them the rows pin it, otherwise they are live misses. Consider a same-session rule: a call that runs bash, sh, source or . on a path the previous call wrote via heredoc is classified as interpreter class.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "tests/fixtures/fence-corpus/corpus.jsonl: {\"id\":\"D156\",\"cmd\":\"gh api -X DELETE repos/o/r/git/refs/heads/main --input -",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/block-destructive-bash.bats: for re in '://' '\\b[0-9]{1,3}(\\.[0-9]{1,3}){3}\\b'",
+      "cross_file_justification": null,
+      "description": "D156-D161 pin the new FR-GH-1 rule only on gh api REST paths with -X/--method DELETE, PUT or PATCH. The same destructive operations remain reachable through shapes the corpus never exercises: `gh api graphql -f query='mutation{deleteRef(input:{refId:...})}'` deletes a branch, deleteBranchProtectionRule and updateBranchProtectionRule rewrite protection, deleteRepository and updateRepository cover D160/D161; the full-URL path form `gh api -X DELETE https://api.github.com/repos/o/r/git/refs/heads/main`; a leading-slash path; a method taken from a variable (`-X \"$M\"`); and `gh api --hostname`. The full-URL form cannot even be pinned: the corpus lint in block-destructive-bash.bats, which this change makes effective for the first time (the old `! grep` lines could never fail), rejects any row containing ://, so a miss on that shape is structurally invisible to the gate.",
+      "failure_mode": "An agent deletes a remote branch, tag, release or branch-protection rule through GraphQL or a full URL; FR-GH-1 never anchors while the corpus reports the rule green.",
+      "suggested_fix": "Extend FR-GH-1 to `gh api graphql` with the mutation names deleteRef, deleteBranchProtectionRule, updateBranchProtectionRule, deleteRepository and updateRepository; normalise the REST path by stripping an optional https://api.github.com or https://HOST/api/v3 prefix and a leading slash before matching; treat a non-literal -X/--method value as destructive. Relax the corpus lint to permit the literal host api.github.com (or an example.invalid placeholder) so the URL form can be pinned with block rows.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".loa.config.yaml.example: # Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".loa.config.yaml.example: loa:\\n  profile: standard   # lean | standard | full",
+      "cross_file_justification": ".claude/data/skill-includes/input_guardrails.md and retrospective_postlude.md (full-file context) now gate on `.claude/scripts/lib/profile-lib.sh knob`; the diff-touched .loa.config.yaml.example documents that LOA_PROFILE_CONFIG_FILE redirects that library to another file and is honoured outside bats.",
+      "description": "The example states that LOA_PROFILE_CONFIG_FILE points profile-lib.sh at a different config file and is honoured outside the test suite. Both skill includes now resolve their knob through that library, so whoever controls the hook process environment (a .envrc the agent wrote in an earlier session, an env block in settings, a CI job) can make every profile knob read from a file that turns the guardrails off, overriding the explicit values the operator set in .loa.config.yaml. Floor keys are unreachable, which bounds the impact to the nine profile knobs, two of which are the guardrail controls.",
+      "failure_mode": "Guardrails resolve to false from an attacker-chosen file while the repository config says true; nothing in the audit trail records which file was read.",
+      "suggested_fix": "Honour LOA_PROFILE_CONFIG_FILE only when BATS_TEST_FILENAME or an explicit LOA_TEST_MODE is set, or require the path to resolve inside LOA_REPO_ROOT. Emit a WARN line naming the file whenever the override is active so a redirected read is visible in the session.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tools/check-knob-readers.sh: pattern=\"(^|[^A-Za-z0-9_])\\\\.(${alt})([^A-Za-z0-9_]|$)\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".github/workflows/bats-tests.yml: run: bash tools/check-knob-readers.sh",
+      "cross_file_justification": null,
+      "description": "check-knob-readers.sh is the CI gate that keeps profile keys behind loa_knob. Its pattern requires the complete dotted key immediately after a dot, so `yq '.guardrails | .input.enabled'`, `.[\"guardrails\"].input.enabled`, a two-stage read (`yq .guardrails | yq .input.enabled`), a python or node reader, and a key assembled from a variable all pass. The header documents only the last two misses. A reader that slips through and uses `// true` turns an explicit false into true, and one using `// false` turns a full-profile operator's true into false (the standard-oracle fixture records this yq behaviour), so the guardrail controls can silently revert without the gate noticing.",
+      "failure_mode": "A new or refactored reader bypasses the profile and the gate stays green; a full-profile user believes danger-level enforcement is on while the reader resolves false.",
+      "suggested_fix": "Also flag any yq, python or node expression that contains a profile key's trailing two components (input.enabled, danger_level.enforce, surface_at_session_start) or a top-level profile section followed by a pipe or bracket. Add a test that plants each bypass shape in a fixture root and asserts the gate exits 1.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-256",
+    "timestamp": "2026-10-14T05:27:00Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 23906,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "90c09af50f57c329f8d1db36837d3f03f7103b3bc00a90210eacade58c1b0ffe",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:validate_providers",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`dispatch_group: local` is the sole input to the locality gate (hop-locality.py, LOC-7) and to the request-time TransportPolicy (proxy env ignored, redirects refused), but validate_providers never checks that a model labelled `local` belongs to a provider whose endpoint is actually an opted-in loopback/RFC1918 host. The loader already has the endpoint and the canonical opt-in host in hand at this point. A hosted https provider whose model entry says `dispatch_group: local` (a typo, or a copy-pasted catalog entry) is admitted, planned under `locality: local_voices`, recorded as `hop_locality: local` in MODELINV, and has its egress proxy bypassed.",
+      "failure_mode": "An operator who turned on `locality: local_voices` to keep prompts off public networks sees every refusal 'said by name' for correctly labelled hosted hops, while a mislabelled hosted provider is dispatched to silently; the audit trail (hop_locality: local) then asserts the opposite of what happened.",
+      "suggested_fix": "In validate_providers, for each model with `dispatch_group: local`, require that the provider's endpoint host equals the canonical opt-in host (i.e. the provider is an opted-in loopback/RFC1918 http endpoint) and raise `[CONFIG-INVALID] providers.<p>.models.<m>: dispatch_group local on a hosted endpoint` otherwise. Alternatively have hop-locality.py treat such entries as hosted with a named reason.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/metering/ledger.py:create_ledger_entry",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/metering/ledger.py:create_ledger_entry",
+      "cross_file_justification": "create_ledger_entry now writes a new `pricing_source` value `stale_catalog` into every ledger row for an entry past the freshness window. rollup.py was updated to accept it, but the ledger docstring itself names another reader (cost-report.sh, 'counts long_context_rows') and BudgetEnforcer/cost-report consumers that classify rows by whitelisting `config`/`cli_reported` are not in the diff.",
+      "description": "A new enum value was introduced for a field that downstream readers switch on. Only rollup.py's unpriced test was widened to `(\"config\", \"cli_reported\", \"stale_catalog\")`. Any other consumer that whitelists the old two values (cost-report.sh is named in this file; the daily-spend and budget paths read the same rows) will count a stale-priced row as unpriced, print the 'UNDERSTATES' warning for a row that was in fact priced, and may skip `pricing_resolution`/`cost_estimated` handling that is gated on `pricing_source == \"config\"` elsewhere.",
+      "failure_mode": "Cost reports and budget warnings misclassify every row priced from a catalog entry older than 90 days as $0/unpriced, so operators are told the ledger understates when it does not, and stale-priced spend is invisible in 'priced' totals.",
+      "suggested_fix": "Grep every reader of `pricing_source` (cost-report.sh, BudgetEnforcer, trajectory/rollup consumers) and either widen each whitelist to include `stale_catalog`, or keep `pricing_source: config` and record staleness in a separate additive field (e.g. `pricing_stale: true`) so the existing enum contract is unchanged.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-locality.bats:_cfg",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The locality fixtures (adversarial-review-locality.bats `_cfg` and flatline-locality.bats `_cfg`) declare `localbox` with `endpoint: \"http://127.0.0.1:8000/v1\"` but no `allow_insecure_endpoint` and no `keyless`. Under endpoint_policy.validate_providers that provider is refused at load with ENDPOINT-INSECURE-SCHEME (the health-probe suite in this same diff asserts exactly that). The locality suites still pass because hop-locality.py reads the YAML without the loader's validation and the budget gate's pricing CLI failure degrades silently to the 10/30 fallback (BUD-6 behaviour). So the suite verifies the plan-time gate against a provider table cheval itself would refuse, and never exercises the realistic path where the same merged config is loaded by cheval for the actual hop.",
+      "failure_mode": "The two classifiers (hop-locality.py and the cheval loader) can drift on what counts as a valid local provider without any locality test noticing; in production an operator with this exact config would pass the locality gate and then have every hop fail inside cheval at load rather than being refused by name at plan time. Also the budget gate's hidden ConfigError means LOC-* runs log 'no catalog price' fallbacks that the tests never assert on.",
+      "suggested_fix": "Make the locality fixtures valid for the loader: add `keyless: true`, `allow_insecure_endpoint: \"127.0.0.1\"` and `context_window` to `localbox`, and add one assertion that the pricing CLI resolved `lq` from the config (no 'no catalog price for lq' line). Consider having hop-locality.py go through the cheval loader (or at least validate_providers) so both sides share one view of the provider table.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:normalise_keyless",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "normalise_keyless validates that `keyless` is a bool, then unconditionally sets `prov[\"keyless\"] = True` when `auth` is the literal `local`. An explicit `keyless: false` alongside `auth: \"local\"` is therefore silently overridden rather than refused, which is inconsistent with the module's own posture of failing conflicting or ambiguous declarations with a named reason (boolean opt-in, non-bool keyless).",
+      "failure_mode": "An operator who wrote `keyless: false` to force a credential on a server that happens to use the bearer string 'local' gets a provider that sends no credential, with no load-time message.",
+      "suggested_fix": "If `prov.get(\"keyless\") is False` and `auth` is a keyless literal, raise `[CONFIG-INVALID] providers.<name>: keyless: false conflicts with auth: \"local\"`; otherwise set keyless as now.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:_main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_main wraps load_config only for ConfigError. rollup.default_ledger_path in the same change set documents that load_config can also raise plain exceptions (unparseable YAML, PyYAML missing, failed interpolation) and re-types them. Here those escape as a Python traceback with exit 1, outside the 64/78 JSON-on-stderr contract that model-health-probe.sh --provider consumes. describe_provider's canonical_optin_host call is likewise outside any try block.",
+      "failure_mode": "model-health-probe.sh receives exit 1 and a traceback instead of `{\"error\": \"config_load_failed\", ...}` on a malformed project config, so the probe cannot name the reason and may misreport the provider as a transport failure rather than a config error.",
+      "suggested_fix": "Mirror rollup.py: catch `Exception` after `ConfigError`, re-type it into the same `config_load_failed` JSON with the exception class and message, return 78; wrap describe_provider's call so an EndpointPolicyError returns the same shape.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-257",
+    "timestamp": "2026-10-14T08:16:44Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 36644,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "cb7278a0c071ca5b8fd8769272fce81d912d0834effbd05a189ba11fda33ec54",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

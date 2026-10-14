@@ -1,0 +1,7 @@
+COMPLETED 2026-10-14T10:32:23Z
+sprint: sprint-257 (cycle-129 Sprint 3 — advisory open-weight voices, local_voices posture, Bridgebuilder trusted configuration and exit codes, E2E)
+implementation: 163656ff (base a7682ba4; review fix round cf88e427, review hardenings 4184c052; audit fix round 07110d70; decisions DEC-0312…DEC-0351)
+review: engineer-feedback-r1.md CHANGES_REQUIRED (0/1/0/3) → engineer-feedback.md APPROVED (All good, 0/0/0/3 hardened by the lead before the audit); dissent adversarial-review.r1.json + adversarial-review.json two two-voice consensus runs, 0 rejected
+audit: auditor-sprint-feedback-r1.md CHANGES_REQUIRED (0/0/2/3) → auditor-sprint-feedback.md APPROVED (0/0/0/1: the metering zero-price guard carried as bd-yzzb9); dissent adversarial-audit.json one two-voice consensus run, 0 rejected; a257-1 fixes auditor-verified directly (DEC-0343, three runs spent)
+verdict-derive: review CONSISTENT APPROVED; audit CONSISTENT APPROVED (excluded_confirmed 0 = review excluded 0)
+e2e: G-1 … G-9 PASS (G-7 stated exception: no local OpenAI-compatible server on this host); arms review-recall 96/96 and audit-recall 48/48 complete, no recall loss

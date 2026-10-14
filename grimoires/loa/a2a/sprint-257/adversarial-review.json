@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".loa.config.yaml.example:@@ -2411,6 +2505,13 @@ bridgebuilder:",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `bridgebuilder.exit_on_degraded` comment documents the key as any integer 0..125 with 0 as the rollback. The shell callers that the new tests/unit/bb-exit-degraded-callers.bats locks in (session-cap-bb dispatcher.sh and spiral-harness.sh _gate_bridgebuilder) hard-code exit 3 as 'completed, degraded' and treat every other non-zero exit as a failure ('any other non-zero exit is still a failure', 'another non-zero exit is logged as not completed'). The same test file also reserves exit 4 for entry.sh's missing-dependency preflight. Nothing in the documented range excludes 1, 2, 4 or the values the callers cannot interpret.",
+      "failure_mode": "An operator who sets exit_on_degraded to any value other than 3 or 0 (for example 5 to avoid a local collision) turns every DEGRADED-but-completed Bridgebuilder run into a dispatcher failure (exit 1, degraded:false, no incomplete_voices) and a 'did not complete' WARN in the spiral harness, even though the JSON and PR comments were written. Setting it to 4 makes a degraded consensus indistinguishable from a missing-dependency preflight failure.",
+      "suggested_fix": "Either narrow the documented contract to '0 (rollback) or 3' and say the shell callers recognise only 3, or make dispatcher.sh and spiral-harness.sh read bridgebuilder.exit_on_degraded from the same trusted config instead of a literal 3, and reserve 1, 2 and 4 in the comment.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:validate_providers",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-locality.bats:LOC-9",
+      "cross_file_justification": "LOC-9 (in the diff) builds a config containing providers.hostedbox (model dispatch_group: local on https://api.acme.example), providers.blockbox (block-level dispatch_group: local on 203.0.113.5), providers.clibox (type claude-headless with dispatch_group: local) and providers.noend (dispatch_group: local, no endpoint). validate_providers / _local_label_refusal in the escalated endpoint_policy.py raises ConfigError for each of those shapes at load, so the real cheval loader refuses this entire merged config.",
+      "description": "LOC-9 asserts that with the mislabelled providers present the whole review run exits 0, that hb is refused by name and that the local hop lq answers. That outcome is only reachable because invoke_dissenter is the harness stub: in a real run every cheval dispatch, including lq's, calls load_config, which raises '[CONFIG-INVALID] providers.hostedbox.models.qwen-hosted: dispatch_group local requires an endpoint on ...' (and the same for blockbox, clibox and noend) before any request is made. The planner's by-name refusal and the loader's whole-config refusal therefore describe two different behaviours for the same config, and the test locks in the one production cannot exhibit.",
+      "failure_mode": "An operator reading the stderr line 'locality: local_voices refuses hosted hop hb (hostedbox)' expects the run to continue on lq, as LOC-9 documents, but the primary hop then fails inside cheval with a CONFIG-INVALID load error unrelated to locality. The suite gives false assurance about the planner-plus-loader behaviour, and a regression in which the planner stops refusing a mislabelled hop would still pass this test's rc-0 and CALLS assertions as long as the stub answers.",
+      "suggested_fix": "Either have LOC-9 assert the loader's verdict too (run load_config on the LOC-9 config and expect the CONFIG-INVALID refusal, as LOC-10 does for the admitted fixture), or have adversarial-review.sh run the merged config through the cheval loader at plan time under local_voices so the plan-time refusal and the load-time refusal name the same provider and the run stops before dispatch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-advisory.bats:ADV-2",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "ADV-2 requires `.metadata.cost_usd` to be byte-identical between a run without advisory voices and a run with three of them, while the stub reports non-zero cost_usd (0.002, 0.001) for the advisory calls. This makes it a tested contract that the envelope's top-level cost excludes all advisory spend. The budget gate (BUD-4) admits the run by summing advisory voices into the estimate, so the pre-check and the recorded total are measured on different populations. No test in the diff asserts that an advisory_voices[] entry carries its own cost_usd / tokens fields.",
+      "failure_mode": "Any consumer that reconciles the budget gate's estimate or the sprint's spend against metadata.cost_usd (cost reports, trajectory records, a maintainer deciding whether an advisory voice is worth keeping) sees a total that omits every advisory hop. With advisory_timeout_seconds defaulting to 600 and up to 99 aliases, the omitted amount can exceed the counted voices' cost.",
+      "suggested_fix": "Record per-voice cost_usd, tokens_input and tokens_output on each advisory_voices[] entry and assert it in ADV-1, or add a separate metadata.advisory_cost_usd so the envelope's accounting stays complete while findings[] and verdict_quality remain untouched.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".loa.config.yaml.example:@@ -1174,12 +1210,57 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Example 3 (azure-openai) now sets `hounfour.secret_env_allowlist: [\"^AZURE_OPENAI_KEY$\"]` as the only entry, while the Example 4 commentary states the defaults are LOA_*, OPENAI_API_KEY, ANTHROPIC_API_KEY, MOONSHOT_API_KEY, GOOGLE_API_KEY and GEMINI_API_KEY and tells the reader to 'add' a pattern. If the config merge treats lists as replace rather than union (the usual deep-merge rule and the one the surrounding hounfour.providers overlay implies for scalars), an operator who copies Example 3 into .loa.config.yaml removes every default pattern, and the catalog's `{env:OPENAI_API_KEY}` / `{env:ANTHROPIC_API_KEY}` providers are refused the next time they are interpolated. The CI loader test described in the new comment would not catch this if interpolation is lazy (describe_provider reads a `_raw` attribute, which suggests a deferred secret wrapper).",
+      "failure_mode": "After copying the Azure example, the default providers fail with an 'environment variable outside the allowlist' refusal at first use, breaking the Claude/OpenAI companion and primary hops with no change to those providers' config.",
+      "suggested_fix": "Confirm the merge rule for secret_env_allowlist. If it replaces, list the default patterns in the example alongside the Azure one (or document that a project list must restate the defaults). If it unions, say so in the Example 4 comment instead of 'add'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-257",
+    "timestamp": "2026-10-14T09:14:48Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 33025,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "abe13c77b55fe10342d2023e3bbf8ae40d386824275310ddce7d3a94bdf18814",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

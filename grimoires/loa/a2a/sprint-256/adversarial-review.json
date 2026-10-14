@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/check-knob-readers.sh:@@ -0,0 +1,62 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The recursive grep is invoked as `grep -rnIE \"$pattern\" .claude tools 2>&1` from `$ROOT`. GNU and BSD grep return exit 2 whenever any named path cannot be read, even if matches were found elsewhere. The script treats every exit >= 2 as \"the key alternation did not compile\" and exits 2. With `--root DIR` pointing at a tree that has `.claude/data/profiles.yaml` but no `tools/` directory (the natural shape of a bats fixture for this gate), the run hard-fails with a misleading diagnosis instead of reporting 0 or 1.",
+      "failure_mode": "`tools/check-knob-readers.sh --root <fixture>` exits 2 with \"grep failed (exit 2) — the key alternation did not compile: grep: tools: No such file or directory\", so any fixture-based test of the gate, or any downstream repo that vendors `.claude/` without `tools/`, cannot use the documented `--root` option.",
+      "suggested_fix": "Build the search list from directories that exist (`for d in .claude tools; do [[ -d $d ]] && dirs+=(\"$d\"); done`), require at least `.claude`, and keep stderr separate from stdout (capture stderr to a variable or file) so the exit-2 message quotes grep's actual error rather than asserting a regex compile failure.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/fixtures/fence-corpus/run-corpus.sh:@@ -65,15 +87,35 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `--knob-off` self-check proves only that D122 exits 0 under the written `.loa.config.yaml`. It has no positive control. A config file that the hook reads but which disables or breaks the fence entirely (wrong key path, a parse error that makes the hook fail open, a hook that treats any present config as `enabled: false`) also yields D122 -> 0, so the self-check reports the knob \"took effect\" when in fact the whole fence is off. The comparison it is meant to protect (pre-cycle scan vs classifier via `--rows`) would then compare the classifier against an inert hook and show every D row as a regression, with the self-check having certified the setup.",
+      "failure_mode": "`run-corpus.sh --knob-off --rows` exits 0 and prints rows from a hook that is not scanning at all; the FR-6 comparison is silently invalid instead of failing at the self-check with exit 3.",
+      "suggested_fix": "Also capture a classifier-independent dangerous row (for example the plain `rm -rf src` row or any D-row whose rule is not FR-6) and require it to still exit 2 under `--knob-off`; fail with exit 3 if it does not, with a message that the config file disabled the fence rather than the classifier.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/fixtures/fence-corpus/corpus.jsonl:@@ -181,3 +181,74 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Row B89 (`gh api -X DELETE repos/o/r/git/refs/heads/main --input -` with a benign JSON body) is a documented fence miss for a branch-ref deletion, yet it is encoded as `expect: allow` under a B (benign) id. The runner semantics for `allow` are \"benign: the hook must exit 0\", and `allow` mismatches are gated. This pins the miss as required behaviour: the moment a rule for `gh api -X DELETE .../refs/...` is added, B89 becomes an `expected-allow:rc=2` mismatch and the corpus reports a regression for a fix. The existing `residual` class covers accepted false positives only; there is no class for an accepted false negative.",
+      "failure_mode": "A future fence rule that correctly blocks ref deletion via `gh api -X DELETE` fails the corpus gate on B89 and has to edit the fixture to land, inverting the corpus's purpose for this row.",
+      "suggested_fix": "Either drop B89 (D113 already pins the body-scan behaviour for the same header) or add an ungated expectation class for documented misses (for example `expect: miss`, counted and reported like `residual` but never a mismatch in either direction) and move B89 to it under a non-B id.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-256",
+    "timestamp": "2026-10-14T04:35:58Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 35239,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3bfb037a09d6dcd34ffbf1e51fbd603a17167ae04b1455d028be55f26eddfe59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}
