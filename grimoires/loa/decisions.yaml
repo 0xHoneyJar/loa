@@ -9880,3 +9880,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0309"
+    created_at: "2026-10-14T05:46:24Z"
+    updated_at: "2026-10-14T05:46:24Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: profile-lib WARNs once when LOA_PROFILE_CONFIG_FILE redirects live knob reads; the knob lint also matches the trailing two components of a key"
+    decision: "The seam stays (hooks pass their test config through it) but a redirected live read prints a WARN naming the file; check-knob-readers.sh matches .input.enabled and .danger_level.enforce as well as the full dotted keys, with PL-17 planting the pipe and bracket bypass shapes."
+    rationale: "audit r256-5 DISS-C-004 and DISS-C-005"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "9c4ed319"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-28)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:46:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0310"
+    created_at: "2026-10-14T05:46:26Z"
+    updated_at: "2026-10-14T05:46:26Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S2 lead: sprint-256 used five dissent runs (three review, two audit) against the three-per-sprint cap; the r256-5 fixes were auditor-verified, no sixth run"
+    decision: "Every dissent run on this sprint surfaced a real, pre-existing hole (backtick substitution, the gh api REST escape hatch), which justified the two extra runs; the second-audit fixes were small and were verified by the auditor on the final tree without a third audit dissent, so the sprint ends at five runs. The cap is read as a budget per gate pair, not a hard stop when each run pays for itself; the operator may tighten it."
+    rationale: "the cap exists to stop the 39-run loop of cycle-126, not to forbid a run that finds a hole"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "9c4ed319"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-29)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:46:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
