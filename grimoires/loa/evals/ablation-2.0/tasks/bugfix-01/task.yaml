@@ -9,7 +9,7 @@ success_criterion: "hidden/tests/test_pager_edges.py (overlaid at tests/acceptan
 test_command: ["python3", "-m", "pytest", "-q", "tests"]
 regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
 reference_patch: hidden/reference.patch
-grader_protected: [tests/conftest.py]
+grader_protected: [tests/conftest.py, tests/test_pages.py, tests/test_render.py]
 structural_check: null
 bounds: {max_turns: {}, timeout_min: {}}
 review_catch: null

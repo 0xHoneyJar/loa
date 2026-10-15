@@ -9,7 +9,7 @@ success_criterion: "hidden/structural/validation_layout_test.py (overlaid at tes
 test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
 regression_command: null
 reference_patch: hidden/reference.patch
-grader_protected: [tests/conftest.py]
+grader_protected: [tests/conftest.py, tests/test_ledgerio.py]
 structural_check: hidden/structural/validation_layout_test.py
 bounds: {max_turns: {}, timeout_min: {}}
 review_catch: null

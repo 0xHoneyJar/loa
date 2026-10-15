@@ -49,21 +49,25 @@
 # Grading trees (D-4.8) under <run-dir>/grading/<label>/, recreated on every call:
 #   final      sandbox/ as the agent left it, minus the top-level .git .claude CLAUDE.md
 #              .loa.config.yaml grimoires .run .beads .eval pr, every __pycache__ and
-#              .pytest_cache, and anything that is not a regular file, directory or
-#              symlink (a FIFO never blocks the copy)
+#              .pytest_cache, anything that is not a regular file, directory or
+#              symlink (a FIFO never blocks the copy), and every symlink whose target is
+#              absolute or resolves outside the tree (lexically, then through the other
+#              links; counted in symlinks_dropped); in-tree relative links are kept
 #   implement  the IMPLEMENT snapshot (snapshots/IMPLEMENT.bundle, commit
 #              index.json.implement): the tree REVIEW read; graded when REVIEW ran or
 #              when AUDIT ran without a fix1 snapshot
 #   fix1       the FIX1 snapshot: the tree AUDIT read; graded when AUDIT ran
-#   base       the task fixture: the baseline for regression_command (and, refactor,
-#              the suite-green-at-base check)
+#   base       the task fixture: the baseline of the regression check (regression_command;
+#              refactor: test_command, the fixture suite)
 # A snapshot is extracted with `git bundle unbundle` into a scratch bare repository and
-# `git archive <commit>` (a member that would land outside the tree is skipped). In
+# `git archive <commit>` (tarfile.data_filter: a member that would land outside the tree,
+# and a symlink member with an absolute or escaping target, is skipped). In
 # every tree each grader_protected path is restored from the fixture (a deleted file is
 # recreated, a modified one overwritten, a path the fixture lacks is removed; a
 # symlinked parent is replaced by a directory), then every hidden/manifest.json entry
 # is written at its dest (a same-named file is overwritten, a deleted directory
-# recreated). Churn (diff_lines, files_changed) compares the final tree against the
+# recreated). Deleting a grading tree never chmods through a symlink. Churn
+# (diff_lines, files_changed) compares the final tree against the
 # fixture before any restore: added + removed lines per changed text file (difflib),
 # every added, removed or modified file counted once; null for review-catch.
 #
@@ -87,7 +91,19 @@
 # (at least 1), passed = 0 when it exited non-zero (total when it exited 0), with
 # parse_error: true. Ids: "t<k>", k = the 1-based position of the case in file order
 # (pytest: path, then the line of its def; TAP: the test number); regression ids are
-# positions in the base run, newly_failing = failing at final, passing at base.
+# positions in the base run, newly_failing = failing at final, passing at base. When
+# either side of the regression check has no parseable summary, regressions.parse_error is
+# true and newly_failing comes from the exit statuses: base unparsed, exit 0, final exit
+# non-zero or timed out → every fallback id; base parsed, final unparsed and failed → every
+# base-passing case; else none. A run is green (all_pass) only when every case passed, the
+# summary parsed, the command exited 0 and did not time out.
+#
+# Hidden assertion per type: bug-fix and feature-build — test_command is hidden_tests,
+# regression_command the regression check; refactor (DEC-0401, AC-5.3) — the structural
+# check (structural_check's overlay dest, run with pytest or bats) is hidden_tests, so the
+# row's hidden_test_pass_rate is the structural pass rate, and test_command (the fixture
+# suite) is the regression check at base and final; structural repeats the structural
+# counts with suite_green_base and suite_green_final.
 #
 # Review-catch (DEC-0420): grading/gates-combined.md is the arm-neutral reduction: every
 # `path:line[-line]` citation (parser of recall-vs-defects.sh 1.1.2; the LOA-VERDICT
@@ -107,7 +123,8 @@
 # `Verdict:` line (A0), else null. verdict_accuracy_per_gate {review, audit}: build —
 # true when APPROVED and the tree that gate read passes every hidden test, or
 # CHANGES_REQUIRED and it fails one; review-catch — true iff (CHANGES_REQUIRED) ==
-# (the key holds a high or critical defect); a gate without a trailer is false; a gate
+# (the key holds a high or critical defect); refactor — the tree passes when the
+# structural check AND the fixture suite are green on it; a gate without a trailer is false; a gate
 # that did not run is null. verdict_accuracy = audit's, else review's, else null.
 #
 # Contamination (D-4.7, DEC-0493): every tool_use input in transcripts/events-*.jsonl —
@@ -125,24 +142,28 @@
 # by programs the agent wrote, and network access by other means are not seen.
 #
 # grade.json (ids only in every summary field: no test name, defect title or excerpt):
-#   {schema_version: 1, grader_version: "1.0.0", task_id, task_type, suite_frozen,
+#   {schema_version: 1, grader_version: "1.1.0", task_id, task_type, suite_frozen,
 #    executor_mode, image, snapshots_graded: [labels], hidden_tests {passed, total,
-#    failed_names, parse_error, timed_out}, structural (refactor: {passed, total,
+#    failed_names, parse_error, timed_out, rc}, structural (refactor: {passed, total,
 #    failed_names, parse_error, suite_green_base, suite_green_final}; else null),
-#    regressions ({newly_failing, base {passed, total}, final {passed, total}} or null
-#    without regression_command), snapshot_tests {implement?, fix1?: {passed, total}},
-#    recall (review-catch {defects_seeded, defects_caught, recall, flags, missed}; else
-#    null), false_positives, verdict, verdicts {review, audit}, verdict_accuracy,
-#    verdict_accuracy_per_gate {review, audit}, diff_lines, files_changed, contaminated}
+#    regressions ({newly_failing, base {passed, total, rc, timed_out}, final {…},
+#    parse_error} or null without a regression check), snapshot_tests {implement?,
+#    fix1?: {passed, total}} (refactor: the structural check), recall (review-catch
+#    {defects_seeded, defects_caught, recall, flags, missed}; else null),
+#    false_positives, verdict, verdicts {review, audit}, verdict_accuracy,
+#    verdict_accuracy_per_gate {review, audit}, diff_lines, files_changed,
+#    symlinks_dropped, contaminated}
+# grader 1.1.0 (Sprint 259 fix round): refactor hidden_tests = the structural check,
+# exit-status-aware green, symlink filtering; 1.0.0 grades of refactor tasks differ.
 # No timestamp and no scratch path is written: the same run grades byte-identically.
 #
 # Self-check (DEC-0401; AC-2.3): a synthetic run under mktemp -d built from the task.
 #   base       build: the fixture is the final tree → PASS when at least one hidden test
-#              fails and the fixture suite (regression_command, when set) is green;
-#              refactor: structural check red and suite green; review-catch: an empty
-#              findings file → recall 0.0
+#              fails (refactor: the structural check) and the regression check's final
+#              run (regressions.final) is green — every case, exit 0, no timeout;
+#              review-catch: an empty findings file → recall 0.0
 #   reference  build: the fixture with hidden/reference.patch (patch -p1) → every hidden
-#              test passes, suite green; refactor: structural green, suite green;
+#              test passes with exit 0 (refactor: structural green), suite green;
 #              review-catch: a findings file citing every key anchor → recall 1.0
 #   noisy      review-catch: every line of every pr/head/ file cited → false_positives
 #              greater than the reference findings file's
@@ -166,7 +187,7 @@ case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
 import argparse, difflib, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile
 
-GRADER_VERSION = "1.0.0"
+GRADER_VERSION = "1.1.0"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 TEST_TIMEOUT_S = 120
@@ -233,13 +254,17 @@ def is_within(path, root):
 
 
 def remove_path(p):
+    """delete p; a directory is made writable first, but never through a symlink: a tree
+    the agent shaped may hold `x -> /somewhere`, and os.chmod follows links (DISS-001)"""
     if os.path.islink(p) or os.path.isfile(p):
         os.unlink(p)
     elif os.path.isdir(p):
-        for r, ds, _fs in os.walk(p):
+        for r, ds, _fs in os.walk(p, followlinks=False):
             for d in ds:
+                q = os.path.join(r, d)
                 try:
-                    os.chmod(os.path.join(r, d), 0o700)
+                    if stat.S_ISDIR(os.lstat(q).st_mode):
+                        os.chmod(q, 0o700)
                 except OSError:
                     pass
         shutil.rmtree(p)
@@ -268,9 +293,38 @@ def ensure_parent(tree, parts):
     return os.path.join(cur, parts[-1])
 
 
+def link_escapes(target, rel_dir):
+    """a symlink at <tree>/<rel_dir>/<name> pointing at target: absolute, or resolving
+    (lexically) above the tree root"""
+    if not target or os.path.isabs(target):
+        return True
+    n = os.path.normpath(os.path.join(rel_dir, target))
+    return n == ".." or n.startswith("../") or os.path.isabs(n)
+
+
+def drop_escaping_links(tree):
+    """second pass over the copy: any symlink whose full resolution (through the other
+    links) leaves the tree is removed; repeated until stable → number removed"""
+    n, root = 0, os.path.realpath(tree)
+    while True:
+        gone = 0
+        for r, ds, fs in os.walk(tree, followlinks=False):
+            for name in ds + fs:
+                q = os.path.join(r, name)
+                if os.path.islink(q) and not is_within(q, root):
+                    os.unlink(q)
+                    gone += 1
+        if not gone:
+            return n
+        n += gone
+
+
 def copy_tree(src, dst, top_exclude=frozenset()):
-    """regular files, directories and symlinks only; caches dropped"""
+    """regular files, directories and in-tree relative symlinks only; caches dropped. A
+    symlink whose target is absolute or resolves outside dst is not recreated (DISS-001).
+    → the number of symlinks dropped"""
     os.makedirs(dst, exist_ok=True)
+    dropped = 0
     for root, dirs, files in os.walk(src, followlinks=False):
         rel = os.path.relpath(root, src)
         keep = []
@@ -280,7 +334,11 @@ def copy_tree(src, dst, top_exclude=frozenset()):
             sp = os.path.join(root, d)
             dp = os.path.join(dst, rel, d)
             if os.path.islink(sp):
-                os.symlink(os.readlink(sp), dp)
+                target = os.readlink(sp)
+                if link_escapes(target, rel):
+                    dropped += 1
+                else:
+                    os.symlink(target, dp)
                 continue
             os.makedirs(dp, exist_ok=True)
             keep.append(d)
@@ -291,10 +349,15 @@ def copy_tree(src, dst, top_exclude=frozenset()):
             sp, dp = os.path.join(root, f), os.path.join(dst, rel, f)
             st = os.lstat(sp)
             if stat.S_ISLNK(st.st_mode):
-                os.symlink(os.readlink(sp), dp)
+                target = os.readlink(sp)
+                if link_escapes(target, rel):
+                    dropped += 1
+                else:
+                    os.symlink(target, dp)
             elif stat.S_ISREG(st.st_mode):
                 shutil.copyfile(sp, dp)
                 os.chmod(dp, (st.st_mode & 0o777) | 0o600)
+    return dropped + drop_escaping_links(dst)
 
 
 def put_file(tree, rel, src):
@@ -384,6 +447,7 @@ def load_task(task_yaml, suite_root):
         t.structural = dest
     if t.type == "refactor" and not t.structural:
         raise GradeError("refactor task has no structural_check")
+    t.structural_full = next((f for _s, d, f in t.overlay if d == t.structural), None) if t.structural else None
     t.reference_patch = None
     rp = t.spec.get("reference_patch")
     if rp:
@@ -397,6 +461,7 @@ def load_task(task_yaml, suite_root):
         if d == t.structural or not os.path.isfile(full):
             continue
         t.static_cases += count_cases(full)
+    t.structural_cases = count_cases(t.structural_full) if t.structural_full else 0
     t.rc = None
     if t.type == "review-catch":
         rc = t.spec.get("review_catch")
@@ -646,11 +711,38 @@ def ids_of(res, keys):
 
 def summary(res):
     return {"passed": res["passed"], "total": res["total"], "failed_names": ids_of(res, res["bad"]),
-            "parse_error": res["parse_error"], "timed_out": res["timed_out"]}
+            "parse_error": res["parse_error"], "timed_out": res["timed_out"], "rc": res["rc"]}
 
 
 def all_pass(res):
-    return res["passed"] >= res["total"] and not res["bad"] and not res["parse_error"]
+    """every case passed, the summary parsed, and the command exited 0 within its time
+    (a passing TAP block followed by exit 1, or a timeout, is not green: DISS-002)"""
+    if res is None:
+        return False
+    return (res["passed"] >= res["total"] and not res["bad"] and not res["parse_error"]
+            and res["rc"] == 0 and not res["timed_out"])
+
+
+def run_counts(res):
+    return {"passed": res["passed"], "total": res["total"], "rc": res["rc"], "timed_out": res["timed_out"]}
+
+
+def regressions(rb, rf):
+    """base run rb vs final run rf of the regression command. Parsed on both sides:
+    newly_failing = base-passing cases failing (or absent) at final. Either side
+    unparseable (DISS-003): base unparsed → every fallback id when the base exited 0 and
+    the final run failed (non-zero exit or timeout); base parsed, final unparsed → every
+    base-passing case when the final run failed; else none. parse_error records it."""
+    final_red = rf["rc"] != 0 or rf["timed_out"]
+    base_ok = [k for k in rb["order"] if k not in rb["bad"]]
+    pe = bool(rb["parse_error"] or rf["parse_error"])
+    if not pe:
+        newly = [k for k in base_ok if k in rf["bad"] or k not in rf["order"]]
+    elif rb["parse_error"]:
+        newly = list(rb["order"]) if (rb["rc"] == 0 and not rb["timed_out"] and final_red) else []
+    else:
+        newly = base_ok if final_red else []
+    return {"newly_failing": ids_of(rb, newly), "base": run_counts(rb), "final": run_counts(rf), "parse_error": pe}
 
 
 # ------------------------------------------------------------------ grading trees
@@ -1068,41 +1160,37 @@ def grade(t, run_dir, frozen):
          "recall": None, "false_positives": None, "verdict": verdict,
          "verdicts": {"review": v_review, "audit": v_audit},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
-         "diff_lines": None, "files_changed": None, "contaminated": None}
+         "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "contaminated": None}
     acc = {"review": None, "audit": None}
     if t.build:
         docker_ready()
         final = os.path.join(grading, "final")
-        copy_tree(sb, final, EXCLUDE_TOP)
+        g["symlinks_dropped"] = copy_tree(sb, final, EXCLUDE_TOP)
         g["diff_lines"], g["files_changed"] = churn(t.fixture, final)
         prepare(t, final)
         g["snapshots_graded"].append("final")
-        res = run_suite(final, t.test_command, t.static_cases)
+        # refactor (DEC-0401, AC-5.3; Sprint 259 MEDIUM-1): the structural check is the
+        # hidden assertion and the fixture suite (test_command) the regression check
+        refactor = t.type == "refactor"
+        if refactor:
+            hcmd, hstatic, rcmd = structural_command(t), t.structural_cases, t.test_command
+        else:
+            hcmd, hstatic, rcmd = t.test_command, t.static_cases, t.regression_command
+        res = run_suite(final, hcmd, hstatic)
         g["hidden_tests"] = summary(res)
-        base_tree = None
-        need_base = t.regression_command is not None or t.type == "refactor"
-        if need_base:
+        rb = rf = None
+        if rcmd is not None:
             base_tree = os.path.join(grading, "base")
             copy_tree(t.fixture, base_tree)
             prepare(t, base_tree)
-        if t.regression_command is not None:
-            rb = run_suite(base_tree, t.regression_command)
-            rf = run_suite(final, t.regression_command)
-            base_ok = [k for k in rb["order"] if k not in rb["bad"]] if not rb["parse_error"] else []
-            if rf["parse_error"]:
-                newly = base_ok
-            else:
-                newly = [k for k in base_ok if k in rf["bad"] or k not in rf["order"]]
-            g["regressions"] = {"newly_failing": ids_of(rb, newly),
-                                "base": {"passed": rb["passed"], "total": rb["total"]},
-                                "final": {"passed": rf["passed"], "total": rf["total"]}}
-        if t.type == "refactor":
-            scmd = structural_command(t)
-            sres = run_suite(final, scmd)
-            sbase = run_suite(base_tree, t.test_command, t.static_cases)
-            st = summary(sres)
+            rb = run_suite(base_tree, rcmd)
+            rf = run_suite(final, rcmd)
+            g["regressions"] = regressions(rb, rf)
+        if refactor:
+            st = summary(res)
             st.pop("timed_out")
-            st.update(suite_green_base=all_pass(sbase), suite_green_final=all_pass(res))
+            st.pop("rc")
+            st.update(suite_green_base=all_pass(rb), suite_green_final=all_pass(rf))
             g["structural"] = st
         idx = read_json(os.path.join(run_dir, "snapshots", "index.json"))
         idx = idx if isinstance(idx, dict) else {}
@@ -1119,18 +1207,22 @@ def grade(t, run_dir, frozen):
             if not extract_snapshot(run_dir, label, idx.get(label), tree):
                 continue
             prepare(t, tree)
-            snap_res[label] = run_suite(tree, t.test_command, t.static_cases)
+            sr = run_suite(tree, hcmd, hstatic)
+            ok = all_pass(sr)
+            if refactor:   # the gate read a tree that must keep the suite green too
+                ok = ok and all_pass(run_suite(tree, t.test_command))
+            snap_res[label] = (sr, ok)
             g["snapshots_graded"].append(label)
         if snap_res:
-            g["snapshot_tests"] = {k: {"passed": v["passed"], "total": v["total"]} for k, v in snap_res.items()}
+            g["snapshot_tests"] = {k: {"passed": v["passed"], "total": v["total"]} for k, (v, _ok) in snap_res.items()}
         for gate, v in (("review", v_review), ("audit", v_audit)):
             if v is None or gates.get(gate) not in snap_res:
                 continue
-            ok = all_pass(snap_res[gates[gate]])
+            ok = snap_res[gates[gate]][1]
             acc[gate] = (v == "APPROVED" and ok) or (v == "CHANGES_REQUIRED" and not ok)
     else:
         if os.path.isdir(os.path.join(sb, "pr")) and not os.path.islink(os.path.join(sb, "pr")):
-            copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
+            g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
         g["recall"], g["false_positives"] = grade_recall(t, run_dir, grading)
         key_cr = any((d.get("severity") or "").lower() in ("high", "critical") for d in t.key.get("defects") or [])
         for gate, v in (("review", v_review), ("audit", v_audit)):
@@ -1206,22 +1298,22 @@ def self_check(t, mode, frozen):
     root = tempfile.mkdtemp(prefix="selfcheck.", dir=SCRATCH)
     g = grade(t, synth_run(t, mode, root), frozen)
     ok, ev = False, ""
-    if t.type == "refactor":
-        st = g["structural"]
-        green = st["suite_green_final"]
-        ev = f"structural {st['passed']}/{st['total']}, suite {'green' if green else 'red'}"
-        if mode == "base":
-            ok = st["passed"] < st["total"] and green
-        else:
-            ok = st["passed"] >= st["total"] and not st["failed_names"] and not st["parse_error"] and green
-    elif t.build:
+    if t.build:
+        # hidden_tests is the structural check for refactor (MEDIUM-1); green = all_pass's
+        # rule on the summary (every case, parsed, exit 0, no timeout: MEDIUM-3)
         h, r = g["hidden_tests"], g["regressions"]
-        suite_green = r is None or r["final"]["passed"] >= r["final"]["total"]
-        ev = f"hidden {h['passed']}/{h['total']}" + ("" if r is None else f", fixture suite {r['final']['passed']}/{r['final']['total']}")
+        h_green = (h["passed"] >= h["total"] and not h["failed_names"] and not h["parse_error"]
+                   and h["rc"] == 0 and not h["timed_out"])
+        f = None if r is None else r["final"]
+        suite_green = f is None or (f["passed"] >= f["total"] and f["rc"] == 0 and not f["timed_out"])
+        if t.type == "refactor":
+            ev = f"structural {h['passed']}/{h['total']}, suite {'green' if suite_green else 'red'}"
+        else:
+            ev = f"hidden {h['passed']}/{h['total']}" + ("" if f is None else f", fixture suite {f['passed']}/{f['total']}")
         if mode == "base":
             ok = h["passed"] < h["total"] and suite_green
         else:
-            ok = h["passed"] >= h["total"] and not h["failed_names"] and not h["parse_error"] and suite_green
+            ok = h_green and suite_green
     else:
         rc = g["recall"]
         ev = f"recall {rc['recall']} ({rc['defects_caught']}/{rc['defects_seeded']}), false_positives {g['false_positives']}"

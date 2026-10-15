@@ -54,20 +54,20 @@ The Sprint 259 candidate survey found one fix commit since 2026-08-01 confined t
 
 ### `grader_protected`
 
-The agent may edit anything in its tree, including the tests. Before grading, the grader restores every `grader_protected` path from the frozen fixture. Every test-infrastructure file the fixture has must be listed: `tests/conftest.py`, `pytest.ini`, `pyproject.toml`, bats helpers, Makefile targets and runner configs. Every listed path must exist in the fixture (`validate-suite.sh` checks this). The agent's own test files are not protected, and a hidden test that shares a name with one overwrites it.
+The agent may edit anything in its tree, including the tests. Before grading, the grader restores every `grader_protected` path from the frozen fixture. Every test-infrastructure file the fixture has must be listed: `tests/conftest.py`, `pytest.ini`, `pyproject.toml`, bats helpers, Makefile targets and runner configs. Every listed path must exist in the fixture. For a build task the list also names every file under the fixture's `tests/`, because the fixture suite is the regression check. `validate-suite.sh` checks both rules. Test files the agent adds are not protected, and a hidden test that shares a name with one overwrites it.
 
 ## The four types and how each is graded
 
-The grader builds a fresh grading tree for the final tree and for every gate snapshot. It copies the tree, restores `grader_protected`, overlays the `hidden/manifest.json` files, and runs the commands inside the ablation image (SDD D-4.8). Python runs as `python3 -I -s -m pytest -p no:cacheprovider --rootdir <tree> -q`. Bats runs with `BATS_LIB_PATH` unset.
+The grader builds a fresh grading tree for the final tree and for every gate snapshot. It copies the tree, restores `grader_protected`, overlays the `hidden/manifest.json` files, and runs the commands inside the ablation image (SDD D-4.8). The copy keeps only symlinks whose target is relative and stays inside the tree; `grade.json` counts the rest as `symlinks_dropped`. A command is green only when every case passes, its summary parses, it exits 0 and it does not time out. Python runs as `python3 -I -s -m pytest -p no:cacheprovider --rootdir <tree> -q`. Bats runs with `BATS_LIB_PATH` unset.
 
 | Type | Pass rule | Self-check (`ablation-grade.sh --self-check`) |
 |------|-----------|-----------------------------------------------|
 | bug-fix | `test_command` green with the hidden tests overlaid; `regression_command` (the fixture's own suite) has no newly failing case | base: red; reference patch: green |
 | feature-build | as bug-fix | base: red; reference patch: green |
-| refactor | the structural check green and `test_command` (the fixture's own suite, unchanged) green | base: structural red, suite green; reference: both green; churn recorded |
+| refactor | the structural check green (it is `hidden_tests`, so the row's `hidden_test_pass_rate` is the structural pass rate) and `test_command` (the fixture's own suite, unchanged) with no newly failing case | base: structural red, suite green; reference: both green; churn recorded |
 | review-catch | recall of the corpus defects over the arm-neutral combined findings; false positives deduplicated by region | a findings file citing every key anchor scores recall 1; an empty one scores 0 |
 
-In this suite's bug-fix tasks, the hidden tests overlay under `tests/acceptance/`. `regression_command` runs the fixture suite with `--ignore=tests/acceptance`. In the refactor tasks, the structural check overlays under `tests/structure/`. `test_command` runs the fixture suite with `--ignore=tests/structure`, and the grader runs the structural check at its `dest` with the same runner.
+In this suite's bug-fix tasks, the hidden tests overlay under `tests/acceptance/`. `regression_command` runs the fixture suite with `--ignore=tests/acceptance`. In the refactor tasks, the structural check overlays under `tests/structure/`. `test_command` runs the fixture suite with `--ignore=tests/structure`, and the grader runs the structural check at its `dest` with the same runner. For a refactor task the grader reports the structural check as `hidden_tests` and the fixture suite, run at base and at the final tree, as `regressions`; `regression_command` stays null. A gate's verdict on a refactor snapshot is accurate when it approves a tree on which both the structural check and the suite are green, or asks for changes on a tree where either is red.
 
 ## Freeze protocol
 

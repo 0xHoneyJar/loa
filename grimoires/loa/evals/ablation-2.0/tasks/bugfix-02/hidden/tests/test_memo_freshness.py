@@ -1,3 +1,6 @@
+import gc
+import weakref
+
 from layercfg import Store, get, lookup_stats
 
 
@@ -65,6 +68,20 @@ def test_memo_still_hits_when_nothing_changed():
 
 
 def test_a_new_store_never_sees_a_discarded_one():
-    for i in range(50):
+    # Each store is read once and dropped; a store the weakref shows as freed leaves
+    # its address free, and CPython hands that address to a later Store within a few
+    # allocations. A store that lands on a freed address must read its own value.
+    # An implementation that keeps every store alive never frees one: nothing to check.
+    freed, reused = set(), 0
+    for i in range(500):
         s = Store({"k": i})
+        if id(s) in freed:
+            reused += 1
         assert get(s, "k") == i
+        ref, addr = weakref.ref(s), id(s)
+        del s
+        gc.collect()
+        if ref() is None:
+            freed.add(addr)
+        if reused >= 3:
+            break

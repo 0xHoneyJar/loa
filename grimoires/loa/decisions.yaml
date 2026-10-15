@@ -16600,3 +16600,131 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0519"
+    created_at: "2026-10-15T05:04:39Z"
+    updated_at: "2026-10-15T05:04:39Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 259 review round 1 is CHANGES_REQUIRED (1 high, 3 medium, 2 low); the degraded dissent (companion timeout, KF-037 rec 10) is accepted (L24)"
+    decision: "The codex primary delivered three findings on the 10,298-line diff while the claude-headless companion timed out at 910 s; the envelope is accepted for round 1 because every finding was verified against the tree and the lead's own review added the refactor-metric, protection-list and nondeterminism findings; dissent run 2 will exclude tasks/*/fixture and tasks/*/hidden so the companion sees the harness diff only."
+    rationale: "a second run on the same diff would spend the sprint's run 2 on a known timeout class; the fixtures are reviewed by the fairness sessions and the lead, the harness is what the companion must read"
+    alternatives_considered:
+      - option: "rerun the dissent unchanged until both voices answer"
+        rejected_because: "KF-037 has recurred ten times; the diff size is the cause and shrinking it is the fix"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "6be23186"
+    source: "grimoires/loa/a2a/sprint-259/engineer-feedback.md#findings (L24)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T05:04:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/engineer-feedback.md#findings (L24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0520"
+    created_at: "2026-10-15T05:38:57Z"
+    updated_at: "2026-10-15T05:38:57Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader 1.1.0: refactor hidden_tests is the structural check and the fixture suite the regression check; a run is green only with exit 0 and no timeout (X-1)"
+    decision: "ablation-grade.sh bumps grader_version to 1.1.0: for refactor tasks hidden_tests reads the structural command (so the row's hidden_test_pass_rate is the structural pass rate) and test_command feeds regressions at base and final; all_pass requires every case passed, a parsed summary, rc 0 and no timeout; regressions.parse_error derives newly_failing from exit statuses when a side is unparseable; a 1.0.0 grade.json of a refactor task is distinguishable."
+    rationale: "the primary metric must read the task's hidden assertion (DEC-0401); a passing TAP block followed by a failure is not green; the version bump keeps old grades identifiable"
+    alternatives_considered:
+      - option: "leave hidden_tests as test_command and let the report special-case refactor rows"
+        rejected_because: "the row writer and every consumer would carry the rule; the grader owns what a hidden test is"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "6be23186"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T05:38:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0521"
+    created_at: "2026-10-15T05:39:00Z"
+    updated_at: "2026-10-15T05:39:00Z"
+    phase: "implementation"
+    category: "security"
+    summary: "The grader copies only in-tree relative symlinks (lexical check plus a realpath pass) and never chmods through a link; dropped links are counted (X-2)"
+    decision: "copy_tree drops a symlink whose target is absolute or resolves outside the destination (lexically, then through the other links until stable) and returns the count written to grade.json.symlinks_dropped; remove_path chmods only entries whose lstat is a real directory; the snapshot tar filter (tarfile.data_filter) rejects escaping symlink members."
+    rationale: "the grader runs on the host as the operator; a sandbox symlink the agent wrote in the container is a string until the host resolves it, and os.chmod follows links (DISS-001)"
+    alternatives_considered:
+      - option: "drop every symlink from grading trees"
+        rejected_because: "fixtures and agents may use in-tree relative links legitimately; only escaping links are a hazard"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "6be23186"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T05:39:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0522"
+    created_at: "2026-10-15T05:39:03Z"
+    updated_at: "2026-10-15T05:39:03Z"
+    phase: "implementation"
+    category: "process"
+    summary: "bugfix-02 discarded-store case made deterministic through confirmed address reuse (weakref + gc.collect, bounded at 500, stop after three reuses) (X-3)"
+    decision: "The hidden case records the address of each freed store (weakref confirms the free) and asserts a later store landing on that address reads its own value; an implementation that keeps every store alive passes vacuously; ten consecutive base runs red on CPython 3.11, 3.12 and 3.13; the success_criterion now reads 6 failed deterministically."
+    rationale: "a hidden test whose base outcome varies adds noise to the primary; the defect is observable deterministically once reuse is confirmed rather than assumed"
+    alternatives_considered:
+      - option: "monkeypatch id() or assert through a weakref on the memoised value"
+        rejected_because: "implementation-coupled, or fails a correct fix that keeps stores alive"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "6be23186"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T05:39:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-fix.md#decision-bullets (X-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

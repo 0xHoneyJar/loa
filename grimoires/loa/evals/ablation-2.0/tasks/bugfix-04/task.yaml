@@ -9,7 +9,7 @@ success_criterion: "hidden/tests/test_precedence_falsy.py (overlaid at tests/acc
 test_command: ["python3", "-m", "pytest", "-q", "tests"]
 regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
 reference_patch: hidden/reference.patch
-grader_protected: [tests/conftest.py]
+grader_protected: [tests/conftest.py, tests/test_resolve.py]
 structural_check: null
 bounds: {max_turns: {}, timeout_min: {}}
 review_catch: null

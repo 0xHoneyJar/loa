@@ -23,7 +23,8 @@
 #      name or test name), success_criterion, test_command (array; null only for
 #      review-catch), regression_command (array | null), reference_patch (hidden/…
 #      | null; required for bug-fix and feature-build), grader_protected (array of
-#      relative paths present in the fixture), structural_check (hidden/… | null;
+#      relative paths present in the fixture; for build types it lists every file
+#      under fixture/tests/, Sprint 259), structural_check (hidden/… | null;
 #      required for refactor), bounds {max_turns{}, timeout_min{}} (phase → positive
 #      int), review_catch (null, or {fixture, manifest, labels?} for review-catch,
 #      both present), suite_version (= the suite file's), TASK.md present
@@ -55,7 +56,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 PROMPTS_DIR="${LOA_EVAL_PHASE_PROMPTS_DIR:-$SCRIPT_DIR/lib/phase-prompts}"
 SMOKE=false ALLOW_PARTIAL=false
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,45p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,46p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "validate-suite: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -278,6 +279,18 @@ for line in open(tasks_tsv, encoding="utf-8"):
                 bad(tid, f"schema: grader_protected path '{p}' is not a relative path inside the tree")
             elif fixture_dir and not os.path.exists(os.path.join(fixture_dir, p)):
                 bad(tid, f"schema: grader_protected path '{p}' is not in the fixture")
+        # the fixture's own tests are the regression check: the grader restores every one
+        # (Sprint 259 review MEDIUM-2), so the list must name each file under tests/
+        ftests = os.path.join(fixture_dir, "tests") if (build and fixture_dir) else None
+        if ftests and os.path.isdir(ftests) and not os.path.islink(ftests):
+            listed = {os.path.normpath(p) for p in gp if rel_ok(p)}
+            for r, ds, fs in os.walk(ftests):
+                ds.sort()
+                names = sorted(fs + [d for d in ds if os.path.islink(os.path.join(r, d))])
+                for f in names:
+                    rel = os.path.relpath(os.path.join(r, f), fixture_dir)
+                    if rel not in listed:
+                        bad(tid, f"schema: grader_protected must list every file under fixture/tests/: missing {rel}")
     bounds = t.get("bounds")
     if not isinstance(bounds, dict) or set(bounds) != {"max_turns", "timeout_min"}:
         bad(tid, "schema: bounds must be {max_turns: {}, timeout_min: {}}")

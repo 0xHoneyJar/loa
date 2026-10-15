@@ -339,14 +339,26 @@ G() { jq -r "$1" "$RD/grade.json"; }
   [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "null,true" ]
 }
 
-@test "AG-7 refactor: structural check and the suite at both ends; bats TAP ids" {
+@test "AG-7 refactor: the structural check is hidden_tests, the fixture suite is the regression check at both ends; bats TAP ids" {
   RD="$T/run"; make_run rf-py "$RD"; apply_ref "$RD"
   grade "$RD" rf-py
   [ "$status" -eq 0 ]
   [ "$(G '.structural | "\(.passed)/\(.total) \(.suite_green_base) \(.suite_green_final)"')" = "1/1 true true" ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.rc) \(.timed_out)"')" = "1/1 0 false" ]
+  [ "$(G '.regressions | "\(.base.passed)/\(.base.total) \(.final.passed)/\(.final.total) \(.newly_failing | length) \(.parse_error)"')" = "2/2 2/2 0 false" ]
   RD="$T/run2"; make_run rf-py "$RD"
   grade "$RD" rf-py
   [ "$(G '.structural | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "0/1 t1" ]
+  # an untouched tree: the suite is green but the hidden assertion (structural) is red
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "0/1 t1" ]
+  [ "$(G '.regressions.final | "\(.passed)/\(.total)"')" = "2/2" ]
+  # a refactor that breaks behaviour: structural green, the suite case is newly failing by its base id
+  RD="$T/run3"; make_run rf-py "$RD"; apply_ref "$RD"
+  sed -i 's/return a + b/return a - b/' "$RD/sandbox/src/calc/ops.py"
+  grade "$RD" rf-py
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "1/1" ]
+  [ "$(G '.regressions.newly_failing | join(",")')" = "t1,t2" ]
+  [ "$(G '.structural.suite_green_final')" = false ]
   RD="$T/run-sh"; make_run bf-sh "$RD"; apply_ref "$RD"
   grade "$RD" bf-sh
   [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error)"')" = "3/3 false" ]
@@ -588,4 +600,128 @@ EOF
   [ "$status" -eq 2 ] && [[ "$output" == *"image not found"* ]]
   run "$GRADER" "$RD" bf-py --bogus
   [ "$status" -eq 2 ]
+}
+
+# --- Sprint 259 fix round (engineer-feedback HIGH-1, MEDIUM-1, MEDIUM-3, LOW-2) ---------------------
+
+# bf-tap: a bash-runner task; the hidden runner prints a passing TAP block and exits 1 (a
+# teardown failure), the regression check is a bash script with no summary at all
+make_bf_tap() {
+  local d="$S/tasks/bf-tap" w="$T/w-tap"
+  mkdir -p "$d/fixture/lib" "$d/fixture/tests" "$d/hidden/tests"
+  printf 'v=1\n' > "$d/fixture/lib/x.sh"
+  printf 'grep -q "^v=" lib/x.sh\n' > "$d/fixture/tests/reg.sh"
+  printf 'echo 1..1\necho "ok 1 the value is set"\nexit 1\n' > "$d/hidden/tests/run.sh"
+  echo '{"files": [{"src": "tests/run.sh", "dest": "tests/run.sh"}]}' > "$d/hidden/manifest.json"
+  mkdir -p "$w/a" "$w/b"; cp -a "$d/fixture/." "$w/a/"; cp -a "$d/fixture/." "$w/b/"
+  printf 'v=2\n' > "$w/b/lib/x.sh"
+  (cd "$w" && diff -ruN a b > "$d/hidden/reference.patch" || true)
+  printf 'Set the value.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<'YAML'
+id: bf-tap
+schema_version: 1
+type: bug-fix
+fixture: tasks/bf-tap/fixture
+criterion: "the value is two"
+test_command: ["bash", "tests/run.sh"]
+regression_command: ["bash", "tests/reg.sh"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/reg.sh]
+structural_check: null
+review_catch: null
+suite_version: 1
+YAML
+}
+
+@test "AG-19 symlinks (DISS-001): an absolute or escaping link is never copied, grading twice leaves its target's mode alone; in-tree links survive; snapshot links are filtered" {
+  local probe="$T/probe-dir"
+  mkdir -p "$probe/inner"; chmod 0755 "$probe" "$probe/inner"
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  ln -s "$probe" "$RD/sandbox/evil"                       # absolute directory link
+  ln -s ../../../probe-dir "$RD/sandbox/src/up"           # relative, climbs out of the tree
+  ln -s ./conftest.py "$RD/sandbox/tests/alias"           # in-tree relative: kept
+  mkdir -p "$RD/sandbox/sub"; ln -s .. "$RD/sandbox/sub/root"   # in-tree (the tree root): kept
+  ln -s sub/root/.. "$RD/sandbox/hop"                     # lexically in-tree, really the parent: dropped
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(stat -c %a "$probe")" = 755 ]                      # (1.0.0: 700 — the second grade chmodded through evil)
+  [ "$(stat -c %a "$probe/inner")" = 755 ]
+  [ ! -L "$RD/grading/final/evil" ] && [ ! -e "$RD/grading/final/evil" ]
+  [ ! -L "$RD/grading/final/src/up" ] && [ ! -L "$RD/grading/final/hop" ]
+  [ "$(readlink "$RD/grading/final/tests/alias")" = ./conftest.py ]
+  [ "$(readlink "$RD/grading/final/sub/root")" = .. ]
+  [ "$(G '.symlinks_dropped')" = 3 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
+  # a snapshot carrying the same links: the tar filter skips the absolute and escaping members
+  RD="$T/run-snap"; make_run bf-py "$RD"; apply_ref "$RD"
+  ln -s "$probe" "$RD/sandbox/evil"; ln -s ../../../probe-dir "$RD/sandbox/src/up"; ln -s ./conftest.py "$RD/sandbox/tests/alias"
+  snap "$RD" IMPLEMENT; verdict "$RD" review APPROVED
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.snapshots_graded | join(",")')" = "final,implement" ]
+  [ ! -L "$RD/grading/implement/evil" ] && [ ! -L "$RD/grading/implement/src/up" ]
+  [ -L "$RD/grading/implement/tests/alias" ] && [ "$(readlink "$RD/grading/implement/tests/alias")" = conftest.py ]   # data_filter normalises ./
+  [ "$(stat -c %a "$probe")" = 755 ]
+  [ "$(G '.verdict_accuracy_per_gate.review')" = true ]
+}
+
+@test "AG-20 refactor rows (MEDIUM-1): ablation-row.sh's hidden_test_pass_rate is the structural pass rate; per-gate accuracy needs the structural check and the suite green" {
+  RD="$T/run"; make_run rf-py "$RD"
+  snap "$RD" IMPLEMENT; verdict "$RD" review APPROVED               # untouched: structural red → wrong
+  apply_ref "$RD"; sed -i 's/return a + b/return a - b/' "$RD/sandbox/src/calc/ops.py"
+  snap "$RD" FIX1; verdict "$RD" audit APPROVED                     # structural green, suite red → wrong
+  grade "$RD" rf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.snapshot_tests | "\(.implement.passed)/\(.implement.total) \(.fix1.passed)/\(.fix1.total)"')" = "0/1 1/1" ]
+  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "false,false" ]
+  verdict "$RD" review CHANGES_REQUIRED; verdict "$RD" audit CHANGES_REQUIRED
+  grade "$RD" rf-py
+  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "true,true" ]
+  run "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$RD" --task-yaml "$S/tasks/rf-py/task.yaml"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.hidden_test_pass_rate) \(.regressions)"' <<<"$output")" = "1 2" ]
+  # the untouched tree scores 0 on the primary, not the suite's 1.0
+  RD="$T/run0"; make_run rf-py "$RD"
+  grade "$RD" rf-py
+  [ "$status" -eq 0 ]
+  run "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$RD" --task-yaml "$S/tasks/rf-py/task.yaml"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.hidden_test_pass_rate) \(.regressions)"' <<<"$output")" = "0 0" ]
+}
+
+@test "AG-21 exit status (DISS-002): a passing TAP block followed by exit 1 is not green — hidden_tests carries rc, per-gate accuracy and the self-check follow it" {
+  make_bf_tap
+  RD="$T/run"; make_run bf-tap "$RD"; apply_ref "$RD"; snap "$RD" IMPLEMENT; verdict "$RD" review APPROVED
+  grade "$RD" bf-tap
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.rc) \(.timed_out) \(.parse_error)"')" = "1/1 1 false false" ]
+  [ "$(G '.verdict_accuracy_per_gate.review')" = false ]
+  verdict "$RD" review CHANGES_REQUIRED
+  grade "$RD" bf-tap
+  [ "$(G '.verdict_accuracy_per_gate.review')" = true ]
+  run "$GRADER" --self-check reference --task-yaml "$S/tasks/bf-tap/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"self-check reference bf-tap: FAIL hidden 1/1, fixture suite 1/1"* ]]
+  # the same runner exiting 0 passes
+  sed -i 's/^exit 1$/exit 0/' "$S/tasks/bf-tap/hidden/tests/run.sh"
+  run "$GRADER" --self-check reference --task-yaml "$S/tasks/bf-tap/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+}
+
+@test "AG-22 an unparseable regression command (DISS-003): exit 0 at base, 1 at final → every fallback id is newly failing, parse_error true" {
+  make_bf_tap
+  RD="$T/run"; make_run bf-tap "$RD"
+  printf 'broken\n' > "$RD/sandbox/lib/x.sh"
+  grade "$RD" bf-tap
+  [ "$status" -eq 0 ]
+  [ "$(G '.regressions | "\(.newly_failing | join(",")) \(.parse_error) \(.base.rc) \(.final.rc)"')" = "t1 true 0 1" ]
+  [ "$(G '.regressions | "\(.base.passed)/\(.base.total) \(.final.passed)/\(.final.total)"')" = "1/1 0/1" ]
+  # green at both ends: nothing newly failing, still marked unparsed
+  RD="$T/run2"; make_run bf-tap "$RD"; apply_ref "$RD"
+  grade "$RD" bf-tap
+  [ "$(G '.regressions | "\(.newly_failing | length) \(.parse_error)"')" = "0 true" ]
 }

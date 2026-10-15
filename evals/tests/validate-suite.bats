@@ -191,3 +191,33 @@ teardown() {
   [ "$status" -eq 1 ]
   grep -q 'schema: source.size is not a known key' <<<"$output"
 }
+
+@test "VS-12 grader_protected lists every file under fixture/tests/ for build types (Sprint 259 MEDIUM-2); review-catch is exempt" {
+  make_task "$R" tasks bug-fix-01 bug-fix
+  make_task "$R" tasks refactor-01 refactor
+  make_task "$R" tasks review-catch-01 review-catch
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 0 ]
+  local fx
+  for fx in bug-fix-01 refactor-01; do
+    mkdir -p "$R/tasks/$fx/fixture/tests/unit"
+    printf 'def test_one():\n    assert True\n' > "$R/tasks/$fx/fixture/tests/test_existing.py"
+    printf 'def test_two():\n    assert True\n' > "$R/tasks/$fx/fixture/tests/unit/test_deep.py"
+  done
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'tasks/bug-fix-01: schema: grader_protected must list every file under fixture/tests/: missing tests/test_existing.py' <<<"$output"
+  grep -q 'tasks/bug-fix-01: schema: grader_protected must list every file under fixture/tests/: missing tests/unit/test_deep.py' <<<"$output"
+  grep -q 'tasks/refactor-01: schema: grader_protected must list every file under fixture/tests/: missing tests/test_existing.py' <<<"$output"
+  [ "$(grep -c 'grader_protected must list' <<<"$output")" -eq 4 ]
+  for fx in bug-fix-01 refactor-01; do
+    yq -i '.grader_protected = ["tests/conftest.py", "tests/test_existing.py", "tests/unit/test_deep.py"]' "$R/tasks/$fx/task.yaml"
+  done
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 0 ]
+  # a symlink under tests/ is a file to protect too
+  ln -s test_existing.py "$R/tasks/bug-fix-01/fixture/tests/alias.py"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'missing tests/alias.py' <<<"$output"
+}
