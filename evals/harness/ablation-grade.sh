@@ -155,6 +155,9 @@
 #    symlinks_dropped, contaminated}
 # grader 1.1.0 (Sprint 259 fix round): refactor hidden_tests = the structural check,
 # exit-status-aware green, symlink filtering; 1.0.0 grades of refactor tasks differ.
+# Round 2: snapshot trees get the same realpath symlink pass as the final copy (counted in
+# symlinks_dropped); regressions carries base_green and final_green (all_pass of each run);
+# the self-check's suite-green rule requires a parsed summary too.
 # No timestamp and no scratch path is written: the same run grades byte-identically.
 #
 # Self-check (DEC-0401; AC-2.3): a synthetic run under mktemp -d built from the task.
@@ -742,7 +745,8 @@ def regressions(rb, rf):
         newly = list(rb["order"]) if (rb["rc"] == 0 and not rb["timed_out"] and final_red) else []
     else:
         newly = base_ok if final_red else []
-    return {"newly_failing": ids_of(rb, newly), "base": run_counts(rb), "final": run_counts(rf), "parse_error": pe}
+    return {"newly_failing": ids_of(rb, newly), "base": run_counts(rb), "final": run_counts(rf), "parse_error": pe,
+            "base_green": all_pass(rb), "final_green": all_pass(rf)}
 
 
 # ------------------------------------------------------------------ grading trees
@@ -769,6 +773,9 @@ def prepare(t, tree):
 def git_env(home):
     return {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": home, "LC_ALL": "C",
             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+SNAPSHOT_LINKS_DROPPED = [0]   # escaping links removed from snapshot trees in this grade
 
 
 def extract_snapshot(run_dir, label, commit, tree):
@@ -804,6 +811,9 @@ def extract_snapshot(run_dir, label, commit, tree):
             return None
     with tarfile.open(tarp) as tf:
         tf.extractall(tree, filter=keep)
+    # round 2 DISS-C-001: data_filter judges members in archive order, so a link that escapes
+    # only through a later link slips past it; the same realpath pass as the final copy runs here
+    SNAPSHOT_LINKS_DROPPED[0] += drop_escaping_links(tree)
     return True
 
 
@@ -1162,6 +1172,7 @@ def grade(t, run_dir, frozen):
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "contaminated": None}
     acc = {"review": None, "audit": None}
+    SNAPSHOT_LINKS_DROPPED[0] = 0
     if t.build:
         docker_ready()
         final = os.path.join(grading, "final")
@@ -1213,6 +1224,7 @@ def grade(t, run_dir, frozen):
                 ok = ok and all_pass(run_suite(tree, t.test_command))
             snap_res[label] = (sr, ok)
             g["snapshots_graded"].append(label)
+        g["symlinks_dropped"] += SNAPSHOT_LINKS_DROPPED[0]
         if snap_res:
             g["snapshot_tests"] = {k: {"passed": v["passed"], "total": v["total"]} for k, (v, _ok) in snap_res.items()}
         for gate, v in (("review", v_review), ("audit", v_audit)):
@@ -1305,7 +1317,7 @@ def self_check(t, mode, frozen):
         h_green = (h["passed"] >= h["total"] and not h["failed_names"] and not h["parse_error"]
                    and h["rc"] == 0 and not h["timed_out"])
         f = None if r is None else r["final"]
-        suite_green = f is None or (f["passed"] >= f["total"] and f["rc"] == 0 and not f["timed_out"])
+        suite_green = f is None or (f["passed"] >= f["total"] and f["rc"] == 0 and not f["timed_out"] and not r["parse_error"])
         if t.type == "refactor":
             ev = f"structural {h['passed']}/{h['total']}, suite {'green' if suite_green else 'red'}"
         else:

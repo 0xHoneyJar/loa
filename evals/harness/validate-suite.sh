@@ -25,6 +25,7 @@
 #      | null; required for bug-fix and feature-build), grader_protected (array of
 #      relative paths present in the fixture; for build types it lists every file
 #      under fixture/tests/, Sprint 259), structural_check (hidden/… | null;
+#      refactor: regression_command must be null — test_command is the regression check),
 #      required for refactor), bounds {max_turns{}, timeout_min{}} (phase → positive
 #      int), review_catch (null, or {fixture, manifest, labels?} for review-catch,
 #      both present), suite_version (= the suite file's), TASK.md present
@@ -56,7 +57,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 PROMPTS_DIR="${LOA_EVAL_PHASE_PROMPTS_DIR:-$SCRIPT_DIR/lib/phase-prompts}"
 SMOKE=false ALLOW_PARTIAL=false
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,46p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,47p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "validate-suite: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -260,6 +261,8 @@ for line in open(tasks_tsv, encoding="utf-8"):
             bad(tid, f"schema: {key} must be a non-empty array of strings or null")
         elif v[0] not in ALLOW:
             bad(tid, f"allowlist: {key}[0] '{v[0]}' not in {'|'.join(sorted(ALLOW))}")
+    if ttype == "refactor" and t.get("regression_command") is not None:
+        bad(tid, "schema: regression_command must be null for refactor (test_command is the regression check)")
     for key, must in (("reference_patch", ttype in ("bug-fix", "feature-build")), ("structural_check", ttype == "refactor")):
         v = t.get(key)
         if v is None:

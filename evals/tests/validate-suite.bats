@@ -221,3 +221,18 @@ teardown() {
   [ "$status" -eq 1 ]
   grep -q 'missing tests/alias.py' <<<"$output"
 }
+
+@test "VS-13 a refactor task with a non-null regression_command is a violation: test_command is the regression check (Sprint 259 review round 2, DISS-C-003)" {
+  make_task "$R" tasks refactor-01 refactor
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 0 ]
+  yq -i '.regression_command = ["python3", "-m", "pytest", "-q", "tests"]' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'tasks/refactor-01: schema: regression_command must be null for refactor (test_command is the regression check)' <<<"$output"
+  # the same command on a bug-fix task is fine
+  make_task "$R" tasks bug-fix-01 bug-fix
+  yq -i '.regression_command = null' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 0 ]
+}

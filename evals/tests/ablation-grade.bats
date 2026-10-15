@@ -719,6 +719,7 @@ YAML
   grade "$RD" bf-tap
   [ "$status" -eq 0 ]
   [ "$(G '.regressions | "\(.newly_failing | join(",")) \(.parse_error) \(.base.rc) \(.final.rc)"')" = "t1 true 0 1" ]
+  [ "$(G '.regressions | "\(.base_green) \(.final_green)"')" = "true false" ]   # round 2 DISS-C-002: the green booleans travel with the counts
   [ "$(G '.regressions | "\(.base.passed)/\(.base.total) \(.final.passed)/\(.final.total)"')" = "1/1 0/1" ]
   # green at both ends: nothing newly failing, still marked unparsed
   RD="$T/run2"; make_run bf-tap "$RD"; apply_ref "$RD"
