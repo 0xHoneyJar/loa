@@ -5,7 +5,7 @@
 # spend.sh sums run rows (cost_usd, each run_id once across files) and the cost
 # ledger (cost_micro_usd, ts >= since) and prints total, components, cap,
 # headroom and reserve. Fixtures: evals/tests/fixtures/ablation/spend/ —
-# runs.jsonl 6.41 + 3.59, rows.jsonl 3.59 (same run_id, counted once) + 2.00,
+# runs.jsonl 6.41 + 3.59, rows.jsonl 3.59 (same run_id, counted once at its larger cost) + 2.00,
 # ledger 1.00 before the kickoff, 2.50 and 0.50 after it.
 # =============================================================================
 
@@ -54,14 +54,48 @@ teardown() {
   [ "$output" = "cycle spend USD 14.00 (runs 10.00 + ledger 4.00 since 2026-10-01T00:00:00Z); cap 12; headroom -2.00; reserve 3" ]
 }
 
-@test "SP-4 a malformed line is skipped and counted; the rest still sums" {
+@test "SP-4 a malformed line is skipped and counted; the rest still sums, marked incomplete (exit 1)" {
   { cat "$FX/cost-ledger.jsonl"; echo '{not json'; echo '{"ts":"2026-10-15T02:00:00Z"}'; } > "$T/ledger.jsonl"
   run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$T/ledger.jsonl" --json
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
   json="$(grep '^{' <<<"$output")"
   [ "$(jq -r '.skipped_lines' <<<"$json")" = "1" ]
+  [ "$(jq -r '.complete' <<<"$json")" = "false" ]
   [ "$(jq -r '.ledger_usd' <<<"$json")" = "3" ]
   [ "$(jq -r '.ledger_rows' <<<"$json")" = "3" ]
+}
+
+@test "SP-7 a skipped ledger line makes the text total INCOMPLETE and exits 1; a clean read says complete" {
+  { cat "$FX/cost-ledger.jsonl"; echo '{not json'; } > "$T/ledger.jsonl"
+  run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$T/ledger.jsonl"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"cycle spend USD 13.00 (runs 10.00 + ledger 3.00 since 2026-10-14T13:50:00Z); cap 1,500; headroom 1,487.00; reserve 250 INCOMPLETE (1 skipped)"* ]]
+  run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.complete' <<<"$output")" = "true" ]
+}
+
+@test "SP-8 a run rowed twice counts its larger cost, whichever row comes first" {
+  printf '%s\n' '{"run_id":"r1","cost_usd":3}' '{"run_id":"r1","cost_usd":5}' > "$T/a.jsonl"
+  printf '%s\n' '{"run_id":"r1","cost_usd":5}' '{"run_id":"r1","cost_usd":3}' > "$T/b.jsonl"
+  for f in a b; do
+    run "$SPEND" --runs "$T/$f.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.runs_usd' <<<"$output")" = "5" ]
+    [ "$(jq -r '.runs_rows' <<<"$output")" = "1" ]
+    [ "$(jq -r '.runs_rows_deduped' <<<"$output")" = "1" ]
+  done
+}
+
+@test "SP-9 rows without a run_id each count once, with one warning naming the file" {
+  printf '%s\n' '{"cost_usd":1}' '{"run_id":"","cost_usd":2}' '{"run_id":"r1","cost_usd":4}' > "$T/anon.jsonl"
+  run "$SPEND" --runs "$T/anon.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  json="$(grep '^{' <<<"$output")"
+  [ "$(jq -r '.runs_usd' <<<"$json")" = "7" ]
+  [ "$(jq -r '.runs_rows' <<<"$json")" = "3" ]
+  [ "$(jq -r '.runs_rows_no_run_id' <<<"$json")" = "2" ]
+  [ "$(grep -c "anon.jsonl: 2 row(s) without a run_id" <<<"$output")" -eq 1 ]
 }
 
 @test "SP-5 exit 1 on an unreadable file; exit 2 on usage errors" {

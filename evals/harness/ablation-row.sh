@@ -57,7 +57,13 @@
 # Exit codes:
 #   0  row written / file valid
 #   1  --validate found a bad row
-#   2  usage error, unreadable input, arm mismatch
+#   2  usage error, unreadable input, arm mismatch, or "row build failed for <run_id>"
+#      (the row program aborted on an input shape it does not handle; no row written)
+#
+# Inputs that scale with the run (pipeline.json, MODELINV, grade.json, the manifest,
+# the envelopes, the transcript write list) reach jq as files under a mktemp -d work
+# directory (--slurpfile), never as argv strings, so a long run cannot hit the
+# per-argument limit (MAX_ARG_STRLEN, 128 KiB on Linux). The directory is removed at exit.
 #
 # Tested by evals/tests/ablation-row.bats (fixture runs under
 # evals/tests/fixtures/ablation-runs/).
@@ -80,7 +86,7 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
-    -h|--help)        sed -n '2,62p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,69p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -164,37 +170,45 @@ jq -e 'type == "object"' "$PIPE" >/dev/null 2>&1 || usage "meta/pipeline.json do
 if [[ -n "$STATUS_OVERRIDE" ]] && ! jq -e --arg s "$STATUS_OVERRIDE" 'index($s) != null' <<<"$STATUSES" >/dev/null; then
   usage "--status must be one of $(jq -r 'join("|")' <<<"$STATUSES")"
 fi
+
+# Every input that scales with the run reaches jq as a file (--slurpfile), never as an
+# argv string: one argument is capped at MAX_ARG_STRLEN (128 KiB on Linux), and the
+# MODELINV ledger of a long run passes it. Scalars stay --arg.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/ablation-row.XXXXXX")" || usage "cannot create a work directory"
+cleanup() { find "$WORK" -mindepth 1 -delete 2>/dev/null || true; rmdir "$WORK" 2>/dev/null || true; }
+trap cleanup EXIT
+
 [[ -n "$GRADE" ]] || { [[ -f "$RUN_DIR/grade.json" ]] && GRADE="$RUN_DIR/grade.json"; } || true
-GRADE_JSON=null
+echo null > "$WORK/grade.json"
 if [[ -n "$GRADE" ]]; then
   [[ -f "$GRADE" ]] || usage "grade file not found: $GRADE"
-  GRADE_JSON="$(jq -c '.' "$GRADE")" || usage "grade file does not parse: $GRADE"
+  jq -c '.' "$GRADE" > "$WORK/grade.json" || usage "grade file does not parse: $GRADE"
 fi
-MAN_JSON='{}'
+echo '{}' > "$WORK/manifest.json"
 if [[ -n "$MANIFEST" ]]; then
   [[ -f "$MANIFEST" ]] || usage "manifest not found: $MANIFEST"
-  MAN_JSON="$(jq -c '.' "$MANIFEST")" || usage "manifest does not parse: $MANIFEST"
+  jq -c '.' "$MANIFEST" > "$WORK/manifest.json" || usage "manifest does not parse: $MANIFEST"
 fi
-TASK_JSON="$(yq -o=json '.' "$TASK_YAML")" || usage "task yaml does not parse"
-PIPE_JSON="$(jq -c '.' "$PIPE")"
-RUN_ID="$(jq -r '.run_id // ""' <<<"$PIPE_JSON")"
+yq -o=json '.' "$TASK_YAML" > "$WORK/task.json" || usage "task yaml does not parse"
+jq -c '.' "$PIPE" > "$WORK/pipe.json" || usage "meta/pipeline.json does not parse"
+RUN_ID="$(jq -r '.run_id // ""' "$WORK/pipe.json")"
 
 # arm: manifest arm_map > meta/arm > pipeline.json; never sandbox/
 META_ARM=""
 [[ -f "$RUN_DIR/meta/arm" ]] && META_ARM="$(sed -n '1p' "$RUN_DIR/meta/arm" | tr -d '[:space:]')"
-MAN_ARM="$(jq -r --arg r "$RUN_ID" '.arm_map[$r] // empty' <<<"$MAN_JSON")"
+MAN_ARM="$(jq -r --arg r "$RUN_ID" '.arm_map[$r] // empty' "$WORK/manifest.json")"
 if [[ -n "$MAN_ARM" && -n "$META_ARM" && "$MAN_ARM" != "$META_ARM" ]]; then
   usage "arm mismatch for $RUN_ID: manifest arm_map says $MAN_ARM, meta/arm says $META_ARM"
 fi
-ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' <<<"$PIPE_JSON")}}"
+ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' "$WORK/pipe.json")}}"
 [[ -n "$ARM" ]] || usage "no arm for $RUN_ID (manifest arm_map, meta/arm, pipeline.json)"
 
 # MODELINV rows as an array with their 1-based line numbers
-MINV='[]'
+echo '[]' > "$WORK/minv.json"
 if [[ -f "$RUN_DIR/eval/model-invoke.jsonl" ]]; then
-  MINV="$(awk '{print NR "\t" $0}' "$RUN_DIR/eval/model-invoke.jsonl" \
-          | jq -R -n -c '[inputs | split("\t") | {line: (.[0] | tonumber), row: (.[1:] | join("\t") | fromjson? // null)}
-                         | select(.row != null)]')"
+  awk '{print NR "\t" $0}' "$RUN_DIR/eval/model-invoke.jsonl" \
+    | jq -R -n -c '[inputs | split("\t") | {line: (.[0] | tonumber), row: (.[1:] | join("\t") | fromjson? // null)}
+                   | select(.row != null)]' > "$WORK/minv.json"
 fi
 
 envelope() {  # envelope <gate> → JSON or null
@@ -202,38 +216,47 @@ envelope() {  # envelope <gate> → JSON or null
   [[ -f "$f" ]] || f="$RUN_DIR/eval/adversarial-$1.json"
   if [[ -f "$f" ]] && jq -e 'type == "object"' "$f" >/dev/null 2>&1; then jq -c '.' "$f"; else echo null; fi
 }
-ENV_REVIEW="$(envelope review)"
-ENV_AUDIT="$(envelope audit)"
+envelope review > "$WORK/env-review.json"
+envelope audit > "$WORK/env-audit.json"
 
 # Write/Edit tool inputs under .claude/ from every transcript
-DOT_WRITES='[]'
+echo '[]' > "$WORK/dot.json"
 shopt -s nullglob
 ev_files=("$RUN_DIR"/transcripts/events-*.jsonl)
 shopt -u nullglob
 if [[ ${#ev_files[@]} -gt 0 ]]; then
-  DOT_WRITES="$(for f in "${ev_files[@]}"; do
+  for f in "${ev_files[@]}"; do
       lab="$(basename "$f" .jsonl)"; lab="${lab#events-}"
       jq -R -c --arg ph "$lab" 'fromjson? | select(type == "object" and .type == "assistant") | .message.content[]?
         | select(type == "object" and .type == "tool_use"
                  and (.name == "Write" or .name == "Edit" or .name == "MultiEdit" or .name == "NotebookEdit"))
         | {phase: $ph, tool: .name, path: (.input.file_path // .input.notebook_path // "")}
         | select(.path | test("(^|/)\\.claude/"))' "$f" 2>/dev/null || true
-    done | jq -s -c '.')"
+    done | jq -s -c '.' > "$WORK/dot.json"
 fi
 
+# Each --slurpfile binds an array of the file's values; [0] is the one value.
 ROW="$(jq -n -c \
-  --argjson p "$PIPE_JSON" --argjson task "$TASK_JSON" --argjson g "$GRADE_JSON" --argjson m "$MAN_JSON" \
-  --argjson minv "$MINV" --argjson er "$ENV_REVIEW" --argjson ea "$ENV_AUDIT" --argjson dot "$DOT_WRITES" \
+  --slurpfile p_f "$WORK/pipe.json" --slurpfile task_f "$WORK/task.json" --slurpfile g_f "$WORK/grade.json" \
+  --slurpfile m_f "$WORK/manifest.json" --slurpfile minv_f "$WORK/minv.json" \
+  --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
   --arg retry_reason "$RETRY_REASON" '
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
-  def ms(ts): if ts == null then null else (ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000) end;
+  # an unparseable timestamp (empty, an offset other than Z, not a string) is null, never an abort
+  def ms(ts): if ts == null or ts == "" then null
+              else (try (ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000) catch null) end;
+  def obj: if type == "object" then . else {} end;
+  def boolish: if type == "boolean" then . else null end;
   def voices(e): if e == null then null else
-      {planned: (e.verdict_quality.voices_planned // e.voices_planned // null),
-       completed: (e.verdict_quality.voices_succeeded // e.voices_succeeded // null),
-       quality: (e.verdict_quality.status // e.status // null),
-       companion_planned: e.metadata.companion_voice.planned} end;
-  ($p.phases // [] | map(select(.skipped != true))) as $ran
+      (e.verdict_quality | obj) as $vq
+      | {planned: ($vq.voices_planned // e.voices_planned // null),
+         completed: ($vq.voices_succeeded // e.voices_succeeded // null),
+         quality: ($vq.status // e.status // null),
+         companion_planned: first((e.metadata | objects | .companion_voice | objects | .planned), null)} end;
+  $p_f[0] as $p | $task_f[0] as $task | $g_f[0] as $g | $m_f[0] as $m | $minv_f[0] as $minv
+  | $er_f[0] as $er | $ea_f[0] as $ea | $dot_f[0] as $dot
+  | ($p.phases // [] | map(select(.skipped != true))) as $ran
   | [ $ran[] as $ph
       | ($minv | map(select(.line >= ($ph.modelinv_lines.from // 1e18) and .line <= ($ph.modelinv_lines.to // -1)) | .row)) as $rows
       | ([$rows[] | .payload.effort_effective // .effort_effective // empty] | unique) as $eff
@@ -244,7 +267,8 @@ ROW="$(jq -n -c \
                                | ($r.effort // $ph.effort_requested // null) as $want
                                | select($r.effort_effective != null and $want != null and $r.effort_effective != $want)
                                | "\($r.calling_primitive // "hop") effort \($want)->\($r.effort_effective)" ],
-          model_mismatches: [ ($ph.models_used // {}) | keys[] | select((. | norm_model) != ($ph.model_requested | norm_model)) ]
+          model_mismatches: [ ($ph.models_used // {} | objects // {}) | keys[]
+                              | select((. | norm_model) != ($ph.model_requested | norm_model)) ]
         } ] as $phases
   | ( [ $phases[] | .label as $l
         | .model_requested as $req
@@ -265,6 +289,7 @@ ROW="$(jq -n -c \
   | ($g.recall // null) as $rc
   | (if $rc == null then null else ($rc.defects_seeded // $rc.seeded // $rc.total // null) end) as $seeded
   | (if $rc == null then null else ($rc.defects_caught // $rc.caught // null) end) as $caught
+  | ms($p.started) as $t0 | ms($p.finished) as $t1
   | {
       schema_version: 1,
       run_id: ($p.run_id // ""),
@@ -282,7 +307,9 @@ ROW="$(jq -n -c \
       agy_opt_in: ($m.agy_opt_in // false),
       started: ($p.started // ""),
       finished: ($p.finished // null),
-      phases: [ $phases[] | {name, label, session_id, model_requested, models_used, effort_requested, effort_effective,
+      phases: [ $phases[] | {name: (.name // .label // ""), label, session_id,
+                             model_requested: (.model_requested // ""), models_used: (.models_used // {} | obj),
+                             effort_requested, effort_effective,
                              tokens_in: (.tokens_in // 0), tokens_out: (.tokens_out // 0),
                              cache_read_tokens: (.cache_read_tokens // 0), cache_creation_tokens: (.cache_creation_tokens // 0),
                              cost_usd: (.cost_usd // 0), voice_cost_usd, ledger_cost_usd: (.ledger_cost_usd // 0),
@@ -300,17 +327,17 @@ ROW="$(jq -n -c \
       flags: ($rc.flags // $g.flags // null),
       false_positives: ($g.false_positives // null | if type == "array" then length else . end),
       verdict: ($g.verdict | if type == "object" then .value else . end // null),
-      verdict_accuracy: ($g.verdict_accuracy | if type == "object" then .value else . end),
+      verdict_accuracy: ($g.verdict_accuracy | if type == "object" then .value else . end | boolish),
       verdict_accuracy_review: (if ($g.verdict_accuracy_review | type) == "boolean" then $g.verdict_accuracy_review
-                                else $g.verdict_accuracy_per_gate.review end),
+                                else first(($g.verdict_accuracy_per_gate | objects | .review), null) | boolish end),
       verdict_accuracy_audit: (if ($g.verdict_accuracy_audit | type) == "boolean" then $g.verdict_accuracy_audit
-                               else $g.verdict_accuracy_per_gate.audit end),
+                               else first(($g.verdict_accuracy_per_gate | objects | .audit), null) | boolish end),
       regressions: ($g.regressions // null | if type == "object" then ((.newly_failing // []) | length)
                                             elif type == "array" then length else . end),
       diff_lines: ($g.diff_lines // null),
       files_changed: ($g.files_changed // null),
       cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),
-      wall_clock_ms: (if $p.started != null and $p.finished != null then (ms($p.finished) - ms($p.started))
+      wall_clock_ms: (if $t0 != null and $t1 != null then ($t1 - $t0)
                       else ([$phases[] | .wall_ms // .duration_ms // 0] | add // 0) end),
       tokens_in: ([$phases[] | .tokens_in // 0] | add // 0),
       tokens_out: ([$phases[] | .tokens_out // 0] | add // 0),
@@ -324,7 +351,7 @@ ROW="$(jq -n -c \
       snapshots: {implement: ($p.snapshots.implement // null), fix1: ($p.snapshots.fix1 // null), fix2: ($p.snapshots.fix2 // null)},
       contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)} else null end),
       zone_violations: {dot_claude_writes: $dot}
-    }')"
+    }')" || usage "row build failed for $RUN_ID"
 
 if [[ -n "$OUT" ]]; then
   mkdir -p "$(dirname "$OUT")"

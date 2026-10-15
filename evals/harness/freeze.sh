@@ -21,8 +21,13 @@
 # or `freeze: OK — N files match MANIFEST.sha256 (sha256 …)`; on drift every
 # changed / added / removed path on its own line.
 #
-# Exit: 0 written / matches; 1 drift, missing manifest under --check, or the
-#       validator found violations; 2 usage.
+# A symlink, or a path holding a newline, under a covered directory is refused
+# before hashing, for writes and --check alike (no manifest written):
+#   freeze: refused — the suite holds a symlink: <relpath>
+#   freeze: refused — the suite holds a path with a newline: <relpath, newline as \n>
+#
+# Exit: 0 written / matches; 1 drift, missing manifest under --check, the
+#       validator found violations, or a symlink / newline path was refused; 2 usage.
 # Tested by evals/tests/freeze.bats.
 # =============================================================================
 set -euo pipefail
@@ -35,7 +40,7 @@ ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 CHECK=false SMOKE=false
 VARGS=()
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,26p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,31p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "freeze: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -63,11 +68,31 @@ compute_manifest() {
   local out="$1" list dirs=(tasks)
   [[ "$SMOKE" == "true" ]] && dirs+=(smoke)
   list="$(mktemp "${TMPDIR:-/tmp}/freeze-list.XXXXXX")"
-  local d
+  local d nl rel
+  # A newline in a path would split one entry into two listing lines: refuse it
+  # before listing (exit 1), naming the path with the newline shown as \n.
   for d in "${dirs[@]}"; do
     [[ -d "$ROOT/$d" ]] || continue
-    ( cd "$ROOT" && find "$d" -type f -print )
+    nl="$(cd "$ROOT" && find "$d" -name "$(printf '*\n*')" -print -quit)"
+    if [[ -n "$nl" ]]; then
+      rm -f "$list"
+      echo "freeze: refused — the suite holds a path with a newline: ${nl//$'\n'/\\n}" >&2
+      exit 1
+    fi
+  done
+  # Files and symlinks are listed; a symlink is refused (exit 1) before any hashing,
+  # since a link target can change the suite while the manifest stays the same.
+  for d in "${dirs[@]}"; do
+    [[ -d "$ROOT/$d" ]] || continue
+    ( cd "$ROOT" && find "$d" \( -type f -o -type l \) -print )
   done | LC_ALL=C sort > "$list"
+  while IFS= read -r rel; do
+    if [[ -L "$ROOT/$rel" ]]; then
+      rm -f "$list"
+      echo "freeze: refused — the suite holds a symlink: $rel" >&2
+      exit 1
+    fi
+  done < "$list"
   if grep -q '\\' "$list"; then rm -f "$list"; die "a path under the suite holds a backslash"; fi
   python3 -I - "$ROOT" "$list" > "$out" <<'PY' || { rm -f "$list"; die "hashing failed"; }
 import hashlib, os, sys

@@ -15736,3 +15736,131 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0492"
+    created_at: "2026-10-15T01:40:39Z"
+    updated_at: "2026-10-15T01:40:39Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 258 review round 1 is CHANGES_REQUIRED on two medium and five low findings; DISS-C-004 is not a defect (DEC-0421) (L13)"
+    decision: "The lead's Fable review returns CHANGES_REQUIRED without a high finding: the dead Dockerfile stage and the row writer's argv-size risk are fixed before the audit together with five cheap hardenings, each with a failing-then-passing test; the regen-manifest advisory (DISS-C-004) is recorded as decided by DEC-0421."
+    rationale: "the one-way rule never forces approval on zero high; the quality directive favours a bounded fix round over approving with follow-ups when every fix is cheap and these tools are the base of Sprints 259 and 260; cost is one Opus implementer pass and dissent run 2 of 3"
+    alternatives_considered:
+      - option: "APPROVED with follow-up beads"
+        rejected_because: "the argv-size failure would surface on the most expensive runs of Sprint 260; cheaper to fix before any real batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05442536"
+    source: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L13)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T01:40:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0493"
+    created_at: "2026-10-15T01:40:40Z"
+    updated_at: "2026-10-15T01:40:40Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Sprint 259 grader: the D-4.7 contamination scan also covers WebFetch/WebSearch URLs naming hidden, the suite path or the repository (L14)"
+    decision: "ablation-grade.sh scans WebFetch and WebSearch tool inputs in every phase transcript for a URL or query containing hidden, grimoires/loa/evals/ablation-2.0 or 0xHoneyJar/loa; a hit sets grade.json.contaminated exactly like the Bash and Read patterns (bead bd-eriso)."
+    rationale: "the hidden tests are committed to a public repository and every phase runs with WebFetch (DEC-0394: identical tools across arms); the SDD's scan lists Bash, Read, Grep, Glob, Write and Edit inputs only, leaving the one network channel unscanned"
+    alternatives_considered:
+      - option: "drop WebFetch from the tool list"
+        rejected_because: "changes the pre-registered tool set DEC-0394 fixed for every arm; detection keeps the design and the contaminated status already exists"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05442536"
+    source: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L14)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T01:40:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0494"
+    created_at: "2026-10-15T01:40:42Z"
+    updated_at: "2026-10-15T01:40:42Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Sprint 259: the sandbox Loa mount is materialised from git ls-files -- .claude plus CLAUDE.md and .loa.config.yaml, not cp -a of the working tree (L15)"
+    decision: "mount_prompt_surface copies the tracked .claude/ files of the pinned source tree (git -C tree ls-files -z -- .claude, every path a regular file) and the two root files; ignored and untracked artefacts never enter a sandbox (bead bd-obk5p)."
+    rationale: "the Sprint 258 smoke copied 1,421 ignored files including 44 MB of bridgebuilder-review/node_modules per run; arms are not confounded, but the mount cannot be reproduced from source_commit alone, which the pin (DEC-0392) promises"
+    alternatives_considered:
+      - option: "keep cp -a and record the working-tree state in the fingerprint"
+        rejected_because: "records the drift instead of removing it; the copy is also slower and larger than it needs to be"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05442536"
+    source: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L15)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T01:40:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0495"
+    created_at: "2026-10-15T01:40:43Z"
+    updated_at: "2026-10-15T01:40:43Z"
+    phase: "review"
+    category: "tooling"
+    summary: "spend.sh reports INCOMPLETE and exits 1 when any ledger or run row was skipped; a run rowed twice counts its larger cost (L16)"
+    decision: "spend.sh appends INCOMPLETE (N skipped) to its line, sets complete: false in --json and exits 1 when skipped_lines > 0; run-row dedup keeps the maximum cost_usd per run_id; rows without a run_id count once per file with a stderr warning."
+    rationale: "a cap tool must fail loud in the under-counting direction (DISS-C-005): a stderr note beside a complete-looking total is how a cap gets passed unnoticed"
+    alternatives_considered:
+      - option: "keep the stderr note and exit 0"
+        rejected_because: "the driver scripts read the stdout line and the exit code, not stderr"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05442536"
+    source: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L16)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T01:40:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#findings (L16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

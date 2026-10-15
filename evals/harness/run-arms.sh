@@ -29,7 +29,9 @@
 #   2) per arm into <results-dir>/<suite>/screen-<UTC ts>/ (its own MANIFEST,
 #   STATUS, rows), prints a per-arm table (trials, mean USD, mean recall) on
 #   stdout, and never writes the suite-level STATUS.json; the suite aggregate
-#   never reads screen-* batches. --batch and --trials are ignored under --screen.
+#   skips every batch whose STATUS.json says screen: true (the marker, not the
+#   directory name). --batch and --trials are ignored under --screen; without
+#   --screen a --batch name starting with screen- is refused (exit 2).
 #
 # Per trial (fixture × arm × trial), in this order:
 #   1. the fixture's SHA256SUMS entries (its files, hidden manifest and labels)
@@ -162,6 +164,9 @@ SRC_FULL="$(git -C "$SOURCE_REPO" rev-parse --verify --quiet "${SOURCE_COMMIT}^{
 SRC12="${SRC_FULL:0:12}"
 WORKTREE="$CACHE_ROOT/arms-src-$SRC12"
 
+if [[ "$SCREEN" != "true" && "$BATCH" == screen-* ]]; then
+  die "invalid --batch '$BATCH': the screen- prefix is reserved for --screen batches"
+fi
 [[ -n "$BATCH" ]] || BATCH="batch-${FIXTURES[0]}-${FIXTURES[${#FIXTURES[@]}-1]}-n${#FIXTURES[@]}"
 [[ "$SCREEN" == "true" ]] && BATCH="screen-$(date -u +%Y%m%dT%H%M%SZ)"
 [[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"
@@ -371,11 +376,14 @@ write_status() {
 
 # The suite-level STATUS.json merges every batch: counters add per arm; the
 # state is failed > running > partial > complete; source/model must agree.
+# Screen batches are excluded by their STATUS.json marker (screen: true), whatever
+# their directory is called.
 aggregate_status() {
   local agg="$SUITE_DIR/STATUS.json" lockd="$SUITE_DIR/.status.lock" n=0
   until mkdir "$lockd" 2>/dev/null; do n=$((n + 1)); [[ $n -gt 50 ]] && return 0; sleep 0.1; done
   # shellcheck disable=SC2046
   jq -s --arg suite "$SUITE" '
+    map(select(.screen != true)) |
     def rank: {"failed": 4, "running": 3, "partial": 2, "complete": 1}[.] // 4;
     (map(.state) | max_by(rank)) as $state |
     {schema_version: 1, suite: $suite, state: $state,
@@ -388,7 +396,7 @@ aggregate_status() {
      source_commit: (map(.source_commit) | unique | if length == 1 then .[0] else "MIXED" end),
      model_id: (map(.model_id) | unique | if length == 1 then .[0] else "MIXED" end),
      started: (map(.started) | min), finished: (if $state == "running" then null else (map(.finished) | max) end)}' \
-    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json ! -path "$SUITE_DIR/screen-*" | sort) > "$agg.tmp" 2>/dev/null \
+    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json | sort) > "$agg.tmp" 2>/dev/null \
     && mv "$agg.tmp" "$agg"
   rmdir "$lockd" 2>/dev/null || true
 }

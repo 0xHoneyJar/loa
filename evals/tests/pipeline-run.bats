@@ -762,3 +762,20 @@ call_for() { grep -lx "$1" "$T"/log/call-*.phase | sed -n '1p' | sed 's/.*call-\
 }
 
 rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T/run" 2>/dev/null || true; find "$T/log" "$T/dlog" -mindepth 1 -delete 2>/dev/null || true; }
+
+@test "Dockerfile.ablation: a single build stage, no cargo install (builds the same under the legacy builder)" {
+  local df="$REPO_ROOT/evals/harness/Dockerfile.ablation"
+  [ "$(grep -c '^[[:space:]]*FROM[[:space:]]' "$df")" -eq 1 ]
+  ! grep -q 'cargo install' "$df"
+  ! grep -qi 'AS brbuild' "$df"
+  # the comment explaining why br is absent stays
+  grep -q 'No beads (br) in the image' "$df"
+}
+
+@test "pipeline-run.sh header names the codex version Dockerfile.ablation pins" {
+  local df="$REPO_ROOT/evals/harness/Dockerfile.ablation" v
+  v="$(sed -n 's/^ARG CODEX_VERSION=//p' "$df")"
+  [ -n "$v" ]
+  grep -q "codex $v by" "$REPO_ROOT/evals/harness/pipeline-run.sh"
+  ! grep -Eq 'codex [0-9]+\.[0-9]+\.[0-9]+' <(grep -Ev "codex $v" "$REPO_ROOT/evals/harness/pipeline-run.sh")
+}

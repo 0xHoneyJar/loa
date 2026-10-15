@@ -247,3 +247,29 @@ teardown() {
   [ "$status" -eq 2 ]
   [ ! -e "$RES/review-recall" ]
 }
+
+@test "RA-11 the suite aggregate excludes screen batches by the STATUS marker, not the directory name" {
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  local suite="$RES/review-recall" one="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  # a regular batch whose directory happens to start with screen-
+  mkdir -p "$suite/screen-foo" "$suite/batch-x"
+  jq '.batch = "screen-foo" | .screen = false' "$one" > "$suite/screen-foo/STATUS.json"
+  # a screen batch (marker true, with a cut) in a directory that does not say so
+  jq '.batch = "batch-x" | .screen = true | .cut = {reason: "max_usd"}' "$one" > "$suite/batch-x/STATUS.json"
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch second \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.batches[].batch] | join(",")' "$suite/STATUS.json")" = "batch-pr-01-pr-01-n1,screen-foo,second" ]
+  [ "$(jq -r '.per_arm.baseline.trials_planned' "$suite/STATUS.json")" = "3" ]
+  [ "$(jq -c '.cuts' "$suite/STATUS.json")" = "[]" ]
+}
+
+@test "RA-12 --batch screen-<name> without --screen is refused (exit 2) and writes nothing" {
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch screen-foo \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"screen- prefix is reserved"* ]]
+  [ ! -e "$RES/review-recall/screen-foo" ]
+}

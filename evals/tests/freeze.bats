@@ -99,3 +99,26 @@ teardown() {
   run "$FZ" --smoke --allow-partial --check
   [ "$status" -eq 0 ]
 }
+
+@test "FZ-7 a symlink under tasks/ is refused before hashing (write and --check); no manifest written" {
+  ln -s ../../review-catch-01/TASK.md "$R/tasks/bug-fix-01/hidden/linked.md"
+  run "$FZ" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -qxF 'freeze: refused — the suite holds a symlink: tasks/bug-fix-01/hidden/linked.md' <<<"$output"
+  [ ! -e "$R/MANIFEST.sha256" ]
+  # a frozen suite that later gains a link fails --check the same way
+  rm "$R/tasks/bug-fix-01/hidden/linked.md"
+  "$FZ" --root "$R" --allow-partial >/dev/null
+  ln -s /etc/hostname "$R/tasks/bug-fix-01/hidden/linked.md"
+  run "$FZ" --root "$R" --allow-partial --check
+  [ "$status" -eq 1 ]
+  grep -qxF 'freeze: refused — the suite holds a symlink: tasks/bug-fix-01/hidden/linked.md' <<<"$output"
+}
+
+@test "FZ-8 a path with a newline under tasks/ is refused (exit 1); no manifest written" {
+  printf 'x\n' > "$R/tasks/bug-fix-01/hidden/$(printf 'a\nb.txt')"
+  run "$FZ" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -qF 'freeze: refused — the suite holds a path with a newline: tasks/bug-fix-01/hidden/a\nb.txt' <<<"$output"
+  [ ! -e "$R/MANIFEST.sha256" ]
+}

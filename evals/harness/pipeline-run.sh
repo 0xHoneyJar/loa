@@ -82,7 +82,7 @@
 # file is ever copied. The directory is deleted at exit and on interrupt.
 # image_digest = the image's RepoDigest or id (container), else the fingerprint (host).
 # Versions: `fingerprint` is computed from the HOST toolchain; in container mode the
-# toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.137.0 by
+# toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.162.1 by
 # Dockerfile.ablation), so image_digest identifies the batch's versions. On 2026-10-15
 # the host CLI was 2.1.300 while the image pins 2.1.299; every arm runs in the container.
 #

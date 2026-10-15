@@ -14,21 +14,28 @@
 #   --runs FILE…   run-row files (JSONL, `cost_usd` per row); repeatable, and every
 #                  following non-option argument is a file too. Default:
 #                  grimoires/loa/reports/ablation-2.0/runs.jsonl plus every
-#                  evals/results/ablation-2.0/*/rows.jsonl that exists. A row whose
-#                  run_id was already counted from another file is counted once.
+#                  evals/results/ablation-2.0/*/rows.jsonl that exists. Each run_id
+#                  counts once across files: a run rowed twice counts its larger cost
+#                  (a smoke row, then the graded row). A row with an empty or missing
+#                  run_id cannot be deduplicated and counts on its own (one stderr
+#                  warning per file naming it).
 #   --ledger FILE  cost ledger (JSONL, `ts`, `cost_micro_usd`; default .run/cost-ledger.jsonl)
 #   --cap USD      cycle cap (default: evals.ablation.cycle_cap_usd in .loa.config.yaml,
 #                  else caps.cycle_usd in evals/suites/ablation-2.0.yaml, else 1500)
 #   --reserve USD  reserve (default caps.reserve_usd in the suite file, else 250)
 #   --json         one JSON object: total_usd, runs_usd, ledger_usd, since, cap_usd,
 #                  headroom_usd, reserve_usd, runs_files, ledger_file, runs_rows,
-#                  runs_rows_deduped, ledger_rows, skipped_lines
+#                  runs_rows_deduped, runs_rows_no_run_id, ledger_rows, skipped_lines,
+#                  complete (false when any line was skipped)
 #
 # Output: cycle spend USD T (runs R + ledger L since S); cap C; headroom H; reserve V
 #   headroom = cap - total (negative when over). Default files that do not exist
-#   count as zero; a malformed line is skipped and counted (stderr note).
+#   count as zero. A malformed line is skipped and counted (stderr note), and the
+#   total is then a lower bound: the line gains " INCOMPLETE (N skipped)", --json
+#   says "complete": false, and the exit is 1.
 #
-# Exit: 0 printed; 1 a named file (or an existing default) is unreadable; 2 usage.
+# Exit: 0 printed and complete; 1 a named file (or an existing default) is unreadable,
+#   or the total is INCOMPLETE (a skipped line); 2 usage.
 # Tested by evals/tests/spend.bats.
 # =============================================================================
 set -euo pipefail
@@ -40,7 +47,7 @@ SINCE="2026-10-14T13:50:00Z"
 LEDGER="" CAP="" RESERVE="" JSON=false
 RUNS=()
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,32p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,39p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "spend: $*" >&2; exit 2; }
 num_ok() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
 
@@ -118,9 +125,10 @@ def ts(s):
 
 since = ts(since_s)
 skipped = 0
-runs_usd, runs_rows, dedup = 0.0, 0, 0
-seen = set()
+dedup, anon_rows, anon_usd = 0, 0, 0.0
+best = {}  # run_id -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
 for f in runs_files:
+    anon_here = 0
     for line in open(f, encoding="utf-8", errors="replace"):
         if not line.strip():
             continue
@@ -131,14 +139,20 @@ for f in runs_files:
             skipped += 1
             continue
         rid = r.get("run_id")
-        key = rid if isinstance(rid, str) and rid else None
-        if key is not None and key in seen:
-            dedup += 1
+        if not (isinstance(rid, str) and rid):
+            anon_rows += 1
+            anon_here += 1
+            anon_usd += c
             continue
-        if key is not None:
-            seen.add(key)
-        runs_usd += c
-        runs_rows += 1
+        if rid in best:
+            dedup += 1
+            best[rid] = max(best[rid], c)
+        else:
+            best[rid] = c
+    if anon_here:
+        print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (no dedup possible)", file=sys.stderr)
+runs_usd = sum(best.values()) + anon_usd
+runs_rows = len(best) + anon_rows
 
 ledger_usd, ledger_rows = 0.0, 0
 if ledger:
@@ -166,10 +180,13 @@ if as_json:
         "total_usd": n(total), "runs_usd": n(runs_usd), "ledger_usd": n(ledger_usd),
         "since": since_s, "cap_usd": n(cap), "headroom_usd": n(headroom), "reserve_usd": n(reserve),
         "runs_files": runs_files, "ledger_file": ledger or None, "runs_rows": runs_rows,
-        "runs_rows_deduped": dedup, "ledger_rows": ledger_rows, "skipped_lines": skipped}, sort_keys=True))
+        "runs_rows_deduped": dedup, "runs_rows_no_run_id": anon_rows, "ledger_rows": ledger_rows,
+        "skipped_lines": skipped, "complete": skipped == 0}, sort_keys=True))
 else:
     def money(x): return f"{x:,.2f}"
     def whole(x): return f"{x:,.0f}" if x == int(x) else f"{x:,.2f}"
     print(f"cycle spend USD {money(total)} (runs {money(runs_usd)} + ledger {money(ledger_usd)} since {since_s}); "
-          f"cap {whole(cap)}; headroom {money(headroom)}; reserve {whole(reserve)}")
+          f"cap {whole(cap)}; headroom {money(headroom)}; reserve {whole(reserve)}"
+          + (f" INCOMPLETE ({skipped} skipped)" if skipped else ""))
+sys.exit(1 if skipped else 0)
 PY

@@ -237,3 +237,58 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
   run "$ROW" --bogus
   [ "$status" -eq 2 ]
 }
+
+@test "a MODELINV ledger over 200 KB reaches jq as a file: the row is written and validates" {
+  local m="$T/runs/a1-build/eval/model-invoke.jsonl" pad i
+  pad="$(printf '%0600d' 0)"
+  for i in $(seq 1 400); do
+    printf '{"schema_version":"1.1.0","primitive_id":"MODELINV","event_type":"model.invoke.complete","payload":{"calling_primitive":"bulk-%s","cost_micro_usd":1000,"pad":"%s"}}\n' "$i" "$pad"
+  done >> "$m"
+  [ "$(wc -c < "$m" | tr -d ' ')" -gt 204800 ]
+  # the REVIEW phase owns lines 1-402 (its own hop, the audit hop, 400 bulk rows), so
+  # every bulk row is read, not only loaded: 0.4 + 0.3 + 400 x 0.001
+  edit_pipe a1-build '(.phases[] | select(.label == "REVIEW") | .modelinv_lines.to) = 402'
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].voice_cost_usd' <<<"$(last)")" = 1.1 ]
+  # the work directory is removed at exit
+  [ -z "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'ablation-row.*' -newer "$m" 2>/dev/null)" ]
+}
+
+@test "an empty finished timestamp and a boolean companion_voice still yield a valid row" {
+  local e="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1" sum
+  edit_pipe a1-build '.finished = ""'
+  jq '.metadata.companion_voice = false' "$e/adversarial-review.json" > "$T/x" && mv "$T/x" "$e/adversarial-review.json"
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  sum="$(jq '[.phases[] | select(.skipped != true) | .wall_ms // .duration_ms // 0] | add' "$T/runs/a1-build/meta/pipeline.json")"
+  [ "$(jq -r '.wall_clock_ms' <<<"$(last)")" = "$sum" ]
+  [ "$(jq -r '.voices_run.review.companion_planned' <<<"$(last)")" = null ]
+}
+
+@test "odd field shapes: an offset timestamp, an array models_used, a string verdict_accuracy, no name or model_requested" {
+  edit_pipe a1-build '.started = "2026-10-14T22:42:11+00:00"
+    | (.phases[] | select(.label == "IMPLEMENT")) |= (.models_used = ["claude-opus-5-5"] | del(.name) | del(.model_requested))'
+  jq '.verdict_accuracy = "yes" | .verdict_accuracy_per_gate = "n/a" | del(.verdict_accuracy_review) | del(.verdict_accuracy_audit)' \
+    "$T/runs/a1-build/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a1-build/grade.json"
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  local r; r="$(last)"
+  [ "$(jq -c '[.phases[] | select(.label == "IMPLEMENT")][0] | [.name, .model_requested, .models_used]' <<<"$r")" = '["IMPLEMENT","",{}]' ]
+  [ "$(jq -c '[.verdict_accuracy, .verdict_accuracy_review, .verdict_accuracy_audit]' <<<"$r")" = '[null,null,null]' ]
+  [[ "$(jq -r '.degraded_reason // ""' <<<"$r")" != *"model claude-opus-5-5 used"* ]]
+}
+
+@test "a row program abort exits 2 naming the run (never a bare jq exit)" {
+  edit_pipe a1-build '.phases = [1, 2]'
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"row build failed for abl-fixture-a1_full-bf-01-t1"* ]]
+  [ ! -s "$T/rows.jsonl" ]
+}

@@ -16,8 +16,6 @@
 #
 # Digest pinned 2026-02-11 (same base as Dockerfile.sandbox):
 #   docker manifest inspect node:20.11.0-bookworm-slim | jq '.manifests[0].digest'
-FROM rust:1-bookworm AS brbuild
-RUN cargo install beads_rust --version 0.2.6 --root /opt/br --locked 2>/dev/null || cargo install beads_rust --version 0.2.6 --root /opt/br
 
 FROM node:20.11.0-bookworm-slim@sha256:8ea90c4f037cc3c2f566eb46c53eaac005129113487eda4090058fe554578104 AS base
 
