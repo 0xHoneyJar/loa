@@ -171,12 +171,112 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
 }
 
 @test "degraded: a DEGRADED envelope, and an envelope with fewer completed voices than planned" {
-  local e="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1"
+  # the harness copies under eval/ are what the row reads
+  local e="$T/runs/a1-build/eval"
   jq '.verdict_quality.status = "DEGRADED"' "$e/adversarial-review.json" > "$T/x" && mv "$T/x" "$e/adversarial-review.json"
   jq '.verdict_quality.voices_succeeded = 1' "$e/adversarial-audit.json" > "$T/x" && mv "$T/x" "$e/adversarial-audit.json"
   row a1-build "$BUILD_TASK"
   [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"review envelope verdict_quality DEGRADED"* ]]
   [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"audit envelope 1 of 2 voices completed"* ]]
+  # a legacy run without eval/ copies falls back to the sandbox envelope
+  local s="$T/runs/a5-build/sandbox/grimoires/loa/a2a/sprint-1"
+  rm "$T/runs/a5-build/eval/adversarial-review.json"
+  jq '.verdict_quality.status = "DEGRADED"' "$s/adversarial-review.json" > "$T/x" && mv "$T/x" "$s/adversarial-review.json"
+  row a5-build "$BUILD_TASK"
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"review envelope verdict_quality DEGRADED"* ]]
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '[]' ]
+}
+
+@test "envelopes: eval/ first; a sandbox envelope tampered after the gate leaves the row on the eval/ values and envelope_mismatch names the gate (audit MEDIUM-A1)" {
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '[]' ]
+  local s="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1"
+  jq '.verdict_quality.status = "DEGRADED" | .verdict_quality.voices_planned = 1 | .verdict_quality.voices_succeeded = 1' \
+    "$s/adversarial-review.json" > "$T/x" && mv "$T/x" "$s/adversarial-review.json"
+  row a1-build "$BUILD_TASK"
+  local r; r="$(last)"
+  [ "$(jq -c '.voices_run.review | {planned, completed, quality}' <<<"$r")" = '{"planned":2,"completed":2,"quality":"APPROVED"}' ]
+  [ "$(jq -r '"\(.degraded) \(.degraded_reason)"' <<<"$r")" = "false null" ]
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$r")" = '["review"]' ]
+  # both gates tampered → both listed, in gate order
+  echo '{}' > "$s/adversarial-audit.json"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '["review","audit"]' ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "zone_violations.bash_mount_refs: write-shaped Bash commands toward .claude/, CLAUDE.md or .loa.config.yaml only; reads never match; excerpt cut at 160 characters (audit LOW-A2)" {
+  local long; long="echo $(printf 'x%.0s' $(seq 1 200)) >> CLAUDE.md"
+  jq -cn --arg long "$long" '{type: "assistant", message: {content: [
+      {type: "tool_use", name: "Bash", input: {command: "sed -i s/x/y/ .claude/rules/a.md"}},
+      {type: "tool_use", name: "Bash", input: {command: "cat .claude/skills/auditing-security/SKILL.md"}},
+      {type: "tool_use", name: "Bash", input: {command: "ls .claude/skills/ | grep -i audit"}},
+      {type: "tool_use", name: "Bash", input: {command: "sed -n '"'"'95,400p'"'"' .claude/scripts/a.sh | head -40"}},
+      {type: "tool_use", name: "Bash", input: {command: "cat .claude/rules/a.md > /tmp/y"}},
+      {type: "tool_use", name: "Bash", input: {command: "grep -rn integrity .loa.config.yaml"}},
+      {type: "tool_use", name: "Bash", input: {command: "ls src && pytest -q"}},
+      {type: "tool_use", name: "Bash", input: {command: $long}},
+      {type: "tool_use", name: "Bash", input: {command: "yq -i '"'"'.flatline_protocol.enabled = true'"'"' .loa.config.yaml"}},
+      {type: "tool_use", name: "Bash", input: {command: "tee -a CLAUDE.md <<< x"}},
+      {type: "tool_use", name: "Read", input: {file_path: ".loa.config.yaml"}}]}}' >> "$T/runs/a1-build/transcripts/events-FIX1.jsonl"
+  row a1-build "$BUILD_TASK"
+  local r; r="$(last)"
+  [ "$(jq -r '.zone_violations.bash_mount_refs | length' <<<"$r")" = 4 ]
+  [ "$(jq -c '.zone_violations.bash_mount_refs[0]' <<<"$r")" = '{"phase":"FIX1","excerpt":"sed -i s/x/y/ .claude/rules/a.md"}' ]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[1].excerpt | length' <<<"$r")" = 160 ]
+  [[ "$(jq -r '.zone_violations.bash_mount_refs[1].excerpt' <<<"$r")" == "echo xxx"* ]]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[2].excerpt' <<<"$r")" = "yq -i '.flatline_protocol.enabled = true' .loa.config.yaml" ]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[3].excerpt' <<<"$r")" = "tee -a CLAUDE.md <<< x" ]
+  # none of the reads is listed
+  [ "$(jq -r '[.zone_violations.bash_mount_refs[].excerpt | select(test("^(cat|ls|grep|sed -n)"))] | length' <<<"$r")" = 0 ]
+  [ "$(jq -c '.zone_violations.dot_claude_writes' <<<"$r")" = '[]' ]
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.bash_mount_refs' <<<"$(last)")" = '[]' ]
+}
+
+@test "zone_violations.mount_changed: the pipeline.json mount_integrity keys that read changed (audit LOW-A2)" {
+  edit_pipe a1-build '.mount_integrity = {"claude_md": "changed", "loa_config": "ok"}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '["claude_md"]' ]
+  edit_pipe a1-build '.mount_integrity = {"claude_md": "changed", "loa_config": "changed"}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '["claude_md","loa_config"]' ]
+  # a record without mount_integrity (legacy, or stopped before materialisation) → none
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '[]' ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+}
+
+@test "--validate requires the four zone_violations arrays (audit MEDIUM-A1, LOW-A2)" {
+  row a1-build "$BUILD_TASK"
+  local good k; good="$(last)"
+  for k in dot_claude_writes bash_mount_refs mount_changed envelope_mismatch; do
+    jq -c --arg k "$k" '.zone_violations |= del(.[$k])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] && [[ "$output" == *"zone_violations.$k is not an array"* ]] || { echo "$k: $output"; return 1; }
+    jq -c --arg k "$k" '.zone_violations[$k] = "x"' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] || { echo "$k string: $output"; return 1; }
+  done
+}
+
+@test "arm grammar: the writer refuses an arm outside ^[a-z][a-z0-9_]{0,63}$ (exit 2); --validate names the line (audit LOW-A5)" {
+  printf 'A1 Full!\n' > "$T/runs/a1-build/meta/arm"
+  run "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK"
+  [ "$status" -eq 2 ] && [[ "$output" == *"does not match ^[a-z][a-z0-9_]{0,63}$"* ]]
+  # a manifest arm_map value is held to the same grammar
+  rm "$T/runs/a1-build/meta/arm"
+  jq '.arm_map["abl-fixture-a1_full-bf-01-t1"] = "A1"' "$T/MANIFEST.json" > "$T/m.json"
+  run "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK" --manifest "$T/m.json"
+  [ "$status" -eq 2 ] && [[ "$output" == *"arm 'A1' does not match"* ]]
+  # --validate: line 2 carries "arm":"A1"
+  row a5-build "$BUILD_TASK"
+  { last; jq -c '.arm = "A1"' <<<"$(last)"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl" --allow-ungraded
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"two.jsonl:2: arm A1 does not match the arm grammar"* ]]
 }
 
 @test "arm: from the manifest arm_map or meta/arm, never from sandbox/" {
@@ -258,7 +358,7 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
 }
 
 @test "an empty finished timestamp and a boolean companion_voice still yield a valid row" {
-  local e="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1" sum
+  local e="$T/runs/a1-build/eval" sum   # the envelope copy the row reads
   edit_pipe a1-build '.finished = ""'
   jq '.metadata.companion_voice = false' "$e/adversarial-review.json" > "$T/x" && mv "$T/x" "$e/adversarial-review.json"
   run row a1-build "$BUILD_TASK"

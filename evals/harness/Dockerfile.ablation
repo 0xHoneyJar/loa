@@ -64,10 +64,13 @@ RUN npm install -g --no-fund --no-audit \
 RUN pip3 install --no-cache-dir --break-system-packages "pytest==${PYTEST_VERSION}"
 # cheval's declared dependencies (.claude/adapters/pyproject.toml: dependencies + the `full` extra),
 # so the sandbox gates (adversarial-review.sh, flatline-orchestrator.sh) can dispatch (lead, DEC-0482)
-RUN pip3 install --no-cache-dir --break-system-packages "rfc8785>=0.1.4" "jsonschema>=4.21" "pyyaml>=6.0" "httpx[http2]>=0.24.0"
+# exact pins: the versions the 2026-10-15 image resolved (audit LOW-A6); a rebuild resolves the same code
+RUN pip3 install --no-cache-dir --break-system-packages "rfc8785==0.1.4" "jsonschema==4.26.0" "pyyaml==6.0.3" "httpx[http2]==0.28.1"
 
-# bats-core at the pinned tag
+# bats-core at the pinned tag, and the tag must be the pinned commit (a moved tag fails the build; audit LOW-A6)
+ARG BATS_COMMIT=3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87
 RUN git clone --depth 1 --branch "${BATS_VERSION}" https://github.com/bats-core/bats-core.git /tmp/bats-core && \
+    { test "$(git -C /tmp/bats-core rev-parse HEAD)" = "${BATS_COMMIT}" || { echo "bats-core ${BATS_VERSION} is not ${BATS_COMMIT}" >&2; exit 1; }; } && \
     /tmp/bats-core/install.sh /usr/local && \
     rm -rf /tmp/bats-core
 

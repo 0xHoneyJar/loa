@@ -354,11 +354,18 @@ integrity_in() {
   grep -qx 'LOA_ADVERSARIAL_REVIEW_ENFORCE=false' "$T/env"
   [ "$(jq -r '.arm_evidence.arm_env' "$WS/.eval/executor.json")" = "LOA_ADVERSARIAL_REVIEW_ENFORCE=false" ]
   [ "$(jq -r '.arm_evidence.gates' "$WS/.eval/executor.json")" = "flatline_protocol.{code_review,security_audit}.enabled=false" ]
+  # executor.json records the value the executor environment carried (audit LOW-A3)
+  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = "false" ]
   # an inherited override never reaches an arm that did not declare it
   rm -rf "$SNAP" "$WS"; mkdir -p "$WS"
-  LOA_ADVERSARIAL_REVIEW_ENFORCE=false run_arm a1_full "$REPO_ROOT/$ABL_SUITE_REL" reviewing-code
+  # exported: bats `run` does not hand a prefix assignment to the command it runs (audit LOW-A3 round)
+  export LOA_ADVERSARIAL_REVIEW_ENFORCE=false
+  run_arm a1_full "$REPO_ROOT/$ABL_SUITE_REL" reviewing-code
+  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
   [ "$status" -eq 0 ]
-  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/env"
+  [ -s "$T/env" ]
+  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/env" || false   # a bare `! cmd` never fails a bats test
+  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = "unset" ]
   # the library also hands the variable to a caller-owned env file (pipeline-run.sh)
   W2="$T/ws2"; mkdir -p "$W2"
   ARM_ENV_FILE="$T/arm.env" run lib apply_arm_toggles "$W2" '{"gates":false}' a4_no_gates

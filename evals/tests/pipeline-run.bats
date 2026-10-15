@@ -274,6 +274,77 @@ call_for() { grep -lx "$1" "$T"/log/call-*.phase | sed -n '1p' | sed 's/.*call-\
   [ "$(jq -c '.arm_toggles' "$T/run/meta/pipeline.json")" = '{"companion_voice":false}' ]
 }
 
+sha_of() { python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"; }
+
+@test "envelopes: each gate's envelope reaches eval/ once at the gate with envelope_sha256; a FIX that rewrites the sandbox copy leaves eval/ unchanged (audit MEDIUM-A1)" {
+  printf 'STUB_VERDICT_REVIEW=CHANGES_REQUIRED\nSTUB_TAMPER_ENVELOPE_FIX=review\n' > "$T/stub.env"
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  [ "$(ran)" = "PLAN,IMPLEMENT,REVIEW,FIX1,AUDIT" ]
+  local p="$T/run/meta/pipeline.json" e="$T/run/eval/adversarial-review.json"
+  local s="$T/run/sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json"
+  [ -f "$e" ] && [ -f "$T/run/eval/adversarial-audit.json" ]
+  # the sandbox copy was rewritten by FIX1; the harness copy is the one the gate wrote
+  [ "$(jq -r '.verdict_quality.status' "$s")" = TAMPERED ]
+  [ "$(jq -r '.verdict_quality.status' "$e")" = APPROVED ]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].envelope_sha256' "$p")" = "$(sha_of "$e")" ]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].envelope_copied' "$p")" = true ]
+  [ "$(jq -r '[.phases[] | select(.label == "AUDIT")][0].envelope_sha256' "$p")" = "$(sha_of "$T/run/eval/adversarial-audit.json")" ]
+  # only gate phases carry the envelope fields
+  [ "$(jq -r '[.phases[] | select(.label == "FIX1" or .label == "IMPLEMENT") | has("envelope_sha256")] | any' "$p")" = false ]
+  # the every-phase copy loop is gone
+  ! grep -q 'for env_f in' "$PR" || false
+}
+
+@test "envelopes: an AUDIT that rewrites the review envelope cannot change eval/; a symlinked sandbox envelope is never copied (envelope_copied false, null sha; audit MEDIUM-A1)" {
+  printf 'STUB_TAMPER_ENVELOPE_AUDIT=review\n' > "$T/stub.env"
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.verdict_quality.status' "$T/run/eval/adversarial-review.json")" = APPROVED ]
+  [ "$(jq -r '.verdict_quality.status' "$T/run/sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json")" = TAMPERED ]
+  rm_run
+  : > "$T/stub.env"
+  # a gate phase whose sandbox envelope is a symlink: nothing is copied
+  cat > "$T/claude-link" <<EOF
+#!/usr/bin/env bash
+"$T/claude" "\$@"; rc=\$?
+f=grimoires/loa/a2a/sprint-1/adversarial-review.json
+if [[ -f "\$f" && ! -L "\$f" ]]; then rm -f "\$f"; ln -s /etc/hostname "\$f"; fi
+exit \$rc
+EOF
+  chmod +x "$T/claude-link"
+  run "$PR" --task-yaml "$REVIEWC" --arm a1_full --run-dir "$T/run" --run-id r-link --trial 1 \
+    --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude-link"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ ! -e "$T/run/eval/adversarial-review.json" ]
+  [ "$(jq -c '[.phases[] | select(.label == "REVIEW")][0] | [.envelope_copied, .envelope_sha256]' "$T/run/meta/pipeline.json")" = '[false,null]' ]
+}
+
+@test "mount integrity: arm_evidence carries the CLAUDE.md and .loa.config.yaml sha256; mount_integrity ok, changed after a phase appends to CLAUDE.md, absent for A0 (audit LOW-A2)" {
+  local p="$T/run/meta/pipeline.json"
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.arm_evidence.claude_md_sha256' "$p")" = "$(sha_of "$T/run/sandbox/CLAUDE.md")" ]
+  [[ "$(jq -r '.arm_evidence.loa_config_sha256' "$p")" =~ ^[0-9a-f]{64}$ ]]
+  [ "$(jq -c '.mount_integrity' "$p")" = '{"claude_md":"ok","loa_config":"ok"}' ]
+  rm_run
+  printf 'STUB_APPEND_CLAUDE_MD_IMPLEMENT=1\n' > "$T/stub.env"
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.mount_integrity' "$p")" = '{"claude_md":"changed","loa_config":"ok"}' ]
+  rm_run
+  : > "$T/stub.env"
+  run_pr a0_bare
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.arm_evidence.claude_md_sha256 + " " + .arm_evidence.loa_config_sha256' "$p")" = "absent absent" ]
+  [ "$(jq -c '.mount_integrity' "$p")" = '{"claude_md":"absent","loa_config":"absent"}' ]
+  # a refusal stops before materialisation: no mount to compare
+  rm_run
+  run_pr a4_no_gates "$REVIEWC"
+  [ "$status" -eq 2 ]
+  [ "$(jq -r '.mount_integrity' "$p")" = null ]
+}
+
 @test "A5: PLAN runs with the Flatline step off; A1's PLAN prompt has it on" {
   run_pr a5_no_flatline
   [ "$status" -eq 0 ]
@@ -778,4 +849,30 @@ rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth 
   [ -n "$v" ]
   grep -q "codex $v by" "$REPO_ROOT/evals/harness/pipeline-run.sh"
   ! grep -Eq 'codex [0-9]+\.[0-9]+\.[0-9]+' <(grep -Ev "codex $v" "$REPO_ROOT/evals/harness/pipeline-run.sh")
+}
+
+@test "fingerprint.sh: without bats on PATH and no override the fingerprint reads bats=absent; no host-specific fallback path (audit LOW-A4)" {
+  local t
+  mkdir -p "$T/nobats"
+  for t in bash env jq python3 git sed tr sort cat; do ln -s "$(command -v "$t")" "$T/nobats/$t"; done
+  ! PATH="$T/nobats" command -v bats || false
+  run env -u LOA_EVAL_BATS_BIN PATH="$T/nobats" "$FP" --json --claude-bin "$T/claude"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.tools.bats' <<<"$output")" = absent ]
+  # an explicit binary is still honoured
+  run env -u LOA_EVAL_BATS_BIN PATH="$T/nobats" "$FP" --json --claude-bin "$T/claude" --bats-bin "$T/claude"
+  [ "$(jq -r '.tools.bats' <<<"$output")" = "2.1.299 (Claude Code) stub" ]
+  ! grep -q dotfiles "$REPO_ROOT/evals/harness/fingerprint.sh" || false
+}
+
+@test "Dockerfile.ablation: the pip lines pin exact versions, BATS_COMMIT is 40-hex and the clone's HEAD is checked against it (audit LOW-A6)" {
+  local df="$REPO_ROOT/evals/harness/Dockerfile.ablation"
+  grep -E '^RUN pip3? install' "$df" > "$T/pip"
+  [ "$(grep -c . "$T/pip")" -ge 2 ]
+  ! grep -Eq '>=|~=|<|!=' "$T/pip" || false
+  grep -qF '"rfc8785==0.1.4" "jsonschema==4.26.0" "pyyaml==6.0.3" "httpx[http2]==0.28.1"' "$df"
+  [[ "$(sed -n 's/^ARG BATS_COMMIT=//p' "$df")" =~ ^[0-9a-f]{40}$ ]]
+  grep -qF 'test "$(git -C /tmp/bats-core rev-parse HEAD)" = "${BATS_COMMIT}"' "$df"
+  # the check sits between the clone and install.sh
+  [ "$(grep -nF 'rev-parse HEAD' "$df" | cut -d: -f1)" -lt "$(grep -nF 'install.sh /usr/local' "$df" | cut -d: -f1)" ]
 }

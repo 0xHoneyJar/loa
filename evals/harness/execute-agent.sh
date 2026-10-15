@@ -85,13 +85,16 @@
 #                                    LOA_ADVERSARIAL_REVIEW_ENFORCE=false in the executor env
 #     flatline: false                flatline_protocol.enabled=false
 #     sprint_plan / context_resets   pipeline-run.sh only: exit 2 here (no phases to edit)
-#   In arm mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the
-#   toggles, and the sandbox .claude/checksums.json is regenerated after them
+#   In every mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the
+#   toggles (only gates: false sets it again; audit LOW-A3), and in arm mode the
+#   sandbox .claude/checksums.json is regenerated after them
 #   (arm_evidence.manifest_sha256). The materialisation and toggle code lives in
-#   lib/sandbox-mount.sh (its header is the contract).
+#   lib/sandbox-mount.sh (its header is the contract); an arm effort outside
+#   low|medium|high|xhigh|max is exit 2 here as well (audit LOW-A1).
 #   The appended skill prompt (.eval/skill-prompt.md) is derived from the
 #   toggled sandbox SKILL.md. executor.json records arm, arm_toggles,
-#   arm_evidence and source_commit.
+#   arm_evidence, source_commit and adversarial_review_enforce (the variable's
+#   value in the executor environment at launch, or "unset").
 #
 # Tested by evals/tests/execute-agent.bats and evals/tests/arm-toggles.bats.
 # =============================================================================
@@ -112,7 +115,7 @@ TRIAL_ID=""
 TIMEOUT_S=900
 
 usage() {
-  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,95p' | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,98p' | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -209,10 +212,9 @@ fi
 
 # Toggles hit the sandbox copy only, after every materialisation step; each is
 # verified and one that cannot take effect is exit 2 before the executor starts.
-if [[ "$ARM_MODE" == "true" ]]; then
-  # an operator's gate override never reaches an arm that did not declare it
-  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
-fi
+# An operator's gate override never reaches the executor, baseline or arm (audit LOW-A3):
+# only the gates: false toggle (apply_arm_toggles) sets it again.
+unset LOA_ADVERSARIAL_REVIEW_ENFORCE
 arm_ev_file="$(mktemp "$eval_dir/.arm-evidence.XXXXXX")"
 ARM_EVIDENCE_FILE="$arm_ev_file" apply_arm_toggles "$WORKSPACE" "$ARM_TOGGLES" "$ARM" || { rm -f "$arm_ev_file"; exit 2; }
 # The sandbox manifest is regenerated after the toggles so no integrity reader
@@ -221,6 +223,9 @@ if [[ "$ARM_MODE" == "true" && -d "$WORKSPACE/.claude" ]]; then
   ARM_EVIDENCE_FILE="$arm_ev_file" regen_sandbox_manifest "$WORKSPACE" || { rm -f "$arm_ev_file"; exit 2; }
 fi
 ARM_EVIDENCE="$(jq -Rn '[inputs | select(length > 0) | capture("^(?<k>[^=]+)=(?<v>.*)$") | {(.k): .v}] | add // {}' < "$arm_ev_file")"
+# the gate-enforcement value the executor environment carries at launch (recorded in executor.json)
+REVIEW_ENFORCE="unset"
+[[ -n "${LOA_ADVERSARIAL_REVIEW_ENFORCE+x}" ]] && REVIEW_ENFORCE="$LOA_ADVERSARIAL_REVIEW_ENFORCE"
 rm -f "$arm_ev_file"
 
 # Skill body without the YAML frontmatter → the appended system prompt. Read
@@ -266,6 +271,8 @@ resolve_effort() {
 effort="$(resolve_effort)"
 # cycle-130: an arm's effort toggle is the treatment and overrides every other source
 arm_effort="$(jq -r '.effort // ""' <<<"$ARM_TOGGLES")"
+# audit LOW-A1: the value reaches argv, so it is whitelisted here too (not only in the library)
+case "$arm_effort" in ""|low|medium|high|xhigh|max) ;; *) echo "ERROR: arm '$ARM' toggle effort='$arm_effort' is not low|medium|high|xhigh|max" >&2; exit 2 ;; esac
 [[ -n "$arm_effort" ]] && effort="$arm_effort"
 
 prompt="$(yq -r '.prompt // ""' "$TASK_YAML")"
@@ -360,6 +367,7 @@ jq -n \
   --argjson arm_evidence "$ARM_EVIDENCE" \
   --arg source_commit "${LOA_EVAL_SOURCE_COMMIT:-$prompt_tree_commit}" \
   --argjson refusal_fallbacks "$refusal_fallbacks" \
+  --arg review_enforce "$REVIEW_ENFORCE" \
   '
   def norm_usage(u): {
     input_tokens: (u.input_tokens // u.inputTokens // 0),
@@ -398,7 +406,8 @@ jq -n \
     arm: $arm,
     arm_toggles: $arm_toggles,
     arm_evidence: $arm_evidence,
-    source_commit: $source_commit
+    source_commit: $source_commit,
+    adversarial_review_enforce: $review_enforce
   }' > "$eval_dir/executor.json"
 
 if [[ $rc -ne 0 ]]; then

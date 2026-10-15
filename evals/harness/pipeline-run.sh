@@ -51,7 +51,11 @@
 #                IMPLEMENT and each FIX
 #   transcripts/ events-<label>.jsonl (stream-json), stderr-<label>.log
 #   eval/        model-invoke.jsonl, cost-ledger.jsonl (copied out of
-#                sandbox/.eval/ after every phase), adversarial-*.json
+#                sandbox/.eval/ after every phase), adversarial-{review,audit}.json:
+#                the gate envelopes, copied once when the gate ends (REVIEW → review,
+#                AUDIT → audit; never overwritten, a symlinked envelope is not copied;
+#                the phase record carries envelope_copied and envelope_sha256, the
+#                eval/ copy's sha256 or null). Later phases cannot rewrite them (audit MEDIUM-A1).
 #   meta/        pipeline.json, phase-<label>.argv.json (argv + captured env),
 #                prompt-<label>.md, arm, arm-evidence.txt, arm-env, refused.json,
 #                home/ (container mode: the per-run HOME; deleted at exit)
@@ -104,6 +108,12 @@
 # pipeline.json is written for every exit except usage errors and --dry-run; it is
 # rewritten with status `running` after each phase so a SIGKILLed driver leaves a
 # record (ablation-row.sh reads `running` as interrupted).
+# Mount integrity (audit LOW-A2): after materialisation the sha256 of sandbox/CLAUDE.md
+# and sandbox/.loa.config.yaml go to arm_evidence (claude_md_sha256, loa_config_sha256 =
+# <hex>|absent); at finish both are recomputed into pipeline.json.mount_integrity =
+# {claude_md, loa_config} each ok|changed|absent (loa_mount: false → both absent; null
+# when the run stopped before materialisation). `.claude/` itself is covered by
+# took-effect.sh integrity_clean.
 #
 # Env: EVAL_CLAUDE_BIN, EVAL_DOCKER_BIN, LOA_EVAL_PHASE_MODELS, LOA_EVAL_PRICING_JSON,
 # LOA_EVAL_WATCHDOG_POLL_S, LOA_EVAL_CREDS_HOME (where ~/.codex is read; default $HOME),
@@ -150,7 +160,7 @@ while [[ $# -gt 0 ]]; do
     --phase-models)   PHASE_MODELS_JSON="${2:-}"; shift 2 ;;
     --phase-timeouts) PHASE_TIMEOUTS_JSON="${2:-}"; shift 2 ;;
     --dry-run)        DRY_RUN=true; shift ;;
-    -h|--help)        sed -n '2,105p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,116p' "$0"; exit 0 ;;
     *) die_usage "unknown argument: $1" ;;
   esac
 done
@@ -296,6 +306,7 @@ STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 STATUS="running" CAP_PHASE="" CAP_TURN="null" REASON="" FINAL_WRITTEN=0
 INTERRUPTED=0 CUR_PID="" CUR_CONTAINER=""
 SPENT_MICRO=0 IMAGE_DIGEST="" FINGERPRINT="" SNAPSHOTS_JSON='{}' TOGGLES="$SUITE_TOGGLES"
+MOUNT_SHA0_CLAUDE_MD="" MOUNT_SHA0_LOA_CONFIG="" MOUNT_INTEGRITY=null LOA_MOUNT=true
 SOURCE_COMMIT="$(git -C "$SOURCE_TREE" rev-parse HEAD 2>/dev/null || echo unknown)"
 SUITE_VERSION="$(jq -c --argjson t "$TASK_JSON" '$t.suite_version // .suite_version // .version // null' <<<"$SUITE_JSON")"
 HOME_DIR="$META/home"   # container mode: the per-run writable HOME (deleted at exit)
@@ -308,6 +319,28 @@ remove_tree() {  # remove_tree <dir> — permission-tolerant delete (credential 
   [[ -e "$1" ]] || return 0
   chmod -R u+rwx "$1" 2>/dev/null || true
   find "$1" -depth -delete 2>/dev/null || true
+}
+
+file_sha256() {  # file_sha256 <file> → hex (Python hashlib: no .claude/ code is sourced)
+  python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"
+}
+_mount_sha() {  # _mount_sha <file> → hex | absent | symlink (a symlink is never followed)
+  if [[ -L "$1" ]]; then printf 'symlink'
+  elif [[ -f "$1" ]]; then file_sha256 "$1" 2>/dev/null || printf 'unreadable'
+  elif [[ -e "$1" ]]; then printf 'not-a-file'
+  else printf 'absent'; fi
+}
+mount_state() {  # mount_state <baseline> <file> → ok | changed | absent
+  local now; now="$(_mount_sha "$2")"
+  if [[ "$1" == absent && "$now" == absent ]]; then printf 'absent'
+  elif [[ "$now" == "$1" ]]; then printf 'ok'
+  else printf 'changed'; fi
+}
+compute_mount_integrity() {  # sets MOUNT_INTEGRITY (stays null before materialisation)
+  [[ -n "$MOUNT_SHA0_CLAUDE_MD" ]] || return 0
+  if [[ "$LOA_MOUNT" == false ]]; then MOUNT_INTEGRITY='{"claude_md":"absent","loa_config":"absent"}'; return 0; fi
+  MOUNT_INTEGRITY="$(jq -cn --arg c "$(mount_state "$MOUNT_SHA0_CLAUDE_MD" "$WS/CLAUDE.md")" \
+    --arg l "$(mount_state "$MOUNT_SHA0_LOA_CONFIG" "$WS/.loa.config.yaml")" '{claude_md: $c, loa_config: $l}')"
 }
 
 evidence_json() {
@@ -328,7 +361,8 @@ write_pipeline() {  # write_pipeline — (re)write meta/pipeline.json from the c
     --arg reason "$REASON" --argjson arm_evidence "$ev" --argjson toggles "$TOGGLES" --arg executor "$EXECUTOR" \
     --arg image_digest "$IMAGE_DIGEST" --arg fingerprint "$FINGERPRINT" --arg tools "$TOOLS" \
     --argjson snapshots "$SNAPSHOTS_JSON" --arg started "$STARTED" --argjson finished "$finished" \
-    --argjson spent "$SPENT_MICRO" --arg cap "$MAX_RUN_USD" --arg effort "$EFFORT_FLAG" '
+    --argjson spent "$SPENT_MICRO" --arg cap "$MAX_RUN_USD" --arg effort "$EFFORT_FLAG" \
+    --argjson mount_integrity "$MOUNT_INTEGRITY" '
     {schema_version: 1, run_id: $run_id, arm: $arm, task_id: $task_id, task_type: $task_type, trial: $trial,
      source_commit: $source_commit, suite_version: $suite_version, status: $status,
      cap_phase: (if $cap_phase == "" then null else $cap_phase end), cap_turn: $cap_turn,
@@ -337,12 +371,14 @@ write_pipeline() {  # write_pipeline — (re)write meta/pipeline.json from the c
      arm_toggles: $toggles, effort_flag: (if $effort == "" then null else $effort end), arm_evidence: $arm_evidence,
      executor_mode: $executor, image_digest: (if $image_digest == "" then null else $image_digest end),
      fingerprint: (if $fingerprint == "" then null else $fingerprint end), sandbox_fingerprint: (if $fingerprint == "" then null else $fingerprint end),
-     tools: $tools, snapshots: $snapshots, phases: $phases, started: $started, finished: $finished}' \
+     tools: $tools, snapshots: $snapshots, phases: $phases, mount_integrity: $mount_integrity,
+     started: $started, finished: $finished}' \
     > "$META/pipeline.json.tmp" && mv "$META/pipeline.json.tmp" "$META/pipeline.json"
 }
 
 finish() {  # finish <status> <exit> [reason]
   STATUS="$1"; [[ -n "${3:-}" ]] && REASON="$3"
+  compute_mount_integrity || true
   write_pipeline
   FINAL_WRITTEN=1
   remove_tree "$HOME_DIR"
@@ -356,6 +392,7 @@ on_exit() {
   remove_tree "$HOME_DIR"
   if [[ "$FINAL_WRITTEN" -eq 0 ]]; then
     STATUS=infrastructure_error; REASON="${REASON:-driver aborted (rc $rc)}"
+    compute_mount_integrity 2>/dev/null || true
     write_pipeline 2>/dev/null || true
     exit 2
   fi
@@ -495,6 +532,11 @@ else
   [[ -e "$WS/.claude" || -e "$WS/CLAUDE.md" ]] && infra "loa_mount: false but the sandbox has .claude/ or CLAUDE.md"
   printf 'loa_mount=none\n' >> "$ARM_EVIDENCE_FILE"
 fi
+# mount integrity baseline (audit LOW-A2): Bash can rewrite CLAUDE.md or .loa.config.yaml
+# without a Write/Edit tool input; finish() compares against these
+MOUNT_SHA0_CLAUDE_MD="$(_mount_sha "$WS/CLAUDE.md")"
+MOUNT_SHA0_LOA_CONFIG="$(_mount_sha "$WS/.loa.config.yaml")"
+printf 'claude_md_sha256=%s\nloa_config_sha256=%s\n' "$MOUNT_SHA0_CLAUDE_MD" "$MOUNT_SHA0_LOA_CONFIG" >> "$ARM_EVIDENCE_FILE"
 mkdir -p "$WS/.eval/tmp" "$WS/.eval/gh-empty"
 : > "$WS/.eval/model-invoke.jsonl"
 : > "$WS/.eval/cost-ledger.jsonl"
@@ -772,10 +814,17 @@ run_phase() {  # run_phase <name> <label>
   minv_after="$(wc -l < "$WS/.eval/model-invoke.jsonl" | tr -d ' ')"
   cp "$WS/.eval/model-invoke.jsonl" "$EVALD/model-invoke.jsonl" 2>/dev/null || true
   cp "$WS/.eval/cost-ledger.jsonl" "$EVALD/cost-ledger.jsonl" 2>/dev/null || true
-  local env_f
-  for env_f in "$WS"/grimoires/loa/a2a/"$SPRINT"/adversarial-*.json; do
-    [[ -f "$env_f" ]] && cp "$env_f" "$EVALD/"
-  done
+  # audit MEDIUM-A1: the gate's dissent envelope is copied to eval/ once, at the end of the
+  # phase that produced it, and never overwritten: a later phase (FIX, AUDIT) that edits the
+  # sandbox copy cannot change what ablation-row.sh and took-effect.sh read
+  local env_gate="" env_copied=false env_sha="" env_src env_dst
+  case "$name" in REVIEW) env_gate=review ;; AUDIT) env_gate=audit ;; esac
+  if [[ -n "$env_gate" ]]; then
+    env_src="$WS/grimoires/loa/a2a/$SPRINT/adversarial-$env_gate.json" env_dst="$EVALD/adversarial-$env_gate.json"
+    [[ -e "$env_dst" || -L "$env_dst" || -L "$env_src" || ! -f "$env_src" ]] \
+      || { cp "$env_src" "$env_dst" 2>/dev/null && env_copied=true; } || true
+    if [[ -f "$env_dst" && ! -L "$env_dst" ]]; then env_sha="$(file_sha256 "$env_dst" 2>/dev/null || true)"; fi
+  fi
   if [[ $rc -eq 124 ]] || { [[ $rc -eq 137 ]] && [[ $elapsed_ms -ge $(( tsec * 1000 )) ]]; }; then timed_out=true; fi
 
   local snap="" verdict=null skill effort_req
@@ -821,7 +870,8 @@ run_phase() {  # run_phase <name> <label>
     --argjson est_micro "${est_micro:-0}" --argjson turns "$turns" --argjson tsec "$tsec" --arg priced "$prices" \
     --argjson minv_from "$((minv_before + 1))" --argjson minv_to "$minv_after" \
     --argjson ledger_from "$((ledger_before + 1))" --argjson turn_cap_hit "$turn_cap_hit" \
-    --argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" '
+    --argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" \
+    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" '
     def u(k1; k2): ($result.usage[k1] // $result.usage[k2] // 0);
     {name: $name, label: $label, skipped: false,
      session_id: (if $sid == "" then null else $sid end),
@@ -846,7 +896,9 @@ run_phase() {  # run_phase <name> <label>
      verdict: (if $verdict == "null" or $verdict == "" then null else $verdict end),
      watchdog: {priced: ($priced != "null"), estimate_usd: ($est_micro / 1000000), turns_seen: $est_turns,
                 killed: ($killed == 1), cap_turn: (if $killed == 1 then $cap_turn else null end)},
-     started: $started, finished: $finished}' >> "$PHASES_FILE"
+     started: $started, finished: $finished}
+    + (if $env_gate == "" then {} else {envelope_copied: $env_copied,
+                                        envelope_sha256: (if $env_sha == "" then null else $env_sha end)} end)' >> "$PHASES_FILE"
 
   # --- account and decide ---
   local cost_micro

@@ -19,8 +19,9 @@
 #   --source-tree DIR  the pinned Loa tree; its `git rev-parse HEAD` is folded in
 #                      (`none` when absent or not a git tree)
 #   --claude-bin B     the CLI executable (default: $EVAL_CLAUDE_BIN, else claude)
-#   --bats-bin B       bats executable (default: bats on PATH, else the operator's
-#                      ~/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats)
+#   --bats-bin B       bats executable (default: $LOA_EVAL_BATS_BIN, else bats on
+#                      PATH; neither → `bats=absent`). No host-specific fallback path
+#                      is ever executed (audit LOW-A4).
 #   --json             print {fingerprint, tools{}, source_tree, lines[]} instead
 #
 # Exit codes:
@@ -45,14 +46,11 @@ while [[ $# -gt 0 ]]; do
     --claude-bin)  CLAUDE_BIN="${2:?--claude-bin needs a value}"; shift 2 ;;
     --bats-bin)    BATS_BIN="${2:?--bats-bin needs a value}"; shift 2 ;;
     --json)        JSON=true; shift ;;
-    -h|--help)     sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '2,29p' "$0"; exit 0 ;;
     *) echo "fingerprint.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-if [[ -z "$BATS_BIN" ]]; then
-  if command -v bats >/dev/null 2>&1; then BATS_BIN=bats
-  else BATS_BIN="$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats"; fi
-fi
+[[ -n "$BATS_BIN" ]] || BATS_BIN=bats   # tool_version reads `absent` when it is not on PATH
 
 # first line of `<bin> <args>`, whitespace collapsed; `absent` when not runnable
 tool_version() {  # tool_version <bin> <args...>

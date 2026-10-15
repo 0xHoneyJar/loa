@@ -273,3 +273,34 @@ teardown() {
   [[ "$output" == *"screen- prefix is reserved"* ]]
   [ ! -e "$RES/review-recall/screen-foo" ]
 }
+
+@test "RA-13 assumed cap (audit MEDIUM-A2): --max-usd 12 --run-cap 5, trial 1 dies twice with no cost, the rest cost USD 2: trial 1 charges 5 and the cut comes at trial 5 (5+2+2+2=11, 11+2=13>12), where uncharged it came at trial 8; spend.assumed_cap_trials 1" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
+  echo 2 > "$T/fails"
+  export STUB_FAIL_COUNTER="$T/fails"
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 8 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
+  [ "$status" -eq 1 ]
+  B="$RES/review-recall/batch-pr-01-pr-01-n1" S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  # trial 1: two transport failures, an error row whose executor reports total_cost_usd 0
+  [ "$(head -1 "$B/baseline/results.jsonl" | jq -r '.status + " " + (.attempts | tostring) + " " + (.executor.total_cost_usd | tostring)')" = "error 2 0" ]
+  [ "$(jq -r '.cut.trials_launched' "$S")" = "4" ]
+  [ "$(jq -r '.cut.at_trial' "$S")" = "5" ]
+  [ "$(jq -r '.cut.spent' "$S")" = "11" ]
+  [ "$(jq -r '.spend.spent_usd' "$S")" = "11" ]
+  [ "$(jq -r '.spend.assumed_cap_trials' "$S")" = "1" ]
+  # the assumed charge never enters the arm mean: the next estimate is the completed trials' USD 2
+  [ "$(jq -r '.cut.est_next' "$S")" = "2" ]
+  [ "$(jq -r '.per_arm.baseline.trials_done' "$S")" = "3" ]
+  [ "$(jq -r '.per_arm.baseline.trials_failed' "$S")" = "1" ]
+  grep -q 'assumed cap: j0001 ended error with no reported cost; USD 5 charged to spent' "$B/run.log"
+}
+
+@test "RA-14 assumed cap: every completed trial reporting its cost leaves assumed_cap_trials 0" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 2 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
+  [ "$status" -eq 0 ]
+  S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  [ "$(jq -c '.spend' "$S")" = '{"spent_usd":4,"max_usd":12,"assumed_cap_trials":0}' ]
+}

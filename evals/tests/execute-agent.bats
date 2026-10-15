@@ -247,3 +247,40 @@ make_tree() {  # make_tree <dir> <effort-line-or-empty>
   [ "$(head -1 "$REPO_ROOT/evals/results/$run_id/results.jsonl" | jq -r '.executor // "absent"')" = "absent" ]
   find "$REPO_ROOT/evals/results/$run_id" -mindepth 1 -delete; rmdir "$REPO_ROOT/evals/results/$run_id"
 }
+
+@test "EA-13 an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE never reaches a baseline executor; executor.json records it as unset (audit LOW-A3)" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_FULL_ENV_FILE="$T/fullenv"
+  unset LOA_EVAL_ARM LOA_EVAL_ARM_TOGGLES
+  # exported (bats `run` does not hand a prefix assignment to the command it runs)
+  export LOA_ADVERSARIAL_REVIEW_ENFORCE=false
+  run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
+  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
+  [ "$status" -eq 0 ]
+  [ -s "$T/fullenv" ]
+  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/fullenv" || false   # a bare `! cmd` never fails a bats test
+  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = unset ]
+}
+
+@test "EA-14 an arm effort outside low|medium|high|xhigh|max is exit 2 before the executor starts, even when the mount library accepts it (audit LOW-A1)" {
+  # a temporary copy of the harness whose lib/sandbox-mount.sh is the stub library, which
+  # applies any effort value (the real library refuses it first; this proves the second check)
+  local H="$T/h/evals/harness"
+  mkdir -p "$H/lib"
+  cp "$EXEC" "$H/execute-agent.sh"
+  cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
+  make_tree "$T/tree" "effort: high"
+  sed 's/reviewing-code/fake-skill/' "$T/task.yaml" > "$T/task-fake.yaml"
+  LOA_EVAL_ARM=a7_effort_medium LOA_EVAL_ARM_TOGGLES='{"effort":"maximum"}' EVAL_PROMPT_TREE="$T/tree" \
+    run "$H/execute-agent.sh" --task-yaml "$T/task-fake.yaml" --workspace "$WS"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"toggle effort='maximum' is not low|medium|high|xhigh|max"* ]]
+  [ ! -e "$STUB_ARGV_FILE" ]
+  [ ! -e "$WS/.eval/executor.json" ]
+  # a whitelisted value through the same copy runs
+  find "$WS" -mindepth 1 -delete
+  LOA_EVAL_ARM=a7_effort_medium LOA_EVAL_ARM_TOGGLES='{"effort":"medium"}' EVAL_PROMPT_TREE="$T/tree" \
+    run "$H/execute-agent.sh" --task-yaml "$T/task-fake.yaml" --workspace "$WS"
+  [ "$status" -eq 0 ]
+  grep -qx -- '--effort' "$STUB_ARGV_FILE"
+  grep -qx 'medium' "$STUB_ARGV_FILE"
+}

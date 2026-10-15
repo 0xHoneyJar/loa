@@ -19,6 +19,7 @@
 #                              passes when its records are a prefix of the set
 #   no_plan_phase              no PLAN record
 #   one_voice_planned          both envelopes (review, audit) say companion_voice.planned false
+#                              (eval/adversarial-<gate>.json, else the sandbox copy)
 #   no_gate_phases             no REVIEW, AUDIT or FIX record
 #   enforce_env_false          every captured phase env has LOA_ADVERSARIAL_REVIEW_ENFORCE=false
 #   no_flatline_rows           no eval/ MODELINV row whose calling_primitive starts with
@@ -71,7 +72,7 @@ while [[ $# -gt 0 ]]; do
     --suite-file) SUITE_FILE="${2:-}"; shift 2 ;;
     --arm)        ARM_OPT="${2:-}"; shift 2 ;;
     --json)       JSON=true; shift ;;
-    -h|--help)    sed -n '2,56p' "$0"; exit 0 ;;
+    -h|--help)    sed -n '2,57p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -83,9 +84,10 @@ SUITE_JSON="$(yq -o=json '.' "$SUITE_FILE")" || usage "suite file does not parse
 # ---- rule helpers: each sets EVID and returns 0 (OK) / 1 (FAIL) --------------------
 EVID=""
 argv_files() { local f; for f in "$R/meta"/phase-*.argv.json; do [[ -f "$f" ]] && printf '%s\n' "$f"; done; return 0; }
-envelope() {  # envelope <gate> → path or empty
-  local f="$R/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$1.json"
-  [[ -f "$f" ]] || f="$R/eval/adversarial-$1.json"
+envelope() {  # envelope <gate> → path or empty; eval/ (the harness copy taken when the gate
+              # ended) first, the sandbox copy only when eval/ has none (audit MEDIUM-A1)
+  local f="$R/eval/adversarial-$1.json"
+  [[ -f "$f" ]] || f="$R/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$1.json"
   [[ -f "$f" ]] && printf '%s' "$f"; return 0
 }
 

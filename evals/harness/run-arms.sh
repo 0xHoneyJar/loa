@@ -25,6 +25,12 @@
 #   when spent + est_next > max it cuts: no further launches, running trials
 #   finish, STATUS.json gets cut_reason: max_usd and cut = {reason, spent,
 #   in_flight_reserved, max, trials_launched, at_trial}, state partial, exit 1.
+#   A trial that ends without status completed and without a reported cost
+#   (missing, 0 or malformed total_cost_usd: killed on timeout, lost in transport,
+#   no result event), or that writes no row at all, is charged run_cap to spent
+#   (an assumed charge: it may have burned up to the cap before it died); assumed
+#   charges never enter est_next's means, and STATUS.json.spend.assumed_cap_trials
+#   counts them (audit MEDIUM-A2).
 # Screen (bd-j4lwr): --screen runs one trial of the first N fixtures (default
 #   2) per arm into <results-dir>/<suite>/screen-<UTC ts>/ (its own MANIFEST,
 #   STATUS, rows), prints a per-arm table (trials, mean USD, mean recall) on
@@ -88,7 +94,7 @@ CONCURRENCY=2 BATCH="" RESULTS_ROOT="$EVALS_DIR/results/arms" RETRY_WAIT=300
 DRY_RUN=false ALLOW_UNAPPROVED=false
 MAX_USD="" RUN_CAP="" SCREEN=false SCREEN_TASKS=2
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,68p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,74p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-arms: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -348,7 +354,7 @@ STATE="running"
 DONE=() FAILED=() PLANNED=()
 for i in "${!ARMS[@]}"; do DONE[$i]=0; FAILED[$i]=0; PLANNED[$i]=$(( ${#FIXTURES[@]} * TRIALS )); done
 # spend accounting (--max-usd): batch spend, per-arm and pooled completed-cost sums
-SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0
+SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0 ASSUMED_CAP=0
 ARM_SUM=() ARM_N=()
 for i in "${!ARMS[@]}"; do ARM_SUM[$i]=0; ARM_N[$i]=0; done
 fadd() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.10g", a + b }'; }
@@ -364,9 +370,11 @@ write_status() {
   jq -n --arg state "$STATE" --argjson per "$per" --arg src "$SRC_FULL" --arg model "$MODEL" \
     --arg started "$STARTED" --argjson finished "$finished" --arg batch "$BATCH" --arg suite "$SUITE" \
     --argjson cut "$CUT_JSON" --argjson screen "$SCREEN" --arg spent "$SPENT" --arg max_usd "$MAX_USD" \
+    --argjson assumed "$ASSUMED_CAP" \
     '{schema_version: 1, suite: $suite, batch: $batch, state: $state, per_arm: $per,
       source_commit: $src, model_id: $model, started: $started, finished: $finished}
-     + (if $max_usd == "" then {} else {spend: {spent_usd: ($spent | tonumber), max_usd: ($max_usd | tonumber)}} end)
+     + (if $max_usd == "" then {} else {spend: {spent_usd: ($spent | tonumber), max_usd: ($max_usd | tonumber),
+                                                assumed_cap_trials: $assumed}} end)
      + (if $cut == null then {} else {cut_reason: $cut.reason, cut: $cut} end)
      + (if $screen then {screen: true} else {} end)' > "$BATCH_DIR/STATUS.json.tmp"
   mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
@@ -510,11 +518,18 @@ collect() {  # collect <job-id> <arm>
   if [[ -f "$JOBS_DIR/$jid.row" ]]; then
     mkdir -p "$BATCH_DIR/$arm"
     cat "$JOBS_DIR/$jid.row" >> "$BATCH_DIR/$arm/results.jsonl"
-    local cost
+    local cost st
     cost="$(jq -r '(.executor.total_cost_usd // 0) | tonumber? // 0' "$JOBS_DIR/$jid.row" 2>/dev/null || echo 0)"
     [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
-    SPENT="$(fadd "$SPENT" "$cost")"
-    if [[ "$(jq -r '.status' "$JOBS_DIR/$jid.row")" == "completed" ]]; then
+    st="$(jq -r '.status // ""' "$JOBS_DIR/$jid.row" 2>/dev/null || echo "")"
+    if [[ "$st" != "completed" ]] && awk -v c="$cost" 'BEGIN { exit !(c + 0 == 0) }'; then
+      # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
+      SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+      log "assumed cap: $jid ended ${st:-without a status} with no reported cost; USD $RUN_CAP charged to spent"
+    else
+      SPENT="$(fadd "$SPENT" "$cost")"
+    fi
+    if [[ "$st" == "completed" ]]; then
       ARM_SUM[$i]="$(fadd "${ARM_SUM[$i]}" "$cost")"; ARM_N[$i]=$(( ${ARM_N[$i]} + 1 ))
       POOL_SUM="$(fadd "$POOL_SUM" "$cost")"; POOL_N=$((POOL_N + 1))
     fi
@@ -528,7 +543,8 @@ collect() {  # collect <job-id> <arm>
     rm -f "$JOBS_DIR/$jid".*
   else
     FAILED[$i]=$(( ${FAILED[$i]} + 1 ))
-    log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log)"
+    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+    log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log); assumed cap: USD $RUN_CAP charged to spent"
   fi
   write_status
 }

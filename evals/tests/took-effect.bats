@@ -101,6 +101,26 @@ edit_json() { jq "$2" "$1" > "$T/x.json" && mv "$T/x.json" "$1"; }
   line one_voice_planned | grep -q 'audit:missing'
 }
 
+@test "one_voice_planned reads eval/ first: a sandbox envelope rewritten after the gate changes nothing; the sandbox is read only without an eval/ copy (audit MEDIUM-A1)" {
+  local s="$T/runs/a3-review/sandbox/grimoires/loa/a2a/sprint-1" e="$T/runs/a3-review/eval"
+  # the agent's tree claims two voices; the harness copy says one
+  edit_json "$s/adversarial-review.json" '.metadata.companion_voice.planned = true'
+  te a3-review
+  [ "$status" -eq 0 ]
+  line one_voice_planned | grep -q 'review:planned=false'
+  # the harness copy is the evidence: planned true there fails, whatever the sandbox says
+  edit_json "$s/adversarial-review.json" '.metadata.companion_voice.planned = false'
+  edit_json "$e/adversarial-review.json" '.metadata.companion_voice.planned = true'
+  te a3-review
+  [ "$status" -eq 1 ]
+  line one_voice_planned | grep -q 'review:planned=true'
+  # a legacy run without the eval/ copy falls back to the sandbox
+  rm "$e/adversarial-review.json"
+  te a3-review
+  [ "$status" -eq 0 ]
+  line one_voice_planned | grep -q 'review:planned=false'
+}
+
 @test "no_gate_phases + enforce_env_false: OK on A4; FAIL on a gated run" {
   te a4-build
   line no_gate_phases | grep -q ' OK '

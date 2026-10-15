@@ -15864,3 +15864,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0496"
+    created_at: "2026-10-15T02:13:14Z"
+    updated_at: "2026-10-15T02:13:14Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 258 review round 2 is APPROVED with three low advisories carried as beads; DISS-C-001 and DISS-C-004 refuted against the tree (L17)"
+    decision: "The fix commit 0c200dd6 closes every round-1 finding with a failing-then-passing test (269/269); the round-2 advisories are a spend.sh exit-code conflation (bd-li5vl, Sprint 260), the models_used coercion losing the mismatch signal (bd-z7ytx, Sprint 259) and a shared-TMPDIR test check (bd-80l5u, Sprint 259); the screen-marker and COPY --from claims are refuted by run-arms.sh:271,366,371 with RA-8 and by the Dockerfile having no --from."
+    rationale: "zero high never forces approval; the three lows are design nits with no caller or producer in this tree hitting them, and each has an owner sprint; a third review round would spend the last dissent run on cosmetics while the audit still needs one"
+    alternatives_considered:
+      - option: "CHANGES_REQUIRED round 3 for the three lows"
+        rejected_because: "costs the sprint its last dissent run for changes no current caller observes; the beads carry them to the sprints that touch those files"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "0c200dd6"
+    source: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#round-2 (L17)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T02:13:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/engineer-feedback.md#round-2 (L17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0497"
+    created_at: "2026-10-15T02:24:54Z"
+    updated_at: "2026-10-15T02:24:54Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 258 audit round 1 is CHANGES_REQUIRED (2 medium, 6 low); round 2 is the auditor's direct verification, no fourth dissent run (L18)"
+    decision: "The audit fixes measurement integrity against the sandbox (gate envelopes copied once at gate end with a sha256, read eval/-first, mismatch recorded; Bash self-modification and CLAUDE.md/.loa.config.yaml drift recorded; arm grammar enforced in the row writer), closes the spend-ceiling hole (a trial that dies without a result is charged run_cap), pins the image's pip and bats dependencies, and adds defence-in-depth whitelists; the fix lands via one Opus implementer and the audit's round 2 is verified directly by the auditor because the sprint's three dissent runs are spent."
+    rationale: "two medium findings touch the thing the cycle measures (rows trusting agent-writable envelopes; a cap that a stalling model can pass unnoticed) and are cheap to close before any real batch; the three-run dissent ceiling is per sprint, and sprint-257 set the precedent of a directly verified second audit round"
+    alternatives_considered:
+      - option: "APPROVED with the mediums as Sprint 260 beads"
+        rejected_because: "the first real batch would run with rows that trust files the agent under test can edit and a ceiling that failed trials never charge"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "0c200dd6"
+    source: "grimoires/loa/a2a/sprint-258/auditor-sprint-feedback.md#findings (L18)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T02:24:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/auditor-sprint-feedback.md#findings (L18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

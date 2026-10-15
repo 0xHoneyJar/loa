@@ -3,14 +3,16 @@
 # ablation-row.sh — one runs.jsonl row per ablation run (cycle-130 FR-6, SDD §3.1, §5.8)
 #
 # Joins a run directory's meta/pipeline.json (pipeline-run.sh), its eval/ MODELINV
-# and cost ledgers, the dissent envelopes under
-# sandbox/grimoires/loa/a2a/sprint-1/adversarial-{review,audit}.json, the
-# transcripts' tool inputs, grade.json (Sprint 259's grader; optional) and the batch
-# MANIFEST.json (optional) into one SDD §3.1 row, or validates a runs.jsonl file.
+# and cost ledgers, the dissent envelopes eval/adversarial-{review,audit}.json (the
+# harness copies taken when each gate ended; sandbox/grimoires/loa/a2a/sprint-1/ only
+# when eval/ has none, for legacy runs — audit MEDIUM-A1), the transcripts' tool
+# inputs, grade.json (Sprint 259's grader; optional) and the batch MANIFEST.json
+# (optional) into one SDD §3.1 row, or validates a runs.jsonl file.
 #
 # The arm comes from the batch manifest's `arm_map[run_id]`, else from meta/arm,
 # else from meta/pipeline.json — never from sandbox/ (DEC-0413). A manifest arm that
-# disagrees with meta/arm is refused (exit 2).
+# disagrees with meta/arm is refused (exit 2), and so is an arm outside the grammar
+# ^[a-z][a-z0-9_]{0,63}$ that execute-agent.sh and the mount library enforce (exit 2).
 #
 # Derived fields:
 #   status          pipeline status (completed | agent_error | cap_failure | interrupted |
@@ -30,7 +32,19 @@
 #   voices_run      {review, audit} from the envelopes ({planned, completed, quality});
 #                   null when neither envelope exists (A0, A4)
 #   zone_violations {dot_claude_writes: [{phase, tool, path}]} from Write/Edit/MultiEdit/
-#                   NotebookEdit tool inputs under .claude/ in transcripts/events-*.jsonl
+#                   NotebookEdit tool inputs under .claude/ in transcripts/events-*.jsonl;
+#                   bash_mount_refs: [{phase, excerpt}] write-shaped Bash tool_use commands
+#                   naming the mount (excerpt = the first 160 characters): a redirect whose
+#                   target is a mount path, or a mount path (\.claude/ | CLAUDE\.md |
+#                   \.loa\.config\.yaml) plus a write-capable command at a command position
+#                   (sed -i, cp, mv, rm, ln, tee, truncate, install, patch, chmod, chown,
+#                   git checkout|apply|restore, yq -i, python, perl); reads (cat, ls, grep,
+#                   sed -n, …) never match. A heuristic that obfuscation can evade: the
+#                   authoritative after-the-fact checks are pipeline.json mount_integrity
+#                   and took-effect.sh integrity_clean; mount_changed: the pipeline.json mount_integrity keys that
+#                   read `changed` (claude_md, loa_config; audit LOW-A2); envelope_mismatch:
+#                   the gates (review, audit) whose eval/ envelope and sandbox envelope both
+#                   exist and differ byte for byte (audit MEDIUM-A1)
 #   cost_usd        Σ phase cost_usd (result.total_cost_usd) + Σ phase ledger_cost_usd
 #   stalls          number of phases that timed out
 #
@@ -50,8 +64,9 @@
 #   --attempts N       attempts including transport retries (default 1)
 #   --retry-reason R   the retry's reason (default null)
 #   --out F            append the row to F (flock when available); default stdout
-#   --validate F       check every row's fields, types and enums; exit 1 on the first
-#                      bad row naming its line number
+#   --validate F       check every row's fields, types and enums (the arm grammar, the
+#                      four zone_violations arrays); exit 1 on the first bad row naming
+#                      its line number
 #   --allow-ungraded   with --validate: accept rows whose grade fields are all null
 #
 # Exit codes:
@@ -86,7 +101,7 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
-    -h|--help)        sed -n '2,69p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,84p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -125,7 +140,9 @@ if [[ -n "$VALIDATE" ]]; then
       // (if (["feature-build","bug-fix","refactor","review-catch"] | index($row.task_type)) == null
            then "task_type \(.task_type) is not one of feature-build|bug-fix|refactor|review-catch" else empty end)
       // (if ($st | index($row.status)) == null then "status \(.status) is not one of \($st | join("|"))" else empty end)
-      // (if (.zone_violations.dot_claude_writes | type) != "array" then "zone_violations.dot_claude_writes is not an array" else empty end)
+      // (if ($row.arm | test("^[a-z][a-z0-9_]{0,63}$")) | not then "arm \(.arm) does not match the arm grammar" else empty end)
+      // ([("dot_claude_writes", "bash_mount_refs", "mount_changed", "envelope_mismatch") as $k
+           | select((($row.zone_violations | objects)[$k] | type) != "array") | "zone_violations.\($k) is not an array"][0])
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
@@ -202,6 +219,7 @@ if [[ -n "$MAN_ARM" && -n "$META_ARM" && "$MAN_ARM" != "$META_ARM" ]]; then
 fi
 ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' "$WORK/pipe.json")}}"
 [[ -n "$ARM" ]] || usage "no arm for $RUN_ID (manifest arm_map, meta/arm, pipeline.json)"
+[[ "$ARM" =~ ^[a-z][a-z0-9_]{0,63}$ ]] || usage "arm '$ARM' does not match ^[a-z][a-z0-9_]{0,63}$"
 
 # MODELINV rows as an array with their 1-based line numbers
 echo '[]' > "$WORK/minv.json"
@@ -211,13 +229,21 @@ if [[ -f "$RUN_DIR/eval/model-invoke.jsonl" ]]; then
                    | select(.row != null)]' > "$WORK/minv.json"
 fi
 
+# the dissent envelopes: eval/ (copied by the harness when the gate ended) first; the
+# sandbox copy (the agent's tree) only when eval/ has none (audit MEDIUM-A1)
 envelope() {  # envelope <gate> → JSON or null
-  local f="$RUN_DIR/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$1.json"
-  [[ -f "$f" ]] || f="$RUN_DIR/eval/adversarial-$1.json"
+  local f="$RUN_DIR/eval/adversarial-$1.json"
+  [[ -f "$f" ]] || f="$RUN_DIR/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$1.json"
   if [[ -f "$f" ]] && jq -e 'type == "object"' "$f" >/dev/null 2>&1; then jq -c '.' "$f"; else echo null; fi
 }
 envelope review > "$WORK/env-review.json"
 envelope audit > "$WORK/env-audit.json"
+mismatch=()
+for g in review audit; do
+  e="$RUN_DIR/eval/adversarial-$g.json" sb="$RUN_DIR/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$g.json"
+  if [[ -f "$e" && -f "$sb" ]] && ! cmp -s "$e" "$sb"; then mismatch+=("$g"); fi
+done
+printf '%s\n' ${mismatch[@]+"${mismatch[@]}"} | jq -R -s -c 'split("\n") | map(select(length > 0))' > "$WORK/mismatch.json"
 
 # Write/Edit tool inputs under .claude/ from every transcript
 echo '[]' > "$WORK/dot.json"
@@ -234,12 +260,30 @@ if [[ ${#ev_files[@]} -gt 0 ]]; then
         | select(.path | test("(^|/)\\.claude/"))' "$f" 2>/dev/null || true
     done | jq -s -c '.' > "$WORK/dot.json"
 fi
+# Write-shaped Bash commands toward the mount (audit LOW-A2): sed -i, cp or a redirect into
+# .claude/, CLAUDE.md or .loa.config.yaml leaves no Write/Edit input. Reads of the mount are
+# normal skill operation and are not listed (prong 1: a redirect to a mount path; prong 2: a
+# mount path plus a write-capable command token at a command position).
+echo '[]' > "$WORK/bashref.json"
+if [[ ${#ev_files[@]} -gt 0 ]]; then
+  for f in "${ev_files[@]}"; do
+      lab="$(basename "$f" .jsonl)"; lab="${lab#events-}"
+      jq -R -c --arg ph "$lab" 'fromjson? | select(type == "object" and .type == "assistant") | .message.content[]?
+        | select(type == "object" and .type == "tool_use" and .name == "Bash")
+        | (.input | objects | .command) | strings
+        | select(test(">>?[[:space:]]*[^[:space:];&|]*(\\.claude/|CLAUDE\\.md|\\.loa\\.config\\.yaml)")
+                 or (test("\\.claude/|CLAUDE\\.md|\\.loa\\.config\\.yaml")
+                     and test("(^|[;&|(][[:space:]]*|\\bthen[[:space:]]+|\\bdo[[:space:]]+)(sed[[:space:]]+-[a-zA-Z]*i|cp|mv|rm|ln|tee|truncate|install|patch|chmod|chown|git[[:space:]]+(checkout|apply|restore)|yq[[:space:]]+-i|python3?|perl)\\b")))
+        | {phase: $ph, excerpt: .[0:160]}' "$f" 2>/dev/null || true
+    done | jq -s -c '.' > "$WORK/bashref.json"
+fi
 
 # Each --slurpfile binds an array of the file's values; [0] is the one value.
 ROW="$(jq -n -c \
   --slurpfile p_f "$WORK/pipe.json" --slurpfile task_f "$WORK/task.json" --slurpfile g_f "$WORK/grade.json" \
   --slurpfile m_f "$WORK/manifest.json" --slurpfile minv_f "$WORK/minv.json" \
   --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
+  --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
   --arg retry_reason "$RETRY_REASON" '
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
@@ -255,7 +299,7 @@ ROW="$(jq -n -c \
          quality: ($vq.status // e.status // null),
          companion_planned: first((e.metadata | objects | .companion_voice | objects | .planned), null)} end;
   $p_f[0] as $p | $task_f[0] as $task | $g_f[0] as $g | $m_f[0] as $m | $minv_f[0] as $minv
-  | $er_f[0] as $er | $ea_f[0] as $ea | $dot_f[0] as $dot
+  | $er_f[0] as $er | $ea_f[0] as $ea | $dot_f[0] as $dot | $bash_f[0] as $bashref | $mm_f[0] as $mismatch
   | ($p.phases // [] | map(select(.skipped != true))) as $ran
   | [ $ran[] as $ph
       | ($minv | map(select(.line >= ($ph.modelinv_lines.from // 1e18) and .line <= ($ph.modelinv_lines.to // -1)) | .row)) as $rows
@@ -350,7 +394,9 @@ ROW="$(jq -n -c \
       cap_phase: ($p.cap_phase // null),
       snapshots: {implement: ($p.snapshots.implement // null), fix1: ($p.snapshots.fix1 // null), fix2: ($p.snapshots.fix2 // null)},
       contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)} else null end),
-      zone_violations: {dot_claude_writes: $dot}
+      zone_violations: {dot_claude_writes: $dot, bash_mount_refs: $bashref,
+                        mount_changed: [($p.mount_integrity | obj) | to_entries[] | select(.value == "changed") | .key],
+                        envelope_mismatch: $mismatch}
     }')" || usage "row build failed for $RUN_ID"
 
 if [[ -n "$OUT" ]]; then
