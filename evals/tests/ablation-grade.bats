@@ -461,8 +461,6 @@ Read	{"file_path": "/workspace/grimoires/loa/evals/ablation-2.0/tasks/x/task.yam
 WebFetch	{"url": "https://github.com/0xHoneyJar/loa/tree/main", "prompt": "read"}	repo_name
 WebFetch	{"url": "https://example.com/hidden/answers", "prompt": "read"}	hidden
 WebSearch	{"query": "0xhoneyjar/loa ablation tasks"}	repo_name
-Bash	{"command": "git log --oneline --all | head"}	git_history
-Bash	{"command": "git reflog"}	git_history
 Read	{"file_path": "/home/operator/code/loa/README.md"}	outside_path
 Bash	{"command": "cat /home/operator/notes.txt 2>/dev/null"}	outside_path
 Glob	{"pattern": "/srv/**/*.py"}	outside_path
@@ -474,16 +472,34 @@ Bash	{"command": "tr '\\0' ' ' < /proc/1/cmdline"}	outside_path
 Read	{"file_path": "/proc/self/maps"}	outside_path
 Bash	{"command": "ls /var/run/docker.sock"}	outside_path
 Bash	{"command": "cd /root/ && cat .ssh/id_rsa"}	outside_path
+Bash	{"command": "cd /root && cat .ssh/id_rsa"}	outside_path
+Bash	{"command": "ls /home"}	outside_path
 Read	{"file_path": "~/.aws/credentials"}	outside_path
 EOF
   # first hit in phase order: IMPLEMENT before REVIEW whatever the file names sort to
   RD="$T/order"; make_run rc-x "$RD"
-  tool_use "$RD" REVIEW Bash '{"command": "git reflog"}'
+  tool_use "$RD" REVIEW Bash '{"command": "cat /home/operator/secret"}'
   tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
   tool_use "$RD" IMPLEMENT Read '{"file_path": "/root/x"}'
   grade "$RD" rc-x
   [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "IMPLEMENT outside_path IMPLEMENT:2" ]
-  ! grep -q '/root/x' "$RD/grade.json"
+  ! grep -q '/root/x' "$RD/grade.json" || false
+  # grader 1.2.1 (DEC-0540, calibration smoke): git history probes are telemetry, never
+  # contamination (the sandbox is a fresh git init at base); Loa slash commands in report text
+  # are command tokens, not paths; a data-holding single component (/root, /home) still counts
+  RD="$T/probes"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "git log --oneline --all | head"}'
+  tool_use "$RD" REVIEW Bash '{"command": "git reflog"}'   # one probe per command that matches
+  tool_use "$RD" IMPLEMENT Bash '{"command": "cat > grimoires/loa/a2a/sprint-1/reviewer.md <<EOF\n# Report\n**Status:** ready for `/review-sprint sprint-1`, then `/audit-sprint sprint-1`\nEOF"}'
+  tool_use "$RD" IMPLEMENT Bash '{"command": "cd /workspace && python3 -m pytest -q tests --ignore=tests/structure"}'
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.history_probes')" = 2 ]
+  RD="$T/clean2"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "echo done"}'
+  grade "$RD" rc-x
+  [ "$(G '.history_probes')" = 0 ]
 }
 
 @test "AG-11 contamination: ordinary container and host commands are clean; host paths are judged against the sandbox root" {

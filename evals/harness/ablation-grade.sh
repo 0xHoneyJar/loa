@@ -165,9 +165,14 @@
 # Bash command; Read/Grep/Glob file_path|path|pattern; Write/Edit/MultiEdit/NotebookEdit
 # file_path|notebook_path; WebFetch url; WebSearch query — is checked for: `hidden` (any
 # case) → hidden; grimoires/loa/evals/ablation-2.0 → suite_path; 0xHoneyJar/loa →
-# repo_name; `git log … --all` or `git reflog` (Bash) → git_history; an absolute path
+# repo_name; `git log … --all` or `git reflog` (Bash) → counted in history_probes, NOT a
+# contamination hit (1.2.1, DEC-0540: the sandbox is a fresh git init at base, so there is no
+# history to leak; the count is telemetry); an absolute path
 # (path fields, the Glob pattern, path-shaped Bash words; a one-component `/x/` word is
-# read as a regex only right after s, y, =, ~ or a single quote — `cd /root/` is a path)
+# read as a regex only right after s, y, =, ~ or a single quote — `cd /root/` is a path; a
+# one-component `/word` with no second slash is a command token — Loa slash commands such as
+# `/review-sprint sprint-1` in report text — unless the component is root, home, mnt, media or
+# srv, 1.2.1 DEC-0540)
 # outside /workspace /tmp /home/evaluser /dev /proc /sys /usr /bin
 # /sbin /lib /lib64 /etc /opt /var (container), or outside the sandbox root (the
 # sessions' init cwd and <run-dir>/sandbox), /tmp and those system directories (host; no
@@ -190,7 +195,10 @@
 #    {defects_seeded, defects_caught, recall, flags, missed}; else null),
 #    false_positives, verdict, verdicts {review, audit}, verdict_accuracy,
 #    verdict_accuracy_per_gate {review, audit}, diff_lines, files_changed,
-#    symlinks_dropped, harness_files_removed, oversized_files_skipped, contaminated}
+#    symlinks_dropped, harness_files_removed, oversized_files_skipped, history_probes,
+#    contaminated}
+# grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
+# one-component absolute word is a command token unless it names root, home, mnt, media or srv.
 # grader 1.1.0 (Sprint 259 fix round): refactor hidden_tests = the structural check,
 # exit-status-aware green, symlink filtering; 1.0.0 grades of refactor tasks differ.
 # Round 2: snapshot trees get the same realpath symlink pass as the final copy (counted in
@@ -236,7 +244,7 @@ case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
 import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 
-GRADER_VERSION = "1.2.0"
+GRADER_VERSION = "1.2.1"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1333,6 +1341,12 @@ def outside(p, roots):
     return not any(p == r or p.startswith(r.rstrip("/") + "/") for r in roots)
 
 
+HISTORY_PROBES = [0]   # git log --all / git reflog seen in this grade (DEC-0540: a count, not contamination)
+# a one-component absolute word is a Loa slash command or a flag-like token unless it names a
+# directory that holds data (DEC-0540); a second component makes any word a path candidate
+SENSITIVE_SINGLE = {"root", "home", "mnt", "media", "srv"}
+
+
 def check_value(tool, field, val, roots):
     low = val.lower()
     if "hidden" in low:
@@ -1342,7 +1356,7 @@ def check_value(tool, field, val, roots):
     if "0xhoneyjar/loa" in low:
         return "repo_name"
     if tool == "Bash" and GIT_HIST.search(val):
-        return "git_history"
+        HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
     cands = []
     if field in PATH_FIELDS or (tool == "Glob" and field == "pattern"):
         if (val.startswith("/") and not val.startswith("//")) or val.startswith(HOME_PREFIXES):
@@ -1357,6 +1371,10 @@ def check_value(tool, field, val, roots):
             # a one-component /x/ word is a regex only after s y = ~ (sed/perl style) or a single
             # quote (an awk or grep pattern); anything else (cd /root/) is a path candidate
             if re.match(r"^/[^/]+/$", w) and m.start(1) > 0 and val[m.start(1) - 1] in "sy=~'":
+                continue
+            # DEC-0540: /review-sprint, /implement, /tmp-like single tokens are commands or
+            # roots, not leakage; only a data-holding single component stays a candidate
+            if re.match(r"^/[^/]+$", w) and w[1:] not in SENSITIVE_SINGLE:
                 continue
             cands.append(w)
     for c in cands:
@@ -1450,10 +1468,11 @@ def grade(t, run_dir, frozen):
          "verdicts": {"review": v_review, "audit": v_audit},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "harness_files_removed": 0,
-         "oversized_files_skipped": 0, "contaminated": None}
+         "oversized_files_skipped": 0, "history_probes": 0, "contaminated": None}
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
     OVERSIZED[0] = 0
+    HISTORY_PROBES[0] = 0
     RUN_TAG[0] = re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(run_dir))[:40] or "run"
     GRADER_SOURCES.clear()
     if t.build:
@@ -1534,6 +1553,7 @@ def grade(t, run_dir, frozen):
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
     g["contaminated"] = contamination(run_dir)
+    g["history_probes"] = HISTORY_PROBES[0]
     return g
 
 
