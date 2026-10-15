@@ -28,13 +28,20 @@ teardown() {
   rmdir "$T" 2>/dev/null || true
 }
 
-@test "VS-1 the committed smoke tasks validate (--smoke --allow-partial); without --allow-partial the empty tasks/ fails the counts" {
+@test "VS-1 the committed suite (tasks/ and smoke/) validates with --allow-partial; without it, every type short of four tasks is one counts line" {
+  CR="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
+  n="$(find "$CR/tasks" "$CR/smoke" -mindepth 2 -maxdepth 2 -name task.yaml 2>/dev/null | wc -l | tr -d ' ')"
+  short=0
+  for ty in feature-build bug-fix refactor review-catch; do
+    c="$(cat "$CR"/tasks/*/task.yaml 2>/dev/null | grep -c "^type: $ty\$" || true)"
+    [ "$c" -eq 4 ] || short=$((short + 1))
+  done
   run "$VS" --smoke --allow-partial
   [ "$status" -eq 0 ]
-  grep -q 'OK — 2 task(s) valid' <<<"$output"
+  grep -q "OK — $n task(s) valid" <<<"$output"
   run "$VS" --smoke
-  [ "$status" -eq 1 ]
-  [ "$(grep -c 'counts:' <<<"$output")" -eq 4 ]
+  [ "$(grep -c 'counts:' <<<"$output")" -eq "$short" ]
+  if [ "$short" -gt 0 ]; then [ "$status" -eq 1 ]; else [ "$status" -eq 0 ]; fi
 }
 
 @test "VS-2 a four-by-four suite validates; one task short fails the counts unless --allow-partial; smoke tasks never count" {
@@ -160,4 +167,27 @@ teardown() {
   [ "$status" -eq 2 ]
   run "$VS" --root "$R" --suite-file "$T/absent.yaml"
   [ "$status" -eq 2 ]
+}
+
+@test "VS-11 source.churn (Sprint 259 refactor tasks): {files, insertions, deletions} of non-negative integers validates; a missing key, a negative count or a non-mapping is listed" {
+  make_task "$R" tasks refactor-01 refactor
+  yq -i '.source.churn = {"files": 2, "insertions": 30, "deletions": 41}' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 0 ]
+  yq -i '.source.churn = {"files": 2, "insertions": 30}' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'tasks/refactor-01: schema: source.churn must be {files, insertions, deletions}' <<<"$output"
+  yq -i '.source.churn = {"files": 2, "insertions": -1, "deletions": 0}' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  yq -i '.source.churn = "big"' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'source.churn must be' <<<"$output"
+  # any other unknown source key is still refused
+  yq -i 'del(.source.churn) | .source.size = 3' "$R/tasks/refactor-01/task.yaml"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q 'schema: source.size is not a known key' <<<"$output"
 }

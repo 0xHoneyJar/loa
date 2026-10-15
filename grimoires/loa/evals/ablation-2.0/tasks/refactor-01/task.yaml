@@ -1,0 +1,16 @@
+id: refactor-01
+schema_version: 1
+type: refactor
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 D: duplicated validation (the same record rules copied into three readers under three names)", churn: {files: 4, insertions: 35, deletions: 68}}
+post_cutoff: true
+fixture: tasks/refactor-01/fixture
+criterion: "the package has exactly one implementation of the record rules, a module-level function validate_record in a module named validation, every reader and the ledger API delegate to it and keep no copy of the rules, and every public function behaves and reports errors exactly as before"
+success_criterion: "hidden/structural/validation_layout_test.py (overlaid at tests/structure/validation_layout_test.py) passes 8 of 8 under python3 -m pytest -q tests/structure, red at base (8 failed), green with hidden/reference.patch; test_command (the fixture suite, 25 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+structural_check: hidden/structural/validation_layout_test.py
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 1

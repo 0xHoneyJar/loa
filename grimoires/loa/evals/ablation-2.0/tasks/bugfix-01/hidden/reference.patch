@@ -1,0 +1,24 @@
+diff -ruN a/src/pagekit/nav.py b/src/pagekit/nav.py
+--- a/src/pagekit/nav.py
++++ b/src/pagekit/nav.py
+@@ -19,7 +19,7 @@
+     lo = max(1, current - half)
+     hi = min(pages, lo + width - 1)
+     lo = max(1, hi - width + 1)
+-    run = list(range(lo, hi))
++    run = list(range(lo, hi + 1))
+     out = []
+     if run[0] != 1:
+         out.append(1)
+diff -ruN a/src/pagekit/pages.py b/src/pagekit/pages.py
+--- a/src/pagekit/pages.py
++++ b/src/pagekit/pages.py
+@@ -20,7 +20,7 @@
+ def page_count(total: int, per_page: int) -> int:
+     """Number of pages needed to show ``total`` items, ``per_page`` at a time."""
+     _check(total, per_page)
+-    return max(1, total // per_page)
++    return max(1, -(-total // per_page))
+ 
+ 
+ def page_bounds(total: int, per_page: int, page: int) -> tuple:

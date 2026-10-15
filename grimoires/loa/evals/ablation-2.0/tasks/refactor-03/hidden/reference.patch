@@ -1,0 +1,134 @@
+diff -ruN a/src/fetchq/api.py b/src/fetchq/api.py
+--- a/src/fetchq/api.py
++++ b/src/fetchq/api.py
+@@ -4,11 +4,11 @@
+ 
+ def plan(paths: list, *, base_url: str, timeout: float = 10.0, retries: int = 2, backoff: float = 0.5) -> list:
+     """Request plans for ``paths`` under ``base_url``."""
+-    core.configure(base_url=base_url, timeout=timeout, retries=retries, backoff=backoff)
+-    return jobs.plan_batch(paths)
++    config = core.Config(base_url=base_url, timeout=timeout, retries=retries, backoff=backoff)
++    return jobs.plan_batch(config, paths)
+ 
+ 
+ def replay(path: str, statuses: list, *, base_url: str, timeout: float = 10.0, retries: int = 2, backoff: float = 0.5) -> list:
+     """What the client would do for ``path`` given these response statuses."""
+-    core.configure(base_url=base_url, timeout=timeout, retries=retries, backoff=backoff)
+-    return jobs.simulate(path, statuses)
++    config = core.Config(base_url=base_url, timeout=timeout, retries=retries, backoff=backoff)
++    return jobs.simulate(config, path, statuses)
+diff -ruN a/src/fetchq/core.py b/src/fetchq/core.py
+--- a/src/fetchq/core.py
++++ b/src/fetchq/core.py
+@@ -1,45 +1,46 @@
+ """Request planning primitives.
+ 
+-The planner's settings live in ``SETTINGS``; ``configure()`` changes them and
+-every function below reads them.
++Every function takes the planner settings as an explicit ``Config``.
+ """
++import dataclasses
+ from urllib.parse import quote
+ 
+-SETTINGS = {"base_url": "", "timeout": 10.0, "retries": 2, "backoff": 0.5}
+ 
++@dataclasses.dataclass(frozen=True)
++class Config:
++    """Planner settings (checked on construction)."""
++
++    base_url: str
++    timeout: float = 10.0
++    retries: int = 2
++    backoff: float = 0.5
++
++    def __post_init__(self):
++        if not str(self.base_url).startswith(("http://", "https://")):
++            raise ValueError("base_url must start with http:// or https://")
++        if self.timeout <= 0:
++            raise ValueError("timeout must be positive")
++        if self.retries < 0:
++            raise ValueError("retries must not be negative")
++        if self.backoff < 0:
++            raise ValueError("backoff must not be negative")
+ 
+-def configure(**values) -> None:
+-    """Change the planner settings (only the known keys; checked)."""
+-    unknown = sorted(set(values) - set(SETTINGS))
+-    if unknown:
+-        raise ValueError(f"unknown setting(s): {', '.join(unknown)}")
+-    merged = {**SETTINGS, **values}
+-    if not str(merged["base_url"]).startswith(("http://", "https://")):
+-        raise ValueError("base_url must start with http:// or https://")
+-    if merged["timeout"] <= 0:
+-        raise ValueError("timeout must be positive")
+-    if merged["retries"] < 0:
+-        raise ValueError("retries must not be negative")
+-    if merged["backoff"] < 0:
+-        raise ValueError("backoff must not be negative")
+-    SETTINGS.update(merged)
+ 
+-
+-def build_url(path: str) -> str:
++def build_url(config: Config, path: str) -> str:
+     """The absolute URL for ``path`` under the base URL (the path is percent-encoded)."""
+-    base = SETTINGS["base_url"].rstrip("/")
++    base = config.base_url.rstrip("/")
+     return f"{base}/{quote(path.lstrip('/'), safe='/')}"
+ 
+ 
+-def backoff_delays() -> list:
++def backoff_delays(config: Config) -> list:
+     """Seconds to wait before each retry: backoff, 2*backoff, 4*backoff, ..."""
+-    return [SETTINGS["backoff"] * (2 ** i) for i in range(SETTINGS["retries"])]
++    return [config.backoff * (2 ** i) for i in range(config.retries)]
+ 
+ 
+-def should_retry(attempt: int, status: int) -> bool:
++def should_retry(config: Config, attempt: int, status: int) -> bool:
+     """Whether a response ``status`` on the zero-based ``attempt`` is retried."""
+-    return attempt < SETTINGS["retries"] and (status >= 500 or status == 429)
++    return attempt < config.retries and (status >= 500 or status == 429)
+ 
+ 
+-def request_plan(path: str) -> dict:
+-    return {"url": build_url(path), "timeout": SETTINGS["timeout"], "delays": backoff_delays()}
++def request_plan(config: Config, path: str) -> dict:
++    return {"url": build_url(config, path), "timeout": config.timeout, "delays": backoff_delays(config)}
+diff -ruN a/src/fetchq/jobs.py b/src/fetchq/jobs.py
+--- a/src/fetchq/jobs.py
++++ b/src/fetchq/jobs.py
+@@ -2,28 +2,28 @@
+ from . import core
+ 
+ 
+-def plan_batch(paths: list) -> list:
++def plan_batch(config: core.Config, paths: list) -> list:
+     """One request plan per distinct path, in first-seen order."""
+     seen, out = set(), []
+     for p in paths:
+         if p in seen:
+             continue
+         seen.add(p)
+-        out.append(core.request_plan(p))
++        out.append(core.request_plan(config, p))
+     return out
+ 
+ 
+-def simulate(path: str, statuses: list) -> list:
++def simulate(config: core.Config, path: str, statuses: list) -> list:
+     """Replay a sequence of response statuses for ``path``: ``(attempt, status, action)`` rows.
+ 
+     The action is ``retry`` (after the delay), ``done`` or ``give-up``; statuses
+     after the last attempt are ignored.
+     """
+-    url = core.build_url(path)
+-    delays = core.backoff_delays()
++    url = core.build_url(config, path)
++    delays = core.backoff_delays(config)
+     rows = []
+     for attempt, status in enumerate(statuses):
+-        if core.should_retry(attempt, status):
++        if core.should_retry(config, attempt, status):
+             rows.append((attempt, status, f"retry in {delays[attempt]:g}s"))
+             continue
+         rows.append((attempt, status, "done" if status < 400 else "give-up"))

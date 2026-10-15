@@ -1,0 +1,16 @@
+id: bugfix-04
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 D: wrong precedence in option parsing (false, zero and empty values fall through to lower layers; a negating flag never wins)"}
+post_cutoff: true
+fixture: tasks/bugfix-04/fixture
+criterion: "for every option the first layer that gives it a value wins (command line, then environment, then config file, then the built-in default), including when that value is false, zero or empty, and the usual range checks then apply to the winning value"
+success_criterion: "hidden/tests/test_precedence_falsy.py (overlaid at tests/acceptance/test_precedence_falsy.py) passes 8 of 8 under python3 -m pytest -q tests; red at base (6 failed), green with hidden/reference.patch; regression_command (fixture suite) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 1

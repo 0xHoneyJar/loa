@@ -1,0 +1,29 @@
+diff -ruN a/src/runopts/cli.py b/src/runopts/cli.py
+--- a/src/runopts/cli.py
++++ b/src/runopts/cli.py
+@@ -10,10 +10,11 @@
+     p.add_argument("--timeout", type=float, help="seconds per attempt")
+     p.add_argument("--profile", help="named profile")
+     p.add_argument("-v", "--verbose", action="count", help="more output (repeatable)")
++    p.set_defaults(color=None)
+     return p
+ 
+ 
+ def parse_cli(argv: list) -> dict:
+-    """Flags given on the command line, by option name."""
++    """Flags given on the command line, by option name (flags not given are absent)."""
+     ns = build_parser().parse_args(argv)
+-    return vars(ns)
++    return {k: v for k, v in vars(ns).items() if v is not None}
+diff -ruN a/src/runopts/resolve.py b/src/runopts/resolve.py
+--- a/src/runopts/resolve.py
++++ b/src/runopts/resolve.py
+@@ -30,7 +30,7 @@
+         raise OptionError(str(e)) from None
+     out = {}
+     for opt, default in DEFAULTS.items():
+-        out[opt] = cli.get(opt) or env.get(opt) or config.get(opt) or default
++        out[opt] = next((layer[opt] for layer in (cli, env, config) if layer.get(opt) is not None), default)
+     if out["retries"] < 0:
+         raise OptionError("retries must not be negative")
+     if out["timeout"] <= 0:

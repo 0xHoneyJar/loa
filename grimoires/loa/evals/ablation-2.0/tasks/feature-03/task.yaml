@@ -1,0 +1,16 @@
+id: feature-03
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 E: synthetic configuration loader gaining environment-variable interpolation with defaults and escaping"}
+post_cutoff: true
+fixture: tasks/feature-03/fixture
+criterion: "the configuration loader interpolates environment variables into values: braced references, defaults for unset or empty variables, a doubled dollar as a literal dollar, a single left-to-right pass, and a dedicated error subclass with exact messages and line numbers"
+success_criterion: "hidden/tests/test_interpolation.py (overlaid at tests/test_interpolation.py) passes 10 of 10 under python3 -m pytest -q tests (16 of 16 with the fixture suite); red at base (10 failed), green with hidden/reference.patch; tests/test_loader.py green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests/test_loader.py"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_loader.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 60}, timeout_min: {IMPLEMENT: 25}}
+review_catch: null
+suite_version: 1

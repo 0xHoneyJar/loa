@@ -1,0 +1,16 @@
+id: feature-04
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 E: synthetic report renderer gaining a Markdown table format with column alignment and escaping"}
+post_cutoff: true
+fixture: tasks/feature-04/fixture
+criterion: "the table renderer gains a Markdown format: framed header, separator and row lines, column widths of at least three, left, right and centre padding with alignment markers, escaped pipes and line breaks, and the existing text format and errors unchanged"
+success_criterion: "hidden/tests/test_markdown.py (overlaid at tests/test_markdown.py) passes 9 of 9 under python3 -m pytest -q tests (14 of 14 with the fixture suite); red at base (9 failed), green with hidden/reference.patch; tests/test_text.py green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests/test_text.py"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_text.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 60}, timeout_min: {IMPLEMENT: 25}}
+review_catch: null
+suite_version: 1

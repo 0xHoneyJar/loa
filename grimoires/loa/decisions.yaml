@@ -15960,3 +15960,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0499"
+    created_at: "2026-10-15T03:33:38Z"
+    updated_at: "2026-10-15T03:33:38Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "A build task's fixture lives inside its task directory (tasks/<id>/fixture/) so freeze.sh covers it; the SDD §3.2 fixtures/<id> example is superseded (L21)"
+    decision: "task.yaml says fixture: tasks/<id>/fixture (relative to the suite root); MANIFEST.sha256 over tasks/ then freezes fixture, hidden and brief together, as AC-2.1 (any byte under tasks/) requires; the Sprint 258 smoke tasks already use this shape."
+    rationale: "a fixture outside tasks/ would change the sandbox the agent starts from without changing the frozen identity; freeze.sh covers tasks/ (and smoke/ with --smoke) only"
+    alternatives_considered:
+      - option: "extend freeze.sh to cover a top-level fixtures/ directory"
+        rejected_because: "two roots for one frozen identity; the smoke layout already proves the single-root shape"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "4374c446"
+    source: "~/.cache/loa/cycle-130/prompt-s2-common.md#suite-layout (L21)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T03:33:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-130/prompt-s2-common.md#suite-layout (L21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0500"
+    created_at: "2026-10-15T03:34:34Z"
+    updated_at: "2026-10-15T03:34:34Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 259 tasks default to synthetic fixtures: Loa history since 2026-08-01 yields one small fix commit and no refactor commit in tools/evals/tests (L20)"
+    decision: "The candidate survey (Task 2.0) found exactly one fix commit of six files or fewer confined to tools/, evals/harness, evals/graders, tests/unit and evals/tests that touches a test (b6802e4f, a Sprint 255 audit round) and zero refactor commits with unchanged tests; the bug-fix, refactor and most feature-build tasks are therefore authored as synthetic Python or bash fixtures in the cycle-124 style with planted defects, structural smells or missing features, dated 2026-10-15 and post-cutoff; the seeders ship as tested tools for a future clean candidate; review-catch tasks come from the frozen review-prs corpus; bd-8o5rx is the one open-bead feature candidate."
+    rationale: "the PRD's risk row pre-authorised the synthetic fallback when fewer than eight clean candidates per type exist; a fixture is never a clone so history cannot leak the answer either way; synthetic tasks let the author control difficulty and the mechanical criterion"
+    alternatives_considered:
+      - option: "slice the large sprint fix commits into per-file tasks"
+        rejected_because: "the tests in those commits are harness bats files that need most of evals/ to run, and the fixes are interleaved with unrelated review-round changes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "4374c446"
+    source: "grimoires/loa/a2a/sprint-259/survey.md (L20)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T03:34:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/survey.md (L20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

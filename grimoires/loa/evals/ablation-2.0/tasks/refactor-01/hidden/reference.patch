@@ -1,0 +1,164 @@
+diff -ruN a/src/ledgerio/api.py b/src/ledgerio/api.py
+--- a/src/ledgerio/api.py
++++ b/src/ledgerio/api.py
+@@ -1,34 +1,11 @@
+ """An in-memory ledger: create and update entries."""
+-import datetime
+-import re
+-
+ from .errors import RecordError
+-
+-_CURRENCY = re.compile(r"\A[A-Z]{3}\Z")
+-
+-
+-def _check(payload) -> None:
+-    if not isinstance(payload, dict):
+-        raise RecordError("record must be a mapping")
+-    for name in ("id", "amount", "currency", "date"):
+-        if name not in payload:
+-            raise RecordError(f"missing field: {name}")
+-    if not isinstance(payload["id"], str) or not payload["id"].strip():
+-        raise RecordError("id must be a non-empty string")
+-    value = payload["amount"]
+-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+-        raise RecordError("amount must be a non-negative number")
+-    if not isinstance(payload["currency"], str) or not _CURRENCY.match(payload["currency"]):
+-        raise RecordError("currency must be a three-letter ISO code")
+-    try:
+-        datetime.date.fromisoformat(payload["date"])
+-    except (TypeError, ValueError):
+-        raise RecordError("date must be an ISO date (YYYY-MM-DD)") from None
++from .validation import validate_record
+ 
+ 
+ def create_entry(ledger: list, payload: dict) -> dict:
+     """Validate ``payload`` and append a copy; ids are unique within the ledger."""
+-    _check(payload)
++    validate_record(payload)
+     if any(e["id"] == payload["id"] for e in ledger):
+         raise RecordError(f"duplicate id: {payload['id']}")
+     entry = dict(payload)
+@@ -43,7 +20,7 @@
+             merged = {**e, **changes}
+             if merged["id"] != entry_id:
+                 raise RecordError("id cannot change")
+-            _check(merged)
++            validate_record(merged)
+             ledger[i] = merged
+             return merged
+     raise RecordError(f"no such entry: {entry_id}")
+diff -ruN a/src/ledgerio/csv_import.py b/src/ledgerio/csv_import.py
+--- a/src/ledgerio/csv_import.py
++++ b/src/ledgerio/csv_import.py
+@@ -1,31 +1,9 @@
+ """Ledger entries from CSV text (header row: id,amount,currency,date)."""
+ import csv
+-import datetime
+ import io
+-import re
+ 
+ from .errors import RecordError
+-
+-_CCY = re.compile(r"[A-Z]{3}")
+-
+-
+-def _validate_row(row: dict) -> None:
+-    if not isinstance(row, dict):
+-        raise RecordError("record must be a mapping")
+-    for field in ("id", "amount", "currency", "date"):
+-        if field not in row:
+-            raise RecordError(f"missing field: {field}")
+-    if not isinstance(row["id"], str) or not row["id"].strip():
+-        raise RecordError("id must be a non-empty string")
+-    amount = row["amount"]
+-    if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
+-        raise RecordError("amount must be a non-negative number")
+-    if not isinstance(row["currency"], str) or not _CCY.fullmatch(row["currency"]):
+-        raise RecordError("currency must be a three-letter ISO code")
+-    try:
+-        datetime.date.fromisoformat(row["date"])
+-    except (TypeError, ValueError):
+-        raise RecordError("date must be an ISO date (YYYY-MM-DD)") from None
++from .validation import validate_record
+ 
+ 
+ def _number(text: str):
+@@ -47,7 +25,7 @@
+         if "amount" in rec:
+             rec["amount"] = _number(rec["amount"])
+         try:
+-            _validate_row(rec)
++            validate_record(rec)
+         except RecordError as e:
+             raise RecordError(f"line {lineno}: {e}") from None
+         out.append(rec)
+diff -ruN a/src/ledgerio/json_import.py b/src/ledgerio/json_import.py
+--- a/src/ledgerio/json_import.py
++++ b/src/ledgerio/json_import.py
+@@ -1,9 +1,8 @@
+ """Ledger entries from a JSON array of objects."""
+-import datetime
+ import json
+-import re
+ 
+ from .errors import RecordError
++from .validation import validate_record
+ 
+ 
+ def read_json(text: str) -> list:
+@@ -14,22 +13,7 @@
+     out = []
+     for i, item in enumerate(data):
+         try:
+-            if not isinstance(item, dict):
+-                raise RecordError("record must be a mapping")
+-            for field in ("id", "amount", "currency", "date"):
+-                if field not in item:
+-                    raise RecordError(f"missing field: {field}")
+-            if not isinstance(item["id"], str) or not item["id"].strip():
+-                raise RecordError("id must be a non-empty string")
+-            amount = item["amount"]
+-            if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
+-                raise RecordError("amount must be a non-negative number")
+-            if not isinstance(item["currency"], str) or not re.fullmatch(r"[A-Z]{3}", item["currency"]):
+-                raise RecordError("currency must be a three-letter ISO code")
+-            try:
+-                datetime.date.fromisoformat(item["date"])
+-            except (TypeError, ValueError):
+-                raise RecordError("date must be an ISO date (YYYY-MM-DD)") from None
++            validate_record(item)
+         except RecordError as e:
+             raise RecordError(f"item {i}: {e}") from None
+         out.append(dict(item))
+diff -ruN a/src/ledgerio/validation.py b/src/ledgerio/validation.py
+--- a/src/ledgerio/validation.py
++++ b/src/ledgerio/validation.py
+@@ -0,0 +1,28 @@
++"""The record rules every ledger reader applies."""
++import datetime
++import re
++
++from .errors import RecordError
++
++FIELDS = ("id", "amount", "currency", "date")
++_CURRENCY = re.compile(r"[A-Z]{3}")
++
++
++def validate_record(record) -> None:
++    """Raise ``RecordError`` when ``record`` breaks a rule; return None otherwise."""
++    if not isinstance(record, dict):
++        raise RecordError("record must be a mapping")
++    for field in FIELDS:
++        if field not in record:
++            raise RecordError(f"missing field: {field}")
++    if not isinstance(record["id"], str) or not record["id"].strip():
++        raise RecordError("id must be a non-empty string")
++    amount = record["amount"]
++    if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
++        raise RecordError("amount must be a non-negative number")
++    if not isinstance(record["currency"], str) or not _CURRENCY.fullmatch(record["currency"]):
++        raise RecordError("currency must be a three-letter ISO code")
++    try:
++        datetime.date.fromisoformat(record["date"])
++    except (TypeError, ValueError):
++        raise RecordError("date must be an ISO date (YYYY-MM-DD)") from None

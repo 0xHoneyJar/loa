@@ -17,7 +17,8 @@
 # Checks (each violation is one stdout line `<task-id>: <reason>`):
 #   1. schema: id (= directory name), schema_version 1, type (feature-build |
 #      bug-fix | refactor | review-catch), source {kind, date, fix_commit?,
-#      base_commit?, bead?, origin?}, post_cutoff (bool), fixture (dir under the
+#      base_commit?, bead?, origin?, churn?} (churn: {files, insertions,
+#      deletions}, non-negative integers; Sprint 259), post_cutoff (bool), fixture (dir under the
 #      root; null only for review-catch), criterion (agent-facing; no path, file
 #      name or test name), success_criterion, test_command (array; null only for
 #      review-catch), regression_command (array | null), reference_patch (hidden/…
@@ -214,8 +215,13 @@ for line in open(tasks_tsv, encoding="utf-8"):
             if k in src and src[k] is not None and not (isinstance(src[k], str) and re.fullmatch(r"[0-9a-f]{7,40}", src[k])):
                 bad(tid, f"schema: source.{k} must be a hex commit id")
         for k in src:
-            if k not in ("kind", "date", "fix_commit", "base_commit", "bead", "origin"):
+            if k not in ("kind", "date", "fix_commit", "base_commit", "bead", "origin", "churn"):
                 bad(tid, f"schema: source.{k} is not a known key")
+        if "churn" in src:
+            ch = src["churn"]
+            if not (isinstance(ch, dict) and set(ch) == {"files", "insertions", "deletions"}
+                    and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in ch.values())):
+                bad(tid, "schema: source.churn must be {files, insertions, deletions} (non-negative integers)")
     if not isinstance(t.get("post_cutoff"), bool):
         bad(tid, "schema: post_cutoff must be a boolean")
     build = ttype in BUILD

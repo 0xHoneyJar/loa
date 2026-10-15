@@ -1,0 +1,137 @@
+diff -ruN a/src/jobboard/board.py b/src/jobboard/board.py
+--- a/src/jobboard/board.py
++++ b/src/jobboard/board.py
+@@ -1,9 +1,11 @@
+ """The job queue. A job is a dict: id, name, status, attempts.
+ 
+-Statuses: "pending" (queued), "running", "done", "failed".
++Statuses are ``Status`` members.
+ """
+ import itertools
+ 
++from .status import Status
++
+ 
+ class BoardError(RuntimeError):
+     pass
+@@ -16,7 +18,7 @@
+         self._ids = itertools.count(1)
+ 
+     def submit(self, name: str) -> dict:
+-        job = {"id": next(self._ids), "name": name, "status": "pending", "attempts": 0}
++        job = {"id": next(self._ids), "name": name, "status": Status.PENDING, "attempts": 0}
+         self.jobs.append(job)
+         return job
+ 
+@@ -29,25 +31,27 @@
+     def start_next(self):
+         """Start the oldest pending job; None when nothing is pending."""
+         for job in self.jobs:
+-            if job["status"] == "pending":
+-                job["status"] = "running"
++            if job["status"] is Status.PENDING:
++                job["status"] = Status.RUNNING
+                 job["attempts"] += 1
+                 return job
+         return None
+ 
+     def finish(self, job_id: int, ok: bool) -> dict:
+         job = self.get(job_id)
+-        if job["status"] != "running":
++        if job["status"] is not Status.RUNNING:
+             raise BoardError(f"job {job_id} is not running")
+         if ok:
+-            job["status"] = "done"
++            job["status"] = Status.DONE
+         elif job["attempts"] < self.max_attempts:
+-            job["status"] = "pending"
++            job["status"] = Status.PENDING
+         else:
+-            job["status"] = "failed"
++            job["status"] = Status.FAILED
+         return job
+ 
+-    def with_status(self, status: str) -> list:
+-        if status not in ("pending", "running", "done", "failed"):
+-            raise BoardError(f"unknown status {status!r}")
+-        return [j for j in self.jobs if j["status"] == status]
++    def with_status(self, status) -> list:
++        try:
++            wanted = Status(status)
++        except ValueError:
++            raise BoardError(f"unknown status {status!r}") from None
++        return [j for j in self.jobs if j["status"] is wanted]
+diff -ruN a/src/jobboard/policy.py b/src/jobboard/policy.py
+--- a/src/jobboard/policy.py
++++ b/src/jobboard/policy.py
+@@ -1,19 +1,17 @@
+ """What may happen to a job next."""
++from .status import Status
++
++_TERMINAL = frozenset({Status.DONE, Status.FAILED})
++_NEXT = {Status.PENDING: ("start", "cancel"), Status.RUNNING: ("finish",), Status.FAILED: ("resubmit",)}
+ 
+ 
+ def is_terminal(job: dict) -> bool:
+-    return job["status"] == "done" or job["status"] == "failed"
++    return Status(job["status"]) in _TERMINAL
+ 
+ 
+ def can_cancel(job: dict) -> bool:
+-    return job["status"] == "pending"
++    return Status(job["status"]) is Status.PENDING
+ 
+ 
+ def next_actions(job: dict) -> list:
+-    if job["status"] == "pending":
+-        return ["start", "cancel"]
+-    if job["status"] == "running":
+-        return ["finish"]
+-    if job["status"] == "failed":
+-        return ["resubmit"]
+-    return []
++    return list(_NEXT.get(Status(job["status"]), ()))
+diff -ruN a/src/jobboard/report.py b/src/jobboard/report.py
+--- a/src/jobboard/report.py
++++ b/src/jobboard/report.py
+@@ -1,10 +1,11 @@
+ """Status counts and a one-line summary."""
++from .status import Status
+ 
+ 
+ def counts(jobs: list) -> dict:
+-    out = {"pending": 0, "running": 0, "done": 0, "failed": 0}
++    out = {s.value: 0 for s in Status}
+     for job in jobs:
+-        out[job["status"]] += 1
++        out[Status(job["status"]).value] += 1
+     return out
+ 
+ 
+@@ -13,6 +14,6 @@
+     total = sum(c.values())
+     if total == 0:
+         return "no jobs"
+-    finished = c["done"] + c["failed"]
+-    parts = [f"{c[s]} {s}" for s in ("pending", "running", "done", "failed") if c[s]]
++    finished = c[Status.DONE.value] + c[Status.FAILED.value]
++    parts = [f"{c[s.value]} {s.value}" for s in Status if c[s.value]]
+     return f"{total} jobs ({', '.join(parts)}); {100 * finished // total}% finished"
+diff -ruN a/src/jobboard/status.py b/src/jobboard/status.py
+--- a/src/jobboard/status.py
++++ b/src/jobboard/status.py
+@@ -0,0 +1,14 @@
++"""Job statuses."""
++import enum
++
++
++class Status(str, enum.Enum):
++    """A job's status; members compare equal to (and serialise as) their plain string values."""
++
++    PENDING = "pending"
++    RUNNING = "running"
++    DONE = "done"
++    FAILED = "failed"
++
++    def __str__(self) -> str:
++        return self.value

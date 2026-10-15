@@ -1,0 +1,16 @@
+id: bugfix-02
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 D: stateful cache invalidation (memoised lookups survive a reload and an unset; the memo keeps the first caller's default and is keyed by a reusable object id)"}
+post_cutoff: true
+fixture: tasks/bugfix-02/fixture
+criterion: "a dotted-key read always reflects the given store's current layers after any reload, override or removed override, never returns a value from another store, returns the default passed to that call when the key is absent, and repeated reads of an unchanged store are still served from the memo"
+success_criterion: "hidden/tests/test_memo_freshness.py (overlaid at tests/acceptance/test_memo_freshness.py) passes 8 of 8 under python3 -m pytest -q tests; red at base (6 failed on CPython; at least 5 on any interpreter, the discarded-store case depends on id reuse), green with hidden/reference.patch; regression_command (fixture suite) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 1

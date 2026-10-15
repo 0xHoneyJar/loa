@@ -1,0 +1,91 @@
+--- a/src/confload/__init__.py
++++ b/src/confload/__init__.py
+@@ -1,4 +1,4 @@
+ """confload — a small sectioned configuration loader."""
+-from .loader import ConfigError, load, loads
++from .loader import ConfigError, InterpolationError, load, loads
+ 
+-__all__ = ["ConfigError", "load", "loads"]
++__all__ = ["ConfigError", "InterpolationError", "load", "loads"]
+--- a/src/confload/loader.py
++++ b/src/confload/loader.py
+@@ -11,13 +11,21 @@
+ and may contain `=`. Later assignments of the same key in the same section
+ replace earlier ones; a section header may repeat and adds to the section.
+ 
+-Errors raise ConfigError carrying the 1-based line number.
++Values are interpolated from an environment mapping (os.environ by default):
++`${NAME}` is the variable's value, `${NAME:-default}` the default when it is
++unset or empty, `$$` a literal `$`; any other `$` stays as it is. One pass:
++substituted text is never expanded again.
++
++Errors raise ConfigError carrying the 1-based line number; interpolation
++errors raise its subclass InterpolationError.
+ """
++import os
+ import re
+ 
+ NAME = r"[A-Za-z0-9_.-]+"
+ SECTION_RX = re.compile(r"\[\s*(" + NAME + r")\s*\]")
+ ASSIGN_RX = re.compile(r"(" + NAME + r")\s*=(.*)")
++VAR_RX = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+ 
+ 
+ class ConfigError(ValueError):
+@@ -26,8 +34,40 @@
+         self.line = line
+ 
+ 
+-def loads(text):
++class InterpolationError(ConfigError):
++    pass
++
++
++def interpolate(value, env, line):
++    out, i = [], 0
++    while i < len(value):
++        c = value[i]
++        if c == "$" and value[i + 1:i + 2] == "$":
++            out.append("$")
++            i += 2
++        elif c == "$" and value[i + 1:i + 2] == "{":
++            end = value.find("}", i + 2)
++            if end < 0:
++                raise InterpolationError("unterminated variable reference", line)
++            name, sep, default = value[i + 2:end].partition(":-")
++            if not VAR_RX.fullmatch(name):
++                raise InterpolationError(f"invalid variable name: {name}", line)
++            got = env.get(name)
++            if sep and not got:
++                got = default
++            elif got is None:
++                raise InterpolationError(f"undefined variable: {name}", line)
++            out.append(got)
++            i = end + 1
++        else:
++            out.append(c)
++            i += 1
++    return "".join(out)
++
++
++def loads(text, env=None):
+     """Parse configuration text; returns {section: {key: value}}."""
++    env = os.environ if env is None else env
+     data = {"": {}}
+     section = ""
+     for number, raw in enumerate(text.splitlines(), 1):
+@@ -42,11 +82,11 @@
+         m = ASSIGN_RX.fullmatch(line)
+         if not m:
+             raise ConfigError(f"cannot parse: {line!r}", number)
+-        data[section][m.group(1)] = m.group(2).strip()
++        data[section][m.group(1)] = interpolate(m.group(2).strip(), env, number)
+     return data
+ 
+ 
+-def load(path):
++def load(path, env=None):
+     """Read and parse a configuration file (UTF-8)."""
+     with open(path, encoding="utf-8") as fh:
+-        return loads(fh.read())
++        return loads(fh.read(), env=env)

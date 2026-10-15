@@ -1,0 +1,16 @@
+id: bugfix-01
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-15", origin: "cycle-130 D: off-by-one at a boundary (page count floors a partial last page; the pager run drops its last page)"}
+post_cutoff: true
+fixture: tasks/bugfix-01/fixture
+criterion: "a listing whose size is not a multiple of the page size gets a final partial page that can be shown and summarised, every item lies on an existing page, and the pager bar always shows a run of the requested width (or the whole listing when it is shorter), including for an empty listing"
+success_criterion: "hidden/tests/test_pager_edges.py (overlaid at tests/acceptance/test_pager_edges.py) passes 13 of 13 under python3 -m pytest -q tests; red at base (8 failed), green with hidden/reference.patch; regression_command (fixture suite) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 1
