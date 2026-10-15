@@ -22,7 +22,10 @@
 #   --tasks-dir T      tasks (default) or smoke: the task is <root>/<T>/<task-id>/
 #   --out FILE         where grade.json goes (default <run-dir>/grade.json)
 #   --json             also print grade.json (self-check: the verdict object) on stdout
-#   --executor MODE    container (default; DEC-0491) or host
+#   --executor MODE    container (default; DEC-0491) or host. host runs the agent's code on
+#                      this machine as the calling user without isolation and is refused
+#                      (exit 2) unless LOA_EVAL_ALLOW_HOST_GRADING=1; allowed, it prints a
+#                      WARNING and grade.json records executor_mode: host (LOW-A1)
 #   --image IMG        the grading image (default loa-ablation:258)
 #   --docker-bin D     docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --allow-unfrozen   grade although freeze.sh --check fails or the suite has no
@@ -31,6 +34,9 @@
 #   --allow-partial    passed to freeze.sh --check (fewer than four tasks per type)
 #   --self-check MODE  base | reference | noisy (noisy: review-catch only), see below
 #   --task-yaml F      the task to self-check (<root>/<tasks|smoke>/<id>/task.yaml)
+#
+# Environment: LOA_EVAL_ALLOW_HOST_GRADING=1 (see --executor); LOA_EVAL_GRADE_TIMEOUT_S
+# (1-9999, default 120: the per-command deadline; tests shorten it).
 #
 # Reads ONLY (DEC-0413): <run-dir>/sandbox/, <run-dir>/snapshots/{index.json,<LABEL>.bundle},
 # <run-dir>/transcripts/events-*.jsonl, <run-dir>/eval/adversarial-{review,audit}.json,
@@ -50,7 +56,9 @@
 #   final      sandbox/ as the agent left it, minus the top-level .git .claude CLAUDE.md
 #              .loa.config.yaml grimoires .run .beads .eval pr, every __pycache__ and
 #              .pytest_cache, anything that is not a regular file, directory or
-#              symlink (a FIFO never blocks the copy), and every symlink whose target is
+#              symlink (a FIFO never blocks the copy), every regular file above 16 MiB
+#              (lstat size; counted in oversized_files_skipped, also for snapshot tar
+#              members), and every symlink whose target is
 #              absolute or resolves outside the tree (lexically, then through the other
 #              links; counted in symlinks_dropped); in-tree relative links are kept
 #   implement  the IMPLEMENT snapshot (snapshots/IMPLEMENT.bundle, commit
@@ -66,20 +74,36 @@
 # recreated, a modified one overwritten, a path the fixture lacks is removed; a
 # symlinked parent is replaced by a directory), then every hidden/manifest.json entry
 # is written at its dest (a same-named file is overwritten, a deleted directory
-# recreated). Deleting a grading tree never chmods through a symlink. Churn
+# recreated). Then (HIGH-A1) every pytest or bats harness file in the tree — conftest.py
+# at any depth, pytest.ini, .pytest.ini, pyproject.toml, setup.cfg, tox.ini,
+# setup_suite.bash, any *helper*.bash or *helper*.sh, any .bash file under a tests/ or test/
+# directory — is removed unless it is a hidden overlay dest or a regular file byte-identical
+# (filecmp, shallow=False) to the fixture's regular file at the same path; a symlink at such
+# a path is always removed. The count goes to harness_files_removed (every tree graded), the
+# paths to grading/<label>.harness-removed.txt beside the tree (never into grade.json).
+# Deleting a grading tree never chmods through a symlink. Churn
 # (diff_lines, files_changed) compares the final tree against the
 # fixture before any restore: added + removed lines per changed text file (difflib),
-# every added, removed or modified file counted once; null for review-catch.
+# every added, removed or modified file counted once (a file above 16 MiB on either side
+# is counted as changed and never read or diffed); null for review-catch.
 #
 # Commands run INSIDE the image (DEC-0491):
-#   docker run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user <uid>:<gid>
-#     -v <tree>:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp
-#     <image> timeout 120 <cmd…>
+#   docker run --rm --init --name ablgrade-<run>-<label>-<pid>-<n> --network none --read-only
+#     --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL
+#     --security-opt no-new-privileges --user <uid>:<gid> -v <tree>:/workspace:rw -w /workspace
+#     -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp <image> timeout --signal=TERM --kill-after=10 120 <cmd…>
+# (MEDIUM-A1) The docker client gets its own deadline (120 + 10 + 60 s); when it passes, or
+# the grader fails while the client runs, the client's process group is killed and
+# `docker kill <name>` then `docker rm -f <name>` run (errors ignored): the result is
+# timed_out with rc 124. Exit 124, or 137 after the deadline, is timed_out too. Captured
+# output (stdout + stderr) is read in chunks and capped at 4 MiB — the first and the last
+# 2 MiB are kept, so the summary survives — and output_truncated records a cut.
 # `python3 -m pytest …` (or `pytest …`) becomes `python3 -I -s -m pytest -p no:cacheprovider
-# -q --rootdir /workspace -rA …` (one -q: -qq would drop the summary line; -rA lists every
-# outcome, from which the ids come); `bats …` becomes `bats --tap …` with BATS_LIB_PATH
+# -o addopts= -q --rootdir /workspace -rA …` (one -q: -qq would drop the summary line; -rA
+# lists every outcome, from which the ids come; -o addopts= voids an ini file's addopts);
+# `bats …` becomes `bats --tap …` with BATS_LIB_PATH
 # unset (the -e set is the whole container environment). --executor host runs the same
-# argv in the tree under `env -i PATH HOME=<scratch> LC_ALL=C TMPDIR=<scratch>
+# argv (with the same timeout prefix) in the tree under `env -i PATH HOME=<scratch> LC_ALL=C TMPDIR=<scratch>
 # PYTHONUSERBASE=<the caller's user base>` with pytest as `python3 -P -m pytest …`:
 # no -I or -s on the host, because the host's pytest lives in the user site (the Sprint
 # 258 smoke found no pytest under `-I -s`); PYTHONUSERBASE is passed for the same reason.
@@ -90,7 +114,12 @@
 # / `@test`). A command without a parseable summary counts total = that static count
 # (at least 1), passed = 0 when it exited non-zero (total when it exited 0), with
 # parse_error: true. Ids: "t<k>", k = the 1-based position of the case in file order
-# (pytest: path, then the line of its def; TAP: the test number); regression ids are
+# (pytest: path, then the line of its def; TAP: the test number). A node path is printed
+# by code under test (MEDIUM-A2): its def lines come from the grader-owned copy (the hidden
+# overlay source, a protected fixture file) when the path has one; else the path must be
+# relative, stay inside the tree and open as a regular file of at most 1 MiB (O_NOFOLLOW |
+# O_NONBLOCK, fstat) — a device, a FIFO, a symlink or a path above the tree orders last
+# (unknown def line) and expands no collection error. Regression ids are
 # positions in the base run, newly_failing = failing at final, passing at base. When
 # either side of the regression check has no parseable summary, regressions.parse_error is
 # true and newly_failing comes from the exit statuses: base unparsed, exit 0, final exit
@@ -118,7 +147,12 @@
 # (same file, overlapping ±3 windows count once).
 #
 # Verdicts: the last `<!-- LOA-VERDICT {…} -->` trailer of engineer-feedback.md (review)
-# and auditor-sprint-feedback.md (audit); a gate ran when its feedback file exists.
+# and auditor-sprint-feedback.md (audit); a gate ran when its feedback path exists. Every
+# sandbox file the grader reads (the feedback files, review.md) and the eval/ envelopes are
+# read as regular files only, first 2 MiB (O_NOFOLLOW | O_NONBLOCK; sandbox files must also
+# resolve inside sandbox/): a symlinked or otherwise unreadable feedback file is verdict
+# "none" (the gate ran, no readable trailer), a symlinked review.md gives no verdict and no
+# citations (MEDIUM-A3).
 # verdict = {source_file, value}: the audit's, else the review's, else review.md's
 # `Verdict:` line (A0), else null. verdict_accuracy_per_gate {review, audit}: build —
 # true when APPROVED and the tree that gate read passes every hidden test, or
@@ -132,32 +166,44 @@
 # file_path|notebook_path; WebFetch url; WebSearch query — is checked for: `hidden` (any
 # case) → hidden; grimoires/loa/evals/ablation-2.0 → suite_path; 0xHoneyJar/loa →
 # repo_name; `git log … --all` or `git reflog` (Bash) → git_history; an absolute path
-# (path fields, the Glob pattern, path-shaped Bash words; a one-component `/x/` word
-# is read as a regex) outside /workspace /tmp /home/evaluser /dev /proc /sys /usr /bin
+# (path fields, the Glob pattern, path-shaped Bash words; a one-component `/x/` word is
+# read as a regex only right after s, y, =, ~ or a single quote — `cd /root/` is a path)
+# outside /workspace /tmp /home/evaluser /dev /proc /sys /usr /bin
 # /sbin /lib /lib64 /etc /opt /var (container), or outside the sandbox root (the
-# sessions' init cwd and <run-dir>/sandbox), /tmp, those system directories and the
-# caller's ~/.claude ~/.claude.json ~/.codex ~/.aws (host) → outside_path. The first hit
+# sessions' init cwd and <run-dir>/sandbox), /tmp and those system directories (host; no
+# credential store under ~ is exempt: LOW-A2) → outside_path. A path or Bash word starting
+# ~/, $HOME/ or ${HOME}/ is always outside, and /proc/<pid|self|thread-self>/{environ,
+# cmdline,maps,mem} and /var/run are outside although /proc and /var are allowed. The first hit
 # in phase order is contaminated: {phase, pattern, excerpt_id: "<phase>:<line>"} (never
 # the text); else null. The scan is a LOWER BOUND on leakage: obfuscated access, reads
 # by programs the agent wrote, and network access by other means are not seen.
 #
 # grade.json (ids only in every summary field: no test name, defect title or excerpt):
-#   {schema_version: 1, grader_version: "1.1.0", task_id, task_type, suite_frozen,
+#   {schema_version: 1, grader_version: "1.2.0", task_id, task_type, suite_frozen,
 #    executor_mode, image, snapshots_graded: [labels], hidden_tests {passed, total,
-#    failed_names, parse_error, timed_out, rc}, structural (refactor: {passed, total,
-#    failed_names, parse_error, suite_green_base, suite_green_final}; else null),
-#    regressions ({newly_failing, base {passed, total, rc, timed_out}, final {…},
-#    parse_error} or null without a regression check), snapshot_tests {implement?,
+#    failed_names, parse_error, timed_out, rc, output_truncated}, structural (refactor:
+#    {passed, total, failed_names, parse_error, suite_green_base, suite_green_final}; else
+#    null), regressions ({newly_failing, base {passed, total, rc, timed_out,
+#    output_truncated}, final {…}, parse_error, base_green, final_green} or null without a
+#    regression check), snapshot_tests {implement?,
 #    fix1?: {passed, total}} (refactor: the structural check), recall (review-catch
 #    {defects_seeded, defects_caught, recall, flags, missed}; else null),
 #    false_positives, verdict, verdicts {review, audit}, verdict_accuracy,
 #    verdict_accuracy_per_gate {review, audit}, diff_lines, files_changed,
-#    symlinks_dropped, contaminated}
+#    symlinks_dropped, harness_files_removed, oversized_files_skipped, contaminated}
 # grader 1.1.0 (Sprint 259 fix round): refactor hidden_tests = the structural check,
 # exit-status-aware green, symlink filtering; 1.0.0 grades of refactor tasks differ.
 # Round 2: snapshot trees get the same realpath symlink pass as the final copy (counted in
 # symlinks_dropped); regressions carries base_green and final_green (all_pass of each run);
 # the self-check's suite-green rule requires a parsed summary too.
+# grader 1.2.0 (Sprint 259 audit fix round 1): harness files removed before every run and
+# pytest -o addopts= (HIGH-A1); a named, limited, init-wrapped container with a kill
+# deadline, docker kill/rm -f on a hung client and a 4 MiB output cap (MEDIUM-A1);
+# node paths read from grader-owned copies or bounded in-tree regular files (MEDIUM-A2);
+# a 16 MiB copy cap and bounded, symlink-refusing readers (MEDIUM-A3); host mode opt-in
+# (LOW-A1); no credential store exempt and ~/, $HOME/, /proc/*/environ, /var/run flagged
+# (LOW-A2). New fields: harness_files_removed, oversized_files_skipped, output_truncated.
+# A grade that removed a harness file, skipped a file or ran a cheat differs from 1.1.0's.
 # No timestamp and no scratch path is written: the same run grades byte-identically.
 #
 # Self-check (DEC-0401; AC-2.3): a synthetic run under mktemp -d built from the task.
@@ -188,12 +234,22 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
 
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
-import argparse, difflib, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile
+import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 
-GRADER_VERSION = "1.1.0"
+GRADER_VERSION = "1.2.0"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
-TEST_TIMEOUT_S = 120
+_t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
+TEST_TIMEOUT_S = int(_t) if re.fullmatch(r"[1-9][0-9]{0,3}", _t) else 120   # tests shorten it
+KILL_AFTER_S = 10                                    # timeout --kill-after (MEDIUM-A1)
+OUTER_GRACE_S = max(5, min(60, TEST_TIMEOUT_S // 2))  # the client deadline beyond T + KILL_AFTER_S
+OUTPUT_CAP = 4 * 1024 * 1024      # captured stdout per command (MEDIUM-A1)
+FILE_CAP = 16 * 1024 * 1024       # a regular file above this is not copied (MEDIUM-A3)
+READ_CAP = 2 * 1024 * 1024        # verdict, citation and envelope reads (MEDIUM-A3)
+NODE_FILE_CAP = 1024 * 1024       # a test file read for case order (MEDIUM-A2)
+# pytest and bats load these from the tree under test (HIGH-A1); see is_harness()
+HARNESS_NAMES = {"conftest.py", "pytest.ini", ".pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini",
+                 "setup_suite.bash"}
 EXCLUDE_TOP = {".git", ".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run", ".beads", ".eval", "pr"}
 EXCLUDE_ANY = {"__pycache__", ".pytest_cache"}
 PHASE_ORDER = ["PLAN", "BARE", "IMPLEMENT", "REVIEW", "FIX1", "AUDIT", "FIX2"]
@@ -284,6 +340,38 @@ def safe_rel(rel):
     return parts
 
 
+def read_regular(path, cap, whole=False, root=None):
+    """the text of a regular file, opened without following a final symlink and without
+    blocking on a FIFO (O_NOFOLLOW | O_NONBLOCK, then fstat S_ISREG). At most cap bytes are
+    read; whole=True refuses (None) a file larger than cap. root: the path must also
+    resolve inside root (a symlinked parent directory is refused). → str | None"""
+    if root is not None and not is_within(path, root):
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0))
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or (whole and st.st_size > cap):
+            return None
+        chunks, left = [], cap
+        while left > 0:
+            b = os.read(fd, min(left, 1 << 20))
+            if not b:
+                break
+            chunks.append(b)
+            left -= len(b)
+        return b"".join(chunks).decode("utf-8", "replace")
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+OVERSIZED = [0]   # regular files above FILE_CAP skipped by copy_tree / snapshot extraction in this grade
+
+
 def ensure_parent(tree, parts):
     """make every parent component of tree/parts a real directory inside tree"""
     cur = tree
@@ -358,6 +446,9 @@ def copy_tree(src, dst, top_exclude=frozenset()):
                 else:
                     os.symlink(target, dp)
             elif stat.S_ISREG(st.st_mode):
+                if st.st_size > FILE_CAP:   # MEDIUM-A3: a sparse 1 TB file must not become a dense write
+                    OVERSIZED[0] += 1
+                    continue
                 shutil.copyfile(sp, dp)
                 os.chmod(dp, (st.st_mode & 0o777) | 0o600)
     return dropped + drop_escaping_links(dst)
@@ -558,7 +649,9 @@ def shape_command(cmd, root):
     if rest is not None:
         rest = [x for x in rest if x not in ("-q", "--quiet")]
         pre = ["python3", "-P"] if host else ["python3", "-I", "-s"]
-        return pre + ["-m", "pytest", "-p", "no:cacheprovider", "-q", "--rootdir", root, "-rA"] + rest, "pytest"
+        # -o addopts= : an ini file's addopts cannot inject a plugin or deselect (HIGH-A1)
+        return pre + ["-m", "pytest", "-p", "no:cacheprovider", "-o", "addopts=", "-q", "--rootdir", root,
+                      "-rA"] + rest, "pytest"
     if cmd[0] == "bats":
         rest = cmd[1:]
         if "--tap" in rest or any(x.startswith("--formatter") or x == "-F" for x in rest):
@@ -567,29 +660,102 @@ def shape_command(cmd, root):
     return list(cmd), "auto"
 
 
+RUN_TAG = ["run"]   # the run directory's basename, sanitised: part of every container name
+EXEC_SEQ = [0]
+
+
+def container_name(tree):
+    """ablgrade-<run>-<label>-<pid>-<n>: letters, digits, '.', '_', '-' only"""
+    EXEC_SEQ[0] += 1
+    raw = f"ablgrade-{RUN_TAG[0]}-{os.path.basename(tree.rstrip('/'))}-{os.getpid()}-{EXEC_SEQ[0]}"
+    return re.sub(r"[^A-Za-z0-9._-]", "-", raw)[:128]
+
+
+def drain(fd, cap, box):
+    """read fd to EOF in chunks, keeping the first and the last cap/2 bytes (the summary
+    and the -rA outcome lines are at the end) → box = [(bytes, truncated)]"""
+    head, tail, half, trunc = bytearray(), bytearray(), cap // 2, False
+    while True:
+        try:
+            b = os.read(fd, 1 << 16)
+        except OSError:
+            break
+        if not b:
+            break
+        if len(head) < half:
+            k = half - len(head)
+            head += b[:k]
+            b = b[k:]
+        if b:
+            tail += b
+            if len(tail) > half:
+                del tail[:len(tail) - half]
+                trunc = True
+    box.append((bytes(head) + (b"\n[output truncated]\n" if trunc else b"") + bytes(tail), trunc))
+
+
+def docker_cleanup(name):
+    for extra in (["kill", name], ["rm", "-f", name]):
+        try:
+            subprocess.run([A.docker_bin] + extra, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           stdin=subprocess.DEVNULL, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
 def exec_in_tree(tree, cmd):
-    """→ (rc, output, timed_out, kind)"""
+    """→ (rc, output, timed_out, kind, output_truncated)"""
+    deadline = ["timeout", "--signal=TERM", f"--kill-after={KILL_AFTER_S}", str(TEST_TIMEOUT_S)]
+    name = None
     if A.executor == "container":
         argv, kind = shape_command(cmd, "/workspace")
-        full = [A.docker_bin, "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,size=256m",
+        name = container_name(tree)
+        full = [A.docker_bin, "run", "--rm", "--init", "--name", name, "--network", "none", "--read-only",
+                "--tmpfs", "/tmp:rw,size=256m", "--pids-limit", "256", "--memory", "2g", "--cpus", "2",
+                "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                 "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{tree}:/workspace:rw", "-w", "/workspace",
-                "-e", "HOME=/tmp", "-e", "LC_ALL=C", "-e", "TMPDIR=/tmp", A.image, "timeout", str(TEST_TIMEOUT_S)] + argv
+                "-e", "HOME=/tmp", "-e", "LC_ALL=C", "-e", "TMPDIR=/tmp", A.image] + deadline + argv
         cwd = None
     else:
         argv, kind = shape_command(cmd, tree)
         home = tempfile.mkdtemp(prefix="home.", dir=SCRATCH)
         full = ["env", "-i", "PATH=" + os.environ.get("PATH", "/usr/bin:/bin"), "HOME=" + home, "LC_ALL=C",
-                "TMPDIR=" + home, "PYTHONUSERBASE=" + site.getuserbase(), "timeout", str(TEST_TIMEOUT_S)] + argv
+                "TMPDIR=" + home, "PYTHONUSERBASE=" + site.getuserbase()] + deadline + argv
         cwd = tree
     try:
-        p = subprocess.run(full, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                           timeout=TEST_TIMEOUT_S + 60)
-        out, rc = p.stdout.decode("utf-8", "replace"), p.returncode
-    except subprocess.TimeoutExpired as e:
-        out, rc = (e.stdout or b"").decode("utf-8", "replace"), 124
+        proc = subprocess.Popen(full, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL, start_new_session=True)
     except OSError as e:
         raise GradeError(f"cannot run {full[0]}: {e}")
-    return rc, out, rc == 124, kind
+    box = []
+    reader = threading.Thread(target=drain, args=(proc.stdout.fileno(), OUTPUT_CAP, box), daemon=True)
+    reader.start()
+    started, exited, timed_out, rc = time.monotonic(), False, False, 124
+    try:
+        try:
+            rc = proc.wait(timeout=TEST_TIMEOUT_S + KILL_AFTER_S + OUTER_GRACE_S)
+            exited = True
+        except subprocess.TimeoutExpired:
+            timed_out = True
+    finally:
+        if not exited:   # the client is killed; the container (which --rm does not stop) is killed and removed
+            try:
+                os.killpg(proc.pid, 9)
+            except OSError:
+                pass
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                pass
+            if name:
+                docker_cleanup(name)
+        reader.join(timeout=30)
+        if not reader.is_alive():
+            proc.stdout.close()
+    out, trunc = box[0] if box else (b"", False)
+    # timeout(1): 124 after TERM; 128+9 when the command outlived --kill-after
+    timed_out = timed_out or rc == 124 or (rc == 137 and time.monotonic() - started >= TEST_TIMEOUT_S)
+    return rc, out.decode("utf-8", "replace"), timed_out, kind, trunc
 
 
 # ------------------------------------------------------------------ result parsing
@@ -598,12 +764,26 @@ COUNT_RX = re.compile(r"(\d+) ([a-z]+)")
 OUTCOME_RX = re.compile(r"^(PASSED|FAILED|ERROR|XFAIL|XPASS) (\S+)")
 
 
+GRADER_SOURCES = {}   # rel path in a grading tree → the grader-owned copy (hidden overlay, protected fixture file)
+
+
+def node_text(tree, path):
+    """the text of a test file a pytest node id names (MEDIUM-A2). The node path comes from the
+    captured stdout, which the agent's code can print: a grader-owned source is read first;
+    else the path must be relative, stay inside the tree and be a regular file of at most
+    NODE_FILE_CAP bytes (never a FIFO, a device or a symlink) → str | None"""
+    parts = safe_rel(path)
+    if parts is None:
+        return None
+    own = GRADER_SOURCES.get("/".join(parts))
+    if own is not None:
+        return read_regular(own, NODE_FILE_CAP, whole=True)
+    return read_regular(os.path.join(tree, *parts), NODE_FILE_CAP, whole=True, root=tree)
+
+
 def def_line(tree, path, func, cache):
     if path not in cache:
-        try:
-            cache[path] = open(os.path.join(tree, path), encoding="utf-8", errors="replace").read().splitlines()
-        except OSError:
-            cache[path] = []
+        cache[path] = (node_text(tree, path) or "").splitlines()
     rx = re.compile(r"^\s*(?:async\s+)?def\s+" + re.escape(func) + r"\s*\(")
     for i, l in enumerate(cache[path], 1):
         if rx.match(l):
@@ -640,9 +820,8 @@ def parse_pytest(out, tree):
     cache = {}
     expanded = 0
     for f in coll_err:
-        try:
-            text = open(os.path.join(tree, f), encoding="utf-8", errors="replace").read()
-        except OSError:
+        text = node_text(tree, f)
+        if text is None:
             continue
         for fn in re.findall(r"(?m)^\s*(?:async\s+)?def\s+(test\w*)\s*\(", text):
             outcomes.setdefault(f"{f}::{fn}", "bad")
@@ -690,7 +869,7 @@ def parse_tap(out):
 
 
 def run_suite(tree, cmd, static=0):
-    rc, out, timed_out, kind = exec_in_tree(tree, cmd)
+    rc, out, timed_out, kind, trunc = exec_in_tree(tree, cmd)
     parsed = None
     if kind in ("pytest", "auto"):
         parsed = parse_pytest(out, tree)
@@ -701,9 +880,9 @@ def run_suite(tree, cmd, static=0):
         passed = total if rc == 0 else 0
         order = [f"#{i}" for i in range(1, total + 1)]
         return {"passed": passed, "total": total, "order": order, "bad": set(order) if rc != 0 else set(),
-                "parse_error": True, "timed_out": timed_out, "rc": rc}
+                "parse_error": True, "timed_out": timed_out, "rc": rc, "output_truncated": trunc}
     parsed["total"] = max(parsed["total"], static)
-    parsed.update(parse_error=False, timed_out=timed_out, rc=rc)
+    parsed.update(parse_error=False, timed_out=timed_out, rc=rc, output_truncated=trunc)
     return parsed
 
 
@@ -714,7 +893,8 @@ def ids_of(res, keys):
 
 def summary(res):
     return {"passed": res["passed"], "total": res["total"], "failed_names": ids_of(res, res["bad"]),
-            "parse_error": res["parse_error"], "timed_out": res["timed_out"], "rc": res["rc"]}
+            "parse_error": res["parse_error"], "timed_out": res["timed_out"], "rc": res["rc"],
+            "output_truncated": res["output_truncated"]}
 
 
 def all_pass(res):
@@ -727,7 +907,8 @@ def all_pass(res):
 
 
 def run_counts(res):
-    return {"passed": res["passed"], "total": res["total"], "rc": res["rc"], "timed_out": res["timed_out"]}
+    return {"passed": res["passed"], "total": res["total"], "rc": res["rc"], "timed_out": res["timed_out"],
+            "output_truncated": res["output_truncated"]}
 
 
 def regressions(rb, rf):
@@ -768,6 +949,55 @@ def prepare(t, tree):
                 remove_path(os.path.join(tree, *parts))
     for _s, dest, full in t.overlay:
         put_file(tree, dest, full)
+    return remove_harness(t, tree)
+
+
+def is_harness(parts):
+    """a file pytest or bats would load from the tree as configuration or helper code"""
+    name = parts[-1]
+    if name in HARNESS_NAMES:
+        return True
+    if "helper" in name and name.endswith((".bash", ".sh")):
+        return True
+    return name.endswith(".bash") and any(p in ("tests", "test") for p in parts[:-1])
+
+
+def same_as_fixture(t, tree, rel):
+    a, b = os.path.join(tree, *rel.split("/")), os.path.join(t.fixture, *rel.split("/"))
+    try:
+        sa, sb = os.lstat(a), os.lstat(b)
+    except OSError:
+        return False
+    if not (stat.S_ISREG(sa.st_mode) and stat.S_ISREG(sb.st_mode)) or not is_within(b, t.fixture):
+        return False
+    return filecmp.cmp(a, b, shallow=False)
+
+
+def remove_harness(t, tree):
+    """HIGH-A1: before any command runs on a grading tree, every harness or config file
+    (is_harness) that is not byte-identical to the fixture's copy at the same path is removed
+    (a symlink always is; the hidden overlay's own dests are kept). The removed paths go to
+    grading/<label>.harness-removed.txt beside the tree, never into grade.json → count"""
+    owned = {d for _s, d, _f in t.overlay}
+    owned_dirs = tuple(d + "/" for _s, d, f in t.overlay if os.path.isdir(f))   # put_file rewrote these whole
+    found = []
+    for r, ds, fs in os.walk(tree, followlinks=False):
+        relr = os.path.relpath(r, tree)
+        for name in sorted(ds + fs):
+            rel = name if relr == "." else relr.replace(os.sep, "/") + "/" + name
+            p = os.path.join(r, name)
+            if rel in owned or rel.startswith(owned_dirs) or not is_harness(rel.split("/")):
+                continue
+            if os.path.isdir(p) and not os.path.islink(p):
+                continue
+            if same_as_fixture(t, tree, rel):
+                continue
+            found.append((rel, p))
+    for _rel, p in found:
+        os.unlink(p)
+    with open(tree.rstrip("/") + ".harness-removed.txt", "w", encoding="utf-8") as f:
+        f.write("".join(rel + "\n" for rel, _p in sorted(found)))
+    return len(found)
 
 
 def git_env(home):
@@ -805,6 +1035,9 @@ def extract_snapshot(run_dir, label, commit, tree):
         parts = safe_rel(member.name)
         if parts is None or parts[0] in EXCLUDE_TOP or any(x in EXCLUDE_ANY for x in parts):
             return None
+        if member.isfile() and member.size > FILE_CAP:
+            OVERSIZED[0] += 1
+            return None
         try:
             return tarfile.data_filter(member, path)
         except tarfile.FilterError:
@@ -818,6 +1051,9 @@ def extract_snapshot(run_dir, label, commit, tree):
 
 
 # ------------------------------------------------------------------ churn
+OVER = object()   # churn's marker for a file above FILE_CAP
+
+
 def churn(a, b):
     def listing(root):
         out = {}
@@ -828,10 +1064,19 @@ def churn(a, b):
                 out[os.path.relpath(p, root)] = p
         return out
     def content(p):
-        if os.path.islink(p):
-            return ("link:" + os.readlink(p)).encode()
         try:
-            return open(p, "rb").read()
+            st = os.lstat(p)
+        except OSError:
+            return b""
+        if stat.S_ISLNK(st.st_mode):
+            return ("link:" + os.readlink(p)).encode()
+        if not stat.S_ISREG(st.st_mode):
+            return b""
+        if st.st_size > FILE_CAP:   # MEDIUM-A3: counted as changed, never read or diffed
+            return OVER
+        try:
+            with open(p, "rb") as f:
+                return f.read(FILE_CAP + 1)
         except OSError:
             return b""
     def lines(bs):
@@ -844,6 +1089,9 @@ def churn(a, b):
     for rel in sorted(set(la) | set(lb)):
         ca = content(la[rel]) if rel in la else None
         cb = content(lb[rel]) if rel in lb else None
+        if ca is OVER or cb is OVER:
+            files += 1
+            continue
         if ca == cb:
             continue
         files += 1
@@ -863,12 +1111,23 @@ def churn(a, b):
 TRAILER_LINE = re.compile(r"<!-- LOA-VERDICT (\{.*\}) -->\s*$")
 
 
-def gate_verdict(path):
-    """→ None (no file) | APPROVED | CHANGES_REQUIRED | none"""
-    if not os.path.isfile(path):
+def sandbox_text(path, root):
+    """a sandbox file the grader reads (feedback, review.md): a regular in-tree file, first
+    READ_CAP bytes; a symlink, a FIFO or a path through a symlinked parent → None (MEDIUM-A3)"""
+    return read_regular(path, READ_CAP, root=root)
+
+
+def gate_verdict(path, root):
+    """→ None (no file) | APPROVED | CHANGES_REQUIRED | none. A present feedback path that is
+    not a regular in-sandbox file (a symlink, a FIFO) means the gate ran and wrote no
+    readable trailer: none (MEDIUM-A3); only the first READ_CAP bytes are read"""
+    if not os.path.lexists(path):
         return None
+    text = sandbox_text(path, root)
+    if text is None:
+        return "none"
     last = None
-    for l in open(path, encoding="utf-8", errors="replace"):
+    for l in text.splitlines():
         m = TRAILER_LINE.search(l.rstrip("\n"))
         if m:
             last = m.group(1)
@@ -881,11 +1140,12 @@ def gate_verdict(path):
     return v if v in ("APPROVED", "CHANGES_REQUIRED") else "none"
 
 
-def review_md_verdict(path):
-    if not os.path.isfile(path):
+def review_md_verdict(path, root):
+    text = sandbox_text(path, root) if os.path.lexists(path) else None
+    if text is None:
         return None
     v = None
-    for l in open(path, encoding="utf-8", errors="replace"):
+    for l in text.splitlines():
         m = re.match(r"^\s*\**Verdict:?\**:?\s*\**\s*(APPROVED|CHANGES_REQUIRED)\b", l)
         if m:
             v = m.group(1)
@@ -954,7 +1214,11 @@ def path_matches(cited, defect_file):
 
 
 def envelope_texts(path):
-    env = read_json(path)
+    text = read_regular(path, READ_CAP)
+    try:
+        env = json.loads(text) if text is not None else None
+    except ValueError:
+        env = None
     if not isinstance(env, dict):
         return []
     out = []
@@ -976,11 +1240,12 @@ def combined_findings(run_dir):
     texts = []
     for p in (os.path.join(sb, "review.md"), os.path.join(a2a, "engineer-feedback.md"),
               os.path.join(a2a, "auditor-sprint-feedback.md")):
-        if os.path.isfile(p) and not os.path.islink(p):
-            texts.append(open(p, encoding="utf-8", errors="replace").read())
+        tx = sandbox_text(p, sb) if os.path.lexists(p) else None
+        if tx is not None:
+            texts.append(tx)
     for gate in ("review", "audit"):
         p = os.path.join(run_dir, "eval", f"adversarial-{gate}.json")
-        if os.path.isfile(p) and not os.path.islink(p):
+        if os.path.lexists(p):
             texts.extend(envelope_texts(p))
     seen, cites = set(), []
     for tx in texts:
@@ -1040,6 +1305,11 @@ def grade_recall(t, run_dir, grading):
 SYS_DIRS = ["/dev", "/proc", "/sys", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt", "/var"]
 GIT_HIST = re.compile(r"\bgit\b[^;&|\n]*\blog\b[^;&|\n]*--all\b|\bgit\b[^;&|\n]*\breflog\b")
 ABS_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(/[A-Za-z0-9._@+%=,:~-][A-Za-z0-9._@+%=,:~/-]*)")
+# LOW-A2: home-relative words are always outside (no root under any home is allowed)
+HOME_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(?:~|\$HOME|\$\{HOME\})/")
+HOME_PREFIXES = ("~/", "$HOME/", "${HOME}/")
+# inside allowed system roots, but secrets: another process's environment, memory or argv, and /var/run
+SENSITIVE = re.compile(r"^/proc/(?:\d+|self|thread-self)/(?:environ|cmdline|maps|mem)(?:/|$)|^/var/run(?:/|$)")
 FIELDS = {"Bash": ["command"], "Read": ["file_path", "path"], "Grep": ["path", "pattern"], "Glob": ["path", "pattern"],
           "Write": ["file_path"], "Edit": ["file_path"], "MultiEdit": ["file_path"], "NotebookEdit": ["notebook_path"],
           "WebFetch": ["url"], "WebSearch": ["query"]}
@@ -1049,15 +1319,17 @@ PATH_FIELDS = {"file_path", "path", "notebook_path"}
 def allowed_roots(run_dir, init_cwds):
     if A.executor == "container":
         return ["/workspace", "/tmp", "/home/evaluser"] + SYS_DIRS
-    home = os.path.expanduser("~")
     sb = os.path.join(run_dir, "sandbox")
-    roots = {sb, os.path.realpath(sb), "/tmp"} | set(init_cwds)
-    roots |= {os.path.join(home, x) for x in (".claude", ".claude.json", ".codex", ".aws")}
+    roots = {sb, os.path.realpath(sb), "/tmp"} | set(init_cwds)   # LOW-A2: no credential store is exempt
     return sorted(roots) + SYS_DIRS
 
 
 def outside(p, roots):
+    if p.startswith(HOME_PREFIXES):
+        return True
     p = os.path.normpath(p)
+    if SENSITIVE.match(p):
+        return True
     return not any(p == r or p.startswith(r.rstrip("/") + "/") for r in roots)
 
 
@@ -1073,11 +1345,18 @@ def check_value(tool, field, val, roots):
         return "git_history"
     cands = []
     if field in PATH_FIELDS or (tool == "Glob" and field == "pattern"):
-        if val.startswith("/") and not val.startswith("//"):
+        if (val.startswith("/") and not val.startswith("//")) or val.startswith(HOME_PREFIXES):
             cands.append(val)
     elif tool == "Bash":
-        for w in ABS_WORD.findall(val):
-            if w.startswith("//") or re.match(r"^/[^/]+/$", w):
+        if HOME_WORD.search(val):
+            return "outside_path"
+        for m in ABS_WORD.finditer(val):
+            w = m.group(1)
+            if w.startswith("//"):
+                continue
+            # a one-component /x/ word is a regex only after s y = ~ (sed/perl style) or a single
+            # quote (an awk or grep pattern); anything else (cd /root/) is a path candidate
+            if re.match(r"^/[^/]+/$", w) and m.start(1) > 0 and val[m.start(1) - 1] in "sy=~'":
                 continue
             cands.append(w)
     for c in cands:
@@ -1154,14 +1433,14 @@ def grade(t, run_dir, frozen):
     grading = os.path.join(run_dir, "grading")
     fresh_dir(grading)
     a2a = os.path.join(sb, "grimoires", "loa", "a2a", SPRINT)
-    v_review = gate_verdict(os.path.join(a2a, "engineer-feedback.md"))
-    v_audit = gate_verdict(os.path.join(a2a, "auditor-sprint-feedback.md"))
+    v_review = gate_verdict(os.path.join(a2a, "engineer-feedback.md"), sb)
+    v_audit = gate_verdict(os.path.join(a2a, "auditor-sprint-feedback.md"), sb)
     if v_audit is not None:
         verdict = {"source_file": "auditor-sprint-feedback.md", "value": v_audit}
     elif v_review is not None:
         verdict = {"source_file": "engineer-feedback.md", "value": v_review}
     else:
-        rv = review_md_verdict(os.path.join(sb, "review.md"))
+        rv = review_md_verdict(os.path.join(sb, "review.md"), sb)
         verdict = {"source_file": "review.md", "value": rv} if rv else None
     g = {"schema_version": 1, "grader_version": GRADER_VERSION, "task_id": t.id, "task_type": t.type,
          "suite_frozen": frozen, "executor_mode": A.executor,
@@ -1170,15 +1449,24 @@ def grade(t, run_dir, frozen):
          "recall": None, "false_positives": None, "verdict": verdict,
          "verdicts": {"review": v_review, "audit": v_audit},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
-         "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "contaminated": None}
+         "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "harness_files_removed": 0,
+         "oversized_files_skipped": 0, "contaminated": None}
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
+    OVERSIZED[0] = 0
+    RUN_TAG[0] = re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(run_dir))[:40] or "run"
+    GRADER_SOURCES.clear()
     if t.build:
+        for rel in t.protected:
+            src = os.path.join(t.fixture, *rel.split("/"))
+            if os.path.isfile(src) and not os.path.islink(src):
+                GRADER_SOURCES[rel] = src
+        GRADER_SOURCES.update({d: f for _s, d, f in t.overlay if os.path.isfile(f)})
         docker_ready()
         final = os.path.join(grading, "final")
         g["symlinks_dropped"] = copy_tree(sb, final, EXCLUDE_TOP)
         g["diff_lines"], g["files_changed"] = churn(t.fixture, final)
-        prepare(t, final)
+        removed = prepare(t, final)
         g["snapshots_graded"].append("final")
         # refactor (DEC-0401, AC-5.3; Sprint 259 MEDIUM-1): the structural check is the
         # hidden assertion and the fixture suite (test_command) the regression check
@@ -1193,7 +1481,7 @@ def grade(t, run_dir, frozen):
         if rcmd is not None:
             base_tree = os.path.join(grading, "base")
             copy_tree(t.fixture, base_tree)
-            prepare(t, base_tree)
+            removed += prepare(t, base_tree)
             rb = run_suite(base_tree, rcmd)
             rf = run_suite(final, rcmd)
             g["regressions"] = regressions(rb, rf)
@@ -1201,6 +1489,7 @@ def grade(t, run_dir, frozen):
             st = summary(res)
             st.pop("timed_out")
             st.pop("rc")
+            st.pop("output_truncated")
             st.update(suite_green_base=all_pass(rb), suite_green_final=all_pass(rf))
             g["structural"] = st
         idx = read_json(os.path.join(run_dir, "snapshots", "index.json"))
@@ -1217,7 +1506,7 @@ def grade(t, run_dir, frozen):
             tree = os.path.join(grading, label)
             if not extract_snapshot(run_dir, label, idx.get(label), tree):
                 continue
-            prepare(t, tree)
+            removed += prepare(t, tree)
             sr = run_suite(tree, hcmd, hstatic)
             ok = all_pass(sr)
             if refactor:   # the gate read a tree that must keep the suite green too
@@ -1225,6 +1514,7 @@ def grade(t, run_dir, frozen):
             snap_res[label] = (sr, ok)
             g["snapshots_graded"].append(label)
         g["symlinks_dropped"] += SNAPSHOT_LINKS_DROPPED[0]
+        g["harness_files_removed"] = removed
         if snap_res:
             g["snapshot_tests"] = {k: {"passed": v["passed"], "total": v["total"]} for k, (v, _ok) in snap_res.items()}
         for gate, v in (("review", v_review), ("audit", v_audit)):
@@ -1240,6 +1530,7 @@ def grade(t, run_dir, frozen):
         for gate, v in (("review", v_review), ("audit", v_audit)):
             if v is not None:
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
+    g["oversized_files_skipped"] = OVERSIZED[0]
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
     g["contaminated"] = contamination(run_dir)
@@ -1341,7 +1632,21 @@ def self_check(t, mode, frozen):
 
 
 # ------------------------------------------------------------------ main
+def host_gate():
+    """LOW-A1: --executor host runs the agent's tree on this machine as the calling user"""
+    if A.executor != "host":
+        return
+    if os.environ.get("LOA_EVAL_ALLOW_HOST_GRADING") != "1":
+        raise GradeError("--executor host is refused: it runs the agent's code on this host as the calling "
+                         "user with no filesystem, process or network isolation (env -i only; the user site is "
+                         "exposed). Grade in the image, or set LOA_EVAL_ALLOW_HOST_GRADING=1 to accept the risk")
+    print("ablation-grade: WARNING --executor host: the agent's code runs on this host as the calling user "
+          "without isolation (LOA_EVAL_ALLOW_HOST_GRADING=1); grade.json records executor_mode host",
+          file=sys.stderr)
+
+
 def main():
+    host_gate()
     if A.self_check:
         if not A.task_yaml or not os.path.isfile(A.task_yaml):
             raise GradeError("--self-check needs --task-yaml <task.yaml>")

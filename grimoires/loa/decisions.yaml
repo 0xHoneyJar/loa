@@ -16728,3 +16728,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0523"
+    created_at: "2026-10-15T06:18:05Z"
+    updated_at: "2026-10-15T06:18:05Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 259 review round 2 APPROVED; the lead applied three dissent hardenings at integration (9c5a493d, 75d84262), covered by the audit dissent (L25)"
+    decision: "Dissent run 2 (two voices, fixture-free fix diff) returned one codex and one claude blocking item plus three advisories; the lead fixed the snapshot realpath symlink pass, the self-check parsed-summary rule and the refactor regression_command validator rule directly with tests rather than spending a third review round, recorded the base_green/final_green consumer as bead bd-m0hw7, and refuted the manifest/hidden-test mismatch (the diff the voices saw excluded hidden/ by design). The audit dissent (run 3) reads the full fixture-free sprint diff including these edits."
+    rationale: "the sprint's three dissent runs are review r1, review r2 and the audit; small integration hardenings by the lead are the Sprint 258 practice and the audit is the independent gate that reads them"
+    alternatives_considered:
+      - option: "a third review round through an implementer"
+        rejected_because: "forty minutes and the audit run for three one-line hardenings that the audit dissent will read anyway"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "75d84262"
+    source: "grimoires/loa/a2a/sprint-259/engineer-feedback.md#round-2 (L25)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T06:18:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/engineer-feedback.md#round-2 (L25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0524"
+    created_at: "2026-10-15T06:31:20Z"
+    updated_at: "2026-10-15T06:31:20Z"
+    phase: "review"
+    category: "security"
+    summary: "Sprint 259 audit round 1 CHANGES_REQUIRED (1 high, 3 medium, 2 low): the grader must not load agent-left harness files or interpret unbounded agent bytes (L26)"
+    decision: "The audit's HIGH is an agent-left conftest.py or ini file loaded while the agent is graded (self-grading); the mediums are the grading container's missing kill deadline, limits and cleanup, node paths from stdout opened on the host, and unbounded file sizes with inconsistent symlink rejection; the lows are the host-executor gate and the contamination allowlist that exempted credential stores. One Opus implementer closes them (grader 1.2.0: harness_files_removed, oversized_files_skipped, output_truncated); audit round 2 is the auditor's direct verification because the sprint's three dissent runs are spent."
+    rationale: "the grader runs on the host as the operator against a semi-adversarial tree (DEC-0413); every agent byte the host interprets must be bounded and every file the test runner loads must be the fixture's own"
+    alternatives_considered:
+      - option: "approve and harden in Sprint 260 before the first batch"
+        rejected_because: "the first graded run is the smoke of Sprint 260; a grader that an agent can flip is not a grader"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "75d84262"
+    source: "grimoires/loa/a2a/sprint-259/auditor-sprint-feedback.md#findings (L26)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T06:31:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/auditor-sprint-feedback.md#findings (L26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0525"
+    created_at: "2026-10-15T07:05:22Z"
+    updated_at: "2026-10-15T07:05:22Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Grader 1.2.0 removes every pytest/bats harness file the fixture does not hold byte for byte before any run; pytest gets -o addopts= (Y-1)"
+    decision: "conftest.py at any depth, pytest.ini, .pytest.ini, pyproject.toml, setup.cfg, tox.ini, setup_suite.bash, *helper*.bash/.sh and any .bash under tests/ or test/ are removed from every grading tree unless byte-identical to the fixture's copy or a hidden overlay dest; the count is grade.json.harness_files_removed and the paths go to grading/<label>.harness-removed.txt beside the tree; pytest runs with -o addopts=."
+    rationale: "an agent-left conftest hookwrapper or ini addopts flips outcomes while the agent is graded (HIGH-A1); the fixture's own harness is restored from the frozen copy, everything else is the agent's"
+    alternatives_considered:
+      - option: "--noconftest and a grader-written ini"
+        rejected_because: "the fixtures rely on their own conftest.py to put src on sys.path; removing only non-fixture files keeps them"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "75d84262"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T07:05:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

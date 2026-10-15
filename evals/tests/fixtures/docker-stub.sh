@@ -3,7 +3,8 @@
 #   docker image inspect --format … <img>  prints $DOCKER_STUB_IMAGE_ID (default
 #                                         sha256:feedface…); exit 1 when
 #                                         DOCKER_STUB_NO_IMAGE=1
-#   docker kill …                         records and exits 0
+#   docker kill … / docker rm …           records the argv line to $DOCKER_STUB_LOG/kill.log
+#                                         or rm.log and exits 0
 #   (each -v spec and, for the non-/workspace mounts, every path under its source go
 #    to $DOCKER_STUB_LOG/run-<n>.mounts)
 #   docker run <flags> <image> <cmd…>     records argv (NUL-separated) to
@@ -17,7 +18,11 @@
 #                                         $DOCKER_STUB_CLAUDE; when $DOCKER_STUB_PATH is
 #                                         set and no -e PATH was given, PATH=<it> joins
 #                                         the environment (ablation-grade.bats: the
-#                                         image's python3/bats stand-ins)
+#                                         image's python3/bats stand-ins); with
+#                                         DOCKER_STUB_HANG=1 a leading `timeout [opts] T`
+#                                         is dropped from <cmd…> (a container whose
+#                                         deadline never fires: the grader's own client
+#                                         deadline and docker kill/rm -f must act)
 set -euo pipefail
 log="${DOCKER_STUB_LOG:-/dev/null}"
 case "${1:-}" in
@@ -26,6 +31,7 @@ case "${1:-}" in
     [[ "${DOCKER_STUB_NO_IMAGE:-0}" == 1 ]] && { echo "Error: No such image" >&2; exit 1; }
     echo "${DOCKER_STUB_IMAGE_ID:-sha256:feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface}"; exit 0 ;;
   kill) [[ "$log" != /dev/null ]] && printf '%s\n' "$*" >> "$log/kill.log"; exit 0 ;;
+  rm) [[ "$log" != /dev/null ]] && printf '%s\n' "$*" >> "$log/rm.log"; exit 0 ;;
   run) shift ;;
   *) echo "docker-stub: unsupported: $*" >&2; exit 2 ;;
 esac
@@ -53,13 +59,16 @@ while [[ $# -gt 0 ]]; do
       if [[ "$2" == *=* ]]; then envs+=("$2"); elif [[ -n "${!2+x}" ]]; then envs+=("$2=${!2}"); fi
       shift 2 ;;
     -w|--workdir) wd="$2"; shift 2 ;;
-    --name|--user|--network|--tmpfs|--pids-limit|--memory|--cpus) shift 2 ;;
-    --rm|--read-only|-i|-t) shift ;;
+    --name|--user|--network|--tmpfs|--pids-limit|--memory|--cpus|--cap-drop|--security-opt) shift 2 ;;
+    --rm|--read-only|--init|-i|-t) shift ;;
     -*) echo "docker-stub: unknown flag $1" >&2; exit 2 ;;
     *) break ;;
   esac
 done
 shift   # the image
+if [[ "${DOCKER_STUB_HANG:-0}" == 1 && "${1:-}" == timeout ]]; then
+  shift; while [[ "${1:-}" == -* ]]; do shift; done; shift
+fi
 [[ -n "$ws" ]] || { echo "docker-stub: no /workspace mount" >&2; exit 2; }
 map() {  # container path → host path, for every mount
   local s="$1" m dst src

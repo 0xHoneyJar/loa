@@ -22,6 +22,7 @@ setup() {
   SMOKE="$REPO_ROOT/grimoires/loa/evals/ablation-2.0/smoke"
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/ag.XXXXXX")"
   S="$T/suite"
+  export LOA_EVAL_ALLOW_HOST_GRADING=1   # grader 1.2.0 (LOW-A1): host mode is opt-in; AG-28 unsets it
   make_bin
   make_bf_py
   make_bf_sh
@@ -243,9 +244,10 @@ G() { jq -r "$1" "$RD/grade.json"; }
   [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
   [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:258" ]
   [ "$(G '.diff_lines')" = 2 ] && [ "$(G '.files_changed')" = 1 ]
-  # the docker argv: no network, read-only root, tmpfs, the caller's uid, one rw mount, the pytest shape
+  # the docker argv: init, a name, no network, read-only root, tmpfs, limits, no capabilities, the caller's
+  # uid, one rw mount, a kill deadline, the pytest shape (grader 1.2.0: MEDIUM-A1, HIGH-A1 -o addopts=)
   argv="$(tr '\0' ' ' < "$T/dlog/run-1.argv")"
-  [[ "$argv" == *"run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:258 timeout 120 python3 -I -s -m pytest -p no:cacheprovider -q --rootdir /workspace -rA tests "* ]]
+  [[ "$argv" == "run --rm --init --name ablgrade-run-final-"*" --network none --read-only --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:258 timeout --signal=TERM --kill-after=10 120 python3 -I -s -m pytest -p no:cacheprovider -o addopts= -q --rootdir /workspace -rA tests "* ]]
   [ "$(tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -cx -- -q)" -eq 1 ]
 }
 
@@ -362,7 +364,7 @@ G() { jq -r "$1" "$RD/grade.json"; }
   RD="$T/run-sh"; make_run bf-sh "$RD"; apply_ref "$RD"
   grade "$RD" bf-sh
   [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error)"')" = "3/3 false" ]
-  cat "$T"/dlog/run-*.argv | tr '\0' ' ' | grep -q -- 'timeout 120 bats --tap tests'
+  cat "$T"/dlog/run-*.argv | tr '\0' ' ' | grep -q -- 'timeout --signal=TERM --kill-after=10 120 bats --tap tests'
 }
 
 @test "AG-18 end to end: a pipeline-run.sh run (stub CLI, stub mount library) grades with its real bundles and gate files" {
@@ -464,6 +466,15 @@ Bash	{"command": "git reflog"}	git_history
 Read	{"file_path": "/home/operator/code/loa/README.md"}	outside_path
 Bash	{"command": "cat /home/operator/notes.txt 2>/dev/null"}	outside_path
 Glob	{"pattern": "/srv/**/*.py"}	outside_path
+Bash	{"command": "cat ~/.aws/credentials"}	outside_path
+Bash	{"command": "cat $HOME/.ssh/id_rsa"}	outside_path
+Bash	{"command": "cat ${HOME}/.codex/auth.json"}	outside_path
+Bash	{"command": "cat /proc/self/environ"}	outside_path
+Bash	{"command": "tr '\\0' ' ' < /proc/1/cmdline"}	outside_path
+Read	{"file_path": "/proc/self/maps"}	outside_path
+Bash	{"command": "ls /var/run/docker.sock"}	outside_path
+Bash	{"command": "cd /root/ && cat .ssh/id_rsa"}	outside_path
+Read	{"file_path": "~/.aws/credentials"}	outside_path
 EOF
   # first hit in phase order: IMPLEMENT before REVIEW whatever the file names sort to
   RD="$T/order"; make_run rc-x "$RD"
@@ -488,13 +499,24 @@ EOF
   [ "$(G '.contaminated')" = null ]
   RD="$T/host"; make_run rc-x "$RD"
   tool_use "$RD" IMPLEMENT Read "$(jq -cn --arg p "$RD/sandbox/lib/x.sh" '{file_path: $p}')"
-  tool_use "$RD" IMPLEMENT Read "$(jq -cn --arg p "$HOME/.claude/settings.json" '{file_path: $p}')"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "sed s/x/y/ lib/x.sh; sed -i '"'"'s/a/b/'"'"' lib/x.sh; cat /proc/cpuinfo /proc/self/status; ls /var/log"}'
   run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ] && [ "$(G '.image')" = null ] && [ "$(G '.executor_mode')" = host ]
+  # grader 1.2.0 (LOW-A2): the caller's credential stores are no longer exempt in host mode
+  tool_use "$RD" REVIEW Read "$(jq -cn --arg p "$HOME/.claude/settings.json" '{file_path: $p}')"
+  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+  [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "REVIEW outside_path" ]
+  RD="$T/host2"; make_run rc-x "$RD"
   tool_use "$RD" AUDIT Read '{"file_path": "/home/evaluser/x"}'
   run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
   [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "AUDIT outside_path" ]
+  for c in 'cat ~/.aws/credentials' 'ls ~/.codex/' 'cat $HOME/.claude.json'; do
+    RD="$T/host-$((i = ${i:-0} + 1))"; make_run rc-x "$RD"
+    tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c "$c" '{command: $c}')"
+    run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+    [ "$(G '.contaminated.pattern')" = outside_path ]
+  done
 }
 
 # --- the meta/ boundary and id-only summaries (DEC-0413) ---------------------------------------------
@@ -727,4 +749,193 @@ YAML
   RD="$T/run2"; make_run bf-tap "$RD"; apply_ref "$RD"
   grade "$RD" bf-tap
   [ "$(G '.regressions | "\(.newly_failing | length) \(.parse_error)"')" = "0 true" ]
+}
+
+# --- Sprint 259 audit fix round 1 (auditor-sprint-feedback HIGH-A1, MEDIUM-A1…A3, LOW-A1) — grader 1.2.0 ---
+
+# a pytest hookwrapper that turns every failed report into a pass (the agent's cheat)
+flip_conftest() {
+  printf 'import pytest\n\n\n@pytest.hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item, call):\n    out = yield\n    r = out.get_result()\n    if r.failed:\n        r.outcome = "passed"\n' > "$1"
+}
+
+@test "AG-23 harness files (HIGH-A1): an agent conftest.py hookwrapper, an ini addopts and a bats setup_suite are removed before every run; the fixture's own copies survive" {
+  # 1.1.0: the root hookwrapper graded the unfixed tree 7/7 and the review that approved it accurate
+  RD="$T/run"; make_run bf-py "$RD"
+  flip_conftest "$RD/sandbox/conftest.py"
+  snap "$RD" IMPLEMENT; verdict "$RD" review APPROVED
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "5/7 t6,t7" ]
+  [ ! -e "$RD/grading/final/conftest.py" ] && [ ! -e "$RD/grading/implement/conftest.py" ]
+  cmp "$RD/grading/final/tests/conftest.py" "$S/tasks/bf-py/fixture/tests/conftest.py"
+  [ "$(cat "$RD/grading/final.harness-removed.txt")" = conftest.py ]
+  [ "$(cat "$RD/grading/implement.harness-removed.txt")" = conftest.py ]
+  [ "$(G '.harness_files_removed')" = 2 ]                   # final + the implement snapshot
+  [ "$(G '.verdict_accuracy_per_gate.review')" = false ]
+  ! grep -q 'conftest' "$RD/grade.json"
+  # the hidden tests overlaid under tests/acceptance/: a conftest beside them; ini files nearer
+  # the test args than the protected pytest.ini (pytest would take tests/pyproject.toml's addopts)
+  sed -i 's|"dest": "tests/test_slug.py"|"dest": "tests/acceptance/test_slug.py"|' "$S/tasks/bf-py/hidden/manifest.json"
+  RD="$T/run2"; make_run bf-py "$RD"
+  mkdir -p "$RD/sandbox/tests/acceptance"; flip_conftest "$RD/sandbox/tests/acceptance/conftest.py"
+  printf '[tool.pytest.ini_options]\naddopts = "-p no:terminal"\n' > "$RD/sandbox/tests/pyproject.toml"
+  printf '[pytest]\naddopts = -p no:terminal\n' > "$RD/sandbox/tests/acceptance/tox.ini"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error) \(.failed_names | join(","))"')" = "5/7 false t4,t5" ]   # acceptance/ sorts before test_existing.py
+  [ "$(G '.harness_files_removed')" = 3 ]
+  [ "$(cat "$RD/grading/final.harness-removed.txt" | tr '\n' ' ')" = "tests/acceptance/conftest.py tests/acceptance/tox.ini tests/pyproject.toml " ]
+  [ -f "$RD/grading/final/tests/acceptance/test_slug.py" ] && [ -f "$RD/grading/final/pytest.ini" ]
+  # an untouched tree removes nothing
+  RD="$T/run3"; make_run bf-py "$RD"
+  grade "$RD" bf-py
+  [ "$(G '.harness_files_removed')" = 0 ] && [ ! -s "$RD/grading/final.harness-removed.txt" ]
+  # a directory overlay's own conftest.py is grader-owned and kept
+  mkdir -p "$S/tasks/bf-py/hidden/acc"; cp "$S/tasks/bf-py/hidden/tests/test_slug.py" "$S/tasks/bf-py/hidden/acc/"
+  printf '# grader-owned\n' > "$S/tasks/bf-py/hidden/acc/conftest.py"
+  echo '{"files": [{"src": "acc", "dest": "tests/acceptance"}]}' > "$S/tasks/bf-py/hidden/manifest.json"
+  RD="$T/run4"; make_run bf-py "$RD"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.harness_files_removed')" = 0 ] && cmp "$RD/grading/final/tests/acceptance/conftest.py" "$S/tasks/bf-py/hidden/acc/conftest.py"
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "5/7" ]
+  # bats: setup_suite.bash writes the fix into the tree before the hidden cases run (1.1.0: 3/3)
+  printf 'corpus() { :; }\n' > "$S/tasks/bf-sh/fixture/tests/corpus-helper.bash"   # an unprotected fixture helper
+  RD="$T/run-sh"; make_run bf-sh "$RD"
+  cat > "$RD/sandbox/tests/setup_suite.bash" <<'EOF'
+setup_suite() { printf '%s\n' 'greet() { echo "Hello, $1!"; }' > lib/greet.sh; }
+EOF
+  ln -s helpers.bash "$RD/sandbox/tests/more-helper.bash"                     # an in-tree link at a helper path
+  printf 'x() { :; }\n' > "$RD/sandbox/tests/extra.bash"
+  grade "$RD" bf-sh
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "2/3 t1" ]
+  [ "$(G '.harness_files_removed')" = 3 ]
+  [ "$(cat "$RD/grading/final.harness-removed.txt" | tr '\n' ' ')" = "tests/extra.bash tests/more-helper.bash tests/setup_suite.bash " ]
+  cmp "$RD/grading/final/tests/helpers.bash" "$S/tasks/bf-sh/fixture/tests/helpers.bash"
+  cmp "$RD/grading/final/tests/corpus-helper.bash" "$S/tasks/bf-sh/fixture/tests/corpus-helper.bash"
+  cmp "$RD/grading/final/lib/greet.sh" "$S/tasks/bf-sh/fixture/lib/greet.sh"
+}
+
+# bf-run: bf-tap with a TAP regression command and the hidden runner replaced by $1 (MEDIUM-A1, MEDIUM-A2)
+make_bf_run() {
+  make_bf_tap
+  printf 'grep -q "^v=" lib/x.sh && echo 1..1 && echo "ok 1 v is set"\n' > "$S/tasks/bf-tap/fixture/tests/reg.sh"
+  printf '%s\n' "$1" > "$S/tasks/bf-tap/hidden/tests/run.sh"
+}
+
+@test "AG-24 container hardening (MEDIUM-A1): a named, limited, init-wrapped container with a kill deadline; a hung client is killed and the container removed by name" {
+  make_bf_run 'sleep 30'
+  RD="$T/run"; make_run bf-tap "$RD"
+  # the in-container deadline fires: 124, timed_out, no cleanup needed
+  LOA_EVAL_GRADE_TIMEOUT_S=1 grade "$RD" bf-tap
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.timed_out) \(.rc) \(.output_truncated)"')" = "true 124 false" ]
+  argv="$(tr '\0' '\n' < "$T/dlog/run-1.argv")"
+  for f in --init --rm --read-only; do grep -qx -- "$f" <<<"$argv"; done
+  [[ "$(tr '\0' ' ' < "$T/dlog/run-1.argv")" == *" --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges "*" timeout --signal=TERM --kill-after=10 1 bash tests/run.sh "* ]]
+  name="$(grep -A1 -x -- --name <<<"$argv" | tail -1)"
+  [[ "$name" =~ ^ablgrade-run-final-[0-9]+-[0-9]+$ ]]
+  [ ! -e "$T/dlog/kill.log" ] && [ ! -e "$T/dlog/rm.log" ]
+  # every container of the grade has its own name
+  [ "$(cat "$T"/dlog/run-*.argv | tr '\0' '\n' | grep -A1 -x -- --name | grep -c '^ablgrade-')" -eq "$(ls "$T"/dlog/run-*.argv | wc -l)" ]
+  # a container whose deadline never fires (the stub drops the timeout): the client deadline kills it
+  find "$T/dlog" -mindepth 1 -delete; echo 'DOCKER_STUB_HANG=1' > "$T/docker.env"
+  SECONDS=0
+  LOA_EVAL_GRADE_TIMEOUT_S=1 grade "$RD" bf-tap
+  [ "$status" -eq 0 ]
+  [ "$SECONDS" -lt 29 ]
+  [ "$(G '.hidden_tests | "\(.timed_out) \(.rc)"')" = "true 124" ]
+  name="$(tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -A1 -x -- --name | tail -1)"
+  [ "$(cat "$T/dlog/kill.log")" = "kill $name" ]
+  [ "$(cat "$T/dlog/rm.log")" = "rm -f $name" ]
+}
+
+@test "AG-25 output cap (MEDIUM-A1): a command printing 10 MiB is truncated to 4 MiB, keeps its trailing summary, and the row still writes" {
+  make_bf_run 'head -c 10485760 /dev/zero | tr "\0" x; echo; echo 1..1; echo "ok 1 the value is set"'
+  RD="$T/run"; make_run bf-tap "$RD"; apply_ref "$RD"
+  grade "$RD" bf-tap
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error) \(.output_truncated)"')" = "1/1 false true" ]
+  [ "$(G '.regressions | "\(.base.output_truncated) \(.final.output_truncated)"')" = "false false" ]
+  [ "$(wc -c < "$RD/grade.json")" -lt 4096 ]
+  run "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$RD" --task-yaml "$S/tasks/bf-tap/task.yaml"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hidden_test_pass_rate' <<<"$output")" = 1 ]
+}
+
+@test "AG-26 node paths (MEDIUM-A2): printed node ids naming /dev/zero, a path above the tree and a FIFO are never opened; ids are still assigned" {
+  make_bf_run 'mkfifo tests/fifo.py
+echo "PASSED tests/run_ok.py::test_a"
+echo "ERROR /dev/zero"
+echo "ERROR ../../etc/passwd::test_x"
+echo "ERROR tests/fifo.py"
+echo "FAILED tests/fifo.py::test_y"
+echo "FAILED /dev/zero::test_z"
+echo "==== 1 passed, 2 failed, 3 errors in 0.01s ===="
+exit 1'
+  RD="$T/run"; make_run bf-tap "$RD"
+  run timeout 30 "$GRADER" "$RD" bf-tap --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ -p "$RD/grading/final/tests/fifo.py" ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error) \(.failed_names | join(","))"')" = "1/4 false t1,t2,t3" ]
+  # a grader-owned source orders the cases even when the tree's copy became a FIFO
+  make_bf_run 'rm -f tests/t.py; mkfifo tests/t.py
+echo "FAILED tests/t.py::test_late"
+echo "PASSED tests/t.py::test_early"
+echo "==== 1 passed, 1 failed in 0.01s ===="
+exit 1'
+  printf 'def test_early():\n    pass\n\n\ndef test_late():\n    pass\n' > "$S/tasks/bf-tap/hidden/tests/t.py"
+  echo '{"files": [{"src": "tests/run.sh", "dest": "tests/run.sh"}, {"src": "tests/t.py", "dest": "tests/t.py"}]}' > "$S/tasks/bf-tap/hidden/manifest.json"
+  RD="$T/run2"; make_run bf-tap "$RD"
+  run timeout 30 "$GRADER" "$RD" bf-tap --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "1/2 t2" ]
+}
+
+@test "AG-27 sizes and symlinks (MEDIUM-A3): a 20 MiB sparse file is skipped and counted; a symlinked feedback file or review.md is never followed" {
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  truncate -s 20M "$RD/sandbox/big.bin"
+  printf 'x\n' > "$RD/sandbox/small.bin"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.oversized_files_skipped')" = 1 ]
+  [ ! -e "$RD/grading/final/big.bin" ] && [ -f "$RD/grading/final/small.bin" ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
+  # a symlinked engineer-feedback.md: the gate ran, its trailer is unreadable → none (the target is never read)
+  printf '# x\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED"} -->\n' > "$T/outside.md"
+  ln -s "$T/outside.md" "$RD/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.verdicts.review')" = none ] && [ "$(G '.verdict | "\(.source_file) \(.value)"')" = "engineer-feedback.md none" ]
+  # review-catch: a symlinked review.md gives no verdict and no citations
+  RD="$T/rc"; make_run rc-x "$RD"
+  printf 'head/lib/x.sh:5 guard\nVerdict: APPROVED\n' > "$T/outside-review.md"
+  ln -s "$T/outside-review.md" "$RD/sandbox/review.md"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.verdict')" = null ] && [ "$(G '.recall.defects_caught')" = 0 ]
+  # a feedback directory behind a symlinked parent is outside the sandbox: none
+  RD="$T/rc2"; make_run rc-x "$RD"
+  mkdir -p "$T/elsewhere/sprint-1"; cp "$T/outside.md" "$T/elsewhere/sprint-1/auditor-sprint-feedback.md"
+  find "$RD/sandbox/grimoires/loa/a2a" -delete; ln -s "$T/elsewhere" "$RD/sandbox/grimoires/loa/a2a"
+  grade "$RD" rc-x
+  [ "$(G '.verdicts.audit')" = none ]
+}
+
+@test "AG-28 host mode is opt-in (LOW-A1): refused with exit 2 unless LOA_EVAL_ALLOW_HOST_GRADING=1; allowed runs warn and record executor_mode host" {
+  RD="$T/run"; make_run rc-x "$RD"; printf 'head/lib/x.sh:5\n' > "$RD/sandbox/review.md"
+  run env -u LOA_EVAL_ALLOW_HOST_GRADING "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--executor host is refused"*"no filesystem, process or network isolation"*"LOA_EVAL_ALLOW_HOST_GRADING=1"* ]]
+  [ ! -e "$RD/grade.json" ]
+  run env LOA_EVAL_ALLOW_HOST_GRADING=yes "$GRADER" --self-check base --task-yaml "$S/tasks/rc-x/task.yaml" --allow-unfrozen --executor host
+  [ "$status" -eq 2 ]
+  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"WARNING --executor host"* ]]
+  [ "$(G '.executor_mode')" = host ]
+  # container mode needs no opt-in
+  run env -u LOA_EVAL_ALLOW_HOST_GRADING "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ] && [ "$(G '.executor_mode')" = container ]
 }
