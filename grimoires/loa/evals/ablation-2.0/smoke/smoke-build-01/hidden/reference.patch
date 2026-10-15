@@ -1,0 +1,12 @@
+--- a/src/textkit/slug.py
++++ b/src/textkit/slug.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def slugify(text: str) -> str:
+-    """Lowercase the text, turn every non-alphanumeric character into '-', strip edge hyphens."""
++    """Lowercase the text, turn every run of non-alphanumeric characters into a single '-', strip edge hyphens."""
+     s = text.lower()
+-    s = re.sub(r"[^a-z0-9]", "-", s)
++    s = re.sub(r"[^a-z0-9]+", "-", s)
+     return s.strip("-")

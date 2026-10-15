@@ -61,9 +61,10 @@
 #   LOA_EVAL_SOURCE_COMMIT  recorded as source_commit (default: the prompt
 #                         tree's HEAD)
 #   Toggles are applied to the SANDBOX COPY only, after every materialisation
-#   step and immediately before the executor starts; each is verified absent
+#   step and immediately before the executor starts; each is verified
 #   afterwards and a toggle that cannot take effect is exit 2 (an arm never
-#   silently runs as its baseline):
+#   silently runs as its baseline). Arms come from the suite's arms[] (cycle-130)
+#   or ab.arms[] (cycle-129); an `absent: true` arm is exit 2:
 #     companion_voice: false         flatline_protocol.{code_review,security_audit}.companion_voice=false
 #                                    in <ws>/.loa.config.yaml (yq)
 #     karpathy_block: false          '## Karpathy Principles' section out of
@@ -73,6 +74,21 @@
 #     audit_delta_instruction: false the paragraph containing "look for what the
 #                                    review did not", else "Confirm the review's demotions
 #                                    independently", out of the sandbox auditing-security/SKILL.md
+#   cycle-130 toggles (Task 1.6; SDD D-4.2):
+#     loa_mount: false               no .claude/, CLAUDE.md, .loa.config.yaml or skill prompt
+#                                    in the sandbox; no --append-system-prompt-file; the task
+#                                    prompt only; skill-frontmatter effort not read (a0_bare)
+#     effort: <low|medium|high|xhigh|max>  --effort <v> on argv (wins over EVAL_EFFORT);
+#                                    `effort:` stripped from every sandbox SKILL.md frontmatter;
+#                                    sandbox model-config default_effort=<v>, .checksum refreshed
+#     gates: false                   flatline_protocol.{code_review,security_audit}.enabled=false;
+#                                    LOA_ADVERSARIAL_REVIEW_ENFORCE=false in the executor env
+#     flatline: false                flatline_protocol.enabled=false
+#     sprint_plan / context_resets   pipeline-run.sh only: exit 2 here (no phases to edit)
+#   In arm mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the
+#   toggles, and the sandbox .claude/checksums.json is regenerated after them
+#   (arm_evidence.manifest_sha256). The materialisation and toggle code lives in
+#   lib/sandbox-mount.sh (its header is the contract).
 #   The appended skill prompt (.eval/skill-prompt.md) is derived from the
 #   toggled sandbox SKILL.md. executor.json records arm, arm_toggles,
 #   arm_evidence and source_commit.
@@ -83,6 +99,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# eval.yml trust boundary: a literal in-tree path, no variable on the source line
+pushd "$SCRIPT_DIR" >/dev/null
+# shellcheck source=lib/sandbox-mount.sh
+source ./lib/sandbox-mount.sh
+popd >/dev/null
 
 TASK_YAML=""
 WORKSPACE=""
@@ -91,7 +112,7 @@ TRIAL_ID=""
 TIMEOUT_S=900
 
 usage() {
-  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,60p' | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,95p' | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -133,32 +154,19 @@ skill_src="$PROMPT_TREE/.claude/skills/$skill"
 command -v "$CLAUDE_BIN" >/dev/null 2>&1 || [[ -x "$CLAUDE_BIN" ]] || { echo "ERROR: CLI not found: $CLAUDE_BIN (set EVAL_CLAUDE_BIN)" >&2; exit 2; }
 
 # --- 2. materialize ----------------------------------------------------------
+# The materialisation and toggle functions live in lib/sandbox-mount.sh (cycle-130
+# Task 1.6, shared with pipeline-run.sh); the arm is resolved first because
+# loa_mount: false skips the prompt surface entirely.
 eval_dir="$WORKSPACE/.eval"
-mkdir -p "$eval_dir" "$WORKSPACE/.claude/skills" "$WORKSPACE/.claude/loa"
-
-# Whole skill dir (resources included) so guarded reads inside the skill resolve.
-skill_dst="$WORKSPACE/.claude/skills/$skill"
-mkdir -p "$skill_dst"
-cp -a "$skill_src/." "$skill_dst/"
-if [[ -f "$PROMPT_TREE/.claude/loa/CLAUDE.loa.md" ]]; then
-  cp "$PROMPT_TREE/.claude/loa/CLAUDE.loa.md" "$WORKSPACE/.claude/loa/CLAUDE.loa.md"
-fi
-if [[ -d "$PROMPT_TREE/.claude/rules" ]]; then
-  mkdir -p "$WORKSPACE/.claude/rules"
-  cp -a "$PROMPT_TREE/.claude/rules/." "$WORKSPACE/.claude/rules/"
-fi
-printf '@.claude/loa/CLAUDE.loa.md\n' > "$WORKSPACE/CLAUDE.md"
+mkdir -p "$eval_dir"
 
 # --- 2b. control arm (cycle-129 FR-2) -----------------------------------------
 ARM_MODE=false
 [[ -n "${LOA_EVAL_ARM+x}" ]] && ARM_MODE=true
 ARM="${LOA_EVAL_ARM:-baseline}"
 [[ "$ARM" =~ ^[a-z][a-z0-9_]{0,63}$ ]] || { echo "ERROR: invalid LOA_EVAL_ARM '$ARM'" >&2; exit 2; }
-if [[ "$ARM_MODE" == "true" && -f "$PROMPT_TREE/.loa.config.yaml" ]]; then
-  cp "$PROMPT_TREE/.loa.config.yaml" "$WORKSPACE/.loa.config.yaml"
-fi
 
-# The arm's toggles: explicit JSON, else the suite's ab.arms[] entry.
+# The arm's toggles: explicit JSON, else the suite's arms[] / ab.arms[] entry.
 resolve_toggles() {
   # audit r1 DISS-C-001: toggles exist only in arm mode (LOA_EVAL_ARM set); a stale
   # LOA_EVAL_ARM_TOGGLES in a non-arm environment is ignored, and the baseline arm
@@ -180,124 +188,47 @@ resolve_toggles() {
     local tdir; tdir="$(basename "$(dirname "$TASK_YAML")")"
     [[ -f "$REPO_ROOT/evals/suites/$tdir.yaml" ]] && suite_file="$REPO_ROOT/evals/suites/$tdir.yaml"
   fi
-  local t="" found=0
-  if [[ -n "$suite_file" && -f "$suite_file" ]]; then
-    found="$(ARM="$ARM" yq '[.ab.arms[]? | select(.id == strenv(ARM))] | length' "$suite_file" 2>/dev/null || echo 0)"
-    [[ "$found" =~ ^[0-9]+$ ]] || found=0
-    if [[ "$found" -gt 0 ]]; then
-      t="$(ARM="$ARM" yq -o=json -I=0 '[.ab.arms[] | select(.id == strenv(ARM))][0].toggles // {}' "$suite_file" 2>/dev/null)"
-    fi
-  fi
-  if [[ "$found" -eq 0 || -z "$t" || "$t" == "null" ]]; then
-    [[ "$ARM" == "baseline" ]] && { printf '{}'; return 0; }
-    echo "ERROR: arm '$ARM' is not declared in ${suite_file:-any suite} (ab.arms[])" >&2
-    return 2
-  fi
-  printf '%s' "$t"
+  resolve_arm_toggles "$ARM" "$suite_file"
 }
 ARM_TOGGLES="$(resolve_toggles)" || exit 2
 
-# Remove the markdown section that starts at the exact heading line $2 (up to
-# the next level-2 heading) from file $1. Prints the number of lines removed.
-_drop_md_section() {
-  local f="$1" heading="$2" tmp
-  tmp="$(mktemp "$eval_dir/.arm.XXXXXX")"
-  awk -v h="$heading" '
-    $0 == h { skip = 1; n++; next }
-    skip && /^## / { skip = 0 }
-    skip { n++; next }
-    { print }
-    END { print n + 0 > "/dev/stderr" }' "$f" > "$tmp" 2> "$tmp.n"
-  mv "$tmp" "$f"
-  cat "$tmp.n"; rm -f "$tmp.n"
-}
+# cycle-130: sprint_plan and context_resets edit the phase set of the pipeline
+# executor; the single-skill path has no phases, so they cannot take effect here.
+for k in sprint_plan context_resets; do
+  if [[ "$(K="$k" jq -r 'has(env.K)' <<<"$ARM_TOGGLES")" == "true" ]]; then
+    echo "ERROR: arm '$ARM' toggle $k applies to the pipeline executor (pipeline-run.sh) only" >&2; exit 2
+  fi
+done
+LOA_MOUNT=true
+[[ "$(jq -r 'if has("loa_mount") then (.loa_mount | tostring) else "true" end' <<<"$ARM_TOGGLES")" == "false" ]] && LOA_MOUNT=false
 
-# Remove the first blank-line-delimited paragraph of $1 that contains one of
-# the needles (tried in order, case-insensitive). Writes the removed text to
-# $2; exit 1 when no needle matches.
-_drop_paragraph() {
-  python3 -I - "$1" "$2" "look for what the review did not" "Confirm the review's demotions independently" <<'PY'
-import re, sys
-path, out = sys.argv[1], sys.argv[2]
-text = open(path, encoding="utf-8").read()
-paras = re.split(r"(\n[ \t]*\n)", text)
-for needle in sys.argv[3:]:
-    for i in range(0, len(paras), 2):
-        if needle.lower() in paras[i].lower():
-            removed = paras[i]
-            # drop the paragraph and the separator that follows it
-            del paras[i:i + 2]
-            open(path, "w", encoding="utf-8").write("".join(paras))
-            open(out, "w", encoding="utf-8").write(removed + "\n")
-            sys.exit(0)
-sys.exit(1)
-PY
-}
+skill_dst="$WORKSPACE/.claude/skills/$skill"
+if [[ "$LOA_MOUNT" == "true" ]]; then
+  ARM_EVIDENCE_FILE=/dev/null mount_prompt_surface "$WORKSPACE" "$PROMPT_TREE" "$skill" || exit 2
+fi
 
-ARM_EVIDENCE='{}'
-_evidence() { ARM_EVIDENCE="$(jq -c --arg k "$1" --arg v "$2" '. + {($k): $v}' <<<"$ARM_EVIDENCE")"; }
-
-apply_toggles() {
-  local key val
-  while IFS=$'\t' read -r key val; do
-    [[ -n "$key" ]] || continue
-    if [[ "$val" != "false" ]]; then
-      echo "ERROR: arm '$ARM' toggle $key=$val (only false is defined)" >&2; return 2
-    fi
-    case "$key" in
-      companion_voice)
-        local cfg="$WORKSPACE/.loa.config.yaml"
-        [[ -f "$cfg" ]] || : > "$cfg"
-        yq -i '.flatline_protocol.code_review.companion_voice = false | .flatline_protocol.security_audit.companion_voice = false' "$cfg" \
-          || { echo "ERROR: companion_voice toggle: yq failed on the sandbox config" >&2; return 2; }
-        [[ "$(yq -r '.flatline_protocol.code_review.companion_voice' "$cfg")" == "false" ]] \
-          || { echo "ERROR: companion_voice toggle did not take effect" >&2; return 2; }
-        _evidence companion_voice "flatline_protocol.{code_review,security_audit}.companion_voice=false"
-        ;;
-      karpathy_block)
-        local k="$WORKSPACE/.claude/loa/CLAUDE.loa.md" n
-        [[ -f "$k" ]] || { echo "ERROR: karpathy_block toggle: no sandbox CLAUDE.loa.md" >&2; return 2; }
-        n="$(_drop_md_section "$k" '## Karpathy Principles')"
-        if [[ "${n:-0}" -eq 0 ]] || grep -q '^## Karpathy Principles' "$k"; then
-          echo "ERROR: karpathy_block toggle: no '## Karpathy Principles' section removed" >&2; return 2
-        fi
-        local cj="$WORKSPACE/.claude/data/constraints.json" cjn="none"
-        if [[ -f "$cj" ]]; then
-          # audit r1 DISS-C-008: a failed rewrite is exit 2, not a silent pass; verify afterwards
-          jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" \
-            || { rm -f "$cj.tmp"; echo "ERROR: karpathy_block toggle: constraints.json could not be rewritten" >&2; return 2; }
-          mv "$cj.tmp" "$cj"
-          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"
-          [[ "$cjn" == "0" ]] || { echo "ERROR: karpathy_block toggle: constraints.json still carries Karpathy rows ($cjn)" >&2; return 2; }
-        fi
-        _evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md; constraints.json karpathy rows after: ${cjn}"
-        ;;
-      rule_files)
-        local r gone=""
-        for r in stash-safety.md skill-invariants.md; do
-          if [[ -e "$WORKSPACE/.claude/rules/$r" ]]; then rm -f "$WORKSPACE/.claude/rules/$r"; gone="$gone $r"; fi
-          [[ ! -e "$WORKSPACE/.claude/rules/$r" ]] || { echo "ERROR: rule_files toggle: $r still present" >&2; return 2; }
-        done
-        _evidence rule_files "removed:${gone:- none present}"
-        ;;
-      audit_delta_instruction)
-        local s="$WORKSPACE/.claude/skills/auditing-security/SKILL.md"
-        [[ -f "$s" ]] || { echo "ERROR: audit_delta_instruction toggle: no sandbox auditing-security/SKILL.md" >&2; return 2; }
-        _drop_paragraph "$s" "$eval_dir/arm-removed.txt" \
-          || { echo "ERROR: audit_delta_instruction toggle: no delta paragraph found in the sandbox SKILL.md" >&2; return 2; }
-        _evidence audit_delta_instruction "removed $(wc -c < "$eval_dir/arm-removed.txt" | tr -d ' ') bytes (.eval/arm-removed.txt)"
-        ;;
-      *) echo "ERROR: arm '$ARM' declares unknown toggle '$key'" >&2; return 2 ;;
-    esac
-  done < <(jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv' <<<"$ARM_TOGGLES")
-  return 0
-}
-apply_toggles || exit 2
+# Toggles hit the sandbox copy only, after every materialisation step; each is
+# verified and one that cannot take effect is exit 2 before the executor starts.
+if [[ "$ARM_MODE" == "true" ]]; then
+  # an operator's gate override never reaches an arm that did not declare it
+  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
+fi
+arm_ev_file="$(mktemp "$eval_dir/.arm-evidence.XXXXXX")"
+ARM_EVIDENCE_FILE="$arm_ev_file" apply_arm_toggles "$WORKSPACE" "$ARM_TOGGLES" "$ARM" || { rm -f "$arm_ev_file"; exit 2; }
+# The sandbox manifest is regenerated after the toggles so no integrity reader
+# inside it reports Tampered (DEC-0421); arm mode only, when a .claude/ exists.
+if [[ "$ARM_MODE" == "true" && -d "$WORKSPACE/.claude" ]]; then
+  ARM_EVIDENCE_FILE="$arm_ev_file" regen_sandbox_manifest "$WORKSPACE" || { rm -f "$arm_ev_file"; exit 2; }
+fi
+ARM_EVIDENCE="$(jq -Rn '[inputs | select(length > 0) | capture("^(?<k>[^=]+)=(?<v>.*)$") | {(.k): .v}] | add // {}' < "$arm_ev_file")"
+rm -f "$arm_ev_file"
 
 # Skill body without the YAML frontmatter → the appended system prompt. Read
 # from the (toggled) sandbox copy so an arm reaches the system prompt too.
-awk 'BEGIN{fm=0} NR==1 && $0=="---"{fm=1; next} fm==1 && $0=="---"{fm=2; next} fm!=1{print}' \
-  "$skill_dst/SKILL.md" > "$eval_dir/skill-prompt.md"
+if [[ "$LOA_MOUNT" == "true" ]]; then
+  awk 'BEGIN{fm=0} NR==1 && $0=="---"{fm=1; next} fm==1 && $0=="---"{fm=2; next} fm!=1{print}' \
+    "$skill_dst/SKILL.md" > "$eval_dir/skill-prompt.md"
+fi
 
 # Prompt-tree identity (what the A/B is actually varying).
 prompt_tree_sha="$(git -C "$PROMPT_TREE" rev-parse HEAD:.claude 2>/dev/null || echo unknown)"
@@ -323,7 +254,7 @@ resolve_effort() {
   if [[ -z "$cand" ]]; then
     cand="$(yq -r '.agent.effort // ""' "$TASK_YAML")"
   fi
-  if [[ -z "$cand" || "$cand" == "null" ]]; then
+  if [[ ( -z "$cand" || "$cand" == "null" ) && "$LOA_MOUNT" == "true" ]]; then
     cand="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' "$skill_src/SKILL.md" \
       | yq -r '.effort // ""' 2>/dev/null || true)"
   fi
@@ -333,6 +264,9 @@ resolve_effort() {
   esac
 }
 effort="$(resolve_effort)"
+# cycle-130: an arm's effort toggle is the treatment and overrides every other source
+arm_effort="$(jq -r '.effort // ""' <<<"$ARM_TOGGLES")"
+[[ -n "$arm_effort" ]] && effort="$arm_effort"
 
 prompt="$(yq -r '.prompt // ""' "$TASK_YAML")"
 [[ -n "$prompt" && "$prompt" != "null" ]] || { echo "ERROR: task has no prompt" >&2; exit 2; }
@@ -344,9 +278,10 @@ argv=(
   --model "$MODEL"
   --restricted --tools "Read,Grep,Glob,Write"
   --permission-mode acceptEdits
-  --append-system-prompt-file "$eval_dir/skill-prompt.md"
-  --max-turns "$MAX_TURNS"
 )
+# loa_mount: false (cycle-130 a0_bare): the task prompt only, no appended skill prompt
+[[ "$LOA_MOUNT" == "true" ]] && argv+=(--append-system-prompt-file "$eval_dir/skill-prompt.md")
+argv+=(--max-turns "$MAX_TURNS")
 [[ -n "$effort" ]] && argv+=(--effort "$effort")
 
 events="$eval_dir/events.jsonl"

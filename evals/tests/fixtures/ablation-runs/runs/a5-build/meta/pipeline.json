@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "run_id": "abl-fixture-a5_no_flatline-bf-01-t1",
+  "arm": "a5_no_flatline",
+  "task_id": "bf-01",
+  "task_type": "bug-fix",
+  "trial": 1,
+  "source_commit": "e93ad7020096c9abc673975cf4df0c7f0c541d86",
+  "suite_version": 1,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 12,
+  "spent_usd": 2,
+  "arm_toggles": {
+    "flatline": false
+  },
+  "effort_flag": null,
+  "arm_evidence": {
+    "base_commit": "1136d44d475aa5576e4ba14da048a636594c2f82",
+    "mount": "whole_tree",
+    "flatline": "false",
+    "beads": "opt-out",
+    "manifest_files": "5",
+    "manifest_sha256": "8c267cb13e8a3d9a4f1bf503b7c95d4fb2349b6c19919c6d6d9efdd4a0520925"
+  },
+  "executor_mode": "host",
+  "image_digest": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "sandbox_fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {
+    "implement": "b1ce951027dadea04d3e0c704798084f386cba3c"
+  },
+  "phases": [
+    {
+      "name": "PLAN",
+      "label": "PLAN",
+      "skipped": false,
+      "session_id": "sess-PLAN-29451-920",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 200
+      },
+      "effort_requested": "xhigh",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 118,
+      "num_turns": 2,
+      "max_turns": 30,
+      "timeout_s": 900,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.00408,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:18Z",
+      "finished": "2026-10-14T22:42:18Z"
+    },
+    {
+      "name": "IMPLEMENT",
+      "label": "IMPLEMENT",
+      "skipped": false,
+      "session_id": "sess-IMPLEMENT-29577-17021",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 200
+      },
+      "effort_requested": "xhigh",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 131,
+      "num_turns": 2,
+      "max_turns": 60,
+      "timeout_s": 1500,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": "b1ce951027dadea04d3e0c704798084f386cba3c",
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.00408,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:18Z",
+      "finished": "2026-10-14T22:42:18Z"
+    },
+    {
+      "name": "REVIEW",
+      "label": "REVIEW",
+      "skipped": false,
+      "session_id": "sess-REVIEW-29728-28721",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 200
+      },
+      "effort_requested": "xhigh",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 132,
+      "num_turns": 2,
+      "max_turns": 40,
+      "timeout_s": 1200,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": "APPROVED",
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.0102,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:18Z",
+      "finished": "2026-10-14T22:42:19Z"
+    },
+    {
+      "name": "FIX",
+      "label": "FIX1",
+      "skipped": true,
+      "reason": "preceding gate verdict APPROVED",
+      "session_id": null,
+      "exit": null,
+      "cost_usd": 0
+    },
+    {
+      "name": "AUDIT",
+      "label": "AUDIT",
+      "skipped": false,
+      "session_id": "sess-AUDIT-29883-7442",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 200
+      },
+      "effort_requested": "xhigh",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 134,
+      "num_turns": 2,
+      "max_turns": 40,
+      "timeout_s": 1200,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": "APPROVED",
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.0102,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:19Z",
+      "finished": "2026-10-14T22:42:19Z"
+    },
+    {
+      "name": "FIX",
+      "label": "FIX2",
+      "skipped": true,
+      "reason": "preceding gate verdict APPROVED",
+      "session_id": null,
+      "exit": null,
+      "cost_usd": 0
+    }
+  ],
+  "started": "2026-10-14T22:42:17Z",
+  "finished": "2026-10-14T22:42:19Z"
+}

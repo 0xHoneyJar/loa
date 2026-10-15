@@ -1,0 +1,11 @@
+{
+  "generated": "stub",
+  "algorithm": "sha256",
+  "files": {
+    ".claude/loa/CLAUDE.loa.md": "3ad1ee8c1486b6c58dfd3bbfbe66f7ce8c453bd28b34080120048b8c7a71cf0a",
+    ".claude/skills/auditing-security/SKILL.md": "07cd52cc236c0f5ed3fce7fd1b7e69c1c6ede739b605288d787e19b6f0eb1fba",
+    ".claude/skills/implementing-tasks/SKILL.md": "fad5d779be2a290fcd8d1f482838fd85399f0886cb42074fe754b77beb397785",
+    ".claude/skills/planning-sprints/SKILL.md": "102fc14f15754054ab0da44c5a4ba1a3e6ee4f1e3ec55fea7e57d0ae9c93818b",
+    ".claude/skills/reviewing-code/SKILL.md": "2c0f0c9e0c978d3e6d9c457ca99267a6361bdf949e1f898497d6b0285b1d3742"
+  }
+}

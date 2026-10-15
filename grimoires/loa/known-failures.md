@@ -91,6 +91,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 5 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
+| [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
 
 ---
 
@@ -1719,3 +1720,23 @@ If a cycle kickoff shows this denial text, stop the cycle: it is the harness per
 ### Reading guide
 
 This is harness behaviour, not a Loa defect: the key IS enforced in the main session (good) but session-scoped (surprising) and unenforced in subagents (recorded in skill-invariants.md). Do not retry Write/Edit, do not re-invoke skills hoping to reset, do not ask a peer session to write for you (permission laundering). Halt and resume in a new session.
+
+## KF-044: Codex on a ChatGPT plan refuses every gpt-5.x model; the codex-headless hop (cli_model gpt-5.5) fails and the dissent falls to one voice
+
+**Status**: active
+**Feature**: codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only)
+**Symptom**: codex exec -m gpt-5.5 (also gpt-5.5-pro, gpt-5.5-codex, gpt-5.3-codex) returns HTTP 400 'The model is not supported when using Codex with a ChatGPT account'; cheval classifies the stderr as AUTH_REVOKED ('codex token revoked/expired') and walks the chain to the HTTP hops (no OPENAI_API_KEY in a sandbox) and then claude-headless, so adversarial-review.json reads verdict_quality FAILED, voices 1 of 4, primary ceded to the companion; codex 0.137 additionally logs 'failed to decode models response: unknown variant max'
+**First observed**: 2026-10-15 cycle-130 Sprint 258 smoke (A1 on smoke-build-01); reproduced on the host with codex 0.137.0 and 0.162.1
+**Recurrence count**: 1
+**Current workaround**: point codex-headless.extra.cli_model at the CLI's own default gpt-6.1-sol (model-config.yaml, regen-model-artifacts.sh); the HTTP gpt-5.5 entries still exist on the API; cycle-130 does this in Sprint 258 (DEC-0485) and the arms carry the new model
+**Upstream issue**: not filed (OpenAI account policy change observed 2026-10-15; the cheval AUTH_REVOKED misclassification of this stderr is a Loa defect to fix in a later sprint)
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+
+### Reading guide
+
+When a dissent or Flatline envelope shows every codex-headless attempt as api_failure/AUTH_REVOKED while codex login works, run codex exec without -m to read the account's default model and compare it with model-config's cli_model; do not re-auth, do not retry the chain. A single-voice envelope under this failure is a degraded run for any measurement.

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "run_id": "abl-fixture-a4_no_gates-rc-01-t1",
+  "arm": "a4_no_gates",
+  "task_id": "rc-01",
+  "task_type": "review-catch",
+  "trial": 1,
+  "source_commit": "e93ad7020096c9abc673975cf4df0c7f0c541d86",
+  "suite_version": 1,
+  "status": "infrastructure_error",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": "refused: arm 'a4_no_gates' does not apply to task type 'review-catch' (task_types [\"build\"])",
+  "max_run_usd": 12,
+  "spent_usd": 0,
+  "arm_toggles": {
+    "gates": false
+  },
+  "effort_flag": null,
+  "arm_evidence": {},
+  "executor_mode": "host",
+  "image_digest": null,
+  "fingerprint": null,
+  "sandbox_fingerprint": null,
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {},
+  "phases": [],
+  "started": "2026-10-14T22:42:24Z",
+  "finished": "2026-10-14T22:42:24Z"
+}

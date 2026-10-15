@@ -1,0 +1,7 @@
+base_commit=26417937e66500db716b4f27d3bdba5cecc0c680
+mount=whole_tree
+gates=false
+arm_env=LOA_ADVERSARIAL_REVIEW_ENFORCE=false
+beads=opt-out
+manifest_files=5
+manifest_sha256=8c267cb13e8a3d9a4f1bf503b7c95d4fb2349b6c19919c6d6d9efdd4a0520925

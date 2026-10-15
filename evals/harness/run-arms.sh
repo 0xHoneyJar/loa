@@ -12,6 +12,24 @@
 #               [--model <id>] [--concurrency 2] [--batch <name>]
 #               [--results-dir evals/results/arms] [--retry-wait <s>]
 #               [--allow-unapproved] [--dry-run]
+#               [--max-usd <usd> [--run-cap <usd>]] [--screen [--screen-tasks N]]
+#
+# Spend cap (cycle-130 FR-2, SDD §5.5): --max-usd stops launching before the
+#   next trial when spent + in_flight × run_cap + est_next > max, where spent =
+#   the executor-reported total_cost_usd of this invocation's completed and
+#   failed rows, run_cap = --run-cap (default evals.ablation.run_cap_usd in
+#   .loa.config.yaml, else 12) reserved per running trial, and est_next = the
+#   mean cost of this arm's completed trials (one task type per recall suite),
+#   else the pooled mean, else the suite's ab.cost_hint (or cost_hint), else 5.0.
+#   While the reservation alone blocks the launch it waits for a running trial;
+#   when spent + est_next > max it cuts: no further launches, running trials
+#   finish, STATUS.json gets cut_reason: max_usd and cut = {reason, spent,
+#   in_flight_reserved, max, trials_launched, at_trial}, state partial, exit 1.
+# Screen (bd-j4lwr): --screen runs one trial of the first N fixtures (default
+#   2) per arm into <results-dir>/<suite>/screen-<UTC ts>/ (its own MANIFEST,
+#   STATUS, rows), prints a per-arm table (trials, mean USD, mean recall) on
+#   stdout, and never writes the suite-level STATUS.json; the suite aggregate
+#   never reads screen-* batches. --batch and --trials are ignored under --screen.
 #
 # Per trial (fixture × arm × trial), in this order:
 #   1. the fixture's SHA256SUMS entries (its files, hidden manifest and labels)
@@ -66,8 +84,9 @@ SOURCE_REPO="${LOA_ARMS_SOURCE_REPO:-$REPO_ROOT}"
 SUITE="" ARMS_CSV="" FIXTURES_CSV="" TRIALS="" SOURCE_COMMIT="" MODEL="$DEFAULT_MODEL"
 CONCURRENCY=2 BATCH="" RESULTS_ROOT="$EVALS_DIR/results/arms" RETRY_WAIT=300
 DRY_RUN=false ALLOW_UNAPPROVED=false
+MAX_USD="" RUN_CAP="" SCREEN=false SCREEN_TASKS=2
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,46p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,68p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-arms: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -84,6 +103,10 @@ while [[ $# -gt 0 ]]; do
     --retry-wait) RETRY_WAIT="${2:-}"; shift 2 ;;
     --allow-unapproved) ALLOW_UNAPPROVED=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
+    --max-usd) MAX_USD="${2:-}"; shift 2 ;;
+    --run-cap) RUN_CAP="${2:-}"; shift 2 ;;
+    --screen) SCREEN=true; shift ;;
+    --screen-tasks) SCREEN_TASKS="${2:-}"; shift 2 ;;
     --help|-h) usage ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
@@ -91,7 +114,16 @@ done
 
 # --- validate arguments ------------------------------------------------------
 case "$SUITE" in review-recall|audit-recall) ;; *) die "--suite must be review-recall or audit-recall" ;; esac
+[[ "$SCREEN" == "true" ]] && TRIALS=1
 [[ "$TRIALS" =~ ^[1-9][0-9]?$ ]] || die "--trials must be an integer 1-99"
+[[ "$SCREEN_TASKS" =~ ^[1-9][0-9]?$ ]] || die "--screen-tasks must be an integer 1-99"
+usd_ok() { [[ "$1" =~ ^[0-9]{1,6}(\.[0-9]{1,4})?$ ]]; }
+if [[ -n "$MAX_USD" ]]; then usd_ok "$MAX_USD" && [[ "$MAX_USD" != "0" ]] || die "--max-usd must be a positive amount in USD"; fi
+if [[ -z "$RUN_CAP" ]]; then
+  RUN_CAP="$(yq -r '.evals.ablation.run_cap_usd // ""' "$REPO_ROOT/.loa.config.yaml" 2>/dev/null || true)"
+  usd_ok "$RUN_CAP" || RUN_CAP=12
+fi
+usd_ok "$RUN_CAP" || die "--run-cap must be an amount in USD"
 [[ "$CONCURRENCY" =~ ^[1-9]$ ]] || die "--concurrency must be 1-9"
 [[ "$RETRY_WAIT" =~ ^[0-9]{1,5}$ ]] || die "--retry-wait must be whole seconds"
 [[ "$MODEL" =~ ^[A-Za-z0-9._:/-]+$ ]] || die "--model has unexpected characters"
@@ -104,6 +136,9 @@ TASK_PREFIX="review"; [[ "$SUITE" == "audit-recall" ]] && TASK_PREFIX="audit"
 
 IFS=',' read -r -a ARMS <<<"$ARMS_CSV"
 IFS=',' read -r -a FIXTURES <<<"$FIXTURES_CSV"
+if [[ "$SCREEN" == "true" && ${#FIXTURES[@]} -gt $SCREEN_TASKS ]]; then
+  FIXTURES=("${FIXTURES[@]:0:$SCREEN_TASKS}")
+fi
 [[ ${#ARMS[@]} -gt 0 && -n "${ARMS[0]}" ]] || die "--arms is required"
 [[ ${#FIXTURES[@]} -gt 0 && -n "${FIXTURES[0]}" ]] || die "--fixtures is required"
 for a in "${ARMS[@]}"; do
@@ -128,10 +163,21 @@ SRC12="${SRC_FULL:0:12}"
 WORKTREE="$CACHE_ROOT/arms-src-$SRC12"
 
 [[ -n "$BATCH" ]] || BATCH="batch-${FIXTURES[0]}-${FIXTURES[${#FIXTURES[@]}-1]}-n${#FIXTURES[@]}"
+[[ "$SCREEN" == "true" ]] && BATCH="screen-$(date -u +%Y%m%dT%H%M%SZ)"
 [[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"
 case "$BATCH" in .|..) die "invalid --batch '$BATCH' (a batch is one child directory)" ;; esac   # audit r1 DISS-C-004
 SUITE_DIR="$RESULTS_ROOT/$SUITE"
 BATCH_DIR="$SUITE_DIR/$BATCH"
+
+# est_next fallback before any actual exists: the suite's cost hint (a number,
+# or a per-task-type map read at review-catch), else USD 5.0
+COST_HINT="$(yq -r '(.ab.cost_hint // .cost_hint // "") | tag' "$SUITE_FILE" 2>/dev/null || true)"
+if [[ "$COST_HINT" == "!!map" ]]; then
+  COST_HINT="$(yq -r '(.ab.cost_hint // .cost_hint)["review-catch"] // ""' "$SUITE_FILE" 2>/dev/null || true)"
+else
+  COST_HINT="$(yq -r '.ab.cost_hint // .cost_hint // ""' "$SUITE_FILE" 2>/dev/null || true)"
+fi
+usd_ok "${COST_HINT:-x}" || COST_HINT=5.0
 
 # --- corpus freeze ------------------------------------------------------------
 # verify_corpus [<fixture>] — every SHA256SUMS entry (or one fixture's entries
@@ -217,6 +263,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" \
     --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson dry "$dry" \
     --arg suite_file "evals/suites/$SUITE.yaml" \
+    --argjson screen "$SCREEN" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" --arg cost_hint "$COST_HINT" \
     '{schema_version: 1, suite: $suite, batch: $batch, dry_run: $dry, created: $created,
       source_commit: $source_commit, source_worktree: $source_worktree,
       harness_commit: $harness_commit, harness_dirty: $harness_dirty, suite_file: $suite_file,
@@ -226,7 +273,9 @@ write_manifest() {  # write_manifest <path> <dry_run>
                  timeout_per_trial_s: $per_trial, concurrency: $concurrency, retry: {transport_retries: 1, wait_s: $retry_wait},
                  subagent_model: "pinned to model_id (CLAUDE_CODE_SUBAGENT_MODEL); parent-session coupling unset",
                  seed: null},
-      arms: $arms, fixtures: $fixtures, trials: $trials, trials_planned: $planned,
+      arms: $arms, fixtures: $fixtures, trials: $trials, trials_planned: $planned, screen: $screen,
+      spend: {max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end),
+              run_cap_usd: ($run_cap | tonumber), cost_hint_usd: ($cost_hint | tonumber)},
       corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: $digest,
                verified: "every entry before the batch; the fixture'"'"'s entries before each trial"},
       environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
@@ -293,6 +342,11 @@ STATE="running"
 # per-arm counters (indexed arrays parallel to ARMS — bash 3.2 has no maps)
 DONE=() FAILED=() PLANNED=()
 for i in "${!ARMS[@]}"; do DONE[$i]=0; FAILED[$i]=0; PLANNED[$i]=$(( ${#FIXTURES[@]} * TRIALS )); done
+# spend accounting (--max-usd): batch spend, per-arm and pooled completed-cost sums
+SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0
+ARM_SUM=() ARM_N=()
+for i in "${!ARMS[@]}"; do ARM_SUM[$i]=0; ARM_N[$i]=0; done
+fadd() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.10g", a + b }'; }
 arm_index() { local i; for i in "${!ARMS[@]}"; do [[ "${ARMS[$i]}" == "$1" ]] && { echo "$i"; return; }; done; echo -1; }
 
 write_status() {
@@ -304,10 +358,15 @@ write_status() {
   [[ "$STATE" != "running" ]] && finished="\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
   jq -n --arg state "$STATE" --argjson per "$per" --arg src "$SRC_FULL" --arg model "$MODEL" \
     --arg started "$STARTED" --argjson finished "$finished" --arg batch "$BATCH" --arg suite "$SUITE" \
+    --argjson cut "$CUT_JSON" --argjson screen "$SCREEN" --arg spent "$SPENT" --arg max_usd "$MAX_USD" \
     '{schema_version: 1, suite: $suite, batch: $batch, state: $state, per_arm: $per,
-      source_commit: $src, model_id: $model, started: $started, finished: $finished}' > "$BATCH_DIR/STATUS.json.tmp"
+      source_commit: $src, model_id: $model, started: $started, finished: $finished}
+     + (if $max_usd == "" then {} else {spend: {spent_usd: ($spent | tonumber), max_usd: ($max_usd | tonumber)}} end)
+     + (if $cut == null then {} else {cut_reason: $cut.reason, cut: $cut} end)
+     + (if $screen then {screen: true} else {} end)' > "$BATCH_DIR/STATUS.json.tmp"
   mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
-  aggregate_status
+  # a screening batch never touches the suite-level aggregate (bd-j4lwr)
+  [[ "$SCREEN" == "true" ]] || aggregate_status
 }
 
 # The suite-level STATUS.json merges every batch: counters add per arm; the
@@ -321,6 +380,7 @@ aggregate_status() {
     (map(.state) | max_by(rank)) as $state |
     {schema_version: 1, suite: $suite, state: $state,
      batches: map({batch, state, started, finished}),
+     cuts: [.[] | select(.cut != null) | .cut + {batch}],
      per_arm: (reduce (.[] | .per_arm | to_entries[]) as $e ({};
         .[$e.key] |= {trials_done: ((.trials_done // 0) + $e.value.trials_done),
                       trials_failed: ((.trials_failed // 0) + $e.value.trials_failed),
@@ -328,7 +388,7 @@ aggregate_status() {
      source_commit: (map(.source_commit) | unique | if length == 1 then .[0] else "MIXED" end),
      model_id: (map(.model_id) | unique | if length == 1 then .[0] else "MIXED" end),
      started: (map(.started) | min), finished: (if $state == "running" then null else (map(.finished) | max) end)}' \
-    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json | sort) > "$agg.tmp" 2>/dev/null \
+    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json ! -path "$SUITE_DIR/screen-*" | sort) > "$agg.tmp" 2>/dev/null \
     && mv "$agg.tmp" "$agg"
   rmdir "$lockd" 2>/dev/null || true
 }
@@ -442,6 +502,14 @@ collect() {  # collect <job-id> <arm>
   if [[ -f "$JOBS_DIR/$jid.row" ]]; then
     mkdir -p "$BATCH_DIR/$arm"
     cat "$JOBS_DIR/$jid.row" >> "$BATCH_DIR/$arm/results.jsonl"
+    local cost
+    cost="$(jq -r '(.executor.total_cost_usd // 0) | tonumber? // 0' "$JOBS_DIR/$jid.row" 2>/dev/null || echo 0)"
+    [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
+    SPENT="$(fadd "$SPENT" "$cost")"
+    if [[ "$(jq -r '.status' "$JOBS_DIR/$jid.row")" == "completed" ]]; then
+      ARM_SUM[$i]="$(fadd "${ARM_SUM[$i]}" "$cost")"; ARM_N[$i]=$(( ${ARM_N[$i]} + 1 ))
+      POOL_SUM="$(fadd "$POOL_SUM" "$cost")"; POOL_N=$((POOL_N + 1))
+    fi
     if [[ "$(jq -r '.status' "$JOBS_DIR/$jid.row")" == "completed" ]]; then
       DONE[$i]=$(( ${DONE[$i]} + 1 ))
       log "done $jid ($(jq -r '"\(.arm) \(.fixture) t\(.trial) recall=\(([.graders[]? | select(.name=="recall-vs-defects.sh") | .details.recall][0]) // "n/a") \(.duration_ms/1000|floor)s"' "$JOBS_DIR/$jid.row"))"
@@ -479,22 +547,82 @@ reap() {  # reap until fewer than $1 jobs run
   return 0
 }
 
-n=0
+# est_next <arm> — the next trial's expected cost (see the header)
+est_next() {
+  local i; i="$(arm_index "$1")"
+  if [[ "${ARM_N[$i]}" -gt 0 ]]; then awk -v s="${ARM_SUM[$i]}" -v n="${ARM_N[$i]}" 'BEGIN { printf "%.10g", s / n }'
+  elif [[ "$POOL_N" -gt 0 ]]; then awk -v s="$POOL_SUM" -v n="$POOL_N" 'BEGIN { printf "%.10g", s / n }'
+  else printf '%s' "$COST_HINT"; fi
+}
+# budget_gate <arm> <trial-number> — 0 launch; 1 cut (CUT_JSON set). Waits for a
+# running trial while only the in-flight reservation blocks the launch.
+budget_gate() {
+  local arm="$1" at="$2" est inflight reserved
+  while true; do
+    est="$(est_next "$arm")"; inflight=${#PIDS[@]}
+    reserved="$(awk -v k="$inflight" -v c="$RUN_CAP" 'BEGIN { printf "%.10g", k * c }')"
+    if awk -v s="$SPENT" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + e > m) }'; then
+      CUT_JSON="$(jq -cn --arg s "$SPENT" --arg r "$reserved" --arg m "$MAX_USD" --arg e "$est" \
+        --argjson launched "$LAUNCHED" --argjson at "$at" \
+        '{reason: "max_usd", spent: ($s | tonumber), in_flight_reserved: ($r | tonumber), max: ($m | tonumber),
+          est_next: ($e | tonumber), trials_launched: $launched, at_trial: $at}')"
+      log "cut: max_usd $MAX_USD reached after $LAUNCHED trials (spent $SPENT, in-flight reserved $reserved, next est $est; trial $at not launched; reason recorded in STATUS.json)"
+      return 1
+    fi
+    if awk -v s="$SPENT" -v r="$reserved" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + r + e > m) }'; then
+      reap "$inflight"; continue
+    fi
+    return 0
+  done
+}
+
+n=0 LAUNCHED=0
 for p in "${PLAN[@]}"; do
   IFS='|' read -r a f t <<<"$p"
   n=$((n + 1)); jid="$(printf 'j%04d' "$n")"
   reap "$CONCURRENCY"
+  if [[ -n "$MAX_USD" ]] && ! budget_gate "$a" "$n"; then break; fi
   run_trial "$jid" "$a" "$f" "$t" &
   PIDS+=("$!"); PJOB+=("$jid"); PARM+=("$a")
+  LAUNCHED=$((LAUNCHED + 1))
 done
 reap 1
 
+# --screen: the per-arm table on stdout (from this batch's rows)
+print_screen_table() {
+  printf '%-24s %6s %9s %11s\n' arm trials mean_usd mean_recall
+  local a
+  for a in "${ARMS[@]}"; do
+    if [[ -f "$BATCH_DIR/$a/results.jsonl" ]]; then
+      jq -rs --arg a "$a" '
+        def mean: if length == 0 then null else (add / length) end;
+        [ .[] | (.executor.total_cost_usd // 0) ] as $c |
+        [ .[] | select(.status == "completed") | ([.graders[]? | select(.name == "recall-vs-defects.sh") | .details.recall][0]) | select(. != null) ] as $r |
+        [$a, (length | tostring), (($c | mean) // 0 | . * 100 | round / 100 | tostring),
+         (($r | mean) as $m | if $m == null then "n/a" else ($m * 1000 | round / 1000 | tostring) end)] | @tsv' \
+        "$BATCH_DIR/$a/results.jsonl" | awk -F'\t' '{ printf "%-24s %6s %9s %11s\n", $1, $2, $3, $4 }'
+    else
+      printf '%-24s %6s %9s %11s\n' "$a" 0 0 n/a
+    fi
+  done
+}
+finish() {  # finish <state> <exit> <message>
+  set_state "$1"; log "$3"
+  if [[ "$SCREEN" == "true" ]]; then
+    echo "screen: suite=$SUITE fixtures=$(IFS=,; echo "${FIXTURES[*]}") (1 trial each) batch=$BATCH_DIR"
+    print_screen_table
+  fi
+  exit "$2"
+}
+
 total_done=0 total_failed=0
 for i in "${!ARMS[@]}"; do total_done=$(( total_done + ${DONE[$i]} )); total_failed=$(( total_failed + ${FAILED[$i]} )); done
-if [[ $total_failed -eq 0 ]]; then
-  set_state complete; log "complete: $total_done trials"; exit 0
+if [[ "$CUT_JSON" != "null" ]]; then
+  finish partial 1 "partial (cut max_usd): $total_done done, $total_failed failed, $LAUNCHED of ${#PLAN[@]} launched, spent $SPENT"
+elif [[ $total_failed -eq 0 ]]; then
+  finish complete 0 "complete: $total_done trials"
 elif [[ $total_done -eq 0 ]]; then
-  set_state failed; log "failed: no trial completed ($total_failed failed)"; exit 3
+  finish failed 3 "failed: no trial completed ($total_failed failed)"
 else
-  set_state partial; log "partial: $total_done done, $total_failed failed"; exit 1
+  finish partial 1 "partial: $total_done done, $total_failed failed"
 fi

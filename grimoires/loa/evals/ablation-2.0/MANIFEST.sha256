@@ -1,0 +1,10 @@
+6856cbd03dce1c30be09abcca50e5b68685fef415d32b080649970f33a675ccc  smoke/smoke-build-01/TASK.md
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  smoke/smoke-build-01/fixture/src/textkit/__init__.py
+485a923554361b566b89c99f7891bfb98c54c4c8b002ddc5e0dd39ae8a9ea648  smoke/smoke-build-01/fixture/src/textkit/slug.py
+d6754bd3bf18462f471b2ff9747885c88d898eb5eb259241caf5fa214c7bd143  smoke/smoke-build-01/fixture/tests/conftest.py
+368832bcc09b9321e9192bf6f1f837af3ebb1622f112a1734f36137c59efaee4  smoke/smoke-build-01/hidden/manifest.json
+eda802f3c8c5ebc2762eb11394be0dab7a197e96cda65490054f16c12078c267  smoke/smoke-build-01/hidden/reference.patch
+3831216bbd28e6ff552b7a70e952060fef68c94ccb7127bda5f52057abd294e3  smoke/smoke-build-01/hidden/tests/test_slug.py
+9bf5f5468486ecf70c551d3ccc2db714287f2067acfe52326f4dbd6ee4e898f9  smoke/smoke-build-01/task.yaml
+198f3e8d100a811a6190cab3b06caf669be29c9f6e352576be244911ac4dcf34  smoke/smoke-review-01/TASK.md
+6fa99e35f0a24b897a6e5b00de6bbe34c9808c3daede8678c877dee3582ad721  smoke/smoke-review-01/task.yaml

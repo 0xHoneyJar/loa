@@ -13976,3 +13976,1763 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0437"
+    created_at: "2026-10-14T22:32:27Z"
+    updated_at: "2026-10-14T22:32:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: The compat library lives at `.claude/scripts/compat-lib.sh`, not `.claude/scripts/lib/compat-lib.sh` as the brief says. All new code sources that"
+    decision: "The compat library lives at `.claude/scripts/compat-lib.sh`, not `.claude/scripts/lib/compat-lib.sh` as the brief says. All new code sources that real path for `sha256_portable`."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0438"
+    created_at: "2026-10-14T22:32:29Z"
+    updated_at: "2026-10-14T22:32:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: gen-checksums hashes the working-tree content of each tracked path. A tracked path that is not a regular file in the working tree is skipped"
+    decision: "gen-checksums hashes the working-tree content of each tracked path. A tracked path that is not a regular file in the working tree is skipped with a stderr warning, so `--check` reports a deleted tracked file as `removed`. Tracked path names containing a newline, tab or backslash are refused with exit 2."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0439"
+    created_at: "2026-10-14T22:32:30Z"
+    updated_at: "2026-10-14T22:32:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: The preflight count now uses `git ls-files -- .claude` minus overrides and the manifest. The count runs in the tree that owns the manifest: the"
+    decision: "The preflight count now uses `git ls-files -- .claude` minus overrides and the manifest. The count runs in the tree that owns the manifest: the `.loa` submodule when `.claude/checksums.json` is a symlink, as in a submodule mount. If that count is 0 it falls back to the legacy `find` count. That case covers being outside git, or a standard-mode downstream that does not track `.claude/`. Only the count block was changed."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0440"
+    created_at: "2026-10-14T22:32:31Z"
+    updated_at: "2026-10-14T22:32:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: `check_integrity` now ends with `return 0`. Before, a drift made the function return 1, and under `set -e` that ended check-loa.sh right after"
+    decision: "`check_integrity` now ends with `return 0`. Before, a drift made the function return 1, and under `set -e` that ended check-loa.sh right after the integrity section. The baseline run shows this. The exit code is still 1 on any Tampered or Missing path, through FAILURES in `main`, and the later checks now run and report too."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0441"
+    created_at: "2026-10-14T22:32:32Z"
+    updated_at: "2026-10-14T22:32:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: not-mounted needs `.loa/.claude` to be a directory and `.loa/<manifest path>` to be a regular file. Anything else that is absent is Missing. A"
+    decision: "not-mounted needs `.loa/.claude` to be a directory and `.loa/<manifest path>` to be a regular file. Anything else that is absent is Missing. A broken local symlink counts as absent."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0442"
+    created_at: "2026-10-14T22:32:34Z"
+    updated_at: "2026-10-14T22:32:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: The mount-scope bats seam is the existing `BASH_SOURCE` guard in check-loa.sh. Each case sources the script in a child bash and calls only"
+    decision: "The mount-scope bats seam is the existing `BASH_SOURCE` guard in check-loa.sh. Each case sources the script in a child bash and calls only `check_integrity`. The child exits 1 when FAILURES is non-zero, the same rule `main` uses. check-loa.sh was not changed for the test."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0443"
+    created_at: "2026-10-14T22:32:35Z"
+    updated_at: "2026-10-14T22:32:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: fresh-mount-proof's downstream entry point is `upstream/.claude/scripts/mount-submodule.sh --branch fresh-mount-proof --ref <sha> --force`, run"
+    decision: "fresh-mount-proof's downstream entry point is `upstream/.claude/scripts/mount-submodule.sh --branch fresh-mount-proof --ref <sha> --force`, run with `LOA_UPSTREAM=file://<temp clone>`. It runs fully offline. Git is hermetic: no global or system config, a fixed identity, `protocol.file.allow=always` and an empty hooks path."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0444"
+    created_at: "2026-10-14T22:32:36Z"
+    updated_at: "2026-10-14T22:32:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: I added a `--worktree` flag to fresh-mount-proof that the brief does not list. It commits the source work tree's uncommitted state on a branch"
+    decision: "I added a `--worktree` flag to fresh-mount-proof that the brief does not list. It commits the source work tree's uncommitted state on a branch inside the temp clone only. Without it, the proof could only test committed code, and no commit is allowed in the worktree. The default (no flag) mounts REF as committed."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0445"
+    created_at: "2026-10-14T22:32:38Z"
+    updated_at: "2026-10-14T22:32:38Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: The CI step goes after \"Knob readers go through profile-lib\" and before the Python regression steps. Nothing that could write caches into the"
+    decision: "The CI step goes after \"Knob readers go through profile-lib\" and before the Python regression steps. Nothing that could write caches into the checkout runs before it."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0446"
+    created_at: "2026-10-14T22:32:39Z"
+    updated_at: "2026-10-14T22:32:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-a: No live-repo gen-checksums `--check` bats case; the CI step gates it. MP-6 covers the committed manifest."
+    decision: "No live-repo gen-checksums `--check` bats case; the CI step gates it. MP-6 covers the committed manifest."
+    rationale: "implementer A decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-a.md#decision-bullets (impl-a 10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0447"
+    created_at: "2026-10-14T22:32:40Z"
+    updated_at: "2026-10-14T22:32:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: Harness scripts hash with Python hashlib and do not use compat-lib's `sha256_portable`. eval.yml runs the base harness against a PR's `.claude/`"
+    decision: "Harness scripts hash with Python hashlib and do not use compat-lib's `sha256_portable`. eval.yml runs the base harness against a PR's `.claude/`, so sourcing `.claude/scripts/compat-lib.sh` from the harness pulls PR code into the trusted side. That step flagged 4 such lines. `run-arms.sh` already hashes this way, and the raw-sha256sum check stays green. This departs from the brief."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0448"
+    created_at: "2026-10-14T22:32:42Z"
+    updated_at: "2026-10-14T22:32:42Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: execute-agent.sh and validate-suite.sh source the library as `pushd \"$SCRIPT_DIR\"; source ./lib/sandbox-mount.sh; popd`. That is a literal"
+    decision: "execute-agent.sh and validate-suite.sh source the library as `pushd \"$SCRIPT_DIR\"; source ./lib/sandbox-mount.sh; popd`. That is a literal in-tree path with no variable on the source line, which is what the trust-boundary scan requires."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0449"
+    created_at: "2026-10-14T22:32:43Z"
+    updated_at: "2026-10-14T22:32:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `--max-usd` waits for a running trial while only the in-flight reservation blocks a launch. It cuts as soon as `spent + est_next > max`, because"
+    decision: "`--max-usd` waits for a running trial while only the in-flight reservation blocks a launch. It cuts as soon as `spent + est_next > max`, because spend only grows. `cut.in_flight_reserved` is the reservation at that moment."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 13)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0450"
+    created_at: "2026-10-14T22:32:44Z"
+    updated_at: "2026-10-14T22:32:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `spent` counts this invocation's rows only, not rows from earlier invocations of a reused batch."
+    decision: "`spent` counts this invocation's rows only, not rows from earlier invocations of a reused batch."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 14)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0451"
+    created_at: "2026-10-14T22:32:46Z"
+    updated_at: "2026-10-14T22:32:46Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: For the recall suites `est_next` per arm × task type is the per-arm mean, since each suite has one task type. `cost_hint` is read from"
+    decision: "For the recall suites `est_next` per arm × task type is the per-arm mean, since each suite has one task type. `cost_hint` is read from `ab.cost_hint`, else `cost_hint`; a map is read at `review-catch`."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 15)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0452"
+    created_at: "2026-10-14T22:32:47Z"
+    updated_at: "2026-10-14T22:32:47Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `--screen` ignores `--batch` and `--trials`. STATUS carries both `cut_reason` (PRD wording) and `cut` (brief wording)."
+    decision: "`--screen` ignores `--batch` and `--trials`. STATUS carries both `cut_reason` (PRD wording) and `cut` (brief wording)."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 16)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0453"
+    created_at: "2026-10-14T22:32:49Z"
+    updated_at: "2026-10-14T22:32:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `spend.sh --since` filters ledger rows only. Run rows count once per `run_id` across files. Missing default files count as zero, and a named file"
+    decision: "`spend.sh --since` filters ledger rows only. Run rows count once per `run_id` across files. Missing default files count as zero, and a named file that is missing is exit 1."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 17)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0454"
+    created_at: "2026-10-14T22:32:50Z"
+    updated_at: "2026-10-14T22:32:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: Build-only arms (A2, A4, A5, A6) list `applicability_refused`. A8 has no `took_effect`, so no `integrity_clean`. `phases` overrides are lists,"
+    decision: "Build-only arms (A2, A4, A5, A6) list `applicability_refused`. A8 has no `took_effect`, so no `integrity_clean`. `phases` overrides are lists, used only where an arm differs: A0 `[BARE]`, A2 without PLAN, A4 `[PLAN, IMPLEMENT]`."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 18)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0455"
+    created_at: "2026-10-14T22:32:51Z"
+    updated_at: "2026-10-14T22:32:51Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: An `effort` toggle wins over `EVAL_EFFORT` and over the skill's own effort. Under `loa_mount: false` the skill frontmatter effort is not read,"
+    decision: "An `effort` toggle wins over `EVAL_EFFORT` and over the skill's own effort. Under `loa_mount: false` the skill frontmatter effort is not read, and A0's `effort: high` is left to the pipeline."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 19)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0456"
+    created_at: "2026-10-14T22:32:53Z"
+    updated_at: "2026-10-14T22:32:53Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: The `effort` toggle sets every `default_effort` key in the catalog. A catalog with none is exit 2, and an absent catalog gives evidence `absent`."
+    decision: "The `effort` toggle sets every `default_effort` key in the catalog. A catalog with none is exit 2, and an absent catalog gives evidence `absent`. Only frontmatter `effort:` lines are stripped; body lines stay."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 20)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0457"
+    created_at: "2026-10-14T22:32:54Z"
+    updated_at: "2026-10-14T22:32:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: In arm mode execute-agent unsets an inherited `LOA_ADVERSARIAL_REVIEW_ENFORCE` before applying toggles. In arm mode it also regenerates the"
+    decision: "In arm mode execute-agent unsets an inherited `LOA_ADVERSARIAL_REVIEW_ENFORCE` before applying toggles. In arm mode it also regenerates the sandbox manifest, which adds the `manifest_*` evidence keys."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 21)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0458"
+    created_at: "2026-10-14T22:32:55Z"
+    updated_at: "2026-10-14T22:32:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `sprint_plan` and `context_resets` give exit 2 on the single-skill path. In the library they are evidence only."
+    decision: "`sprint_plan` and `context_resets` give exit 2 on the single-skill path. In the library they are evidence only."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 22)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0459"
+    created_at: "2026-10-14T22:32:57Z"
+    updated_at: "2026-10-14T22:32:57Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: With `loa_mount: false`, a sandbox that already holds a mount-owned path is exit 2."
+    decision: "With `loa_mount: false`, a sandbox that already holds a mount-owned path is exit 2."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 23)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0460"
+    created_at: "2026-10-14T22:32:58Z"
+    updated_at: "2026-10-14T22:32:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: The fixture path rule checks the top level only, since the mount owns root paths. The validator also refuses a reference patch or a hidden dest"
+    decision: "The fixture path rule checks the top level only, since the mount owns root paths. The validator also refuses a reference patch or a hidden dest that touches those paths."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 24)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0461"
+    created_at: "2026-10-14T22:32:59Z"
+    updated_at: "2026-10-14T22:32:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `write_sandbox_grimoire` resolves `sprint_plan` from `$LOA_EVAL_SUITE_FILE`, default the ablation suite. The ledger is cycle-001 with sprint-1 at"
+    decision: "`write_sandbox_grimoire` resolves `sprint_plan` from `$LOA_EVAL_SUITE_FILE`, default the ablation suite. The ledger is cycle-001 with sprint-1 at global 1 and next 2. `reviewer.md` falls back to the corpus `PR.md`."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 25)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:32:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0462"
+    created_at: "2026-10-14T22:33:01Z"
+    updated_at: "2026-10-14T22:33:01Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `regen_sandbox_manifest` calls `tools/gen-checksums.sh` only when the sandbox git-tracks `.claude`. Otherwise it hashes inline."
+    decision: "`regen_sandbox_manifest` calls `tools/gen-checksums.sh` only when the sandbox git-tracks `.claude`. Otherwise it hashes inline."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 26)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0463"
+    created_at: "2026-10-14T22:33:02Z"
+    updated_at: "2026-10-14T22:33:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: Schema rules: - review-catch has `fixture: null` and `test_command: null`; - `reference_patch` is required for bug-fix and feature-build; -"
+    decision: "Schema rules: - review-catch has `fixture: null` and `test_command: null`; - `reference_patch` is required for bug-fix and feature-build; - `structural_check` is required for refactor; - `source.origin` is allowed; - empty `bounds` maps mean the phase defaults; - the criterion may name no path, file or `test_*`."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 27)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0464"
+    created_at: "2026-10-14T22:33:04Z"
+    updated_at: "2026-10-14T22:33:04Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: Leak stems come from the hidden manifest `src` files and `structural_check`. Phase prompts are scanned too."
+    decision: "Leak stems come from the hidden manifest `src` files and `structural_check`. Phase prompts are scanned too."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 28)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0465"
+    created_at: "2026-10-14T22:33:06Z"
+    updated_at: "2026-10-14T22:33:06Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: `freeze.sh` takes `--smoke`, uses root-relative paths and exits 1 on validation failure. The committed manifest covers `smoke/`, because `tasks/`"
+    decision: "`freeze.sh` takes `--smoke`, uses root-relative paths and exits 1 on validation failure. The committed manifest covers `smoke/`, because `tasks/` does not exist yet."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 29)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0466"
+    created_at: "2026-10-14T22:33:07Z"
+    updated_at: "2026-10-14T22:33:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-b: The original `test_slug.py` passes at base, so the hidden test gains two collapse cases to make it red. TASK.md no longer names that test."
+    decision: "The original `test_slug.py` passes at base, so the hidden test gains two collapse cases to make it red. TASK.md no longer names that test."
+    rationale: "implementer B decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 30)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-b.md#decision-bullets (impl-b 30)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0467"
+    created_at: "2026-10-14T22:33:09Z"
+    updated_at: "2026-10-14T22:33:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: The default executor is `container` (DEC-0411); `--executor host` is the fallback. The image is `loa-ablation:258`."
+    decision: "The default executor is `container` (DEC-0411); `--executor host` is the fallback. The image is `loa-ablation:258`."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 31)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 31)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0468"
+    created_at: "2026-10-14T22:33:10Z"
+    updated_at: "2026-10-14T22:33:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: Credential copies are allowlists: `~/.aws` whole, `~/.claude` only `.credentials.json settings.json`, `~/.codex` only `auth.json config.toml`. On"
+    decision: "Credential copies are allowlists: `~/.aws` whole, `~/.claude` only `.credentials.json settings.json`, `~/.codex` only `auth.json config.toml`. On this host `~/.claude` is 12 GB. All three mount points always exist, so there are always exactly four mounts."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 32)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 32)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0469"
+    created_at: "2026-10-14T22:33:12Z"
+    updated_at: "2026-10-14T22:33:12Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: docker run adds `--name loa-abl-<run>-<label>`, for `docker kill`, and `--user <host uid:gid>`, so the sandbox is writable and the 0700 copies"
+    decision: "docker run adds `--name loa-abl-<run>-<label>`, for `docker kill`, and `--user <host uid:gid>`, so the sandbox is writable and the 0700 copies are readable. `LOA_EVAL_HOME_TMPFS=1` and `LOA_EVAL_CREDS_MODE=rw` are opt-ins."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 33)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 33)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0470"
+    created_at: "2026-10-14T22:33:14Z"
+    updated_at: "2026-10-14T22:33:14Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: In container mode the allowlist goes both as `-e` and as an in-container `env -i`."
+    decision: "In container mode the allowlist goes both as `-e` and as an in-container `env -i`."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 34)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 34)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0471"
+    created_at: "2026-10-14T22:33:15Z"
+    updated_at: "2026-10-14T22:33:15Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: The base commit holds the fixture only. The mount paths go to `.git/info/exclude`. The repo-local git identity is eval@loa."
+    decision: "The base commit holds the fixture only. The mount paths go to `.git/info/exclude`. The repo-local git identity is eval@loa."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 35)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 35)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0472"
+    created_at: "2026-10-14T22:33:17Z"
+    updated_at: "2026-10-14T22:33:17Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: FIX records are labelled FIX1 and FIX2. A FIX that does not run is `skipped: true`. Snapshots are `<label>.bundle` plus `index.json`."
+    decision: "FIX records are labelled FIX1 and FIX2. A FIX that does not run is `skipped: true`. Snapshots are `<label>.bundle` plus `index.json`."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 36)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 36)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0473"
+    created_at: "2026-10-14T22:33:18Z"
+    updated_at: "2026-10-14T22:33:18Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: The first non-zero exit means agent_error. Exit 124, or 137 after the timeout, is `timed_out`. Any other 143, 137, 129 or 130 means interrupted."
+    decision: "The first non-zero exit means agent_error. Exit 124, or 137 after the timeout, is `timed_out`. Any other 143, 137, 129 or 130 means interrupted. pipeline.json carries `running` between phases, and the row reads that as interrupted."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 37)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 37)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0474"
+    created_at: "2026-10-14T22:33:20Z"
+    updated_at: "2026-10-14T22:33:20Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: The watchdog runs one jq per 1 s poll, deduplicated by message.id. pricing.py runs once per model. Missing cache prices are 0.1× input for reads"
+    decision: "The watchdog runs one jq per 1 s poll, deduplicated by message.id. pricing.py runs once per model. Missing cache prices are 0.1× input for reads and 1.25× for writes. An unpriced model disables the watchdog for that phase. The cap test is `≥`."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 38)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 38)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0475"
+    created_at: "2026-10-14T22:33:21Z"
+    updated_at: "2026-10-14T22:33:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: A0 skips the grimoire, beads, manifest and `.run/`. The fixture path rule applies to build fixtures only. Review-catch copies only the PR files"
+    decision: "A0 skips the grimoire, beads, manifest and `.run/`. The fixture path rule applies to build fixtures only. Review-catch copies only the PR files, never fixture.yaml."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 39)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 39)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0476"
+    created_at: "2026-10-14T22:33:23Z"
+    updated_at: "2026-10-14T22:33:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: Leak guards exit 2 on a hidden path, the arm id anywhere in the sandbox, or \"hidden\", `D[0-9]{2}-` or an arm id in the brief or a prompt."
+    decision: "Leak guards exit 2 on a hidden path, the arm id anywhere in the sandbox, or \"hidden\", `D[0-9]{2}-` or an arm id in the brief or a prompt."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 40)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 40)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0477"
+    created_at: "2026-10-14T22:33:25Z"
+    updated_at: "2026-10-14T22:33:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: Toggles come from `resolve_arm_toggles`; `--dry-run` reads the suite. Effort is `arm.effort`, else `toggles.effort`. Caps are task bounds >"
+    decision: "Toggles come from `resolve_arm_toggles`; `--dry-run` reads the suite. Effort is `arm.effort`, else `toggles.effort`. Caps are task bounds > `phase_defaults` > built-ins, with BARE = PLAN + IMPLEMENT + 2 × FIX by default. `effort_requested` is the flag, else the skill's frontmatter. `CLAUDE_CODE_USE_BEDROCK` defaults to 1."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 41)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 41)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0478"
+    created_at: "2026-10-14T22:33:26Z"
+    updated_at: "2026-10-14T22:33:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: The row compares MODELINV effort_effective with the row's own `payload.effort`, and model ids without the region prefix. A manifest arm that"
+    decision: "The row compares MODELINV effort_effective with the row's own `payload.effort`, and model ids without the region prefix. A manifest arm that disagrees with meta/arm exits 2. `stalls` counts timed-out phases."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 42)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 42)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0479"
+    created_at: "2026-10-14T22:33:28Z"
+    updated_at: "2026-10-14T22:33:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S258 impl-c: took-effect evaluates a refusal record on applicability_refused alone, and accepts a phase-set prefix when a run stopped early. integrity_clean"
+    decision: "took-effect evaluates a refusal record on applicability_refused alone, and accepts a phase-set prefix when a run stopped early. integrity_clean requires `manifest_sha256` plus the hashlib walk. no_flatline_rows also needs `sprint.md`. - DECISION (rev 2): There is no env seam for the mount library. A bats-gated `source \"$LOA_EVAL_MOUNT_LIB\"` line still matches the eval.yml regex, which scans every line wherever it sits. pipeline-run.bats and regen.sh instead run a temporary copy of the harness with the stub at `lib/sandbox-mount.sh`. A case proves that `LOA_EVAL_MOUNT_LIB` is ignored. - DECISION (rev 2): fds above 2 are closed by a `python3 -I` exec shim rather than an `eval` loop. It is bash-3.2-safe and passes the scanner. - DECISION (rev 2): The phase env takes only `^LOA_[A-Z0-9_]+=` lines from `ARM_ENV_FILE`, so an arm can never set PATH, HOME or a key. The driver still adds `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` for `gates: false` when the library wrote nothing. - DECISION (rev 2): `applicability_refused` on a run that was not refused passes when the task type is inside `task_types` and fails otherwise; B lists it on the build-only arms. An absent arm (A8) prints \"component-absent\" and exits 0. - DECISION (rev 2): `skill_effort_stripped` reads only the block between the first two `---` lines. - DECISION (rev 2): The fixture suite is a copy of B's `evals/suites/ablation-2.0.yaml`, so the tests do not move with the live file."
+    rationale: "implementer C decision from the Sprint 258 report; recorded by the lead for /decisions confirm"
+    alternatives_considered:
+      - option: "the brief as written"
+        rejected_because: "the implementer found the brief wrong or incomplete on this point; see the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 43)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T22:33:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer-c.md#decision-bullets (impl-c 43)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0480"
+    created_at: "2026-10-14T23:00:50Z"
+    updated_at: "2026-10-14T23:00:50Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Sandbox phases carry the Bedrock bearer-token route (AWS_BEARER_TOKEN_BEDROCK, region prefix, model pins) by environment only; amends DEC-0394"
+    decision: "the pipeline executor's environment allowlist passes through, when set, AWS_BEARER_TOKEN_BEDROCK, ANTHROPIC_BEDROCK_REGION_PREFIX and ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL plus the optional AWS_REGION, AWS_DEFAULT_REGION and AWS_PROFILE; the token travels by environment only (never argv, captures record <set>), and no ~/.claude credential file is copied into a run"
+    rationale: "the live container probe failed with 'Access to Anthropic models is not allowed from unsupported countries': this host's Bedrock route is the bearer-token form (claude-bedrock wrapper), there is no AWS credential chain, and the DEC-0394 allowlist dropped the token so the CLI fell back to the geo-blocked Anthropic API with the copied subscription token"
+    alternatives_considered:
+      - option: "mount ~/.aws and rely on the SDK chain"
+        rejected_because: "no such chain exists on this host; the route is a Bedrock API key"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:00:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0481"
+    created_at: "2026-10-14T23:00:51Z"
+    updated_at: "2026-10-14T23:00:51Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Container mounts are two: the sandbox rw and one per-run writable HOME (codex auth copy only, no subscription credentials); amends DEC-0411"
+    decision: "pipeline-run.sh creates <run-dir>/meta/home (0700) with .codex/{auth.json,config.toml} copies and empty .claude/ and .aws/, mounts it rw at /home/evaluser together with the sandbox, deletes it at exit and on interrupt; ~/.claude/.credentials.json and settings.json are never copied; the per-run HOME persists across the phases of one run so the CLI session store and A6 --resume work"
+    rationale: "the CLI needs a writable HOME for its session store; three read-only credential mounts carried the subscription token the route must never use; a tmpfs HOME would not survive between the docker run of one phase and the next"
+    alternatives_considered:
+      - option: "read-only credential mounts plus a tmpfs HOME"
+        rejected_because: "A6 --resume needs the session store across phases"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:00:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0482"
+    created_at: "2026-10-14T23:00:52Z"
+    updated_at: "2026-10-14T23:00:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The ablation image installs cheval's declared dependencies (rfc8785, jsonschema, pyyaml, httpx[http2]) so sandbox gates can dispatch the dissent"
+    decision: "Dockerfile.ablation pip-installs rfc8785>=0.1.4, jsonschema>=4.21, pyyaml>=6.0 and httpx[http2]>=0.24.0 (the pyproject dependencies and the full extra) with --break-system-packages on the Debian base; the lead adds the line at integration and rebuilds loa-ablation:258"
+    rationale: "the image probe showed yaml, jsonschema and httpx absent; adversarial-review.sh and flatline-orchestrator.sh inside the sandbox run cheval, which imports them at load, so every gate would have reported a degraded voice"
+    alternatives_considered:
+      - option: "run the gates on the host"
+        rejected_because: "the container is the containment; a host gate would leave the sandbox"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:00:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0483"
+    created_at: "2026-10-14T23:00:54Z"
+    updated_at: "2026-10-14T23:00:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The Shell Tests job runs evals/tests/ (the eval harness bats were in no workflow before this cycle)"
+    decision: "a Shell Tests step 'Run eval harness tests' runs bats --print-output-on-failure evals/tests/ after the framework unit tests; 256 cases, about 200 s, stub CLIs only"
+    rationale: "the harness is the cycle's measurement instrument; its tests were never run by CI (no workflow referenced evals/tests), so a harness regression could reach a batch unseen"
+    alternatives_considered:
+      - option: "keep running them by hand"
+        rejected_because: "a hand step is not a gate"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:00:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0484"
+    created_at: "2026-10-14T23:00:55Z"
+    updated_at: "2026-10-14T23:00:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Host constraint recorded: the Anthropic API is geo-blocked from this egress, so every Claude call in the cycle stays on Bedrock and an API fallback fails loudly"
+    decision: "the report header and the smoke record state that this host cannot reach the Anthropic API (HTTP 400 unsupported region); every arm's Claude sessions run on Bedrock through the bearer-token route; a phase that reaches the API fails with that error and is recorded, never silently rerouted"
+    rationale: "observed in the first container probe; it means a lost route variable produces a loud failure rather than a silent change of provider, which the drift guard relies on"
+    alternatives_considered:
+      - option: "leave it unrecorded"
+        rejected_because: "a reader of the report would not know why an API fallback is impossible here"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:00:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0485"
+    created_at: "2026-10-14T23:25:48Z"
+    updated_at: "2026-10-14T23:25:48Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "The codex-headless catalog hop points at gpt-6.1-sol: Codex on a ChatGPT plan withdrew every gpt-5.x name on 2026-10-15 (KF-044)"
+    decision: "model-config.yaml codex-headless.extra.cli_model is gpt-6.1-sol (the CLI's own default, which answers); the HTTP gpt-5.5 entries are unchanged; regen-model-artifacts.sh regenerated the maps and the checksum; the arms therefore run the dissent's OpenAI voice on gpt-6.1-sol via codex, which the report header and the pre-registration state as a provider-forced model change from the brief's gpt-5.5-pro"
+    rationale: "codex exec -m gpt-5.5, gpt-5.5-pro, gpt-5.5-codex and gpt-5.3-codex all return HTTP 400 'not supported when using Codex with a ChatGPT account' on codex 0.137.0 and 0.162.1; the account's default is gpt-6.1-sol; the cycle-129 runs one day earlier used gpt-5.5-pro through the same hop"
+    alternatives_considered:
+      - option: "route the dissent's OpenAI voice to the HTTP API with OPENAI_API_KEY (gpt-5.5-pro is still listed there)"
+        rejected_because: "another secret in every sandbox and API-priced gates that would push A1 review-catch runs toward the per-run cap"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:25:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0486"
+    created_at: "2026-10-14T23:25:50Z"
+    updated_at: "2026-10-14T23:25:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "No beads binary in the sandbox image; the materialiser writes the beads opt-out marker so every arm runs the skills' markdown fallback alike"
+    decision: "Dockerfile.ablation ships no br (beads_rust 0.2.6 is not on crates.io and the host binary needs glibc 2.38+; a 0.7.5 crate would mismatch the host's 0.2.6 database); pipeline-run.sh runs the materialiser with LOA_EVAL_BR_BIN pointing at a non-existent binary so init_sandbox_beads writes the opt-out marker and the implementing skill takes its documented NOT_INSTALLED path in every arm"
+    rationale: "a beads database created by the host's br would be read by a different br inside the container (the KF-005 migration class); beads is not a component under test and the fallback is identical across arms"
+    alternatives_considered:
+      - option: "build beads_rust 0.7.5 into the image"
+        rejected_because: "version skew against the host database and a CLI surface the skills were not exercised against"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:25:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0487"
+    created_at: "2026-10-14T23:25:51Z"
+    updated_at: "2026-10-14T23:25:51Z"
+    phase: "implementation"
+    category: "operations"
+    summary: "Host codex CLI updated 0.137.0 to 0.162.1 (npm global) during Sprint 258; the image pins the same version"
+    decision: "the update was needed to rule out the CLI as the cause of the model refusals (it was not: the account's model allowlist changed); both host and image run 0.162.1 so the dissent voice is the same binary everywhere; reversal is npm i -g @openai/codex@0.137.0"
+    rationale: "codex 0.137 could not parse the server's model list (unknown variant max) and the brief's parity rule wants one toolchain across arms"
+    alternatives_considered:
+      - option: "leave the host on 0.137.0"
+        rejected_because: "a known-broken model-list parser on the host while the image runs the fixed one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:25:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0488"
+    created_at: "2026-10-14T23:25:53Z"
+    updated_at: "2026-10-14T23:25:53Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Smoke runs materialise the lead's dirty working tree (3,390 .claude files incl. node_modules); batch runs use the pristine pinned worktree"
+    decision: "the Sprint 258 smoke passed --source-tree <main checkout>, so mount_prompt_surface copied the untracked caches too; the smoke rows decide nothing; run-ablation.sh pins a detached pristine worktree (run-arms.sh practice) so a batch sandbox carries tracked files only; the lead records the smoke's copy size in smoke.md"
+    rationale: "a dirty tree is what the lead had before the sprint commit; the batch pin removes the issue"
+    alternatives_considered:
+      - option: "copy only git-tracked files in the materialiser"
+        rejected_because: "a worthwhile hardening for Sprint 259 but not a blocker for the smoke"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:25:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0489"
+    created_at: "2026-10-14T23:34:57Z"
+    updated_at: "2026-10-14T23:34:57Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "A placeholder openai gpt-6.1-sol catalog entry (gpt-5.5 shape and list prices, chain to codex-headless) lets the repointed codex hop price its estimates"
+    decision: "model-config.yaml gains openai.models.gpt-6.1-sol mirroring gpt-5.5 (400K window, /v1/responses, 32K output, temperature unsupported) with a within-company fallback_chain [openai:codex-headless] and PLACEHOLDER pricing equal to gpt-5.5's list prices, commented as such; the pricing-ladder test's codex hop expectation moves to gpt-6.1-sol; bead bd-i1sop tracks the rate-card confirmation"
+    rationale: "find_pricing resolves a CLI hop through its cli_model's HTTP entry; without an entry the hop prices as unknown and test_pricing_resolution_ladder fails; the chain invariants require every OpenAI primary to terminate in codex-headless; the real gpt-6.1 rate card is not confirmable offline today"
+    alternatives_considered:
+      - option: "leave the hop unpriced"
+        rejected_because: "the metering unpriced-share guard and the ledger estimates would degrade for every dissent call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:34:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0490"
+    created_at: "2026-10-14T23:57:50Z"
+    updated_at: "2026-10-14T23:57:50Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Gate turn budgets 60 turns / 30 min; a gate that exhausts its turns after writing its LOA-VERDICT counts as completed (turn_cap_hit); sandbox pre-trusted"
+    decision: "phase_defaults REVIEW and AUDIT max_turns 40 → 60 and timeout 20 → 30 min (BARE unchanged at the implementer-side sum); pipeline-run.sh records turn_cap_hit and cli_exit per phase and treats a gate whose feedback file carries a LOA-VERDICT trailer as completed when the CLI exited on error_max_turns (gate_recovered: true), every other phase at the cap stays agent_error; the per-run HOME carries .claude.json with the /workspace project pre-trusted so the mounted tree's project settings apply without the dialog"
+    rationale: "the Sprint 258 smoke's A1 review-catch AUDIT wrote CHANGES_REQUIRED with four HIGH findings and then hit the 40-turn cap during housekeeping (NOTES, trajectory), which the executor classed as agent_error; the gate's deliverable is the verdict file; the CLI also warned that it ignored the untrusted workspace's permissions.allow entries"
+    alternatives_considered:
+      - option: "keep agent_error for every turn-cap exit"
+        rejected_because: "a correct verdict already on disk would be thrown away and the run stopped, biasing every gate arm against itself"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T23:57:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0491"
+    created_at: "2026-10-15T00:49:14Z"
+    updated_at: "2026-10-15T00:49:14Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "The grader runs hidden tests inside the ablation image (network none, read-only, grading tree mounted), not on the host"
+    decision: "ablation-grade.sh (Sprint 259) runs test_command and regression_command inside loa-ablation:258 with --network none --read-only --tmpfs /tmp and the grading tree mounted rw, as the lead hand-graded the smoke runs; the host path under env -i stays only for --executor host runs"
+    rationale: "the Sprint 258 smoke showed env -i PATH=/usr/bin:/bin python3 -I -s -m pytest has no pytest on this host (it lives in the user site that -s hides); grading in the image uses the toolchain the agent built against and isolates the grader from the host"
+    alternatives_considered:
+      - option: "install pytest system-wide on the host"
+        rejected_because: "a host-specific fix; the image already carries the toolchain and the isolation"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "252501b4"
+    source: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T00:49:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/reviewer.md#lead-decisions (L12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

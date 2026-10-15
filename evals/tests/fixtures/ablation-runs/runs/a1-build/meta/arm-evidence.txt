@@ -1,0 +1,5 @@
+base_commit=eb403b9776aa896ee747be92551bcc80f9e92d99
+mount=whole_tree
+beads=opt-out
+manifest_files=5
+manifest_sha256=8c267cb13e8a3d9a4f1bf503b7c95d4fb2349b6c19919c6d6d9efdd4a0520925

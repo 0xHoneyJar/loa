@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ablation-row.sh — one runs.jsonl row per ablation run (cycle-130 FR-6, SDD §3.1, §5.8)
+#
+# Joins a run directory's meta/pipeline.json (pipeline-run.sh), its eval/ MODELINV
+# and cost ledgers, the dissent envelopes under
+# sandbox/grimoires/loa/a2a/sprint-1/adversarial-{review,audit}.json, the
+# transcripts' tool inputs, grade.json (Sprint 259's grader; optional) and the batch
+# MANIFEST.json (optional) into one SDD §3.1 row, or validates a runs.jsonl file.
+#
+# The arm comes from the batch manifest's `arm_map[run_id]`, else from meta/arm,
+# else from meta/pipeline.json — never from sandbox/ (DEC-0413). A manifest arm that
+# disagrees with meta/arm is refused (exit 2).
+#
+# Derived fields:
+#   status          pipeline status (completed | agent_error | cap_failure | interrupted |
+#                   infrastructure_error; a `running` record — driver killed — reads
+#                   interrupted); grade.json `contaminated` non-null → contaminated;
+#                   --status overrides (transport_error is the batch runner's call)
+#   effort_effective per phase: the distinct MODELINV `payload.effort_effective` values of
+#                   the rows the phase wrote (its `modelinv_lines` range), comma-joined;
+#                   null when no cheval hop ran (DEC-0419)
+#   degraded        true when, for any executed phase, (1) a models_used key differs from
+#                   model_requested (ids compared without the Bedrock region prefix),
+#                   (2) refusal_fallbacks is non-empty, (3) a MODELINV row's
+#                   effort_effective differs from the effort it requested (`payload.effort`,
+#                   else the phase's effort_requested), or (4) a dissent envelope's
+#                   verdict_quality.status is DEGRADED or its completed voices are fewer
+#                   than planned; degraded_reason lists every cause ("; "-joined)
+#   voices_run      {review, audit} from the envelopes ({planned, completed, quality});
+#                   null when neither envelope exists (A0, A4)
+#   zone_violations {dot_claude_writes: [{phase, tool, path}]} from Write/Edit/MultiEdit/
+#                   NotebookEdit tool inputs under .claude/ in transcripts/events-*.jsonl
+#   cost_usd        Σ phase cost_usd (result.total_cost_usd) + Σ phase ledger_cost_usd
+#   stalls          number of phases that timed out
+#
+# Usage:
+#   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
+#                   [--status S] [--attempts N] [--retry-reason R] [--out runs.jsonl]
+#   ablation-row.sh --validate runs.jsonl [--allow-ungraded]
+#
+# Options:
+#   --run-dir D        the run directory (meta/, sandbox/, transcripts/, eval/)
+#   --task-yaml F      the task's task.yaml (id, type)
+#   --grade F          grade.json (default <run-dir>/grade.json when present; absent →
+#                      every grade field null, a smoke row)
+#   --manifest F       batch MANIFEST.json (arm_map, batch, fingerprint, image_digest,
+#                      suite_manifest_sha256, suite_version, agy_opt_in)
+#   --status S         override the derived status (one of the seven)
+#   --attempts N       attempts including transport retries (default 1)
+#   --retry-reason R   the retry's reason (default null)
+#   --out F            append the row to F (flock when available); default stdout
+#   --validate F       check every row's fields, types and enums; exit 1 on the first
+#                      bad row naming its line number
+#   --allow-ungraded   with --validate: accept rows whose grade fields are all null
+#
+# Exit codes:
+#   0  row written / file valid
+#   1  --validate found a bad row
+#   2  usage error, unreadable input, arm mismatch
+#
+# Tested by evals/tests/ablation-row.bats (fixture runs under
+# evals/tests/fixtures/ablation-runs/).
+# =============================================================================
+set -euo pipefail
+export LC_ALL=C
+
+RUN_DIR="" TASK_YAML="" GRADE="" MANIFEST="" STATUS_OVERRIDE="" ATTEMPTS=1 RETRY_REASON="" OUT=""
+VALIDATE="" ALLOW_UNGRADED=false
+usage() { echo "ablation-row.sh: $*" >&2; exit 2; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --run-dir)        RUN_DIR="${2:-}"; shift 2 ;;
+    --task-yaml)      TASK_YAML="${2:-}"; shift 2 ;;
+    --grade)          GRADE="${2:-}"; shift 2 ;;
+    --manifest)       MANIFEST="${2:-}"; shift 2 ;;
+    --status)         STATUS_OVERRIDE="${2:-}"; shift 2 ;;
+    --attempts)       ATTEMPTS="${2:-}"; shift 2 ;;
+    --retry-reason)   RETRY_REASON="${2:-}"; shift 2 ;;
+    --out)            OUT="${2:-}"; shift 2 ;;
+    --validate)       VALIDATE="${2:-}"; shift 2 ;;
+    --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
+    -h|--help)        sed -n '2,62p' "$0"; exit 0 ;;
+    *) usage "unknown argument: $1" ;;
+  esac
+done
+
+STATUSES='["completed","cap_failure","agent_error","transport_error","infrastructure_error","interrupted","contaminated"]'
+
+# --- validate ----------------------------------------------------------------------
+if [[ -n "$VALIDATE" ]]; then
+  [[ -f "$VALIDATE" && -r "$VALIDATE" ]] || usage "cannot read $VALIDATE"
+  n=0 bad=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    err="$(jq -r --argjson st "$STATUSES" --argjson ungraded "$ALLOW_UNGRADED" '
+      def t(v; ts): (v | type) as $ty | (ts | index($ty)) != null;
+      def need(k; ts): if has(k) | not then "missing field \(k)"
+                       elif t(.[k]; ts) | not then "field \(k) has type \(.[k] | type), want \(ts | join("|"))"
+                       else empty end;
+      def num: ["number"]; def numn: ["number","null"]; def str: ["string"]; def strn: ["string","null"];
+      def objn: ["object","null"]; def booln: ["boolean","null"];
+      if type != "object" then "row is not a JSON object" else (.) as $row |
+      [ need("schema_version"; num), need("run_id"; str), need("batch"; str), need("arm"; str),
+        need("task_id"; str), need("task_type"; str), need("trial"; num), need("source_commit"; str),
+        need("suite_manifest_sha256"; strn), need("suite_version"; ["number","string","null"]),
+        need("host_fingerprint"; strn), need("image_digest"; strn), need("agy_opt_in"; ["boolean"]),
+        need("started"; str), need("finished"; strn), need("phases"; ["array"]),
+        need("voices_run"; objn), need("hidden_tests"; objn), need("hidden_test_pass_rate"; numn),
+        need("defects_seeded"; numn), need("defects_caught"; numn), need("defect_catch_rate"; numn),
+        need("flags"; numn), need("false_positives"; numn), need("verdict"; strn),
+        need("verdict_accuracy"; booln), need("verdict_accuracy_review"; booln), need("verdict_accuracy_audit"; booln),
+        need("regressions"; numn), need("diff_lines"; numn), need("files_changed"; numn),
+        need("cost_usd"; num), need("wall_clock_ms"; num), need("tokens_in"; num), need("tokens_out"; num),
+        need("stalls"; num), need("attempts"; num), need("retry_reason"; strn),
+        need("degraded"; ["boolean"]), need("degraded_reason"; strn), need("status"; str),
+        need("snapshots"; ["object"]), need("contaminated"; objn), need("zone_violations"; ["object"]) ][0]
+      // (if (["feature-build","bug-fix","refactor","review-catch"] | index($row.task_type)) == null
+           then "task_type \(.task_type) is not one of feature-build|bug-fix|refactor|review-catch" else empty end)
+      // (if ($st | index($row.status)) == null then "status \(.status) is not one of \($st | join("|"))" else empty end)
+      // (if (.zone_violations.dot_claude_writes | type) != "array" then "zone_violations.dot_claude_writes is not an array" else empty end)
+      // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
+      // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
+           then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
+      // ([.snapshots | to_entries[] | select((.value | type) != "string" and (.value | type) != "null")
+           | "snapshots.\(.key) is not a string"][0])
+      // ([.phases | to_entries[] | .key as $i | .value as $p
+           | ( if ($p | type) != "object" then "phases[\($i)] is not an object" else
+               ([ ($p | need("name"; str)), ($p | need("session_id"; strn)), ($p | need("model_requested"; str)),
+                  ($p | need("models_used"; ["object"])), ($p | need("effort_requested"; strn)),
+                  ($p | need("effort_effective"; strn)), ($p | need("tokens_in"; num)), ($p | need("tokens_out"; num)),
+                  ($p | need("cache_read_tokens"; num)), ($p | need("cache_creation_tokens"; num)),
+                  ($p | need("cost_usd"; num)), ($p | need("duration_ms"; num)), ($p | need("num_turns"; num)),
+                  ($p | need("exit"; num)), ($p | need("refusal_fallbacks"; ["array"])) ][0]
+                | if . then "phases[\($i)]: \(.)" else empty end) end )][0])
+      // (if $ungraded then empty
+          elif (["completed","cap_failure","agent_error","contaminated"] | index($row.status)) == null then empty
+          elif .task_type == "review-catch" then
+            (if (.defect_catch_rate | type) != "number" then "graded review-catch row has no defect_catch_rate (use --allow-ungraded for smoke rows)" else empty end)
+          else
+            (if (.hidden_tests | type) != "object" or (.hidden_test_pass_rate | type) != "number"
+               then "graded build row has no hidden_tests (use --allow-ungraded for smoke rows)" else empty end)
+          end)
+      // empty
+      end' 2>/dev/null <<<"$line")" || err="line is not valid JSON"
+    if [[ -n "$err" ]]; then
+      echo "ablation-row.sh: $VALIDATE:$n: $err" >&2
+      exit 1
+    fi
+  done < "$VALIDATE"
+  echo "ablation-row.sh: $VALIDATE: $n rows valid"
+  exit 0
+fi
+
+# --- build a row -------------------------------------------------------------------------
+[[ -n "$RUN_DIR" ]] || usage "missing --run-dir (or --validate)"
+[[ -n "$TASK_YAML" ]] || usage "missing --task-yaml"
+[[ -f "$TASK_YAML" ]] || usage "task yaml not found: $TASK_YAML"
+PIPE="$RUN_DIR/meta/pipeline.json"
+[[ -f "$PIPE" ]] || usage "no meta/pipeline.json under $RUN_DIR"
+jq -e 'type == "object"' "$PIPE" >/dev/null 2>&1 || usage "meta/pipeline.json does not parse"
+[[ "$ATTEMPTS" =~ ^[0-9]+$ ]] || usage "--attempts must be an integer"
+if [[ -n "$STATUS_OVERRIDE" ]] && ! jq -e --arg s "$STATUS_OVERRIDE" 'index($s) != null' <<<"$STATUSES" >/dev/null; then
+  usage "--status must be one of $(jq -r 'join("|")' <<<"$STATUSES")"
+fi
+[[ -n "$GRADE" ]] || { [[ -f "$RUN_DIR/grade.json" ]] && GRADE="$RUN_DIR/grade.json"; } || true
+GRADE_JSON=null
+if [[ -n "$GRADE" ]]; then
+  [[ -f "$GRADE" ]] || usage "grade file not found: $GRADE"
+  GRADE_JSON="$(jq -c '.' "$GRADE")" || usage "grade file does not parse: $GRADE"
+fi
+MAN_JSON='{}'
+if [[ -n "$MANIFEST" ]]; then
+  [[ -f "$MANIFEST" ]] || usage "manifest not found: $MANIFEST"
+  MAN_JSON="$(jq -c '.' "$MANIFEST")" || usage "manifest does not parse: $MANIFEST"
+fi
+TASK_JSON="$(yq -o=json '.' "$TASK_YAML")" || usage "task yaml does not parse"
+PIPE_JSON="$(jq -c '.' "$PIPE")"
+RUN_ID="$(jq -r '.run_id // ""' <<<"$PIPE_JSON")"
+
+# arm: manifest arm_map > meta/arm > pipeline.json; never sandbox/
+META_ARM=""
+[[ -f "$RUN_DIR/meta/arm" ]] && META_ARM="$(sed -n '1p' "$RUN_DIR/meta/arm" | tr -d '[:space:]')"
+MAN_ARM="$(jq -r --arg r "$RUN_ID" '.arm_map[$r] // empty' <<<"$MAN_JSON")"
+if [[ -n "$MAN_ARM" && -n "$META_ARM" && "$MAN_ARM" != "$META_ARM" ]]; then
+  usage "arm mismatch for $RUN_ID: manifest arm_map says $MAN_ARM, meta/arm says $META_ARM"
+fi
+ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' <<<"$PIPE_JSON")}}"
+[[ -n "$ARM" ]] || usage "no arm for $RUN_ID (manifest arm_map, meta/arm, pipeline.json)"
+
+# MODELINV rows as an array with their 1-based line numbers
+MINV='[]'
+if [[ -f "$RUN_DIR/eval/model-invoke.jsonl" ]]; then
+  MINV="$(awk '{print NR "\t" $0}' "$RUN_DIR/eval/model-invoke.jsonl" \
+          | jq -R -n -c '[inputs | split("\t") | {line: (.[0] | tonumber), row: (.[1:] | join("\t") | fromjson? // null)}
+                         | select(.row != null)]')"
+fi
+
+envelope() {  # envelope <gate> → JSON or null
+  local f="$RUN_DIR/sandbox/grimoires/loa/a2a/sprint-1/adversarial-$1.json"
+  [[ -f "$f" ]] || f="$RUN_DIR/eval/adversarial-$1.json"
+  if [[ -f "$f" ]] && jq -e 'type == "object"' "$f" >/dev/null 2>&1; then jq -c '.' "$f"; else echo null; fi
+}
+ENV_REVIEW="$(envelope review)"
+ENV_AUDIT="$(envelope audit)"
+
+# Write/Edit tool inputs under .claude/ from every transcript
+DOT_WRITES='[]'
+shopt -s nullglob
+ev_files=("$RUN_DIR"/transcripts/events-*.jsonl)
+shopt -u nullglob
+if [[ ${#ev_files[@]} -gt 0 ]]; then
+  DOT_WRITES="$(for f in "${ev_files[@]}"; do
+      lab="$(basename "$f" .jsonl)"; lab="${lab#events-}"
+      jq -R -c --arg ph "$lab" 'fromjson? | select(type == "object" and .type == "assistant") | .message.content[]?
+        | select(type == "object" and .type == "tool_use"
+                 and (.name == "Write" or .name == "Edit" or .name == "MultiEdit" or .name == "NotebookEdit"))
+        | {phase: $ph, tool: .name, path: (.input.file_path // .input.notebook_path // "")}
+        | select(.path | test("(^|/)\\.claude/"))' "$f" 2>/dev/null || true
+    done | jq -s -c '.')"
+fi
+
+ROW="$(jq -n -c \
+  --argjson p "$PIPE_JSON" --argjson task "$TASK_JSON" --argjson g "$GRADE_JSON" --argjson m "$MAN_JSON" \
+  --argjson minv "$MINV" --argjson er "$ENV_REVIEW" --argjson ea "$ENV_AUDIT" --argjson dot "$DOT_WRITES" \
+  --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
+  --arg retry_reason "$RETRY_REASON" '
+  def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
+  def ms(ts): if ts == null then null else (ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000) end;
+  def voices(e): if e == null then null else
+      {planned: (e.verdict_quality.voices_planned // e.voices_planned // null),
+       completed: (e.verdict_quality.voices_succeeded // e.voices_succeeded // null),
+       quality: (e.verdict_quality.status // e.status // null),
+       companion_planned: e.metadata.companion_voice.planned} end;
+  ($p.phases // [] | map(select(.skipped != true))) as $ran
+  | [ $ran[] as $ph
+      | ($minv | map(select(.line >= ($ph.modelinv_lines.from // 1e18) and .line <= ($ph.modelinv_lines.to // -1)) | .row)) as $rows
+      | ([$rows[] | .payload.effort_effective // .effort_effective // empty] | unique) as $eff
+      | $ph + {
+          effort_effective: (if ($eff | length) == 0 then null else ($eff | join(",")) end),
+          voice_cost_usd: (([$rows[] | .payload.cost_micro_usd // .cost_micro_usd // 0] | add // 0) / 1000000),
+          effort_mismatches: [ $rows[] | (.payload // .) as $r
+                               | ($r.effort // $ph.effort_requested // null) as $want
+                               | select($r.effort_effective != null and $want != null and $r.effort_effective != $want)
+                               | "\($r.calling_primitive // "hop") effort \($want)->\($r.effort_effective)" ],
+          model_mismatches: [ ($ph.models_used // {}) | keys[] | select((. | norm_model) != ($ph.model_requested | norm_model)) ]
+        } ] as $phases
+  | ( [ $phases[] | .label as $l
+        | .model_requested as $req
+        | ( .model_mismatches[] | "\($l): model \(.) used, \($req) requested" ),
+          ( if (.refusal_fallbacks | length) > 0 then "\($l): refusal fallback" else empty end ),
+          ( .effort_mismatches[] | "\($l): MODELINV \(.)" ) ]
+      + [ (["review", $er], ["audit", $ea]) | (.) as [$gate, $e] | select($e != null)
+          | voices($e) as $v
+          | ( if $v.quality == "DEGRADED" then "\($gate) envelope verdict_quality DEGRADED" else empty end ),
+            ( if ($v.planned != null and $v.completed != null and $v.completed < $v.planned)
+                then "\($gate) envelope \($v.completed) of \($v.planned) voices completed" else empty end ) ]
+    ) as $why
+  | ($p.status // "infrastructure_error" | if . == "running" then "interrupted" else . end) as $pst
+  | (if $status_override != "" then $status_override
+     elif ($g != null and ($g.contaminated // null) != null) then "contaminated"
+     else $pst end) as $status
+  | ($g.hidden_tests // null | if type == "object" then {passed: (.passed // 0), total: (.total // 0)} else null end) as $ht
+  | ($g.recall // null) as $rc
+  | (if $rc == null then null else ($rc.defects_seeded // $rc.seeded // $rc.total // null) end) as $seeded
+  | (if $rc == null then null else ($rc.defects_caught // $rc.caught // null) end) as $caught
+  | {
+      schema_version: 1,
+      run_id: ($p.run_id // ""),
+      batch: ($m.batch // $m.batch_name // "unbatched"),
+      arm: $arm,
+      task_id: ($task.id // $p.task_id // ""),
+      task_type: ($task.type // $p.task_type // ""),
+      trial: ($p.trial // 0),
+      source_commit: ($p.source_commit // $m.source_commit // ""),
+      suite_manifest_sha256: ($m.suite_manifest_sha256 // null),
+      suite_version: ($m.suite_version // $p.suite_version // $task.suite_version // null),
+      host_fingerprint: ($m.fingerprint // $p.fingerprint // null),
+      image_digest: ($m.image_digest // $p.image_digest // null),
+      executor_mode: ($m.executor_mode // $p.executor_mode // null),
+      agy_opt_in: ($m.agy_opt_in // false),
+      started: ($p.started // ""),
+      finished: ($p.finished // null),
+      phases: [ $phases[] | {name, label, session_id, model_requested, models_used, effort_requested, effort_effective,
+                             tokens_in: (.tokens_in // 0), tokens_out: (.tokens_out // 0),
+                             cache_read_tokens: (.cache_read_tokens // 0), cache_creation_tokens: (.cache_creation_tokens // 0),
+                             cost_usd: (.cost_usd // 0), voice_cost_usd, ledger_cost_usd: (.ledger_cost_usd // 0),
+                             duration_ms: (.duration_ms // 0), num_turns: (.num_turns // 0), exit: (.exit // -1),
+                             timed_out: (.timed_out // false), refusal_fallbacks: (.refusal_fallbacks // []),
+                             snapshot: (.snapshot // null), verdict: (.verdict // null)} ],
+      voices_run: (if $er == null and $ea == null then null else {review: voices($er), audit: voices($ea)} end),
+      hidden_tests: $ht,
+      hidden_test_pass_rate: (if $ht == null or $ht.total == 0 then null else ($ht.passed / $ht.total) end),
+      defects_seeded: $seeded,
+      defects_caught: $caught,
+      defect_catch_rate: (if $rc == null then null
+                          else ($rc.recall // $rc.rate // $rc.defect_catch_rate
+                                // (if $seeded != null and $seeded > 0 and $caught != null then $caught / $seeded else null end)) end),
+      flags: ($rc.flags // $g.flags // null),
+      false_positives: ($g.false_positives // null | if type == "array" then length else . end),
+      verdict: ($g.verdict | if type == "object" then .value else . end // null),
+      verdict_accuracy: ($g.verdict_accuracy | if type == "object" then .value else . end),
+      verdict_accuracy_review: (if ($g.verdict_accuracy_review | type) == "boolean" then $g.verdict_accuracy_review
+                                else $g.verdict_accuracy_per_gate.review end),
+      verdict_accuracy_audit: (if ($g.verdict_accuracy_audit | type) == "boolean" then $g.verdict_accuracy_audit
+                               else $g.verdict_accuracy_per_gate.audit end),
+      regressions: ($g.regressions // null | if type == "object" then ((.newly_failing // []) | length)
+                                            elif type == "array" then length else . end),
+      diff_lines: ($g.diff_lines // null),
+      files_changed: ($g.files_changed // null),
+      cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),
+      wall_clock_ms: (if $p.started != null and $p.finished != null then (ms($p.finished) - ms($p.started))
+                      else ([$phases[] | .wall_ms // .duration_ms // 0] | add // 0) end),
+      tokens_in: ([$phases[] | .tokens_in // 0] | add // 0),
+      tokens_out: ([$phases[] | .tokens_out // 0] | add // 0),
+      stalls: ([$phases[] | select(.timed_out == true)] | length),
+      attempts: $attempts,
+      retry_reason: (if $retry_reason == "" then null else $retry_reason end),
+      degraded: (($why | length) > 0),
+      degraded_reason: (if ($why | length) == 0 then null else ($why | join("; ")) end),
+      status: $status,
+      cap_phase: ($p.cap_phase // null),
+      snapshots: {implement: ($p.snapshots.implement // null), fix1: ($p.snapshots.fix1 // null), fix2: ($p.snapshots.fix2 // null)},
+      contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)} else null end),
+      zone_violations: {dot_claude_writes: $dot}
+    }')"
+
+if [[ -n "$OUT" ]]; then
+  mkdir -p "$(dirname "$OUT")"
+  if command -v flock >/dev/null 2>&1; then
+    { flock -x 9; printf '%s\n' "$ROW" >> "$OUT"; } 9>>"$OUT.lock"
+  else
+    printf '%s\n' "$ROW" >> "$OUT"
+  fi
+else
+  printf '%s\n' "$ROW"
+fi

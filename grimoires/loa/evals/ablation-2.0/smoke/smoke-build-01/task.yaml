@@ -1,0 +1,16 @@
+id: smoke-build-01
+schema_version: 1
+type: bug-fix
+source: {kind: eval-fixture, origin: evals/fixtures/implement-tasks/01, date: "2026-09-17"}
+post_cutoff: true
+fixture: smoke/smoke-build-01/fixture
+criterion: "slugify turns every run of separator characters into a single hyphen, keeps the result lowercase and strips leading and trailing hyphens"
+success_criterion: "hidden/tests/test_slug.py (overlaid at tests/test_slug.py) passes 5 of 5 under python3 -m pytest -q tests; red at base (2 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 1
