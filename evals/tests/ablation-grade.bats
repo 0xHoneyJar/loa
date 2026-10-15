@@ -464,9 +464,6 @@ WebSearch	{"query": "0xhoneyjar/loa ablation tasks"}	repo_name
 Read	{"file_path": "/home/operator/code/loa/README.md"}	outside_path
 Bash	{"command": "cat /home/operator/notes.txt 2>/dev/null"}	outside_path
 Glob	{"pattern": "/srv/**/*.py"}	outside_path
-Bash	{"command": "cat ~/.aws/credentials"}	outside_path
-Bash	{"command": "cat $HOME/.ssh/id_rsa"}	outside_path
-Bash	{"command": "cat ${HOME}/.codex/auth.json"}	outside_path
 Bash	{"command": "cat /proc/self/environ"}	outside_path
 Bash	{"command": "tr '\\0' ' ' < /proc/1/cmdline"}	outside_path
 Read	{"file_path": "/proc/self/maps"}	outside_path
@@ -474,7 +471,6 @@ Bash	{"command": "ls /var/run/docker.sock"}	outside_path
 Bash	{"command": "cd /root/ && cat .ssh/id_rsa"}	outside_path
 Bash	{"command": "cd /root && cat .ssh/id_rsa"}	outside_path
 Bash	{"command": "ls /home"}	outside_path
-Read	{"file_path": "~/.aws/credentials"}	outside_path
 EOF
   # first hit in phase order: IMPLEMENT before REVIEW whatever the file names sort to
   RD="$T/order"; make_run rc-x "$RD"
@@ -500,6 +496,22 @@ EOF
   tool_use "$RD" IMPLEMENT Bash '{"command": "echo done"}'
   grade "$RD" rc-x
   [ "$(G '.history_probes')" = 0 ]
+  # grader 1.2.2 (DEC-0541): in container mode ~/ is the container home (allowed), a heredoc body
+  # is data (a path in written prose is not a reach), sed/awk delimiters are not paths; a real
+  # reach outside the heredoc and a hidden word inside one are still hits
+  RD="$T/c122"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "ls ~/.cargo/bin 2>/dev/null; cat $HOME/.codex/config.toml"}'
+  tool_use "$RD" IMPLEMENT Bash '{"command": "sed -n '"'"'/^flatline_protocol:/,/^[a-z_]*:$/p'"'"' .loa.config.yaml | head"}'
+  tool_use "$RD" IMPLEMENT Bash '{"command": "cat > notes.md <<EOF\nSee /home/operator/notes and the `<<<`/arithmetic/quote-parity check\nEOF"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated')" = null ]
+  tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nthe hidden cases\nEOF"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "REVIEW hidden" ]
+  RD="$T/c122b"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "cat > notes.md <<EOF\nx\nEOF\ncat /home/operator/notes"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated.pattern')" = outside_path ]
 }
 
 @test "AG-11 contamination: ordinary container and host commands are clean; host paths are judged against the sandbox root" {

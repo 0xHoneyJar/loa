@@ -199,6 +199,10 @@
 #    contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.2 (DEC-0541): heredoc bodies are stripped before the path-word scan (written file
+# text is data; the hidden/suite/repo scans still read it); ~/, $HOME/ and ${HOME}/ are outside
+# in host mode only (the container home /home/evaluser is an allowed root); a one-component
+# word with a trailing slash (/,/ /x/ sed and awk delimiters) follows the same single-component rule.
 # grader 1.1.0 (Sprint 259 fix round): refactor hidden_tests = the structural check,
 # exit-status-aware green, symlink filtering; 1.0.0 grades of refactor tasks differ.
 # Round 2: snapshot trees get the same realpath symlink pass as the final copy (counted in
@@ -244,7 +248,7 @@ case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
 import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 
-GRADER_VERSION = "1.2.1"
+GRADER_VERSION = "1.2.2"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1334,7 +1338,7 @@ def allowed_roots(run_dir, init_cwds):
 
 def outside(p, roots):
     if p.startswith(HOME_PREFIXES):
-        return True
+        return home_word_outside()
     p = os.path.normpath(p)
     if SENSITIVE.match(p):
         return True
@@ -1345,6 +1349,21 @@ HISTORY_PROBES = [0]   # git log --all / git reflog seen in this grade (DEC-0540
 # a one-component absolute word is a Loa slash command or a flag-like token unless it names a
 # directory that holds data (DEC-0540); a second component makes any word a path candidate
 SENSITIVE_SINGLE = {"root", "home", "mnt", "media", "srv"}
+
+
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n(?:.*?\n)*?\s*\2[ \t]*(?=\n|$)", re.S)
+
+
+def strip_heredocs(val):
+    """the command without its heredoc bodies (file text being written is data, not a path the
+    agent reached; the hidden/suite/repo scans still read the whole value) — 1.2.2, DEC-0541"""
+    return HEREDOC.sub("<<HEREDOC", val)
+
+
+def home_word_outside():
+    """~/, $HOME/ and ${HOME}/ are outside in host mode only: in the container they resolve under
+    /home/evaluser, an allowed root (1.2.2, DEC-0541)"""
+    return A.executor == "host"
 
 
 def check_value(tool, field, val, roots):
@@ -1359,22 +1378,23 @@ def check_value(tool, field, val, roots):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
     cands = []
     if field in PATH_FIELDS or (tool == "Glob" and field == "pattern"):
-        if (val.startswith("/") and not val.startswith("//")) or val.startswith(HOME_PREFIXES):
+        if val.startswith("/") and not val.startswith("//"):
             cands.append(val)
-    elif tool == "Bash":
-        if HOME_WORD.search(val):
+        elif val.startswith(HOME_PREFIXES) and home_word_outside():
             return "outside_path"
-        for m in ABS_WORD.finditer(val):
+    elif tool == "Bash":
+        body = strip_heredocs(val)
+        if home_word_outside() and HOME_WORD.search(body):
+            return "outside_path"
+        for m in ABS_WORD.finditer(body):
             w = m.group(1)
             if w.startswith("//"):
                 continue
-            # a one-component /x/ word is a regex only after s y = ~ (sed/perl style) or a single
-            # quote (an awk or grep pattern); anything else (cd /root/) is a path candidate
-            if re.match(r"^/[^/]+/$", w) and m.start(1) > 0 and val[m.start(1) - 1] in "sy=~'":
-                continue
-            # DEC-0540: /review-sprint, /implement, /tmp-like single tokens are commands or
-            # roots, not leakage; only a data-holding single component stays a candidate
-            if re.match(r"^/[^/]+$", w) and w[1:] not in SENSITIVE_SINGLE:
+            # DEC-0540/0541: a one-component word (/review-sprint, /implement, a sed or awk
+            # delimiter such as /,/ or /x/) is a command token or a regex, not leakage, unless
+            # the component names a data-holding root; a second component makes it a candidate
+            one = re.match(r"^/([^/]+)/?$", w)
+            if one and one.group(1) not in SENSITIVE_SINGLE:
                 continue
             cands.append(w)
     for c in cands:

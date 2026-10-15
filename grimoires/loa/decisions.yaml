@@ -16984,3 +16984,355 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0531"
+    created_at: "2026-10-15T08:34:10Z"
+    updated_at: "2026-10-15T08:34:10Z"
+    phase: "implementation"
+    category: "process"
+    summary: "took-effect runs on completed, agent_error and cap_failure runs only; drift, took-effect FAIL, interrupted and transport rows are rowed without grading (G-3)"
+    decision: "An infrastructure error before the mount would otherwise pause an arm for a reason that is not a toggle; rows that cannot score (interrupted, transport_error, infrastructure_error) are written with --status and never graded."
+    rationale: "a pause must mean a toggle that stopped taking effect (DEC-0418), not a missing docker image"
+    alternatives_considered:
+      - option: "took-effect on every run"
+        rejected_because: "pauses on infrastructure noise"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:34:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0532"
+    created_at: "2026-10-15T08:34:12Z"
+    updated_at: "2026-10-15T08:34:12Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Per-arm trial counts are not a runner flag: cut-ladder rungs that lower one arm's trials run as separate batches with --arms and --trials-* (G-6)"
+    decision: "run-ablation.sh takes global per-type trial counts; rung 2 (A2, A3 build 3 → 2) and rung 3 (A3 review 3 → 2) are expressed as additional batches per arm, each with its own MANIFEST and the same pre_registration_ref."
+    rationale: "the binding interface named per-type counts; batches are the unit of provenance anyway"
+    alternatives_considered:
+      - option: "a per-arm trials map flag"
+        rejected_because: "not in the agreed interface; the lead schedules rungs as batches"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:34:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0533"
+    created_at: "2026-10-15T08:34:55Z"
+    updated_at: "2026-10-15T08:34:55Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "run_id is the plan's identity; a retry or resumed rerun gets a fresh -r<k> run dir; a rowed run_id is never rerun (G-1)"
+    decision: "The runner keeps run_id stable across a transport retry (-r2 dir, attempts 2, retry_reason) and a --resume rerun of a trial without a row; a run_id already rowed (incl. interrupted or excluded) is done, so no duplicate run_id can enter runs.jsonl."
+    rationale: "DEC-0405's rerun applies to trials without a row; rows are the record and ablation-row --validate refuses a duplicated run_id"
+    alternatives_considered:
+      - option: "rerun excluded rows under the same run_id"
+        rejected_because: "duplicate run_ids in the tracked rows file"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:34:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0534"
+    created_at: "2026-10-15T08:34:57Z"
+    updated_at: "2026-10-15T08:34:57Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Drift guard: phase models and the init claude_code_version must match the manifest; a refusal fallback inside the pinned set is degraded, not drift (G-2)"
+    decision: "Every executed phase's model_requested must equal MANIFEST phase_models[name], every models_used key must be among the manifest's phase models, and the transcripts' system/init claude_code_version must equal MANIFEST cli_version (image_digest compared when no init version exists); a mismatch rows the trial infrastructure_error, records STATUS drift, launches nothing more and fails the batch after the running trials end."
+    rationale: "DEC-0407 fixes CLI version and model ids per batch; a provider refusal fallback inside the pinned set is a degraded row the report excludes, not a batch-level drift"
+    alternatives_considered:
+      - option: "fail on any models_used key not equal to model_requested"
+        rejected_because: "refusal fallbacks would fail whole batches instead of excluding the row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:34:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0535"
+    created_at: "2026-10-15T08:34:59Z"
+    updated_at: "2026-10-15T08:34:59Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Spend: cap_failure charged max(cost, run_cap); a transport first attempt counts; est_next keyed by arm × kind with a pool and cost_hint fallback (G-4)"
+    decision: "run-ablation.sh reuses lib/arms-common.sh's reservation and cut logic with the arm × (build | review-catch) key; a cap_failure counts in assumed_cap_trials when its cost was below the cap; the first attempt of a retried transport failure is recorded in retries[].first_attempt_usd and spend.ledger_usd."
+    rationale: "DEC-0429 and the Sprint 258 audit (assumed-cap charge) applied to the batch runner"
+    alternatives_considered:
+      - option: "charge only reported costs"
+        rejected_because: "a trial that died without a cost would not count against the ceiling"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:34:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0536"
+    created_at: "2026-10-15T08:35:00Z"
+    updated_at: "2026-10-15T08:35:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Hard gate: 36 self-check PASS lines and no FAIL, a REVIEW.md in every task, the suite manifest; hashes in MANIFEST.json.gate; freeze --check gets --smoke (G-5)"
+    decision: "A non-smoke batch records the suite manifest, self-check log and sixteen REVIEW.md hashes in MANIFEST.json.gate (DEC-0435); --smoke skips the gate but keeps the freeze; the smoke- batch prefix is reserved for --smoke."
+    rationale: "the Sprint 259 exit criteria are enforced by the runner, not by memory"
+    alternatives_considered:
+      - option: "gate on the manifest alone"
+        rejected_because: "the self-check and the fairness reviews are the proof the suite is fit to run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:35:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-g.md#decision (G-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0537"
+    created_at: "2026-10-15T08:35:02Z"
+    updated_at: "2026-10-15T08:35:02Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Report bootstrap: percentile bootstrap of the mean paired difference, a fresh Random(seed) per interval; MDE = (z(0.95)+z(0.90)) sd/sqrt(n) (H-1)"
+    decision: "ablation-report.py uses random.Random(seed).choices for 10,000 resamples, one generator per interval so partial and final reads agree; [lo, hi] are the 5th/95th percentiles with linear interpolation and d the mean paired difference; the MDE is the paired-test formula (≈ 2.926 sd/√n), printed with the bootstrap half-width."
+    rationale: "the pre-registered rules fix the resamples and level; the per-interval generator keeps figures stable as arms are added"
+    alternatives_considered:
+      - option: "one generator for the whole report"
+        rejected_because: "an arm added later would change every earlier interval"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:35:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0538"
+    created_at: "2026-10-15T08:35:04Z"
+    updated_at: "2026-10-15T08:35:04Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Catch-rate defect identity comes from defects_missed when the row carries it, else each defect takes the row's aggregate rate (bd-yz1rd adds the field) (H-3)"
+    decision: "Until ablation-row.sh writes defects_missed from grade.json recall.missed, the per-defect unit keeps each defect's weight but loses within-task variance; the Sprint 261 bead adds the field so the bootstrap is exact."
+    rationale: "DEC-0399's defect unit needs per-defect outcomes the row does not yet carry"
+    alternatives_considered:
+      - option: "task unit for the catch rate"
+        rejected_because: "the pre-registered unit is the defect"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:35:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0539"
+    created_at: "2026-10-15T08:44:40Z"
+    updated_at: "2026-10-15T08:44:40Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Report rows: excluded set, last valid row per cell, excluded share over seen cells; smoke and unmanifested rows listed, never decided (H-2)"
+    decision: "Excluded = the rules' exclusion statuses plus transport_error and infrastructure_error, the degraded flag and ungraded scoring rows; pairwise drop is per task-trial index; trials absent in one arm (cut ladder) are not dropped from the other; excluded share = fully excluded cells / cells seen; A8 reads component-absent with the suite's evidence; expected false positives print as 0.3 per direction."
+    rationale: "DEC-0393 and DEC-0417 made operational; smoke rows never decide (DEC-0428)"
+    alternatives_considered:
+      - option: "excluded share over planned cells"
+        rejected_because: "planned counts live in the batch manifests, not the rows; seen cells are what the report can verify"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:44:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-h.md#decision-bullets (H-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0540"
+    created_at: "2026-10-15T08:54:44Z"
+    updated_at: "2026-10-15T08:54:44Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Contamination scan calibrated on the smoke, before any priority row: one-component /word tokens are commands, git history probes are telemetry (L30)"
+    decision: "The first graded smoke runs flagged Loa slash commands in report text (/review-sprint) as outside_path and the reviewing skill's git log --all as git_history; after the smoke batch ends the grader treats a one-component absolute word as a command token unless its component is root, home, mnt, media or srv, and records git log --all / git reflog as history_probes (a count) instead of contaminated — the sandbox is a fresh git init at base, so there is no history to leak; the smoke runs are re-graded from their run dirs and re-rowed; the remaining D-4.7 patterns stand."
+    rationale: "two of the first three graded runs were false positives on rules that model normal Loa operation, and with the 25 percent guard first every arm would read Inconclusive-by-degradation; the smoke exists to calibrate before the priority batch, and the pre-registration may be amended until the first decision-bearing row"
+    alternatives_considered:
+      - option: "keep the patterns and accept the exclusions"
+        rejected_because: "the excluded share would exceed the guard on every arm that reviews or reports, deciding nothing"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c02d12bb"
+    source: "grimoires/loa/NOTES.md#calibration-smoke-contamination (L30)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:54:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#calibration-smoke-contamination (L30)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0541"
+    created_at: "2026-10-15T10:14:38Z"
+    updated_at: "2026-10-15T10:14:38Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Grader 1.2.2 (calibration, before any priority row): heredoc bodies are data, ~/ is outside in host mode only, one-component /x and /x/ words are tokens (L31)"
+    decision: "After re-grading the calibration smoke under 1.2.1 three rows stayed contaminated on prose inside a heredoc (/arithmetic/quote-parity in an audit report), on ls ~/.cargo/bin inside the container (whose home is /home/evaluser, an allowed root) and on a sed address range /,/; grader 1.2.2 strips heredoc bodies before the path-word scan (the hidden, suite-path and repo-name scans still read them), treats ~/ /home/merlin/ ${HOME}/ as outside in host mode only, and applies the single-component rule to /x/ words too; the remaining D-4.7 patterns stand and the smoke is re-graded again."
+    rationale: "each class models normal Loa operation (written reports, a container home, sed ranges), none reaches hidden material, and the first priority-batch row has not been written"
+    alternatives_considered:
+      - option: "accept the three exclusions"
+        rejected_because: "the same prose and commands recur in every gate phase; the excluded share would pass the guard on every gated arm"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "2ef83aa8"
+    source: "grimoires/loa/NOTES.md#calibration-smoke-contamination (L31)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T10:14:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#calibration-smoke-contamination (L31)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
