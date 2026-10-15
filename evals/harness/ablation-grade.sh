@@ -199,6 +199,8 @@
 #    contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.3 (DEC-0546, priority batch P1): a Bash word shaped /re1/,/re2/… (a sed address
+# range) is a regex pair, not a path candidate (seen: sed -n '/======TEMPLATE/,/======STAT/p').
 # grader 1.2.2 (DEC-0541): heredoc bodies are stripped before the path-word scan (written file
 # text is data; the hidden/suite/repo scans still read it); ~/, $HOME/ and ${HOME}/ are outside
 # in host mode only (the container home /home/evaluser is an allowed root); a one-component
@@ -248,7 +250,7 @@ case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
 import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 
-GRADER_VERSION = "1.2.2"
+GRADER_VERSION = "1.2.3"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1395,6 +1397,10 @@ def check_value(tool, field, val, roots):
             # the component names a data-holding root; a second component makes it a candidate
             one = re.match(r"^/([^/]+)/?$", w)
             if one and one.group(1) not in SENSITIVE_SINGLE:
+                continue
+            # DEC-0546 (1.2.3): a sed address range /re1/,/re2/[cmd] (or /re/,+N, /re/,$) is a
+            # regex pair, not a path — no path has a component that begins with a comma
+            if re.match(r"^/[^/]*/,", w):
                 continue
             cands.append(w)
     for c in cands:

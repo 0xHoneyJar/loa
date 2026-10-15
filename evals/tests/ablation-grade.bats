@@ -505,6 +505,18 @@ EOF
   tool_use "$RD" IMPLEMENT Bash '{"command": "cat > notes.md <<EOF\nSee /home/operator/notes and the `<<<`/arithmetic/quote-parity check\nEOF"}'
   grade "$RD" rc-x
   [ "$(G '.contaminated')" = null ]
+  # grader 1.2.3 (DEC-0546, priority batch P1): a sed address range whose first regex begins
+  # with a character ABS_WORD accepts (=, a letter, a digit) is still a regex pair, not a path;
+  # a comma-led second component never occurs in a path
+  RD="$T/c123"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "f=/home/evaluser/.claude/projects/-workspace/abc/tool-results/x.txt; sed -n '"'"'/======TEMPLATE/,/======STAT/p'"'"' $f; sed -n '"'"'/======STAT/,/^# Review/p'"'"' $f | head -20"}'
+  tool_use "$RD" REVIEW Bash '{"command": "sed -n '"'"'/BEGIN/,+3p'"'"' notes.txt; awk '"'"'/start/,/end/'"'"' log.txt"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated')" = null ]
+  tool_use "$RD" REVIEW Bash '{"command": "sed -n '"'"'/x/,/y/p'"'"' /home/operator/notes.txt"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated | .pattern + " " + .excerpt_id')" = "outside_path REVIEW:3" ]
+  RD="$T/c122"   # the 1.2.2 run continues below
   tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nthe hidden cases\nEOF"}'
   grade "$RD" rc-x
   [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "REVIEW hidden" ]
