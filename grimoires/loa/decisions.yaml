@@ -16824,3 +16824,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0526"
+    created_at: "2026-10-15T07:07:11Z"
+    updated_at: "2026-10-15T07:07:11Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Grading container: named, --init, pids 256, 2g, 2 cpus, cap-drop ALL, no-new-privileges, kill deadline, docker kill/rm -f on a hung client (Y-2)"
+    decision: "exec_in_tree runs timeout --signal=TERM --kill-after=10 <T> inside docker run --rm --init --name ablgrade-<run>-<label>-<pid>-<n> --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges; the client deadline is T + 10 + max(5, min(60, T/2)); on expiry the process group is killed and docker kill then rm -f run by name; stdout is capped at 4 MiB keeping the first and last 2 MiB (output_truncated); LOA_EVAL_GRADE_TIMEOUT_S overrides T for tests."
+    rationale: "a test that ignores SIGTERM lived on and a killed docker client left the container writing into the tree later steps trust (MEDIUM-A1); pipeline-run.sh already runs phases this way"
+    alternatives_considered:
+      - option: "rely on timeout alone"
+        rejected_because: "timeout without --kill-after waits forever on a SIGTERM-ignoring process and the docker client kill does not stop the container"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05830914"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T07:07:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0527"
+    created_at: "2026-10-15T07:07:13Z"
+    updated_at: "2026-10-15T07:07:13Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Bounded, symlink-free reads of every agent byte (1 MiB node files, 16 MiB copies, 2 MiB readers); host mode opt-in; no credential store exempt (Y-3)"
+    decision: "node_text reads the grader-owned copy first and otherwise requires safe_rel + is_within and read_regular (O_RDONLY|O_NOFOLLOW|O_NONBLOCK, S_ISREG, 1 MiB); copy_tree and the snapshot tar filter skip regular files above 16 MiB (oversized_files_skipped); churn, gate_verdict, review_md_verdict, combined_findings and envelope_texts read at most 2 MiB and refuse symlinks; --executor host is refused unless LOA_EVAL_ALLOW_HOST_GRADING=1; the contamination allowlist no longer exempts ~/.aws ~/.codex ~/.claude.json ~/.claude, treats ~/ /home/merlin/ /home/merlin/ as outside and flags /proc/*/environ|cmdline|maps|mem and /var/run."
+    rationale: "stdout-printed node ids, sparse files and symlinks were host-side hazards (MEDIUM-A2, MEDIUM-A3); the CLI's own config reads never appear as tool_use events, so exempting credential stores only shielded the agent (LOW-A2)"
+    alternatives_considered:
+      - option: "derive test ids only from grader-owned copies and never open tree files"
+        rejected_because: "an agent may legitimately add tests; the bounded, validated read keeps their ordering while removing the hazard"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05830914"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T07:07:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-afix.md#decision-bullets (Y-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0528"
+    created_at: "2026-10-15T07:08:19Z"
+    updated_at: "2026-10-15T07:08:19Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 259 audit round 2 APPROVED by direct verification of 05830914 (grader 1.2.0); the sprint closes with the frozen suite at 30e1f2ad (L27)"
+    decision: "The auditor verified every round-1 fix against the tree and the 328 green cases (6 new, each shown failing before), reran the image self-check under the hardened container (36/36) and approved; Sprint 259 closes with sixteen frozen tasks, sixteen fairness reviews and grader 1.2.0."
+    rationale: "the three dissent runs were spent on review r1, review r2 and audit r1; Sprints 257 and 258 set the precedent of a directly verified second audit round"
+    alternatives_considered:
+      - option: "a fourth dissent run on the audit fix"
+        rejected_because: "the per-sprint ceiling is three and the fix diff is one file the auditor read line by line"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "05830914"
+    source: "grimoires/loa/a2a/sprint-259/auditor-sprint-feedback.md#round-2 (L27)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T07:08:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/auditor-sprint-feedback.md#round-2 (L27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

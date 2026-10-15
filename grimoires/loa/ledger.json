@@ -2576,9 +2576,9 @@
         {
           "global_id": 259,
           "local_label": "sprint-2",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-14T13:59:26Z",
-          "completed": null,
+          "completed": "2026-10-15T07:08:46Z",
           "theme": "Task suite and grader",
           "epic": "bd-b9hy5",
           "beads": [
@@ -2597,7 +2597,7 @@
         {
           "global_id": 260,
           "local_label": "sprint-3",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-14T13:59:26Z",
           "completed": null,
           "theme": "Runs",
@@ -3048,5 +3048,5 @@
     }
   ],
   "next_sprint_number": 263,
-  "last_updated": "2026-10-15T03:23:28Z"
+  "last_updated": "2026-10-15T07:08:46Z"
 }
