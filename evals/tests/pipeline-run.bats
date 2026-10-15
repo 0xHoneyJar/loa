@@ -466,6 +466,44 @@ EOF
   done
 }
 
+@test "frozen-suite layout: tasks/<id>/{task.yaml,fixture/,hidden/} — the sandbox holds no hidden* path and no file from hidden/ (AC-2.6, AC-5.5)" {
+  local d="$T/suite/tasks/bf-02" f
+  mkdir -p "$d/fixture/src" "$d/fixture/tests" "$d/hidden/tests" "$d/hidden/structural"
+  echo 'print(1)' > "$d/fixture/src/app.py"
+  printf 'import os, sys\nsys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))\n' > "$d/fixture/tests/conftest.py"
+  printf 'def test_prints_two():\n    assert "two" == "two"  # sealed-case-7f3a\n' > "$d/hidden/tests/test_app.py"
+  printf 'def test_shape():\n    pass  # sealed-shape-91c2\n' > "$d/hidden/structural/test_shape.py"
+  printf -- '--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-print(1)\n+print(2)  # sealed-patch-c0de\n' > "$d/hidden/reference.patch"
+  echo '{"files": [{"src": "tests/test_app.py", "dest": "tests/test_app.py"}]}' > "$d/hidden/manifest.json"
+  printf 'Make the app print two.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<'YAML'
+id: bf-02
+schema_version: 1
+type: bug-fix
+fixture: tasks/bf-02/fixture
+criterion: "the app prints two"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py]
+YAML
+  run_pr a1_full "$d/task.yaml"
+  [ "$status" -eq 0 ]
+  [ -f "$T/run/sandbox/src/app.py" ] && [ -f "$T/run/sandbox/tests/conftest.py" ]
+  run find "$T/run/sandbox" -path "$T/run/sandbox/.git" -prune -o -iname '*hidden*' -print
+  [ -z "$output" ]
+  [ ! -e "$T/run/sandbox/tests/test_app.py" ] && [ ! -e "$T/run/sandbox/reference.patch" ] && [ ! -e "$T/run/sandbox/manifest.json" ]
+  [ ! -e "$T/run/sandbox/structural" ] && [ ! -e "$T/run/sandbox/fixture" ] && [ ! -e "$T/run/sandbox/task.yaml" ]
+  # no byte of any hidden/ file reached the sandbox, its git history or the snapshots
+  for f in sealed-case-7f3a sealed-shape-91c2 sealed-patch-c0de; do
+    ! grep -rqF "$f" "$T/run/sandbox" "$T/run/snapshots" "$T/run/transcripts"
+  done
+  # git objects are compressed: search every commit of the sandbox repository by content and by path
+  local revs; revs="$(git -C "$T/run/sandbox" rev-list --all)"
+  [ -n "$revs" ]
+  ! git -C "$T/run/sandbox" grep -q -e 'sealed-' $revs --
+  ! git -C "$T/run/sandbox" log --all --name-only --format= | grep -qi 'hidden\|test_app\|reference.patch'
+}
+
 @test "leak guard: a task-brief naming a defect key is refused before any phase (exit 2)" {
   export STUB_BRIEF_EXTRA="see D01-overflow"
   run_pr a1_full

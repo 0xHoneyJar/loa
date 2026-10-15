@@ -16024,3 +16024,579 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0501"
+    created_at: "2026-10-15T04:40:40Z"
+    updated_at: "2026-10-15T04:40:40Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Bug-fix hidden tests overlay at tests/acceptance/ and refactor structural checks at tests/structure/; regression ignores the overlay directory (D-1)"
+    decision: "D's bug-fix tasks overlay hidden tests at tests/acceptance/<file> with test_command python3 -m pytest -q tests and regression_command the same with --ignore=tests/acceptance; refactor tasks overlay the structural check at tests/structure/<name>_test.py with test_command ignoring that directory and regression_command null."
+    rationale: "one tree, one runner; the regression check is the fixture suite whether or not the overlay is present, and the grader runs the structural check at its manifest dest"
+    alternatives_considered:
+      - option: "overlay hidden tests beside the fixture tests"
+        rejected_because: "the regression command could not exclude them without naming each file"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0502"
+    created_at: "2026-10-15T04:40:41Z"
+    updated_at: "2026-10-15T04:40:41Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "validate-suite.sh accepts source.churn as {files, insertions, deletions} of non-negative integers; other unknown source keys stay refused (D-2)"
+    decision: "The refactor tasks and the refactor seeder record churn under source.churn; VS-11 pins the shape and the refusal of any other unknown key."
+    rationale: "churn is the refactor type's recorded figure (AC-5.3) and belongs with the task's provenance"
+    alternatives_considered:
+      - option: "a top-level churn key"
+        rejected_because: "the schema fixed the top-level keys in Sprint 258; source.* is the provenance block"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0503"
+    created_at: "2026-10-15T04:40:43Z"
+    updated_at: "2026-10-15T04:40:43Z"
+    phase: "implementation"
+    category: "tooling"
+    summary: "The two seeders are thin bash wrappers over one python3 -I engine, evals/harness/lib/seed_tasks.py; a seeded TASK.md never carries test names (D-3)"
+    decision: "seed-bugfix-tasks.sh and seed-refactor-tasks.sh exec lib/seed_tasks.py (stdlib, argument vectors only, tasks built in a private temp dir and moved into place after the red/green proof and a no-secrets scan); TASK.md carries the sanitised subject, the failure count and the test command, overriding SDD §5.14's 'subject plus the test names' because validate-suite.sh refuses hidden stems."
+    rationale: "no harness script sources code and there is no eval; test names in the brief are a leak the validator already refuses"
+    alternatives_considered:
+      - option: "two independent bash seeders"
+        rejected_because: "the git, proof and sanitising logic is shared; one engine keeps it tested once"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0504"
+    created_at: "2026-10-15T04:40:44Z"
+    updated_at: "2026-10-15T04:40:44Z"
+    phase: "implementation"
+    category: "process"
+    summary: "The seeder proof runs under env -i PATH HOME=<tmp> LC_ALL=C plus PYTHONUSERBASE and PYTHONDONTWRITEBYTECODE=1 on the host; LOA_SEED_BATS names bats (D-4)"
+    decision: "The host's pytest lives only in the user site, so the proof passes PYTHONUSERBASE; the image has no user site, so the variable is harmless there; the lead's image self-check is the final proof."
+    rationale: "the Sprint 258 smoke showed python3 -I -s finds no pytest on this host"
+    alternatives_considered:
+      - option: "run the seeder proof in the image"
+        rejected_because: "implementers may not run docker; the lead reruns every proof inside the image"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-d.md#decisions (D-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0505"
+    created_at: "2026-10-15T04:40:46Z"
+    updated_at: "2026-10-15T04:40:46Z"
+    phase: "implementation"
+    category: "process"
+    summary: "bd-j4lwr (run-arms.sh --max-usd/--screen) is not a feature-build task; bd-8o5rx is the one real-history feature task with E's own reference patch (E-1)"
+    decision: "The --max-usd fixture would need .loa.config.yaml (a mount-owned path), the 22 MB review-prs corpus, the stub executor and a git source commit, and its Sprint 258 diff is 172 lines; feature-01 is bd-8o5rx with the 4374c446 script, a tiny corpus helper and E's own ten-line exclusion as the reference, independent of F's Task 2.8 patch."
+    rationale: "a fixture must be self-contained, text-only and under 300 KB, and the reference must fit the per-run cap"
+    alternatives_considered:
+      - option: "use the Sprint 258 run-arms.sh diff as the reference"
+        rejected_because: "its fixture cannot be made self-contained without mount-owned paths and the corpus"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0506"
+    created_at: "2026-10-15T04:40:48Z"
+    updated_at: "2026-10-15T04:40:48Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "grader_protected lists every fixture test file, not only the helpers, so an agent edit cannot weaken the regression suite (E-2)"
+    decision: "E's tasks protect tests/conftest.py and every fixture test file (feature-01 also evals/graders/no-secrets.sh); the grader restores them before grading."
+    rationale: "the regression check is only as strong as the files the agent cannot rewrite"
+    alternatives_considered:
+      - option: "protect conftest.py only"
+        rejected_because: "an agent could delete or soften the fixture tests and keep the suite green"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:40:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0507"
+    created_at: "2026-10-15T04:42:11Z"
+    updated_at: "2026-10-15T04:42:11Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 259 review-catch set keeps the two planted PRs; the report presents planted and record recall separately as a ceiling check (L22)"
+    decision: "The pre-cutoff concern on pr-05 and pr-08 is recorded, not acted on: every arm sees the same ceiling, the record pair carries the post-cutoff signal, and the larger record diffs would strain the REVIEW budget; ablation-report.py (Sprint 261) prints recall per source kind."
+    rationale: "a ceiling effect on half the review-catch tasks does not bias the arm comparison but can compress it; separating the kinds in the report makes that visible"
+    alternatives_considered:
+      - option: "replace pr-05 and pr-08 with pr-11 and pr-17"
+        rejected_because: "125 to 383 KB diffs against a 60-turn REVIEW phase; cap failures would cost more signal than the ceiling"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer.md#lead-decisions (L22)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer.md#lead-decisions (L22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0508"
+    created_at: "2026-10-15T04:42:50Z"
+    updated_at: "2026-10-15T04:42:50Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Review-catch tasks: pr-05, pr-08 planted (3 defects each, high or critical) and pr-12 (record, 8 defects, 3 high), pr-13 (record, 5 defects, none high) (E-3)"
+    decision: "pr-13's accurate verdict under DEC-0420 is APPROVED (no high or critical in the key), the other three CHANGES_REQUIRED, giving the verdict-accuracy metric both outcomes; pr-01 stays the smoke task."
+    rationale: "a mix of verdict outcomes and key sizes across the four tasks; pr-12 is the smallest record diff carrying high defects"
+    alternatives_considered:
+      - option: "four planted PRs"
+        rejected_because: "planted PRs revert pre-cutoff fixes a model may have seen; two record PRs keep half the set post-cutoff"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0509"
+    created_at: "2026-10-15T04:42:52Z"
+    updated_at: "2026-10-15T04:42:52Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Planted review-catch tasks carry the planted-fixture date 2026-09-20, not the pre-cutoff dates of the fixes they revert; the ceiling risk is recorded (E-4)"
+    decision: "review-01 and review-02 take source.date from commit 72bdb7d2 (the planted fixtures); the reverted fixes date from 2026-05-14 to 2026-08-09, so a model may know the fixed code; the report presents planted and record recall separately and the lead did not swap them for the larger record PRs pr-11, pr-17, pr-18 (125 to 383 KB)."
+    rationale: "memorisation of the fixed code raises every arm's recall equally (a ceiling, not a confound); the record tasks carry the post-cutoff signal"
+    alternatives_considered:
+      - option: "swap pr-05 and pr-08 for pr-11 and pr-17"
+        rejected_because: "their diffs are 125 to 383 KB, past the REVIEW phase turn budget for a careful review"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0510"
+    created_at: "2026-10-15T04:42:54Z"
+    updated_at: "2026-10-15T04:42:54Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Each review-catch TASK.md keeps the smoke output contract byte-identical and adds one neutral sentence paraphrased from the PR title only (E-5)"
+    decision: "The repository phrase is made accurate to the PR (shell and Python scripts; shell scripts, tests and documentation) and a The-change sentence paraphrases the title in pr/PR.md, which the agent sees anyway; never the description or a defect hint."
+    rationale: "the contract is the arm-neutral shape the grader reduces to; a title paraphrase leaks nothing the sandbox does not already show"
+    alternatives_considered:
+      - option: "the smoke text verbatim"
+        rejected_because: "it names a repository of shell scripts, inaccurate for three of the four PRs"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-e.md#decision-bullets (E-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0511"
+    created_at: "2026-10-15T04:42:55Z"
+    updated_at: "2026-10-15T04:42:55Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "ablation-grade.sh: --allow-unfrozen bypasses a missing manifest and a failing freeze check with suite_frozen: false; --allow-partial reaches freeze.sh (F-1)"
+    decision: "During authoring the smoke-only manifest drifts, so a missing-manifest-only bypass could not serve; grade.json records suite_frozen so a graded row shows whether the suite was frozen; freeze.sh gets --smoke whenever the manifest lists smoke/ paths."
+    rationale: "the freeze gate (DEC-0414) stays the default; authoring needs an explicit, recorded bypass"
+    alternatives_considered:
+      - option: "no bypass; freeze before any self-check"
+        rejected_because: "the self-check is how a task is proven before it is frozen"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0512"
+    created_at: "2026-10-15T04:42:58Z"
+    updated_at: "2026-10-15T04:42:58Z"
+    phase: "implementation"
+    category: "process"
+    summary: "bd-8o5rx: the generated-path exclusion applies to fix rows only (seed and --build-manifest); defect labels on generated paths are kept, labels unchanged (F-7)"
+    decision: "pr-14 (104 to 95 regions) and pr-15 (239 to 207) changed; the other six manifests regenerated byte-identical; defect ids unchanged everywhere; SHA256SUMS refrozen (8796b39d); batch-1 recall and refuted share unchanged because that batch graded pr-01 to pr-08."
+    rationale: "recall is graded against labels, which the bead says are unaffected; only fix regions misattribute support to generated by-products"
+    alternatives_considered:
+      - option: "filter labels too"
+        rejected_because: "a reviewer who flags a generated file is still right or wrong on its own terms; the key must not change"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:42:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0513"
+    created_at: "2026-10-15T04:43:00Z"
+    updated_at: "2026-10-15T04:43:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 259 fairness reviews by two non-author Opus 5.5 sessions, each over the other implementer eight tasks, with their own red/green runs; 16/16 PASS (L23)"
+    decision: "R1 reviewed E's eight tasks and R2 D's eight, writing tasks/<id>/REVIEW.md with pasted test tails; no defect required an author fix before the freeze; the lead froze 158 files (MANIFEST.sha256 ab1d631f) after the reviews landed."
+    rationale: "AC-5.4 requires a different session than the author and a run-it-yourself proof; two reviewers keep the non-author rule by construction"
+    alternatives_considered:
+      - option: "one reviewer for all sixteen"
+        rejected_because: "twice the context for one session and no parallelism; two sessions finish in the time of one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer.md#lead-decisions (L23)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:43:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer.md#lead-decisions (L23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0514"
+    created_at: "2026-10-15T04:43:42Z"
+    updated_at: "2026-10-15T04:43:42Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader test ids are positions (t<k>, pytest -rA or TAP numbers), never names; a collection error expands to the file's cases (F-2)"
+    decision: "pytest runs with exactly one -q and -rA; the hidden total is never below the static case count of the hidden files; a run without a summary is parse_error with passed 0 on a non-zero exit; regression ids are base-run positions."
+    rationale: "ids only in grade.json (no test names); -qq drops the summary line; a collection error must not read as zero hidden tests"
+    alternatives_considered:
+      - option: "use pytest node ids"
+        rejected_because: "node ids carry test names, which the row must not leak"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:43:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0515"
+    created_at: "2026-10-15T04:43:43Z"
+    updated_at: "2026-10-15T04:43:43Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "The grader restores every grader_protected path from the fixture, removes one the fixture lacks, and refuses a fixture outside its task directory (F-3)"
+    decision: "An agent-created pytest.ini or conftest.py on a protected path cannot persist into grading; a fixture outside tasks/<id>/ is refused (exit 2) so freeze.sh always covers it."
+    rationale: "the grading tree must be the fixture's test infrastructure plus the agent's code and nothing else"
+    alternatives_considered:
+      - option: "restore only paths present in the fixture"
+        rejected_because: "an agent-added runner config on a protected path would survive"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:43:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0516"
+    created_at: "2026-10-15T04:43:45Z"
+    updated_at: "2026-10-15T04:43:45Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "gates-combined.md: normalised, deduplicated path:line citations from review.md, both feedback files and the eval/ envelopes; missed defects as positions (F-4)"
+    decision: "pr/head/ becomes head/, a/ b/ and /workspace/ prefixes are dropped; envelope findings contribute anchor and file plus line, a hunk or symbol anchor without a line credits nothing; recall.flags is recall-vs-defects findings_cited."
+    rationale: "the arm-neutral reduction must treat an A0 review.md and an A1 gate pair the same; defect ids embed titles the row must not carry"
+    alternatives_considered:
+      - option: "grade each gate file separately and take the max"
+        rejected_because: "DEC-0420 counts a defect once across gates; the union is the measured object"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:43:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0517"
+    created_at: "2026-10-15T04:43:47Z"
+    updated_at: "2026-10-15T04:43:47Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Contamination outside_path exempts the system directories and the CLI's own config; a one-component /x/ Bash word is a regex; docker readiness is lazy (F-6)"
+    decision: "The absolute-path rule exempts /workspace /tmp /home/evaluser /dev /proc /sys /usr /bin /sbin /lib /lib64 /etc /opt /var in the container, and the sandbox root, /tmp, those directories and the CLI's own ~/.claude ~/.claude.json ~/.codex ~/.aws on the host; review-catch grading needs no docker."
+    rationale: "the scan is a lower bound (D-4.7); system paths are not leakage; sed s/x/y/ is not a path"
+    alternatives_considered:
+      - option: "flag every absolute path outside the sandbox"
+        rejected_because: "every python3 and bats invocation touches /usr; the signal would drown"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:43:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0518"
+    created_at: "2026-10-15T04:45:11Z"
+    updated_at: "2026-10-15T04:45:11Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "A gate ran when its feedback file exists; no trailer is accuracy false; the graded snapshot is the one the gate read (F-5)"
+    decision: "The A0 review.md Verdict line fills verdict but never a per-gate accuracy; REVIEW is scored against the implement snapshot and AUDIT against fix1 (else implement); fix2 is not graded separately because final covers it."
+    rationale: "verdict accuracy is a property of what the gate actually read; a trailerless feedback file is a gate that failed its contract"
+    alternatives_considered:
+      - option: "grade every snapshot"
+        rejected_because: "fix2 is the final tree; grading it twice adds nothing"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "a293df09"
+    source: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T04:45:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-259/reviewer-f.md#decision-bullets (F-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

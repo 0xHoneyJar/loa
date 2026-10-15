@@ -160,3 +160,54 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   [ "$status" -eq 1 ]
   [ ! -e "$C/pr-01/fixture.yaml" ]
 }
+
+# --- bd-8o5rx (cycle-130 Sprint 259 Task 2.8, PRD AC-10.1): generated artefacts are never fix regions ---
+
+@test "SC-7 --build-manifest keeps generated paths out of fix_regions and prints each exclusion; defect labels are untouched" {
+  local fx="$C/pr-91" L="$C/labels/pr-91.tsv" p
+  local gen=(dist/x.js lib/y.map types/z.d.ts conf/model.yaml.checksum checksums.json REPO-MAP.md .build-manifest.json)
+  mkdir -p "$fx/head"
+  printf 'sprint: 991\nhead_commit: "%s"\nfix_commit: "%s"\nrecord_ref: "record/cycle-991-a2a"\n' "$HEAD_C" "$FIX" > "$fx/fixture.yaml"
+  for p in "${gen[@]}" src/real.sh; do mkdir -p "$fx/head/$(dirname "$p")"; printf 'line one\nline two\nline three\n' > "$fx/head/$p"; done
+  {
+    echo "# approved-by: pending"
+    printf 'defect_id\tseverity\tcategory\tfile\tmust_match\tlabel_source\tsource\n'
+    printf 'L01-real\thigh\tlogic\tsrc/real.sh\tline two\treview\treview:engineer-feedback.md\n'
+    printf 'L02-in-dist\tlow\tlogic\tdist/x.js\tline one\treview\treview:engineer-feedback.md\n'
+    local n=1
+    for p in "${gen[@]}" src/real.sh; do
+      printf 'F%03d\t-\tfix\t%s\tline one\tfix\tfix/%s:1-2\n' "$n" "$p" "${FIX:0:12}"; n=$((n + 1))
+    done
+  } > "$L"
+  run "$SEED" --corpus "$C" --build-manifest pr-91
+  [ "$status" -eq 0 ]
+  M="$C/manifests/pr-91.json"
+  [ "$(jq -r '[.fix_regions[].file] | join(",")' "$M")" = "src/real.sh" ]
+  for p in "${gen[@]}"; do
+    [ "$(grep -cxF "excluded generated path: $p" <<<"$output")" -eq 1 ]
+  done
+  ! grep -qF 'excluded generated path: src/real.sh' <<<"$output"
+  # the key defects are not filtered: both labels survive with their ids
+  [ "$(jq -r '[.defects[].id] | join(",")' "$M")" = "L01-real,L02-in-dist" ]
+}
+
+@test "SC-8 seeding writes no fix row for a generated path the fix touched and prints the exclusion" {
+  local gen=(dist/x.js lib/y.js.map types/z.d.ts conf/m.yaml.checksum tools/checksums.json web/.build-manifest.json)
+  local p HEAD2 FIX2
+  for p in "${gen[@]}"; do mkdir -p "$G/$(dirname "$p")"; printf 'one\ntwo\n' > "$G/$p"; done
+  printf '#!/usr/bin/env bash\ncheck_input() {\n  local v="$1"\n  echo "accepted: $v"\n}\n# head2\n' > "$G/scripts/a.sh"
+  gc add -A; gc commit -q -m "feat: sprint-901 generated outputs (round 1)"; HEAD2="$(git -C "$G" rev-parse HEAD)"
+  for p in "${gen[@]}"; do printf 'one\nTWO\n' > "$G/$p"; done
+  printf '#!/usr/bin/env bash\ncheck_input() {\n  local v="$1"\n  [[ -n "$v" ]] || return 1\n  echo "accepted: $v"\n}\n# head2\n' > "$G/scripts/a.sh"
+  gc add -A; gc commit -q -m "fix: sprint-901 generated outputs review round 1"; FIX2="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" 901 record/cycle-901-a2a --repo "$G" --corpus "$C" --tasks-dir "$K" --base "$FIX" --head "$HEAD2" \
+    --fix "$FIX2" --feedback engineer-feedback-r1.md --out "$C/pr-92"
+  [ "$status" -eq 0 ]
+  # the generated files are part of the fixture (scope is unchanged) but carry no fix row
+  [ -f "$C/pr-92/head/dist/x.js" ]
+  [ "$(awk -F'\t' '$6 == "fix" {print $4}' "$C/labels/pr-92.tsv" | sort -u | tr '\n' ,)" = "scripts/a.sh," ]
+  [ "$(jq -r '[.fix_regions[].file] | unique | join(",")' "$C/manifests/pr-92.json")" = "scripts/a.sh" ]
+  for p in "${gen[@]}"; do
+    [ "$(grep -cxF "excluded generated path: $p" <<<"$output")" -eq 1 ]
+  done
+}

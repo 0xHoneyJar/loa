@@ -14,7 +14,10 @@
 #                                         the environment is exactly the -e set
 #                                         (bare `-e KEY` takes the client's value),
 #                                         the command word `claude` maps to
-#                                         $DOCKER_STUB_CLAUDE
+#                                         $DOCKER_STUB_CLAUDE; when $DOCKER_STUB_PATH is
+#                                         set and no -e PATH was given, PATH=<it> joins
+#                                         the environment (ablation-grade.bats: the
+#                                         image's python3/bats stand-ins)
 set -euo pipefail
 log="${DOCKER_STUB_LOG:-/dev/null}"
 case "${1:-}" in
@@ -70,6 +73,10 @@ for a in "$@"; do
   cmd+=("$a")
 done
 for e in ${envs[@]+"${envs[@]}"}; do menv+=("${e%%=*}=$(map "${e#*=}")"); done
+if [[ -n "${DOCKER_STUB_PATH:-}" ]]; then
+  has_path=0; for e in ${menv[@]+"${menv[@]}"}; do [[ "$e" == PATH=* ]] && has_path=1; done
+  [[ $has_path -eq 1 ]] || menv+=("PATH=$DOCKER_STUB_PATH")
+fi
 cd "$(map "$wd")"
 # the container's environment is exactly the -e set (plus nothing from this host)
 exec env -i ${menv[@]+"${menv[@]}"} "${cmd[@]}"

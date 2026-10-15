@@ -41,7 +41,16 @@
 # that cites only a file is anchored on that file's fix hunks when there are
 # at most four, else dropped. `fix` rows cover every hunk fix_commit changed
 # in a fixture file (source fix/<sha>:<start>-<end>); the grader uses them
-# only for refuted share. Titles are control-stripped, capped at 160 chars,
+# only for refuted share.
+#
+# Generated artefacts never become fix regions (cycle-130 bd-8o5rx, PRD AC-10.1):
+# a path with a `dist/` component, a name ending `.map`, `.d.ts` or `.checksum`,
+# or named `checksums.json`, `REPO-MAP.md` or `.build-manifest.json` is a
+# mechanical slice of the fix commit, so a finding there must not lower the
+# refuted share. Seeding writes no `fix` row for such a path and --build-manifest
+# skips any `fix` row naming one (labels written before the rule keep theirs);
+# each excluded path is printed once on stderr as
+# `excluded generated path: <path>`. Defect labels are never filtered. Titles are control-stripped, capped at 160 chars,
 # and a title matching a secret pattern drops its finding; every written
 # file passes evals/graders/no-secrets.sh or the seed fails.
 #
@@ -190,6 +199,19 @@ def read_labels(fx):
         rows.append(dict(zip(HEADER, cells)))
     return approved_by, rows, text
 
+# bd-8o5rx: generated artefacts are never fix regions (see the header for the list)
+GENERATED_NAMES = {"checksums.json", "REPO-MAP.md", ".build-manifest.json"}
+GENERATED_SUFFIXES = (".map", ".d.ts", ".checksum")
+def generated_path(p):
+    parts = p.split("/")
+    return "dist" in parts[:-1] or parts[-1] in GENERATED_NAMES or parts[-1].endswith(GENERATED_SUFFIXES)
+
+EXCLUDED_SEEN = set()
+def note_excluded(p):
+    if p not in EXCLUDED_SEEN:
+        EXCLUDED_SEEN.add(p)
+        print(f"excluded generated path: {p}", file=sys.stderr)
+
 def unique_line(lines, needle):
     hits = [i for i, l in enumerate(lines, 1) if needle in l]
     return hits[0] if len(hits) == 1 else None
@@ -210,6 +232,8 @@ def build_manifest(fx):
         if not os.path.isfile(hp):
             errors.append(f"{r['defect_id']}: head/{r['file']} missing"); continue
         lines = open(hp, encoding="utf-8", errors="replace").read().splitlines()
+        if r["label_source"] == "fix" and generated_path(r["file"]):
+            note_excluded(r["file"]); continue
         if r["label_source"] == "fix":
             m = re.match(r"^fix/[0-9a-f]+:(\d+)-(\d+)$", r["source"])
             if not m:
@@ -683,6 +707,10 @@ if os.path.isfile(cur_path):
 
 fix_rows = []
 for p in head_files:
+    if generated_path(p):
+        if hunks.get(p):
+            note_excluded(p)
+        continue
     for lo, hi in hunks.get(p, []):
         at, t = anchor_text(head_text[p], lo, hi)
         fix_rows.append({"id": f"F{len(fix_rows) + 1:03d}", "file": p, "must_match": t or "-",
