@@ -22,7 +22,7 @@
 # =============================================================================
 name: ablation-2.0
 version: 1
-source_commit: "<sprint-258-commit>"   # the lead sets the Sprint 258 commit (rc.5 plus the mount fix; F2, DEC-0392)
+source_commit: "ba11b860"   # the pin: the Sprint 259 completion tree (rc.5 + the #1267 mount fix + the harness; .claude/ identical to the Sprint 258 completion tree, DEC-0529; the per-batch .claude/ delta vs 4d69c3c4 is in MANIFEST.json, DEC-0392)
 agy_opt_in: false
 tasks:
   root: grimoires/loa/evals/ablation-2.0/tasks
