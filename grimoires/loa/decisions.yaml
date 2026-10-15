@@ -15928,3 +15928,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0498"
+    created_at: "2026-10-15T03:21:19Z"
+    updated_at: "2026-10-15T03:21:19Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 258 audit round 2 is APPROVED by direct verification of ffe162ef; bash_mount_refs narrowed to write-shaped commands before approval (L19)"
+    decision: "The auditor verified every round-1 fix against the tree and the 284 green cases (15 new, each shown failing before); the first bash_mount_refs spec listed every read of the mount on the real smoke runs and was narrowed to write-shaped commands (a redirect to a mount path, or a mount path plus a write-capable command token) before the rows were regenerated; the heuristic is labelled as such and mount_integrity plus integrity_clean are the authoritative checks; Sprint 258 closes."
+    rationale: "the three dissent runs were spent on review r1, review r2 and audit r1, and sprint-257 set the precedent of a directly verified second audit round; approving with a noisy violation list would have buried the signal the measurement needs"
+    alternatives_considered:
+      - option: "keep the broad bash_mount_refs and filter at report time"
+        rejected_because: "rows are the frozen evidence; a 40-entry list per gate row makes runs.jsonl unreadable and the report would carry the filtering logic the writer should own"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "ffe162ef"
+    source: "grimoires/loa/a2a/sprint-258/auditor-sprint-feedback.md#round-2 (L19)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T03:21:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-258/auditor-sprint-feedback.md#round-2 (L19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
