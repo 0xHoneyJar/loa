@@ -17624,3 +17624,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0551"
+    created_at: "2026-10-15T13:15:09Z"
+    updated_at: "2026-10-15T13:15:09Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Grader 1.2.4 (after P1): words beginning with /, or carrying = are regex-shaped; in Bash text hidden counts only as a token (HIDDEN, or next to / . _ = -) (L41)"
+    decision: "ablation-grade.sh check_value skips a Bash path word that begins with /, (the remnant of a sed range whose first address holds a space) or carries = (regex or key=value token); the hidden keyword in a Bash command matches only HIDDEN in capitals or lowercase hidden adjacent to / . _ = - (a path segment, identifier or file name), not a bare English word; Read/Glob/WebFetch/WebSearch fields keep the substring rule. The DEC-0541 clause that a hidden word inside a heredoc is a hit is narrowed to token shapes. Applied after P1 ends; every contaminated P1 row is then --rerow'ed; GRADER_VERSION 1.2.4; AG-10 extended."
+    rationale: "P1 rows a1_full review-02-t1 (AUDIT:86, sed range with a spaced first address) and a1_full bugfix-04-t1 (REVIEW:148, 'any hidden interaction with store_true' in reviewer prose) were excluded on ordinary text; the hidden material never exists in the sandbox, so the keyword is a proxy for a reach and a bare English word is not one; the scan stays a lower bound (D-4.7, KF-046)"
+    alternatives_considered:
+      - option: "drop the hidden keyword from Bash text entirely"
+        rejected_because: "a search for a hidden/ directory or HIDDEN_ file in command text is exactly the reach the proxy exists for"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "151e87ed"
+    source: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L41)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T13:15:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L41)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
