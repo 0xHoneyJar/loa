@@ -2552,9 +2552,9 @@
         {
           "global_id": 258,
           "local_label": "sprint-1",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-14T13:59:25Z",
-          "completed": null,
+          "completed": "2026-10-15T03:23:28Z",
           "theme": "Mount integrity and harness plumbing",
           "epic": "bd-g1cg2",
           "beads": [
@@ -2576,7 +2576,7 @@
         {
           "global_id": 259,
           "local_label": "sprint-2",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-14T13:59:26Z",
           "completed": null,
           "theme": "Task suite and grader",
@@ -3048,5 +3048,5 @@
     }
   ],
   "next_sprint_number": 263,
-  "last_updated": "2026-10-14T15:05:05Z"
+  "last_updated": "2026-10-15T03:23:28Z"
 }
