@@ -695,6 +695,8 @@ YAML
 
 @test "AG-21 exit status (DISS-002): a passing TAP block followed by exit 1 is not green — hidden_tests carries rc, per-gate accuracy and the self-check follow it" {
   make_bf_tap
+  # round 2 (DISS-001 r2): a green suite needs a parsed summary, so this case's regression command prints TAP
+  printf 'grep -q "^v=" lib/x.sh && echo 1..1 && echo "ok 1 v is set"\n' > "$S/tasks/bf-tap/fixture/tests/reg.sh"
   RD="$T/run"; make_run bf-tap "$RD"; apply_ref "$RD"; snap "$RD" IMPLEMENT; verdict "$RD" review APPROVED
   grade "$RD" bf-tap
   [ "$status" -eq 0 ]
@@ -719,7 +721,7 @@ YAML
   grade "$RD" bf-tap
   [ "$status" -eq 0 ]
   [ "$(G '.regressions | "\(.newly_failing | join(",")) \(.parse_error) \(.base.rc) \(.final.rc)"')" = "t1 true 0 1" ]
-  [ "$(G '.regressions | "\(.base_green) \(.final_green)"')" = "true false" ]   # round 2 DISS-C-002: the green booleans travel with the counts
+  [ "$(G '.regressions | "\(.base_green) \(.final_green)"')" = "false false" ]   # round 2 DISS-C-002: the green booleans travel with the counts (an unparseable base run is not green either)
   [ "$(G '.regressions | "\(.base.passed)/\(.base.total) \(.final.passed)/\(.final.total)"')" = "1/1 0/1" ]
   # green at both ends: nothing newly failing, still marked unparsed
   RD="$T/run2"; make_run bf-tap "$RD"; apply_ref "$RD"
