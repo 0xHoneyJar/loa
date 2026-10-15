@@ -92,6 +92,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 | [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
+| [KF-045](#kf-045-run-ablationsh-drift-guard-reads-a-claude-code-small-model-utility-call-webfetch-summariser-as-model-drift-the-trial-is-rowed-infrastructure_error-and-the-batch-stops-launching) | active | evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1) | 1 |
+| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 3 |
 
 ---
 
@@ -1741,3 +1743,45 @@ This is harness behaviour, not a Loa defect: the key IS enforced in the main ses
 ### Reading guide
 
 When a dissent or Flatline envelope shows every codex-headless attempt as api_failure/AUTH_REVOKED while codex login works, run codex exec without -m to read the account's default model and compare it with model-config's cli_model; do not re-auth, do not retry the chain. A single-voice envelope under this failure is a degraded run for any measurement.
+
+## KF-045: run-ablation.sh drift guard reads a Claude Code small-model utility call (WebFetch summariser) as model drift; the trial is rowed infrastructure_error and the batch stops launching
+
+**Status**: active
+**Feature**: evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1)
+**Symptom**: run.log: DRIFT <run_id>: {"field":"models_used.<PHASE>","expected":["claude-fable-5-1","claude-opus-5-5"],"got":"global.anthropic.claude-haiku-4-5-20251001-v1:0"}; STATUS.json state failed on drift; --resume refuses; the run completed every phase and its assistant messages all carry the requested model; the phase result modelUsage holds a few hundred Haiku output tokens beside the requested model
+**First observed**: 2026-10-15 cycle-130 Sprint 260 priority batch P1, priority-p1-a1_full-feature-04-t1 (AUDIT used WebFetch twice on raw.githubusercontent.com cmark-gfm sources)
+**Recurrence count**: 1
+**Current workaround**: none needed after DEC-0545: drift = requested model differs from the manifest or is absent from models_used; extra models are telemetry; resume with --clear-drift --rerow <run_id>
+**Upstream issue**: none (harness defect; fixed in Sprint 260 by implementer I)
+**Related visions / lore**: DEC-0407, DEC-0545, DEC-0547; KF-046
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-15 | DEC-0545: drift_check and the degraded rule narrowed to substitution; extra_models telemetry; --clear-drift and --rerow added (implementer I, worktree loa-wt-s3i) | in progress at the time of writing | grimoires/loa/reports/ablation-2.0/batches/priority-p1/run.log 11:03:47Z; NOTES 2026-10-15T11:18:02Z |
+
+### Reading guide
+
+Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.jsonl and check (1) the model of the assistant messages (jq -r 'select(.type=="assistant") | .message.model' | sort | uniq -c) and (2) tool_use names (WebFetch, Agent/Explore). A small-model id with a few hundred output tokens next to the requested model is a Claude Code utility, not a substitution. Do not start a new batch: fix the rule, then --resume --clear-drift --rerow. Never edit run-ablation.sh or ablation-row.sh while the driver runs (bash reads the script incrementally).
+
+## KF-046: ablation-grade.sh contamination scan flags ordinary agent text and shell idioms as outside_path or git_history (slash commands, git log --all, heredoc prose, sed address ranges, container home)
+
+**Status**: active
+**Feature**: evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan)
+**Symptom**: grade.json contaminated {phase, pattern: outside_path|git_history, excerpt_id: <PHASE>:<line>} and the row status contaminated on a run that never left the sandbox; the excerpt line holds a Loa slash command (/review-sprint), git log --all, prose inside a heredoc, ls ~/.cargo/bin in the container, a sed range /,/ or /re1/,/re2/p
+**First observed**: 2026-10-15 cycle-130 Sprint 260 calibration smoke calib-frozen-01 (10 of 12 rows), then priority batch P1 review-04 REVIEW:39
+**Recurrence count**: 3
+**Current workaround**: re-grade the run directories under the current grader (no agent re-run) and re-row: run-ablation.sh --resume --rerow <run_id> (DEC-0547); the grader fixes are 1.2.1 (DEC-0540), 1.2.2 (DEC-0541), 1.2.3 (DEC-0546)
+**Upstream issue**: none (harness heuristic; structural: a path-word regex over free-form Bash text cannot be made exact; the scan is a lower bound by design, D-4.7)
+**Related visions / lore**: DEC-0540, DEC-0541, DEC-0546, DEC-0547; KF-045
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-15 | grader 1.2.1 (one-component words, history probes), 1.2.2 (heredoc bodies, container home, /x/ delimiters), 1.2.3 (sed address ranges) | calibration rows 10 contaminated to 0; P1 review-04 re-rowed under 1.2.3 | commits 2ef83aa8, ae9df520; a2a/sprint-260/smoke.md; NOTES 2026-10-15T11:18:02Z |
+
+### Reading guide
+
+A contaminated row is a claim to verify, not a verdict: print the excerpt line (sed -n '<line>p' <run-dir>/transcripts/events-<PHASE>.jsonl | jq '.message.content[] | select(.type=="tool_use") | .input') and ask whether the word reaches a path outside the sandbox, the container home, /tmp or the system dirs. Shell idioms seen so far: slash commands, sed/awk delimiters and ranges, heredoc prose, regexes beginning with = or a letter. If it is an idiom: fix the grader (bump GRADER_VERSION, extend AG-10), re-grade every affected run directory, --rerow. If it is a real reach: the exclusion stands. Recurrence 3 in one day means the heuristic is structural: budget a re-read of every contaminated row before the report.

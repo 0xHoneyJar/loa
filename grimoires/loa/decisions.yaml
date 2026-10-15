@@ -17336,3 +17336,195 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0542"
+    created_at: "2026-10-15T10:34:16Z"
+    updated_at: "2026-10-15T10:34:16Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Rung 2 pre-applied: P1 (A0, A1, A4 at 3/3) then P2 (A2, A3 at 2 build / 3 review); --max-usd 1,039 by DEC-0429; the 3/3 plan (USD 1,078) did not fit (L32)"
+    decision: "The priority arms run as two sequential batches under the same pre-registration reference and seed: priority-p1 = a0_bare, a1_full, a4_no_gates at 3 build / 3 review trials (132 runs, est. USD 530 at the smoke unit costs, --max-usd 1039 = 1500 - 174.79 - 250 - 36); priority-p2 = a2_no_sprint_plan, a3_one_voice at 2 build / 3 review trials (60 runs, est. USD 398, --max-usd recomputed from spend.sh after P1). The runner takes per-type trial counts per batch only, so the rung is two batches."
+    rationale: "the 3/3 plan projects USD 1,078 from the calibration unit costs against a 1,039 ceiling; the cut ladder (DEC-0397) names A2/A3 build trials 3 to 2 as the first cut after A5-A7; applying it before the first row keeps the cut pre-registered instead of mid-batch"
+    alternatives_considered:
+      - option: "one batch at 3/3 with --max-usd 1039 and let the runner cut"
+        rejected_because: "the runner cuts the tail of the shuffled trial-major plan, so the third trial would be lost unevenly across arms rather than by the pre-registered rung"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "b0c1830a"
+    source: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L32)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T10:34:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L32)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0543"
+    created_at: "2026-10-15T10:34:18Z"
+    updated_at: "2026-10-15T10:34:18Z"
+    phase: "implementation"
+    category: "budget"
+    summary: "A5, A6, A7 pre-declared Not run (cut) at smoke unit costs (~208/275/275 vs ~147 left before the reserve) unless P1/P2 actuals or a released reserve allow (L33)"
+    decision: "a5_no_flatline (36 build runs x 5.77 ~ USD 208), a6_one_window (36 x 7.64 ~ 275) and a7_effort_medium (36 x 5.57 + 12 x 6.19 ~ 275) are pre-declared Not run (cut) with those figures. The declaration is revisited once after P2 from actual spend; if the reserve is released in Sprint 261 (DEC-0398) A7 runs first, at 2 build / 2 review trials (~158) when the full rung does not fit."
+    rationale: "projected spend after P1 and P2 is ~ USD 1,103, leaving ~147 before the USD 250 reserve; the brief ranks A0-A4 first and the cut ladder (DEC-0397) cuts A5/A6/A7 before any priority arm trial"
+    alternatives_considered:
+      - option: "run A7 now at reduced trials in parallel with P1"
+        rejected_because: "a parallel batch and concurrency above 3 are excluded by the pre-registration; spend would be committed before the priority arms actuals are known"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "b0c1830a"
+    source: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L33)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T10:34:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L33)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0544"
+    created_at: "2026-10-15T10:34:20Z"
+    updated_at: "2026-10-15T10:34:20Z"
+    phase: "implementation"
+    category: "process"
+    summary: "MDE not estimable from the one-task smoke; the Inconclusive-by-power rule applies to A5/A6/A7 from P1 paired variance; A0-A4 run regardless (L34)"
+    decision: "The minimum detectable effect behind the Not-run rule (MDE above 0.10 at affordable trials) is computed from the paired differences A4 - A1 and A0 - A1 over P1 twelve build tasks (2.926 x sd / sqrt(n), as ablation-report.py implements it) and applied to A5, A6 and A7 only; A0, A1 and A4 run because H1 and the A4 sensitivity rest on them, A2 and A3 run as the priority components."
+    rationale: "the calibration smoke has one build task and one trial per arm, so no between-task variance exists to estimate from; P1 first trial block is the earliest point at which the figure exists"
+    alternatives_considered:
+      - option: "drop the MDE rule for this cycle"
+        rejected_because: "the rule is pre-registered (NOTES 07:13:29Z) and the report prints it per arm; dropping it would be a post-registration change"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "b0c1830a"
+    source: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L34)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T10:34:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#batch-plan-cycle-130-ablation (L34)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0545"
+    created_at: "2026-10-15T11:19:28Z"
+    updated_at: "2026-10-15T11:19:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Drift/degraded on model grounds = requested model differs from the manifest or is absent from models_used; other models (WebFetch Haiku) are telemetry (L35)"
+    decision: "run-ablation.sh drift_check and ablation-row.sh degraded cause (1) are narrowed to the pre-registered intent of DEC-0407: a phase drifts (runner) or is degraded (row) when model_requested differs from the manifest phase model or when the requested model is absent from a non-empty models_used; any other model in models_used is recorded as extra_models (trial log, STATUS.json, row phases) and never fails the batch or excludes the row. Applied to every arm before any row is decided; the recorded P1 drift is re-read under this rule."
+    rationale: "priority-p1-a1_full-feature-04-t1 completed every phase with Fable on every assistant message; the 516 Haiku output tokens in the AUDIT modelUsage are Claude Code WebFetch summaries, behaviour available to every arm; failing batches or excluding rows on it would systematically drop the gated runs that research the most"
+    alternatives_considered:
+      - option: "keep the strict rule and start a new batch without WebFetch (disallow the tool)"
+        rejected_because: "changes the component under test after pre-registration and still fails on built-in subagents that use the small model"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "f6487a31"
+    source: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L35)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:19:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L35)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0546"
+    created_at: "2026-10-15T11:19:29Z"
+    updated_at: "2026-10-15T11:19:29Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Grader 1.2.3: a Bash word shaped /re1/,/re2/... is a sed address range, not an outside path (P1 review-04 REVIEW:39 false positive) (L36)"
+    decision: "ablation-grade.sh check_value skips a Bash word matching ^/[^/]*/, (a sed address range such as /======TEMPLATE/,/======STAT/p or /re/,+3p) before the outside_path test; the hidden, suite_path and repo_name scans are unchanged; AG-10 gains the case; GRADER_VERSION 1.2.3; the affected P1 row is re-rowed from its run directory under DEC-0547."
+    rationale: "the word begins with =, which ABS_WORD accepts as a first character, so the one-component rule of 1.2.2 did not apply; no path has a component beginning with a comma; the command read the agent own tool-results file inside the container home"
+    alternatives_considered:
+      - option: "exclude the row as contaminated"
+        rejected_because: "the same sed idiom recurs in every gate phase that reads a long tool result; the exclusions would fall on the gated arms only"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "f6487a31"
+    source: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L36)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:19:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L36)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0547"
+    created_at: "2026-10-15T11:19:56Z"
+    updated_at: "2026-10-15T11:19:56Z"
+    phase: "implementation"
+    category: "process"
+    summary: "P1 resumes via --resume --clear-drift --rerow: drift re-read under the new rule; over-strict rows re-rowed in place from run dirs; no run repeated (L37)"
+    decision: "run-ablation.sh gains --clear-drift (re-runs drift_check on the recorded drift run dir under the current rule; clears STATUS.drift with a drift_cleared[] record or refuses) and --rerow RUN_ID (re-runs took-effect, drift, grade and row on an existing run dir with the old attempts/retry_reason and replaces the row in place under flock; STATUS.rerowed[]). priority-p1 resumes with --clear-drift --rerow priority-p1-a1_full-feature-04-t1 --rerow priority-p1-a1_full-review-04-t1 (and any further row the old rules produced before the driver stopped); the replaced rows are visible in the tracked runs.jsonl diff."
+    rationale: "both runs completed their agent work (USD 9.52 and 12.10); repeating them would spend budget to re-measure what the run directories already hold, and starting a new batch would duplicate the nine finished trials under new run_ids"
+    alternatives_considered:
+      - option: "start priority-p1b from scratch"
+        rejected_because: "nine finished trials would be repeated or double-counted; the manifest, seed and plan are unchanged"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "f6487a31"
+    source: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L37)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:19:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-batch-p1-two-harness-false-positives (L37)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
