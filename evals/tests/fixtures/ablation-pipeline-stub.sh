@@ -15,7 +15,10 @@
 #                  in a run dir without an -r<k> suffix) | cap_failure | bad_evidence
 #                  (checksums.json lists a file with the wrong hash: integrity_clean FAILs)
 #                  | drift_cli (init version 9.9.9) | drift_model (models_used names
-#                  another model) | hang (pipeline.json `running`, then sleeps) |
+#                  another model instead of the requested one) | extra_model (the last
+#                  phase's models_used holds the requested model and, beside it,
+#                  global.anthropic.claude-haiku-4-5-20251001-v1:0 with 516 output tokens:
+#                  a WebFetch summariser, DEC-0545) | hang (pipeline.json `running`, then sleeps) |
 #                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0)
 #   STUB_HANG=1    every run hangs (mode hang)
 set -euo pipefail
@@ -96,6 +99,8 @@ while IFS=$'\t' read -r name label; do
   model="$(jq -r --arg n "$name" '.phase_defaults.models[$n]' <<<"$S")"
   PCOST=0; [[ $i -eq 1 ]] && PCOST="$COST"
   used="$model"; [[ "$MODE" == drift_model ]] && used="global.anthropic.claude-haiku-9-9"
+  mu="$(jq -cn --arg u "$used" '{($u): 100}')"
+  [[ "$MODE" == extra_model && $i -eq $NPH ]] && mu="$(jq -cn --arg u "$used" '{($u): 100, "global.anthropic.claude-haiku-4-5-20251001-v1:0": 516}')"
   sid="sess-$label-$RANDOM"
   ex=0; [[ $i -eq $NPH ]] && case "$MODE" in agent_error|transport) ex=1 ;; esac
   printf '%s\n' "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"$sid\",\"model\":\"$model\",\"claude_code_version\":\"$CLI\"}" \
@@ -110,8 +115,8 @@ while IFS=$'\t' read -r name label; do
   env='{}'; [[ "$(jq -r '.toggles.gates' <<<"$DEF")" == false ]] && env='{"LOA_ADVERSARIAL_REVIEW_ENFORCE":"false"}'
   jq -n --arg n "$name" --arg l "$label" --arg m "$model" --argjson env "$env" \
     '{name: $n, label: $l, argv: ["claude", "-p", "x", "--model", $m], env: $env, resume: null}' > "$RUN_DIR/meta/phase-$label.argv.json"
-  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --arg u "$used" --argjson c "$PCOST" --argjson ex "$ex" \
-    '. + [{name: $n, label: $l, skipped: false, session_id: $sid, model_requested: $m, models_used: {($u): 100},
+  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --argjson mu "$mu" --argjson c "$PCOST" --argjson ex "$ex" \
+    '. + [{name: $n, label: $l, skipped: false, session_id: $sid, model_requested: $m, models_used: $mu,
            effort_requested: null, tokens_in: 10, tokens_out: 100, cache_read_tokens: 0, cache_creation_tokens: 0,
            cost_usd: $c, ledger_cost_usd: 0, duration_ms: 1000, num_turns: 2, exit: $ex, timed_out: false,
            refusal_fallbacks: [], modelinv_lines: {from: 1, to: 0}}]' <<<"$records")"

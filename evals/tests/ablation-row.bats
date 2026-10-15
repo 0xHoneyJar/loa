@@ -142,11 +142,18 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
   [ "$status" -eq 0 ]
 }
 
-@test "degraded: a model other than the requested one in models_used" {
-  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"global.anthropic.claude-opus-5-5": 10, "claude-sonnet-5": 90}'
+@test "degraded: the requested model absent from models_used (a substitution, DEC-0545)" {
+  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"claude-sonnet-5": 90}'
   row a1-build "$BUILD_TASK"
   [ "$(jq -r '.degraded' <<<"$(last)")" = true ]
-  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"IMPLEMENT: model claude-sonnet-5 used, global.anthropic.claude-opus-5-5 requested"* ]]
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"IMPLEMENT: requested global.anthropic.claude-opus-5-5 absent from models_used (claude-sonnet-5)"* ]]
+}
+
+@test "not degraded: an extra model beside the requested one (a WebFetch summariser, DEC-0545)" {
+  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"global.anthropic.claude-opus-5-5": 6000, "global.anthropic.claude-haiku-4-5-20251001-v1:0": 516}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.degraded' <<<"$(last)")" = false ]
+  [ "$(jq -r '.degraded_reason' <<<"$(last)")" = null ]
 }
 
 @test "degraded: the Bedrock region prefix alone is not a different model" {

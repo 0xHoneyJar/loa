@@ -22,9 +22,11 @@
 #   effort_effective per phase: the distinct MODELINV `payload.effort_effective` values of
 #                   the rows the phase wrote (its `modelinv_lines` range), comma-joined;
 #                   null when no cheval hop ran (DEC-0419)
-#   degraded        true when, for any executed phase, (1) a models_used key differs from
-#                   model_requested (ids compared without the Bedrock region prefix),
-#                   (2) refusal_fallbacks is non-empty, (3) a MODELINV row's
+#   degraded        true when, for any executed phase, (1) the requested model is absent
+#                   from a non-empty models_used (ids compared without the Bedrock region
+#                   prefix and the -vN:M suffix); another model beside the requested one (a
+#                   WebFetch summariser, a built-in subagent) is telemetry, not a
+#                   degradation (DEC-0545), (2) refusal_fallbacks is non-empty, (3) a MODELINV row's
 #                   effort_effective differs from the effort it requested (`payload.effort`,
 #                   else the phase's effort_requested), or (4) a dissent envelope's
 #                   verdict_quality.status is DEGRADED or its completed voices are fewer
@@ -311,12 +313,16 @@ ROW="$(jq -n -c \
                                | ($r.effort // $ph.effort_requested // null) as $want
                                | select($r.effort_effective != null and $want != null and $r.effort_effective != $want)
                                | "\($r.calling_primitive // "hop") effort \($want)->\($r.effort_effective)" ],
-          model_mismatches: [ ($ph.models_used // {} | objects // {}) | keys[]
-                              | select((. | norm_model) != ($ph.model_requested | norm_model)) ]
+          # DEC-0545: a substitution (the requested model absent from a non-empty models_used)
+          # degrades; an extra model beside the requested one is telemetry
+          model_missing: ( ($ph.models_used // {} | objects // {}) as $mu
+                           | if ($mu | length) > 0 and ($ph.model_requested | type) == "string" and $ph.model_requested != ""
+                                and ([$mu | keys[] | norm_model] | any(. == ($ph.model_requested | norm_model)) | not)
+                             then [$mu | keys | join(", ")] else [] end )
         } ] as $phases
   | ( [ $phases[] | .label as $l
         | .model_requested as $req
-        | ( .model_mismatches[] | "\($l): model \(.) used, \($req) requested" ),
+        | ( .model_missing[] | "\($l): requested \($req) absent from models_used (\(.))" ),
           ( if (.refusal_fallbacks | length) > 0 then "\($l): refusal fallback" else empty end ),
           ( .effort_mismatches[] | "\($l): MODELINV \(.)" ) ]
       + [ (["review", $er], ["audit", $ea]) | (.) as [$gate, $e] | select($e != null)

@@ -271,7 +271,8 @@ print(",".join(out))')"
   ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch dr2
   [ "$status" -eq 3 ]
   jq -e '.drift.field | startswith("models_used.")' "$RES/dr2/STATUS.json" >/dev/null
-  [ "$(jq -r '.drift.got' "$RES/dr2/STATUS.json")" = "global.anthropic.claude-haiku-9-9" ]
+  # DEC-0545: the requested model is absent; got is the sorted models_used keys, expected the manifest model
+  [ "$(jq -c '[.drift.field, .drift.expected, .drift.got]' "$RES/dr2/STATUS.json")" = '["models_used.PLAN","claude-opus-5-5",["global.anthropic.claude-haiku-9-9"]]' ]
 }
 
 @test "RAB-8 watchdog (DEC-0429): a pipeline that hangs past the deadline (with a running record, or with none) is SIGTERMed and rowed interrupted" {
@@ -434,4 +435,123 @@ print(",".join(out))')"
   kill -TERM -- "-$sp" 2>/dev/null || kill "$sp"; wait "$sp" 2>/dev/null || true
   ra --batch k1 --resume
   [ "$status" -eq 0 ]
+}
+
+@test "RAB-16 an extra model beside the requested one (a WebFetch summariser, DEC-0545) is not drift: the trial completes and grades, the trial log names it, STATUS.json extra_models counts it, the row is not degraded" {
+  rules '*-bugfix-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch x1 --concurrency 1
+  [ "$status" -eq 0 ]
+  S="$RES/x1/STATUS.json"
+  jq -e '.drift == null and .state == "complete" and .drift_cleared == [] and .rerowed == []' "$S" >/dev/null
+  [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
+  [ "$(jq -c '.extra_models_by_run | keys' "$S")" = '["x1-a1_full-bugfix-01-t1"]' ]
+  grep -qF 'run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in FIX2 (516 output tokens; a WebFetch summariser or built-in subagent, not drift' "$RES/x1/a1_full/bugfix-01-t1.log"
+  ! grep -q 'extra model' "$RES/x1/a1_full/bugfix-02-t1.log" || false
+  [ "$(row x1-a1_full-bugfix-01-t1 | jq -r '.status + " " + (.degraded | tostring) + " " + (.hidden_test_pass_rate | tostring)')" = "completed false 0.75" ]
+  [ "$(wc -l < "$T/grade.log")" -eq 2 ]
+  # a batch without one carries an empty object
+  unset STUB_RULES
+  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch x0
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.extra_models' "$RES/x0/STATUS.json")" = '{}' ]
+}
+
+@test "RAB-17 --clear-drift: a drift recorded under the old rule on an extra-model run is re-read clean (drift null, drift_cleared[], the rest of the plan runs); a real substitution is still a drift (exit 2, STATUS.json unchanged); --clear-drift needs --resume" {
+  rules '*-bugfix-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch cd1 --concurrency 1
+  [ "$status" -eq 0 ]
+  B="$RES/cd1" x=cd1-a1_full-bugfix-01-t1
+  # the old rule's stop: the drift recorded on the extra-model run, no other row
+  jq -c --arg r "$x" 'select(.run_id == $r)' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  jq --arg r "$x" '.state = "failed" | .drift = {run_id: $r, field: "models_used.FIX2", expected: ["claude-fable-5-1", "claude-opus-5-5"],
+                    got: "global.anthropic.claude-haiku-4-5-20251001-v1:0"}' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
+  cp "$B/STATUS.json" "$T/st.before"
+  ra --batch cd1 --resume
+  [ "$status" -eq 2 ]; grep -q 'failed on drift' <<<"$output"
+  cmp "$B/STATUS.json" "$T/st.before"
+  ra --arms a1_full --batch cd1 --clear-drift
+  [ "$status" -eq 2 ]; grep -q -- '--clear-drift needs --resume' <<<"$output"
+  : > "$T/stub.log"
+  ra --batch cd1 --resume --clear-drift
+  [ "$status" -eq 0 ]
+  S="$B/STATUS.json"
+  [ "$(jq -r '.state' "$S")" = complete ]
+  jq -e '.drift == null' "$S" >/dev/null
+  [ "$(jq -r '.drift_cleared | length' "$S")" = 1 ]
+  [ "$(jq -r '.drift_cleared[0].run_id' "$S")" = "$x" ]
+  [ "$(jq -r '.drift_cleared[0].previous.field' "$S")" = models_used.FIX2 ]
+  [ "$(jq -r '.drift_cleared[0].harness_commit' "$S")" != "" ]
+  jq -e '.drift_cleared[0].cleared_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")' "$S" >/dev/null
+  grep -qF "resume: --clear-drift $x (previous drift re-read under the current rule: none)" "$B/run.log"
+  [ "$(wc -l < "$T/stub.log")" -eq 2 ]
+  ! grep -q "^$x " "$T/stub.log" || false
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
+  # a real substitution (the requested model absent) stays a drift
+  rules '*-bugfix-01-* drift_model'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch cd2 --concurrency 1
+  [ "$status" -eq 3 ]
+  cp "$RES/cd2/STATUS.json" "$T/st2.before"; cp "$RES/runs.jsonl" "$T/rows2.before"
+  [ "$(jq -r '.drift.run_id' "$RES/cd2/STATUS.json")" = cd2-a1_full-bugfix-01-t1 ]
+  ra --batch cd2 --resume --clear-drift
+  [ "$status" -eq 2 ]; grep -q 'still drifts under the current rule' <<<"$output"
+  cmp "$RES/cd2/STATUS.json" "$T/st2.before"
+  cmp "$RES/runs.jsonl" "$T/rows2.before"
+  [ ! -e "$RES/cd2/.lock" ]
+}
+
+@test "RAB-18 --rerow: an infrastructure_error row left by the old drift rule on an extra-model run is rowed again (one row, completed, rerowed[], spend counts it once, no pipeline call); an unknown id, another batch's id, a duplicated row, an interrupted row and a rerow without --resume are refused with the rows file byte-identical" {
+  rules '*-bugfix-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rr1 --concurrency 1
+  [ "$status" -eq 0 ]
+  unset STUB_RULES
+  B="$RES/rr1" x=rr1-a1_full-bugfix-01-t1 y=rr1-a1_full-bugfix-03-t1
+  xd="$B/a1_full/bugfix-01-t1"
+  # x's row as the old rule left it: drift, never graded, --status infrastructure_error, in its place
+  rm "$xd/grade.json"
+  "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
+    --task-yaml "$(jq -r --arg r "$x" '.plan[] | select(.run_id == $r) | .task_yaml' "$B/MANIFEST.json")" --out "$T/old.row"
+  pos="$(jq -r '.run_id' "$RES/runs.jsonl" | grep -nxF "$x" | cut -d: -f1)"
+  jq -c --arg r "$x" --slurpfile o "$T/old.row" 'if .run_id == $r then $o[0] else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  jq --arg r "$x" '.state = "failed" | .drift = {run_id: $r, field: "models_used.FIX2", expected: ["claude-fable-5-1", "claude-opus-5-5"],
+                    got: "global.anthropic.claude-haiku-4-5-20251001-v1:0"}' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
+  [ "$(row "$x" | jq -r '.status')" = infrastructure_error ]
+  cp "$RES/runs.jsonl" "$T/rows.before"
+  # refusals: exit 2, the rows file byte-identical
+  ra --arms a1_full --batch rr1 --rerow "$x"
+  [ "$status" -eq 2 ]; grep -q -- '--rerow needs --resume' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  ra --batch rr1 --resume --rerow "$x"
+  [ "$status" -eq 2 ]; grep -q 'failed on drift' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  ra --batch rr1 --resume --clear-drift --rerow rr1-a1_full-nope-01-t1
+  [ "$status" -eq 2 ]; grep -q 'not in the batch' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  ra --batch rr1 --resume --clear-drift --rerow other-a1_full-bugfix-01-t1
+  [ "$status" -eq 2 ]; grep -q 'not a run of batch rr1' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  { cat "$T/rows.before"; jq -c --arg r "$x" 'select(.run_id == $r)' "$T/rows.before"; } > "$RES/runs.jsonl"; cp "$RES/runs.jsonl" "$T/rows.dup"
+  ra --batch rr1 --resume --clear-drift --rerow "$x"
+  [ "$status" -eq 2 ]; grep -q '2 rows in' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.dup"
+  jq -c --arg r "$y" 'if .run_id == $r then .status = "interrupted" else . end' "$T/rows.before" > "$RES/runs.jsonl"; cp "$RES/runs.jsonl" "$T/rows.int"
+  ra --batch rr1 --resume --clear-drift --rerow "$y"
+  [ "$status" -eq 2 ]; grep -q 'the row is interrupted' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.int"
+  cp "$T/rows.before" "$RES/runs.jsonl"
+  [ ! -e "$B/.lock" ]
+  # the rerow
+  : > "$T/stub.log"; : > "$T/grade.log"
+  ra --batch rr1 --resume --clear-drift --rerow "$x"
+  [ "$status" -eq 0 ]
+  [ ! -s "$T/stub.log" ]
+  [ "$(wc -l < "$T/grade.log")" -eq 1 ]
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl" | grep -cxF "$x")" -eq 1 ]
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl" | grep -nxF "$x" | cut -d: -f1)" = "$pos" ]
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
+  [ "$(row "$x" | jq -r '.status + " " + (.degraded | tostring) + " " + (.attempts | tostring)')" = "completed false 1" ]
+  "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
+  # the other rows are untouched
+  [ "$(grep -vF "\"run_id\":\"$x\"" "$RES/runs.jsonl")" = "$(grep -vF "\"run_id\":\"$x\"" "$T/rows.before")" ]
+  S="$B/STATUS.json"
+  [ "$(jq -c '.rerowed | map({run_id, from, to})' "$S")" = "[{\"run_id\":\"$x\",\"from\":\"infrastructure_error\",\"to\":\"completed\"}]" ]
+  [ "$(jq -r '.state' "$S")" = complete ]
+  [ "$(jq -r '.spend.rows_usd, .per_arm.a1_full.completed, .per_arm.a1_full.excluded, .per_arm.a1_full.launched' "$S" | tr '\n' ' ')" = "7.5 3 0 3 " ]
+  [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
+  grep -qF "rerow $x: infrastructure_error → completed" "$B/run.log"
+  grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-01-t1.log"
+  ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false   # no temp file left beside the rows file
 }

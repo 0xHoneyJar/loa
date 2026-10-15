@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # run-ablation.sh — the cycle-130 ablation batch runner (SDD §5.9, §3.4; sprint Task 3.2;
-# DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435)
+# DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435, DEC-0545)
 #
 # Plans a batch (arm × applicable task × trial), dispatches every trial to
 # pipeline-run.sh against a pinned source tree, checks after each trial that the arm
@@ -15,6 +15,7 @@
 #                   [--suite-root DIR] [--suite-file F] [--image IMG] [--executor container|host]
 #                   [--pre-registration-ref TEXT] [--seed N] [--self-check-log F]
 #                   [--smoke] [--dry-run] [--resume] [--detach] [--clear-arm ID]...
+#                   [--clear-drift] [--rerow RUN_ID]...
 #                   [--pipeline-bin P] [--grade-bin G] [--row-bin R] [--took-effect-bin T]
 #                   [--docker-bin D]
 #
@@ -58,6 +59,18 @@
 #   --detach             re-exec under setsid nohup (log <batch>/driver.log), print the batch
 #                        directory and the pid, exit 0
 #   --clear-arm ID       with --resume: remove ID from STATUS.json paused_arms (repeatable)
+#   --clear-drift        with --resume: re-read the run named by STATUS.json drift (its run dir
+#                        <batch>/<arm>/<task>-t<n>, or the highest -r<k> sibling) with the
+#                        current drift guard; none → drift null, an entry in drift_cleared[] and
+#                        the batch continues; still a drift → exit 2 printing it, nothing written
+#   --rerow RUN_ID       with --resume: run the post-run chain (took-effect, drift guard, grade,
+#                        ablation-row.sh with the old row's attempts and retry_reason) again
+#                        over the run dir of RUN_ID and replace its one row in place, under the
+#                        rows file's flock (temp file beside it, --validate, mv); repeatable;
+#                        before reconciliation, so spend and per_arm count the new row once.
+#                        Refused (exit 2, nothing written) when RUN_ID is not <batch>-… or not
+#                        in the plan, has no row or more than one, has no run dir, or its row
+#                        is interrupted or transport_error (those trials are reruns)
 #   --pipeline-bin P, --grade-bin G, --row-bin R, --took-effect-bin T, --docker-bin D
 #                        the five collaborators (defaults: the scripts beside this one, and
 #                        $EVAL_DOCKER_BIN else docker)
@@ -78,7 +91,8 @@
 #      $LOA_ABLATION_SOURCE_REPO (default this repository) with git worktree add --detach;
 #      it must be at the commit and pristine (git status --porcelain --ignored empty)
 #   --resume also refuses when the source commit, the suite manifest hash, the image digest
-#   or the CLI version differ from MANIFEST.json, or when STATUS.json records a drift.
+#   or the CLI version differ from MANIFEST.json, or when STATUS.json records a drift
+#   (unless --clear-drift re-reads that run clean under the current rule).
 #
 # Plan: arms × tasks × trials. An arm whose task_types excludes a task's type is dropped for
 # that task with one `refused:` line and never dispatched (DEC-0405). The order is
@@ -104,9 +118,14 @@
 #   3. took-effect.sh --run-dir D --suite-file F (completed, agent_error and cap_failure runs):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
 #      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418)
-#   4. drift guard (DEC-0407): every executed phase's model_requested equals MANIFEST
-#      phase_models[name] and every models_used key is one of the manifest's phase models
-#      (ids normalised as ablation-row.sh does); the transcripts' system/init
+#   4. drift guard (DEC-0407 as amended by DEC-0545): a phase drifts on model grounds only
+#      when its model_requested differs from MANIFEST phase_models[name], or when the
+#      requested model (else the manifest's) is absent from a non-empty models_used (ids
+#      normalised as ablation-row.sh does: no Bedrock region prefix, no -vN:M suffix). Any
+#      other models_used key is an extra model, telemetry and not drift (Claude Code's
+#      WebFetch summariser or a built-in subagent): one `run-ablation: extra model <id> in
+#      <labels> (<N> output tokens; …)` line in the trial log, the trial result's
+#      extra_models and STATUS.json extra_models. The transcripts' system/init
 #      claude_code_version (or version) equals MANIFEST cli_version (when neither carries a
 #      version, pipeline.json image_digest must equal MANIFEST image_digest). A mismatch rows
 #      the trial infrastructure_error, records STATUS.json drift, launches nothing more and
@@ -153,14 +172,19 @@
 #   reason, first_attempt_usd}], cuts: [...], paused_arms: {<arm>: reason}, spend: {rows_usd,
 #   ledger_usd (first attempts), spent_usd, max_usd, assumed_cap_trials}, resume_cursor (the
 #   index of the first plan entry without a row), drift: null | {run_id, field, expected,
-#   got}, rows_invalid, started, finished}. At the end the spend.sh line and a batch line
-#   go to <batch>/spend.txt.
+#   got}, drift_cleared: [{run_id, previous, cleared_at, harness_commit}] (--clear-drift),
+#   rerowed: [{run_id, from, to, at}] (--rerow), extra_models: {<raw id>: {runs,
+#   output_tokens}} ({} when none; derived from extra_models_by_run: {<run_id>: {<raw id>:
+#   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
+#   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
 #
 # --resume: reads MANIFEST.json (plan, arms, suite paths, executor, image, run cap, rows
 #   file) and STATUS.json (paused_arms, cuts, retries, first-attempt spend); a plan run_id
 #   with a row of this batch is done; a trial without a row reruns into a fresh -r<k> run
 #   dir (the stale dir is kept); counters and spend are recomputed from the rows.
-#   --max-usd and --concurrency may change on resume; --clear-arm needs --resume. A start
+#   --max-usd and --concurrency may change on resume; --clear-arm, --clear-drift and
+#   --rerow need --resume (order: --clear-drift is checked before the lock, then --rerow
+#   replaces rows, then the counters are recomputed). A start
 #   (fresh or resumed) is refused while a process group recorded under <batch>/.jobs/ by an
 #   earlier driver (one killed with SIGKILL) is still alive.
 #
@@ -199,7 +223,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
 SMOKE=false DRY_RUN=false RESUME=false DETACH=false
-CLEAR_ARMS=()
+CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false
 PIPELINE_BIN="$SCRIPT_DIR/pipeline-run.sh" GRADE_BIN="$SCRIPT_DIR/ablation-grade.sh"
 ROW_BIN="$SCRIPT_DIR/ablation-row.sh" TOOK_BIN="$SCRIPT_DIR/took-effect.sh"
 DOCKER_BIN="${EVAL_DOCKER_BIN:-docker}"
@@ -239,6 +263,8 @@ while [[ $# -gt 0 ]]; do
     --resume) RESUME=true; shift ;;
     --detach) DETACH=true; shift ;;
     --clear-arm) CLEAR_ARMS+=("${2:-}"); shift 2 ;;
+    --clear-drift) CLEAR_DRIFT=true; shift ;;
+    --rerow) REROW_IDS+=("${2:-}"); shift 2 ;;
     --pipeline-bin) PIPELINE_BIN="${2:-}"; shift 2 ;;
     --grade-bin) GRADE_BIN="${2:-}"; shift 2 ;;
     --row-bin) ROW_BIN="${2:-}"; shift 2 ;;
@@ -268,6 +294,10 @@ if [[ -n "$MAX_USD" ]]; then usd_ok "$MAX_USD" && [[ "$MAX_USD" != "0" ]] || die
 [[ "$POLL_S" =~ ^[0-9]{1,3}(\.[0-9]{1,3})?$ ]] || die "LOA_ABLATION_POLL_S must be seconds"
 if [[ ${#CLEAR_ARMS[@]} -gt 0 && "$RESUME" != true ]]; then die "--clear-arm needs --resume"; fi
 for a in ${CLEAR_ARMS[@]+"${CLEAR_ARMS[@]}"}; do [[ "$a" =~ ^[a-z][a-z0-9_]{0,63}$ ]] || die "invalid --clear-arm '$a'"; done
+[[ "$CLEAR_DRIFT" != true || "$RESUME" == true ]] || die "--clear-drift needs --resume"
+if [[ ${#REROW_IDS[@]} -gt 0 && "$RESUME" != true ]]; then die "--rerow needs --resume"; fi
+for r in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do [[ "$r" =~ ^[A-Za-z0-9._-]{1,200}$ ]] || die "invalid --rerow '$r'"; done
+[[ "$(printf '%s\n' ${REROW_IDS[@]+"${REROW_IDS[@]}"} | sort | uniq -d)" == "" ]] || die "--rerow lists a run_id twice"
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
 
@@ -303,8 +333,8 @@ if [[ "$RESUME" == true ]]; then
   jq -e '.schema_version == 1 and .dry_run == false' "$MAN_PATH" >/dev/null 2>&1 \
     || die "$MAN_PATH is not a schema_version 1 batch manifest of a real run"
   [[ "$(jq -r '.smoke' "$MAN_PATH")" == "$SMOKE" ]] || die "batch $BATCH smoke=$(jq -r '.smoke' "$MAN_PATH"); pass --smoke exactly as the batch started"
-  if [[ "$(jq -r '.drift != null' "$BATCH_DIR/STATUS.json")" == true ]]; then
-    die "batch $BATCH failed on drift ($(jq -c '.drift' "$BATCH_DIR/STATUS.json")); start a new batch"
+  if [[ "$(jq -r '.drift != null' "$BATCH_DIR/STATUS.json")" == true && "$CLEAR_DRIFT" != true ]]; then
+    die "batch $BATCH failed on drift ($(jq -c '.drift' "$BATCH_DIR/STATUS.json")); start a new batch, or --clear-drift when the rule changed (DEC-0545)"
   fi
   man_src="$(jq -r '.source_commit' "$MAN_PATH")"
   if [[ -n "$SOURCE_COMMIT" && "$man_src" != "$SOURCE_COMMIT"* ]]; then die "--source-commit $SOURCE_COMMIT differs from the batch's $man_src"; fi
@@ -420,6 +450,65 @@ if [[ "$SMOKE" == true ]]; then TB="${TB:-1}" TR="${TR:-1}"; fi
 # --- helpers ------------------------------------------------------------------------------
 sha_file() { python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"; }
 semver_of() { grep -oE '[0-9]+\.[0-9]+\.[0-9]+' <<<"$1" | head -1 || true; }
+# drift_check <run-dir> <run_id> → two lines: the drift {run_id, field, expected, got} or null,
+# then the extra models {<raw id>: {phases: [<label>…], output_tokens: N}} ({} when none).
+# Read-only on the run dir. A phase drifts on model grounds only when its model_requested
+# differs from MANIFEST phase_models[name], or when the requested model (else the manifest's)
+# is absent from a non-empty models_used; any other models_used key is an extra model (a
+# WebFetch summariser or a built-in subagent: telemetry, DEC-0545)
+drift_check() {
+  python3 -I - "$1" "$MAN_PATH" "$2" <<'PY'
+import glob, json, os, re, sys
+rd, man, rid = sys.argv[1:4]
+m = json.load(open(man)); p = json.load(open(os.path.join(rd, "meta", "pipeline.json")))
+def norm(x):   # ablation-row.sh norm_model
+    x = re.sub(r"^([a-z]+\.)?anthropic\.", "", str(x)); return re.sub(r"-v[0-9]+(:[0-9]+)?$", "", x)
+pm = m.get("phase_models") or {}
+extra, first = {}, None
+def hit(field, exp, got):
+    global first
+    if first is None: first = {"run_id": rid, "field": field, "expected": exp, "got": got}
+for ph in p.get("phases") or []:
+    if not isinstance(ph, dict) or ph.get("skipped"): continue
+    name, label = ph.get("name") or "", ph.get("label") or ph.get("name") or ""
+    req = ph.get("model_requested")
+    if name in pm and req is not None and norm(req) != norm(pm[name]):
+        hit("model_requested." + label, pm[name], req)
+    mu = ph.get("models_used") if isinstance(ph.get("models_used"), dict) else {}
+    want = req if isinstance(req, str) and req else pm.get(name)
+    if not mu or not want: continue
+    if norm(want) not in {norm(k) for k in mu}:
+        hit("models_used." + label, norm(pm.get(name) or want), sorted(mu))
+        continue
+    for k in sorted(mu):
+        if norm(k) == norm(want): continue
+        e = extra.setdefault(k, {"phases": [], "output_tokens": 0})
+        e["phases"].append(label)
+        v = mu[k]
+        if isinstance(v, (int, float)) and not isinstance(v, bool): e["output_tokens"] += int(v)
+if first is None:
+    want, seen = m.get("cli_version") or "", []
+    for f in sorted(glob.glob(os.path.join(rd, "transcripts", "events-*.jsonl"))):
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh):
+                if n > 200: break
+                if '"init"' not in line: continue
+                try: e = json.loads(line)
+                except ValueError: continue
+                if isinstance(e, dict) and e.get("type") == "system" and e.get("subtype") == "init":
+                    v = e.get("claude_code_version") or e.get("version")
+                    if isinstance(v, str) and v: seen.append((os.path.basename(f), v))
+                    break
+    if seen and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", want):
+        for f, v in seen:
+            got = re.search(r"[0-9]+\.[0-9]+\.[0-9]+", v)
+            if (got.group(0) if got else v) != want: hit("cli_version", want, v); break
+    elif not seen and m.get("image_digest") and p.get("image_digest") and m["image_digest"] != p["image_digest"]:
+        hit("image_digest", m["image_digest"], p["image_digest"])
+print(json.dumps(first) if first is not None else "null")
+print(json.dumps(extra, sort_keys=True))
+PY
+}
 LOG=""
 log() { local l; l="$(date -u +%H:%M:%SZ) $*"; printf '%s\n' "$l" >&2; [[ -z "$LOG" ]] || printf '%s\n' "$l" >> "$LOG"; }
 
@@ -630,6 +719,55 @@ if [[ "$DRY_RUN" == true ]]; then
   exit 0
 fi
 
+# --- --clear-drift and --rerow: checked read-only before the lock (a refusal writes nothing) --
+run_dir_of() {  # run_dir_of <run_id> → <batch>/<arm>/<task>-t<n> or its highest -r<k> sibling; empty when none
+  local rel base best k max=1 d
+  rel="$(jq -r --arg r "$1" '[.[] | select(.run_id == $r) | .run_dir][0] // ""' "$WORK/plan-only.json")"
+  [[ -n "$rel" ]] || return 0
+  base="$BATCH_DIR/$rel" best=""
+  [[ -d "$base" ]] && best="$base"
+  for d in "$base"-r*; do
+    [[ -d "$d" ]] || continue
+    k="${d##*-r}"; [[ "$k" =~ ^[0-9]+$ ]] || continue
+    if [[ $k -gt $max ]]; then max=$k best="$d"; fi
+  done
+  printf '%s' "$best"
+}
+CLEAR_PENDING=null
+if [[ "$CLEAR_DRIFT" == true ]]; then
+  old_drift="$(jq -c '.drift' "$BATCH_DIR/STATUS.json")"
+  if [[ "$old_drift" == null ]]; then
+    echo "run-ablation: resume: --clear-drift: the batch records no drift; nothing to clear" >&2
+  else
+    cd_rid="$(jq -r '.run_id // ""' <<<"$old_drift")"
+    cd_rd="$(run_dir_of "$cd_rid")"
+    [[ -n "$cd_rd" && -f "$cd_rd/meta/pipeline.json" ]] || die "resume: --clear-drift: no run dir with meta/pipeline.json for the drifted run $cd_rid"
+    cd_now="$(drift_check "$cd_rd" "$cd_rid" | sed -n 1p)" || cd_now=""
+    [[ -n "$cd_now" ]] || die "resume: --clear-drift $cd_rid: the drift guard could not read $cd_rd"
+    [[ "$cd_now" == null ]] || die "resume: --clear-drift $cd_rid: the run still drifts under the current rule: $cd_now"
+    CLEAR_PENDING="$(jq -cn --arg r "$cd_rid" --argjson prev "$old_drift" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg hc "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
+      '{run_id: $r, previous: $prev, cleared_at: $at, harness_commit: $hc}')"
+  fi
+fi
+RR_K=() RR_RD=() RR_FROM=() RR_ATT=() RR_REASON=()
+for rid in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do
+  [[ "$rid" == "$BATCH-"* ]] || die "--rerow $rid: not a run of batch $BATCH (<batch>-<arm>-<task>-t<n>)"
+  k=-1
+  for j in "${!PL_RUN[@]}"; do [[ "${PL_RUN[$j]}" == "$rid" ]] && { k=$j; break; }; done
+  [[ $k -ge 0 ]] || die "--rerow $rid: not in the batch's plan"
+  [[ -f "$ROWS" ]] || die "--rerow $rid: no rows file $ROWS"
+  rr_rows="$(jq -R -c --arg b "$BATCH" --arg r "$rid" 'fromjson? | select(type == "object" and .batch == $b and .run_id == $r)' "$ROWS")"
+  rr_n="$(grep -c . <<<"$rr_rows" || true)"
+  [[ "$rr_n" -eq 1 ]] || die "--rerow $rid: $rr_n rows in $ROWS (a rerow replaces exactly one)"
+  rr_st="$(jq -r '.status' <<<"$rr_rows")"
+  case "$rr_st" in interrupted|transport_error) die "--rerow $rid: the row is $rr_st; that trial is a rerun (--resume after removing the row), not a rerow" ;; esac
+  rr_rd="$(run_dir_of "$rid")"
+  [[ -n "$rr_rd" && -f "$rr_rd/meta/pipeline.json" ]] || die "--rerow $rid: no run dir with meta/pipeline.json under $BATCH_DIR"
+  RR_K+=("$k"); RR_RD+=("$rr_rd"); RR_FROM+=("$rr_st")
+  RR_ATT+=("$(jq -r '.attempts // 1' <<<"$rr_rows")"); RR_REASON+=("$(jq -r '.retry_reason // ""' <<<"$rr_rows")")
+done
+
 # --- batch directory, lock, manifest ---------------------------------------------------
 mkdir -p "$BATCH_DIR"
 LOCK="$BATCH_DIR/.lock"
@@ -666,6 +804,7 @@ mkdir -p "$(dirname "$ROWS")"
 STATE=running STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 SPENT=0 ASSUMED_CAP=0 CUT_JSON=null LAUNCHED=0 ROWS_USD=0 LEDGER_USD=0
 CUTS_JSON='[]' RETRIES_JSON='[]' PAUSED_JSON='{}' DRIFT_JSON=null ROWS_INVALID=null STOP="" SIGNALLED=false
+EXTRA_RUNS_JSON='{}' DRIFT_CLEARED_JSON='[]' REROWED_JSON='[]'
 DONE_LIST=$'\n'
 C_PLANNED=() C_LAUNCHED=() C_COMPLETED=() C_FAILED=() C_EXCLUDED=() C_CAP=() C_DEGRADED=() C_SKIPPED=()
 for i in "${!ARMS[@]}"; do
@@ -719,41 +858,18 @@ write_status() {
     --argjson assumed "$ASSUMED_CAP" --argjson cursor "$(resume_cursor)" --argjson drift "$DRIFT_JSON" \
     --argjson invalid "$ROWS_INVALID" --arg started "$STARTED" --argjson finished "$finished" \
     --arg src "$SRC_FULL" --arg rows "$ROWS" --argjson planned "$PLAN_N" --argjson signalled "$SIGNALLED" \
+    --argjson ebr "$EXTRA_RUNS_JSON" --argjson cleared "$DRIFT_CLEARED_JSON" --argjson rerowed "$REROWED_JSON" \
     '{schema_version: 1, suite: "ablation-2.0", batch: $batch, smoke: $smoke, state: $state, per_arm: $per,
       retries: $retries, cuts: $cuts, paused_arms: $paused,
       spend: {rows_usd: ($rows_usd | tonumber), ledger_usd: ($ledger | tonumber), spent_usd: ($spent | tonumber),
               max_usd: (if $max == "" then null else ($max | tonumber) end), assumed_cap_trials: $assumed},
-      trials_planned: $planned, resume_cursor: $cursor, drift: $drift, rows_invalid: $invalid, signalled: $signalled,
+      trials_planned: $planned, resume_cursor: $cursor, drift: $drift, drift_cleared: $cleared, rerowed: $rerowed,
+      extra_models: ([$ebr | to_entries[] | .value | to_entries[]] | group_by(.key)
+                     | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
+      extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,
       source_commit: $src, rows_file: $rows, started: $started, finished: $finished}' > "$BATCH_DIR/STATUS.json.tmp"
   mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
 }
-
-# --- --resume reconciliation: rows on disk are the truth -------------------------------
-if [[ "$RESUME" == true ]]; then
-  ST_PATH="$BATCH_DIR/STATUS.json"
-  STARTED="$(jq -r '.started // empty' "$ST_PATH")"; [[ -n "$STARTED" ]] || STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  CUTS_JSON="$(jq -c '.cuts // []' "$ST_PATH")"; RETRIES_JSON="$(jq -c '.retries // []' "$ST_PATH")"
-  PAUSED_JSON="$(jq -c '.paused_arms // {}' "$ST_PATH")"
-  LEDGER_USD="$(jq -r '.spend.ledger_usd // 0' "$ST_PATH")"; SPENT="$(fadd "$SPENT" "$LEDGER_USD")"
-  for a in ${CLEAR_ARMS[@]+"${CLEAR_ARMS[@]}"}; do
-    if is_paused "$a"; then PAUSED_JSON="$(jq -c --arg a "$a" 'del(.[$a])' <<<"$PAUSED_JSON")"; log "resume: --clear-arm $a (paused arm released)"
-    else log "resume: --clear-arm $a: the arm is not paused"; fi
-  done
-  if [[ -f "$ROWS" ]]; then
-    dup="$(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b) | .run_id' "$ROWS" | sort | uniq -d | head -3 | tr '\n' ' ')"
-    [[ -z "$dup" ]] || refuse "resume: $ROWS holds run_id(s) twice: $dup"
-    while IFS=$'\t' read -r rid st cost deg; do
-      k=-1
-      for j in "${!PL_RUN[@]}"; do [[ "${PL_RUN[$j]}" == "$rid" ]] && { k=$j; break; }; done
-      [[ $k -ge 0 ]] || continue
-      DONE_LIST="$DONE_LIST$rid"$'\n'
-      i="$(arm_index "${PL_ARM[$k]}")"; C_LAUNCHED[$i]=$(( ${C_LAUNCHED[$i]} + 1 )); LAUNCHED=$((LAUNCHED + 1))
-      account_row "${PL_ARM[$k]}" "${PL_KIND[$k]}" "$rid" "$st" "$cost" "$deg"
-    done < <(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b)
-               | [.run_id, .status, ((.cost_usd // 0) | tostring), ((.degraded // false) | tostring)] | @tsv' "$ROWS")
-  fi
-  log "resume: batch $BATCH, $LAUNCHED of $PLAN_N trials rowed, spent $SPENT, paused $(jq -c 'keys' <<<"$PAUSED_JSON")"
-fi
 
 cleanup() {
   local f p
@@ -785,52 +901,55 @@ synthesize_record() {  # synthesize_record <run-dir> <arm> <task> <type> <trial>
         snapshots: {}, started: $now, finished: $now, synthesized_by: "run-ablation.sh"}' > "$rd/meta/pipeline.json"
   fi
 }
-drift_check() {  # drift_check <run-dir> <run_id> → {run_id, field, expected, got} or null
-  python3 -I - "$1" "$MAN_PATH" "$2" <<'PY'
-import glob, json, os, re, sys
-rd, man, rid = sys.argv[1:4]
-m = json.load(open(man)); p = json.load(open(os.path.join(rd, "meta", "pipeline.json")))
-def norm(x):   # ablation-row.sh norm_model
-    x = re.sub(r"^([a-z]+\.)?anthropic\.", "", str(x)); return re.sub(r"-v[0-9]+(:[0-9]+)?$", "", x)
-def hit(field, exp, got):
-    print(json.dumps({"run_id": rid, "field": field, "expected": exp, "got": got})); sys.exit(0)
-pm = m.get("phase_models") or {}
-allowed = sorted({norm(v) for v in pm.values()})
-for ph in p.get("phases") or []:
-    if not isinstance(ph, dict) or ph.get("skipped"): continue
-    name, label = ph.get("name") or "", ph.get("label") or ph.get("name") or ""
-    req = ph.get("model_requested")
-    if name in pm and req is not None and norm(req) != norm(pm[name]):
-        hit("model_requested." + label, pm[name], req)
-    for k in sorted((ph.get("models_used") or {}) if isinstance(ph.get("models_used"), dict) else {}):
-        if norm(k) not in allowed:
-            hit("models_used." + label, allowed, k)
-want, seen = m.get("cli_version") or "", []
-for f in sorted(glob.glob(os.path.join(rd, "transcripts", "events-*.jsonl"))):
-    with open(f, encoding="utf-8", errors="replace") as fh:
-        for n, line in enumerate(fh):
-            if n > 200: break
-            if '"init"' not in line: continue
-            try: e = json.loads(line)
-            except ValueError: continue
-            if isinstance(e, dict) and e.get("type") == "system" and e.get("subtype") == "init":
-                v = e.get("claude_code_version") or e.get("version")
-                if isinstance(v, str) and v: seen.append((os.path.basename(f), v))
-                break
-if seen and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", want):
-    for f, v in seen:
-        got = re.search(r"[0-9]+\.[0-9]+\.[0-9]+", v)
-        if (got.group(0) if got else v) != want: hit("cli_version", want, v)
-elif not seen and m.get("image_digest") and p.get("image_digest") and m["image_digest"] != p["image_digest"]:
-    hit("image_digest", m["image_digest"], p["image_digest"])
-print("null")
-PY
+# post_run <run-dir> <run_id> <task> <task_yaml> <attempts> <retry_reason> <pipeline_status>
+#          <override> <row-out> <log> — the chain after a finished pipeline, shared by a trial
+# and by --rerow: took-effect, drift guard, grade (completed, agent_error and cap_failure runs
+# without an override), then ablation-row.sh into <row-out>. Results in PR_TE (ok | fail |
+# skipped), PR_TE_REASON, PR_DRIFT (json or null), PR_EXTRA (the extra models, json),
+# PR_GRC (null or the grade exit), PR_RRC (the row exit) and PR_OVERRIDE (the final override)
+post_run() {
+  local rd="$1" rid="$2" task="$3" tyaml="$4" attempts="$5" rr="$6" st="$7" row_out="$9" plog="${10}"
+  PR_OVERRIDE="$8" PR_TE=skipped PR_TE_REASON="" PR_DRIFT=null PR_EXTRA='{}' PR_GRC=null PR_RRC=0
+  if [[ -z "$PR_OVERRIDE" ]]; then
+    case "$st" in
+      completed|agent_error|cap_failure)
+        local trc=0 tout dout id
+        tout="$("$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?
+        printf '%s\n' "$tout" >> "$plog"
+        if [[ $trc -eq 0 ]]; then PR_TE=ok
+        else
+          PR_TE=fail PR_OVERRIDE=infrastructure_error
+          PR_TE_REASON="took-effect exit $trc: $(grep -E ' FAIL' <<<"$tout" | head -4 | cut -c1-200 | tr '\n' ';' || true)"
+        fi
+        dout="$(drift_check "$rd" "$rid" 2>>"$plog" || true)"
+        PR_DRIFT="$(sed -n 1p <<<"$dout")" PR_EXTRA="$(sed -n 2p <<<"$dout")"
+        jq -e . >/dev/null 2>&1 <<<"$PR_DRIFT" || PR_DRIFT=null
+        jq -e 'type == "object"' >/dev/null 2>&1 <<<"$PR_EXTRA" || PR_EXTRA='{}'
+        while IFS=$'\t' read -r id labels toks; do
+          [[ -n "$id" ]] || continue
+          printf 'run-ablation: extra model %s in %s (%s output tokens; a WebFetch summariser or built-in subagent, not drift — DEC-0545)\n' \
+            "$id" "$labels" "$toks" >> "$plog"
+        done < <(jq -r 'to_entries[] | [.key, (.value.phases | join(",")), (.value.output_tokens | tostring)] | @tsv' <<<"$PR_EXTRA")
+        if [[ "$PR_DRIFT" != null ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: drift %s\n' "$PR_DRIFT" >> "$plog"; fi
+        if [[ -z "$PR_OVERRIDE" ]]; then
+          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
+          [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
+          PR_GRC=0; "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
+          if [[ $PR_GRC -ne 0 ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade exit %s\n' "$PR_GRC" >> "$plog"; fi
+        fi ;;
+    esac
+  fi
+  local -a r=("$ROW_BIN" --run-dir "$rd" --task-yaml "$tyaml" --manifest "$MAN_PATH" --attempts "$attempts" --out "$row_out")
+  [[ -n "$rr" ]] && r+=(--retry-reason "$rr")
+  [[ -n "$PR_OVERRIDE" ]] && r+=(--status "$PR_OVERRIDE")
+  "${r[@]}" >> "$plog" 2>&1 || PR_RRC=$?
+  return 0
 }
 
 run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <task_yaml> <watchdog_s>
   local jid="$1" arm="$2" task="$3" type="$4" kind="$5" trial="$6" rid="$7" tyaml="$8" wds="$9"
   local base="$BATCH_DIR/$arm/$task-t$trial" tlog="$BATCH_DIR/$arm/$task-t$trial.log"
-  local attempt=0 rd="" st="" prc retry_reason="" first_usd=0 sig override="" te=skipped te_reason="" drift=null grc=null pid
+  local attempt=0 rd="" st="" prc retry_reason="" first_usd=0 sig override="" pid
   local t0 t1
   mkdir -p "$BATCH_DIR/$arm"
   t0="$(date +%s)"
@@ -873,39 +992,15 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     fi
     break
   done
-  if [[ -z "$override" ]]; then
-    case "$st" in
-      completed|agent_error|cap_failure)
-        local trc=0 tout
-        tout="$("$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?
-        printf '%s\n' "$tout" >> "$tlog"
-        if [[ $trc -eq 0 ]]; then te=ok
-        else
-          te=fail override=infrastructure_error
-          te_reason="took-effect exit $trc: $(grep -E ' FAIL' <<<"$tout" | head -4 | cut -c1-200 | tr '\n' ';' || true)"
-        fi
-        drift="$(drift_check "$rd" "$rid" 2>>"$tlog" || echo null)"
-        jq -e . >/dev/null 2>&1 <<<"$drift" || drift=null
-        if [[ "$drift" != null ]]; then override=infrastructure_error; printf 'run-ablation: drift %s\n' "$drift" >> "$tlog"; fi
-        if [[ -z "$override" ]]; then
-          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
-          [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
-          grc=0; "${g[@]}" >> "$tlog" 2>&1 || grc=$?
-          if [[ $grc -ne 0 ]]; then override=infrastructure_error; printf 'run-ablation: grade exit %s\n' "$grc" >> "$tlog"; fi
-        fi ;;
-    esac
-  fi
-  local -a r=("$ROW_BIN" --run-dir "$rd" --task-yaml "$tyaml" --manifest "$MAN_PATH" --attempts "$attempt" --out "$JOBS_DIR/$jid.row")
-  [[ -n "$retry_reason" ]] && r+=(--retry-reason "$retry_reason")
-  [[ -n "$override" ]] && r+=(--status "$override")
-  local rrc=0; "${r[@]}" >> "$tlog" 2>&1 || rrc=$?
+  post_run "$rd" "$rid" "$task" "$tyaml" "$attempt" "$retry_reason" "$st" "$override" "$JOBS_DIR/$jid.row" "$tlog"
   t1="$(date +%s)"
   jq -n --arg rid "$rid" --arg rd "$rd" --argjson att "$attempt" --arg rr "$retry_reason" --arg first "$first_usd" \
-    --arg pst "${st:-}" --arg ov "$override" --arg te "$te" --arg ter "$te_reason" --argjson drift "$drift" \
-    --argjson grc "$grc" --argjson rrc "$rrc" --argjson secs "$(( t1 - t0 ))" \
+    --arg pst "${st:-}" --arg ov "$PR_OVERRIDE" --arg te "$PR_TE" --arg ter "$PR_TE_REASON" --argjson drift "$PR_DRIFT" \
+    --argjson grc "$PR_GRC" --argjson rrc "$PR_RRC" --argjson secs "$(( t1 - t0 ))" --argjson extra "$PR_EXTRA" \
     '{run_id: $rid, run_dir: $rd, attempts: $att, retry_reason: (if $rr == "" then null else $rr end),
       first_attempt_usd: ($first | tonumber? // 0), pipeline_status: $pst, override: $ov, took_effect: $te,
-      took_effect_reason: $ter, drift: $drift, grade_rc: $grc, row_rc: $rrc, seconds: $secs}' > "$JOBS_DIR/$jid.result.tmp"
+      took_effect_reason: $ter, drift: $drift, grade_rc: $grc, row_rc: $rrc, seconds: $secs,
+      extra_models: $extra}' > "$JOBS_DIR/$jid.result.tmp"
   mv "$JOBS_DIR/$jid.result.tmp" "$JOBS_DIR/$jid.result"
 }
 
@@ -928,6 +1023,25 @@ append_and_validate() {  # append_and_validate <row-file> <run_id> → 0 ok; 1 i
   return 0
 }
 
+# apply_flags <arm> <run_id> <took_effect> <reason> <drift> — a took-effect FAIL pauses the
+# arm (DEC-0418); the first drift stops the batch (DEC-0407)
+apply_flags() {
+  if [[ "$3" == fail ]] && ! is_paused "$1"; then
+    PAUSED_JSON="$(jq -c --arg a "$1" --arg why "$2: $4" '. + {($a): $why}' <<<"$PAUSED_JSON")"
+    log "PAUSED arm $1: $4 (no further trial of $1 launches until --resume --clear-arm $1)"
+  fi
+  if [[ "$5" != null && "$DRIFT_JSON" == null ]]; then
+    DRIFT_JSON="$5"; STOP=drift
+    log "DRIFT $2: $5; no further trial launches; the batch fails when the running trials end (DEC-0407)"
+  fi
+  return 0
+}
+# record_extra <run_id> <extra models json> — the run's extra models replace its earlier entry
+record_extra() {
+  EXTRA_RUNS_JSON="$(jq -c --arg r "$1" --argjson e "$2" \
+    'if ($e | type) == "object" and ($e | length) > 0 then .[$r] = ($e | map_values(.output_tokens // 0)) else del(.[$r]) end' <<<"$EXTRA_RUNS_JSON")"
+}
+
 collect() {  # collect <jid> <plan-index>
   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
   if [[ ! -f "$res" ]]; then
@@ -938,6 +1052,7 @@ collect() {  # collect <jid> <plan-index>
   local first att rr te ter drift
   first="$(jq -r '.first_attempt_usd' "$res")" att="$(jq -r '.attempts' "$res")" rr="$(jq -r '.retry_reason // ""' "$res")"
   te="$(jq -r '.took_effect' "$res")" ter="$(jq -r '.took_effect_reason' "$res")" drift="$(jq -c '.drift' "$res")"
+  record_extra "$rid" "$(jq -c '.extra_models // {}' "$res")"
   if [[ "$att" -ge 2 ]]; then
     RETRIES_JSON="$(jq -c --arg r "$rid" --arg why "$rr" --arg u "$first" '. + [{run_id: $r, reason: $why, first_attempt_usd: ($u | tonumber)}]' <<<"$RETRIES_JSON")"
     SPENT="$(fadd "$SPENT" "$first")"; LEDGER_USD="$(fadd "$LEDGER_USD" "$first")"
@@ -956,14 +1071,7 @@ collect() {  # collect <jid> <plan-index>
     SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
     log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $RUN_CAP charged to spent"
   fi
-  if [[ "$te" == fail ]] && ! is_paused "$arm"; then
-    PAUSED_JSON="$(jq -c --arg a "$arm" --arg why "$rid: $ter" '. + {($a): $why}' <<<"$PAUSED_JSON")"
-    log "PAUSED arm $arm: $ter (no further trial of $arm launches until --resume --clear-arm $arm)"
-  fi
-  if [[ "$drift" != null && "$DRIFT_JSON" == null ]]; then
-    DRIFT_JSON="$drift"; STOP=drift
-    log "DRIFT $rid: $drift; no further trial launches; the batch fails when the running trials end (DEC-0407)"
-  fi
+  apply_flags "$arm" "$rid" "$te" "$ter" "$drift"
   rm -f "$JOBS_DIR/$jid".*
   write_status
 }
@@ -1032,6 +1140,94 @@ finish() {  # finish <state> <exit> <message>
   echo "batch: $BATCH_DIR"
   exit "$2"
 }
+
+# --- --rerow: the post-run chain again over a rowed run dir, the row replaced in place ---
+replace_row() {  # replace_row <run_id> <new-row-file> → 0 replaced; dies (rows file untouched) otherwise
+  local rid="$1" newf="$2" tmp="$ROWS.rerow.$$" rc=0 vout
+  local -a v=("$ROW_BIN" --validate "$tmp"); [[ "$SMOKE" == true ]] && v+=(--allow-ungraded)
+  {
+    command -v flock >/dev/null 2>&1 && flock -x 9
+    python3 -I - "$ROWS" "$tmp" "$BATCH" "$rid" "$newf" <<'PY' || rc=$?
+import json, sys
+rows, tmp, batch, rid, newf = sys.argv[1:6]
+new = open(newf, encoding="utf-8").read().strip()
+out, n = [], 0
+with open(rows, encoding="utf-8") as fh:
+    for line in fh:
+        try: o = json.loads(line)
+        except ValueError: o = None
+        if isinstance(o, dict) and o.get("batch") == batch and o.get("run_id") == rid:
+            n += 1; out.append(new + "\n")
+        else:
+            out.append(line if line.endswith("\n") else line + "\n")
+if n != 1:
+    print("run_id %s has %d rows" % (rid, n), file=sys.stderr); sys.exit(1)
+with open(tmp, "w", encoding="utf-8") as fh: fh.writelines(out)
+PY
+    if [[ $rc -eq 0 ]]; then
+      vout="$("${v[@]}" 2>&1)" || rc=$?
+      if [[ $rc -eq 0 ]]; then mv "$tmp" "$ROWS"; else printf '%s\n' "$vout" | tail -1 >&2; fi
+    fi
+  } 9>>"$ROWS.lock"
+  rm -f "$tmp"
+  [[ $rc -eq 0 ]] || die "rerow $rid: the replacement did not validate or the row moved (exit $rc); $ROWS unchanged"
+}
+rerow_all() {
+  local n k rid arm task trial rd tlog newst
+  for n in "${!RR_K[@]}"; do
+    k="${RR_K[$n]}" rid="${PL_RUN[${RR_K[$n]}]}" arm="${PL_ARM[${RR_K[$n]}]}" task="${PL_TASK[${RR_K[$n]}]}"
+    trial="${PL_TRIAL[${RR_K[$n]}]}" rd="${RR_RD[$n]}" tlog="$BATCH_DIR/$arm/$task-t$trial.log"
+    printf '%s run-ablation: rerow %s run_dir %s (was %s)\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rid" "$rd" "${RR_FROM[$n]}" >> "$tlog"
+    rm -f "$WORK/rerow-$n.row"
+    post_run "$rd" "$rid" "$task" "${PL_YAML[$k]}" "${RR_ATT[$n]}" "${RR_REASON[$n]}" "$(final_status "$rd")" "" "$WORK/rerow-$n.row" "$tlog"
+    [[ -s "$WORK/rerow-$n.row" ]] || die "rerow $rid: ablation-row.sh wrote no row (exit $PR_RRC; see $tlog); $ROWS unchanged"
+    replace_row "$rid" "$WORK/rerow-$n.row"
+    newst="$(jq -r '.status' "$WORK/rerow-$n.row")"
+    record_extra "$rid" "$PR_EXTRA"
+    apply_flags "$arm" "$rid" "$PR_TE" "$PR_TE_REASON" "$PR_DRIFT"
+    REROWED_JSON="$(jq -c --arg r "$rid" --arg f "${RR_FROM[$n]}" --arg t "$newst" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '. + [{run_id: $r, from: $f, to: $t, at: $at}]' <<<"$REROWED_JSON")"
+    jq --argjson r "$REROWED_JSON" '.rerowed = $r' "$BATCH_DIR/STATUS.json" > "$BATCH_DIR/STATUS.json.tmp" \
+      && mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+    log "rerow $rid: ${RR_FROM[$n]} → $newst"
+  done
+  return 0
+}
+
+# --- --resume reconciliation: rows on disk are the truth (after --rerow) --------
+if [[ "$RESUME" == true ]]; then
+  ST_PATH="$BATCH_DIR/STATUS.json"
+  STARTED="$(jq -r '.started // empty' "$ST_PATH")"; [[ -n "$STARTED" ]] || STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  CUTS_JSON="$(jq -c '.cuts // []' "$ST_PATH")"; RETRIES_JSON="$(jq -c '.retries // []' "$ST_PATH")"
+  PAUSED_JSON="$(jq -c '.paused_arms // {}' "$ST_PATH")"
+  LEDGER_USD="$(jq -r '.spend.ledger_usd // 0' "$ST_PATH")"; SPENT="$(fadd "$SPENT" "$LEDGER_USD")"
+  EXTRA_RUNS_JSON="$(jq -c '.extra_models_by_run // {} | if type == "object" then . else {} end' "$ST_PATH")"
+  DRIFT_CLEARED_JSON="$(jq -c '.drift_cleared // []' "$ST_PATH")"; REROWED_JSON="$(jq -c '.rerowed // []' "$ST_PATH")"
+  if [[ "$CLEAR_PENDING" != null ]]; then
+    DRIFT_CLEARED_JSON="$(jq -c --argjson c "$CLEAR_PENDING" '. + [$c]' <<<"$DRIFT_CLEARED_JSON")"
+    log "resume: --clear-drift $(jq -r '.run_id' <<<"$CLEAR_PENDING") (previous drift re-read under the current rule: none)"
+  fi
+  for a in ${CLEAR_ARMS[@]+"${CLEAR_ARMS[@]}"}; do
+    if is_paused "$a"; then PAUSED_JSON="$(jq -c --arg a "$a" 'del(.[$a])' <<<"$PAUSED_JSON")"; log "resume: --clear-arm $a (paused arm released)"
+    else log "resume: --clear-arm $a: the arm is not paused"; fi
+  done
+  # rerows first, so spend and per_arm below come from the final rows
+  rerow_all
+  if [[ -f "$ROWS" ]]; then
+    dup="$(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b) | .run_id' "$ROWS" | sort | uniq -d | head -3 | tr '\n' ' ')"
+    [[ -z "$dup" ]] || refuse "resume: $ROWS holds run_id(s) twice: $dup"
+    while IFS=$'\t' read -r rid st cost deg; do
+      k=-1
+      for j in "${!PL_RUN[@]}"; do [[ "${PL_RUN[$j]}" == "$rid" ]] && { k=$j; break; }; done
+      [[ $k -ge 0 ]] || continue
+      DONE_LIST="$DONE_LIST$rid"$'\n'
+      i="$(arm_index "${PL_ARM[$k]}")"; C_LAUNCHED[$i]=$(( ${C_LAUNCHED[$i]} + 1 )); LAUNCHED=$((LAUNCHED + 1))
+      account_row "${PL_ARM[$k]}" "${PL_KIND[$k]}" "$rid" "$st" "$cost" "$deg"
+    done < <(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b)
+               | [.run_id, .status, ((.cost_usd // 0) | tostring), ((.degraded // false) | tostring)] | @tsv' "$ROWS")
+  fi
+  log "resume: batch $BATCH, $LAUNCHED of $PLAN_N trials rowed, spent $SPENT, paused $(jq -c 'keys' <<<"$PAUSED_JSON")"
+fi
 
 # --- dispatch --------------------------------------------------------------------------
 log "start batch=$BATCH smoke=$SMOKE source=${SRC_FULL:0:12} executor=$EXECUTOR image=$IMAGE cli=$CLI_VERSION concurrency=$CONCURRENCY rows=$ROWS"
