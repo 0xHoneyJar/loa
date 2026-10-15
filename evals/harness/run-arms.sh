@@ -88,6 +88,13 @@ CACHE_ROOT="${LOA_ARMS_CACHE:-$HOME/.cache/loa/cycle-129}"
 # the repository the pinned source worktree is cut from (tests point it at a
 # throwaway repo so they never register a worktree in the real one)
 SOURCE_REPO="${LOA_ARMS_SOURCE_REPO:-$REPO_ROOT}"
+# shared helpers (usd_ok, fadd, json_array, is_transport_failure, est_record/est_next,
+# spend_charge, budget_gate): lib/arms-common.sh beside this script, by a literal path
+# (eval.yml trust boundary: no variable on a source line)
+pushd "$SCRIPT_DIR" >/dev/null
+# shellcheck source=lib/arms-common.sh
+source ./lib/arms-common.sh || { popd >/dev/null; echo "run-arms: lib/arms-common.sh failed to load" >&2; exit 2; }
+popd >/dev/null
 
 SUITE="" ARMS_CSV="" FIXTURES_CSV="" TRIALS="" SOURCE_COMMIT="" MODEL="$DEFAULT_MODEL"
 CONCURRENCY=2 BATCH="" RESULTS_ROOT="$EVALS_DIR/results/arms" RETRY_WAIT=300
@@ -125,7 +132,6 @@ case "$SUITE" in review-recall|audit-recall) ;; *) die "--suite must be review-r
 [[ "$SCREEN" == "true" ]] && TRIALS=1
 [[ "$TRIALS" =~ ^[1-9][0-9]?$ ]] || die "--trials must be an integer 1-99"
 [[ "$SCREEN_TASKS" =~ ^[1-9][0-9]?$ ]] || die "--screen-tasks must be an integer 1-99"
-usd_ok() { [[ "$1" =~ ^[0-9]{1,6}(\.[0-9]{1,4})?$ ]]; }
 if [[ -n "$MAX_USD" ]]; then usd_ok "$MAX_USD" && [[ "$MAX_USD" != "0" ]] || die "--max-usd must be a positive amount in USD"; fi
 if [[ -z "$RUN_CAP" ]]; then
   RUN_CAP="$(yq -r '.evals.ablation.run_cap_usd // ""' "$REPO_ROOT/.loa.config.yaml" 2>/dev/null || true)"
@@ -249,8 +255,6 @@ for t in $(seq 1 "$TRIALS"); do
   done
 done
 
-json_array() { printf '%s\n' "$@" | jq -R . | jq -sc .; }
-
 write_manifest() {  # write_manifest <path> <dry_run>
   local out="$1" dry="$2" claude_bin="${EVAL_CLAUDE_BIN:-claude}" cli_version
   cli_version="$("$claude_bin" --version 2>/dev/null | head -1 || echo unknown)"
@@ -354,10 +358,8 @@ STATE="running"
 DONE=() FAILED=() PLANNED=()
 for i in "${!ARMS[@]}"; do DONE[$i]=0; FAILED[$i]=0; PLANNED[$i]=$(( ${#FIXTURES[@]} * TRIALS )); done
 # spend accounting (--max-usd): batch spend, per-arm and pooled completed-cost sums
-SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0 ASSUMED_CAP=0
-ARM_SUM=() ARM_N=()
-for i in "${!ARMS[@]}"; do ARM_SUM[$i]=0; ARM_N[$i]=0; done
-fadd() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.10g", a + b }'; }
+# (per-arm and pooled completed-cost means: est_record/est_next in lib/arms-common.sh)
+SPENT=0 CUT_JSON=null ASSUMED_CAP=0
 arm_index() { local i; for i in "${!ARMS[@]}"; do [[ "${ARMS[$i]}" == "$1" ]] && { echo "$i"; return; }; done; echo -1; }
 
 write_status() {
@@ -411,19 +413,7 @@ aggregate_status() {
 set_state() { STATE="$1"; write_status; }
 
 # --- one trial (runs in a background job; writes its row to $JOBS_DIR/<id>.row)
-is_transport_failure() {  # is_transport_failure <sandbox-ws>
-  local ws="$1" out="$1/.eval/agent-output.json" err="$1/.eval/agent-stderr.log" rc
-  rc="$(jq -r '.exit_code // 0' "$ws/.eval/executor.json" 2>/dev/null || echo 0)"
-  case "$rc" in 124|137|143) return 0 ;; esac
-  [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "missing" ]] && return 0
-  [[ -n "$(jq -r '.api_error_status // empty' "$out" 2>/dev/null)" ]] && return 0
-  # audit r1 DISS-C-005: classify on the CLI's stderr only, never on the agent's own
-  # output, so the agent under test cannot earn itself a retry by mentioning a network
-  # error; the patterns are the CLI's transport messages, not free text.
-  grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|socket hang up|^(fetch|request) failed|HTTP 5[0-9][0-9]' \
-    "$err" 2>/dev/null && return 0
-  return 1
-}
+# is_transport_failure <sandbox-ws>: lib/arms-common.sh
 
 run_trial() {  # run_trial <job-id> <arm> <fixture> <trial>
   local jid="$1" arm="$2" fx="$3" trial="$4"
@@ -520,19 +510,10 @@ collect() {  # collect <job-id> <arm>
     cat "$JOBS_DIR/$jid.row" >> "$BATCH_DIR/$arm/results.jsonl"
     local cost st
     cost="$(jq -r '(.executor.total_cost_usd // 0) | tonumber? // 0' "$JOBS_DIR/$jid.row" 2>/dev/null || echo 0)"
-    [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
     st="$(jq -r '.status // ""' "$JOBS_DIR/$jid.row" 2>/dev/null || echo "")"
-    if [[ "$st" != "completed" ]] && awk -v c="$cost" 'BEGIN { exit !(c + 0 == 0) }'; then
-      # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
-      SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
-      log "assumed cap: $jid ended ${st:-without a status} with no reported cost; USD $RUN_CAP charged to spent"
-    else
-      SPENT="$(fadd "$SPENT" "$cost")"
-    fi
-    if [[ "$st" == "completed" ]]; then
-      ARM_SUM[$i]="$(fadd "${ARM_SUM[$i]}" "$cost")"; ARM_N[$i]=$(( ${ARM_N[$i]} + 1 ))
-      POOL_SUM="$(fadd "$POOL_SUM" "$cost")"; POOL_N=$((POOL_N + 1))
-    fi
+    # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
+    spend_charge "$st" "$cost" "$jid"
+    if [[ "$st" == "completed" ]]; then est_record "$arm" all "$CHARGED_COST"; fi
     if [[ "$(jq -r '.status' "$JOBS_DIR/$jid.row")" == "completed" ]]; then
       DONE[$i]=$(( ${DONE[$i]} + 1 ))
       log "done $jid ($(jq -r '"\(.arm) \(.fixture) t\(.trial) recall=\(([.graders[]? | select(.name=="recall-vs-defects.sh") | .details.recall][0]) // "n/a") \(.duration_ms/1000|floor)s"' "$JOBS_DIR/$jid.row"))"
@@ -571,34 +552,8 @@ reap() {  # reap until fewer than $1 jobs run
   return 0
 }
 
-# est_next <arm> — the next trial's expected cost (see the header)
-est_next() {
-  local i; i="$(arm_index "$1")"
-  if [[ "${ARM_N[$i]}" -gt 0 ]]; then awk -v s="${ARM_SUM[$i]}" -v n="${ARM_N[$i]}" 'BEGIN { printf "%.10g", s / n }'
-  elif [[ "$POOL_N" -gt 0 ]]; then awk -v s="$POOL_SUM" -v n="$POOL_N" 'BEGIN { printf "%.10g", s / n }'
-  else printf '%s' "$COST_HINT"; fi
-}
-# budget_gate <arm> <trial-number> — 0 launch; 1 cut (CUT_JSON set). Waits for a
-# running trial while only the in-flight reservation blocks the launch.
-budget_gate() {
-  local arm="$1" at="$2" est inflight reserved
-  while true; do
-    est="$(est_next "$arm")"; inflight=${#PIDS[@]}
-    reserved="$(awk -v k="$inflight" -v c="$RUN_CAP" 'BEGIN { printf "%.10g", k * c }')"
-    if awk -v s="$SPENT" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + e > m) }'; then
-      CUT_JSON="$(jq -cn --arg s "$SPENT" --arg r "$reserved" --arg m "$MAX_USD" --arg e "$est" \
-        --argjson launched "$LAUNCHED" --argjson at "$at" \
-        '{reason: "max_usd", spent: ($s | tonumber), in_flight_reserved: ($r | tonumber), max: ($m | tonumber),
-          est_next: ($e | tonumber), trials_launched: $launched, at_trial: $at}')"
-      log "cut: max_usd $MAX_USD reached after $LAUNCHED trials (spent $SPENT, in-flight reserved $reserved, next est $est; trial $at not launched; reason recorded in STATUS.json)"
-      return 1
-    fi
-    if awk -v s="$SPENT" -v r="$reserved" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + r + e > m) }'; then
-      reap "$inflight"; continue
-    fi
-    return 0
-  done
-}
+# est_next <arm> and budget_gate <arm> <trial-number> (the next trial's expected cost and
+# the launch/wait/cut decision, see the header): lib/arms-common.sh, keyed by arm, pool "all"
 
 n=0 LAUNCHED=0
 for p in "${PLAN[@]}"; do

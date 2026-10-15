@@ -86,10 +86,11 @@ rules:   # D-A5: pre-registered, mirrored in NOTES
   drift_guard: {cli_version: fixed_per_batch, model_ids: fixed_per_batch}   # DEC-0407
   order: trial_major_seeded_shuffle_within_block
   took_effect_per_trial: true                # a miss → infrastructure_error, arm paused until --clear-arm (DEC-0418)
-  predicates:                                # DEC-0416; d = arm − A1 point estimate, [lo, hi] its 90 % interval, c/w = cost/wall-clock Δ %
-    investigate: "any applicable primary has lo > 0"
+  predicates:                                # DEC-0416, DEC-0393, DEC-0530; d = arm − A1 point estimate, [lo, hi] its 90 % interval, c/w = cost/wall-clock Δ %; evaluated in this order
+    inconclusive_by_degradation: "the arm's excluded share > 0.25 (whatever its interval; DEC-0393)"
+    investigate: "else any applicable primary has lo > 0"
     keep: "else any applicable primary has d < -0.03 and hi < 0"
-    inconclusive: "else any applicable primary has d < -0.03, or the arm's excluded share > 0.25, or no valid pair"
+    inconclusive: "else any applicable primary has d < -0.03, or no valid pair"
     remove: "else every applicable primary has d >= -0.03 and (c <= -15 or w <= -15)"
     simplify: "else (every applicable primary within -0.03, cost similar)"
   review_catch: {defect_counts_once_across_gates: true, false_positive_dedupe: cited_region, verdict_accurate_iff: "CHANGES_REQUIRED when the key holds a high or critical defect, APPROVED when none"}   # DEC-0420

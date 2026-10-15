@@ -16952,3 +16952,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0530"
+    created_at: "2026-10-15T08:03:32Z"
+    updated_at: "2026-10-15T08:03:32Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Pre-registration amended before any row: the 25 % degradation guard is evaluated before investigate and keep (DEC-0393 governs the predicate order) (L29)"
+    decision: "ablation-report.py evaluates the excluded-share guard first (> 0.25 → Inconclusive-by-degradation whatever the interval), then investigate, keep, inconclusive (d < -0.03 or no valid pair), remove, simplify; the suite file's rules.predicates and the NOTES pre-registration carry the same order; the amendment is timestamped before the smoke and before any runs.jsonl row."
+    rationale: "H's literal reading of the suite order let a heavily degraded arm read Investigate or Keep on its few valid cells, which DEC-0393 ruled out in words; the pre-registration may be corrected while no data exists, and this is the last moment"
+    alternatives_considered:
+      - option: "keep the literal suite order"
+        rejected_because: "a confident read on an arm with a third of its cells excluded is the failure DEC-0393 named"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9ad48150"
+    source: "grimoires/loa/NOTES.md#pre-registration-addendum (L29)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T08:03:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#pre-registration-addendum (L29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

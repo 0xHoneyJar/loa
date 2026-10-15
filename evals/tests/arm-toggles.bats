@@ -265,7 +265,7 @@ integrity_in() {
   [ "$(yq -r '.phase_defaults.max_turns.BARE, .phase_defaults.timeout_min.BARE, .phase_defaults.models.REVIEW' "$S" | tr '\n' ,)" = "170,70,global.anthropic.claude-fable-5-1," ]
   [ "$(yq -r '.phase_sets.build | join(",")' "$S")" = "PLAN,IMPLEMENT,REVIEW,FIX,AUDIT,FIX" ]
   [ "$(yq -r '.rules.decision_states | length' "$S")" = "7" ]
-  [ "$(yq -r '.rules.predicates | keys | join(",")' "$S")" = "investigate,keep,inconclusive,remove,simplify" ]
+  [ "$(yq -r '.rules.predicates | keys | join(",")' "$S")" = "inconclusive_by_degradation,investigate,keep,inconclusive,remove,simplify" ]   # DEC-0530: the degradation guard runs first
   [ "$(yq -r '.caps | [.cycle_usd, .run_usd, .reserve_usd] | join(",")' "$S")" = "1500,12,250" ]
   # resolve_arm_toggles: absent and undeclared are refused; a1_full and an undeclared baseline are {}
   run lib resolve_arm_toggles a8_no_ceremonies "$S"

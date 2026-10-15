@@ -328,3 +328,6 @@ grimoires/loa/ledger.json.bak*
 grimoires/loa/INDEX.md
 # ledger-lib flock target (created by every ledger transaction; never content)
 grimoires/loa/ledger.json.lock
+
+# cycle-130: the batch runner's flock file beside the tracked rows (run-ablation.sh)
+grimoires/loa/reports/ablation-2.0/runs.jsonl.lock
