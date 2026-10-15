@@ -16920,3 +16920,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0529"
+    created_at: "2026-10-15T07:14:55Z"
+    updated_at: "2026-10-15T07:14:55Z"
+    phase: "implementation"
+    category: "process"
+    summary: "The arms pin ba11b860 (Sprint 259 completion; its .claude/ equals the Sprint 258 completion tree); pre-registration written 2026-10-15T07:13:29Z (L28)"
+    decision: "The pre-registration entry (NOTES § Pre-registration — cycle-130 ablation — 2026-10-15T07:13:29Z) precedes the smoke and every row; the arms mount the .claude/ of ba11b860, byte-identical to 05442536 (Sprint 259 touched no .claude/ path), while the harness that runs and grades them is the Sprint 259 one (grader 1.2.0); the suite file's source_commit is ba11b860 and every batch manifest records the .claude/ delta against the rc.5 tag 4d69c3c4."
+    rationale: "the component under test is the rc.5 .claude/ tree plus the mount fix; the harness version must be the audited one, so the pin is the latest completion commit whose .claude/ is unchanged"
+    alternatives_considered:
+      - option: "pin 05442536 as the plan said"
+        rejected_because: "identical .claude/, but the Sprint 258 harness lacks the audited grader and executor fixes; the pin names the tree the batches really run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c44b32ff"
+    source: "grimoires/loa/NOTES.md#pre-registration-cycle-130-ablation (L28)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T07:14:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#pre-registration-cycle-130-ablation (L28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
