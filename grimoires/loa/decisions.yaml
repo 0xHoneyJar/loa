@@ -17528,3 +17528,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0548"
+    created_at: "2026-10-15T11:55:03Z"
+    updated_at: "2026-10-15T11:55:03Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Implementer I: drift_check stays read-only and prints extra models as a second stdout line; drift got = sorted keys, expected = normalised manifest model (L38)"
+    decision: "drift_check prints two lines (the drift or null, then {<raw id>: {phases, output_tokens}} or {}); it walks every phase so the extra-model list is complete, the first hit still wins and the CLI/image checks run only without a model hit; when model_requested is empty the manifest phase model is the reference; STATUS.json derives extra_models {<id>: {runs, output_tokens}} from a per-run source extra_models_by_run so a rerow replaces a run's contribution instead of double-counting."
+    rationale: "a read-only drift_check is what --clear-drift relies on when it re-reads an old run; RAB-7 changed one assertion to the new got/expected shape"
+    alternatives_considered:
+      - option: "write <run-dir>/meta/extra-models.json"
+        rejected_because: "a write into a finished run directory from a re-read"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "eec592d5"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L38)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:55:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L38)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0549"
+    created_at: "2026-10-15T11:55:50Z"
+    updated_at: "2026-10-15T11:55:50Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Implementer I: clear-drift/rerow preconditions checked read-only before the lock; clear without drift is a no-op; rerows precede reconciliation (L39)"
+    decision: "--clear-drift on a batch with no recorded drift logs a note and continues (the same resume command is re-runnable); the still-drifts refusal, the <batch>- prefix, plan membership, exactly-one-row, interrupted/transport_error and missing pipeline.json refusals all exit 2 with nothing written, before the lock; STATUS changes happen in reconciliation after the lock; rerow_all runs before the rows loop so spent and per_arm come from the final rows; a rerow that drifts or fails took-effect under the current rule is rowed infrastructure_error through apply_flags like a trial."
+    rationale: "a refusal must leave STATUS.json and the rows file byte-identical (RAB-17/18 assert it); ordering the rerows first keeps the spend accounting single-counted (mutation: moving rerow_all after the loop turns RAB-18 red)"
+    alternatives_considered:
+      - option: "clear and rerow after reconciliation with a spend correction"
+        rejected_because: "two code paths for one accounting"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "eec592d5"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L39)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:55:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L39)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0550"
+    created_at: "2026-10-15T11:55:52Z"
+    updated_at: "2026-10-15T11:55:52Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Implementer I: rows replaced in place (batch + run_id match), order kept, unparseable lines kept verbatim; STATUS.rerowed patched per rerow (L40)"
+    decision: "replace_row re-counts the id inside the flock, writes <rows>.rerow.<pid> beside the rows file with the one line replaced in place, validates the temp with ablation-row.sh --validate (--allow-ungraded for smoke) and moves it over the rows file; a line that does not parse is copied byte for byte; a row matches only when batch and run_id both match; STATUS.json rerowed[] is written after each successful rerow so a later exit 2 keeps earlier records."
+    rationale: "the tracked runs.jsonl diff then shows exactly the replaced line; a failed replacement leaves the rows file unchanged and removes the temp"
+    alternatives_considered:
+      - option: "append the corrected row and let the report drop the duplicate"
+        rejected_because: "the runner refuses a run_id rowed twice and the report keeps the first row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "eec592d5"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L40)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-15T11:55:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-i.md#decision-bullets (L40)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
