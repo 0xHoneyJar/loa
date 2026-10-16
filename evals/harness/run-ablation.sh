@@ -132,7 +132,12 @@
 #      transport_error. agent_error without the signature is never retried (DEC-0417)
 #   3. took-effect.sh --run-dir D --suite-file F (completed, agent_error and cap_failure runs):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
-#      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418)
+#      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418).
+#      It runs under timeout --signal=TERM --kill-after=30 $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S
+#      (default 300; unwrapped when timeout is absent): exit 124 or 137 rows the trial
+#      infrastructure_error with `run-ablation: took-effect timed out after Ns` in the trial
+#      log and took_effect "timeout" in the trial result — the arm is NOT paused (a hang is
+#      no evidence about the arm) and the grade does not run
 #   4. drift guard (DEC-0407 as amended by DEC-0545): a phase drifts on model grounds only
 #      when its model_requested differs from MANIFEST phase_models[name], or when the
 #      requested model (else the manifest's) is absent from a non-empty models_used (ids
@@ -147,6 +152,10 @@
 #      fails the batch once the running trials end
 #   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] --executor … --image …
 #      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)
+#      under timeout --signal=TERM --kill-after=30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
+#      1800; unwrapped when timeout is absent): exit 124 or 137 → row infrastructure_error,
+#      `run-ablation: grade timed out after Ns` in the trial log, grade_rc keeps the exit
+#      (the pipeline watchdog covers the pipeline only; this is the post-run deadline)
 #   6. ablation-row.sh --run-dir D --task-yaml F --manifest <batch>/MANIFEST.json
 #      --attempts N [--retry-reason R] [--status S] --out <job row>; the runner appends the
 #      row to the rows file under flock and runs ablation-row.sh --validate on it
@@ -184,7 +193,8 @@
 #   fingerprint, image, image_digest, executor_mode, cli_version (`docker run --rm --network
 #   none <image> claude --version`, host: the CLI's), cli_version_raw, tools, phase_models,
 #   caps {cycle_usd, run_usd, reserve_usd, max_usd}, cost_hint, concurrency, retry,
-#   watchdog, pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.
+#   watchdog {multiplier, override_s, grace_s, grade_timeout_s, took_effect_timeout_s},
+#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.
 #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
 #   state: running|complete|partial|failed, per_arm: {<arm>: {trials_planned, launched,
 #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
@@ -222,7 +232,9 @@
 # Env: LOA_ABLATION_SOURCE_TREE, LOA_ABLATION_SOURCE_REPO, LOA_ABLATION_CACHE,
 #   LOA_ABLATION_RETRY_WAIT_S, LOA_ABLATION_WATCHDOG_S, LOA_ABLATION_WATCHDOG_GRACE_S,
 #   LOA_ABLATION_POLL_S (reap poll, default 1), LOA_ABLATION_OUTAGE_BREAKER (default 3),
-#   EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
+#   LOA_ABLATION_GRADE_TIMEOUT_S (grade deadline, default 1800) and
+#   LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S (took-effect deadline, default 300), both whole seconds
+#   1 … 999999 (else exit 2), EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
 # Library: lib/arms-common.sh beside this script, sourced by a literal relative path.
 # Tested by evals/tests/run-ablation.bats (stub pipeline, grader and docker; no model call).
 # =============================================================================
@@ -260,6 +272,8 @@ WATCHDOG_OVERRIDE="${LOA_ABLATION_WATCHDOG_S:-}"
 WATCHDOG_GRACE="${LOA_ABLATION_WATCHDOG_GRACE_S:-60}"
 POLL_S="${LOA_ABLATION_POLL_S:-1}"
 OUTAGE_BREAKER="${LOA_ABLATION_OUTAGE_BREAKER:-3}"
+GRADE_TIMEOUT_S="${LOA_ABLATION_GRADE_TIMEOUT_S:-1800}"
+TOOK_TIMEOUT_S="${LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S:-300}"
 
 usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-ablation: $*" >&2; exit 2; }
@@ -339,6 +353,14 @@ for r in ${RERUN_IDS[@]+"${RERUN_IDS[@]}"}; do
 done
 [[ "$(printf '%s\n' ${RERUN_IDS[@]+"${RERUN_IDS[@]}"} | sort | uniq -d)" == "" ]] || die "--rerun lists a run_id twice"
 [[ "$OUTAGE_BREAKER" =~ ^[0-9]{1,4}$ ]] || die "LOA_ABLATION_OUTAGE_BREAKER must be a whole number (0 disables)"
+[[ "$GRADE_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds (at most 999999)"
+[[ "$TOOK_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds (at most 999999)"
+# the post-run deadlines (Sprint 260 LOW-4): unwrapped when timeout(1) is absent
+GRADE_TMO=() TOOK_TMO=()
+if command -v timeout >/dev/null 2>&1; then
+  GRADE_TMO=(timeout --signal=TERM --kill-after=30 "$GRADE_TIMEOUT_S")
+  TOOK_TMO=(timeout --signal=TERM --kill-after=30 "$TOOK_TIMEOUT_S")
+fi
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
 
@@ -718,7 +740,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg fp "$FINGERPRINT" --arg image "$IMAGE" --arg digest "$IMAGE_DIGEST" --arg mode "$EXECUTOR" \
     --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" \
     --arg hb "$HINT_BUILD" --arg hr "$HINT_REVIEW" --argjson conc "$CONCURRENCY" --argjson rw "$RETRY_WAIT" \
-    --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg prr "$PRE_REG_REF" \
+    --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --arg prr "$PRE_REG_REF" \
     --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" \
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" '
@@ -741,7 +763,8 @@ write_manifest() {  # write_manifest <path> <dry_run>
               max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end)},
        cost_hint: {build: ($hb | tonumber), "review-catch": ($hr | tonumber)},
        concurrency: $conc, retry: {transport_retries: 1, wait_s: $rw},
-       watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace},
+       watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace,
+                 grade_timeout_s: ($gto | tonumber), took_effect_timeout_s: ($tto | tonumber)},
        pre_registration_ref: (if $prr == "" then null else $prr end),
        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
        agy_opt_in: ($s.agy_opt_in // false),
@@ -964,7 +987,7 @@ synthesize_record() {  # synthesize_record <run-dir> <arm> <task> <type> <trial>
 #          <override> <row-out> <log> — the chain after a finished pipeline, shared by a trial
 # and by --rerow: took-effect, drift guard, grade (completed, agent_error and cap_failure runs
 # without an override), then ablation-row.sh into <row-out>. Results in PR_TE (ok | fail |
-# skipped), PR_TE_REASON, PR_DRIFT (json or null), PR_EXTRA (the extra models, json),
+# skipped | timeout), PR_TE_REASON, PR_DRIFT (json or null), PR_EXTRA (the extra models, json),
 # PR_GRC (null or the grade exit), PR_RRC (the row exit) and PR_OVERRIDE (the final override)
 post_run() {
   local rd="$1" rid="$2" task="$3" tyaml="$4" attempts="$5" rr="$6" st="$7" row_out="$9" plog="${10}"
@@ -973,9 +996,13 @@ post_run() {
     case "$st" in
       completed|agent_error|cap_failure)
         local trc=0 tout dout id
-        tout="$("$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?
+        tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?
         printf '%s\n' "$tout" >> "$plog"
         if [[ $trc -eq 0 ]]; then PR_TE=ok
+        elif [[ ${#TOOK_TMO[@]} -gt 0 && ( $trc -eq 124 || $trc -eq 137 ) ]]; then
+          # a hang is infrastructure, not evidence that the arm did not take effect: no pause
+          PR_TE=timeout PR_OVERRIDE=infrastructure_error PR_TE_REASON="took-effect timed out after ${TOOK_TIMEOUT_S}s (exit $trc)"
+          printf 'run-ablation: took-effect timed out after %ss\n' "$TOOK_TIMEOUT_S" >> "$plog"
         else
           PR_TE=fail PR_OVERRIDE=infrastructure_error
           PR_TE_REASON="took-effect exit $trc: $(grep -E ' FAIL' <<<"$tout" | head -4 | cut -c1-200 | tr '\n' ';' || true)"
@@ -993,8 +1020,10 @@ post_run() {
         if [[ -z "$PR_OVERRIDE" ]]; then
           local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
           [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
-          PR_GRC=0; "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
-          if [[ $PR_GRC -ne 0 ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade exit %s\n' "$PR_GRC" >> "$plog"; fi
+          PR_GRC=0; ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
+          if [[ ${#GRADE_TMO[@]} -gt 0 && ( $PR_GRC -eq 124 || $PR_GRC -eq 137 ) ]]; then
+            PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade timed out after %ss\n' "$GRADE_TIMEOUT_S" >> "$plog"
+          elif [[ $PR_GRC -ne 0 ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade exit %s\n' "$PR_GRC" >> "$plog"; fi
         fi ;;
     esac
   fi

@@ -28,7 +28,7 @@ setup() {
   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
-  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
 }
 
@@ -685,4 +685,41 @@ print(",".join(out))')"
   export LOA_ABLATION_OUTAGE_BREAKER=x
   ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch ob3
   [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_OUTAGE_BREAKER must be a whole number' <<<"$output"
+}
+
+@test "RAB-21 post-run deadlines (Sprint 260 LOW-4): a grade that hangs past LOA_ABLATION_GRADE_TIMEOUT_S rows infrastructure_error and the batch finishes; a hung took-effect too, without pausing the arm; MANIFEST watchdog records both; a non-integer value is a usage error" {
+  export STUB_GRADE_HANG='*-bugfix-01-*' LOA_ABLATION_GRADE_TIMEOUT_S=2
+  SECONDS=0
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,review-01 --trials-build 1 --trials-review 1 --batch gt1 --concurrency 2
+  [ "$status" -eq 1 ]   # partial: the timed-out row is excluded
+  [ "$SECONDS" -lt 120 ]
+  B="$RES/gt1"
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
+  [ "$(row gt1-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
+  [ "$(row gt1-a1_full-bugfix-02-t1 | jq -r '.status')" = completed ]
+  [ "$(row gt1-a1_full-review-01-t1 | jq -r '.status')" = completed ]
+  grep -q 'run-ablation: grade timed out after 2s' "$B/a1_full/bugfix-01-t1.log"
+  ! grep -q 'grade timed out' "$B/a1_full/bugfix-02-t1.log" || false
+  [ "$(jq -r '.state' "$B/STATUS.json")" = partial ]
+  [ "$(jq -r '.per_arm.a1_full.excluded' "$B/STATUS.json")" = 1 ]
+  [ "$(jq -c '.watchdog | [.grade_timeout_s, .took_effect_timeout_s]' "$B/MANIFEST.json")" = '[2,300]' ]
+  ! pgrep -f "ablation-grade-stub.sh $B" >/dev/null 2>&1 || false   # the hung grader was killed
+  # a took-effect that hangs: infrastructure_error, the arm is not paused, the next trial runs
+  unset STUB_GRADE_HANG
+  printf '%s\n' '#!/usr/bin/env bash' 'sleep 600' > "$T/te-hang"; chmod +x "$T/te-hang"
+  export LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=1
+  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch gt2 --concurrency 1 --took-effect-bin "$T/te-hang"
+  [ "$status" -eq 3 ]   # failed: no trial completed — but both launched (no pause after the first)
+  [ "$(row gt2-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
+  [ "$(row gt2-a1_full-bugfix-02-t1 | jq -r '.status')" = infrastructure_error ]
+  grep -q 'run-ablation: took-effect timed out after 1s' "$RES/gt2/a1_full/bugfix-01-t1.log"
+  [ "$(jq -c '.paused_arms' "$RES/gt2/STATUS.json")" = '{}' ]
+  [ "$(jq -r '.watchdog.took_effect_timeout_s' "$RES/gt2/MANIFEST.json")" = 1 ]
+  # a deadline that is not a positive whole number is a usage error
+  for v in x 0 1.5 1234567; do
+    LOA_ABLATION_GRADE_TIMEOUT_S="$v" ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt3 --dry-run
+    [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds' <<<"$output"
+  done
+  LOA_ABLATION_GRADE_TIMEOUT_S=5 LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=abc ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt4 --dry-run
+  [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds' <<<"$output"
 }

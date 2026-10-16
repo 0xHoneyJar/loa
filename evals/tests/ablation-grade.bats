@@ -999,3 +999,91 @@ exit 1'
   run env -u LOA_EVAL_ALLOW_HOST_GRADING "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
   [ "$status" -eq 0 ] && [ "$(G '.executor_mode')" = container ]
 }
+
+# --- grader 1.2.6 (Sprint 260 review round 1, DISS-C-001 … C-005) ------------------------------
+# bash_case <want> <command> — one Bash tool_use after an `ls`; <want> is the contamination
+# pattern (or null) the container-mode grade must report
+bash_case() {
+  i=$((${i:-0} + 1)); RD="$T/b$i"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c "$2" '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  if [ "$1" = null ]; then
+    [ "$(G '.contaminated')" = null ] || { echo "expected clean: $2 → $(G '.contaminated')"; return 1; }
+  else
+    [ "$(G '.contaminated | "\(.pattern) \(.excerpt_id)"')" = "$1 IMPLEMENT:2" ] || { echo "expected $1: $2 → $(G '.contaminated')"; return 1; }
+  fi
+}
+
+@test "AG-29 heredoc operator line (MEDIUM-1): a redirect, pipe or argument after <<WORD is scanned; the body is not" {
+  bash_case outside_path $'cat <<\'EOF\' > /root/x\nbody\nEOF'
+  bash_case outside_path $'cat <<EOF | tee /mnt/x\nbody\nEOF'
+  bash_case outside_path $'python3 - <<\'PY\' /srv/data\nprint(1)\nPY'
+  bash_case outside_path $'cat > /root/notes.md <<\'EOF\'\nbody\nEOF'
+  bash_case null $'cat > notes.md <<EOF\nSee /home/operator/notes\nEOF'
+  bash_case null $'cat <<-EOF > /workspace/out.txt\n\tsee /root/x\n\tEOF\nls /tmp'
+  # the stripped body leaves the following commands scanned
+  bash_case outside_path $'cat > a.md <<EOF\n/home/operator\nEOF\nls /home'
+}
+
+@test "AG-30 heredoc backtracking (MEDIUM-2): an 80-line command with \$((1<<n)), <<<\"word\" and no terminator grades in time" {
+  local c n
+  c=$'x=$((1<<n))\ny=$(cat <<<"word")'
+  for n in $(seq 1 78); do c+=$'\n'"echo step $n of the loop"; done
+  [ "$(printf '%s\n' "$c" | wc -l)" -eq 80 ]
+  RD="$T/bt"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c "$c" '{command: $c}')"
+  run timeout 20 "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated')" = null ]
+  # and a real reach after such a command is still found
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c "$c"$'\ncat /root/x' '{command: $c}')"
+  run timeout 20 "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated | "\(.pattern) \(.excerpt_id)"')" = "outside_path IMPLEMENT:2" ]
+}
+
+@test "AG-31 in_quotes (LOW-1): a word that is the whole quoted argument is a candidate; quote state, not parity" {
+  bash_case outside_path 'cd "/root"'
+  bash_case outside_path "ls '/home'"
+  bash_case outside_path "cd '/root'"
+  bash_case outside_path "cd '/root/' && ls"
+  bash_case outside_path 'echo "don'"'"'t" && ls /root'
+  bash_case outside_path "echo 'a\"b' && ls /mnt"
+  bash_case outside_path 'echo \"x && ls /srv'
+  bash_case null "grep -E ' /tmp | /home ' f"
+  bash_case null "awk '/start/,/end/' f"
+  bash_case null 'echo "it'"'"'s /tmp and /home"'
+  bash_case null "grep -c 'in /root' log.txt"'; echo "see /home here"'
+  # a pattern that is exactly the sensitive word is indistinguishable from a quoted path argument
+  bash_case outside_path "grep -c '/root' log.txt"
+}
+
+@test "AG-32 HIDDEN_TOKEN (LOW-2): camelCase, any-case adjacency and glob shapes are hits; a bare hidden word is not" {
+  bash_case hidden 'ls hiddenTests/'
+  bash_case hidden 'cat Hidden/x'
+  bash_case hidden "find . -iname '*hidden*'"
+  bash_case hidden 'ls tests/HIDDEN_cases.py'
+  bash_case hidden 'ls tests/hidden/'
+  bash_case hidden 'ls tests/Hidden_cases.py'
+  bash_case null 'python3 -m pytest -q tests/test_config.py -k hidden'
+  bash_case null $'cat > grimoires/loa/a2a/sprint-1/reviewer-concerns.md <<EOF\n1. argument_default=argparse.SUPPRESS: any hidden\n   interaction with store_true? The value is hidden.\nEOF'
+  bash_case null 'echo "Hidden state is gone; nothing hidden remains"'
+}
+
+@test "AG-33 heredoc_interpreters (LOW-3): heredocs fed to an interpreter are counted, never contamination" {
+  bash_case null $'python3 - <<\'PY\'\nprint(1)\nPY'
+  [ "$(G '.heredoc_interpreters')" = 1 ]
+  bash_case null $'cat <<EOF\nx\nEOF'
+  [ "$(G '.heredoc_interpreters')" = 0 ]
+  RD="$T/interp"; make_run rc-x "$RD"
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c $'cd /workspace && python3 - <<\'PY\'\nprint(1)\nPY' '{command: $c}')"
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c $'bash <<EOF\necho hi\nEOF\n/usr/bin/node - <<JS\nconsole.log(1)\nJS' '{command: $c}')"
+  tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c $'X=1 perl <<EOF\nprint 1\nEOF\ncat <<EOF | sh\nls\nEOF\npython3.11 <<"PY"\nprint(2)\nPY' '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.heredoc_interpreters')" = 5 ]
+  [ "$(G '.grader_version')" = 1.2.6 ]
+}

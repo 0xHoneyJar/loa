@@ -164,8 +164,10 @@
 # Contamination (D-4.7, DEC-0493): every tool_use input in transcripts/events-*.jsonl —
 # Bash command; Read/Grep/Glob file_path|path|pattern; Write/Edit/MultiEdit/NotebookEdit
 # file_path|notebook_path; WebFetch url; WebSearch query — is checked for: `hidden` (any
-# case; in a Bash command only as a token: HIDDEN, or hidden next to / . _ = - — 1.2.4,
-# DEC-0551) → hidden; grimoires/loa/evals/ablation-2.0 → suite_path; 0xHoneyJar/loa →
+# case; in a Bash command only as a token: HIDDEN, or hidden in any case next to / . _ = - * ?,
+# or hidden followed by a capital (hiddenTests) — 1.2.4 DEC-0551, 1.2.6 LOW-2; accepted gap: a
+# bare `hidden` argument is not a probe in a suite whose briefs are about hidden state —
+# refactor-03's agents run pytest -k hidden for their own test_no_hidden_state) → hidden; grimoires/loa/evals/ablation-2.0 → suite_path; 0xHoneyJar/loa →
 # repo_name; `git log … --all` or `git reflog` (Bash) → counted in history_probes, NOT a
 # contamination hit (1.2.1, DEC-0540: the sandbox is a fresh git init at base, so there is no
 # history to leak; the count is telemetry); an absolute path
@@ -173,7 +175,19 @@
 # read as a regex only right after s, y, =, ~ or a single quote — `cd /root/` is a path; a
 # one-component `/word` with no second slash is a command token — Loa slash commands such as
 # `/review-sprint sprint-1` in report text — unless the component is root, home, mnt, media or
-# srv, 1.2.1 DEC-0540)
+# srv, 1.2.1 DEC-0540; such a sensitive one-component word is skipped only inside a quoted
+# string with other text — grep -E ' /tmp | /home ' — while the word that is the whole quoted
+# argument, cd "/root", ls '/home', cd '/root/', grep '/root' f, is a candidate: a quote state
+# machine, not a parity count, 1.2.6 LOW-1; accepted gaps: a one-component word inside longer
+# quoted text, echo "cd /root", and $'…' strings read as plain single quotes. Heredoc bodies
+# are stripped; the operator line is scanned — cat <<'EOF' > /root/x is a hit, 1.2.6
+# MEDIUM-1. Heredoc bodies are not path-scanned even when the operator line's command is an
+# interpreter (python3, python, bash, sh, node, perl, ruby; python3 - <<'PY'): that code
+# opens whatever it names, but the cycle grades the container executor only (DEC-0411; host
+# grading needs LOA_EVAL_ALLOW_HOST_GRADING=1), where /root, /mnt, /media and /srv hold
+# nothing, so the gap is a missed signal, not a missed leak; widening the scan would re-open
+# the written-prose false positives of KF-046. The hidden/suite/repo substring scans still
+# read every body, and grade.json heredoc_interpreters counts these heredocs, 1.2.6 LOW-3)
 # outside /workspace /tmp /home/evaluser /dev /proc /sys /usr /bin
 # /sbin /lib /lib64 /etc /opt /var (container), or outside the sandbox root (the
 # sessions' init cwd and <run-dir>/sandbox), /tmp and those system directories (host; no
@@ -197,9 +211,18 @@
 #    false_positives, verdict, verdicts {review, audit}, verdict_accuracy,
 #    verdict_accuracy_per_gate {review, audit}, diff_lines, files_changed,
 #    symlinks_dropped, harness_files_removed, oversized_files_skipped, history_probes,
-#    contaminated}
+#    heredoc_interpreters (1.2.6: heredocs in Bash inputs whose operator line's command, the
+#    first word after the last ; & | ( or { before << and after NAME=value assignments, by
+#    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
+#    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.6 (Sprint 260 review round 1, DISS-C-001 … C-005): the heredoc operator line's
+# remainder after <<WORD is scanned and the heredoc regex is linear (one line per body
+# iteration, no re.S); a sensitive word that is the whole quoted argument is a candidate (a
+# quote state machine); hidden adjacency is case-insensitive with camelCase and glob shapes;
+# heredoc_interpreters counted. Contamination exemptions only: a 1.2.5 grade may differ in
+# contaminated (mostly more hits; a word parity counting flagged inside quoted text is skipped).
 # grader 1.2.5 (DEC-0557, P1 resume): a Bash path word right after a closing quote glued to the
 # preceding token ("$D"/evals/x, pr/'"$v"'/.claude/y) is a path tail, not an absolute path.
 # grader 1.2.4 (DEC-0551, priority batch P1): a Bash word beginning with /, (a sed-range remnant
@@ -255,7 +278,7 @@ case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
 import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 
-GRADER_VERSION = "1.2.5"
+GRADER_VERSION = "1.2.6"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1325,8 +1348,11 @@ SYS_DIRS = ["/dev", "/proc", "/sys", "/usr", "/bin", "/sbin", "/lib", "/lib64", 
 GIT_HIST = re.compile(r"\bgit\b[^;&|\n]*\blog\b[^;&|\n]*--all\b|\bgit\b[^;&|\n]*\breflog\b")
 # DEC-0551 (1.2.4): in a Bash command `hidden` counts as a token — HIDDEN in capitals (a test file
 # name), or lowercase hidden adjacent to a path or identifier character — not as a bare English
-# word in written prose ("any hidden interaction with store_true" in a reviewer's heredoc)
-HIDDEN_TOKEN = re.compile(r"HIDDEN|(?<=[/._=-])hidden\b|\bhidden(?=[/_=-]|\.[A-Za-z0-9])")
+# word in written prose ("any hidden interaction with store_true" in a reviewer's heredoc).
+# 1.2.6 (LOW-2): the adjacency branches are case-insensitive (Hidden/x), * and ? join the adjacency
+# class (find -iname '*hidden*'), and hidden followed by a capital is a camelCase identifier
+# (hiddenTests/); a bare hidden argument (pytest -k hidden, refactor-03) stays legitimate
+HIDDEN_TOKEN = re.compile(r"HIDDEN|(?i:(?<=[/._=*?-])hidden\b|\bhidden(?=[/_=*?-]|\.[A-Za-z0-9]))|\bhidden(?=[A-Z])")
 ABS_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(/[A-Za-z0-9._@+%=,:~-][A-Za-z0-9._@+%=,:~/-]*)")
 # LOW-A2: home-relative words are always outside (no root under any home is allowed)
 HOME_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(?:~|\$HOME|\$\{HOME\})/")
@@ -1369,18 +1395,62 @@ def after_closing_quote(body, pos):   # DEC-0557: "$D"/x → the quote closes a 
     return not (before.isspace() or before in "=(<>|;&,")
 
 
-def in_quotes(body, pos):   # DEC-0551: odd count of unescaped quotes before pos → inside a literal
-    seg = body[:pos]
-    return seg.count("'") % 2 == 1 or seg.count('"') % 2 == 1
+def in_quotes(body, pos, end):
+    """True when the word body[pos:end] sits inside a quoted string WITH OTHER TEXT (pattern text
+    such as grep -E ' /tmp | /home '), False when it is unquoted or the entire quoted argument
+    (cd "/root", ls '/home') — 1.2.6 LOW-1: a left-to-right quote state machine over body[:pos]
+    replaces DEC-0551's parity count. Outside single quotes a backslash escapes the next
+    character; ' inside double quotes and " inside single quotes are literal; $'…' is read as a
+    plain single-quoted string"""
+    state, opened, i = None, -1, 0
+    while i < pos:
+        ch = body[i]
+        if state == "'":
+            if ch == "'":
+                state = None
+        elif ch == "\\":
+            i += 1   # the escaped character, whatever it is, is literal
+        elif state == '"':
+            if ch == '"':
+                state = None
+        elif ch in "'\"":
+            state, opened = ch, i
+        i += 1
+    if state is None:
+        return False
+    whole = opened == pos - 1 and end < len(body) and body[end] == state
+    return not whole
 
 
-HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n(?:.*?\n)*?\s*\2[ \t]*(?=\n|$)", re.S)
+# 1.2.6 (MEDIUM-1, MEDIUM-2): group 4 is the operator line's remainder (a redirect, pipe or
+# argument after <<WORD), re-emitted so it is scanned; each body iteration consumes exactly one
+# line and the terminator is anchored at a line start, so a << that is no heredoc ($((1<<n)),
+# a here-string <<<"w") fails in time linear in the text instead of tiling it (no re.S)
+HEREDOC = re.compile(r"(<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2)([^\n]*\n)(?:[^\n]*\n)*?[ \t]*\3[ \t]*(?=\n|$)")
+HEREDOC_INTERPRETERS = re.compile(r"^(?:python3?(?:\.[0-9]+)?|bash|sh|node|perl|ruby)$")
+HEREDOC_INTERP = [0]   # heredocs fed to an interpreter in this grade (1.2.6 LOW-3: telemetry only)
 
 
 def strip_heredocs(val):
     """the command without its heredoc bodies (file text being written is data, not a path the
-    agent reached; the hidden/suite/repo scans still read the whole value) — 1.2.2, DEC-0541"""
-    return HEREDOC.sub("<<HEREDOC", val)
+    agent reached; the hidden/suite/repo scans still read the whole value) — 1.2.2, DEC-0541;
+    the operator line's remainder after <<WORD stays (1.2.6 MEDIUM-1)"""
+    return HEREDOC.sub(lambda m: "<<HEREDOC" + m.group(4), val)
+
+
+def count_interpreter_heredocs(val):
+    """the heredocs whose operator line's command is an interpreter (1.2.6 LOW-3). The command is
+    the first word of the operator line's text before <<, after the last ;, &, |, ( or { and
+    after leading NAME=value assignments; a path keeps its basename (/usr/bin/node → node)"""
+    n = 0
+    for m in HEREDOC.finditer(val):
+        line = val[val.rfind("\n", 0, m.start()) + 1:m.start()]
+        seg = re.split(r"[;&|({]", line)[-1].split()
+        while seg and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", seg[0]):
+            seg.pop(0)
+        if seg and HEREDOC_INTERPRETERS.match(seg[0].rsplit("/", 1)[-1]):
+            n += 1
+    return n
 
 
 def home_word_outside():
@@ -1402,6 +1472,8 @@ def check_value(tool, field, val, roots):
         return "repo_name"
     if tool == "Bash" and GIT_HIST.search(val):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
+    if tool == "Bash":
+        HEREDOC_INTERP[0] += count_interpreter_heredocs(val)   # 1.2.6 LOW-3: telemetry only
     cands = []
     if field in PATH_FIELDS or (tool == "Glob" and field == "pattern"):
         if val.startswith("/") and not val.startswith("//"):
@@ -1433,15 +1505,16 @@ def check_value(tool, field, val, roots):
                 continue
             # DEC-0551 (1.2.4): a root dot-directory word (/.claude/<file> after a quote in
             # pr/'"$v"'/.claude/…) is a repo-relative reference — no Linux root holds dot-dirs;
-            # a one-component sensitive word inside a quoted string (grep -E ' /tmp | /home ')
-            # is pattern text, not a path argument (the accepted gap cd '/root/' stays)
+            # a one-component sensitive word inside a quoted string with other text
+            # (grep -E ' /tmp | /home ') is pattern text, not a path argument; the word that is
+            # the whole quoted argument (cd "/root", cd '/root/') is a candidate (1.2.6 LOW-1)
             if w.startswith("/."):
                 continue
             # DEC-0557 (1.2.5): after a closing quote glued to the preceding token ("$D"/evals/x)
             # the word is the tail of a longer path, not an absolute one
             if after_closing_quote(body, m.start(1)):
                 continue
-            if one and in_quotes(body, m.start(1)):
+            if one and in_quotes(body, m.start(1), m.end(1)):
                 continue
             cands.append(w)
     for c in cands:
@@ -1535,11 +1608,12 @@ def grade(t, run_dir, frozen):
          "verdicts": {"review": v_review, "audit": v_audit},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "harness_files_removed": 0,
-         "oversized_files_skipped": 0, "history_probes": 0, "contaminated": None}
+         "oversized_files_skipped": 0, "history_probes": 0, "heredoc_interpreters": 0, "contaminated": None}
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
     OVERSIZED[0] = 0
     HISTORY_PROBES[0] = 0
+    HEREDOC_INTERP[0] = 0
     RUN_TAG[0] = re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(run_dir))[:40] or "run"
     GRADER_SOURCES.clear()
     if t.build:
@@ -1621,6 +1695,7 @@ def grade(t, run_dir, frozen):
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
     g["contaminated"] = contamination(run_dir)
     g["history_probes"] = HISTORY_PROBES[0]
+    g["heredoc_interpreters"] = HEREDOC_INTERP[0]
     return g
 
 

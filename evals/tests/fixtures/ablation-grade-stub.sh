@@ -4,7 +4,8 @@
 #     [--image …] [--docker-bin …]
 # Writes <run-dir>/grade.json: build tasks {hidden_tests 3/4, regressions none}, review-catch
 # {recall 1 of 2, verdict CHANGES_REQUIRED}. STUB_GRADE_LOG gets the argv (one line);
-# a run_id matching the glob in STUB_GRADE_FAIL exits 2 without writing.
+# a run_id matching the glob in STUB_GRADE_FAIL exits 2 without writing; one matching the glob
+# in STUB_GRADE_HANG sleeps 600 s before writing (the runner's grade deadline, Sprint 260 LOW-4).
 set -euo pipefail
 export LC_ALL=C
 RD="$1" TASK="$2"; shift 2
@@ -22,6 +23,10 @@ rid="$(jq -r '.run_id' "$RD/meta/pipeline.json")"
 if [[ -n "${STUB_GRADE_FAIL:-}" ]]; then
   # shellcheck disable=SC2254
   case "$rid" in $STUB_GRADE_FAIL) echo "grade-stub: refused" >&2; exit 2 ;; esac
+fi
+if [[ -n "${STUB_GRADE_HANG:-}" ]]; then
+  # shellcheck disable=SC2254
+  case "$rid" in $STUB_GRADE_HANG) echo "grade-stub: hanging" >&2; sleep 600 ;; esac
 fi
 type="$(yq -r '.type' "$ROOT/$TD/$TASK/task.yaml")"
 if [[ "$type" == review-catch ]]; then
