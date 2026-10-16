@@ -17880,3 +17880,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0559"
+    created_at: "2026-10-16T21:27:01Z"
+    updated_at: "2026-10-16T21:27:01Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Operator chose option 1: suite v2 (harder tasks, per-type caps), re-pre-register, rerun A0/A1/A4; reserve released; Sprints 261/262 re-scoped (L49)"
+    decision: "Per the operator's in-session instruction (2026-10-17, 'proceed with 1'), the cycle continues under DEC-0558 option (b): Sprint 261 becomes suite v2 — a pre-registered hardness criterion for build tasks, twelve harder build tasks replacing the saturated v1 set (the four review-catch tasks stay), per-task-type run caps (build USD 15, review-catch USD 20) with the cap-fit rule restated, suite_version 2, self-check and fairness reviews, freeze, a calibration smoke, a fresh pre-registration entry before any row, then A0/A1/A4 at 2 trials per cell (3 if the actuals fit) and the H1/A4 reads; Sprint 262 becomes analysis, report, documentation and rc.6 (pruning only if the v2 reads allow it; re-verification only if pruning happens). The USD 250 reserve is released to the rerun; the cycle cap stays USD 1,500; the halt conditions stay (H1 fails on v2 → halt and report; spend above cap → halt). The arms stay pinned at ba11b860."
+    rationale: "suite v1 saturates at 1.000 on every arm and the USD 12 cap binds on the gated arm's AUDIT phase on the larger review PRs, so v1 cannot support a pruning decision; the A4 rule names hardening as the next step and the operator chose it over accepting, deviating or stopping"
+    alternatives_considered:
+      - option: "accept the v1 outcome and ship the report with rc.6"
+        rejected_because: "the operator chose to answer the question rather than record that the test could not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "f71f0543"
+    source: "grimoires/loa/NOTES.md#operator-decision-option-1-harden-before-acting (L49)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:27:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#operator-decision-option-1-harden-before-acting (L49)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
