@@ -2619,7 +2619,7 @@
           "status": "planned",
           "created": "2026-10-14T13:59:27Z",
           "completed": null,
-          "theme": "Analysis",
+          "theme": "Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads",
           "epic": "bd-ykvu4",
           "beads": [
             "bd-sigxm",
@@ -2634,7 +2634,7 @@
           "status": "planned",
           "created": "2026-10-14T13:59:27Z",
           "completed": null,
-          "theme": "Prune and document",
+          "theme": "Analysis, report, documentation, rc.6",
           "epic": "bd-u3ns5",
           "beads": [
             "bd-4b6dr",
@@ -3048,5 +3048,5 @@
     }
   ],
   "next_sprint_number": 263,
-  "last_updated": "2026-10-15T07:08:46Z"
+  "last_updated": "2026-10-16T21:58:41Z"
 }

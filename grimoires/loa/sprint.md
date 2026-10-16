@@ -8,7 +8,8 @@
 **Ledger:** cycle `cycle-130-ablation-2.0`, sprints global 258 / 259 / 260 / 261 / 262 (local sprint-1 … sprint-5)
 **Execution:** `/run sprint-plan`, push AUTO; Opus 5.5 implementers in linked worktrees returning `git diff --cached --binary` patches; the lead applies, reviews and audits on Fable 5.1; at most three dissent runs per sprint; no dissent while an arm batch runs (KF-037)
 **Task kinds:** every task carries `kind: mechanical | judgment | operator` (DEC-0144); no `operator` task exists because the operator's instruction authorised the cycle end to end and every operator decision is a `proposed` DEC row
-**Spend:** cycle cap USD 1,500, per-run cap USD 12, reserve USD 250 for the Sprint 5 re-verification (released to A7, which then runs in Sprint 5, when the re-verification rule needs no run); the cap covers executor-reported run cost plus cost-ledger rows (arm, smoke, extension and re-verification runs; planning Flatline, dissent, Bridgebuilder); the lead's interactive session and its Agent-tool subagents are unmetered and outside the cap (DEC-0430); both smokes run under `--max-usd 100`; a batch's `--max-usd` = cap − spend so far − reserve − concurrency × 12 (DEC-0429); spend posted in NOTES after every smoke and batch
+**Spend:** cycle cap USD 1,500; per-run cap USD 12 for the suite v1 batches (Sprints 1–3) and, from Sprint 4 on, a per-task-type run cap — build USD 15, review-catch USD 20 (DEC-0559; suite `caps.run_usd_by_type`); the USD 250 reserve is released to the Sprint 4 rerun (DEC-0559) — a re-verification run, if pruning happens, comes out of what remains; the cap covers executor-reported run cost plus cost-ledger rows (arm, smoke, extension and re-verification runs; planning Flatline, dissent, Bridgebuilder); the lead's interactive session and its Agent-tool subagents are unmetered and outside the cap (DEC-0430); smokes run under `--max-usd` ≤ 120; a batch's `--max-usd` = cap − spend so far − concurrency × the largest applicable type cap (DEC-0429 with the reserve released); spend posted in NOTES after every smoke and batch
+**Re-scope (2026-10-17, DEC-0559):** suite v1's twelve build tasks saturate (every arm 1.000) and the USD 12 cap stopped five of A1's twelve review runs in AUDIT; the pre-registered H1 and A4 reads halted the cycle (DEC-0558) and the operator chose to harden before acting. Sprint 4 becomes suite v2 and the A0/A1/A4 rerun; Sprint 5 becomes analysis, report, documentation and rc.6, with pruning only if the v2 reads allow it
 **Source commit for the arms:** the Sprint 258 completion commit (rc.5 plus the #1267 mount fix); the `.claude/` delta against `4d69c3c4` is recorded in every manifest (DEC-0392)
 **Flatline integration:** PRD run → DEC-0391 … DEC-0410 (PRD Appendix G); SDD and sprint runs → Appendix D
 
@@ -16,7 +17,7 @@
 
 ## Executive Summary
 
-Five sprints measure which components of Loa `v2.0.0-rc.5` still earn their cost on Opus 5.5 and Fable 5.1, and prune the ones that do not before the 2.0.0 promotion. Sprint 1 makes the measurement possible: the #1267 mount fix, the spend caps as scripts, the nine arm profiles with toggles that prove they took effect, a pipeline executor that runs Loa's phases as separate sessions inside a sandbox repository, and the row writer. Sprint 2 freezes sixteen tasks with hidden tests outside the agent tree and a grader that scores a known-good and a known-bad patch correctly on every one. Sprint 3 pre-registers the decision rules, smokes every arm, calibrates the budget from actuals and runs the priority arms A0–A4 detached under the caps. Sprint 4 grades blind, bootstraps and writes one decision per component. Sprint 5 moves removable components to opt-in, writes the migration addendum, re-verifies the pruned default within three points of the old full harness, and validates the cycle's goals end to end. The floor is never touched.
+Five sprints measure which components of Loa `v2.0.0-rc.5` still earn their cost on Opus 5.5 and Fable 5.1, and prune the ones that do not before the 2.0.0 promotion. Sprint 1 makes the measurement possible: the #1267 mount fix, the spend caps as scripts, the nine arm profiles with toggles that prove they took effect, a pipeline executor that runs Loa's phases as separate sessions inside a sandbox repository, and the row writer. Sprint 2 freezes sixteen tasks with hidden tests outside the agent tree and a grader that scores a known-good and a known-bad patch correctly on every one. Sprint 3 pre-registers the decision rules, smokes every arm, calibrates the budget from actuals and runs the priority arms A0, A1 and A4 detached under the caps — and halts on the pre-registered reads, because suite v1's build tasks saturate and the per-run cap binds on the gated arm (DEC-0558). Sprint 4, re-scoped under DEC-0559, pre-registers a hardness criterion, authors twelve harder build tasks as suite v2 with per-type run caps, re-pre-registers, and reruns A0, A1 and A4 for the H1 and A4 reads. Sprint 5 re-grades everything under one grader, writes the report (the v1 rows in their own section), documents, ships rc.6, and prunes only if the v2 reads allow it, with the re-verification only then. The floor is never touched.
 
 > Sources: prd.md §Executive Summary, §Timeline; sdd.md §1.2, §8
 
@@ -29,8 +30,8 @@ Five sprints measure which components of Loa `v2.0.0-rc.5` still earn their cost
 | 1 | 258 | Mount integrity and harness plumbing | `gen-checksums.sh`, `check-manifest-paths.sh`, mount-scoped `check-loa.sh`, fresh-mount proof, version markers; `run-arms.sh --max-usd/--screen`, `spend.sh`; `ablation-2.0.yaml` arms and toggles; task schema, `freeze.sh`, `validate-suite.sh`; `pipeline-run.sh` + container image and launcher + phase prompts + `fingerprint.sh` + watchdog; `ablation-row.sh`, `took-effect.sh`; smoke on two task files from existing fixtures; the container-or-host decision | None |
 | 2 | 259 | Task suite and grader | task schema, `freeze.sh`, seeders, 16 frozen tasks with hidden tests and `REVIEW.md`, `ablation-grade.sh --self-check` 16/16, bd-8o5rx | Sprint 1 (executor, row writer) |
 | 3 | 260 | Runs | NOTES pre-registration, smoke on the frozen suite, cap-fit and budget calibration, priority batch A0–A4 detached, spend posts, A4/H1 reads, A7/A5/A6 if room, cuts recorded | Sprint 2 (frozen suite) |
-| 4 | 261 | Analysis | `ablation-report.py`, blind grading pass, bootstrap, rules, `report.md`, one bounded extension, Decision Log after | Sprint 3 (rows) |
-| 5 | 262 | Prune and document | opt-in moves, measured-lift sentences, migration addendum, `a1_pruned` re-verification, bd-2txz1 decision, release-notes report, E2E | Sprint 4 (decisions) |
+| 4 | 261 | Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads | pre-registered hardness criterion and caps, `caps.run_usd_by_type` in the harness, twelve harder build tasks with fairness reviews, `suite_version: 2` frozen with the image self-check, calibration smoke, re-pre-registration entry, batch `priority-v2-p1` (A0, A1, A4 at 2 trials per cell), `reads-v2.md` (H1, A4) | Sprint 3 (harness, the v1 reads, DEC-0559) |
+| 5 | 262 | Analysis, report, documentation, rc.6 | one-grader re-grade (byte-identical), `report.md`/`report.json` with the v1 section and the cuts, report hardening (bd-yz1rd, bd-m0hw7, bd-wqbz3), Decision Log after the runs, CHANGELOG Sprints 260–262, release notes rc.6, README rerun recipe, beads close-out, E2E; opt-in moves, addendum and re-verification ONLY if the v2 reads allow pruning | Sprint 4 (v2 rows and reads) |
 
 > Sources: prd.md §Timeline & Milestones; sdd.md §8
 
@@ -285,124 +286,155 @@ Sequencing: G's runner and H's report script land before the smoke; the lead run
 
 ---
 
-## Sprint 4: Analysis
+## Sprint 4: Suite v2 — harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads
 
-**Global ID:** 261 · **Epic:** bd-ykvu4 · **Beads:** bd-sigxm, bd-xlvu2, bd-nn4yn, bd-80ewp
+**Global ID:** 261 · **Epic:** bd-ykvu4 · **Beads:** bd-w77l6 (4.1), bd-jbcup (4.2), bd-t6tt8 (4.3), bd-glnu2 (4.4), bd-d9ph8 (4.5), bd-l7quj (4.6), bd-fla84 (4.7), bd-t8u8h (4.8), bd-vroqq (4.9) — created at the re-scope (labels `epic:bd-ykvu4,cycle-130,sprint-261`); bd-sigxm, bd-xlvu2, bd-nn4yn, bd-80ewp closed as superseded by DEC-0559 (their report-hardening remainder moved to Sprint 5 with bd-yz1rd, bd-m0hw7, bd-wqbz3)
+
+> Re-scoped 2026-10-17 under DEC-0559 after the Sprint 3 halt (DEC-0558): suite v1's twelve build tasks saturate at 1.000 on every arm and the USD 12 per-run cap stopped five of A1's twelve review runs in AUDIT, so v1 cannot support a pruning decision. The original Sprint 4 (analysis) text is in git history at `4c279606`.
 
 ### Sprint Goal
-Turn the rows into one decision per component by the rules written before the runs, and show the numbers behind every cell.
+Make the suite able to separate the arms (a hardness criterion written down before the tasks are authored), fit the gated arm under per-type run caps, re-pre-register, and rerun A0, A1 and A4 on suite v2 for the H1 and A4 reads — halting again, with the operator's options, if H1 fails.
 
 ### Deliverables
-- `ablation-report.py` fixes and extra cases found on the real rows (the script itself landed in Sprint 3, Task 3.8)
-- `grimoires/loa/reports/ablation-2.0/report.md` and `report.json`
-- The inconclusive extension (two more trials once per inconclusive arm) if any and if budget allows
-- NOTES § Decision Log entries after the runs
+- NOTES § Decision Log: the hardness criterion and the per-type caps, timestamped before the first v2 task is authored (Task 4.1); the re-pre-registration entry, timestamped before the first batch row (Task 4.7)
+- Harness: per-task-type run caps — suite `caps.run_usd_by_type {build: 15, review-catch: 20}`; `run-ablation.sh` reserves, dispatches (`pipeline-run.sh --max-run-usd <type cap>`) and assumes charges per type; `MANIFEST.json`/`STATUS.json` carry the caps; `run-ablation.bats`
+- Twelve harder build tasks under `grimoires/loa/evals/ablation-2.0/tasks/` with v2 ids (`bugfix-v2-01` … `feature-v2-04`; the v1 build task directories removed from `tasks/`, kept in git history and cited by the `suite_version` 1 rows through the v1 manifest hash), each with hidden tests, a `REVIEW.md` fairness review PASS and a reference patch; the four review-catch tasks unchanged
+- `suite_version: 2` frozen (`MANIFEST.sha256`, README freeze-protocol entry), the image self-check 36/36 logged for the hard gate, `source_commit: ba11b860` unchanged
+- `a2a/sprint-261/smoke-v2.md` (calibration smoke `calib-v2-01`: the hardness read, swap rounds if any, the cap-fit read), `batch-plan-v2.md`
+- `grimoires/loa/reports/ablation-2.0/runs.jsonl` rows for batch `priority-v2-p1` (A0, A1, A4; `suite_version` 2) or a recorded cut
+- `a2a/sprint-261/reads-v2.md`: the H1 and A4 reads with intervals and the action
 
 ### Acceptance Criteria
-- [ ] AC-4.1 `ablation-report.bats` on planted rows: a −0.05 drop with a tight interval reads Keep; 0.00 with 20 % lower cost reads Remove; 0.00 with similar cost reads Simplify; a wide interval reads Inconclusive; +0.04 reads Investigate; H1 and A4 rules fire; applicability refusal; a cap failure scores 0; a degraded cell leaves both arms; 30 % excluded reads Inconclusive-by-degradation; a build-only arm is decided on the pass rate alone; the catch-rate interval resamples defects and the task-level interval is also printed; the sensitivity figure is labelled and unused (PRD AC-8.1)
-- [ ] AC-4.2 `report.md` lists per arm n runs, excluded runs with reasons, both primaries with intervals, secondaries, cost per task, wall-clock, tokens, the decision and the rule line (PRD AC-8.2)
-- [ ] AC-4.3 The decision table has one row per component A2–A7, a row for A8 reading component-absent, and the H1 and A4 verdict lines (PRD AC-8.3)
-- [ ] AC-4.4 Cap-failed runs score 0; degraded, contaminated and interrupted runs are excluded pairwise and listed; the Sprint 4 re-grade of every run directory (arm map withheld) produced `grade.json` byte-identical to the inline grades before the report was built (DEC-0427)
-- [ ] AC-4.5 Any inconclusive arm got exactly one extension of two trials per task for that arm and the rule re-applied, or the budget cut is recorded; no dissent run started while the extension batch ran (DEC-0428, DEC-0436)
-- [ ] AC-4.6 NOTES Decision Log carries the after-run decisions with the report's figures
+- [ ] AC-4.1 The hardness criterion (a0_bare's calibration pass rate ≤ 0.5 on each task over 2 trials; the twelve together a0_bare mean ≤ 0.75 with at least six tasks below 1.0; a failing task is swapped, at most two authoring rounds; the reference still passes the hidden tests; the fixture suite green at base and reference) and the caps (build USD 15, review-catch USD 20; cap fit: A1's median cost per run on the smoke ≤ 0.75 × the type's cap, else the tasks shrink or the cap rises before the re-pre-registration) are timestamped in NOTES before the first v2 task is authored; the re-pre-registration entry (suite_version 2 and its manifest hash, the caps, the hardness result, the rules unchanged, the H1/A4 halt conditions, trials per cell, `--max-usd`, the MDE from P1's paired variance, the breaker, the outage clause, A2/A3/A5/A6/A7 pre-declared `Not run (cut)` with figures) is timestamped before the first `priority-v2-p1` row; smoke rows decide nothing (DEC-0428, DEC-0559)
+- [ ] AC-4.2 `run-ablation.sh --dry-run` on suite v2 prints the plan with the per-type caps and writes `MANIFEST.json` with `caps.run_usd_by_type`, `suite_version: 2`, the v2 manifest hash and `source_commit ba11b860`; `run-ablation.bats` covers the per-type cap on dispatch (`--max-run-usd` per task type), on the in-flight reservation and on the assumed charge; the hard gate still requires sixteen `REVIEW.md` files and 36 PASS lines
+- [ ] AC-4.3 Every v2 build task: the reference touches 3–6 files and is 80–200 lines; hidden tests exercise interactions and edge cases the brief does not spell out, red at base and green at reference inside `loa-ablation:258` (`--self-check` logged); `regression_command` green at both ends; `grader_protected` covers every file under `fixture/tests/`; no cache directory in the fixture; no `hidden` token in agent-facing text (TASK.md, fixture, brief); bounds `{max_turns: {IMPLEMENT: 80}, timeout_min: {IMPLEMENT: 35}}`; `validate-suite.sh` valid; `freeze.sh --check` OK; a `REVIEW.md` PASS by an Opus reviewer who did not author the task (DEC-0435)
+- [ ] AC-4.4 On the frozen v2 set the calibration smoke's a0_bare pass rates satisfy the pre-registered criterion, or every swap round and the final read are recorded in `smoke-v2.md`; A1's median cost per run on the smoke ≤ 0.75 × the type's cap, or the recorded adjustment and its re-pre-registration
+- [ ] AC-4.5 Every `priority-v2-p1` row carries `attempts`/`retry_reason`, `suite_version` 2, the v2 manifest hash and `cap_phase` when capped; cap failures are `cap_failure`; outage rows are rerun by `--resume --rerun-status`; contaminated rows are hand-read (KF-046) and, when the hit is an idiom, the grader is bumped and the row re-rowed; no dissent run started while the batch ran (timestamps in the sprint report); spend posted after the batch from `spend.sh`; the cycle total ≤ USD 1,500 (PRD G-4)
+- [ ] AC-4.6 `reads-v2.md` records H1 (a1_full − a0_bare on either primary, interval excluding zero) and A4 (a4_no_gates − a1_full on the pass rate, interval excluding zero) with their intervals and the action; H1 fails → the halt is recorded (DEC row, NOTES, PR #1283 body) and the operator is reported to with options; A4 not worse than A1 → "no pruning of A4" recorded and the cycle continues to the report
 
 ### Implementers and shared files
 | Owner | Tasks | Worktree | Shared-file notes |
 |-------|-------|----------|-------------------|
-| lead | 4.2, 4.3, 4.4 | main checkout | `report.md` reading, NOTES |
-| H (Opus 5.5) | 4.1 | `../loa-wt-s4h` | owns `ablation-report.py` and its bats |
+| lead | 4.1, 4.5 (freeze, self-check in the image), 4.6, 4.7, 4.8, 4.9 | main checkout | NOTES, the suite file, the batches, reads |
+| K (Opus 5.5) | 4.2 | `../loa-wt-s4k` | owns `run-ablation.sh`, `run-ablation.bats`, the suite file's `caps` block (the lead integrates); `pipeline-run.sh` only for the cap argument if needed |
+| D2 (Opus 5.5) | 4.3 (bugfix-v2-01 … 04, feature-v2-01, feature-v2-02) | `../loa-wt-s4d` | owns its six task directories; the seeders read-only |
+| E2 (Opus 5.5) | 4.3 (refactor-v2-01 … 04, feature-v2-03, feature-v2-04) | `../loa-wt-s4e` | owns its six task directories |
+| R1, R2 (Opus 5.5) | 4.4 | read-only on the integrated tree | one `REVIEW.md` per task, each reviewer on the other author's tasks |
+
+Sequencing: 4.1 first (the criterion precedes authoring); K's caps land before the smoke; D2/E2 author in parallel; R1/R2 review after integration; freeze → smoke → swap rounds (re-freeze) → re-pre-registration → batch → reads. Harness files are edited only while no batch runs (KF-037, Sprint 258 lesson).
 
 ### Technical Tasks
-- [ ] Task 4.1: `ablation-report.py` hardening on the real rows (edge cases found, extra planted-row bats, `report.json` schema_version) → **[G-1]** ⇐ none · kind: mechanical
-- [ ] Task 4.2: Re-grade every run directory from scratch with the arm map withheld and assert byte-identical `grade.json`; `report.md` generated; the lead's reading of missed labels, failed, degraded and contaminated runs added → **[G-1]** ⇐ 4.1 · kind: judgment
-- [ ] Task 4.3: Inconclusive extension (two trials per task for each inconclusive arm, once) run under `--max-usd` if budget allows with no dissent during the batch; rules re-applied; else the cut recorded → **[G-1]** ⇐ 4.2 · kind: judgment
-- [ ] Task 4.4: NOTES Decision Log entries after the runs; `runs.jsonl` and `report.md` committed; CHANGELOG Sprint 4 entries, REPO-MAP, checksums → **[G-1]** ⇐ 4.3 · kind: mechanical
+- [ ] Task 4.1: Pre-register in NOTES § Decision Log, before any v2 task is authored: the hardness criterion (per task a0_bare ≤ 0.5 over 2 trials; the twelve a0_bare mean ≤ 0.75 with ≥ six tasks below 1.0; swap rule, ≤ two authoring rounds; reference passes hidden; fixture suite green at both ends; the four review-catch tasks stay) and the per-type caps (build 15, review-catch 20) with the cap-fit rule (A1 median per run ≤ 0.75 × cap on the smoke) → **[G-1]** ⇐ none · kind: judgment
+- [ ] Task 4.2: Per-type run caps in the harness: suite `caps.run_usd_by_type`; `run-ablation.sh` reads the task type's cap for `pipeline-run.sh --max-run-usd`, the in-flight reservation (`concurrency × the largest cap in the plan`), the cap-failure and assumed charges, `MANIFEST.json caps.run_usd_by_type` and `STATUS.json`; `--run-cap` keeps its meaning as the single-cap override; `run-ablation.bats` cases (dispatch argument per type, reservation, assumed charge, MANIFEST) → **[G-4]** ⇐ none · kind: mechanical
+- [ ] Task 4.3: Twelve harder build tasks (four bug-fix, four refactor, four feature-build; v2 ids): multi-file changes (3–6 files), reference patches 80–200 lines, hidden tests on interactions and unstated edge cases, `regression_command` green at both ends, `grader_protected` covering every fixture test file, no caches, no `hidden` tokens in agent-facing text, fixtures under `tasks/<id>/fixture/`, bounds `{max_turns: {IMPLEMENT: 80}, timeout_min: {IMPLEMENT: 35}}`, `source.kind: synthetic` dated the authoring day unless the seeders find real candidates with `--since 2026-06-01`; the v1 build task directories removed from `tasks/` → **[G-2]** ⇐ 4.1 · kind: mechanical
+- [ ] Task 4.4: Fairness reviews: two Opus reviewers, one `REVIEW.md` per v2 task (PASS required; the DEC-0435 hard gate needs sixteen), each reviewer on the other author's tasks; findings fixed by the author before the freeze → **[G-2]** ⇐ 4.3 · kind: judgment
+- [ ] Task 4.5: Freeze v2: `suite_version: 2` in `evals/suites/ablation-2.0.yaml` (`source_commit: ba11b860` unchanged), `validate-suite.sh`, `freeze.sh` (new `MANIFEST.sha256`), `ablation-grade.sh --self-check base|reference` for every task inside `loa-ablation:258` (36/36; the log recorded for the hard gate), README freeze-protocol entry naming the v1 → v2 reason → **[G-2]** ⇐ 4.4 · kind: mechanical
+- [ ] Task 4.6: Calibration smoke `calib-v2-01` (decides nothing): a0_bare × twelve build tasks × 2 trials and a1_full × two build + two review-catch tasks × 1 trial under `--results-root evals/results/ablation-2.0 --max-usd 120`; the hardness read per the criterion; failing tasks swapped (≤ two rounds; the a0 part repeated on the swapped tasks only) and the suite re-frozen; the cap-fit read; `smoke-v2.md` and `batch-plan-v2.md` → **[G-4]** ⇐ 4.5 · kind: judgment
+- [ ] Task 4.7: Re-pre-registration NOTES entry before any `priority-v2-p1` row: suite_version 2 and its manifest hash, the caps, the hardness result, the rules unchanged (0.03 / 15 % / 10,000 / 90 % / cap failure = 0 / pairwise exclusion / 25 % guard first), the H1 and A4 halt conditions, trials 2 per cell for A0/A1/A4 (3 if the smoke actuals fit the ceiling), `--max-usd` = 1,500 − spend so far − 3 × 20, the MDE from P1's paired variance, the breaker on, the outage clause, A2/A3/A5/A6/A7 pre-declared `Not run (cut)` with figures → **[G-1]** ⇐ 4.6 · kind: judgment
+- [ ] Task 4.8: Batch `priority-v2-p1` (`--arms a0_bare,a1_full,a4_no_gates --trials-build 2 --trials-review 2 --concurrency 3 --detach`; dry run first), watched; outage → `--resume --rerun-status transport_error`; contaminated rows hand-read (KF-046) and re-rowed after a grader bump when the hit is an idiom; never a harness edit while the driver runs; spend posted → **[G-1]** ⇐ 4.7 · kind: mechanical
+- [ ] Task 4.9: `reads-v2.md` from `ablation-report.py --partial`: H1 and A4 with intervals and the action (H1 fails → halt: DEC row, NOTES, PR body, the operator's options; A4 not worse → "no pruning of A4", continue) → **[G-1]** ⇐ 4.8 · kind: judgment
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `ablation-report.py` on planted rows | each rule branch, interval arithmetic, exclusions | real-data edge cases | `evals/harness/arms-report.py` + `arms-report.bats` |
+| `run-ablation.sh --dry-run` on suite v2 | per-type caps in the plan and the manifest, the hard gate at sixteen tasks | provider behaviour | `evals/tests/run-ablation.bats` RAB-1, RAB-3 |
+| `ablation-grade.sh --self-check` inside the image on every v2 task | a reference that does not pass, a structural check green at base | real-agent code shapes | the Sprint 259 self-check bats cases |
+| `validate-suite.sh`, `freeze.sh --check` | missing `grader_protected` entries, unlisted fixture tests, a `hidden` token in agent-facing text | task difficulty | Sprint 259 VS-12/VS-13 |
+| calibration smoke a0_bare × 2 | tasks a bare agent solves every time (the saturation that halted v1) | arm behaviour on other tasks | Sprint 260 `smoke.md` |
 
 ### Dependencies
-- Sprint 3's rows and manifests
+- Sprint 3's harness (runner, grader 1.2.6, report script, row writer) and its P1 reads (DEC-0558); DEC-0559
+- Bedrock live for about a day; the image `loa-ablation:258`
 
 ### Security Considerations
-- The report prints ids, numbers and the lead's prose; no run output is embedded unescaped.
+- Hidden tests stay outside the agent tree (`tasks/<id>/hidden/`, never mounted); fixtures carry no credential and no `.claude/`; batch logs under `~/.cache/loa/cycle-130/`; the record branch gets the a2a records, never the raw transcripts.
 
 ### Risks & Mitigation
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| Small n makes every arm inconclusive | Med | Med | one bounded extension; the report says so; the brief accepts it |
-| Rule ambiguity on a borderline cell | Low | Med | the rule order is fixed in the suite file; the report prints the matched line |
+| Harder tasks still saturate for a0_bare | Med | High | the pre-registered criterion with ≤ two swap rounds; the read is recorded either way |
+| A1 exceeds the per-type cap on the harder tasks | Med | High | the cap-fit rule on the smoke (median ≤ 0.75 × cap) before the re-pre-registration; shrink or raise, recorded |
+| H1 fails again on v2 | Med | High | the halt path is pre-registered; the report ships with the v1 and v2 reads; the operator decides |
+| Authoring leaks a `hidden` token or a cache into the fixture | Low | Med | `validate-suite.sh`, the fairness reviews, the self-check |
 
 ### Success Metrics
-- `ablation-report.bats` green; `report.md` with one decision per component
-- Review and audit APPROVED; COMPLETED marker
+- Twelve v2 tasks frozen with sixteen `REVIEW.md` PASS and the self-check 36/36; the criterion read recorded
+- Every planned `priority-v2-p1` run has a row or a recorded cut; spend ≤ cap; `reads-v2.md` written
+- Review and audit APPROVED between batches; COMPLETED marker
 
 ---
 
-## Sprint 5 (Final): Prune and document
+## Sprint 5 (Final): Analysis, report, documentation, rc.6
 
-**Global ID:** 262 · **Epic:** bd-u3ns5 · **Beads:** bd-4b6dr, bd-eraro, bd-r3cui, bd-9psha, bd-26vid, bd-sveja, bd-0qmri
+**Global ID:** 262 · **Epic:** bd-u3ns5 · **Beads:** bd-4b6dr, bd-eraro, bd-r3cui, bd-9psha, bd-26vid, bd-sveja, bd-0qmri (retitled at the re-scope) + bd-yz1rd, bd-m0hw7, bd-wqbz3 (report hardening, moved from Sprint 4)
+
+> Re-scoped 2026-10-17 under DEC-0559: the pruning and re-verification work of the original Sprint 5 becomes conditional on the v2 reads (Task 5.4); the analysis of the original Sprint 4 lands here. The original text is in git history at `4c279606`.
 
 ### Sprint Goal
-Act on the decisions without touching the floor, tell operators what moved, and prove the pruned default still measures within three points of the old one.
+Turn the v2 rows into the report by the rules written before the runs, keep the v1 rows in their own section, document the cycle and ship rc.6 — pruning, and then re-verifying, only if the v2 reads allow it.
 
 ### Deliverables
-- Opt-in moves for Remove and Simplify decisions (`.loa.config.yaml.example`, `profiles.yaml`, docs), measured-lift sentences for Keep components
-- `docs/migration/v2.0-ablation-addendum.md`
-- `a1_pruned` (the shipped Sprint 262 tree pinned as its own source commit) re-verification rows with an interleaved fresh `a1_full` control when case 3 applies, and `report.md §Re-verification`; A7 batch if the reserve was released
-- bd-2txz1 decision applied or closed with the reading; bd-yzzb9 fix if budget allows
-- `grimoires/loa/reports/release-notes-2.0.0-rc.6.md`, CHANGELOG, the 2.0.0 notes stub link
-- `a2a/sprint-262/e2e.md` validating G-1 … G-6
+- The one-grader re-grade of every run directory (v1 and v2, arm map withheld) with the byte-identical check and every difference listed
+- Report hardening (H2): bd-yz1rd (`defects_missed` row field), bd-m0hw7 (`regressions.final_green`), bd-wqbz3 (n = 0 wording), the sensitivity figure's H1/A4 lines, a batch-record section from `STATUS.json`, the `suite_version` partition (v1 rows in their own section, never pooled with v2), with `ablation-report.bats` cases
+- `grimoires/loa/reports/ablation-2.0/report.md` and `report.json` (`--cuts` naming A2, A3, A5, A6, A7 `Not run (cut)` with figures), the lead's reading, NOTES § Decision Log entries after the runs
+- Conditional (only if the v2 reads allow pruning): opt-in moves, measured-lift sentences, `docs/migration/v2.0-ablation-addendum.md`, the re-verification per the three-case rule and `report.md §Re-verification`; otherwise that section states that no pruning was made
+- `grimoires/loa/reports/release-notes-2.0.0-rc.6.md`, CHANGELOG (Sprints 260–262), the 2.0.0 notes stub link, README rerun recipe and v2 freeze entry, REPO-MAP, checksums
+- bd-2txz1 decision applied or closed with the reading; bd-yzzb9 fix if budget allows; bd-j4lwr, bd-8o5rx closed
+- `a2a/sprint-262/e2e.md` validating G-1 … G-6; PR #1283 title and body replaced; Bridgebuilder; admin merge on green CI; rc.6 publish; record branch; archive
 
 ### Acceptance Criteria
-- [ ] AC-5.1 Every Remove or Simplify decision maps to a config key or profile knob change with its restore key in the addendum; `floor-snapshot.bats` and `profile-floor.bats` green (PRD AC-9.1)
-- [ ] AC-5.2 `report.md §Re-verification` names the rule case (none pruned / one pruned → its arm's rows / several pruned → `a1_pruned` and a fresh `a1_full` control interleaved, one trial per task, paired by task, or only the removal with the largest cost saving applied) and shows the pruned default within −0.03 of the control on each applicable primary on the point estimate with the interval and the MDE printed, or the prune is reverted or held back with the reason; when H1 is not established or A4 is insensitive the section states that no pruning was made; no dissent ran during the re-verification batch (PRD AC-9.2, DEC-0398, DEC-0409, DEC-0425, DEC-0436)
-- [ ] AC-5.3 Every Keep component's reference doc carries one sentence with its measured lift and interval (PRD AC-9.3)
-- [ ] AC-5.4 `release-notes-2.0.0-rc.6.md` links `report.md`; the 2.0.0 notes stub carries the same link (PRD AC-9.4)
+- [ ] AC-5.1 The re-grade of every run directory (v1 `priority-p1`, v2 `priority-v2-p1`, arm map withheld) under one grader produced `grade.json` byte-identical to the inline grades, except where a later grader's contamination exemption changed a verdict, each such difference listed with the row it moved (DEC-0427)
+- [ ] AC-5.2 `report.md` lists per arm n runs, excluded runs with reasons, both primaries with intervals, secondaries, cost per task, wall-clock, tokens, the decision and the rule line; the decision table has one row per component A2–A7 (`Not run (cut)` with figures for A2, A3, A5, A6, A7), a row for A8 reading component-absent, and the H1 and A4 verdict lines; the sensitivity figure prints the H1 and A4 lines too; the v1 P1 rows are reported in their own section under `suite_version` 1 and never pooled with v2 (PRD AC-8.1, AC-8.2, AC-8.3)
+- [ ] AC-5.3 Report hardening landed with tests: `defects_missed` carried by `ablation-row.sh` (bd-yz1rd), `regressions.final_green` consumed (bd-m0hw7), the n = 0 wording (bd-wqbz3), the sensitivity H1/A4 lines, the batch-record section, the `suite_version` partition; `ablation-report.bats` and `ablation-row.bats` green
+- [ ] AC-5.4 NOTES Decision Log carries the after-run decisions with the report's figures; CHANGELOG carries Sprints 260–262; REPO-MAP regenerated and checksums current; `release-notes-2.0.0-rc.6.md` links `report.md` and the 2.0.0 notes stub carries the same link (PRD AC-9.4)
 - [ ] AC-5.5 bd-2txz1 closed or re-scoped with the arm reading; bd-j4lwr, bd-8o5rx closed; bd-yzzb9 closed or commented (PRD AC-10.3)
-- [ ] AC-5.6 `run-ablation.sh --source-commit <sha>` is documented in `evals/ablation-2.0/README.md` as the regression check for the next model bump (PRD G-6)
-- [ ] AC-5.7 `e2e.md` records G-1 … G-6 with evidence; every existing suite green; the zone marker is deleted at the end
+- [ ] AC-5.6 `run-ablation.sh --source-commit <sha>` is documented in `evals/ablation-2.0/README.md` as the regression check for the next model bump, with the v2 freeze entry (PRD G-6)
+- [ ] AC-5.7 `e2e.md` records G-1 … G-6 with evidence (G-5 reads "no pruning made" when H1 is not established or A4 is not worse than A1); every existing suite green; the zone marker is deleted at the end
+- [ ] AC-5.8 Conditional on the v2 reads allowing pruning: every Remove or Simplify decision maps to a config key or profile knob change with its restore key in the addendum, `floor-snapshot.bats` and `profile-floor.bats` green, every Keep component's reference doc carries its measured-lift sentence, and `report.md §Re-verification` names the rule case and shows the pruned default within −0.03 of the control on each applicable primary with the interval and the MDE printed, or the prune reverted or held back with the reason; no dissent ran during a re-verification batch (PRD AC-9.1, AC-9.2, AC-9.3; DEC-0398, DEC-0409, DEC-0425, DEC-0436). When the reads do not allow pruning the section states so and this criterion reads not applicable
 
 ### Implementers and shared files
 | Owner | Tasks | Worktree | Shared-file notes |
 |-------|-------|----------|-------------------|
-| lead | 5.3 (re-verification batch), 5.5, 5.6, 5.E2E | main checkout | NOTES, ledger, CHANGELOG, release notes |
-| I (Opus 5.5) | 5.1, 5.2, 5.4 | `../loa-wt-s5i` | owns the config, profiles, docs, addendum; never a floor file |
+| lead | 5.1, 5.3, 5.4 (if it fires: the re-verification batch), 5.5, 5.6, 5.E2E | main checkout | NOTES, ledger, CHANGELOG, release notes, the PR |
+| H2 (Opus 5.5) | 5.2 | `../loa-wt-s5h` | owns `ablation-report.py`, `ablation-row.sh` (the `defects_missed` field only) and their bats |
+| I (Opus 5.5, only if 5.4 fires) | 5.4 (config, profiles, docs, addendum) | `../loa-wt-s5i` | never a floor file |
 
 ### Technical Tasks
-- [ ] Task 5.1: Apply Remove and Simplify decisions as opt-in moves (`.loa.config.yaml.example`, `profiles.yaml`, this repository's config where a default changes) and write the measured-lift sentence into each Keep component's doc → **[G-5]** ⇐ none · kind: judgment
-- [ ] Task 5.2: `docs/migration/v2.0-ablation-addendum.md` (component, decision, numbers, restore key) and the CHANGELOG Migration rows → **[G-5]** ⇐ 5.1 · kind: mechanical
-- [ ] Task 5.3: Re-verification per the three-case rule: read the pruned arm's rows, or run `a1_pruned` (the Sprint 262 tree as its own source commit) interleaved with a fresh `a1_full` control at one trial per task under `--max-usd` when several components are pruned and the reserve allows, else apply only the removal with the largest cost saving; then A7 if the reserve was released; rows appended, `report.md §Re-verification` → **[G-5]** ⇐ 5.1 · kind: mechanical
-- [ ] Task 5.4: bd-2txz1 kernel deletions applied or closed per the arm reading; bd-yzzb9 metering guard fix with its test if budget allows → **[G-5]** ⇐ none · kind: judgment
-- [ ] Task 5.5: `release-notes-2.0.0-rc.6.md`, CHANGELOG Sprint 5 entries and the 2.0.0 notes stub link; `evals/ablation-2.0/README.md` rerun recipe; REPO-MAP, checksums, `sync-fixtures.sh --check` → **[G-6]** ⇐ 5.2, 5.3 · kind: mechanical
-- [ ] Task 5.6: Beads closed or commented (bd-j4lwr `--max-usd`/`--screen`; bd-8o5rx fix regions; bd-2txz1 kernel deletions; bd-yzzb9 metering guard; bd-s93s8 the cycle-129 archive on main, closed at the plan commit); ledger sprint statuses; DEC rows for every after-run decision → **[G-1]** ⇐ 5.5 · kind: mechanical
+- [ ] Task 5.1: Re-grade every run directory from scratch under one grader with the arm map withheld; assert byte-identical `grade.json` or list each difference with its cause (a contamination exemption added after the inline grade) and the row it moved → **[G-2]** ⇐ none · kind: mechanical
+- [ ] Task 5.2: Report hardening: bd-yz1rd, bd-m0hw7, bd-wqbz3, the sensitivity figure's H1/A4 lines, a batch-record section (`extra_models`, `rerowed`, `rerun`, `drift_cleared`, `outage_history`, grader versions per row), the `suite_version` partition with the v1 section; planted-row bats for each → **[G-1]** ⇐ none · kind: mechanical
+- [ ] Task 5.3: `report.md`/`report.json` generated (`--cuts` for A2, A3, A5, A6, A7 with the figures that stopped them); the lead's reading of missed labels, failed, degraded and contaminated runs; NOTES § Decision Log entries after the runs with the report's figures; `runs.jsonl` and the report committed → **[G-1]** ⇐ 5.1, 5.2 · kind: judgment
+- [ ] Task 5.4: Conditional on 5.3's reads allowing pruning: Remove and Simplify decisions as opt-in moves (`.loa.config.yaml.example`, `profiles.yaml`, this repository's config where a default changes), measured-lift sentences for Keep components, `docs/migration/v2.0-ablation-addendum.md`, then the re-verification per the three-case rule (the pruned arm's rows, or `a1_pruned` interleaved with a fresh `a1_full` control at one trial per task under `--max-usd`, or only the largest-saving removal) and `report.md §Re-verification`; otherwise the section states that no pruning was made → **[G-5]** ⇐ 5.3 · kind: judgment
+- [ ] Task 5.5: `release-notes-2.0.0-rc.6.md`, CHANGELOG Sprints 260–262 and the 2.0.0 notes stub link; `evals/ablation-2.0/README.md` rerun recipe and the v2 freeze entry; REPO-MAP, checksums, `sync-fixtures.sh --check` → **[G-6]** ⇐ 5.3 · kind: mechanical
+- [ ] Task 5.6: Beads closed or commented (bd-j4lwr `--max-usd`/`--screen`; bd-8o5rx fix regions; bd-2txz1 kernel deletions; bd-yzzb9 metering guard; the cycle's follow-ups); ledger sprint statuses; DEC rows for every after-run decision; PR #1283 title and body replaced (REST PATCH, KF-031), Bridgebuilder, admin merge on green CI, rc.6 publish, record branch, archive → **[G-1]** ⇐ 5.5 · kind: mechanical
 
 ### Task 5.E2E: End-to-End Goal Validation
-- [ ] Task 5.E2E: Validate G-1 … G-6 on the integrated tree (decision table complete; grader blind and hidden tests outside the tree; fresh mount green; caps mechanical with the spend record; pruned default within −0.03; rerun recipe works with `--dry-run` on a new source commit) and write `a2a/sprint-262/e2e.md` → **[G-1 … G-6]** ⇐ 5.1 … 5.6 · kind: judgment
+- [ ] Task 5.E2E: Validate G-1 … G-6 on the integrated tree (decision table complete with the v1 and v2 reads; grader blind and hidden tests outside the tree; fresh mount green; caps mechanical with the spend record; G-5 either within −0.03 or "no pruning made"; rerun recipe works with `--dry-run` on a new source commit) and write `a2a/sprint-262/e2e.md` → **[G-1 … G-6]** ⇐ 5.1 … 5.6 · kind: judgment
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `profile-floor.bats`, `floor-snapshot.bats` after the opt-in moves | a floor key reachable or changed | — | cycle-129 |
+| `ablation-report.py` on planted rows with two `suite_version` values | pooling v1 with v2; the n = 0 wording; the sensitivity H1/A4 lines | real-data edge cases | Sprint 260 `ablation-report.bats` |
+| the one-grader re-grade against the inline `grade.json` | a grader-version drift that moved a verdict | — | Sprint 259 `regrade-batch-1.md` |
+| `profile-floor.bats`, `floor-snapshot.bats` after any opt-in move | a floor key reachable or changed | — | cycle-129 |
 | `run-ablation.sh --dry-run --source-commit <other>` | the rerun recipe | live rerun | Sprint 3 bats |
 
 ### Dependencies
-- Sprint 4's decisions; the budget reserve
+- Sprint 4's v2 rows and `reads-v2.md`; the v1 rows and reads (DEC-0558)
 
 ### Security Considerations
-- No floor file changes; every default change has a restore key; the addendum is the operator's notice.
+- The report prints ids, numbers and the lead's prose; no run output is embedded unescaped. No floor file changes; every default change (if any) has a restore key; the addendum is the operator's notice.
 
 ### Risks & Mitigation
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| The pruned default misses the −0.03 bound | Med | High | revert the prune; record; the suite stays |
-| Budget exhausted before the re-verification | Med | High | the USD 250 reserve is held from Sprint 3; the one-trial interleaved control design is pre-registered |
+| The v2 reads do not allow pruning | Med | Med | the report ships with both reads; Task 5.4 records "no pruning made"; the harness and the suite are the cycle's deliverable |
+| A pruned default (if any) misses the −0.03 bound | Low | High | revert the prune; record; the suite stays |
+| Budget short for a re-verification batch | Med | Med | the reserve is released (DEC-0559); the three-case rule's cheapest case applies, or the prune is held back with the reason |
 
 ### Success Metrics
-- `report.md §Re-verification` within bound or revert recorded
-- Addendum present; floor tests green; e2e.md G-1 … G-6 PASS
+- `report.md` with one decision or `Not run (cut)` per component, the H1 and A4 lines for v1 and v2, the v1 section
+- Documentation, release notes and the rerun recipe present; e2e.md G-1 … G-6 PASS
+- Review and audit APPROVED; COMPLETED marker; PR merged; rc.6 published
 - Review and audit APPROVED; COMPLETED marker; PR, Bridgebuilder, merge, rc.6
 
 ---
@@ -412,8 +444,9 @@ Act on the decisions without touching the floor, tell operators what moved, and 
 | # | Risk | Sprint | Owner | Mitigation |
 |---|------|--------|-------|------------|
 | R1 | A1 pipeline runs exceed the per-run cap | 3 | lead | cap-fit rule, one fix round per gate, task shrink as a fix round that bumps `suite_version` and re-freezes |
-| R2 | Suite too easy (A4 ≈ A1) | 3–4 | lead | sensitivity rule; harden before acting |
-| R3 | Budget short for A5–A7 and the re-verification | 3–5 | lead | priority order; reserve; cuts recorded |
+| R2 | Suite too easy (A4 ≈ A1) — materialised on v1 (DEC-0558) | 3–4 | lead | sensitivity rule; harden before acting: suite v2 with a pre-registered hardness criterion and at most two swap rounds (Sprint 4, DEC-0559) |
+| R3 | Budget short for A5–A7 and the re-verification | 3–5 | lead | priority order; A5–A7 pre-declared `Not run (cut)`; the reserve released to the v2 rerun; a re-verification only if pruning happens; cuts recorded |
+| R9 | H1 fails again on suite v2 | 4 | lead | the halt path is pre-registered; the report ships with both reads; the operator decides |
 | R4 | Headless skill stalls on a prompt | 1 | C | Success Criteria written; beads init; timeouts |
 | R5 | Fable gate refusals | 1, 3 | lead | degraded flag; the gate-model contingency to Opus gates read over ≥ 10 gate phases |
 | R6 | Hidden test leak | 2 | F | tests outside the tree; bats asserts |
@@ -426,11 +459,11 @@ Act on the decisions without touching the floor, tell operators what moved, and 
 
 | Goal | Metric | Sprint |
 |------|--------|--------|
-| G-1 | 6 of 6 measurable components with one of the five rule outcomes, or `Not run (cut)` / `Inconclusive-by-power` with the figure that stopped them; A8 component-absent | 4 |
-| G-2 | grader self-check 16/16; blind layout; degraded runs listed | 2, 4 |
+| G-1 | 6 of 6 measurable components with one of the five rule outcomes, or `Not run (cut)` / `Inconclusive-by-power` with the figure that stopped them; A8 component-absent; the H1 and A4 lines for v1 and v2 | 3, 4, 5 |
+| G-2 | grader self-check 16/16 on v1 and on v2; blind layout; degraded runs listed; the one-grader re-grade | 2, 4, 5 |
 | G-3 | fresh mount exit 0; CI manifest step | 1 |
-| G-4 | spend ≤ USD 1,500; cap failures recorded; spend posts | 3 |
-| G-5 | `a1_pruned` within −0.03 | 5 |
+| G-4 | spend ≤ USD 1,500; cap failures recorded; spend posts; per-type caps from Sprint 4 | 3, 4 |
+| G-5 | `a1_pruned` within −0.03, or "no pruning made" when the reads do not allow it | 5 |
 | G-6 | rerun recipe documented and dry-run proven | 5 |
 
 > Sources: prd.md §Goals & Success Metrics
@@ -439,8 +472,9 @@ Act on the decisions without touching the floor, tell operators what moved, and 
 
 ```
 Sprint 1 (258) ──▶ Sprint 2 (259) ──▶ Sprint 3 (260) ──▶ Sprint 4 (261) ──▶ Sprint 5 (262)
- executor, caps      frozen suite,       pre-reg, smoke,     report,            prune, addendum,
- toggles, row        grader 16/16        priority batch      decisions          re-verify, E2E
+ executor, caps      frozen suite v1,    pre-reg, smoke,     suite v2, caps,    re-grade, report,
+ toggles, row        grader 16/16        P1 batch, HALT      re-pre-reg, rerun  docs, rc.6, E2E
+                                         (DEC-0558)          A0/A1/A4, reads    (prune only if allowed)
 ```
 
 > Sources: sdd.md §1.2, §8
@@ -451,15 +485,15 @@ Sprint 1 (258) ──▶ Sprint 2 (259) ──▶ Sprint 3 (260) ──▶ Sprin
 | FR | Sprint tasks |
 |----|--------------|
 | FR-1 | 1.1, 1.2, 1.3, 1.10 |
-| FR-2 | 1.4, 1.5; cap abort in 1.7; 3.5 |
+| FR-2 | 1.4, 1.5; cap abort in 1.7; 3.5; 4.2 (per-type caps) |
 | FR-3 | 1.6, 1.9 |
 | FR-4 | 1.7, 1.9 |
-| FR-5 | 2.0–2.5, 2.7, 2.9 |
-| FR-6 | 1.8, 2.6, 2.9 |
-| FR-7 | 3.1–3.7 |
-| FR-8 | 3.8, 4.1–4.4 |
-| FR-9 | 5.1–5.5, 5.E2E |
-| FR-10 | plan commit (bd-s93s8), 1.4 (bd-j4lwr), 2.8 (bd-8o5rx), 5.4 (bd-2txz1, bd-yzzb9), 5.6 |
+| FR-5 | 2.0–2.5, 2.7, 2.9; 4.1, 4.3, 4.4, 4.5 (suite v2) |
+| FR-6 | 1.8, 2.6, 2.9; 5.1 (re-grade) |
+| FR-7 | 3.1–3.7; 4.6–4.9 (the v2 smoke, re-pre-registration, batch and reads) |
+| FR-8 | 3.8, 5.2, 5.3 |
+| FR-9 | 5.4 (conditional), 5.5, 5.6, 5.E2E |
+| FR-10 | plan commit (bd-s93s8), 1.4 (bd-j4lwr), 2.8 (bd-8o5rx), 5.6 (bd-2txz1, bd-yzzb9) |
 
 ### B. SDD Component Mapping
 | SDD | Sprint tasks |
@@ -469,20 +503,20 @@ Sprint 1 (258) ──▶ Sprint 2 (259) ──▶ Sprint 3 (260) ──▶ Sprin
 | §3.3, D-4.2 arms | 1.6 |
 | D-4.1–D-4.6, §5.6 executor | 1.7 |
 | §3.1, §5.8, §5.10 rows and evidence | 1.8 |
-| §3.2, §5.13, §5.14 suite | 2.1–2.5 |
-| §5.7, §3.6 grader | 2.6 |
-| §5.9 runner | 3.2 |
-| §5.12 report | 3.8, 4.1 |
-| §8 Sprint 5 | 5.1–5.6 |
+| §3.2, §5.13, §5.14 suite | 2.1–2.5; 4.3–4.5 (v2) |
+| §5.7, §3.6 grader | 2.6; 5.1 |
+| §5.9 runner | 3.2; 4.2 (per-type caps) |
+| §5.12 report | 3.8, 5.2, 5.3 |
+| §8 Sprint 5 | 5.4 (conditional), 5.5, 5.6 |
 
 ### C. PRD Goal Mapping
 | Goal | Tasks |
 |------|-------|
-| G-1 | 2.0, 2.2–2.5, 3.1, 3.5–3.7, 4.1–4.4, 5.6, 5.E2E |
-| G-2 | 1.0, 1.6–1.9, 2.6–2.9, 3.2, 3.3 |
+| G-1 | 2.0, 2.2–2.5, 3.1, 3.5–3.7, 4.1, 4.3, 4.6–4.9, 5.2, 5.3, 5.6, 5.E2E |
+| G-2 | 1.0, 1.6–1.9, 2.6–2.9, 3.2, 3.3, 4.3–4.5, 5.1 |
 | G-3 | 1.1, 1.2, 1.3, 1.10 |
-| G-4 | 1.4, 1.5, 3.4, 3.7 |
-| G-5 | 5.1–5.4 |
+| G-4 | 1.4, 1.5, 3.4, 3.7, 4.2, 4.6, 4.8 |
+| G-5 | 5.4 |
 | G-6 | 2.1, 5.5 |
 
 ### D. Flatline review integration (2026-10-15)

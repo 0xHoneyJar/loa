@@ -17912,3 +17912,259 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0560"
+    created_at: "2026-10-16T21:50:02Z"
+    updated_at: "2026-10-16T21:50:02Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 260 review r1: DISS-C-001 (heredoc operator line unscanned) read as MEDIUM, not BLOCKING: 0 of 803 P1 heredoc commands affected; container-inert (L50)"
+    decision: "The companion voice's BLOCKING finding on the grader's heredoc stripper is confirmed as a real scan gap (the operator line's redirect, pipe or arguments after <<WORD are dropped before the path-word scan) and fixed in grader 1.2.6, but graded MEDIUM in the review: a scan of all 4,203 Bash commands of the 132 P1 runs finds no outside path on any of the 803 heredoc operator lines, so no P1 row changes; the cycle runs the container executor where the affected roots hold nothing; the fix is a regex shape with AG-10 cases. The verdict is CHANGES_REQUIRED by judgment (0/0/2/4), not by the one-way rule."
+    rationale: "severity follows the consequence on this experiment's data and the executor in use; the scan is a documented lower bound (KF-046) and every contaminated row is read by hand"
+    alternatives_considered:
+      - option: "keep the dissent severity (BLOCKING → HIGH) and let the one-way rule force CHANGES_REQUIRED"
+        rejected_because: "the verdict is the same; a HIGH count would misstate the exposure in the breaker and the record"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L50)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:50:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L50)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0561"
+    created_at: "2026-10-16T21:50:03Z"
+    updated_at: "2026-10-16T21:50:03Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 260 review r1: DISS-C-004 substring rule for hidden REJECTED on P1 evidence; HIDDEN_TOKEN widened narrowly (case, camelCase, glob) (L51)"
+    decision: "The dissent's proposal to apply the 'hidden' substring rule to Bash command text (heredoc bodies removed) is rejected: priority-p1-a4_no_gates-refactor-03-t1 runs python3 -m pytest -k hidden twice to select its own test_no_hidden_state (refactor-03's brief is about hidden module-level state) and 18 P1 runs legitimately write or type 'hidden' in prose; the substring rule would re-create the KF-046 false-positive class. Grader 1.2.6 keeps the token rule and widens it narrowly: case-insensitive adjacency branches, the camelCase shape (hiddenTests), the glob shape (*hidden*); the accepted gap (a bare hidden argument is not a probe in this suite) is recorded in the header with the refactor-03 precedent."
+    rationale: "the scan exists to detect reaches for hidden material; in a suite whose briefs are about hidden state the bare word is ordinary language, and a false positive costs a hand-read and a re-row on every batch"
+    alternatives_considered:
+      - option: "apply the substring rule to command text and hand-read every hit"
+        rejected_because: "P1 shows at least one completed row would flip to contaminated for selecting its own test; the hand-read burden recurs on every v2 batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L51)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:50:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L51)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0562"
+    created_at: "2026-10-16T21:50:05Z"
+    updated_at: "2026-10-16T21:50:05Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 260 review r1: DISS-C-003 interpreter heredoc bodies stay unscanned for paths; documented as an accepted gap plus a heredoc_interpreters count (L52)"
+    decision: "Heredoc bodies fed to an interpreter (python3 -, bash, sh, node -, perl, ruby) are executed, not written, yet the 1.2.2 stripper removes them before the path-word scan. The gap is accepted and documented in the grader header rather than closed: the cycle grades container runs only (DEC-0411; host grading is gated behind LOA_EVAL_ALLOW_HOST_GRADING=1) where /root, /mnt, /media and /srv hold nothing, so the exposure is a missed signal, not a missed leak, and scanning bodies would re-open the prose false positives of P1. Grader 1.2.6 counts such heredocs in grade.json heredoc_interpreters (telemetry, reset per grade like history_probes); the hidden, suite-path and repo-name substring scans still read every body."
+    rationale: "a documented lower bound with telemetry is honest; widening the path scan into written text is the pattern that produced six grader rounds in P1"
+    alternatives_considered:
+      - option: "scan interpreter heredoc bodies with the path-word rule"
+        rejected_because: "re-opens the prose false positives (e.g. /path/to/x in a docstring) for a signal the container already makes inert"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L52)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:50:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L52)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0563"
+    created_at: "2026-10-16T21:50:06Z"
+    updated_at: "2026-10-16T21:50:06Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Sprint 260 review r1 LOW-4: run-ablation.sh post_run wraps the grader (1800 s) and took-effect (300 s) calls in timeout; 124/137 row infrastructure_error (L53)"
+    decision: "The runner's watchdog covers the pipeline only (it reads meta/pipeline.json's final status), so a hang in took-effect.sh, the grader or the row writer stalls the trial job and the batch behind it; DISS-C-002's exponential regex was the first known way in. post_run wraps the grader call in timeout --signal=TERM --kill-after=30 $LOA_ABLATION_GRADE_TIMEOUT_S (default 1800) and the took-effect call in $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S (default 300); exit 124 or 137 rows the trial infrastructure_error with the timeout named in the trial log; both values are recorded in MANIFEST.json watchdog."
+    rationale: "a batch that cannot stall on a post-run step is worth two env knobs; the defaults are generous against the grader's own 120 s per-command deadline inside the image"
+    alternatives_considered:
+      - option: "extend the watchdog to cover the post-run chain"
+        rejected_because: "the watchdog keys on pipeline.json status; a second state file for the chain is more machinery than a timeout wrapper"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L53)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:50:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#findings (L53)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0564"
+    created_at: "2026-10-16T21:57:42Z"
+    updated_at: "2026-10-16T21:57:42Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Sprint 262 re-scoped (DEC-0559): analysis, report with the v1 rows in their own section, docs, rc.6; pruning and re-verification only if v2 allows (L55)"
+    decision: "Sprint 5 (global 262, epic bd-u3ns5) becomes 'Analysis, report, documentation, rc.6' with Tasks 5.1–5.6 and 5.E2E: the one-grader re-grade with the byte-identical check, report hardening (bd-yz1rd, bd-m0hw7, bd-wqbz3, the sensitivity H1/A4 lines, a batch-record section, the suite_version partition), report.md/report.json with --cuts naming A2/A3/A5/A6/A7 Not run (cut), NOTES decision log, CHANGELOG 260–262, release notes rc.6, README recipe, beads, PR, Bridgebuilder, merge, rc.6, record branch, archive. The former Sprint 5 pruning, addendum and re-verification work is Task 5.4, conditional on the v2 reads allowing pruning; otherwise report.md §Re-verification states that no pruning was made and AC-5.8 reads not applicable."
+    rationale: "no pruning may follow from suite v1 (DEC-0558) and v2 may also not allow it; the documentation, the report and the release are deliverables either way, the prune is not"
+    alternatives_considered:
+      - option: "keep Sprint 5 as prune-and-document and add a sixth sprint for the analysis"
+        rejected_because: "a sixth sprint renumbers nothing but adds a review/audit cycle for work that fits one sprint"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/sprint.md#sprint-5-final-analysis-report-documentation-rc-6 (L55)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:57:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#sprint-5-final-analysis-report-documentation-rc-6 (L55)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0565"
+    created_at: "2026-10-16T21:59:20Z"
+    updated_at: "2026-10-16T21:59:20Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Sprint 261 re-scoped (DEC-0559): suite v2 — hardness criterion, per-type caps, twelve harder v2 tasks, freeze, smoke, re-pre-reg, A0/A1/A4 rerun (L54)"
+    decision: "Sprint 4 (global 261, epic bd-ykvu4) becomes 'Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads' with Tasks 4.1–4.9 (criterion and caps pre-registered before authoring; harness per-type caps by implementer K; twelve v2 build tasks by D2/E2 with v2 ids so no v1 row can pool with a v2 cell; fairness reviews R1/R2; freeze with suite_version 2 and the image self-check; calibration smoke calib-v2-01 with the hardness and cap-fit reads and at most two swap rounds; the re-pre-registration entry; batch priority-v2-p1 at 2 trials per cell; reads-v2.md). The original analysis tasks bd-sigxm, bd-xlvu2, bd-nn4yn, bd-80ewp are closed as superseded; the report-hardening beads bd-yz1rd, bd-m0hw7, bd-wqbz3 move to Sprint 262."
+    rationale: "the operator's option 1 (DEC-0559) names exactly this work; keeping it in the sprint that follows the halt keeps the ledger's global numbering and the run-mode plan intact"
+    alternatives_considered:
+      - option: "insert a new sprint between 260 and 261"
+        rejected_because: "the ledger and the run-mode plan would renumber; nothing is gained over re-scoping 261"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/sprint.md#sprint-4-suite-v2 (L54)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T21:59:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#sprint-4-suite-v2 (L54)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0566"
+    created_at: "2026-10-16T22:02:26Z"
+    updated_at: "2026-10-16T22:02:26Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Suite v2 hardness criterion pre-registered: a0_bare <= 0.5 per task over 2 trials, mean <= 0.75, >= six tasks below 1.0; swap, <= 2 rounds (L56)"
+    decision: "Before any v2 task is authored (NOTES 2026-10-16T22:00:49Z): a build task enters suite v2 only if a0_bare's calibration pass rate over 2 trials is <= 0.5 on it, and the twelve together give a0_bare a mean <= 0.75 with at least six tasks below 1.0; a failing task is swapped for a new id (never edited in place) for at most two authoring rounds with the a0 smoke repeated on the swapped tasks only and the suite re-frozen; the reference must pass the hidden tests and the hidden tests be red at base inside the image (--self-check), the fixture suite green at both ends; the four review-catch tasks stay as frozen in v1; v2 ids carry the version so no v1 row pools with a v2 cell; the v1 build directories leave tasks/."
+    rationale: "suite v1 saturated at 1.000 on every arm; a criterion written before authoring, and read on a smoke that decides nothing, is what makes the rerun a pre-registered test rather than a tuned one"
+    alternatives_considered:
+      - option: "author harder tasks without a numeric criterion and judge difficulty by eye"
+        rejected_because: "the v1 difficulty note did exactly that and the suite saturated"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/NOTES.md#sprints-261-262-re-scoped-step-b-suite-v2-hardness-criterion-and-per-type-caps-pre-registered (L56)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:02:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprints-261-262-re-scoped-step-b-suite-v2-hardness-criterion-and-per-type-caps-pre-registered (L56)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0567"
+    created_at: "2026-10-16T22:02:28Z"
+    updated_at: "2026-10-16T22:02:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Per-type run caps pre-registered: build USD 15, review-catch USD 20; cap fit: A1 median per run on the smoke <= 0.75 x cap, else shrink or raise first (L57)"
+    decision: "From Sprint 261 the per-run cap is per task type — build USD 15, review-catch USD 20 (suite caps.run_usd_by_type; the runner passes the type's cap to pipeline-run.sh --max-run-usd, reserves and assumes charges per type, MANIFEST records both). Cap-fit rule: on the calibration smoke a1_full's median cost per run must be <= 0.75 x the type's cap (build 11.25, review-catch 15.00), else the tasks shrink or the cap rises before the re-pre-registration entry, recorded either way. A batch's --max-usd = 1,500 - spend so far - concurrency x the largest applicable type cap (DEC-0429 with the reserve released, DEC-0559)."
+    rationale: "P1's A1 review runs cost REVIEW ~5 + AUDIT 4-9 USD on the 5-8-defect PRs and five of twelve hit the USD 12 cap in AUDIT after REVIEW had finished; A1 build runs averaged 9.64; one cap for two run shapes is the defect the caps now correct"
+    alternatives_considered:
+      - option: "one higher cap (USD 20) for every run"
+        rejected_because: "it loosens the build cap by two thirds for no reason and the reservation formula over-reserves on build-heavy batches"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4c279606"
+    source: "grimoires/loa/NOTES.md#sprints-261-262-re-scoped-step-b-suite-v2-hardness-criterion-and-per-type-caps-pre-registered (L57)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:02:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprints-261-262-re-scoped-step-b-suite-v2-hardness-criterion-and-per-type-caps-pre-registered (L57)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
