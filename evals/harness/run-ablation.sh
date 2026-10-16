@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
 # run-ablation.sh — the cycle-130 ablation batch runner (SDD §5.9, §3.4; sprint Task 3.2;
-# DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435, DEC-0545)
+# DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435, DEC-0545,
+# DEC-0553, DEC-0554)
 #
 # Plans a batch (arm × applicable task × trial), dispatches every trial to
 # pipeline-run.sh against a pinned source tree, checks after each trial that the arm
@@ -15,7 +16,7 @@
 #                   [--suite-root DIR] [--suite-file F] [--image IMG] [--executor container|host]
 #                   [--pre-registration-ref TEXT] [--seed N] [--self-check-log F]
 #                   [--smoke] [--dry-run] [--resume] [--detach] [--clear-arm ID]...
-#                   [--clear-drift] [--rerow RUN_ID]...
+#                   [--clear-drift] [--rerow RUN_ID]... [--rerun RUN_ID]... [--rerun-status S]...
 #                   [--pipeline-bin P] [--grade-bin G] [--row-bin R] [--took-effect-bin T]
 #                   [--docker-bin D]
 #
@@ -71,6 +72,20 @@
 #                        Refused (exit 2, nothing written) when RUN_ID is not <batch>-… or not
 #                        in the plan, has no row or more than one, has no run dir, or its row
 #                        is interrupted or transport_error (those trials are reruns)
+#   --rerun RUN_ID       with --resume (DEC-0553): launch RUN_ID again, at its plan index, into a
+#                        fresh -r<k> run dir; when its new row lands it replaces the old row in
+#                        place (replace_row, under the flock) and STATUS.json rerun[] gets
+#                        {run_id, from, to, old_cost_usd, at}. The row must be transport_error,
+#                        interrupted or infrastructure_error, else exit 2 with nothing written
+#                        (also: not <batch>-…, not in the plan, no row or more than one, or the
+#                        same id also given to --rerow); repeatable
+#   --rerun-status S     with --resume: rerun every row of the batch whose status is S, one of
+#                        transport_error, interrupted, infrastructure_error (anything else is a
+#                        usage error); read after the rerows, and a --rerow id is never rerun;
+#                        repeatable. A flagged row leaves the done set: no counter and no
+#                        assumed charge, only its reported cost stays in spent (it moves to
+#                        ledger_usd when the replacement lands); the in-flight reservation
+#                        covers the new trial and its row is accounted once when it lands
 #   --pipeline-bin P, --grade-bin G, --row-bin R, --took-effect-bin T, --docker-bin D
 #                        the five collaborators (defaults: the scripts beside this one, and
 #                        $EVAL_DOCKER_BIN else docker)
@@ -141,6 +156,11 @@
 #   suite's phase_defaults, BARE = PLAN + IMPLEMENT + 2 × FIX) gets SIGTERM to its process
 #   group, SIGKILL after $LOA_ABLATION_WATCHDOG_GRACE_S (default 60), and is rowed
 #   interrupted. $LOA_ABLATION_WATCHDOG_S replaces the deadline (seconds; tests).
+#   Outage breaker (DEC-0554): $LOA_ABLATION_OUTAGE_BREAKER (default 3; 0 disables) consecutive
+#   collected trials rowed transport_error (collection order, any arm; any other collected
+#   trial resets the count) stop further launches; the running trials end, STATUS.json outage
+#   is set and the batch finishes partial (exit 1): `partial (outage breaker): N consecutive
+#   transport failures; --resume --rerun-status transport_error after the network is back`.
 #
 # Spend (--max-usd, SDD §5.5 reused through lib/arms-common.sh): before each launch,
 #   spent + in_flight × run_cap + est_next > max waits for a running trial and
@@ -170,10 +190,13 @@
 #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
 #   interrupted, contaminated), cap_failures, degraded, skipped_paused}}, retries: [{run_id,
 #   reason, first_attempt_usd}], cuts: [...], paused_arms: {<arm>: reason}, spend: {rows_usd,
-#   ledger_usd (first attempts), spent_usd, max_usd, assumed_cap_trials}, resume_cursor (the
+#   ledger_usd (transport first attempts, and the reported cost of rows a rerun replaced), spent_usd, max_usd, assumed_cap_trials}, resume_cursor (the
 #   index of the first plan entry without a row), drift: null | {run_id, field, expected,
 #   got}, drift_cleared: [{run_id, previous, cleared_at, harness_commit}] (--clear-drift),
-#   rerowed: [{run_id, from, to, at}] (--rerow), extra_models: {<raw id>: {runs,
+#   rerowed: [{run_id, from, to, at}] (--rerow), rerun: [{run_id, from, to, old_cost_usd, at}]
+#   (--rerun, --rerun-status), rerun_pending: [run_id…] (flagged, no replacement yet), outage:
+#   null | {at, consecutive, last_run_id, message} (the breaker), outage_history: [the
+#   outages a later --resume cleared], extra_models: {<raw id>: {runs,
 #   output_tokens}} ({} when none; derived from extra_models_by_run: {<run_id>: {<raw id>:
 #   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
 #   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
@@ -183,20 +206,23 @@
 #   with a row of this batch is done; a trial without a row reruns into a fresh -r<k> run
 #   dir (the stale dir is kept); counters and spend are recomputed from the rows.
 #   --max-usd and --concurrency may change on resume; --clear-arm, --clear-drift and
-#   --rerow need --resume (order: --clear-drift is checked before the lock, then --rerow
-#   replaces rows, then the counters are recomputed). A start
+#   --rerow need --resume (order: --clear-drift, --rerow and --rerun are checked before the lock,
+#   then --rerow replaces rows, then the counters are recomputed with the rerun-flagged rows left
+#   out of the done set; the reruns are dispatched with the plan). A resume clears STATUS.json
+#   outage (kept under outage_history[]). A start
 #   (fresh or resumed) is refused while a process group recorded under <batch>/.jobs/ by an
 #   earlier driver (one killed with SIGKILL) is still alive.
 #
 # Exit: 0 complete (every trial rowed; none transport_error, infrastructure_error,
-#       interrupted or contaminated), 1 partial (cut, a paused arm with trials left, an
+#       interrupted or contaminated), 1 partial (cut, the outage breaker, a paused arm with trials left, an
 #       excluded row, or the driver was signalled), 2 usage or refused, 3 failed (drift, an
 #       invalid or duplicated row, no trial completed without a cut, or every arm of the
 #       plan paused)
 #
 # Env: LOA_ABLATION_SOURCE_TREE, LOA_ABLATION_SOURCE_REPO, LOA_ABLATION_CACHE,
 #   LOA_ABLATION_RETRY_WAIT_S, LOA_ABLATION_WATCHDOG_S, LOA_ABLATION_WATCHDOG_GRACE_S,
-#   LOA_ABLATION_POLL_S (reap poll, default 1), EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
+#   LOA_ABLATION_POLL_S (reap poll, default 1), LOA_ABLATION_OUTAGE_BREAKER (default 3),
+#   EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
 # Library: lib/arms-common.sh beside this script, sourced by a literal relative path.
 # Tested by evals/tests/run-ablation.bats (stub pipeline, grader and docker; no model call).
 # =============================================================================
@@ -223,7 +249,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
 SMOKE=false DRY_RUN=false RESUME=false DETACH=false
-CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false
+CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false RERUN_IDS=() RERUN_STATUSES=()
 PIPELINE_BIN="$SCRIPT_DIR/pipeline-run.sh" GRADE_BIN="$SCRIPT_DIR/ablation-grade.sh"
 ROW_BIN="$SCRIPT_DIR/ablation-row.sh" TOOK_BIN="$SCRIPT_DIR/took-effect.sh"
 DOCKER_BIN="${EVAL_DOCKER_BIN:-docker}"
@@ -233,6 +259,7 @@ RETRY_WAIT="${LOA_ABLATION_RETRY_WAIT_S:-120}"
 WATCHDOG_OVERRIDE="${LOA_ABLATION_WATCHDOG_S:-}"
 WATCHDOG_GRACE="${LOA_ABLATION_WATCHDOG_GRACE_S:-60}"
 POLL_S="${LOA_ABLATION_POLL_S:-1}"
+OUTAGE_BREAKER="${LOA_ABLATION_OUTAGE_BREAKER:-3}"
 
 usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-ablation: $*" >&2; exit 2; }
@@ -265,6 +292,8 @@ while [[ $# -gt 0 ]]; do
     --clear-arm) CLEAR_ARMS+=("${2:-}"); shift 2 ;;
     --clear-drift) CLEAR_DRIFT=true; shift ;;
     --rerow) REROW_IDS+=("${2:-}"); shift 2 ;;
+    --rerun) RERUN_IDS+=("${2:-}"); shift 2 ;;
+    --rerun-status) RERUN_STATUSES+=("${2:-}"); shift 2 ;;
     --pipeline-bin) PIPELINE_BIN="${2:-}"; shift 2 ;;
     --grade-bin) GRADE_BIN="${2:-}"; shift 2 ;;
     --row-bin) ROW_BIN="${2:-}"; shift 2 ;;
@@ -298,6 +327,18 @@ for a in ${CLEAR_ARMS[@]+"${CLEAR_ARMS[@]}"}; do [[ "$a" =~ ^[a-z][a-z0-9_]{0,63
 if [[ ${#REROW_IDS[@]} -gt 0 && "$RESUME" != true ]]; then die "--rerow needs --resume"; fi
 for r in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do [[ "$r" =~ ^[A-Za-z0-9._-]{1,200}$ ]] || die "invalid --rerow '$r'"; done
 [[ "$(printf '%s\n' ${REROW_IDS[@]+"${REROW_IDS[@]}"} | sort | uniq -d)" == "" ]] || die "--rerow lists a run_id twice"
+if [[ ${#RERUN_IDS[@]} -gt 0 && "$RESUME" != true ]]; then die "--rerun needs --resume"; fi
+if [[ ${#RERUN_STATUSES[@]} -gt 0 && "$RESUME" != true ]]; then die "--rerun-status needs --resume"; fi
+for s in ${RERUN_STATUSES[@]+"${RERUN_STATUSES[@]}"}; do
+  case "$s" in transport_error|interrupted|infrastructure_error) ;;
+    *) die "--rerun-status must be transport_error, interrupted or infrastructure_error (got '$s')" ;; esac
+done
+for r in ${RERUN_IDS[@]+"${RERUN_IDS[@]}"}; do
+  [[ "$r" =~ ^[A-Za-z0-9._-]{1,200}$ ]] || die "invalid --rerun '$r'"
+  for q in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do [[ "$q" != "$r" ]] || die "--rerun $r is also a --rerow (a run is rowed again or launched again, not both)"; done
+done
+[[ "$(printf '%s\n' ${RERUN_IDS[@]+"${RERUN_IDS[@]}"} | sort | uniq -d)" == "" ]] || die "--rerun lists a run_id twice"
+[[ "$OUTAGE_BREAKER" =~ ^[0-9]{1,4}$ ]] || die "LOA_ABLATION_OUTAGE_BREAKER must be a whole number (0 disables)"
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
 
@@ -767,6 +808,19 @@ for rid in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do
   RR_K+=("$k"); RR_RD+=("$rr_rd"); RR_FROM+=("$rr_st")
   RR_ATT+=("$(jq -r '.attempts // 1' <<<"$rr_rows")"); RR_REASON+=("$(jq -r '.retry_reason // ""' <<<"$rr_rows")")
 done
+for rid in ${RERUN_IDS[@]+"${RERUN_IDS[@]}"}; do
+  [[ "$rid" == "$BATCH-"* ]] || die "--rerun $rid: not a run of batch $BATCH (<batch>-<arm>-<task>-t<n>)"
+  k=-1
+  for j in "${!PL_RUN[@]}"; do [[ "${PL_RUN[$j]}" == "$rid" ]] && { k=$j; break; }; done
+  [[ $k -ge 0 ]] || die "--rerun $rid: not in the batch's plan"
+  [[ -f "$ROWS" ]] || die "--rerun $rid: no rows file $ROWS"
+  rn_rows="$(jq -R -c --arg b "$BATCH" --arg r "$rid" 'fromjson? | select(type == "object" and .batch == $b and .run_id == $r)' "$ROWS")"
+  rn_n="$(grep -c . <<<"$rn_rows" || true)"
+  [[ "$rn_n" -eq 1 ]] || die "--rerun $rid: $rn_n rows in $ROWS (a rerun replaces exactly one)"
+  rn_st="$(jq -r '.status' <<<"$rn_rows")"
+  case "$rn_st" in transport_error|interrupted|infrastructure_error) ;;
+    *) die "--rerun $rid: the row is $rn_st; only transport_error, interrupted or infrastructure_error rows are rerun (DEC-0553)" ;; esac
+done
 
 # --- batch directory, lock, manifest ---------------------------------------------------
 mkdir -p "$BATCH_DIR"
@@ -805,7 +859,8 @@ STATE=running STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 SPENT=0 ASSUMED_CAP=0 CUT_JSON=null LAUNCHED=0 ROWS_USD=0 LEDGER_USD=0
 CUTS_JSON='[]' RETRIES_JSON='[]' PAUSED_JSON='{}' DRIFT_JSON=null ROWS_INVALID=null STOP="" SIGNALLED=false
 EXTRA_RUNS_JSON='{}' DRIFT_CLEARED_JSON='[]' REROWED_JSON='[]'
-DONE_LIST=$'\n'
+RERUN_JSON='[]' RERUN_OLD='{}' OUTAGE_JSON=null OUTAGE_HISTORY_JSON='[]' OUTAGE_RUN=0
+DONE_LIST=$'\n' RERUN_LIST=$'\n'
 C_PLANNED=() C_LAUNCHED=() C_COMPLETED=() C_FAILED=() C_EXCLUDED=() C_CAP=() C_DEGRADED=() C_SKIPPED=()
 for i in "${!ARMS[@]}"; do
   C_PLANNED[$i]=0; C_LAUNCHED[$i]=0; C_COMPLETED[$i]=0; C_FAILED[$i]=0; C_EXCLUDED[$i]=0; C_CAP[$i]=0; C_DEGRADED[$i]=0; C_SKIPPED[$i]=0
@@ -813,6 +868,7 @@ done
 arm_index() { local i; for i in "${!ARMS[@]}"; do [[ "${ARMS[$i]}" == "$1" ]] && { echo "$i"; return; }; done; echo -1; }
 for a in ${PL_ARM[@]+"${PL_ARM[@]}"}; do i="$(arm_index "$a")"; C_PLANNED[$i]=$(( ${C_PLANNED[$i]} + 1 )); done
 is_done() { [[ "$DONE_LIST" == *$'\n'"$1"$'\n'* ]]; }
+is_rerun() { [[ "$RERUN_LIST" == *$'\n'"$1"$'\n'* ]]; }   # flagged on resume, no replacement row yet
 is_paused() { jq -e --arg a "$1" 'has($a)' <<<"$PAUSED_JSON" >/dev/null; }
 
 # account_row <arm> <kind> <run_id> <status> <cost> <degraded> — counters and spend for one row
@@ -859,11 +915,14 @@ write_status() {
     --argjson invalid "$ROWS_INVALID" --arg started "$STARTED" --argjson finished "$finished" \
     --arg src "$SRC_FULL" --arg rows "$ROWS" --argjson planned "$PLAN_N" --argjson signalled "$SIGNALLED" \
     --argjson ebr "$EXTRA_RUNS_JSON" --argjson cleared "$DRIFT_CLEARED_JSON" --argjson rerowed "$REROWED_JSON" \
+    --argjson rerun "$RERUN_JSON" --argjson pending "$(printf '%s' "$RERUN_LIST" | sed '/^$/d' | jq -R . | jq -sc .)" \
+    --argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" \
     '{schema_version: 1, suite: "ablation-2.0", batch: $batch, smoke: $smoke, state: $state, per_arm: $per,
       retries: $retries, cuts: $cuts, paused_arms: $paused,
       spend: {rows_usd: ($rows_usd | tonumber), ledger_usd: ($ledger | tonumber), spent_usd: ($spent | tonumber),
               max_usd: (if $max == "" then null else ($max | tonumber) end), assumed_cap_trials: $assumed},
       trials_planned: $planned, resume_cursor: $cursor, drift: $drift, drift_cleared: $cleared, rerowed: $rerowed,
+      rerun: $rerun, rerun_pending: $pending, outage: $outage, outage_history: $ohist,
       extra_models: ([$ebr | to_entries[] | .value | to_entries[]] | group_by(.key)
                      | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
       extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,
@@ -1042,11 +1101,26 @@ record_extra() {
     'if ($e | type) == "object" and ($e | length) > 0 then .[$r] = ($e | map_values(.output_tokens // 0)) else del(.[$r]) end' <<<"$EXTRA_RUNS_JSON")"
 }
 
+# outage_tick <run_id> <row status, empty without a row> — the breaker (DEC-0554): consecutive
+# collected transport_error trials (collection order, any arm) trip it at $OUTAGE_BREAKER (0 off)
+outage_tick() {
+  if [[ "$2" == transport_error ]]; then OUTAGE_RUN=$((OUTAGE_RUN + 1)); else OUTAGE_RUN=0; fi
+  if [[ "$OUTAGE_BREAKER" -gt 0 && $OUTAGE_RUN -ge $OUTAGE_BREAKER && "$OUTAGE_JSON" == null && -z "$STOP" ]]; then
+    STOP=outage
+    OUTAGE_JSON="$(jq -cn --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson n "$OUTAGE_RUN" --arg r "$1" \
+      '{at: $at, consecutive: $n, last_run_id: $r,
+        message: "partial (outage breaker): \($n) consecutive transport failures; --resume --rerun-status transport_error after the network is back"}')"
+    log "OUTAGE breaker: $OUTAGE_RUN consecutive transport_error trials (last $1); no further trial launches (DEC-0554)"
+  fi
+  return 0
+}
+
 collect() {  # collect <jid> <plan-index>
   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
   if [[ ! -f "$res" ]]; then
     SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
     log "FAILED $rid (the trial job ended without a result; see $BATCH_DIR/$arm/${PL_TASK[$k]}-t${PL_TRIAL[$k]}.log); assumed cap: USD $RUN_CAP charged to spent"
+    outage_tick "$rid" ""
     rm -f "$JOBS_DIR/$jid".*; write_status; return 0
   fi
   local first att rr te ter drift
@@ -1057,20 +1131,35 @@ collect() {  # collect <jid> <plan-index>
     RETRIES_JSON="$(jq -c --arg r "$rid" --arg why "$rr" --arg u "$first" '. + [{run_id: $r, reason: $why, first_attempt_usd: ($u | tonumber)}]' <<<"$RETRIES_JSON")"
     SPENT="$(fadd "$SPENT" "$first")"; LEDGER_USD="$(fadd "$LEDGER_USD" "$first")"
   fi
+  local st="" cost deg pass
   if [[ -s "$JOBS_DIR/$jid.row" ]]; then
-    if append_and_validate "$JOBS_DIR/$jid.row" "$rid"; then :; else
+    IFS=$'\t' read -r st cost deg pass < <(jq -r '[.status, ((.cost_usd // 0) | tostring), ((.degraded // false) | tostring),
+        ((.hidden_test_pass_rate // .defect_catch_rate // "n/a") | tostring)] | @tsv' "$JOBS_DIR/$jid.row")
+    if is_rerun "$rid"; then
+      # DEC-0553: the new row replaces the old one in place; the old row's reported cost moves to the ledger
+      if replace_row_try "$rid" "$JOBS_DIR/$jid.row"; then
+        local from ocost
+        from="$(jq -r --arg r "$rid" '.[$r].status' <<<"$RERUN_OLD")" ocost="$(jq -r --arg r "$rid" '.[$r].cost' <<<"$RERUN_OLD")"
+        LEDGER_USD="$(fadd "$LEDGER_USD" "$ocost")"
+        RERUN_LIST="${RERUN_LIST/$'\n'"$rid"$'\n'/$'\n'}"
+        RERUN_JSON="$(jq -c --arg r "$rid" --arg f "$from" --arg t "$st" --arg c "$ocost" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '. + [{run_id: $r, from: $f, to: $t, old_cost_usd: ($c | tonumber), at: $at}]' <<<"$RERUN_JSON")"
+        log "rerun $rid: $from → $st (row replaced in place)"
+      else
+        ROWS_INVALID="$(jq -cn --arg r "$rid" --arg e "$REPLACE_ERR" '{run_id: $r, error: ("rerun replacement: " + $e)}')"
+        log "ROWS INVALID after $rid: $(jq -r '.error' <<<"$ROWS_INVALID")"; STOP=invalid
+      fi
+    elif append_and_validate "$JOBS_DIR/$jid.row" "$rid"; then :; else
       log "ROWS INVALID after $rid: $(jq -r '.error' <<<"$ROWS_INVALID")"; STOP=invalid
     fi
     DONE_LIST="$DONE_LIST$rid"$'\n'
-    local st cost deg pass
-    IFS=$'\t' read -r st cost deg pass < <(jq -r '[.status, ((.cost_usd // 0) | tostring), ((.degraded // false) | tostring),
-        ((.hidden_test_pass_rate // .defect_catch_rate // "n/a") | tostring)] | @tsv' "$JOBS_DIR/$jid.row")
     account_row "$arm" "$kind" "$rid" "$st" "$cost" "$deg"
     log "done $rid $st pass=$pass USD $cost $(( $(jq -r '.seconds' "$res") / 60 ))m attempts $att${rr:+ ($rr)}"
   else
     SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
     log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $RUN_CAP charged to spent"
   fi
+  outage_tick "$rid" "$st"
   apply_flags "$arm" "$rid" "$te" "$ter" "$drift"
   rm -f "$JOBS_DIR/$jid".*
   write_status
@@ -1142,12 +1231,15 @@ finish() {  # finish <state> <exit> <message>
 }
 
 # --- --rerow: the post-run chain again over a rowed run dir, the row replaced in place ---
-replace_row() {  # replace_row <run_id> <new-row-file> → 0 replaced; dies (rows file untouched) otherwise
-  local rid="$1" newf="$2" tmp="$ROWS.rerow.$$" rc=0 vout
+# replace_row_try <run_id> <new-row-file> → 0 replaced; 1 with REPLACE_ERR set and the rows file
+# untouched (the old row stays). replace_row is the --rerow form: it dies instead
+replace_row_try() {
+  local rid="$1" newf="$2" tmp="$ROWS.rerow.$$" rc=0 vout="" perr
+  REPLACE_ERR=""
   local -a v=("$ROW_BIN" --validate "$tmp"); [[ "$SMOKE" == true ]] && v+=(--allow-ungraded)
   {
     command -v flock >/dev/null 2>&1 && flock -x 9
-    python3 -I - "$ROWS" "$tmp" "$BATCH" "$rid" "$newf" <<'PY' || rc=$?
+    perr="$(python3 -I - "$ROWS" "$tmp" "$BATCH" "$rid" "$newf" 2>&1 <<'PY'
 import json, sys
 rows, tmp, batch, rid, newf = sys.argv[1:6]
 new = open(newf, encoding="utf-8").read().strip()
@@ -1164,13 +1256,22 @@ if n != 1:
     print("run_id %s has %d rows" % (rid, n), file=sys.stderr); sys.exit(1)
 with open(tmp, "w", encoding="utf-8") as fh: fh.writelines(out)
 PY
+)" || rc=$?
     if [[ $rc -eq 0 ]]; then
       vout="$("${v[@]}" 2>&1)" || rc=$?
-      if [[ $rc -eq 0 ]]; then mv "$tmp" "$ROWS"; else printf '%s\n' "$vout" | tail -1 >&2; fi
+      if [[ $rc -eq 0 ]]; then mv "$tmp" "$ROWS"; else REPLACE_ERR="$(printf '%s\n' "$vout" | tail -1)"; fi
+    else
+      REPLACE_ERR="$(printf '%s\n' "$perr" | tail -1)"
     fi
   } 9>>"$ROWS.lock"
   rm -f "$tmp"
-  [[ $rc -eq 0 ]] || die "rerow $rid: the replacement did not validate or the row moved (exit $rc); $ROWS unchanged"
+  [[ $rc -eq 0 ]] || { REPLACE_ERR="${REPLACE_ERR:-exit $rc}"; return 1; }
+  return 0
+}
+replace_row() {  # replace_row <run_id> <new-row-file> → 0 replaced; dies (rows file untouched) otherwise
+  replace_row_try "$1" "$2" && return 0
+  printf '%s\n' "$REPLACE_ERR" >&2
+  die "rerow $1: the replacement did not validate or the row moved ($REPLACE_ERR); $ROWS unchanged"
 }
 rerow_all() {
   local n k rid arm task trial rd tlog newst
@@ -1203,6 +1304,12 @@ if [[ "$RESUME" == true ]]; then
   LEDGER_USD="$(jq -r '.spend.ledger_usd // 0' "$ST_PATH")"; SPENT="$(fadd "$SPENT" "$LEDGER_USD")"
   EXTRA_RUNS_JSON="$(jq -c '.extra_models_by_run // {} | if type == "object" then . else {} end' "$ST_PATH")"
   DRIFT_CLEARED_JSON="$(jq -c '.drift_cleared // []' "$ST_PATH")"; REROWED_JSON="$(jq -c '.rerowed // []' "$ST_PATH")"
+  RERUN_JSON="$(jq -c '.rerun // []' "$ST_PATH")"
+  OUTAGE_HISTORY_JSON="$(jq -c '.outage_history // []' "$ST_PATH")"
+  if [[ "$(jq -c '.outage // null' "$ST_PATH")" != null ]]; then
+    OUTAGE_HISTORY_JSON="$(jq -c --argjson o "$(jq -c '.outage' "$ST_PATH")" '. + [$o]' <<<"$OUTAGE_HISTORY_JSON")"
+    log "resume: the outage breaker record $(jq -c '.outage' "$ST_PATH") is cleared (kept under outage_history)"
+  fi
   if [[ "$CLEAR_PENDING" != null ]]; then
     DRIFT_CLEARED_JSON="$(jq -c --argjson c "$CLEAR_PENDING" '. + [$c]' <<<"$DRIFT_CLEARED_JSON")"
     log "resume: --clear-drift $(jq -r '.run_id' <<<"$CLEAR_PENDING") (previous drift re-read under the current rule: none)"
@@ -1216,16 +1323,31 @@ if [[ "$RESUME" == true ]]; then
   if [[ -f "$ROWS" ]]; then
     dup="$(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b) | .run_id' "$ROWS" | sort | uniq -d | head -3 | tr '\n' ' ')"
     [[ -z "$dup" ]] || refuse "resume: $ROWS holds run_id(s) twice: $dup"
+    want_ids=$'\n'; for r in ${RERUN_IDS[@]+"${RERUN_IDS[@]}"}; do want_ids="$want_ids$r"$'\n'; done
+    rerow_ids=$'\n'; for r in ${REROW_IDS[@]+"${REROW_IDS[@]}"}; do rerow_ids="$rerow_ids$r"$'\n'; done
+    want_st=" ${RERUN_STATUSES[*]+"${RERUN_STATUSES[*]}"} "
     while IFS=$'\t' read -r rid st cost deg; do
       k=-1
       for j in "${!PL_RUN[@]}"; do [[ "${PL_RUN[$j]}" == "$rid" ]] && { k=$j; break; }; done
       [[ $k -ge 0 ]] || continue
+      if [[ "$want_ids" == *$'\n'"$rid"$'\n'* ]] \
+         || { [[ "$want_st" == *" $st "* ]] && [[ "$rerow_ids" != *$'\n'"$rid"$'\n'* ]]; }; then
+        # DEC-0553: out of the done set, so the plan launches it again; no counter, no assumed charge;
+        # its reported cost (real spend) stays in spent
+        [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
+        RERUN_LIST="$RERUN_LIST$rid"$'\n'; SPENT="$(fadd "$SPENT" "$cost")"
+        RERUN_OLD="$(jq -c --arg r "$rid" --arg s "$st" --arg c "$cost" '.[$r] = {status: $s, cost: ($c | tonumber)}' <<<"$RERUN_OLD")"
+        continue
+      fi
       DONE_LIST="$DONE_LIST$rid"$'\n'
       i="$(arm_index "${PL_ARM[$k]}")"; C_LAUNCHED[$i]=$(( ${C_LAUNCHED[$i]} + 1 )); LAUNCHED=$((LAUNCHED + 1))
       account_row "${PL_ARM[$k]}" "${PL_KIND[$k]}" "$rid" "$st" "$cost" "$deg"
     done < <(jq -R -r --arg b "$BATCH" 'fromjson? | select(type == "object" and .batch == $b)
                | [.run_id, .status, ((.cost_usd // 0) | tostring), ((.degraded // false) | tostring)] | @tsv' "$ROWS")
   fi
+  n_rerun="$(printf '%s' "$RERUN_LIST" | grep -c . || true)"
+  [[ ${#RERUN_STATUSES[@]} -eq 0 && ${#RERUN_IDS[@]} -eq 0 ]] \
+    || log "resume: $n_rerun trial(s) flagged for a rerun (--rerun ${RERUN_IDS[*]+"${RERUN_IDS[*]}"} --rerun-status ${RERUN_STATUSES[*]+"${RERUN_STATUSES[*]}"}; DEC-0553)"
   log "resume: batch $BATCH, $LAUNCHED of $PLAN_N trials rowed, spent $SPENT, paused $(jq -c 'keys' <<<"$PAUSED_JSON")"
 fi
 
@@ -1268,6 +1390,8 @@ if [[ "$ROWS_INVALID" != null ]]; then
   finish failed 3 "failed: the rows file is invalid after $(jq -r '.run_id' <<<"$ROWS_INVALID") ($(jq -r '.error' <<<"$ROWS_INVALID"))"
 elif [[ "$DRIFT_JSON" != null ]]; then
   finish failed 3 "failed: drift in $(jq -r '.run_id' <<<"$DRIFT_JSON") ($(jq -r '.field' <<<"$DRIFT_JSON"): expected $(jq -c '.expected' <<<"$DRIFT_JSON"), got $(jq -c '.got' <<<"$DRIFT_JSON"))"
+elif [[ "$OUTAGE_JSON" != null ]]; then
+  finish partial 1 "$(jq -r '.message' <<<"$OUTAGE_JSON")"
 elif [[ "$CUTS_JSON" != '[]' && $left -gt 0 ]]; then
   finish partial 1 "partial (cut max_usd): $((PLAN_N - left)) of $PLAN_N rowed, spent $SPENT"
 elif [[ $total_completed -eq 0 ]]; then

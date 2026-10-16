@@ -28,7 +28,7 @@ setup() {
   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
-  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE
+  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
 }
 
@@ -554,4 +554,135 @@ print(",".join(out))')"
   grep -qF "rerow $x: infrastructure_error → completed" "$B/run.log"
   grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-01-t1.log"
   ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false   # no temp file left beside the rows file
+}
+
+@test "RAB-19 --rerun-status transport_error (DEC-0553): a finished batch's two transport rows are launched again into -r3 dirs and replaced in place (one row per run_id, rerun[], no assumed charge left, spent = rows + ledger); --rerun of a completed row, --rerun-status completed, --rerun without --resume and an id given to both --rerun and --rerow are refused with the rows file byte-identical" {
+  export LOA_ABLATION_OUTAGE_BREAKER=0
+  rules '*-bugfix-02-* transport' '*-bugfix-04-* transport'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch rn1 --concurrency 1
+  [ "$status" -eq 1 ]
+  B="$RES/rn1" S="$RES/rn1/STATUS.json" x=rn1-a1_full-bugfix-02-t1 y=rn1-a1_full-bugfix-04-t1
+  [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
+  [ "$(row "$y" | jq -r '.status')" = transport_error ]
+  [ -d "$B/a1_full/bugfix-02-t1-r2" ] && [ ! -e "$B/a1_full/bugfix-02-t1-r3" ]
+  # the P1 shape: a transport row reports no cost, so reconciliation would charge it the run cap
+  jq -c --arg x "$x" --arg y "$y" 'if .run_id == $x or .run_id == $y then .cost_usd = 0 else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  order="$(jq -r '.run_id' "$RES/runs.jsonl")"
+  cp "$RES/runs.jsonl" "$T/rows.before"
+  # refusals: exit 2, the rows file byte-identical, no lock left
+  ra --arms a1_full --batch rn1 --rerun "$x"
+  [ "$status" -eq 2 ]; grep -q -- '--rerun needs --resume' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  ra --batch rn1 --resume --rerun-status completed
+  [ "$status" -eq 2 ]; grep -q -- '--rerun-status must be transport_error, interrupted or infrastructure_error' <<<"$output"
+  ra --batch rn1 --resume --rerun rn1-a1_full-bugfix-01-t1
+  [ "$status" -eq 2 ]; grep -q 'the row is completed; only transport_error' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  ra --batch rn1 --resume --rerun "$x" --rerow "$x"
+  [ "$status" -eq 2 ]; grep -q 'is also a --rerow' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+  [ ! -e "$B/.lock" ]
+  # the rerun
+  unset STUB_RULES
+  : > "$T/stub.log"
+  ra --batch rn1 --resume --rerun-status transport_error
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$T/stub.log")" -eq 2 ]
+  grep -q "^$x a1_full bugfix-02 1 bugfix-02-t1-r3$" "$T/stub.log"
+  grep -q "^$y a1_full bugfix-04 1 bugfix-04-t1-r3$" "$T/stub.log"
+  # one row per run_id, in the old file order, every one completed with the new run's own attempts
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+  [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
+  [ "$(row "$x" | jq -r '(.attempts | tostring) + " " + (.retry_reason | tostring)')" = "1 null" ]
+  "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
+  [ "$(jq -c '.rerun | map({run_id, from, to, old_cost_usd}) | sort_by(.run_id)' "$S")" = \
+    "[{\"run_id\":\"$x\",\"from\":\"transport_error\",\"to\":\"completed\",\"old_cost_usd\":0},{\"run_id\":\"$y\",\"from\":\"transport_error\",\"to\":\"completed\",\"old_cost_usd\":0}]" ]
+  jq -e '.rerun | all(.at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))' "$S" >/dev/null
+  # rows 4 x 2.5; ledger = the two first attempts 2 x 2.5 (+ the replaced rows' reported 0); no assumed charge
+  [ "$(jq -r '.spend.rows_usd, .spend.ledger_usd, .spend.spent_usd, .spend.assumed_cap_trials' "$S" | tr '\n' ' ')" = "10 5 15 0 " ]
+  jq -e '.spend.spent_usd == .spend.rows_usd + .spend.ledger_usd' "$S" >/dev/null
+  [ "$(jq -r '.state, .trials_planned, .resume_cursor, (.rerun_pending | length)' "$S" | tr '\n' ' ')" = "complete 4 4 0 " ]
+  [ "$(jq -c '.per_arm.a1_full | {launched, completed, excluded}' "$S")" = '{"launched":4,"completed":4,"excluded":0}' ]
+  [ "$(jq -r '.retries | length' "$S")" = 2 ]   # the first run's retries are kept
+  grep -qF "rerun $x: transport_error → completed (row replaced in place)" "$B/run.log"
+  grep -q 'resume: 2 trial(s) flagged for a rerun' "$B/run.log"
+  ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false
+  # a rerun that hits transport again is replaced by the new transport row (still excluded)
+  export STUB_RULES="$T/rules"; printf '%s\n' "$x transport" > "$T/rules"
+  jq -c --arg x "$x" 'if .run_id == $x then .status = "interrupted" else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  ra --batch rn1 --resume --rerun "$x"
+  [ "$status" -eq 1 ]
+  [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+  [ "$(jq -c '.rerun[-1] | [.run_id, .from, .to]' "$S")" = "[\"$x\",\"interrupted\",\"transport_error\"]" ]
+  [ -d "$B/a1_full/bugfix-02-t1-r4" ] && [ -d "$B/a1_full/bugfix-02-t1-r5" ]
+}
+
+@test "RAB-19b --rerow and --rerun in one resume: an infrastructure_error row left by the old drift rule is rowed again and a transport row is launched again; each lands in its own STATUS array" {
+  export LOA_ABLATION_OUTAGE_BREAKER=0
+  rules '*-bugfix-01-* extra_model' '*-bugfix-03-* transport'
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rn2 --concurrency 1
+  [ "$status" -eq 1 ]
+  unset STUB_RULES
+  B="$RES/rn2" x=rn2-a1_full-bugfix-01-t1 y=rn2-a1_full-bugfix-03-t1
+  xd="$B/a1_full/bugfix-01-t1"
+  rm "$xd/grade.json"
+  "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
+    --task-yaml "$(jq -r --arg r "$x" '.plan[] | select(.run_id == $r) | .task_yaml' "$B/MANIFEST.json")" --out "$T/old.row"
+  jq -c --arg r "$x" --slurpfile o "$T/old.row" 'if .run_id == $r then $o[0] else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  order="$(jq -r '.run_id' "$RES/runs.jsonl")"
+  : > "$T/stub.log"; : > "$T/grade.log"
+  # infrastructure_error too: the status selection reads the rows after the rerows, so x is not launched
+  ra --batch rn2 --resume --rerow "$x" --rerun-status transport_error --rerun-status infrastructure_error
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$T/stub.log")" -eq 1 ]
+  grep -q "^$y a1_full bugfix-03 1 bugfix-03-t1-r3$" "$T/stub.log"
+  [ "$(wc -l < "$T/grade.log")" -eq 2 ]
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+  [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
+  S="$B/STATUS.json"
+  [ "$(jq -c '.rerowed | map([.run_id, .from, .to])' "$S")" = "[[\"$x\",\"infrastructure_error\",\"completed\"]]" ]
+  [ "$(jq -c '.rerun | map([.run_id, .from, .to])' "$S")" = "[[\"$y\",\"transport_error\",\"completed\"]]" ]
+  [ "$(jq -r '.state, .spend.rows_usd, .spend.assumed_cap_trials, .per_arm.a1_full.completed' "$S" | tr '\n' ' ')" = "complete 7.5 0 3 " ]
+}
+
+@test "RAB-20 outage breaker (DEC-0554): three consecutive transport_error collections stop launches (partial, STATUS.outage, the message in run.log); a non-transport collection resets the count; --resume --rerun-status transport_error completes the batch and moves outage to outage_history; LOA_ABLATION_OUTAGE_BREAKER=0 runs to the end" {
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --dry-run
+  [ "$status" -eq 0 ]
+  mapfile -t ids < <(jq -r '.plan[].run_id' "$RES/ob1/MANIFEST.json")
+  [ "${#ids[@]}" -eq 7 ]
+  # plan order: T T ok T T T | x — the ok at the third resets the count, the sixth trips it
+  rules "${ids[0]} transport" "${ids[1]} transport" "${ids[2]} ok" "${ids[3]} transport" "${ids[4]} transport" "${ids[5]} transport" "${ids[6]} ok"
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --concurrency 1
+  [ "$status" -eq 1 ]
+  S="$RES/ob1/STATUS.json"
+  [ "$(jq -r '.state' "$S")" = partial ]
+  [ "$(jq -r '.outage.consecutive, .outage.last_run_id' "$S" | tr '\n' ' ')" = "3 ${ids[5]} " ]
+  jq -e '.outage.at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")' "$S" >/dev/null
+  [ "$(jq -r '.per_arm.a1_full.launched' "$S")" -eq 6 ]
+  ! grep -q "^${ids[6]} " "$T/stub.log" || false
+  grep -q 'partial (outage breaker): 3 consecutive transport failures; --resume --rerun-status transport_error after the network is back' "$RES/ob1/run.log"
+  grep -q 'partial (outage breaker): 3 consecutive' <<<"$output"
+  jq -e '.cuts == [] and .drift == null' "$S" >/dev/null
+  # the network is back
+  unset STUB_RULES
+  : > "$T/stub.log"
+  ra --batch ob1 --resume --rerun-status transport_error
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$T/stub.log")" -eq 6 ]
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 7 ]
+  [ "$(jq -r '.run_id' "$RES/runs.jsonl" | sort -u | wc -l)" -eq 7 ]
+  [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
+  [ "$(jq -r '.state, .outage, (.outage_history | length), .outage_history[0].consecutive, (.rerun | length)' "$S" | tr '\n' ' ')" = "complete null 1 3 5 " ]
+  grep -q 'resume: the outage breaker record .* is cleared' "$RES/ob1/run.log"
+  # breaker off: the same plan runs to the end, every row transport_error, no outage recorded
+  export LOA_ABLATION_OUTAGE_BREAKER=0
+  rules '* transport'
+  : > "$T/stub.log"
+  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob2 --concurrency 1
+  [ "$status" -eq 3 ]   # no trial completed
+  [ "$(wc -l < "$T/stub.log")" -eq 14 ]
+  [ "$(jq -r 'select(.batch == "ob2") | .status' "$RES/runs.jsonl" | sort | uniq -c | awk '{print $1, $2}')" = "7 transport_error" ]
+  jq -e '.outage == null and .outage_history == []' "$RES/ob2/STATUS.json" >/dev/null
+  # a breaker value that is not a whole number is a usage error
+  export LOA_ABLATION_OUTAGE_BREAKER=x
+  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch ob3
+  [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_OUTAGE_BREAKER must be a whole number' <<<"$output"
 }
