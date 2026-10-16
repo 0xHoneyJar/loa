@@ -17752,3 +17752,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0555"
+    created_at: "2026-10-16T02:41:59Z"
+    updated_at: "2026-10-16T02:41:59Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Implementer J: a rerun-flagged row keeps its reported cost in spent (no assumed charge); the cost moves to ledger_usd only when the replacement lands (L45)"
+    decision: "In reconciliation a flagged row adds only its reported cost to spent and gets no done-set entry, counters, rows_usd or assumed-cap charge; when the new row lands the old reported cost moves into ledger_usd so spent = rows_usd + ledger_usd + assumed holds; a rerun that never lands (cut, pause, no row) leaves the old row standing and the next resume re-reads it with no double count; --rerun-status is evaluated after the rerows against the rows as they then stand and never selects a --rerow id; an id in both is a usage error; rerun_pending lists flagged ids without a replacement yet."
+    rationale: "a reported cost is real API spend and dropping it would understate spend against --max-usd; for P1 every transport row reports 0 so the figure is unchanged; RAB-19/19b assert spent == rows + ledger"
+    alternatives_considered:
+      - option: "drop the flagged row cost entirely as the brief sketched"
+        rejected_because: "understates real spend"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "41a71297"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-j.md#decision-bullets (L45)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T02:41:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-j.md#decision-bullets (L45)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
