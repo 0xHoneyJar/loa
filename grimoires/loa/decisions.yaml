@@ -17784,3 +17784,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0556"
+    created_at: "2026-10-16T02:42:47Z"
+    updated_at: "2026-10-16T02:42:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Implementer J: the breaker counts transport collections in order, any other collection resets it; an outage ends partial before the no-trial branch (L46)"
+    decision: "outage_tick runs on both exits of collect; a transport_error row increments, anything else (incl. a job with no row) resets; it trips only while STOP is empty so drift, invalid rows or a cut keep their own end state; the outage end state is checked after invalid and drift and before the cut and no-trial-completed branches (an all-transport batch with the breaker on reads partial exit 1 with the resume hint, with it off failed exit 3); a failed in-place replacement during a rerun sets ROWS_INVALID and STOP=invalid and ends failed with the old row kept rather than dying mid-dispatch."
+    rationale: "dying mid-dispatch would kill running trials; the resume hint is the pre-registered path after an outage (DEC-0554)"
+    alternatives_considered:
+      - option: "count transport failures per arm"
+        rejected_because: "an outage hits every arm; a per-arm count would trip late or never"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "f8fbd330"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-j.md#decision-bullets (L46)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T02:42:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-j.md#decision-bullets (L46)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
