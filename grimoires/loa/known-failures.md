@@ -93,7 +93,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 | [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
 | [KF-045](#kf-045-run-ablationsh-drift-guard-reads-a-claude-code-small-model-utility-call-webfetch-summariser-as-model-drift-the-trial-is-rowed-infrastructure_error-and-the-batch-stops-launching) | active | evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1) | 1 |
-| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 5 |
+| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 6 |
 
 ---
 
@@ -1771,7 +1771,7 @@ Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.j
 **Feature**: evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan)
 **Symptom**: grade.json contaminated {phase, pattern: outside_path|git_history, excerpt_id: <PHASE>:<line>} and the row status contaminated on a run that never left the sandbox; the excerpt line holds a Loa slash command (/review-sprint), git log --all, prose inside a heredoc, ls ~/.cargo/bin in the container, a sed range /,/ or /re1/,/re2/p
 **First observed**: 2026-10-15 cycle-130 Sprint 260 calibration smoke calib-frozen-01 (10 of 12 rows), then priority batch P1 review-04 REVIEW:39
-**Recurrence count**: 5
+**Recurrence count**: 6
 **Current workaround**: re-grade the run directories under the current grader (no agent re-run) and re-row: run-ablation.sh --resume --rerow <run_id> (DEC-0547); the grader fixes are 1.2.1 (DEC-0540), 1.2.2 (DEC-0541), 1.2.3 (DEC-0546)
 **Upstream issue**: none (harness heuristic; structural: a path-word regex over free-form Bash text cannot be made exact; the scan is a lower bound by design, D-4.7)
 **Related visions / lore**: DEC-0540, DEC-0541, DEC-0546, DEC-0547; KF-045
@@ -1784,6 +1784,8 @@ Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.j
 | 2026-10-15 | grader 1.2.4 prepared (DEC-0551): words beginning with /, (range remnant after a spaced first address) and words carrying = are regex-shaped, not paths; applied after P1 ends, then --rerow of every contaminated row | pending (P1 running; a1_full review-02-t1 AUDIT:86 is the fourth false-positive class: sed -n '/=== VERIFY python ValueError ===/,/=== scanner usage ===/p') | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/review-02-t1/grade.json; ~/.cache/loa/cycle-130/grader-124-patch.py |
 | 2026-10-15 | fifth class: the hidden keyword matched ordinary English in a reviewer heredoc (a1_full bugfix-04-t1 REVIEW:148 'any hidden interaction'); grader 1.2.4 also narrows hidden in Bash text to token shapes (DEC-0551) | pending (applied after P1 ends; rows re-rowed) | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/bugfix-04-t1/grade.json; ~/.cache/loa/cycle-130/grader-124-patch.py |
 | 2026-10-16 | grader 1.2.4 applied (6c454de7) after P1 stopped; the seven contaminated P1 rows re-graded clean in scratch copies and were re-rowed on the resume | 0 of 7 contaminated under 1.2.4 (review-03-t1 reads cap_failure, the rest completed) | a2a/sprint-260/reviewer.md; grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] |
+| 2026-10-16 | sixth class: a path tail after a closing quote glued to its token ("$D"/evals/harness/x) read as an absolute outside path (a1_full feature-01-t2 AUDIT:122, grader 1.2.4); grader 1.2.5 prepared (DEC-0557), applied after P1 ends, the row re-rowed | pending | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/feature-01-t2-r3/grade.json; ~/.cache/loa/cycle-130/grader-125-patch.py |
+| 2026-10-16 | grader 1.2.5 applied (bf155cc7) after P1 completed; both rows re-rowed; P1 ends with 0 contaminated rows after six grader rounds (1.2.1–1.2.5) | 0 of 132 P1 rows contaminated; every contaminated row of the cycle so far was a scan false positive, none a real reach | grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] (11 entries); runs.jsonl |
 
 ### Reading guide
 

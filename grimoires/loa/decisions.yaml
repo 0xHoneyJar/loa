@@ -17816,3 +17816,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0557"
+    created_at: "2026-10-16T09:12:08Z"
+    updated_at: "2026-10-16T09:12:08Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Grader 1.2.5: a Bash path word right after a closing quote glued to its token is a path tail, not an absolute path; an opening quote keeps the word (L47)"
+    decision: "ablation-grade.sh check_value skips a path word whose preceding character is a quote that itself follows a non-separator character (the quote closes a token: \"$D\"/evals/harness/x, \"$S\"/scripts/y, pr/'\"$v\"'/.claude/z); a quote after whitespace, =, ( or a separator is an opening quote and the word stays a candidate (cat \"/home/operator/x\" still hits); GRADER_VERSION 1.2.5; AG-10 extended; the two P1 rows affected were re-rowed."
+    rationale: "the tokenizer drops the quoted variable and reads the suffix as absolute; observed twice in P1 (a1_full feature-01-t2 AUDIT:122, review-03-t3 AUDIT:433); no path argument begins with a quote glued to a preceding token"
+    alternatives_considered:
+      - option: "leave the two rows excluded"
+        rejected_because: "the idiom recurs in every gate phase that copies a tree into a scratch dir; the exclusions would fall on gated arms only"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "c2d51e9b"
+    source: "grimoires/loa/NOTES.md#p1-complete-spend-post (L47)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T09:12:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#p1-complete-spend-post (L47)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
