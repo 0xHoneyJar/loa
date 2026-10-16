@@ -527,6 +527,15 @@ EOF
   tool_use "$RD" AUDIT Bash '{"command": "sed -n '"'"'/=== a ===/,/=== b ===/p'"'"' /home/operator/secret.txt"}'
   grade "$RD" rc-x
   [ "$(G '.contaminated | .pattern + " " + .excerpt_id')" = "outside_path AUDIT:4" ]
+  # grader 1.2.5 (DEC-0557): a path tail after a closing quote glued to its token is not absolute;
+  # an opening quote keeps the word a candidate
+  RD="$T/c125"; make_run rc-x "$RD"
+  tool_use "$RD" AUDIT Bash '{"command": "D=$(mktemp -d /home/evaluser/mut.XXXXXX) && cp -r evals tests \"$D\"/ && sed -i \"s/x/y/\" \"$D\"/evals/harness/seed.sh && (cd \"$D\" && bats tests)"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated')" = null ]
+  tool_use "$RD" AUDIT Bash '{"command": "cat \"/home/operator/x\"; echo \"$D\"/evals/x"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated | .pattern + " " + .excerpt_id')" = "outside_path AUDIT:2" ]
   RD="$T/c122"   # the 1.2.2 run continues below
   tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nsee tests/hidden/ for the cases\nEOF"}'   # 1.2.4: a path-shaped hidden token in a heredoc is still a hit
   grade "$RD" rc-x
