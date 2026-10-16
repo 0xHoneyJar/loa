@@ -93,7 +93,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 | [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
 | [KF-045](#kf-045-run-ablationsh-drift-guard-reads-a-claude-code-small-model-utility-call-webfetch-summariser-as-model-drift-the-trial-is-rowed-infrastructure_error-and-the-batch-stops-launching) | active | evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1) | 1 |
-| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 6 |
+| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 7 |
+| [KF-047](#kf-047-run-mode-circuit-breaker-trips-on-a-stale-timeout-clock-carried-over-from-the-previous-run) | Open (worked around) | run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json | 1 |
 
 ---
 
@@ -1771,7 +1772,7 @@ Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.j
 **Feature**: evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan)
 **Symptom**: grade.json contaminated {phase, pattern: outside_path|git_history, excerpt_id: <PHASE>:<line>} and the row status contaminated on a run that never left the sandbox; the excerpt line holds a Loa slash command (/review-sprint), git log --all, prose inside a heredoc, ls ~/.cargo/bin in the container, a sed range /,/ or /re1/,/re2/p
 **First observed**: 2026-10-15 cycle-130 Sprint 260 calibration smoke calib-frozen-01 (10 of 12 rows), then priority batch P1 review-04 REVIEW:39
-**Recurrence count**: 6
+**Recurrence count**: 7
 **Current workaround**: re-grade the run directories under the current grader (no agent re-run) and re-row: run-ablation.sh --resume --rerow <run_id> (DEC-0547); the grader fixes are 1.2.1 (DEC-0540), 1.2.2 (DEC-0541), 1.2.3 (DEC-0546)
 **Upstream issue**: none (harness heuristic; structural: a path-word regex over free-form Bash text cannot be made exact; the scan is a lower bound by design, D-4.7)
 **Related visions / lore**: DEC-0540, DEC-0541, DEC-0546, DEC-0547; KF-045
@@ -1786,7 +1787,29 @@ Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.j
 | 2026-10-16 | grader 1.2.4 applied (6c454de7) after P1 stopped; the seven contaminated P1 rows re-graded clean in scratch copies and were re-rowed on the resume | 0 of 7 contaminated under 1.2.4 (review-03-t1 reads cap_failure, the rest completed) | a2a/sprint-260/reviewer.md; grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] |
 | 2026-10-16 | sixth class: a path tail after a closing quote glued to its token ("$D"/evals/harness/x) read as an absolute outside path (a1_full feature-01-t2 AUDIT:122, grader 1.2.4); grader 1.2.5 prepared (DEC-0557), applied after P1 ends, the row re-rowed | pending | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/feature-01-t2-r3/grade.json; ~/.cache/loa/cycle-130/grader-125-patch.py |
 | 2026-10-16 | grader 1.2.5 applied (bf155cc7) after P1 completed; both rows re-rowed; P1 ends with 0 contaminated rows after six grader rounds (1.2.1–1.2.5) | 0 of 132 P1 rows contaminated; every contaminated row of the cycle so far was a scan false positive, none a real reach | grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] (11 entries); runs.jsonl |
+| 2026-10-16 | grader 1.2.8 (Sprint 260 audit fix) treated a [ after a one-component absolute word as a glob metacharacter so the word stayed a path candidate; re-scan of the 132 graded P1 run dirs under 1.2.8 | two new false positives (a1_full feature-03-t2-r3 AUDIT:115 grep '/home[^"]*loader.py' regex; refactor-04-t2-r3 IMPLEMENT:47 sed 's/job\["status"\]…'): a bracket after the word is a regex bracket expression in agent commands, not a glob — grader 1.2.9 reads * and ? only and keeps a quoted one-component pattern exempt; the re-scan is back to 0 changes | rescan-p1-126.py over priority-p1 under 1.2.8 vs the stored grade.json (2 changed) and under 1.2.9 (0 changed); commit 60503096 (1.2.8) and the 1.2.9 commit that follows; a2a/sprint-260/auditor-sprint-feedback.md round 2 |
 
 ### Reading guide
 
 A contaminated row is a claim to verify, not a verdict: print the excerpt line (sed -n '<line>p' <run-dir>/transcripts/events-<PHASE>.jsonl | jq '.message.content[] | select(.type=="tool_use") | .input') and ask whether the word reaches a path outside the sandbox, the container home, /tmp or the system dirs. Shell idioms seen so far: slash commands, sed/awk delimiters and ranges, heredoc prose, regexes beginning with = or a letter. If it is an idiom: fix the grader (bump GRADER_VERSION, extend AG-10), re-grade every affected run directory, --rerow. If it is a real reach: the exclusion stands. Recurrence 3 in one day means the heuristic is structural: budget a re-read of every contaminated row before the report.
+
+## KF-047: Run-mode circuit breaker trips on a stale timeout clock carried over from the previous run
+
+**Status**: Open (worked around)
+**Feature**: run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json
+**Symptom**: record-round prints TRIPPED: timeout: run older than 72 hours and sets .run/state.json HALTED although the current run (sprint-plan-state.json timestamps.started) is younger than its options.timeout_hours; circuit-breaker.json triggers.timeout.started still holds the PREVIOUS run's start and limit_hours its limit
+**First observed**: 2026-10-16T23:15:01Z, cycle-130 run-20261015-cc341d39 (started 2026-10-14T15:05:04Z, timeout 96 h) tripped at the Sprint 260 audit record-round because triggers.timeout.started was 2026-10-13T22:30:30Z (the cycle-129 run) with limit_hours 72; cycle-129 had already noted the breaker cache is not reset at a run boundary
+**Recurrence count**: 1
+**Current workaround**: halt-resume.md § run-resume --reset-ice by hand: jq .state=CLOSED, counters 0, triggers.timeout.started=now, reset_at=now (and limit_hours aligned with .run/state.json options.timeout_hours), then .run/state.json .state=RUNNING and run-checkpoint.sh derive --write; record the reset in NOTES
+**Upstream issue**: none yet — /run sprint-plan should re-initialise .run/circuit-breaker.json (timeout.started, limit_hours from options.timeout_hours, counters) at run start, and derive should treat a timeout.started older than the run's own started as stale
+**Related visions / lore**: KF-022 (caches drift from files), feedback_quality_cycle_discipline
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-16 | reset the breaker by hand (CLOSED, counters 0, started=now, limit_hours 96) and set the run RUNNING after the Sprint 260 audit round-1 record | run continues; derive clean; the trip was a false positive | cycle-130 .run/circuit-breaker.json history[-1] timestamp 2026-10-16T23:15:01Z trigger timeout; NOTES entry 2026-10-16T23:4xZ; commit b7e9967a HEAD at the time |
+
+### Reading guide
+
+Before trusting a TRIPPED: timeout line compare circuit-breaker.json triggers.timeout.started with sprint-plan-state.json timestamps.started; when the breaker clock predates the run, the trip is false: reset per the workaround and continue; a real timeout has both clocks agreeing

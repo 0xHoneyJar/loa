@@ -18168,3 +18168,323 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0568"
+    created_at: "2026-10-16T22:32:34Z"
+    updated_at: "2026-10-16T22:32:34Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader 1.2.6 in_quotes: a quote state machine; a word that is the whole quoted argument is a candidate even as a grep pattern; unterminated quotes skip (L58)"
+    decision: "Implementer s3fix: in_quotes(body, pos, end) is a left-to-right state machine (none / single / double; a backslash escapes the next character outside single quotes; a quote of the other kind is literal) and reports 'inside a quoted string with other text' only when the state at pos is quoted AND the region holds text other than the word (the opening quote is not at pos-1, or body[end] is not the matching quote). A word that is exactly the whole quoted argument is a candidate even when it is a pattern (grep -c '/root' f reads outside_path: indistinguishable from ls '/root'). An unterminated quote at the word counts as quoted with other text (skipped); $'…' is read as a plain single-quoted string. Both accepted gaps are in the header; cd '/root/' is no longer an accepted gap."
+    rationale: "parity counting flagged ordinary prose and skipped the regression case the review named; a small state machine is exact for the shell's quoting rules and the two remaining gaps are contrived"
+    alternatives_considered:
+      - option: "shlex.shlex in posix mode"
+        rejected_because: "shlex tokenises the whole command and loses the position mapping the scan keys on"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "8b319db2"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L58)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:32:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L58)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0569"
+    created_at: "2026-10-16T22:32:36Z"
+    updated_at: "2026-10-16T22:32:36Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader 1.2.6 heredoc_interpreters: counts heredocs whose operator-line command is python/bash/sh/node/perl/ruby, after the last separator; telemetry only (L59)"
+    decision: "Implementer s3fix: grade.json heredoc_interpreters counts, per Bash input until the first contamination hit (as history_probes), every HEREDOC match whose operator line's own command — the text before << after the last ;, &, |, ( or {, leading NAME=value words dropped, basename of the first word — matches ^(python3?(\\.[0-9]+)?|bash|sh|node|perl|ruby)$; cat <<EOF | sh is not counted (its heredoc feeds cat); sudo/exec/env/timeout prefixes are not stripped; zsh, dash, deno and env python3 are not counted. The row writer does not carry the field; the Sprint 262 re-grade sums it to size the DISS-C-003 gap."
+    rationale: "a documented lower bound with a count is what the review asked for; the list covers the interpreters agents actually invoke with heredocs in P1"
+    alternatives_considered:
+      - option: "scan interpreter heredoc bodies for paths"
+        rejected_because: "DEC-0562: re-opens the prose false positives for a signal the container executor makes inert"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "8b319db2"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L59)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:32:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L59)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0570"
+    created_at: "2026-10-16T22:33:27Z"
+    updated_at: "2026-10-16T22:33:27Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "run-ablation.sh post-run deadlines: grader 1800 s, took-effect 300 s; exit 124/137 rows infrastructure_error; a took-effect timeout does not pause the arm (L60)"
+    decision: "Implementer s3fix: LOA_ABLATION_GRADE_TIMEOUT_S (default 1800) and LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S (default 300), validated ^[1-9][0-9]{0,5}$, wrap the grader and took-effect calls in post_run with timeout --signal=TERM --kill-after=30 (unwrapped when timeout is absent); exit 124 or 137 rows the trial infrastructure_error with the timeout named in the trial log and grade_rc keeping the code; a took-effect timeout sets took_effect 'timeout' (not 'fail') so the arm is NOT paused — a hang is no evidence the arm failed to take effect, and --resume --rerun-status infrastructure_error relaunches the row; MANIFEST watchdog records grade_timeout_s and took_effect_timeout_s from the batch's first start (a resume does not re-record them); the deadline arrays are built once at start-up, and a driver signal does not reach a running grader, which ends at its own deadline."
+    rationale: "the watchdog keys on pipeline.json and never covered the post-run chain; the review's MEDIUM-2 was the first known way to hang there"
+    alternatives_considered:
+      - option: "pause the arm on a took-effect timeout like a took-effect FAIL"
+        rejected_because: "an infrastructure hang would starve the arm; the row is already excluded and rerunnable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "8b319db2"
+    source: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L60)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:33:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reviewer-fix.md#decisions (L60)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0571"
+    created_at: "2026-10-16T22:56:26Z"
+    updated_at: "2026-10-16T22:56:26Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Grader 1.2.7: the hidden token's glob shapes are read on the heredoc-stripped command only; prose 'hidden?' and '**hidden**' clean; PascalCase hit (L61)"
+    decision: "Dissent run 2 DISS-C-001 (BLOCKING, confirmed by regex test: 'Is any state hidden?' and '**hidden**' inside a written heredoc matched the 1.2.6 glob adjacency) and DISS-C-006 (confirmed: HiddenTests/ missed). Grader 1.2.7 splits the rule: HIDDEN_TOKEN (HIDDEN | case-insensitive adjacency to / . _ = - | [Hh]idden before a capital) reads the whole value including heredoc bodies; HIDDEN_GLOB (* or ? beside the word) reads strip_heredocs(val) only. AG-32 gains the prose heredoc (clean), the same heredoc followed by find -iname '*hidden*' (hit) and ls HiddenTests/ (hit). Applied by the lead at integration (Sprint 259 round-2 practice) and covered by the audit dissent on the full sprint diff."
+    rationale: "the hidden scan must read written text for path-shaped tokens but English and Markdown are not globs; the fix keeps the glob signal where a glob can occur — the command line"
+    alternatives_considered:
+      - option: "drop ? and * from the token class altogether"
+        rejected_because: "find -iname *hidden* is a real probe shape the review asked to catch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "de77522a"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L61)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:56:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L61)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0572"
+    created_at: "2026-10-16T22:56:28Z"
+    updated_at: "2026-10-16T22:56:28Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Round 2 hardening: the grader runs its finally on SIGTERM (SCRATCH removed); timeout uses -s/-k; MANIFEST watchdog null when unwrapped (L62)"
+    decision: "DISS-C-002 (partly confirmed): a killed grader skipped its finally, leaving SCRATCH behind — 1.2.7 installs a SIGTERM handler that raises SystemExit(143) so the finally runs; the container part is refuted in degree: containers run with --init (TERM forwarded) under an in-container timeout of 120 + 10 s and their names carry the grader pid, so a later grade never collides and the leak is bounded. DISS-C-003 (confirmed for portability, inert on this GNU host): the wrappers use timeout -s TERM -k 30, and MANIFEST watchdog.grade_timeout_s / took_effect_timeout_s are null when timeout(1) is absent and the calls run unwrapped. DISS-C-005: the default 1800 s is documented against the grader's own 120 + 10 s per-command deadline over at most ten container commands; the claim that the outage breaker counts infrastructure_error rows is refuted (outage_tick counts transport_error only)."
+    rationale: "cheap hardening for a real but bounded leak; the record must say what ran"
+    alternatives_considered:
+      - option: "docker rm -f by run tag in the 124/137 branch"
+        rejected_because: "names carry the pid and --init plus the in-container deadline end the container within 130 s; the runner would need the grader's naming scheme"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "de77522a"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L62)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:56:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L62)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0573"
+    created_at: "2026-10-16T22:56:29Z"
+    updated_at: "2026-10-16T22:56:29Z"
+    phase: "review"
+    category: "process"
+    summary: "Round 2 DISS-C-004 refuted: took_effect 'timeout' is internal to run-ablation.sh; no row field, no consumer enum; RAB-21 asserts the row status (L63)"
+    decision: "The trial result's took_effect value (ok | fail | skipped | timeout) is read only by run-ablation.sh's apply_flags (which pauses on 'fail' alone) and never leaves the runner: ablation-row.sh carries no took_effect field (its header mentions took-effect.sh only for integrity_clean in zone_violations) and ablation-report.py does not read it. No consumer validates an enum, so nothing rejects a row or pauses an arm; the finding is refuted with the grep evidence. No change beyond the header's value list."
+    rationale: "a new internal state value is not a schema change when no serialised artefact carries it"
+    alternatives_considered:
+      - option: "add took_effect to the row schema"
+        rejected_because: "out of scope for a review fix round; the row writer is frozen for the batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "de77522a"
+    source: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L63)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T22:56:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/engineer-feedback.md#round-2-dissent-findings (L63)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0574"
+    created_at: "2026-10-16T23:13:38Z"
+    updated_at: "2026-10-16T23:13:38Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Per-type caps (K): cap_for = --run-cap, else suite run_usd_by_type[kind], else the single-cap chain; reserve = running trials x largest plan cap (L64)"
+    decision: "Implementer K (Task 4.2, DEC-0567): cap_for <kind> resolves --run-cap (both kinds) → the suite's caps.run_usd_by_type[kind] → the unchanged single-cap chain (.loa.config.yaml evals.ablation.run_cap_usd, caps.run_usd, 12); the trial's kind cap goes to pipeline-run.sh --max-run-usd, a cap_failure is charged max(cost, kind cap), a costless non-completed trial (and a job without a result or a row) the kind cap; the in-flight reservation is running trials × the largest cap among the plan's kinds (sprint Task 4.2's wording; conservative, no per-pid bookkeeping in the shared library) with the running-trial count as the multiplier (idle slots are not reserved, as before); lib/arms-common.sh takes the cap per call through optional trailing arguments defaulting to RUN_CAP, so run-arms.sh is unchanged; MANIFEST caps gains run_usd_by_type and the plan line prints both caps."
+    rationale: "one cap for two run shapes was the P1 defect; the largest-cap reservation is the formula the re-pre-registration uses (3 × 20 at concurrency 3) and over-reserves only on build-heavy plans"
+    alternatives_considered:
+      - option: "reserve each in-flight trial at its own kind cap"
+        rejected_because: "needs per-pid kind bookkeeping in the shared library for a few dollars of headroom; RAB-25 shows the chosen rule waits where the per-own-kind rule would launch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b7e9967a"
+    source: "grimoires/loa/a2a/sprint-261/reviewer-k.md#decision-bullets (L64)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:13:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reviewer-k.md#decision-bullets (L64)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0575"
+    created_at: "2026-10-16T23:13:40Z"
+    updated_at: "2026-10-16T23:13:40Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Per-type caps (K): a malformed run_usd_by_type entry is exit 2, never a silent 12; --run-cap on resume ignored with a note; old manifests use run_usd (L65)"
+    decision: "Implementer K: a present but malformed caps.run_usd_by_type entry, or a non-map value, is a usage error (exit 2, nothing written) — a pre-registered cap must never quietly become 12, while the single-cap chain keeps its fall-through; --resume takes run_usd and both kind caps from the batch's MANIFEST.json, never the suite file, and a --run-cap given on resume is ignored with a stderr note (RAB-26); a MANIFEST without run_usd_by_type (the v1 batches) resumes with both kinds at its run_usd; reserve_usd: 250 stays in the suite file because spend.sh reads it, with the comment recording that DEC-0559 released the reserve."
+    rationale: "a batch keeps the caps it started with (DEC-0407's fixed-per-batch rule applied to money); loud refusal beats a silent downgrade of a pre-registered figure"
+    alternatives_considered:
+      - option: "fall through to run_usd on a malformed per-type entry"
+        rejected_because: "it would silently cap the gated arm at 12 again, the defect the caps correct"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b7e9967a"
+    source: "grimoires/loa/a2a/sprint-261/reviewer-k.md#decision-bullets (L65)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:13:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reviewer-k.md#decision-bullets (L65)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0576"
+    created_at: "2026-10-16T23:25:29Z"
+    updated_at: "2026-10-16T23:25:29Z"
+    phase: "review"
+    category: "process"
+    summary: "Grader 1.2.9 (audit r2): the 1.2.8 glob rule read [ as a glob and flagged two P1 regex commands; * and ? only, quoted patterns exempt; KF-046 recurrence 7 (L68)"
+    decision: "The P1 re-scan under 1.2.8 turned two completed a1_full rows contaminated (feature-03-t2-r3 AUDIT:115 grep -a -o '/workspace[^\"]*loader.py\\|/home[^\"]*loader.py'; refactor-04-t2-r3 IMPLEMENT:47 sed 's/job\\[\"status\"\\] is …/'), both regex bracket expressions read by hand per the KF-046 guide. Grader 1.2.9 takes * and ? as the only glob metacharacters and restores the quoted-pattern exemption for one-component words; AG-34 carries both commands clean and the unquoted ls /roo* as a hit; the re-scan is back to 0 changes. KF-046 recurrence 7 with the evidence row."
+    rationale: "a [ after a path-shaped word is a bracket expression in agent commands far more often than a glob; every grader change is re-scanned against the real P1 run dirs before it ships"
+    alternatives_considered:
+      - option: "keep [ and hand-read the two rows as false positives"
+        rejected_because: "a rule known to misread two of 132 runs would misread the v2 batch too"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "53600ea3"
+    source: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L68)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:25:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L68)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0577"
+    created_at: "2026-10-16T23:25:31Z"
+    updated_at: "2026-10-16T23:25:31Z"
+    phase: "operations"
+    category: "process"
+    summary: "Breaker false trip at the Sprint 260 audit record (stale timeout.started from the cycle-129 run) reset per --reset-ice with limit_hours 96; KF-047 (L69)"
+    decision: "record-round printed TRIPPED: timeout: run older than 72 hours and HALTED the run because .run/circuit-breaker.json triggers.timeout.started still held 2026-10-13T22:30:30Z (the cycle-129 run) with limit_hours 72, while run-20261015-cc341d39 started 2026-10-14T15:05:04Z with timeout_hours 96. The lead reset the breaker by hand per halt-resume.md § run-resume --reset-ice (CLOSED, counters 0, timeout.started = now, reset_at = now) with limit_hours aligned to the run's 96, set both state files RUNNING and re-derived; KF-047 written with the workaround and the upstream ask (/run should re-initialise the breaker at run start). Not a halt condition of the operator's prompt."
+    rationale: "a timer that predates the run cannot measure the run; the protocol's own reset step applies"
+    alternatives_considered:
+      - option: "stop and wait for the operator"
+        rejected_because: "the halt conditions are H1 failing on v2 and spend above cap; a stale timer is neither"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "53600ea3"
+    source: "grimoires/loa/known-failures.md#kf-047 (L69)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:25:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/known-failures.md#kf-047 (L69)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
