@@ -1,0 +1,973 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "priority-p1",
+  "smoke": false,
+  "state": "complete",
+  "per_arm": {
+    "a0_bare": {
+      "trials_planned": 48,
+      "launched": 48,
+      "completed": 48,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a1_full": {
+      "trials_planned": 48,
+      "launched": 48,
+      "completed": 42,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 6,
+      "degraded": 4,
+      "skipped_paused": 0
+    },
+    "a4_no_gates": {
+      "trials_planned": 36,
+      "launched": 36,
+      "completed": 36,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [
+    {
+      "run_id": "priority-p1-a1_full-refactor-01-t2",
+      "reason": "transport: api_error_result in phase AUDIT",
+      "first_attempt_usd": 8.763131
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-03-t2",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 5.952716
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t2",
+      "reason": "transport: api_error_result in phase AUDIT",
+      "first_attempt_usd": 6.985804
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-04-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-04-t2",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-04-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-03-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-01-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-01-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-03-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-01-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-01-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-02-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-04-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-03-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-03-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-02-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-04-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-02-t2",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-02-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-03-t2",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-02-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-01-t2",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-03-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t2",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-01-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-01-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-04-t2",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-03-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-03-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-01-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-04-t3",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-01-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-03-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-02-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-02-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-01-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-03-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-01-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-02-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-01-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-03-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-04-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-02-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-02-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-03-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-04-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-03-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-02-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-04-t3",
+      "reason": "transport: api_error_result in phase PLAN",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-01-t3",
+      "reason": "transport: api_error_result in phase BARE",
+      "first_attempt_usd": 0
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-02-t3",
+      "reason": "transport: api_error_result in phase REVIEW",
+      "first_attempt_usd": 0
+    }
+  ],
+  "cuts": [
+    {
+      "reason": "max_usd",
+      "spent": 1044.674677,
+      "in_flight_reserved": 0,
+      "max": 1039,
+      "est_next": 0.1185847,
+      "trials_launched": 119,
+      "at_trial": 120
+    }
+  ],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 592.4297064,
+    "ledger_usd": 21.701651,
+    "spent_usd": 614.1313573,
+    "max_usd": 799,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 132,
+  "resume_cursor": 132,
+  "drift": null,
+  "drift_cleared": [
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t1",
+      "previous": {
+        "run_id": "priority-p1-a1_full-feature-04-t1",
+        "field": "models_used.AUDIT",
+        "expected": [
+          "claude-fable-5-1",
+          "claude-opus-5-5"
+        ],
+        "got": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+      },
+      "cleared_at": "2026-10-15T11:53:35Z",
+      "harness_commit": "eec592d5eb8bd9678961b0c635aa9e822c4c558e"
+    }
+  ],
+  "rerowed": [
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t1",
+      "from": "infrastructure_error",
+      "to": "completed",
+      "at": "2026-10-15T11:53:39Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-04-t1",
+      "from": "contaminated",
+      "to": "cap_failure",
+      "at": "2026-10-15T11:53:39Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-02-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:23Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-04-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:27Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:30Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:33Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-04-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:39Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-01-t1",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T02:40:40Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-03-t1",
+      "from": "contaminated",
+      "to": "cap_failure",
+      "at": "2026-10-16T02:40:41Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-01-t2",
+      "from": "contaminated",
+      "to": "completed",
+      "at": "2026-10-16T09:09:24Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-03-t3",
+      "from": "contaminated",
+      "to": "cap_failure",
+      "at": "2026-10-16T09:09:26Z"
+    }
+  ],
+  "rerun": [
+    {
+      "run_id": "priority-p1-a1_full-refactor-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:03:25Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:06:30Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:06:43Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-03-t2",
+      "from": "transport_error",
+      "to": "cap_failure",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:14:22Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:15:01Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:33:22Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:36:55Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:41:10Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:47:32Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T03:48:20Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:00:19Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:01:09Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:01:49Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:04:30Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:11:59Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-01-t2",
+      "from": "transport_error",
+      "to": "contaminated",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:22:24Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:24:18Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:30:52Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:32:41Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:33:02Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T04:38:45Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:00:21Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:01:07Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:01:44Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:02:26Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:02:42Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:03:52Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:11:38Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-02-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:29:04Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:29:45Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-03-t2",
+      "from": "transport_error",
+      "to": "cap_failure",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:35:43Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:36:58Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:37:44Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-04-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:38:20Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-01-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:39:01Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t2",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:41:31Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T05:42:02Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:04:43Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:07:59Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-refactor-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:11:49Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:18:58Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:31:29Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:32:36Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:34:08Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:34:58Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:38:35Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:39:04Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-04-t3",
+      "from": "transport_error",
+      "to": "cap_failure",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:39:14Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-refactor-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:39:54Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:46:14Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:56:49Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:56:55Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:57:09Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:57:40Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T06:57:48Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:04:48Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:13:09Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-bugfix-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:20:48Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:20:55Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-bugfix-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:21:32Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-feature-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:21:35Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-03-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:28:14Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-feature-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:29:05Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:29:44Z"
+    },
+    {
+      "run_id": "priority-p1-a0_bare-review-01-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:29:58Z"
+    },
+    {
+      "run_id": "priority-p1-a4_no_gates-feature-04-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:36:24Z"
+    },
+    {
+      "run_id": "priority-p1-a1_full-review-02-t3",
+      "from": "transport_error",
+      "to": "completed",
+      "old_cost_usd": 0,
+      "at": "2026-10-16T07:55:01Z"
+    }
+  ],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "extra_models": {
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0": {
+      "runs": 1,
+      "output_tokens": 516
+    }
+  },
+  "extra_models_by_run": {
+    "priority-p1-a1_full-feature-04-t1": {
+      "global.anthropic.claude-haiku-4-5-20251001-v1:0": 516
+    }
+  },
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/grimoires/loa/reports/ablation-2.0/runs.jsonl",
+  "started": "2026-10-15T10:26:28Z",
+  "finished": "2026-10-16T09:09:27Z"
+}
