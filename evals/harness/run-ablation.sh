@@ -133,7 +133,7 @@
 #   3. took-effect.sh --run-dir D --suite-file F (completed, agent_error and cap_failure runs):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
 #      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418).
-#      It runs under timeout --signal=TERM --kill-after=30 $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S
+#      It runs under timeout -s TERM -k 30 $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S
 #      (default 300; unwrapped when timeout is absent): exit 124 or 137 rows the trial
 #      infrastructure_error with `run-ablation: took-effect timed out after Ns` in the trial
 #      log and took_effect "timeout" in the trial result — the arm is NOT paused (a hang is
@@ -152,7 +152,7 @@
 #      fails the batch once the running trials end
 #   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] --executor … --image …
 #      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)
-#      under timeout --signal=TERM --kill-after=30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
+#      under timeout -s TERM -k 30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
 #      1800; unwrapped when timeout is absent): exit 124 or 137 → row infrastructure_error,
 #      `run-ablation: grade timed out after Ns` in the trial log, grade_rc keeps the exit
 #      (the pipeline watchdog covers the pipeline only; this is the post-run deadline)
@@ -232,7 +232,9 @@
 # Env: LOA_ABLATION_SOURCE_TREE, LOA_ABLATION_SOURCE_REPO, LOA_ABLATION_CACHE,
 #   LOA_ABLATION_RETRY_WAIT_S, LOA_ABLATION_WATCHDOG_S, LOA_ABLATION_WATCHDOG_GRACE_S,
 #   LOA_ABLATION_POLL_S (reap poll, default 1), LOA_ABLATION_OUTAGE_BREAKER (default 3),
-#   LOA_ABLATION_GRADE_TIMEOUT_S (grade deadline, default 1800) and
+#   LOA_ABLATION_GRADE_TIMEOUT_S (grade deadline, default 1800: above the grader's own per-command deadline of
+#   120 + 10 s over at most ten container commands per grade, plus the tree copies; the outage breaker counts
+#   transport_error rows only, never these infrastructure_error rows) and
 #   LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S (took-effect deadline, default 300), both whole seconds
 #   1 … 999999 (else exit 2), EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
 # Library: lib/arms-common.sh beside this script, sourced by a literal relative path.
@@ -356,10 +358,12 @@ done
 [[ "$GRADE_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds (at most 999999)"
 [[ "$TOOK_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds (at most 999999)"
 # the post-run deadlines (Sprint 260 LOW-4): unwrapped when timeout(1) is absent
-GRADE_TMO=() TOOK_TMO=()
+GRADE_TMO=() TOOK_TMO=() TMO_ON=false
 if command -v timeout >/dev/null 2>&1; then
-  GRADE_TMO=(timeout --signal=TERM --kill-after=30 "$GRADE_TIMEOUT_S")
-  TOOK_TMO=(timeout --signal=TERM --kill-after=30 "$TOOK_TIMEOUT_S")
+  # the portable short flags (GNU and BusyBox; review round 2 DISS-C-003); MANIFEST records null when unwrapped
+  GRADE_TMO=(timeout -s TERM -k 30 "$GRADE_TIMEOUT_S")
+  TOOK_TMO=(timeout -s TERM -k 30 "$TOOK_TIMEOUT_S")
+  TMO_ON=true
 fi
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
@@ -740,7 +744,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg fp "$FINGERPRINT" --arg image "$IMAGE" --arg digest "$IMAGE_DIGEST" --arg mode "$EXECUTOR" \
     --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" \
     --arg hb "$HINT_BUILD" --arg hr "$HINT_REVIEW" --argjson conc "$CONCURRENCY" --argjson rw "$RETRY_WAIT" \
-    --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --arg prr "$PRE_REG_REF" \
+    --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --argjson tmo "$TMO_ON" --arg prr "$PRE_REG_REF" \
     --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" \
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" '
@@ -764,7 +768,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        cost_hint: {build: ($hb | tonumber), "review-catch": ($hr | tonumber)},
        concurrency: $conc, retry: {transport_retries: 1, wait_s: $rw},
        watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace,
-                 grade_timeout_s: ($gto | tonumber), took_effect_timeout_s: ($tto | tonumber)},
+                 grade_timeout_s: (if $tmo then ($gto | tonumber) else null end), took_effect_timeout_s: (if $tmo then ($tto | tonumber) else null end)},
        pre_registration_ref: (if $prr == "" then null else $prr end),
        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
        agy_opt_in: ($s.agy_opt_in // false),

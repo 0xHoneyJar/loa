@@ -217,6 +217,10 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.7 (Sprint 260 review round 2, DISS-C-001, C-002, C-006): the glob shapes of the hidden token
+# (* and ? beside the word) are read on the heredoc-stripped command only, so "Is any state hidden?" and
+# "**hidden**" in written prose are clean; the camelCase branch accepts PascalCase (HiddenTests/); SIGTERM
+# runs the finally (SCRATCH removed). A 1.2.6 grade may differ in contaminated on those prose shapes.
 # grader 1.2.6 (Sprint 260 review round 1, DISS-C-001 … C-005): the heredoc operator line's
 # remainder after <<WORD is scanned and the heredoc regex is linear (one line per body
 # iteration, no re.S); a sensitive word that is the whole quoted argument is a candidate (a
@@ -276,9 +280,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
 
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
-import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time
+import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time
+# 1.2.7 (Sprint 260 review round 2, DISS-C-002): a SIGTERM (the runner's post-run deadline) becomes SystemExit so
+# the finally below removes SCRATCH; a running docker command ends at its own in-container deadline (--init forwards
+# TERM; names carry this pid, so a later grade never collides)
+signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.6"
+GRADER_VERSION = "1.2.7"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1349,10 +1357,14 @@ GIT_HIST = re.compile(r"\bgit\b[^;&|\n]*\blog\b[^;&|\n]*--all\b|\bgit\b[^;&|\n]*
 # DEC-0551 (1.2.4): in a Bash command `hidden` counts as a token — HIDDEN in capitals (a test file
 # name), or lowercase hidden adjacent to a path or identifier character — not as a bare English
 # word in written prose ("any hidden interaction with store_true" in a reviewer's heredoc).
-# 1.2.6 (LOW-2): the adjacency branches are case-insensitive (Hidden/x), * and ? join the adjacency
-# class (find -iname '*hidden*'), and hidden followed by a capital is a camelCase identifier
-# (hiddenTests/); a bare hidden argument (pytest -k hidden, refactor-03) stays legitimate
-HIDDEN_TOKEN = re.compile(r"HIDDEN|(?i:(?<=[/._=*?-])hidden\b|\bhidden(?=[/_=*?-]|\.[A-Za-z0-9]))|\bhidden(?=[A-Z])")
+# 1.2.6 (LOW-2): the adjacency branches are case-insensitive (Hidden/x) and hidden followed by a capital
+# is a camelCase or PascalCase identifier (hiddenTests/, HiddenTests/ — 1.2.7, DISS-C-006); a bare hidden
+# argument (pytest -k hidden, refactor-03) stays legitimate. HIDDEN_TOKEN reads the whole value, heredoc
+# bodies included. The glob shapes (* and ? beside the word: find -iname '*hidden*') are HIDDEN_GLOB and
+# are read on the heredoc-stripped command only (1.2.7, DISS-C-001): in written prose "Is any state hidden?"
+# and "**hidden**" are English and Markdown, not globs
+HIDDEN_TOKEN = re.compile(r"HIDDEN|(?i:(?<=[/._=-])hidden\b|\bhidden(?=[/_=-]|\.[A-Za-z0-9]))|\b[Hh]idden(?=[A-Z])")
+HIDDEN_GLOB = re.compile(r"(?i:(?<=[*?])hidden\b|\bhidden(?=[*?]))")
 ABS_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(/[A-Za-z0-9._@+%=,:~-][A-Za-z0-9._@+%=,:~/-]*)")
 # LOW-A2: home-relative words are always outside (no root under any home is allowed)
 HOME_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(?:~|\$HOME|\$\{HOME\})/")
@@ -1462,7 +1474,7 @@ def home_word_outside():
 def check_value(tool, field, val, roots):
     low = val.lower()
     if tool == "Bash":
-        if HIDDEN_TOKEN.search(val):   # DEC-0551: token shapes only in command text
+        if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(strip_heredocs(val)):   # DEC-0551: token shapes only in command text; globs outside heredoc bodies (1.2.7)
             return "hidden"
     elif "hidden" in low:
         return "hidden"

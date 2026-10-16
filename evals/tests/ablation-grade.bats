@@ -1062,6 +1062,7 @@ bash_case() {
 
 @test "AG-32 HIDDEN_TOKEN (LOW-2): camelCase, any-case adjacency and glob shapes are hits; a bare hidden word is not" {
   bash_case hidden 'ls hiddenTests/'
+  bash_case hidden 'ls HiddenTests/'   # 1.2.7 (DISS-C-006): PascalCase
   bash_case hidden 'cat Hidden/x'
   bash_case hidden "find . -iname '*hidden*'"
   bash_case hidden 'ls tests/HIDDEN_cases.py'
@@ -1070,6 +1071,9 @@ bash_case() {
   bash_case null 'python3 -m pytest -q tests/test_config.py -k hidden'
   bash_case null $'cat > grimoires/loa/a2a/sprint-1/reviewer-concerns.md <<EOF\n1. argument_default=argparse.SUPPRESS: any hidden\n   interaction with store_true? The value is hidden.\nEOF'
   bash_case null 'echo "Hidden state is gone; nothing hidden remains"'
+  # 1.2.7 (DISS-C-001): English and Markdown in a written heredoc are not globs; a glob in the command still is
+  bash_case null $'cat > review.md <<EOF\nIs any state hidden? The **hidden** global is gone; *hidden* means private here.\nEOF'
+  bash_case hidden $'cat > review.md <<EOF\nIs any state hidden?\nEOF\nfind . -iname \'*hidden*\''
 }
 
 @test "AG-33 heredoc_interpreters (LOW-3): heredocs fed to an interpreter are counted, never contamination" {
@@ -1085,5 +1089,5 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.6 ]
+  [ "$(G '.grader_version')" = 1.2.7 ]
 }
