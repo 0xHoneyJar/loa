@@ -17848,3 +17848,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0558"
+    created_at: "2026-10-16T09:15:30Z"
+    updated_at: "2026-10-16T09:15:30Z"
+    phase: "implementation"
+    category: "process"
+    summary: "HALT on the P1 reads: H1 not established, A4 not worse than A1; no pruning, the report ships with rc.6, P2 and A5-A7 not launched; operator decides (L48)"
+    decision: "The pre-registered halt conditions are met on the complete P1 data (H1 a1_full - a0_bare: pass -0.028 [-0.083, 0.000], catch -0.096 [-0.188, +0.007]; A4 - A1 pass +0.028 [0.000, +0.083]). Per the pre-registration and the continuation prompt the chain halts before promotion: no component is pruned from these rows, the report ships with rc.6 carrying the reads and the sensitivity reading (cap failures excluded: H1 catch +0.394 [+0.271, +0.517]), batch P2 and arms A5-A7 are not launched, and the operator chooses among (a) accept, (b) harden suite and cap then re-pre-register A0/A1/A4, (c) run P2 as a recorded deviation, (d) stop and ship the harness and report. The Sprint 260 code review proceeds as a code gate only."
+    rationale: "both halt conditions are pre-registered and the operator reserved them; the build tasks saturate at 1.000 for every arm and the catch-rate primary is decided by the USD 12 cap binding on the AUDIT phase of the larger review PRs, so the suite cannot support a pruning decision as it stands"
+    alternatives_considered:
+      - option: "launch P2 now under the pre-registered plan"
+        rejected_because: "the A4 rule says harden before acting on other arms and the operator reserved the halt; USD 425 more would not change the H1 outcome"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "e303a99d"
+    source: "grimoires/loa/a2a/sprint-260/reads.md#the-two-pre-registered-reads (L48)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T09:15:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/reads.md#the-two-pre-registered-reads (L48)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
