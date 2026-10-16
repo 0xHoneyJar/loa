@@ -17656,3 +17656,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0552"
+    created_at: "2026-10-16T01:58:05Z"
+    updated_at: "2026-10-16T01:58:05Z"
+    phase: "implementation"
+    category: "budget"
+    summary: "Resumed P1 runs under --max-usd 799 = 1,500 - 415 (real spend incl. first-attempt ledger) - 250 - 36; P2 ceiling recomputed after P1 (L44)"
+    decision: "The DEC-0429 formula is re-applied at resume time with the real spend (rows + ledger of first attempts, USD 415), giving a batch ceiling of 799 for priority-p1's total (its 240.67 so far plus the reruns and the 13 unlaunched trials, est. 375); P2 (a2_no_sprint_plan, a3_one_voice at rung 2, est. 398) gets 1,500 - spend after P1 - 250 - 36, expected about 424; rung 3 (A3 review 3 to 2) is the next cut if P2 does not fit."
+    rationale: "the launch-time 1,039 was computed before the outage; the assumed-cap charges that triggered the cut were not real spend, and the real figure leaves room for the pre-registered plan"
+    alternatives_considered:
+      - option: "keep --max-usd 1039 on resume"
+        rejected_because: "the launch-time figure no longer follows the formula once real spend is known"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "84de21df"
+    source: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L44)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T01:58:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L44)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0553"
+    created_at: "2026-10-16T01:59:00Z"
+    updated_at: "2026-10-16T01:59:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Outage rows re-run on resume: transport/interrupted rows get a fresh -r dir under their run_id, the row replaced in place; assumed charge released (L43)"
+    decision: "run-ablation.sh gains --rerun-status STATUS (transport_error | interrupted | infrastructure_error) and --rerun RUN_ID on --resume: the flagged run_ids leave the done set, run again at their plan index into a fresh -r<k> dir, and their rows are replaced in place when the new row lands (STATUS.rerun[] {run_id, from, to, old_cost_usd, at}); the first-attempt costs stay in spend.ledger_usd; a flagged row contributes no assumed-cap charge during reconciliation. priority-p1 resumes with --rerun-status transport_error for the 67 outage rows."
+    rationale: "DEC-0405 pre-registers that an interrupted trial is rerun by --resume when budget allows and the pre-registration names the outage clause; leaving 67 outage rows excluded would read every arm Inconclusive-by-degradation on an infrastructure event that hit the arms evenly (A0 23, A1 30, A4 14)"
+    alternatives_considered:
+      - option: "start a new batch for the lost trials"
+        rejected_because: "new run_ids would double the plan positions already rowed and split the batch record; the pre-registration forbids a second batch in parallel"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "84de21df"
+    source: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L43)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T01:59:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L43)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0554"
+    created_at: "2026-10-16T01:59:02Z"
+    updated_at: "2026-10-16T01:59:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Outage breaker: three consecutive transport_error collections stop launches, the batch ends partial with an outage record; resume with --rerun-status (L44)"
+    decision: "run-ablation.sh stops launching after LOA_ABLATION_OUTAGE_BREAKER (default 3) consecutive transport_error collections, lets running trials end, writes STATUS.outage {at, consecutive, last_run_id, message} and finishes partial (exit 1); a non-transport collection resets the counter; --resume clears outage into outage_history[]."
+    rationale: "the P1 outage burned 67 trials into excluded rows and USD 804 of assumed charges over six hours because nothing stopped the plan; the pre-registration already says resume after the breaker closes, but no breaker existed"
+    alternatives_considered:
+      - option: "longer retry waits per trial"
+        rejected_because: "a six-hour outage exceeds any sane per-trial wait and the pre-registered rule is one retry"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "84de21df"
+    source: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L44)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T01:59:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#p1-stopped-by-a-six-hour-dns-outage (L44)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
