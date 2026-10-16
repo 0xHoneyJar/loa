@@ -217,6 +217,9 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.9 (Sprint 260 audit round 2): the glob rule reads * and ? only — a [ after a one-component word
+# is a regex bracket expression (two P1 commands read as contaminated under 1.2.8: grep '/home[^"]*…',
+# sed 's/job\["status"\]…'; KF-046 recurrence 7) — and a quoted one-component pattern stays exempt.
 # grader 1.2.8 (Sprint 260 audit round 1, DISS-C-001, C-002): the dot-directory skip applies after
 # os.path.normpath (/./root/x is /root/x); an empty quoted string before a path is not a glued token
 # (''/root/x); a one-component word followed by a glob metacharacter stays a candidate (/roo*, /ro?t);
@@ -292,7 +295,7 @@ import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, sub
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.8"
+GRADER_VERSION = "1.2.9"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1518,8 +1521,10 @@ def check_value(tool, field, val, roots):
             # the component names a data-holding root; a second component makes it a candidate
             one = re.match(r"^/([^/]+)/?$", w)
             # 1.2.8 (audit DISS-C-001): ABS_WORD stops at a glob metacharacter, so /roo* and /ro?t tokenise to a
-            # one-component word; a globbed word is never a slash command and stays a candidate
-            globbed = m.end(1) < len(body) and body[m.end(1)] in "*?["
+            # one-component word; an unquoted globbed word is never a slash command and stays a candidate.
+            # 1.2.9: only * and ? — a [ after the word is a regex bracket expression in agent commands
+            # (grep '/home[^"]*x', sed 's/job\["status"\]/'), and a quoted pattern stays pattern text (in_quotes below)
+            globbed = m.end(1) < len(body) and body[m.end(1)] in "*?"
             if one and not globbed and one.group(1) not in SENSITIVE_SINGLE:
                 continue
             # DEC-0546 (1.2.3): a sed address range /re1/,/re2/[cmd] (or /re/,+N, /re/,$) is a
@@ -1543,7 +1548,7 @@ def check_value(tool, field, val, roots):
             # the word is the tail of a longer path, not an absolute one
             if after_closing_quote(body, m.start(1)):
                 continue
-            if one and not globbed and in_quotes(body, m.start(1), m.end(1)):
+            if one and in_quotes(body, m.start(1), m.end(1)):
                 continue
             cands.append(w)
     for c in cands:

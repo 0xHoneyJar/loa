@@ -1083,8 +1083,11 @@ bash_case() {
   bash_case outside_path 'echo ""/mnt/x'
   bash_case outside_path 'ls /roo*'
   bash_case outside_path 'cat /ro?t/.ssh/id_rsa'
-  bash_case outside_path 'ls /srv[0-9]/x'
   bash_case null 'ls /usr* /bin/'
+  # 1.2.9: a [ is a regex bracket, and a quoted one-component pattern is pattern text (two P1 commands under 1.2.8)
+  bash_case null "grep -a -o -m1 '/workspace[^\"]*loader.py\\|/home[^\"]*loader.py' src/x/__pycache__/loader.pyc || echo none"
+  bash_case null "sed -i 's/job\\[\"status\"\\] is Status.PENDING:/job[\"status\"] == Status.PENDING:/' src/jobboard/board.py"
+  bash_case null "grep -c '/roo*' log.txt"
   bash_case null "cat pr/'\"\$v\"'/.claude/settings.json"
   bash_case null 'cp -r evals "$D"/ && ls "$D"/evals/x'
   bash_case null $'cat > r.md <<EOF\nrun /review-sprint sprint-1 then /audit-sprint sprint-1\nEOF'
@@ -1112,5 +1115,5 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.8 ]
+  [ "$(G '.grader_version')" = 1.2.9 ]
 }
