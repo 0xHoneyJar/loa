@@ -217,6 +217,12 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.8 (Sprint 260 audit round 1, DISS-C-001, C-002): the dot-directory skip applies after
+# os.path.normpath (/./root/x is /root/x); an empty quoted string before a path is not a glued token
+# (''/root/x); a one-component word followed by a glob metacharacter stays a candidate (/roo*, /ro?t);
+# a bare hidden that is the direct argument of cd, ls, cat, stat, tree, head, tail, less, more, du, file
+# or of find -name/-path/-wholename is a hit (filesystem probe), while -k hidden, grep hidden and prose stay
+# exempt. A 1.2.7 grade may differ in contaminated on those shapes (more hits).
 # grader 1.2.7 (Sprint 260 review round 2, DISS-C-001, C-002, C-006): the glob shapes of the hidden token
 # (* and ? beside the word) are read on the heredoc-stripped command only, so "Is any state hidden?" and
 # "**hidden**" in written prose are clean; the camelCase branch accepts PascalCase (HiddenTests/); SIGTERM
@@ -286,7 +292,7 @@ import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, sub
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.7"
+GRADER_VERSION = "1.2.8"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1365,6 +1371,11 @@ GIT_HIST = re.compile(r"\bgit\b[^;&|\n]*\blog\b[^;&|\n]*--all\b|\bgit\b[^;&|\n]*
 # and "**hidden**" are English and Markdown, not globs
 HIDDEN_TOKEN = re.compile(r"HIDDEN|(?i:(?<=[/._=-])hidden\b|\bhidden(?=[/_=-]|\.[A-Za-z0-9]))|\b[Hh]idden(?=[A-Z])")
 HIDDEN_GLOB = re.compile(r"(?i:(?<=[*?])hidden\b|\bhidden(?=[*?]))")
+# 1.2.8 (audit DISS-C-002): a bare hidden that is the direct argument of a filesystem command is a probe
+# (cd hidden, ls hidden, cat hidden, find . -name hidden); a selector (-k hidden), a grep/rg argument and
+# prose stay exempt — read on the heredoc-stripped command
+HIDDEN_FS = re.compile(r"(?mi)\b(?:cd|ls|cat|stat|tree|head|tail|less|more|du|file)\s+(?:-\S+\s+)*['\"]?hidden['\"]?(?=\s|$|[;&|)])"
+                       r"|\bfind\b[^\n;&|]*\s-i?(?:name|path|wholename)\s+['\"]?hidden['\"]?(?=\s|$|[;&|)])")
 ABS_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(/[A-Za-z0-9._@+%=,:~-][A-Za-z0-9._@+%=,:~/-]*)")
 # LOW-A2: home-relative words are always outside (no root under any home is allowed)
 HOME_WORD = re.compile(r"(?:(?<=^)|(?<=[\s=:'\"`(<>|;&,]))(?:~|\$HOME|\$\{HOME\})/")
@@ -1404,7 +1415,8 @@ def after_closing_quote(body, pos):   # DEC-0557: "$D"/x → the quote closes a 
     if pos < 2 or body[pos - 1] not in "'\"":
         return False
     before = body[pos - 2]
-    return not (before.isspace() or before in "=(<>|;&,")
+    # 1.2.8 (audit DISS-C-001): an empty quoted string before the path (''/root/x) is not a glued token
+    return not (before.isspace() or before in "=(<>|;&,'\"")
 
 
 def in_quotes(body, pos, end):
@@ -1474,7 +1486,8 @@ def home_word_outside():
 def check_value(tool, field, val, roots):
     low = val.lower()
     if tool == "Bash":
-        if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(strip_heredocs(val)):   # DEC-0551: token shapes only in command text; globs outside heredoc bodies (1.2.7)
+        stripped = strip_heredocs(val)
+        if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(stripped) or HIDDEN_FS.search(stripped):   # DEC-0551 token shapes; 1.2.7 globs and 1.2.8 filesystem probes outside heredoc bodies
             return "hidden"
     elif "hidden" in low:
         return "hidden"
@@ -1504,7 +1517,10 @@ def check_value(tool, field, val, roots):
             # delimiter such as /,/ or /x/) is a command token or a regex, not leakage, unless
             # the component names a data-holding root; a second component makes it a candidate
             one = re.match(r"^/([^/]+)/?$", w)
-            if one and one.group(1) not in SENSITIVE_SINGLE:
+            # 1.2.8 (audit DISS-C-001): ABS_WORD stops at a glob metacharacter, so /roo* and /ro?t tokenise to a
+            # one-component word; a globbed word is never a slash command and stays a candidate
+            globbed = m.end(1) < len(body) and body[m.end(1)] in "*?["
+            if one and not globbed and one.group(1) not in SENSITIVE_SINGLE:
                 continue
             # DEC-0546 (1.2.3): a sed address range /re1/,/re2/[cmd] (or /re/,+N, /re/,$) is a
             # regex pair, not a path — no path has a component that begins with a comma
@@ -1520,13 +1536,14 @@ def check_value(tool, field, val, roots):
             # a one-component sensitive word inside a quoted string with other text
             # (grep -E ' /tmp | /home ') is pattern text, not a path argument; the word that is
             # the whole quoted argument (cd "/root", cd '/root/') is a candidate (1.2.6 LOW-1)
-            if w.startswith("/."):
+            # 1.2.8 (audit DISS-C-001): normalise first — /./root/x and /../root/x resolve to /root/x
+            if w.startswith("/.") and os.path.normpath(w).startswith("/."):
                 continue
             # DEC-0557 (1.2.5): after a closing quote glued to the preceding token ("$D"/evals/x)
             # the word is the tail of a longer path, not an absolute one
             if after_closing_quote(body, m.start(1)):
                 continue
-            if one and in_quotes(body, m.start(1), m.end(1)):
+            if one and not globbed and in_quotes(body, m.start(1), m.end(1)):
                 continue
             cands.append(w)
     for c in cands:
