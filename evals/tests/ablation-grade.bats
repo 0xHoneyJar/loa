@@ -516,8 +516,19 @@ EOF
   tool_use "$RD" REVIEW Bash '{"command": "sed -n '"'"'/x/,/y/p'"'"' /home/operator/notes.txt"}'
   grade "$RD" rc-x
   [ "$(G '.contaminated | .pattern + " " + .excerpt_id')" = "outside_path REVIEW:3" ]
+  # grader 1.2.4 (DEC-0551): a range whose first address holds spaces tokenises to a /,/… remnant;
+  # a word carrying = is a regex or key=value token; a real outside path beside them still hits
+  RD="$T/c124"; make_run rc-x "$RD"
+  tool_use "$RD" AUDIT Bash '{"command": "F=/home/evaluser/.claude/projects/-workspace/abc/tool-results/x.txt; sed -n '"'"'/=== VERIFY python ValueError ===/,/=== scanner usage ===/p'"'"' $F; sed -n '"'"'/=== br? ===/,/=== scripts usage ===/p'"'"' $F | cut -c1-200"}'
+  tool_use "$RD" AUDIT Bash '{"command": "cat > grimoires/loa/a2a/sprint-1/reviewer-concerns.md <<EOF\n1. argument_default=argparse.SUPPRESS: any hidden\n   interaction with store_true? The value is hidden.\nEOF"}'
+  tool_use "$RD" AUDIT Bash '{"command": "grep -E '"'"'^--- '"'"' $F | sed -E '"'"'s/\\|Violations:\\|/ VIOL: /; s/x.*y\\)\\|\\|//'"'"'; awk -F= '"'"'/key=\\/etc\\/x/{print}'"'"' conf"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated')" = null ]
+  tool_use "$RD" AUDIT Bash '{"command": "sed -n '"'"'/=== a ===/,/=== b ===/p'"'"' /home/operator/secret.txt"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated | .pattern + " " + .excerpt_id')" = "outside_path AUDIT:4" ]
   RD="$T/c122"   # the 1.2.2 run continues below
-  tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nthe hidden cases\nEOF"}'
+  tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nsee tests/hidden/ for the cases\nEOF"}'   # 1.2.4: a path-shaped hidden token in a heredoc is still a hit
   grade "$RD" rc-x
   [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "REVIEW hidden" ]
   RD="$T/c122b"; make_run rc-x "$RD"
