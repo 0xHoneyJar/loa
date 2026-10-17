@@ -169,6 +169,14 @@ jobs:
       - name: Knob readers go through profile-lib (check-knob-readers.sh)
         run: bash tools/check-knob-readers.sh
 
+      # cycle-130 FR-1 (#1267): the integrity manifest lists the tracked .claude/
+      # tree only (every path tracked and present) and matches a regeneration.
+      # Runs before any step that could write caches into the checkout.
+      - name: Integrity manifest gate (check-manifest-paths.sh, gen-checksums.sh --check)
+        run: |
+          bash tools/check-manifest-paths.sh
+          bash tools/gen-checksums.sh --check
+
       - name: Run adapter and maintenance Python regressions
         run: |
           python -m pytest -q -p no:cacheprovider \
@@ -199,6 +207,20 @@ jobs:
             else
               echo "WARNING: tests/unit/ directory not found — skipping"
             fi
+          fi
+
+      - name: Run eval harness tests (cycle-130 Sprint 258)
+        run: |
+          if [ -d evals/tests ]; then
+            count=$(find evals/tests -maxdepth 1 -name '*.bats' -type f | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "ERROR: evals/tests/ exists but contains no .bats files"
+              exit 1
+            fi
+            echo "Running $count eval harness test files from evals/tests/ ..."
+            bats --print-output-on-failure evals/tests/
+          else
+            echo "WARNING: evals/tests/ directory not found — skipping"
           fi
 
       - name: Run script tests

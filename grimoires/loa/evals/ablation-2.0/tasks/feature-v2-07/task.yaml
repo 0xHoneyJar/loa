@@ -1,0 +1,16 @@
+id: feature-v2-07
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E3 swap round 1 (hardened): five-field cron expressions with next fire, previous fire, counts and n-th fire defined over the fire set on local wall time (gap skipped, overlap fires at its first occurrence, horizon and span bounds), plus POSIX-TZ-style rule zones (inverted offset sign, Jn / n / Mm.w.d dates, times beyond the day, exact ordered errors), wired into a simulated-clock job scheduler"}
+post_cutoff: true
+fixture: tasks/feature-v2-07/fixture
+criterion: "jobs gain cron schedules (five fields with names, lists, ranges, steps, last, nearest and nth weekday items, the either-day rule, macros and exact ordered errors) whose fire set on local wall time skips nonexistent wall times and fires repeated ones once at their first occurrence, with the next fire, the previous fire, the count in a span and the n-th fire defined over that set within the stated bounds, zones given as rule strings with the stated sign, date and time rules and exact ordered errors, all wired into the zone file, schedule parsing, the jobs file, the agenda, the runner and new next, prev and count commands"
+success_criterion: "hidden/tests/test_zq_cron_accept.py (overlaid at tests/acceptance/test_zq_cron_accept.py, with its reference model hidden/tests/_oracle_zq_cron.py beside it) passes 56 of 56 (38 hand-written, 18 conformance; 34 on the previous-fire, count, n-th and rule-zone components) under python3 -m pytest -q tests (92 of 92 with the fixture suite); red at base (56 failed, 36 passed), green with hidden/reference.patch; regression_command (the fixture suite, 36 cases) green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cronq.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

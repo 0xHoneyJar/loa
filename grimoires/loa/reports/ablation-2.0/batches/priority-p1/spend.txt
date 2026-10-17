@@ -1,0 +1,8 @@
+2026-10-15T11:27:46Z cycle spend USD 151.41 (runs 121.98 + ledger 29.43 since 2026-10-14T13:50:00Z); cap 1,500; headroom 1,348.59; reserve 250
+2026-10-15T11:27:46Z batch priority-p1 spend USD 42.9006302 (rows 42.9006302 + first attempts 0; 0 assumed cap charge(s)); max 1039
+2026-10-15T21:04:41Z cycle spend USD 327.48 (runs 298.05 + ledger 29.43 since 2026-10-14T13:50:00Z); cap 1,500; headroom 1,172.52; reserve 250
+2026-10-15T21:04:41Z batch priority-p1 spend USD 1044.674677 (rows 218.9730264 + first attempts 21.701651; 67 assumed cap charge(s)); max 1039
+2026-10-16T09:06:37Z cycle spend USD 700.94 (runs 671.50 + ledger 29.43 since 2026-10-14T13:50:00Z); cap 1,500; headroom 799.06; reserve 250
+2026-10-16T09:06:37Z batch priority-p1 spend USD 614.1313578 (rows 592.4297064 + first attempts 21.701651; 0 assumed cap charge(s)); max 799
+2026-10-16T09:09:27Z cycle spend USD 700.94 (runs 671.50 + ledger 29.43 since 2026-10-14T13:50:00Z); cap 1,500; headroom 799.06; reserve 250
+2026-10-16T09:09:27Z batch priority-p1 spend USD 614.1313573 (rows 592.4297064 + first attempts 21.701651; 0 assumed cap charge(s)); max 799

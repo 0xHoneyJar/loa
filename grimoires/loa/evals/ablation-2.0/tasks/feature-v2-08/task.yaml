@@ -1,0 +1,16 @@
+id: feature-v2-08
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E3 swap round 1 (hardened): a snapshot tool with exact-path excludes gains a segment-wise glob matcher whose extended groups ?() *() +() @() !() are defined as string sets over every cut of a segment (!() complement, empty pieces, nesting, brackets and escapes inside, unclosed-group errors), brace expansion of rule lines and patterns (nested lists, product order, padded and stepped sequences, literal fallbacks, duplicate removal, a 256 limit), gitignore-style rules files, depth-ordered last-match evaluation with pruning and config entries, and check-ignore and match commands"}
+post_cutoff: true
+fixture: tasks/feature-v2-08/fixture
+criterion: "snapshots gain glob ignore rules: a segment-by-segment glob matcher with escapes, the stated bracket tokens, ranges, ASCII classes, double-star segments, case folding and extended groups whose meaning is the stated set definition over every cut of a segment including complement groups; brace expansion of rule lines and patterns with nested lists, padded and stepped sequences, literal fallbacks, duplicate removal and a size limit; rules files in every directory with the stated comment, escape, trailing-space, negation, directory-only and anchoring rules; last-match evaluation over files ordered by depth with config entries and no re-inclusion inside an excluded directory; walker, snapshot and du integration with two new config keys; and check-ignore and match commands with the stated output lines, exit statuses and errors"
+success_criterion: "hidden/tests/test_zq_snapx_accept.py (39 cases) and hidden/tests/test_zq_snapgen_accept.py (21 conformance cases against hidden/tests/_oracle_zq_snap.py), overlaid under tests/acceptance/, pass 60 of 60 under python3 -m pytest -q tests (87 of 87 with the fixture suite); red at base (60 failed, 27 passed), green with hidden/reference.patch; regression_command (the fixture suite, 27 cases) green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_snapkit.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

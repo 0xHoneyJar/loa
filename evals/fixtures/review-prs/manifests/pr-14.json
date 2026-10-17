@@ -81,13 +81,6 @@
       "source": "fix/e170de3d2758:478-478"
     },
     {
-      "id": "F006",
-      "file": ".claude/defaults/model-config.yaml.checksum",
-      "start": 1,
-      "end": 1,
-      "source": "fix/e170de3d2758:1-1"
-    },
-    {
       "id": "F007",
       "file": ".claude/hooks/compliance/implement-gate.sh",
       "start": 13,
@@ -324,62 +317,6 @@
       "start": 108,
       "end": 110,
       "source": "fix/e170de3d2758:108-110"
-    },
-    {
-      "id": "F041",
-      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
-      "start": 3,
-      "end": 4,
-      "source": "fix/e170de3d2758:3-4"
-    },
-    {
-      "id": "F042",
-      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
-      "start": 105,
-      "end": 105,
-      "source": "fix/e170de3d2758:105-105"
-    },
-    {
-      "id": "F043",
-      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
-      "start": 121,
-      "end": 121,
-      "source": "fix/e170de3d2758:121-121"
-    },
-    {
-      "id": "F044",
-      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
-      "start": 125,
-      "end": 125,
-      "source": "fix/e170de3d2758:125-125"
-    },
-    {
-      "id": "F045",
-      "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map",
-      "start": 1,
-      "end": 1,
-      "source": "fix/e170de3d2758:1-1"
-    },
-    {
-      "id": "F046",
-      "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.js",
-      "start": 14,
-      "end": 14,
-      "source": "fix/e170de3d2758:14-14"
-    },
-    {
-      "id": "F047",
-      "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.js",
-      "start": 50,
-      "end": 50,
-      "source": "fix/e170de3d2758:50-50"
-    },
-    {
-      "id": "F048",
-      "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map",
-      "start": 1,
-      "end": 1,
-      "source": "fix/e170de3d2758:1-1"
     },
     {
       "id": "F049",

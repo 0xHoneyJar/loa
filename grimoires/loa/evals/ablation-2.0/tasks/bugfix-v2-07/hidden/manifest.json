@@ -1,0 +1,1 @@
+{"files": [{"src": "tests/test_block_structure.py", "dest": "tests/acceptance/test_block_structure.py"}, {"src": "tests/_oracle_mdblocks.py", "dest": "tests/acceptance/_oracle_mdblocks.py"}]}

@@ -44,28 +44,47 @@ check_mounted() {
   log "Loa mounted: v$(jq -r '.framework_version' "$VERSION_FILE")"
 }
 
+# cycle-130 FR-1 (#1267; SDD §5.3): three outcomes per manifest path.
+#   present, hash matches            -> ok
+#   present, hash differs            -> Tampered (fail)
+#   absent, submodule mount detected (.loa/.claude is a directory) and the
+#     path exists under .loa/<path>   -> not-mounted (counted, one summary
+#     line, informational: never changes the exit code; the mount links a
+#     subset of the upstream tree by design)
+#   absent otherwise                 -> Missing (fail)
+# The manifest is read once (path<TAB>hash) instead of one jq call per path.
 check_integrity() {
   echo "Checking System Zone integrity (sha256)..."
   [[ -f "$CHECKSUMS_FILE" ]] || { warn "No checksums file - skipping integrity check"; return; }
 
   local drift=false
-  while IFS= read -r file; do
-    local expected=$(jq -r --arg f "$file" '.files[$f]' "$CHECKSUMS_FILE")
-    [[ -z "$expected" || "$expected" == "null" ]] && continue
+  local submodule_mount=false
+  local not_mounted=0
+  local file expected actual
+  [[ -d ".loa/.claude" ]] && submodule_mount=true
+
+  while IFS=$'\t' read -r file expected; do
+    [[ -z "$file" || -z "$expected" || "$expected" == "null" ]] && continue
 
     if [[ -f "$file" ]]; then
-      local actual=$(sha256_portable "$file" | cut -d' ' -f1)
+      actual=$(sha256_portable "$file" | cut -d' ' -f1)
       if [[ "$expected" != "$actual" ]]; then
         fail "Tampered: $file"
         drift=true
       fi
+    elif [[ "$submodule_mount" == "true" && -f ".loa/${file}" ]]; then
+      not_mounted=$((not_mounted + 1))
     else
       fail "Missing: $file"
       drift=true
     fi
-  done < <(jq -r '.files | keys[]' "$CHECKSUMS_FILE")
+  done < <(jq -r '.files | to_entries[] | "\(.key)\t\(.value)"' "$CHECKSUMS_FILE")
 
+  if [[ $not_mounted -gt 0 ]]; then
+    log "not-mounted: ${not_mounted} path(s) exist in the upstream tree but are not linked by this mount"
+  fi
   [[ "$drift" == "false" ]] && log "Integrity verified"
+  return 0
 }
 
 # cycle-115: Aleph owns a stronger, exact managed-tree receipt covering its

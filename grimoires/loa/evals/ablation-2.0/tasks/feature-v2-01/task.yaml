@@ -1,0 +1,16 @@
+id: feature-v2-01
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D2: a filter registry with precedence (built-in, config file, command line; definitions, removals, validation, sorted listing, exact error contract)"}
+post_cutoff: true
+fixture: tasks/feature-v2-01/fixture
+criterion: "the text filter tool gains user-defined filters from the config file and the command line: built-in steps only, removal that brings nothing back, precedence built-in then config then command line with removals after definitions in each source, the config apply list checked against the complete registry, a sorted listing with sources, and the exact usage-error messages for invalid names, shapes, unknown steps, duplicates and unknown filters"
+success_criterion: "hidden/tests/test_user_filters.py (overlaid at tests/acceptance/test_user_filters.py) passes 16 of 16 under python3 -m pytest -q tests (31 of 31 with the fixture suite); red at base (16 failed, 15 passed), green with hidden/reference.patch; regression_command (fixture suite, 15 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/helpers.py, tests/test_cli.py, tests/test_config.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

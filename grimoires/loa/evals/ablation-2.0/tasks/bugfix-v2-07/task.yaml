@@ -1,0 +1,16 @@
+id: bugfix-v2-07
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D3 swap round 1 (replaced component): CommonMark 0.31.2 block structure (thematic breaks, ATX and setext headings, indented and fenced code, block quotes with lazy continuation, bullet and ordered lists with content columns, interruption rules, list-type changes and tight/loose by end lines) rendered as markdown-it 14.1.0 HTML; the fixture deviates in eight modules, partly in its own designs (a regex list-marker reader, blank-line flags for looseness, a direct tree renderer)"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-07/fixture
+criterion: "the Markdown block parser and renderer conform to every numbered rule of the brief: the three-step line algorithm with its continuation and start rules, thematic-break and setext precedence, list-item content columns, paragraph interruption, empty items, list-type changes, ordered start numbers, fence closing and indentation, ATX closing sequences, lazy continuation, looseness from block end lines, and markdown-it's exact HTML layout including tight items"
+success_criterion: "hidden/tests/test_block_structure.py (overlaid at tests/acceptance/test_block_structure.py beside its reference model hidden/tests/_oracle_mdblocks.py) passes 35 of 35 (20 scenario tables checked against markdown-it 14.1.0, 15 conformance profiles of generated documents) under python3 -m pytest -q tests; red at base (35 failed, 28 passed of 63: none of the 35 hidden cases and all 28 fixture cases pass), green with hidden/reference.patch (63 of 63); regression_command (fixture suite: 28 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cli.py, tests/test_containers.py, tests/test_leaves.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

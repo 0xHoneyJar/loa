@@ -1,0 +1,143 @@
+diff -ruN a/src/kvconf/escape.py b/src/kvconf/escape.py
+--- a/src/kvconf/escape.py
++++ b/src/kvconf/escape.py
+@@ -2,6 +2,7 @@
+ from .model import ParseError
+ 
+ ESCAPES = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r"}
++DECODE = {"\\": "\\", '"': '"', "n": "\n", "t": "\t", "r": "\r"}
+ 
+ 
+ def quote(value):
+@@ -27,6 +28,22 @@
+ 
+ 
+ def unquote(body, line):
+-    """Decode the escapes of a quoted body."""
+-    return (body.replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r")
+-            .replace('\\"', '"').replace("\\\\", "\\"))
++    """Decode the escapes of a quoted body in one left-to-right pass.
++
++    Chained ``str.replace`` calls cannot do this: whichever escape is
++    decoded first also matches inside another (``\\\\n`` is a backslash
++    and an ``n``, not a backslash and a newline).
++    """
++    out, i = [], 0
++    while i < len(body):
++        ch = body[i]
++        if ch != "\\":
++            out.append(ch)
++            i += 1
++            continue
++        nxt = body[i + 1] if i + 1 < len(body) else ""
++        if nxt not in DECODE:
++            raise ParseError(line, f"bad escape: \\{nxt}")
++        out.append(DECODE[nxt])
++        i += 2
++    return "".join(out)
+diff -ruN a/src/kvconf/model.py b/src/kvconf/model.py
+--- a/src/kvconf/model.py
++++ b/src/kvconf/model.py
+@@ -49,23 +49,27 @@
+         return None
+ 
+     def add_section(self, name):
++        """Append a section unless one of the same name (any case) exists.
++
++        Returns the section's spelling in this config.
++        """
+         _check_name("section", name)
+-        for entry in self._sections:
+-            if entry[0] == name:
+-                return entry[0]
+-        self._sections.append([name, []])
+-        return name
++        entry = self._find(name)
++        if entry is None:
++            entry = [name, []]
++            self._sections.append(entry)
++        return entry[0]
+ 
+     def set(self, section, key, value):
++        """Set a value; an existing key of the same name (any case) keeps
++        its spelling and position, a new one is appended."""
+         _check_name("key", key)
+         if not isinstance(value, str):
+             raise ConfigError(f"value of {key} must be a string")
+-        self.add_section(section)
+-        for entry in self._sections:
+-            if entry[0] == section:
+-                break
++        entry = self._find(self.add_section(section))
++        wanted = norm(key)
+         for pair in entry[1]:
+-            if pair[0] == key:
++            if norm(pair[0]) == wanted:
+                 pair[1] = value
+                 return
+         entry[1].append([key, value])
+diff -ruN a/src/kvconf/reader.py b/src/kvconf/reader.py
+--- a/src/kvconf/reader.py
++++ b/src/kvconf/reader.py
+@@ -50,6 +50,6 @@
+         if norm(key) in seen_keys:
+             raise ParseError(n, f"duplicate key: {key}")
+         seen_keys.add(norm(key))
+-        # keys are matched case-insensitively, so they are stored in one case
+-        config.set(section, key.lower(), parse_value(rest, n))
++        # names are matched case-insensitively but keep their spelling
++        config.set(section, key, parse_value(rest, n))
+     return config
+diff -ruN a/src/kvconf/writer.py b/src/kvconf/writer.py
+--- a/src/kvconf/writer.py
++++ b/src/kvconf/writer.py
+@@ -3,8 +3,15 @@
+ 
+ 
+ def needs_quotes(value):
+-    """Whether ``value`` cannot be written bare."""
+-    return (value == "" or value[0].isspace() or value[0] == '"'
++    """Whether ``value`` cannot be written bare.
++
++    The reader strips surrounding whitespace from a bare value, ends it at an
++    inline comment and treats a leading quote as the start of a quoted value,
++    so each of those has to be quoted, as do the characters only an escape
++    can carry.
++    """
++    return (value == "" or value[0].isspace() or value[-1].isspace()
++            or value[0] == '"' or "#" in value or ";" in value
+             or any(ch in value for ch in '\\"\n\t\r'))
+ 
+ 
+diff -ruN a/tests/test_regressions.py b/tests/test_regressions.py
+--- a/tests/test_regressions.py
++++ b/tests/test_regressions.py
+@@ -0,0 +1,28 @@
++import pytest
++
++from kvconf import Config, ParseError, dumps, loads, merge
++
++
++def test_awkward_values_round_trip():
++    config = Config()
++    for i, value in enumerate(["x ", "a # b", "a ;b", "C:\\new\\temp", "a\\\\n\nb", ""]):
++        config.set("s", f"k{i}", value)
++    assert loads(dumps(config)) == config
++
++
++def test_unknown_escape_is_refused():
++    with pytest.raises(ParseError, match=r"^line 2: bad escape: \\q$"):
++        loads('[s]\nk = "\\q"\n')
++
++
++def test_names_keep_spelling_and_match_any_case():
++    config = loads("[User]\nDisplayName = Al\n")
++    assert config.keys("user") == ["DisplayName"]
++    config.set("USER", "displayname", "Bo")
++    assert config.items("User") == [("DisplayName", "Bo")]
++
++
++def test_merge_does_not_duplicate_names():
++    merged = merge(loads("[User]\nName = a\n"), loads("[user]\nname = b\n"))
++    assert merged.items("User") == [("Name", "b")]
++    assert loads(dumps(merged)) == merged

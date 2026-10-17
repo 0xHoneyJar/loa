@@ -148,3 +148,159 @@ teardown() {
   [ "$status" -eq 2 ]
   grep -q 'use another --batch' <<<"$output"
 }
+
+# --- cycle-130 Sprint 258 Task 1.4: --max-usd and --screen (PRD AC-2.1, AC-2.4) ---
+# The executor stub reports USD 5 per trial (STUB_COST_USD) through the result
+# event, so every row's executor.total_cost_usd is 5.
+
+@test "RA-6 --max-usd 12 at USD 5 per trial: two launch (0+5, 5+5 <= 12), the third is cut (10+5=15 > 12); STATUS carries cut and cut_reason; exit 1" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=5
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 3 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12
+  [ "$status" -eq 1 ]
+  B="$RES/review-recall/batch-pr-01-pr-01-n1"
+  [ "$(grep -c . "$B/baseline/results.jsonl")" -eq 2 ]
+  [ "$(jq -s -r 'map(.executor.total_cost_usd) | add' "$B/baseline/results.jsonl")" = "10" ]
+  S="$B/STATUS.json"
+  [ "$(jq -r '.state' "$S")" = "partial" ]
+  [ "$(jq -r '.cut_reason' "$S")" = "max_usd" ]
+  [ "$(jq -r '.cut.reason' "$S")" = "max_usd" ]
+  [ "$(jq -r '.cut.spent' "$S")" = "10" ]
+  [ "$(jq -r '.cut.in_flight_reserved' "$S")" = "0" ]
+  [ "$(jq -r '.cut.max' "$S")" = "12" ]
+  [ "$(jq -r '.cut.trials_launched' "$S")" = "2" ]
+  [ "$(jq -r '.cut.at_trial' "$S")" = "3" ]
+  [ "$(jq -r '.cut.est_next' "$S")" = "5" ]
+  [ "$(jq -r '.spend.spent_usd' "$S")" = "10" ]
+  [ "$(jq -r '.per_arm.baseline.trials_done' "$S")" = "2" ]
+  [ "$(jq -r '.per_arm.baseline.trials_planned' "$S")" = "3" ]
+  [ "$(jq -r '.spend.max_usd' "$B/MANIFEST.json")" = "12" ]
+  [ "$(jq -r '.spend.run_cap_usd' "$B/MANIFEST.json")" = "12" ]
+  grep -q 'cut: max_usd 12 reached after 2 trials' "$B/run.log"
+  # the suite aggregate lists the cut
+  [ "$(jq -r '.cuts[0].reason + " " + .cuts[0].batch' "$RES/review-recall/STATUS.json")" = "max_usd batch-pr-01-pr-01-n1" ]
+}
+
+@test "RA-7 without --max-usd the same USD 5 trials all run: exit 0, no cut, no spend block (behaviour unchanged)" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=5
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 3 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  [ "$(jq -r '.state' "$S")" = "complete" ]
+  [ "$(jq -r '.per_arm.baseline.trials_done' "$S")" = "3" ]
+  [ "$(jq -r 'has("cut") or has("cut_reason") or has("spend")' "$S")" = "false" ]
+  [ "$(jq -r '.spend.max_usd' "$RES/review-recall/batch-pr-01-pr-01-n1/MANIFEST.json")" = "null" ]
+  [ "$(jq -c '.cuts' "$RES/review-recall/STATUS.json")" = "[]" ]
+}
+
+@test "RA-8 --screen runs one trial of the first 2 fixtures per arm into screen-<ts>/, prints the per-arm table and writes no suite STATUS.json" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=5
+  run "$RA" --suite review-recall --arms baseline,no_rule_files --fixtures pr-01,pr-02,pr-03 --trials 3 --screen \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --concurrency 2
+  [ "$status" -eq 0 ] || [ "$status" -eq 1 ]
+  [ ! -e "$RES/review-recall/STATUS.json" ]
+  SB="$(ls -d "$RES"/review-recall/screen-*)"
+  [ -d "$SB" ]
+  [ -f "$SB/MANIFEST.json" ] && [ -f "$SB/STATUS.json" ]
+  [ "$(jq -r '.screen' "$SB/STATUS.json")" = "true" ]
+  [ "$(jq -r '.trials_planned' "$SB/MANIFEST.json")" = "4" ]
+  [ "$(jq -c '.fixtures' "$SB/MANIFEST.json")" = '["pr-01","pr-02"]' ]
+  [ "$(cat "$SB"/*/results.jsonl | jq -r '.fixture' | sort -u | tr '\n' ,)" = "pr-01,pr-02," ]
+  grep -qE '^arm +trials +mean_usd +mean_recall$' <<<"$output"
+  grep -qE '^baseline +2 +5 ' <<<"$output"
+  grep -qE '^no_rule_files +2 +5 ' <<<"$output"
+  # a later regular batch: the suite aggregate never reads the screen batch
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.per_arm.baseline.trials_planned' "$RES/review-recall/STATUS.json")" = "1" ]
+  [ "$(jq -r '[.batches[].batch] | join(",")' "$RES/review-recall/STATUS.json")" = "batch-pr-01-pr-01-n1" ]
+}
+
+@test "RA-9 in-flight reservation: concurrency 2, max 15, USD 5 each: 0+1x12+5=17>15 holds trial 2 until trial 1 ends (5+0+5=10), trial 3 likewise (10+5=15), trial 4 cut (15+5=20>15); never two at once" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=5
+  export STUB_CONC_DIR="$T/conc" STUB_SLEEP=2
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 4 --concurrency 2 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 15
+  [ "$status" -eq 1 ]
+  S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  [ "$(jq -r '.cut.trials_launched' "$S")" = "3" ]
+  [ "$(jq -r '.cut.at_trial' "$S")" = "4" ]
+  [ "$(jq -r '.cut.spent' "$S")" = "15" ]
+  [ "$(grep -c . "$T/conc.log")" -eq 3 ]
+  [ "$(sort -n "$T/conc.log" | tail -1)" = "1" ]
+  # the probe does see overlap when no cap reserves the slot
+  export STUB_CONC_DIR="$T/conc2"
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 2 --concurrency 2 --batch overlap \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  [ "$(sort -n "$T/conc2.log" | tail -1)" = "2" ]
+}
+
+@test "RA-10 --max-usd and --screen-tasks refuse malformed values (exit 2)" {
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --source-commit "$SHA" --results-dir "$RES" --max-usd abc
+  [ "$status" -eq 2 ]
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --source-commit "$SHA" --results-dir "$RES" --max-usd 0
+  [ "$status" -eq 2 ]
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --source-commit "$SHA" --results-dir "$RES" --screen --screen-tasks 0
+  [ "$status" -eq 2 ]
+  [ ! -e "$RES/review-recall" ]
+}
+
+@test "RA-11 the suite aggregate excludes screen batches by the STATUS marker, not the directory name" {
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  local suite="$RES/review-recall" one="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  # a regular batch whose directory happens to start with screen-
+  mkdir -p "$suite/screen-foo" "$suite/batch-x"
+  jq '.batch = "screen-foo" | .screen = false' "$one" > "$suite/screen-foo/STATUS.json"
+  # a screen batch (marker true, with a cut) in a directory that does not say so
+  jq '.batch = "batch-x" | .screen = true | .cut = {reason: "max_usd"}' "$one" > "$suite/batch-x/STATUS.json"
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch second \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.batches[].batch] | join(",")' "$suite/STATUS.json")" = "batch-pr-01-pr-01-n1,screen-foo,second" ]
+  [ "$(jq -r '.per_arm.baseline.trials_planned' "$suite/STATUS.json")" = "3" ]
+  [ "$(jq -c '.cuts' "$suite/STATUS.json")" = "[]" ]
+}
+
+@test "RA-12 --batch screen-<name> without --screen is refused (exit 2) and writes nothing" {
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch screen-foo \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"screen- prefix is reserved"* ]]
+  [ ! -e "$RES/review-recall/screen-foo" ]
+}
+
+@test "RA-13 assumed cap (audit MEDIUM-A2): --max-usd 12 --run-cap 5, trial 1 dies twice with no cost, the rest cost USD 2: trial 1 charges 5 and the cut comes at trial 5 (5+2+2+2=11, 11+2=13>12), where uncharged it came at trial 8; spend.assumed_cap_trials 1" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
+  echo 2 > "$T/fails"
+  export STUB_FAIL_COUNTER="$T/fails"
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 8 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
+  [ "$status" -eq 1 ]
+  B="$RES/review-recall/batch-pr-01-pr-01-n1" S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  # trial 1: two transport failures, an error row whose executor reports total_cost_usd 0
+  [ "$(head -1 "$B/baseline/results.jsonl" | jq -r '.status + " " + (.attempts | tostring) + " " + (.executor.total_cost_usd | tostring)')" = "error 2 0" ]
+  [ "$(jq -r '.cut.trials_launched' "$S")" = "4" ]
+  [ "$(jq -r '.cut.at_trial' "$S")" = "5" ]
+  [ "$(jq -r '.cut.spent' "$S")" = "11" ]
+  [ "$(jq -r '.spend.spent_usd' "$S")" = "11" ]
+  [ "$(jq -r '.spend.assumed_cap_trials' "$S")" = "1" ]
+  # the assumed charge never enters the arm mean: the next estimate is the completed trials' USD 2
+  [ "$(jq -r '.cut.est_next' "$S")" = "2" ]
+  [ "$(jq -r '.per_arm.baseline.trials_done' "$S")" = "3" ]
+  [ "$(jq -r '.per_arm.baseline.trials_failed' "$S")" = "1" ]
+  grep -q 'assumed cap: j0001 ended error with no reported cost; USD 5 charged to spent' "$B/run.log"
+}
+
+@test "RA-14 assumed cap: every completed trial reporting its cost leaves assumed_cap_trials 0" {
+  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
+  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 2 --concurrency 1 \
+    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
+  [ "$status" -eq 0 ]
+  S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
+  [ "$(jq -c '.spend' "$S")" = '{"spent_usd":4,"max_usd":12,"assumed_cap_trials":0}' ]
+}

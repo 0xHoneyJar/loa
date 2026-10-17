@@ -1,0 +1,266 @@
+--- a/src/textpipe/cli.py
++++ b/src/textpipe/cli.py
+@@ -1,17 +1,25 @@
+ """textpipe - apply named line filters to text.
+ 
+ Usage:
+-  textpipe [--config PATH] [--apply NAMES] [--number] [--skip-blank] [FILE]
+-  textpipe [--config PATH] --list
++  textpipe [--config PATH] [--define NAME=STEPS]... [--undefine NAME]...
++           [--apply NAMES] [--number] [--skip-blank] [FILE]
++  textpipe [--config PATH] [--define NAME=STEPS]... [--undefine NAME]... --list
+ 
+ Options:
+-  --config PATH   a JSON config file; its `apply` list is used when --apply is not given
++  --config PATH   a JSON config file: `apply` (used when --apply is not given),
++                  `filters` (name -> list of built-in steps) and `disable` (names to remove)
++  --define NAME=STEP[,STEP...]
++                  define a filter from built-in steps (repeatable)
++  --undefine NAME remove a filter (repeatable)
+   --apply NAMES   comma-separated filter names, applied in order to every line
+   --number        prefix each output line with its number
+   --skip-blank    drop lines that are blank after filtering
+   --list          print the available filters and exit
+ 
+-Reads FILE, or standard input when no FILE is given. Errors exit with status 2.
++Filters come from the built-ins, then the config file, then the command line; a
++later definition replaces an earlier one, and within a source removals follow
++definitions. Reads FILE, or standard input when no FILE is given. Errors exit
++with status 2.
+ """
+ 
+ import sys
+@@ -20,23 +28,27 @@
+ from .errors import UsageError
+ from .format import listing
+ from .pipeline import parse_apply, resolve, run
+-from .registry import Registry
++from .registry import build_registry
+ 
+ VALUE_OPTIONS = ("--config", "--apply")
++LIST_OPTIONS = ("--define", "--undefine")
+ FLAG_OPTIONS = ("--number", "--skip-blank", "--list")
+ 
+ 
+ def parse_args(argv):
+     opts = {"config": None, "apply": None, "number": False, "skip_blank": False,
+-            "list": False, "file": None}
++            "list": False, "file": None, "define": [], "undefine": []}
+     args = list(argv)
+     i = 0
+     while i < len(args):
+         arg = args[i]
+-        if arg in VALUE_OPTIONS:
++        if arg in VALUE_OPTIONS or arg in LIST_OPTIONS:
+             if i + 1 >= len(args):
+                 raise UsageError(f"{arg} needs a value")
+-            opts[arg[2:]] = args[i + 1]
++            if arg in LIST_OPTIONS:
++                opts[arg[2:]].append(args[i + 1])
++            else:
++                opts[arg[2:]] = args[i + 1]
+             i += 2
+             continue
+         if arg in FLAG_OPTIONS:
+@@ -69,8 +81,8 @@
+     stderr = stderr if stderr is not None else sys.stderr
+     try:
+         opts = parse_args(argv)
+-        registry = Registry.with_builtins()
+-        config = load_config(opts["config"], registry) if opts["config"] else Config()
++        config = load_config(opts["config"]) if opts["config"] else Config()
++        registry = build_registry(config, opts["define"], opts["undefine"])
+         if opts["list"]:
+             out = listing(registry.entries())
+         else:
+--- a/src/textpipe/config.py
++++ b/src/textpipe/config.py
+@@ -1,21 +1,42 @@
+ """The JSON config file.
+ 
+ Known keys:
+-  apply   list of filter names applied when --apply is not given
++  apply    list of filter names applied when --apply is not given
++  filters  object mapping a filter name to a non-empty list of built-in step names
++  disable  list of filter names removed from the registry
+ """
+ 
+ import json
+ from dataclasses import dataclass, field
+-from typing import List
++from typing import List, Tuple
+ 
+ from .errors import ConfigError
+ 
+-KNOWN_KEYS = ("apply",)
++KNOWN_KEYS = ("apply", "filters", "disable")
+ 
+ 
+ @dataclass
+ class Config:
+     apply: List[str] = field(default_factory=list)
++    filters: List[Tuple[str, List[str]]] = field(default_factory=list)
++    disable: List[str] = field(default_factory=list)
++
++
++class _JSONObject(dict):
++    """A JSON object that remembers the keys it saw more than once."""
++
++    duplicates = ()
++
++
++def _object(pairs):
++    obj = _JSONObject()
++    duplicates = []
++    for key, value in pairs:
++        if key in obj and key not in duplicates:
++            duplicates.append(key)
++        obj[key] = value
++    obj.duplicates = tuple(duplicates)
++    return obj
+ 
+ 
+ def read_config(path):
+@@ -26,7 +47,7 @@
+     except OSError:
+         raise ConfigError(f"cannot read {path}") from None
+     try:
+-        data = json.loads(text)
++        data = json.loads(text, object_pairs_hook=_object)
+     except json.JSONDecodeError:
+         raise ConfigError("not valid JSON") from None
+     if not isinstance(data, dict):
+@@ -34,16 +55,30 @@
+     return data
+ 
+ 
+-def load_config(path, registry):
+-    """Load the config file and check it against `registry`."""
++def _names(value):
++    return isinstance(value, list) and all(isinstance(n, str) and n for n in value)
++
++
++def load_config(path):
++    """Load the config file; names are checked when the registry is built."""
+     data = read_config(path)
+     for key in data:
+         if key not in KNOWN_KEYS:
+             raise ConfigError(f"unknown key {key}")
+     apply = data.get("apply", [])
+-    if not isinstance(apply, list) or not all(isinstance(n, str) and n for n in apply):
++    if not _names(apply):
+         raise ConfigError("apply must be a list of filter names")
+-    for name in apply:
+-        if name not in registry:
+-            raise ConfigError(f"unknown filter: {name}")
+-    return Config(apply=list(apply))
++    disable = data.get("disable", [])
++    if not _names(disable):
++        raise ConfigError("disable must be a list of filter names")
++    filters = data.get("filters", {})
++    if not isinstance(filters, dict):
++        raise ConfigError("filters must be an object")
++    for name in getattr(filters, "duplicates", ()):
++        raise ConfigError(f"duplicate definition of {name}")
++    definitions = []
++    for name, steps in filters.items():
++        if not isinstance(steps, list) or not steps or not all(isinstance(s, str) for s in steps):
++            raise ConfigError(f"invalid definition of {name}: steps must be a non-empty list of names")
++        definitions.append((name, list(steps)))
++    return Config(apply=list(apply), filters=definitions, disable=list(disable))
+--- a/src/textpipe/format.py
++++ b/src/textpipe/format.py
+@@ -3,5 +3,5 @@
+ 
+ def listing(filters):
+     """One line per filter: the name in a column as wide as the longest, two spaces, the description."""
+-    width = max(len(flt.name) for flt in filters)
++    width = max((len(flt.name) for flt in filters), default=0)
+     return [f"{flt.name.ljust(width)}  {flt.description}" for flt in filters]
+--- a/src/textpipe/model.py
++++ b/src/textpipe/model.py
+@@ -4,6 +4,8 @@
+ from typing import Callable, Tuple
+ 
+ BUILTIN = "built-in"
++CONFIG = "config"
++COMMAND_LINE = "command line"
+ 
+ 
+ @dataclass(frozen=True)
+--- a/src/textpipe/registry.py
++++ b/src/textpipe/registry.py
+@@ -1,9 +1,19 @@
+-"""The filter registry."""
++"""The filter registry.
+ 
+-from .errors import RegistryError
+-from .model import Filter
++The registry is built from three sources in order: the built-in filters, the
++config file, the command line. Within a source, definitions come first and
++removals second; a later definition of a name replaces an earlier one.
++"""
++
++import re
++
++from .errors import ConfigError, RegistryError
++from .model import COMMAND_LINE, CONFIG, Filter
+ from .primitives import PRIMITIVES
+ 
++_NAME = re.compile(r"[a-z][a-z0-9_-]{0,31}")
++_DEFINE = re.compile(r"([^=,\s]+)=([^=,\s]+(?:,[^=,\s]+)*)")
++
+ 
+ class Registry:
+     """Filters by name."""
+@@ -32,3 +42,50 @@
+ 
+     def entries(self):
+         return [self._filters[name] for name in self.names()]
++
++    def define(self, name, step_names, source, error=RegistryError):
++        """Register `name` as the built-in steps `step_names`, replacing any earlier filter."""
++        if not isinstance(name, str) or not _NAME.fullmatch(name):
++            raise error(f"invalid filter name: {name}")
++        funcs = []
++        for step in step_names:
++            if step not in PRIMITIVES:
++                raise error(f"unknown step {step} in {name}")
++            funcs.append(PRIMITIVES[step][0])
++        description = f"{' | '.join(step_names)} [{source}]"
++        self._filters[name] = Filter(name, tuple(funcs), description, source)
++
++    def undefine(self, name, error=RegistryError):
++        if name not in self._filters:
++            raise error(f"unknown filter: {name}")
++        del self._filters[name]
++
++
++def parse_define(value):
++    """Split a --define value `NAME=STEP[,STEP...]` into (name, steps)."""
++    match = _DEFINE.fullmatch(value)
++    if not match:
++        raise RegistryError(f"invalid --define value: {value}")
++    return match.group(1), match.group(2).split(",")
++
++
++def build_registry(config, defines=(), undefines=()):
++    """The complete registry: built-ins, then the config file, then the command line."""
++    registry = Registry.with_builtins()
++    for name, steps in config.filters:
++        registry.define(name, steps, CONFIG, error=ConfigError)
++    for name in config.disable:
++        registry.undefine(name, error=ConfigError)
++    seen = set()
++    for value in defines:
++        name, steps = parse_define(value)
++        if name in seen:
++            raise RegistryError(f"duplicate definition of {name} on the command line")
++        seen.add(name)
++        registry.define(name, steps, COMMAND_LINE)
++    for name in undefines:
++        registry.undefine(name)
++    for name in config.apply:
++        if name not in registry:
++            raise ConfigError(f"unknown filter: {name}")
++    return registry

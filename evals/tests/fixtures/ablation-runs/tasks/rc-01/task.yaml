@@ -1,0 +1,7 @@
+id: rc-01
+schema_version: 1
+type: review-catch
+fixture: null
+criterion: "review the change"
+review_catch: {fixture: prs/pr-x}
+suite_version: 1

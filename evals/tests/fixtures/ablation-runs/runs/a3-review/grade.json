@@ -1,0 +1,5 @@
+{"hidden_tests": null, "regressions": null,
+ "recall": {"defects_seeded": 3, "defects_caught": 2, "recall": 0.6667, "flags": 4}, "false_positives": 1,
+ "verdict": {"source_file": "auditor-sprint-feedback.md", "value": "APPROVED"},
+ "verdict_accuracy": false, "verdict_accuracy_review": false, "verdict_accuracy_audit": false,
+ "diff_lines": null, "files_changed": null, "contaminated": null, "grader_version": "1"}

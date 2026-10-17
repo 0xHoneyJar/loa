@@ -1,0 +1,7 @@
+# run-ablation.sh: run directories, logs and job state stay out of git;
+# MANIFEST.json, STATUS.json and spend.txt are the batch record
+/*/
+/run.log
+/driver.log
+/.lock/
+/.jobs/

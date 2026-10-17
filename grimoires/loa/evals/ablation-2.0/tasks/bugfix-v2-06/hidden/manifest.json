@@ -1,0 +1,1 @@
+{"files": [{"src": "tests/test_resolution_rules.py", "dest": "tests/acceptance/test_resolution_rules.py"}, {"src": "tests/_oracle_semver.py", "dest": "tests/acceptance/_oracle_semver.py"}]}
