@@ -99,6 +99,20 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
   [ "$(jq -r '[.plan[] | select(.arm == "a4_no_gates")][0].phase_sum_min' "$M")" = 50 ]
 }
 
+@test "RAB-27 --types filters the plan by task type (Sprint 261 calibration dry run): build keeps the twelve build tasks, review-catch the four; the a0 BARE budget on a v2 task is 80 min" {
+  ra --arms a0_bare --types build --trials-build 2 --batch ty1 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.tasks | length' "$RES/ty1/MANIFEST.json")" = 12 ]
+  [ "$(jq -r '[.tasks[].type] | unique | join(",")' "$RES/ty1/MANIFEST.json")" = "bug-fix,feature-build,refactor" ]
+  [ "$(jq -r '.trials_planned' "$RES/ty1/MANIFEST.json")" = 24 ]
+  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare")][0].phase_sum_min' "$RES/ty1/MANIFEST.json")" = 80 ]
+  ra --arms a1_full --types review-catch --trials-review 1 --batch ty2 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.tasks[].id] | join(",")' "$RES/ty2/MANIFEST.json")" = "review-01,review-02,review-03,review-04" ]
+  ra --arms a1_full --types nope --batch ty3 --dry-run
+  [ "$status" -eq 2 ]
+}
+
 @test "RAB-2 the shuffle is a seeded Fisher-Yates per trial block: reproducible for a seed (and equal to random.Random(seed).shuffle), different for another seed" {
   ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-01,refactor-v2-01,review-01 --trials-build 2 --trials-review 2 --batch s1 --dry-run
   [ "$status" -eq 0 ]

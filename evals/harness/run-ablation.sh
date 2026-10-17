@@ -546,7 +546,7 @@ printf '%s\n' "$SUITE_JSON" > "$WORK/suite.json"
 for t in "${SEL_TASKS[@]}"; do
   yq -o=json '{"id": .id, "type": .type, "bounds": (.bounds // {})}' "$TDIR/$t/task.yaml" \
     | jq -c --arg y "$TDIR/$t/task.yaml" --arg want "$WANT_TYPES" \
-        'select($want == "" or (($want | split(" ")) | index(.type)) != null) | with_entries(.) + {yaml: $y}'
+        'select($want == "" or (.type as $t | ($want | split(" ") | map(select(. != ""))) | index($t)) != null) | with_entries(.) + {yaml: $y}'   # .type is the task'"'"'s, not the list'"'"'s (Sprint 261 dry run; RAB-27)
 done | jq -s -c '.' > "$WORK/tasks.json" || die "a task.yaml does not parse"
 [[ "$(jq 'length' "$WORK/tasks.json")" -gt 0 ]] || die "no task left after --tasks/--types"
 jq -e 'all(.[]; (.type == "feature-build" or .type == "bug-fix" or .type == "refactor" or .type == "review-catch"))' \
