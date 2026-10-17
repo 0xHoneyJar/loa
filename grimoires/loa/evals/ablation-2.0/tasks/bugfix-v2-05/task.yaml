@@ -1,0 +1,16 @@
+id: bugfix-v2-05
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D3 swap round 1: cron expressions (names, steps, L/L-n/nW/LW/d#k/dL, the either-day rule, macros) evaluated declaratively over a stated six-zone daylight-saving table (northern, southern, half-hour and local-midnight transitions); the fixture's wall-clock search misses repeated wall times and its caches, bounds, zone arithmetic, parser and job helpers deviate from a 15-rule spec in eight modules"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-05/fixture
+criterion: "every schedule fires exactly at the whole UTC minutes whose wall-clock time in the stated zone table matches the expression, so a wall time a forward transition skips never fires and one a backward transition repeats fires at both instants, with the stated day-special, either-day, step, macro, error-message, rounding, horizon, zone, job and command-line rules"
+success_criterion: "hidden/tests/test_zoned_cron_rules.py (overlaid at tests/acceptance/test_zoned_cron_rules.py with its brute-force oracle hidden/tests/_oracle_cron.py at tests/acceptance/_oracle_cron.py) passes 30 of 30 (15 hand-written scenario tables, 15 generated full-surface conformance cases of 400 samples each) under python3 -m pytest -q tests; red at base (28 failed, 35 passed of 63: 2 of 30 hidden cases and the 33 fixture cases green), green with hidden/reference.patch (63 of 63); regression_command (fixture suite, 33 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_expressions.py, tests/test_schedule.py, tests/test_zones.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

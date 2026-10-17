@@ -18648,3 +18648,227 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0583"
+    created_at: "2026-10-17T00:29:36Z"
+    updated_at: "2026-10-17T00:29:36Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "run-ablation.sh --types fixed before the first calibration row: the jq select bound .type on the split list; RAB-27; no earlier batch had used --types (L73)"
+    decision: "The calibration dry run (--arms a0_bare --types build) died with 'a task.yaml does not parse': the task filter's jq select evaluated ( | split(\" \")) | index(.type) with . bound to the split list, so .type indexed an array. The task's type is now bound first (.type as | … | index()) and empty split elements are dropped. RAB-27 covers --types build (twelve build tasks, 24 trials at 2 per task, a0_bare phase_sum_min 80 on a v2 task), --types review-catch (the four review tasks) and an unknown type (exit 2). P1, P2's plan and the smokes selected tasks by --tasks or ran every task, so the branch had never executed. Fixed and committed by the lead (one line + one case) before any calibration row; the harness is otherwise unchanged while a batch runs."
+    rationale: "a dead branch in the runner is a defect the calibration plan exposed; the fix is surgical and tested"
+    alternatives_considered:
+      - option: "select the twelve tasks with --tasks instead"
+        rejected_because: "leaves a broken option in the runner the re-pre-registration names"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/NOTES.md#sprint-261-task-45-done-suite-v2-frozen-and-committed (L73)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T00:29:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprint-261-task-45-done-suite-v2-frozen-and-committed (L73)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0584"
+    created_at: "2026-10-17T00:48:15Z"
+    updated_at: "2026-10-17T00:48:15Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Suite v2 round 1 fails the pre-registered hardness criterion (a0 1.0 on 11 of 12; mean 0.958): swap round 1 of 2 — eleven spec-conformance tasks at scale (L74)"
+    decision: "calib-v2-01a (a0_bare x 12 x 2, 24 rows, USD 6.48): eleven round-1 build tasks read 1.0/1.0 for the bare arm, bugfix-v2-02 0.5; the pre-registered criterion (each task <= 0.5, mean <= 0.75, >= six below 1.0) fails. Per the pre-registration the failing tasks are swapped for new ids (bugfix-v2-05 … 07, feature-v2-05 … 08, refactor-v2-05 … 08) in authoring round 1 of 2, bugfix-v2-02 is kept, suite_version stays 2 (no priority row exists). The replacement design (prompt-s4-r2-common.md) moves the lever from interaction depth to specification conformance at scale: a complete spec of a known-shape component with documented edge semantics, 600–1,500-line fixtures, 30–60 hidden cases including oracle-conformance cases over generated inputs against a hidden reference implementation, refactor structural checks of 20–40 constraints, and an author self-solve check. If round 2 also fails the criterion the lead halts and reports to the operator with options (run the batch with the review-catch primary carrying H1 and the build half reported as saturated; a third round; stop)."
+    rationale: "a suite the bare arm saturates cannot answer H1 or A4 on the pass rate; a criterion failure after the pre-registered rounds is a stop, not a reason to run USD 650 of rows that cannot move"
+    alternatives_considered:
+      - option: "run priority-v2-p1 on round 1 anyway"
+        rejected_because: "the pre-registration admits a task only if it meets the criterion; v1 already showed what a saturated build set yields"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/NOTES.md#calib-v2-01a-complete-the-hardness-criterion-fails (L74)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T00:48:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#calib-v2-01a-complete-the-hardness-criterion-fails (L74)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0585"
+    created_at: "2026-10-17T03:00:03Z"
+    updated_at: "2026-10-17T03:00:03Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader 1.2.10: pytest runs with --import-mode=importlib so a solver's test file sharing a hidden test's basename cannot zero a correct run (L76)"
+    decision: "E3's blind solver wrote tests/test_semver_ranges.py, the basename of the hidden tests/acceptance/test_semver_ranges.py; under pytest's default import mode two files with one basename and no __init__.py abort collection with an import-file-mismatch error, so the grade would have read 0 for a correct solution. Grader 1.2.10 adds --import-mode=importlib to the pytest argv (base, final and snapshot trees alike; -o addopts= and -p no:cacheprovider unchanged), which gives every test module a unique import name; scoring is unchanged. AG-1's argv assertion updated; the official self-check is re-run on the frozen suite under 1.2.10 before the calibration. E3 also renamed its hidden files to a test_zq_<x>_accept.py stem; both guards stand."
+    rationale: "a hidden file name the agent cannot know must never decide a grade; the fix is a one-flag change the self-check proves on every task"
+    alternatives_considered:
+      - option: "rename every hidden test file to an unlikely stem only"
+        rejected_because: "a convention protects only the files that follow it; the import mode protects every task incl. the kept bugfix-v2-02"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/a2a/sprint-261/reviewer-e3.md#decision-bullets (L76)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T03:00:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reviewer-e3.md#decision-bullets (L76)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0586"
+    created_at: "2026-10-17T03:00:21Z"
+    updated_at: "2026-10-17T03:00:21Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Cap-fit on round-1 tasks: review-catch median 14.62 <= 15 fits; build median 12.45 > 11.25 fails; re-read on round 2, the cap rises if it fails again (L75)"
+    decision: "calib-v2-01b (a1_full, concurrency 1, USD 54.14, no cap failure under the per-type caps): review-03 (pr-12) 7/8 USD 17.31 and review-04 (pr-13) 3/5 USD 11.93 — median 14.62 ≤ 0.75 × 20, the review-catch cap fits (both runs that P1 had cut at USD 12 completed under 20); feature-v2-01 1.0 USD 10.91 and refactor-v2-02 1.0 USD 13.99 — median 12.45 > 0.75 × 15, the build cap-fit rule fails on round-1 tasks, whose A1 cost sits in the gates (REVIEW + AUDIT ≈ 6–9 of 11–14). The round-1 build tasks are being swapped for larger ones, so the build read is repeated on two round-2 tasks (calib-v2-02b) and, if the median still exceeds 11.25, the build cap rises to the smallest multiple of 5 whose 0.75 fraction covers the median (the pre-registered remedy: shrink or raise before the re-pre-registration, recorded either way) — the tasks are not shrunk, hardness being the point of the swap."
+    rationale: "the pre-registration names both remedies; shrinking contradicts the operator's option 1"
+    alternatives_considered:
+      - option: "raise the build cap now on the round-1 read"
+        rejected_because: "the read must come from the tasks that will run; round 2 is larger and is measured next"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-1-calib-v2-01b (L75)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T03:00:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-1-calib-v2-01b (L75)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0587"
+    created_at: "2026-10-17T03:14:49Z"
+    updated_at: "2026-10-17T03:14:49Z"
+    phase: "implementation"
+    category: "process"
+    summary: "bugfix-v2-07 fairness FAIL: the brief contradicted the oracle on empty block quotes; the lead corrected two brief sentences toward the oracle; re-review (L77)"
+    decision: "Reviewer R3 failed check 1: rule 21 stated the block-quote render as open-tag + newline + children + close-tag + newline, while the oracle (and markdown-it 14.1.0) renders an empty quote as <blockquote></blockquote> + newline; every conformance profile generates empty quotes, so a solver following the brief capped at 20/35 — which is exactly the author's blind self-solve of 0.57, an artefact of the contradiction and not of difficulty. Rule 9's sentence on headings made of # and spaces was also wrong (the oracle gives <h1>#</h1> for '# # #'). The lead corrected those two sentences in TASK.md toward the oracle (an empty block quote renders without the inner newline, as rule 22 already said for an empty item; a heading whose content is a single run of # is empty) and changed nothing else; the task goes back to the same reviewer for the second review. The author agent had been stopped; the correction is a spec-wording repair, not authoring content."
+    rationale: "a hidden assertion must trace to the brief; when the brief is wrong about the oracle the brief is what moves — the fairness protocol's purpose is a solvable, fully specified task"
+    alternatives_considered:
+      - option: "drop empty quotes from the generators"
+        rejected_because: "it leaves a false sentence in the spec and shrinks the input domain for no reason"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/evals/ablation-2.0/tasks/bugfix-v2-07/REVIEW.md#1-no-solution-leak-fair (L77)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T03:14:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/evals/ablation-2.0/tasks/bugfix-v2-07/REVIEW.md#1-no-solution-leak-fair (L77)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0588"
+    created_at: "2026-10-17T17:15:28Z"
+    updated_at: "2026-10-17T17:15:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "feature-v2-06 undelivered: round-1 feature-v2-01 (a0 1.0/1.0, review PASS) kept as the fourth feature task so the round-2 suite has four per type (L78)"
+    decision: "E3 did not converge feature-v2-06 before the deadline, leaving three feature-build tasks; the suite invariant of four tasks per type is enforced by validate-suite.sh, freeze.sh and the grader's own freeze check, and the runner's pre-flight (no --allow-partial), so a calibration on fifteen tasks cannot run without weakening three guards. The round-1 task feature-v2-01 (frozen at c817acd0, fairness PASS, already read a0 1.0/1.0 in calib-v2-01a) is restored as the fourth feature-build task for the round-2 freeze; it is known to fail criterion (i) and is reported as such; the round-2 hardness read covers the eleven swapped tasks, the twelve-together read includes it. A batch pre-registration, if the criterion were met, would still require a fourth feature task that meets the bar."
+    rationale: "weakening the counts guard for a calibration would also weaken it for the batch; a frozen, reviewed task with a known read is the smaller deviation and is recorded"
+    alternatives_considered:
+      - option: "teach the runner and the grader --allow-partial for calibration batches"
+        rejected_because: "a harness change to relax a guard, made for a read that decides nothing"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L78)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T17:15:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L78)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0589"
+    created_at: "2026-10-17T17:26:11Z"
+    updated_at: "2026-10-17T17:26:11Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Grader 1.2.11 supersedes 1.2.10: importlib mode reverted (it broke sibling imports); agent .py files sharing a hidden or fixture test basename are removed (L79)"
+    decision: "The official self-check under grader 1.2.10 failed five checks (bugfix-v2-05/06/07 reference hidden 0/N with pytest rc 2; feature-v2-01 base and reference fixture suite 0/15): --import-mode=importlib stops pytest inserting a test file's directory into sys.path, which breaks the sibling imports hidden suites and fixture suites rely on (import _oracle_cron; from helpers import run_cli). Grader 1.2.11 reverts to the default import mode (the mode every P1 grade used) and closes the collision hazard of DEC-0585 narrowly: a .py file at a path that is neither a hidden overlay dest (file or directory overlay) nor present in the fixture, whose basename equals a hidden overlay .py file's or a fixture tests/ .py file's (conftest.py and __init__.py excepted), is removed before any command runs, counted in grade.json colliding_tests_removed, paths in grading/<label>.colliding-removed.txt. AG-35 (fails on 1.2.9: the field is absent and the collision stands); the official self-check re-run on the frozen sixteen-task suite (ddd200b3…) 36/36 PASS; P1's grades are unaffected (no P1 sandbox holds a colliding basename — 0 rows changed by construction of the re-scan in Sprint 262)."
+    rationale: "a guard must not break the suites it guards; removing only the agent's own colliding test modules keeps every import path the tasks were proven under and removes nothing scored"
+    alternatives_considered:
+      - option: "keep importlib mode and add each test directory to -o pythonpath"
+        rejected_because: "changes import semantics for every task after their proofs; the targeted removal keeps the proven mode"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "b5cf34cf"
+    source: "grimoires/loa/NOTES.md#grader-1211 (L79)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T17:26:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#grader-1211 (L79)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

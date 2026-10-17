@@ -1,0 +1,1 @@
+{"files": [{"src": "structural/semver_layout_test.py", "dest": "tests/structure/semver_layout_test.py"}, {"src": "structural/_oracle_semver.py", "dest": "tests/structure/_oracle_semver.py"}]}

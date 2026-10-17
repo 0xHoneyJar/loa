@@ -1,0 +1,1243 @@
+diff --git a/src/cronplan/__init__.py b/src/cronplan/__init__.py
+index d25cd8a..16ac324 100644
+--- a/src/cronplan/__init__.py
++++ b/src/cronplan/__init__.py
+@@ -1,11 +1,13 @@
+ """Five-field cron expressions: parsing, normalising and fire times."""
+-from .parser import CronError, ParseError, RangeError, Schedule
+-from .schedule import SearchError, ArgumentError, next_fire, fires, matches
+-from .fmt import normalize
+-from .report import month_report
+-from .cache import get as _get
+ 
++from cronplan.errors import ArgumentError, CronError, ParseError, RangeError, SearchError
++from cronplan.facade import fires_text as fires
++from cronplan.facade import matches_text as matches
++from cronplan.facade import month_report, normalize, parse
++from cronplan.facade import next_fire_text as next_fire
++from cronplan.model import Schedule
+ 
+-def parse(expression):
+-    """Parse an expression string."""
+-    return _get(expression)
++__all__ = [
++    "ArgumentError", "CronError", "ParseError", "RangeError", "Schedule", "SearchError",
++    "fires", "matches", "month_report", "next_fire", "normalize", "parse",
++]
+diff --git a/src/cronplan/cache.py a/src/cronplan/cache.py
+deleted file mode 100644
+index 6d0715c..0000000
+--- a/src/cronplan/cache.py
++++ /dev/null
+@@ -1,14 +0,0 @@
+-import functools
+-
+-
+-@functools.lru_cache(maxsize=256)
+-def parse_cached(text):
+-    from .parser import parse
+-    return parse(text)
+-
+-
+-def get(text):
+-    if isinstance(text, str):
+-        return parse_cached(text)
+-    from .parser import parse
+-    return parse(text)
+diff --git a/src/cronplan/calendar_util.py a/src/cronplan/calendar_util.py
+deleted file mode 100644
+index 56cede6..0000000
+--- a/src/cronplan/calendar_util.py
++++ /dev/null
+@@ -1,38 +0,0 @@
+-"""Calendar helpers."""
+-import datetime
+-from typing import Optional
+-
+-
+-def cron_weekday(d):
+-    return d.isoweekday() % 7
+-
+-
+-def days_in_month(year, month):
+-    if month == 12:
+-        nxt = datetime.date(year + 1, 1, 1)
+-    else:
+-        nxt = datetime.date(year, month + 1, 1)
+-    return (nxt - datetime.timedelta(days=1)).day
+-
+-
+-def LastWeekday(year, month):
+-    d = datetime.date(year, month, days_in_month(year, month))
+-    while d.isoweekday() in (6, 7):
+-        d = d - datetime.timedelta(days=1)
+-    return d.day
+-
+-
+-def nearest_weekday(year: int, month: int, n: int) -> Optional[int]:
+-    end = days_in_month(year, month)
+-    if n > end:
+-        return None
+-    wd = cron_weekday(datetime.date(year, month, n))
+-    if wd == 6:
+-        if n == 1:
+-            return 3
+-        return n - 1
+-    elif wd == 0:
+-        if n == end:
+-            return n - 2
+-        return n + 1
+-    return n
+diff --git a/src/cronplan/cli.py b/src/cronplan/cli.py
+index 760def5..b27afe4 100644
+--- a/src/cronplan/cli.py
++++ b/src/cronplan/cli.py
+@@ -1,48 +1,65 @@
+ """The command line entry point main()."""
++
+ import argparse
+ import datetime
+ import sys
+ 
+-from . import fires, month_report, normalize, CronError, ArgumentError
++from cronplan.errors import ArgumentError, CronError
++from cronplan.facade import fires_text, month_report, normalize
++
++__all__ = ["build_parser", "main", "read_datetime", "read_month", "run"]
+ 
+ 
+-def main(argv=None):
+-    """Run the command line and return the exit code."""
+-    p = argparse.ArgumentParser(prog="cronplan")
+-    sub = p.add_subparsers(dest="command", required=True)
+-    n = sub.add_parser("next")
+-    n.add_argument("expression")
+-    n.add_argument("--after", required=True)
+-    n.add_argument("--count", type=int, default=1)
++def build_parser() -> argparse.ArgumentParser:
++    """Build the argument parser with one subcommand per action."""
++    parser = argparse.ArgumentParser(prog="cronplan")
++    sub = parser.add_subparsers(dest="command", required=True)
++    upcoming = sub.add_parser("next")
++    upcoming.add_argument("expression")
++    upcoming.add_argument("--after", required=True)
++    upcoming.add_argument("--count", type=int, default=1)
+     sub.add_parser("normalize").add_argument("expression")
+     sub.add_parser("check").add_argument("expression")
+-    m = sub.add_parser("month")
+-    m.add_argument("expression")
+-    m.add_argument("month")
+-    args = p.parse_args(argv)
++    month = sub.add_parser("month")
++    month.add_argument("expression")
++    month.add_argument("month")
++    return parser
++
++
++def read_datetime(text: str) -> datetime.datetime:
++    """Read an ISO datetime argument."""
+     try:
+-        if args.command == "next":
+-            try:
+-                after = datetime.datetime.fromisoformat(args.after)
+-            except Exception:
+-                raise ArgumentError("bad datetime: %r" % (args.after,))
+-            for t in fires(args.expression, after, args.count):
+-                print(t.isoformat(timespec="minutes"))
+-        elif args.command == "month":
+-            year, dash, mon = args.month.partition("-")
+-            if not dash or not year.isdigit() or not mon.isdigit():
+-                raise ArgumentError("bad month: %r" % (args.month,))
+-            print(month_report(args.expression, int(year), int(mon)))
+-        elif args.command == "check":
+-            normalize(args.expression)
+-            print("ok")
+-        else:
+-            print(normalize(args.expression))
+-    except CronError as e:
+-        sys.stderr.write("error: %s\n" % e)
++        return datetime.datetime.fromisoformat(text)
++    except ValueError:
++        raise ArgumentError(f"bad datetime: {text!r}") from None
++
++
++def read_month(text: str) -> tuple[int, int]:
++    """Read a YYYY-MM argument."""
++    year, dash, month = text.partition("-")
++    if not (dash and year.isdigit() and month.isdigit()):
++        raise ArgumentError(f"bad month: {text!r}")
++    return int(year), int(month)
++
++
++def run(args: argparse.Namespace) -> str:
++    """Run one parsed command and return its output."""
++    if args.command == "next":
++        times = fires_text(args.expression, read_datetime(args.after), args.count)
++        return "\n".join(t.isoformat(timespec="minutes") for t in times)
++    if args.command == "month":
++        year, month = read_month(args.month)
++        return month_report(args.expression, year, month)
++    text = normalize(args.expression)
++    return "ok" if args.command == "check" else text
++
++
++def main(argv: list[str] | None = None) -> int:
++    """Run the command line and return the exit code."""
++    args = build_parser().parse_args(argv)
++    try:
++        print(run(args))
++    except CronError as exc:
++        print(f"error: {exc}", file=sys.stderr)
+         return 2
+     return 0
+-
+-
+-if __name__ == "__main__":
+-    sys.exit(main())
+diff --git b/src/cronplan/dates.py b/src/cronplan/dates.py
+new file mode 100644
+index 0000000..e6c076b
+--- /dev/null
++++ b/src/cronplan/dates.py
+@@ -0,0 +1,37 @@
++"""Calendar arithmetic for day matching."""
++
++import datetime
++
++__all__ = ["cron_weekday", "last_day", "last_weekday", "nearest_weekday"]
++
++
++def cron_weekday(day: datetime.date) -> int:
++    """Return the weekday with Sunday as 0."""
++    return day.isoweekday() % 7
++
++
++def last_day(year: int, month: int) -> int:
++    """Return the number of days in a month."""
++    following = datetime.date(year + month // 12, month % 12 + 1, 1)
++    return (following - datetime.timedelta(days=1)).day
++
++
++def last_weekday(year: int, month: int) -> int:
++    """Return the day of the last Monday-to-Friday day of a month."""
++    day = datetime.date(year, month, last_day(year, month))
++    while cron_weekday(day) in (0, 6):
++        day -= datetime.timedelta(days=1)
++    return day.day
++
++
++def nearest_weekday(year: int, month: int, number: int) -> int | None:
++    """Return the weekday nearest to a day without leaving the month."""
++    end = last_day(year, month)
++    if number > end:
++        return None
++    weekday = cron_weekday(datetime.date(year, month, number))
++    if weekday == 6:
++        return number + 2 if number == 1 else number - 1
++    if weekday == 0:
++        return number - 2 if number == end else number + 1
++    return number
+diff --git b/src/cronplan/days.py b/src/cronplan/days.py
+new file mode 100644
+index 0000000..cb80ac8
+--- /dev/null
++++ b/src/cronplan/days.py
+@@ -0,0 +1,49 @@
++"""Whether a schedule allows a given day."""
++
++import datetime
++
++from cronplan.dates import cron_weekday, last_day, last_weekday, nearest_weekday
++from cronplan.model import Field, Schedule, Special, SpecialDay
++
++__all__ = ["day_matches", "special_matches"]
++
++
++def _is_last_weekday(special: SpecialDay, day: datetime.date, end: int) -> bool:
++    return cron_weekday(day) == special.number and day.day + 7 > end
++
++
++def _is_nth_weekday(special: SpecialDay, day: datetime.date) -> bool:
++    return cron_weekday(day) == special.number and (day.day - 1) // 7 + 1 == special.nth
++
++
++def special_matches(special: SpecialDay, day: datetime.date) -> bool:
++    """Tell whether a special item selects a day."""
++    end = last_day(day.year, day.month)
++    match special.kind:
++        case Special.MONTH_END:
++            return day.day == end
++        case Special.MONTH_END_WEEKDAY:
++            return day.day == last_weekday(day.year, day.month)
++        case Special.MONTH_END_OFFSET:
++            return day.day == end - special.number
++        case Special.NEAREST_WEEKDAY:
++            return day.day == nearest_weekday(day.year, day.month, special.number)
++        case Special.LAST_WEEKDAY:
++            return _is_last_weekday(special, day, end)
++        case Special.NTH_WEEKDAY:
++            return _is_nth_weekday(special, day)
++
++
++def _field_hits(field: Field, number: int, day: datetime.date) -> bool:
++    return number in field.values or any(special_matches(s, day) for s in field.specials)
++
++
++def day_matches(schedule: Schedule, day: datetime.date) -> bool:
++    """Tell whether a day passes the month and both day fields."""
++    if day.month not in schedule.month.values:
++        return False
++    by_date = _field_hits(schedule.day, day.day, day)
++    by_weekday = _field_hits(schedule.weekday, cron_weekday(day), day)
++    if schedule.day.starred or schedule.weekday.starred:
++        return by_date and by_weekday
++    return by_date or by_weekday
+diff --git b/src/cronplan/errors.py b/src/cronplan/errors.py
+new file mode 100644
+index 0000000..2772874
+--- /dev/null
++++ b/src/cronplan/errors.py
+@@ -0,0 +1,23 @@
++"""The errors the package raises."""
++
++__all__ = ["ArgumentError", "CronError", "ParseError", "RangeError", "SearchError"]
++
++
++class CronError(ValueError):
++    """Base class of every error the package raises."""
++
++
++class ParseError(CronError):
++    """An expression or field does not follow the grammar."""
++
++
++class RangeError(CronError):
++    """A value, offset or ordinal lies outside its allowed range."""
++
++
++class SearchError(CronError):
++    """No fire time exists within the search horizon."""
++
++
++class ArgumentError(CronError):
++    """A datetime, count or month argument is unusable."""
+diff --git b/src/cronplan/expressions.py b/src/cronplan/expressions.py
+new file mode 100644
+index 0000000..3214481
+--- /dev/null
++++ b/src/cronplan/expressions.py
+@@ -0,0 +1,39 @@
++"""Parsing a whole expression, macros included."""
++
++from cronplan.errors import ParseError
++from cronplan.fields import parse_field
++from cronplan.model import FieldKind, Schedule
++
++__all__ = ["MACROS", "expand_macro", "parse_expression"]
++
++MACROS = (
++    ("@yearly", "0 0 1 1 *"),
++    ("@annually", "0 0 1 1 *"),
++    ("@monthly", "0 0 1 * *"),
++    ("@weekly", "0 0 * * 0"),
++    ("@daily", "0 0 * * *"),
++    ("@midnight", "0 0 * * *"),
++    ("@hourly", "0 * * * *"),
++)
++
++
++def expand_macro(text: str) -> str:
++    """Return the five fields a macro stands for."""
++    for name, fields in MACROS:
++        if text.lower() == name:
++            return fields
++    raise ParseError(f"unknown macro: {text!r}")
++
++
++def parse_expression(text: str) -> Schedule:
++    """Parse a five-field expression or a macro."""
++    if not isinstance(text, str):
++        raise ParseError(f"not a string: {text!r}")
++    body = text.strip()
++    if body.startswith("@"):
++        body = expand_macro(body)
++    parts = body.split()
++    if len(parts) != 5:
++        raise ParseError(f"expected 5 fields, got {len(parts)}")
++    kinds = list(FieldKind)
++    return Schedule(*(parse_field(part, kind) for part, kind in zip(parts, kinds)))
+diff --git b/src/cronplan/facade.py b/src/cronplan/facade.py
+new file mode 100644
+index 0000000..e5b2fd8
+--- /dev/null
++++ b/src/cronplan/facade.py
+@@ -0,0 +1,41 @@
++"""The expression-string functions the package exports."""
++
++import datetime
++
++from cronplan.expressions import parse_expression
++from cronplan.model import Schedule
++from cronplan.render import format_schedule
++from cronplan.report import month_grid
++from cronplan.search import fires, matches, next_fire
++
++__all__ = ["fires_text", "matches_text", "month_report", "next_fire_text", "normalize", "parse"]
++
++
++def parse(expression: str) -> Schedule:
++    """Parse an expression string."""
++    return parse_expression(expression)
++
++
++def normalize(expression: str) -> str:
++    """Return the canonical form of an expression string."""
++    return format_schedule(parse_expression(expression))
++
++
++def next_fire_text(expression: str, after: datetime.datetime) -> datetime.datetime:
++    """Return the first fire time of an expression after a moment."""
++    return next_fire(parse_expression(expression), after)
++
++
++def fires_text(expression: str, after: datetime.datetime, count: int = 5) -> list[datetime.datetime]:
++    """Return the next fire times of an expression after a moment."""
++    return fires(parse_expression(expression), after, count)
++
++
++def matches_text(expression: str, when: datetime.datetime) -> bool:
++    """Tell whether an expression fires at exactly this moment."""
++    return matches(parse_expression(expression), when)
++
++
++def month_report(expression: str, year: int, month: int) -> str:
++    """Render the per-day fire counts of an expression for one month."""
++    return month_grid(parse_expression(expression), year, month)
+diff --git b/src/cronplan/fields.py b/src/cronplan/fields.py
+new file mode 100644
+index 0000000..143f395
+--- /dev/null
++++ b/src/cronplan/fields.py
+@@ -0,0 +1,25 @@
++"""Parsing one whole field."""
++
++from cronplan.items import parse_item, parse_special
++from cronplan.model import Field, FieldKind, Special, SpecialDay
++
++__all__ = ["parse_field", "special_key"]
++
++
++def special_key(special: SpecialDay) -> tuple[int, int, int]:
++    """Order special items by kind, then number, then ordinal."""
++    return (list(Special).index(special.kind), special.number, special.nth)
++
++
++def parse_field(text: str, kind: FieldKind) -> Field:
++    """Parse a comma-separated field into its numbers and special days."""
++    values: set[int] = set()
++    specials: set[SpecialDay] = set()
++    for item in text.split(","):
++        special = parse_special(item, kind)
++        if special is None:
++            values |= parse_item(item, kind)
++        else:
++            specials.add(special)
++    ordered = tuple(sorted(specials, key=special_key))
++    return Field(kind, frozenset(values), ordered, text[:1] in ("*", "?"))
+diff --git a/src/cronplan/fmt.py a/src/cronplan/fmt.py
+deleted file mode 100644
+index 9acb05d..0000000
+--- a/src/cronplan/fmt.py
++++ /dev/null
+@@ -1,54 +0,0 @@
+-"""Rendering schedules back into text."""
+-from . import settings
+-from .cache import get
+-
+-
+-def _numbers(nums):
+-    out = []
+-    i = 0
+-    while i < len(nums):
+-        j = i
+-        if i + 1 < len(nums):
+-            step = nums[i + 1] - nums[i]
+-            j = i + 1
+-            while j + 1 < len(nums) and nums[j + 1] - nums[j] == step:
+-                j += 1
+-        if j - i + 1 >= 3:
+-            if step == 1:
+-                out.append("%d-%d" % (nums[i], nums[j]))
+-            else:
+-                out.append("%d-%d/%d" % (nums[i], nums[j], step))
+-            i = j + 1
+-        else:
+-            out.append(str(nums[i]))
+-            i += 1
+-    return out
+-
+-
+-def render_field(field):
+-    lo, hi = settings.BOUNDS[field.name]
+-    full = set(range(lo, hi + 1))
+-    if field.name == "day-of-week":
+-        full = set(v % 7 for v in full)
+-    if set(field.values) == full:
+-        parts = ["*"]
+-    else:
+-        parts = _numbers(sorted(field.values))
+-    for kind, n, k in field.specials:
+-        if kind == "L" or kind == "LW":
+-            parts.append(kind)
+-        elif kind == "L-":
+-            parts.append("L-%d" % n)
+-        elif kind == "W":
+-            parts.append("%dW" % n)
+-        elif kind == "dL":
+-            parts.append("%dL" % n)
+-        else:
+-            parts.append("%d#%d" % (n, k))
+-    return ",".join(parts)
+-
+-
+-def normalize(expression):
+-    """Return the canonical form of an expression string."""
+-    s = get(expression)
+-    return " ".join(render_field(f) for f in s.fields())
+diff --git b/src/cronplan/items.py b/src/cronplan/items.py
+new file mode 100644
+index 0000000..7b2e900
+--- /dev/null
++++ b/src/cronplan/items.py
+@@ -0,0 +1,99 @@
++"""Parsing one comma-separated item of a field."""
++
++import re
++
++from cronplan.errors import ParseError, RangeError
++from cronplan.limits import label, limits
++from cronplan.model import FieldKind, Special, SpecialDay
++from cronplan.names import month_number, weekday_number
++
++__all__ = ["parse_item", "parse_special", "parse_value"]
++
++_PLAIN = r"^(\*|\?|[0-9A-Za-z]+(?:-[0-9A-Za-z]+)?)(?:/([0-9]+))?$"
++
++
++def _checked(kind: FieldKind, value: int) -> int:
++    low, high = limits(kind)
++    if not low <= value <= high:
++        raise RangeError(f"field {label(kind)!r}: value {value} out of range {low}-{high}")
++    return value
++
++
++def parse_value(text: str, kind: FieldKind) -> int:
++    """Read a number or, for months and weekdays, a name."""
++    if text.isascii() and text.isdigit():
++        return _checked(kind, int(text))
++    named = month_number(text) if kind is FieldKind.MONTH else None
++    if kind is FieldKind.WEEKDAY:
++        named = weekday_number(text)
++    if named is None:
++        raise ParseError(f"field {label(kind)!r}: bad value {text!r}")
++    return named
++
++
++def _day_special(item: str) -> SpecialDay | None:
++    if item in ("L", "LW"):
++        return SpecialDay(Special.MONTH_END if item == "L" else Special.MONTH_END_WEEKDAY, 0)
++    offset = re.match(r"^L-([0-9]+)$", item)
++    if offset is not None:
++        number = int(offset.group(1))
++        if number > 30:
++            raise RangeError(f"field 'day-of-month': offset {number} out of range 0-30")
++        return SpecialDay(Special.MONTH_END_OFFSET, number)
++    nearest = re.match(r"^([0-9]+)W$", item)
++    if nearest is None:
++        return None
++    return SpecialDay(Special.NEAREST_WEEKDAY, _checked(FieldKind.DAY, int(nearest.group(1))))
++
++
++def _weekday_special(item: str) -> SpecialDay | None:
++    last = re.match(r"^([0-9A-Za-z]+)L$", item)
++    if last is not None:
++        return SpecialDay(Special.LAST_WEEKDAY, parse_value(last.group(1), FieldKind.WEEKDAY) % 7)
++    nth = re.match(r"^([0-9A-Za-z]+)#([0-9]+)$", item)
++    if nth is None:
++        return None
++    ordinal = int(nth.group(2))
++    if not 1 <= ordinal <= 5:
++        raise RangeError(f"field 'day-of-week': nth {ordinal} out of range 1-5")
++    return SpecialDay(Special.NTH_WEEKDAY, parse_value(nth.group(1), FieldKind.WEEKDAY) % 7, ordinal)
++
++
++def parse_special(item: str, kind: FieldKind) -> SpecialDay | None:
++    """Return the special day an item names, or None for a plain item."""
++    if kind is FieldKind.DAY:
++        return _day_special(item)
++    if kind is FieldKind.WEEKDAY:
++        return _weekday_special(item)
++    return None
++
++
++def _bounds(base: str, kind: FieldKind, stepped: bool) -> tuple[int, int]:
++    if base in ("*", "?"):
++        return limits(kind)
++    low_text, _, high_text = base.partition("-")
++    low = parse_value(low_text, kind)
++    high = parse_value(high_text, kind) if high_text else (limits(kind)[1] if stepped else low)
++    if low > high:
++        raise ParseError(f"field {label(kind)!r}: range {low}-{high} is reversed")
++    return low, high
++
++
++def _step(text: str | None, kind: FieldKind) -> int:
++    if text is None:
++        return 1
++    if int(text) == 0:
++        raise ParseError(f"field {label(kind)!r}: step 0 is not allowed")
++    return int(text)
++
++
++def parse_item(item: str, kind: FieldKind) -> frozenset[int]:
++    """Return the numbers a plain item stands for."""
++    match = re.match(_PLAIN, item)
++    question = item.startswith("?") and kind not in (FieldKind.DAY, FieldKind.WEEKDAY)
++    if match is None or question:
++        raise ParseError(f"field {label(kind)!r}: bad item {item!r}")
++    step = _step(match.group(2), kind)
++    low, high = _bounds(match.group(1), kind, match.group(2) is not None)
++    wrap = kind is FieldKind.WEEKDAY
++    return frozenset(v % 7 if wrap else v for v in range(low, high + 1, step))
+diff --git b/src/cronplan/limits.py b/src/cronplan/limits.py
+new file mode 100644
+index 0000000..4f384de
+--- /dev/null
++++ b/src/cronplan/limits.py
+@@ -0,0 +1,31 @@
++"""The bounds and labels of the five fields."""
++
++from cronplan.model import FieldKind
++
++__all__ = ["full_values", "label", "limits"]
++
++
++def limits(kind: FieldKind) -> tuple[int, int]:
++    """Return the lowest and highest number a field accepts."""
++    match kind:
++        case FieldKind.MINUTE:
++            return (0, 59)
++        case FieldKind.HOUR:
++            return (0, 23)
++        case FieldKind.DAY:
++            return (1, 31)
++        case FieldKind.MONTH:
++            return (1, 12)
++        case FieldKind.WEEKDAY:
++            return (0, 7)
++
++
++def label(kind: FieldKind) -> str:
++    """Return the name a field has in messages."""
++    return kind.value
++
++
++def full_values(kind: FieldKind) -> frozenset[int]:
++    """Return every value a field can match; weekday 7 is Sunday, 0."""
++    low, high = limits(kind)
++    return frozenset(v % 7 if kind is FieldKind.WEEKDAY else v for v in range(low, high + 1))
+diff --git b/src/cronplan/model.py b/src/cronplan/model.py
+new file mode 100644
+index 0000000..1407af0
+--- /dev/null
++++ b/src/cronplan/model.py
+@@ -0,0 +1,57 @@
++"""Plain data: fields, special day items, schedules and their enums."""
++
++import enum
++from dataclasses import dataclass
++
++__all__ = ["Field", "FieldKind", "Schedule", "Special", "SpecialDay"]
++
++
++class FieldKind(enum.Enum):
++    """One of the five fields of an expression."""
++
++    MINUTE = "minute"
++    HOUR = "hour"
++    DAY = "day-of-month"
++    MONTH = "month"
++    WEEKDAY = "day-of-week"
++
++
++class Special(enum.Enum):
++    """A day item that is not a plain number."""
++
++    MONTH_END = "L"
++    MONTH_END_WEEKDAY = "LW"
++    MONTH_END_OFFSET = "L-"
++    NEAREST_WEEKDAY = "W"
++    LAST_WEEKDAY = "dL"
++    NTH_WEEKDAY = "#"
++
++
++@dataclass(frozen=True, slots=True)
++class SpecialDay:
++    """A special item with its number and, for NTH_WEEKDAY, its ordinal."""
++
++    kind: Special
++    number: int
++    nth: int = 0
++
++
++@dataclass(frozen=True, slots=True)
++class Field:
++    """One parsed field."""
++
++    kind: FieldKind
++    values: frozenset[int]
++    specials: tuple[SpecialDay, ...] = ()
++    starred: bool = False
++
++
++@dataclass(frozen=True, slots=True)
++class Schedule:
++    """A parsed five-field expression."""
++
++    minute: Field
++    hour: Field
++    day: Field
++    month: Field
++    weekday: Field
+diff --git a/src/cronplan/names.py b/src/cronplan/names.py
+index 4af15d5..0429fa2 100644
+--- a/src/cronplan/names.py
++++ b/src/cronplan/names.py
+@@ -1,17 +1,18 @@
+-MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+-          "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12}
+-DAYS = {"SUN": 0, "MON": 1, "TUE": 2, "WED": 3, "THU": 4, "FRI": 5, "SAT": 6}
++"""Month and weekday names."""
+ 
+-MACROS = {
+-    "@yearly": "0 0 1 1 *",
+-    "@annually": "0 0 1 1 *",
+-    "@monthly": "0 0 1 * *",
+-    "@weekly": "0 0 * * 0",
+-    "@daily": "0 0 * * *",
+-    "@midnight": "0 0 * * *",
+-    "@hourly": "0 * * * *",
+-}
++__all__ = ["MONTHS", "WEEKDAYS", "month_number", "weekday_number"]
++
++MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
++WEEKDAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
+ 
+ 
+-def _lookup(table, text):
+-    return table.get(text.upper())
++def month_number(text: str) -> int | None:
++    """Return 1-12 for a month name in any case, or None."""
++    upper = text.upper()
++    return MONTHS.index(upper) + 1 if upper in MONTHS else None
++
++
++def weekday_number(text: str) -> int | None:
++    """Return 0-6 for a weekday name in any case, or None."""
++    upper = text.upper()
++    return WEEKDAYS.index(upper) if upper in WEEKDAYS else None
+diff --git a/src/cronplan/parser.py a/src/cronplan/parser.py
+deleted file mode 100644
+index ace0f27..0000000
+--- a/src/cronplan/parser.py
++++ /dev/null
+@@ -1,146 +0,0 @@
+-"""Parsing cron expressions."""
+-import re
+-
+-from . import settings
+-from .names import MONTHS, DAYS, MACROS, _lookup
+-
+-_plain_re = re.compile(r"^(\*|\?|[0-9A-Za-z]+(?:-[0-9A-Za-z]+)?)(?:/([0-9]+))?$")
+-_offset_re = re.compile(r"^L-([0-9]+)$")
+-_nearest_re = re.compile(r"^([0-9]+)W$")
+-_last_re = re.compile(r"^([0-9A-Za-z]+)L$")
+-_nth_re = re.compile(r"^([0-9A-Za-z]+)#([0-9]+)$")
+-
+-SPECIAL_ORDER = ["L", "LW", "L-", "W", "dL", "#"]
+-
+-
+-class CronError(ValueError):
+-    pass
+-
+-
+-class ParseError(CronError):
+-    pass
+-
+-
+-class RangeError(CronError):
+-    pass
+-
+-
+-class fieldSpec:
+-    def __init__(self, name, values, specials, starred):
+-        self.name = name
+-        self.values = frozenset(values)
+-        self.specials = specials
+-        self.starred = starred
+-
+-    def __repr__(self):
+-        return "fieldSpec(%r, %r, %r, %r)" % (self.name, sorted(self.values), self.specials, self.starred)
+-
+-
+-class Schedule:
+-    """A parsed five-field expression."""
+-
+-    def __init__(self, fields):
+-        self.minute, self.hour, self.day, self.month, self.weekday = fields
+-
+-    def fields(self):
+-        return [self.minute, self.hour, self.day, self.month, self.weekday]
+-
+-
+-def _value(text, name):
+-    lo, hi = settings.BOUNDS[name]
+-    if text.isascii() and text.isdigit():
+-        v = int(text)
+-        if v < lo or v > hi:
+-            raise RangeError("field %r: value %d out of range %d-%d" % (name, v, lo, hi))
+-        return v
+-    v = None
+-    if name == "month":
+-        v = _lookup(MONTHS, text)
+-    if name == "day-of-week":
+-        v = _lookup(DAYS, text)
+-    if v is None:
+-        raise ParseError("field %r: bad value %r" % (name, text))
+-    return v
+-
+-
+-def parse_field(text, name):
+-    """Parse one comma-separated field."""
+-    lo, hi = settings.BOUNDS[name]
+-    values = set()
+-    specials = set()
+-    for item in text.split(","):
+-        if name == "day-of-month":
+-            if item == "L":
+-                specials.add(("L", 0, 0))
+-                continue
+-            if item == "LW":
+-                specials.add(("LW", 0, 0))
+-                continue
+-            m = _offset_re.match(item)
+-            if m:
+-                n = int(m.group(1))
+-                if n > 30:
+-                    raise RangeError("field 'day-of-month': offset %d out of range 0-30" % n)
+-                specials.add(("L-", n, 0))
+-                continue
+-            m = _nearest_re.match(item)
+-            if m:
+-                n = int(m.group(1))
+-                if n < lo or n > hi:
+-                    raise RangeError("field %r: value %d out of range %d-%d" % (name, n, lo, hi))
+-                specials.add(("W", n, 0))
+-                continue
+-        if name == "day-of-week":
+-            m = _last_re.match(item)
+-            if m:
+-                specials.add(("dL", _value(m.group(1), name) % 7, 0))
+-                continue
+-            m = _nth_re.match(item)
+-            if m:
+-                k = int(m.group(2))
+-                if k < 1 or k > 5:
+-                    raise RangeError("field 'day-of-week': nth %d out of range 1-5" % k)
+-                specials.add(("#", _value(m.group(1), name) % 7, k))
+-                continue
+-        m = _plain_re.match(item)
+-        if m is None or (item.startswith("?") and name not in ("day-of-month", "day-of-week")):
+-            raise ParseError("field %r: bad item %r" % (name, item))
+-        step = 1
+-        if m.group(2) is not None:
+-            step = int(m.group(2))
+-            if step == 0:
+-                raise ParseError("field %r: step 0 is not allowed" % (name,))
+-        base = m.group(1)
+-        if base == "*" or base == "?":
+-            a, b = lo, hi
+-        else:
+-            if "-" in base:
+-                left, right = base.split("-")
+-                a = _value(left, name)
+-                b = _value(right, name)
+-            else:
+-                a = _value(base, name)
+-                b = hi if m.group(2) is not None else a
+-            if a > b:
+-                raise ParseError("field %r: range %d-%d is reversed" % (name, a, b))
+-        for v in range(a, b + 1, step):
+-            if name == "day-of-week":
+-                v = v % 7
+-            values.add(v)
+-    ordered = sorted(specials, key=lambda s: (SPECIAL_ORDER.index(s[0]), s[1], s[2]))
+-    return fieldSpec(name, values, tuple(ordered), text[:1] in ("*", "?"))
+-
+-
+-def parse(text):
+-    """Parse a five-field expression or a macro."""
+-    if not isinstance(text, str):
+-        raise ParseError("not a string: %r" % (text,))
+-    body = text.strip()
+-    if body.startswith("@"):
+-        if body.lower() not in MACROS:
+-            raise ParseError("unknown macro: %r" % (body,))
+-        body = MACROS[body.lower()]
+-    parts = body.split()
+-    if len(parts) != 5:
+-        raise ParseError("expected 5 fields, got %d" % len(parts))
+-    return Schedule([parse_field(p, n) for p, n in zip(parts, settings.FIELD_NAMES)])
+diff --git b/src/cronplan/render.py b/src/cronplan/render.py
+new file mode 100644
+index 0000000..7b00d32
+--- /dev/null
++++ b/src/cronplan/render.py
+@@ -0,0 +1,70 @@
++"""Rendering parsed fields in the canonical form."""
++
++from cronplan.limits import full_values
++from cronplan.model import Field, Schedule, Special, SpecialDay
++
++__all__ = ["format_field", "format_numbers", "format_schedule", "format_special"]
++
++
++def _run_length(numbers: list[int], start: int) -> int:
++    if start + 1 >= len(numbers):
++        return 1
++    step = numbers[start + 1] - numbers[start]
++    end = start + 1
++    while end + 1 < len(numbers) and numbers[end + 1] - numbers[end] == step:
++        end += 1
++    return end - start + 1
++
++
++def _run_text(numbers: list[int], start: int, length: int) -> str:
++    first, last = numbers[start], numbers[start + length - 1]
++    step = numbers[start + 1] - first
++    return f"{first}-{last}" if step == 1 else f"{first}-{last}/{step}"
++
++
++def format_numbers(numbers: list[int]) -> list[str]:
++    """Render sorted numbers, folding runs of three or more into ranges."""
++    out: list[str] = []
++    start = 0
++    while start < len(numbers):
++        length = _run_length(numbers, start)
++        if length >= 3:
++            out.append(_run_text(numbers, start, length))
++            start += length
++        else:
++            out.append(str(numbers[start]))
++            start += 1
++    return out
++
++
++def format_special(special: SpecialDay) -> str:
++    """Render one special day item."""
++    match special.kind:
++        case Special.MONTH_END:
++            return "L"
++        case Special.MONTH_END_WEEKDAY:
++            return "LW"
++        case Special.MONTH_END_OFFSET:
++            return f"L-{special.number}"
++        case Special.NEAREST_WEEKDAY:
++            return f"{special.number}W"
++        case Special.LAST_WEEKDAY:
++            return f"{special.number}L"
++        case Special.NTH_WEEKDAY:
++            return f"{special.number}#{special.nth}"
++
++
++def format_field(field: Field) -> str:
++    """Render one field: its numbers, then its special items."""
++    if field.values == full_values(field.kind):
++        parts = ["*"]
++    else:
++        parts = format_numbers(sorted(field.values))
++    parts.extend(format_special(s) for s in field.specials)
++    return ",".join(parts)
++
++
++def format_schedule(schedule: Schedule) -> str:
++    """Render all five fields separated by single spaces."""
++    fields = (schedule.minute, schedule.hour, schedule.day, schedule.month, schedule.weekday)
++    return " ".join(format_field(f) for f in fields)
+diff --git a/src/cronplan/report.py b/src/cronplan/report.py
+index 203a51b..08d081e 100644
+--- a/src/cronplan/report.py
++++ b/src/cronplan/report.py
+@@ -1,24 +1,31 @@
++"""A per-day count of fire times in one month."""
++
+ import datetime
+ 
+-from .cache import get
+-from .schedule import day_ok, ArgumentError
+-from .calendar_util import days_in_month
++from cronplan.dates import last_day
++from cronplan.days import day_matches
++from cronplan.errors import ArgumentError
++from cronplan.model import Schedule
++
++__all__ = ["month_grid"]
+ 
+ 
+-def month_report(expression, year, month):
+-    """Render the per-day fire counts of an expression for one month."""
+-    sched = get(expression)
+-    if not isinstance(month, int) or month < 1 or month > 12:
+-        raise ArgumentError("month must be 1-12, got %r" % (month,))
+-    if not isinstance(year, int) or year < 1 or year > 9998:
+-        raise ArgumentError("year must be 1-9998, got %r" % (year,))
+-    per_day = len(sched.hour.values) * len(sched.minute.values)
++def _check_month(year: int, month: int) -> None:
++    if not isinstance(month, int) or not 1 <= month <= 12:
++        raise ArgumentError(f"month must be 1-12, got {month!r}")
++    if not isinstance(year, int) or not 1 <= year <= 9998:
++        raise ArgumentError(f"year must be 1-9998, got {year!r}")
++
++
++def month_grid(schedule: Schedule, year: int, month: int) -> str:
++    """List each day of a month that fires, with its number of fire times."""
++    _check_month(year, month)
++    per_day = len(schedule.hour.values) * len(schedule.minute.values)
+     lines = []
+-    n = 0
+-    for day in range(1, days_in_month(year, month) + 1):
+-        d = datetime.date(year, month, day)
+-        if day_ok(sched, d):
+-            lines.append("%s  %d" % (d.isoformat(), per_day))
+-            n += 1
+-    lines.append("total  %d" % (per_day * n))
++    for number in range(1, last_day(year, month) + 1):
++        day = datetime.date(year, month, number)
++        if day_matches(schedule, day):
++            lines.append(f"{day.isoformat()}  {per_day}")
++    total = per_day * len(lines)
++    lines.append(f"total  {total}")
+     return "\n".join(lines)
+diff --git a/src/cronplan/schedule.py a/src/cronplan/schedule.py
+deleted file mode 100644
+index 1bb9f07..0000000
+--- a/src/cronplan/schedule.py
++++ /dev/null
+@@ -1,114 +0,0 @@
+-"""Fire-time search."""
+-import datetime
+-
+-from . import settings
+-from .parser import CronError
+-from .calendar_util import cron_weekday, days_in_month, LastWeekday, nearest_weekday
+-from .cache import get
+-
+-
+-class SearchError(CronError):
+-    pass
+-
+-
+-class ArgumentError(CronError):
+-    pass
+-
+-
+-def _check(when):
+-    if not isinstance(when, datetime.datetime):
+-        raise ArgumentError("not a datetime: %r" % (when,))
+-    if when.tzinfo is not None:
+-        raise ArgumentError("datetime must be naive")
+-
+-
+-def _special(s, d):
+-    kind, n, k = s
+-    end = days_in_month(d.year, d.month)
+-    if kind == "L":
+-        return d.day == end
+-    elif kind == "LW":
+-        return d.day == LastWeekday(d.year, d.month)
+-    elif kind == "L-":
+-        return d.day == end - n
+-    elif kind == "W":
+-        return d.day == nearest_weekday(d.year, d.month, n)
+-    elif kind == "dL":
+-        return cron_weekday(d) == n and d.day + 7 > end
+-    else:
+-        return cron_weekday(d) == n and (d.day - 1) // 7 + 1 == k
+-
+-
+-def day_ok(sched, d):
+-    if d.month not in sched.month.values:
+-        return False
+-    dom = d.day in sched.day.values
+-    if not dom:
+-        for s in sched.day.specials:
+-            if _special(s, d):
+-                dom = True
+-                break
+-    dow = cron_weekday(d) in sched.weekday.values
+-    if not dow:
+-        for s in sched.weekday.specials:
+-            if _special(s, d):
+-                dow = True
+-                break
+-    if sched.day.starred or sched.weekday.starred:
+-        return dom and dow
+-    return dom or dow
+-
+-
+-def _next(sched, after):
+-    _check(after)
+-    t = after.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+-    while t.year <= after.year + settings.horizon_years:
+-        if t.month not in sched.month.values:
+-            if t.month == 12:
+-                t = datetime.datetime(t.year + 1, 1, 1)
+-            else:
+-                t = datetime.datetime(t.year, t.month + 1, 1)
+-            continue
+-        if not day_ok(sched, t.date()):
+-            t = datetime.datetime(t.year, t.month, t.day) + datetime.timedelta(days=1)
+-            continue
+-        if t.hour not in sched.hour.values:
+-            t = t.replace(minute=0) + datetime.timedelta(hours=1)
+-            continue
+-        if t.minute not in sched.minute.values:
+-            t = t + datetime.timedelta(minutes=1)
+-            continue
+-        if settings.debug:
+-            print("fire", t)
+-        return t
+-    raise SearchError("no fire time within %d years" % settings.horizon_years)
+-
+-
+-def next_fire(expression, after):
+-    """Return the first fire time of an expression after a moment."""
+-    return _next(get(expression), after)
+-
+-
+-def fires(expression, after, count=5):
+-    """Return the next fire times of an expression after a moment."""
+-    sched = get(expression)
+-    if not isinstance(count, int) or count < 1 or count > settings.max_count:
+-        raise ArgumentError("count must be 1-%d, got %r" % (settings.max_count, count))
+-    out = []
+-    for i in range(count):
+-        after = _next(sched, after)
+-        out.append(after)
+-    return out
+-
+-
+-def matches(expression, when):
+-    """Tell whether an expression fires at exactly this moment."""
+-    sched = get(expression)
+-    _check(when)
+-    if when.second != 0 or when.microsecond != 0:
+-        return False
+-    if when.minute not in sched.minute.values:
+-        return False
+-    if when.hour not in sched.hour.values:
+-        return False
+-    return day_ok(sched, when.date())
+diff --git b/src/cronplan/search.py b/src/cronplan/search.py
+new file mode 100644
+index 0000000..e06f2fd
+--- /dev/null
++++ b/src/cronplan/search.py
+@@ -0,0 +1,69 @@
++"""Finding fire times."""
++
++import datetime
++
++from cronplan.days import day_matches
++from cronplan.errors import ArgumentError, SearchError
++from cronplan.model import Schedule
++
++__all__ = ["HORIZON_YEARS", "MAX_COUNT", "check_naive", "fires", "matches", "next_fire"]
++
++HORIZON_YEARS = 5
++MAX_COUNT = 1000
++
++
++def check_naive(when: datetime.datetime) -> None:
++    """Reject anything but a naive datetime."""
++    if not isinstance(when, datetime.datetime):
++        raise ArgumentError(f"not a datetime: {when!r}")
++    if when.tzinfo is not None:
++        raise ArgumentError("datetime must be naive")
++
++
++def _next_month(t: datetime.datetime) -> datetime.datetime:
++    return datetime.datetime(t.year + t.month // 12, t.month % 12 + 1, 1)
++
++
++def _advance(schedule: Schedule, t: datetime.datetime) -> datetime.datetime | None:
++    if t.month not in schedule.month.values:
++        return _next_month(t)
++    if not day_matches(schedule, t.date()):
++        return datetime.datetime(t.year, t.month, t.day) + datetime.timedelta(days=1)
++    if t.hour not in schedule.hour.values:
++        return t.replace(minute=0) + datetime.timedelta(hours=1)
++    if t.minute not in schedule.minute.values:
++        return t + datetime.timedelta(minutes=1)
++    return None
++
++
++def next_fire(schedule: Schedule, after: datetime.datetime) -> datetime.datetime:
++    """Return the first fire time strictly after a moment."""
++    check_naive(after)
++    t = after.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
++    while t.year <= after.year + HORIZON_YEARS:
++        following = _advance(schedule, t)
++        if following is None:
++            return t
++        t = following
++    raise SearchError(f"no fire time within {HORIZON_YEARS} years")
++
++
++def fires(schedule: Schedule, after: datetime.datetime, count: int) -> list[datetime.datetime]:
++    """Return the next count fire times after a moment."""
++    if not isinstance(count, int) or not 1 <= count <= MAX_COUNT:
++        raise ArgumentError(f"count must be 1-{MAX_COUNT}, got {count!r}")
++    out: list[datetime.datetime] = []
++    for _ in range(count):
++        after = next_fire(schedule, after)
++        out.append(after)
++    return out
++
++
++def matches(schedule: Schedule, when: datetime.datetime) -> bool:
++    """Tell whether a schedule fires at exactly this moment."""
++    check_naive(when)
++    if when.second or when.microsecond:
++        return False
++    if when.minute not in schedule.minute.values or when.hour not in schedule.hour.values:
++        return False
++    return day_matches(schedule, when.date())
+diff --git a/src/cronplan/settings.py a/src/cronplan/settings.py
+deleted file mode 100644
+index 1e1019f..0000000
+--- a/src/cronplan/settings.py
++++ /dev/null
+@@ -1,12 +0,0 @@
+-# knobs shared by the parser and the scheduler
+-FIELD_NAMES = ["minute", "hour", "day-of-month", "month", "day-of-week"]
+-BOUNDS = {
+-    "minute": (0, 59),
+-    "hour": (0, 23),
+-    "day-of-month": (1, 31),
+-    "month": (1, 12),
+-    "day-of-week": (0, 7),
+-}
+-horizon_years = 5
+-max_count = 1000
+-debug = False

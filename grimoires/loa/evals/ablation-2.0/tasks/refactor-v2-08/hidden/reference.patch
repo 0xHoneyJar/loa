@@ -1,0 +1,1165 @@
+diff --git a/src/taskgraph/__init__.py b/src/taskgraph/__init__.py
+index c04d253..3e76f91 100644
+--- a/src/taskgraph/__init__.py
++++ b/src/taskgraph/__init__.py
+@@ -1,47 +1,17 @@
+ """Task manifests: checks, ordering, critical paths and schedules."""
+-from .parser import PlanError, ParseError, parse_manifest
+-from .graph import GraphError, CycleError, check, order as _order, levels as _levels, critical_path as _critical, slack as _slack
+-from .scheduler import ArgumentError, simulate
+-from .report import render, toDot as _to_dot
+-from .util import format_duration
+ 
++from taskgraph.durations import format_duration
++from taskgraph.errors import ArgumentError, CycleError, GraphError, ParseError, PlanError
++from taskgraph.facade import critical_text as critical_path
++from taskgraph.facade import dot_text as to_dot
++from taskgraph.facade import levels_text as levels
++from taskgraph.facade import order_text as order
++from taskgraph.facade import plan as parse
++from taskgraph.facade import report
++from taskgraph.facade import schedule_text as schedule
++from taskgraph.facade import slack_text as slack
+ 
+-def parse(text):
+-    """Parse a manifest and check its graph."""
+-    return check(parse_manifest(text))
+-
+-
+-def order(text):
+-    """Return the task names of a manifest in topological order."""
+-    return _order(parse(text))
+-
+-
+-def levels(text):
+-    """Return the task names of a manifest grouped by level."""
+-    return _levels(parse(text))
+-
+-
+-def critical_path(text):
+-    """Return the critical path of a manifest."""
+-    return _critical(parse(text))
+-
+-
+-def schedule(text, workers=2):
+-    """Return (name, start, end, worker) for every task of a manifest."""
+-    return simulate(parse(text), workers)
+-
+-
+-def report(text, workers=2):
+-    """Render a manifest's schedule and its summary."""
+-    g = parse(text)
+-    return render(g, simulate(g, workers))
+-
+-
+-def slack(text):
+-    """Return the slack of every task of a manifest."""
+-    return _slack(parse(text))
+-
+-
+-def to_dot(text):
+-    """Render a manifest's graph in dot syntax."""
+-    return _to_dot(parse(text))
++__all__ = [
++    "ArgumentError", "CycleError", "GraphError", "ParseError", "PlanError", "critical_path",
++    "format_duration", "levels", "order", "parse", "report", "schedule", "slack", "to_dot",
++]
+diff --git a/src/taskgraph/cli.py b/src/taskgraph/cli.py
+index 29c8a03..d652ec5 100644
+--- a/src/taskgraph/cli.py
++++ b/src/taskgraph/cli.py
+@@ -1,50 +1,79 @@
+ """The command line entry point main()."""
++
+ import argparse
+ import sys
+ 
+-import taskgraph
+-from .scheduler import ArgumentError
+-from .util import format_duration
++from taskgraph.durations import format_duration
++from taskgraph.errors import ArgumentError, PlanError
++from taskgraph.facade import critical_text, dot_text, levels_text, order_text, plan, report, slack_text
++from taskgraph.model import Command
++
++__all__ = ["build_parser", "main", "read_manifest", "run"]
+ 
+ 
+-def main(argv=None):
+-    """Run the command line and return the exit code."""
+-    p = argparse.ArgumentParser(prog="taskgraph")
+-    sub = p.add_subparsers(dest="command", required=True)
+-    for name in ("order", "levels", "critical", "schedule", "check", "slack", "dot"):
+-        c = sub.add_parser(name)
+-        c.add_argument("manifest")
+-        if name == "schedule":
+-            c.add_argument("--workers", type=int, default=2)
+-    args = p.parse_args(argv)
++def build_parser() -> argparse.ArgumentParser:
++    """Build the argument parser with one subcommand per action."""
++    parser = argparse.ArgumentParser(prog="taskgraph")
++    sub = parser.add_subparsers(dest="command", required=True)
++    for command in Command:
++        action = sub.add_parser(command.value)
++        action.add_argument("manifest")
++        if command is Command.SCHEDULE:
++            action.add_argument("--workers", type=int, default=2)
++    return parser
++
++
++def read_manifest(path: str) -> str:
++    """Read a manifest file."""
+     try:
+-        try:
+-            with open(args.manifest, encoding="utf-8") as fh:
+-                text = fh.read()
+-        except OSError:
+-            raise ArgumentError("cannot read %r" % (args.manifest,))
+-        if args.command == "order":
+-            print("\n".join(taskgraph.order(text)))
+-        elif args.command == "levels":
+-            for i, names in enumerate(taskgraph.levels(text)):
+-                print("%d: %s" % (i, " ".join(names)))
+-        elif args.command == "critical":
+-            total, path = taskgraph.critical_path(text)
+-            print("%s: %s" % (format_duration(total), " > ".join(path)))
+-        elif args.command == "schedule":
+-            print(taskgraph.report(text, args.workers))
+-        elif args.command == "slack":
+-            for name, value in taskgraph.slack(text).items():
+-                print("%s %s" % (name, format_duration(value)))
+-        elif args.command == "dot":
+-            print(taskgraph.to_dot(text))
+-        else:
+-            print("ok: %d tasks" % len(taskgraph.parse(text).tasks))
+-    except taskgraph.PlanError as e:
+-        print("error: %s" % e, file=sys.stderr)
+-        return 2
+-    return 0
++        with open(path, encoding="utf-8") as handle:
++            text = handle.read()
++    except OSError:
++        raise ArgumentError(f"cannot read {path!r}") from None
++    return text
+ 
+ 
+-if __name__ == "__main__":
+-    sys.exit(main())
++def _levels(text: str) -> str:
++    return "\n".join(f"{i}: {' '.join(names)}" for i, names in enumerate(levels_text(text)))
++
++
++def _slack(text: str) -> str:
++    return "\n".join(f"{name} {format_duration(n)}" for name, n in slack_text(text).items())
++
++
++def _critical(text: str) -> str:
++    total, path = critical_text(text)
++    return f"{format_duration(total)}: {' > '.join(path)}"
++
++
++def run(command: Command, text: str, workers: int) -> str:
++    """Run one command on a manifest's text and return its output."""
++    match command:
++        case Command.ORDER:
++            output = "\n".join(order_text(text))
++        case Command.LEVELS:
++            output = _levels(text)
++        case Command.CRITICAL:
++            output = _critical(text)
++        case Command.SCHEDULE:
++            output = report(text, workers)
++        case Command.CHECK:
++            output = f"ok: {len(plan(text).tasks)} tasks"
++        case Command.SLACK:
++            output = _slack(text)
++        case Command.DOT:
++            output = dot_text(text)
++    return output
++
++
++def main(argv: list[str] | None = None) -> int:
++    """Run the command line and return the exit code."""
++    args = build_parser().parse_args(argv)
++    code = 0
++    try:
++        text = read_manifest(args.manifest)
++        print(run(Command(args.command), text, getattr(args, "workers", 2)))
++    except PlanError as exc:
++        print(f"error: {exc}", file=sys.stderr)
++        code = 2
++    return code
+diff --git a/src/taskgraph/config.py a/src/taskgraph/config.py
+deleted file mode 100644
+index b90b70d..0000000
+--- a/src/taskgraph/config.py
++++ /dev/null
+@@ -1,6 +0,0 @@
+-SETTINGS = {
+-    "max_minutes": 10000,
+-    "max_workers": 64,
+-    "default_workers": 2,
+-}
+-UNITS = {"": 1, "m": 1, "h": 60}
+diff --git b/src/taskgraph/critical.py b/src/taskgraph/critical.py
+new file mode 100644
+index 0000000..005441e
+--- /dev/null
++++ b/src/taskgraph/critical.py
+@@ -0,0 +1,48 @@
++"""The longest chain of dependent work."""
++
++from taskgraph.index import by_name, dependents
++from taskgraph.model import Graph, Task
++from taskgraph.ordering import topological_order
++
++__all__ = ["critical_path", "finish_times", "slack_times"]
++
++
++def finish_times(graph: Graph) -> dict[str, int]:
++    """Return each task's earliest finish with unlimited workers."""
++    tasks = by_name(graph)
++    finish: dict[str, int] = {}
++    for name in topological_order(graph):
++        task = tasks[name]
++        finish = {**finish, name: task.duration + max((finish[d] for d in task.needs), default=0)}
++    return finish
++
++
++def _latest(names: list[str], finish: dict[str, int]) -> str:
++    return min(names, key=lambda n: (-finish[n], n))
++
++
++def critical_path(graph: Graph) -> tuple[int, list[str]]:
++    """Return the length and the tasks of the critical path."""
++    finish, tasks = finish_times(graph), by_name(graph)
++    current: Task = tasks[_latest(list(finish), finish)]
++    path = [current.name]
++    while current.needs:
++        current = tasks[_latest(list(current.needs), finish)]
++        path = path + [current.name]
++    return finish[path[0]], path[::-1]
++
++
++def _latest_finish(graph: Graph, total: int) -> dict[str, int]:
++    tasks, users = by_name(graph), dependents(graph)
++    latest: dict[str, int] = {}
++    for name in reversed(topological_order(graph)):
++        starts = [latest[u] - tasks[u].duration for u in users[name]]
++        latest = {**latest, name: min(starts) if starts else total}
++    return latest
++
++
++def slack_times(graph: Graph) -> dict[str, int]:
++    """Return how many minutes each task can slip without delaying the end."""
++    finish = finish_times(graph)
++    latest = _latest_finish(graph, max(finish.values()))
++    return {task.name: latest[task.name] - finish[task.name] for task in graph.tasks}
+diff --git b/src/taskgraph/durations.py b/src/taskgraph/durations.py
+new file mode 100644
+index 0000000..b4c565f
+--- /dev/null
++++ b/src/taskgraph/durations.py
+@@ -0,0 +1,43 @@
++"""Durations in minutes, written with an optional m or h unit."""
++
++import re
++
++from taskgraph.errors import ParseError
++from taskgraph.model import Unit
++
++__all__ = ["MAX_MINUTES", "format_duration", "parse_duration", "unit_minutes"]
++
++MAX_MINUTES = 10000
++
++
++def unit_minutes(unit: Unit) -> int:
++    """Return the minutes one unit stands for."""
++    match unit:
++        case Unit.MINUTES:
++            minutes = 1
++        case Unit.HOURS:
++            minutes = 60
++    return minutes
++
++
++def parse_duration(text: str, line: int) -> int:
++    """Read a duration such as 90, 45m or 2h as minutes."""
++    match = re.fullmatch(r"([0-9]+)([mh]?)", text)
++    if match is None:
++        raise ParseError(f"line {line}: bad duration {text!r}")
++    minutes = int(match.group(1)) * unit_minutes(Unit(match.group(2) or "m"))
++    if minutes > MAX_MINUTES:
++        raise ParseError(f"line {line}: duration {text!r} is over {MAX_MINUTES} minutes")
++    return minutes
++
++
++def format_duration(minutes: int) -> str:
++    """Render minutes as 1h30m, 2h or 45m."""
++    hours, rest = divmod(minutes, 60)
++    if hours and rest:
++        text = f"{hours}h{rest}m"
++    elif hours:
++        text = f"{hours}h"
++    else:
++        text = f"{rest}m"
++    return text
+diff --git b/src/taskgraph/errors.py b/src/taskgraph/errors.py
+new file mode 100644
+index 0000000..d025cb9
+--- /dev/null
++++ b/src/taskgraph/errors.py
+@@ -0,0 +1,23 @@
++"""The errors the package raises."""
++
++__all__ = ["ArgumentError", "CycleError", "GraphError", "ParseError", "PlanError"]
++
++
++class PlanError(ValueError):
++    """Base class of every error the package raises."""
++
++
++class ParseError(PlanError):
++    """A manifest line does not follow the grammar."""
++
++
++class GraphError(PlanError):
++    """The tasks of a manifest do not form a usable graph."""
++
++
++class CycleError(GraphError):
++    """The dependencies of a manifest form a cycle."""
++
++
++class ArgumentError(PlanError):
++    """A worker count or input file is unusable."""
+diff --git b/src/taskgraph/facade.py b/src/taskgraph/facade.py
+new file mode 100644
+index 0000000..50e9b7c
+--- /dev/null
++++ b/src/taskgraph/facade.py
+@@ -0,0 +1,55 @@
++"""The manifest-string functions the package exports."""
++
++from taskgraph.critical import critical_path, slack_times
++from taskgraph.manifest import parse_manifest
++from taskgraph.model import Graph
++from taskgraph.ordering import levels, topological_order
++from taskgraph.render import format_schedule, summary, to_dot
++from taskgraph.simulate import simulate
++from taskgraph.validate import check_graph
++
++__all__ = [
++    "critical_text", "dot_text", "levels_text", "order_text", "plan", "report", "schedule_text", "slack_text",
++]
++
++
++def plan(text: str) -> Graph:
++    """Parse a manifest and check its graph."""
++    return check_graph(parse_manifest(text))
++
++
++def order_text(text: str) -> list[str]:
++    """Return the task names of a manifest in topological order."""
++    return topological_order(plan(text))
++
++
++def levels_text(text: str) -> list[list[str]]:
++    """Return the task names of a manifest grouped by level."""
++    return levels(plan(text))
++
++
++def critical_text(text: str) -> tuple[int, list[str]]:
++    """Return the critical path of a manifest."""
++    return critical_path(plan(text))
++
++
++def schedule_text(text: str, workers: int = 2) -> list[tuple[str, int, int, int]]:
++    """Return (name, start, end, worker) for every task of a manifest."""
++    return [(s.name, s.start, s.end, s.worker) for s in simulate(plan(text), workers)]
++
++
++def report(text: str, workers: int = 2) -> str:
++    """Render a manifest's schedule and its summary."""
++    graph = plan(text)
++    slots = simulate(graph, workers)
++    return format_schedule(slots) + "\n\n" + summary(graph, slots)
++
++
++def slack_text(text: str) -> dict[str, int]:
++    """Return the slack of every task of a manifest."""
++    return slack_times(plan(text))
++
++
++def dot_text(text: str) -> str:
++    """Render a manifest's graph in dot syntax."""
++    return to_dot(plan(text))
+diff --git a/src/taskgraph/graph.py a/src/taskgraph/graph.py
+deleted file mode 100644
+index 44f966b..0000000
+--- a/src/taskgraph/graph.py
++++ /dev/null
+@@ -1,128 +0,0 @@
+-"""Graph algorithms over parsed manifests."""
+-from typing import List
+-
+-from .parser import PlanError
+-
+-
+-class GraphError(PlanError):
+-    pass
+-
+-
+-class CycleError(GraphError):
+-    pass
+-
+-
+-def check(graph):
+-    """Reject unknown dependencies, then cycles; return the graph."""
+-    names = set(t.name for t in graph.tasks)
+-    for t in graph.tasks:
+-        for dep in t.needs:
+-            if dep not in names:
+-                raise GraphError("task %r needs unknown task %r" % (t.name, dep))
+-    needs = dict((t.name, t.needs) for t in graph.tasks)
+-    done = set()
+-    stack = []
+-
+-    def visit(name):
+-        stack.append(name)
+-        for dep in needs[name]:
+-            if dep in stack:
+-                return stack[stack.index(dep):]
+-            if dep not in done:
+-                found = visit(dep)
+-                if found:
+-                    return found
+-        done.add(stack.pop())
+-        return None
+-
+-    for t in graph.tasks:
+-        if t.name in done:
+-            continue
+-        cycle = visit(t.name)
+-        if cycle:
+-            i = cycle.index(min(cycle))
+-            cycle = cycle[i:] + cycle[:i]
+-            cycle.append(cycle[0])
+-            raise CycleError("cycle: " + " -> ".join(cycle))
+-    return graph
+-
+-
+-def order(graph) -> List[str]:
+-    """Return every task after its dependencies, picking ready tasks by key."""
+-    users = dict((t.name, []) for t in graph.tasks)
+-    for t in graph.tasks:
+-        for dep in t.needs:
+-            users[dep].append(t.name)
+-    waiting = dict((t.name, len(t.needs)) for t in graph.tasks)
+-    ready = [t for t in graph.tasks if len(t.needs) == 0]
+-    out = []
+-    while len(ready) > 0:
+-        best = None
+-        for t in ready:
+-            if best is None or (-t.priority, t.name) < (-best.priority, best.name):
+-                best = t
+-        ready.remove(best)
+-        out.append(best.name)
+-        for u in users[best.name]:
+-            waiting[u] -= 1
+-            if waiting[u] == 0:
+-                ready.append(graph.get(u))
+-    return out
+-
+-
+-def levels(graph):
+-    """Group tasks by depth: no dependencies is level 0; names sorted."""
+-    depth = {}
+-    for name in order(graph):
+-        t = graph.get(name)
+-        if not t.needs:
+-            depth[name] = 0
+-        else:
+-            depth[name] = 1 + max(depth[d] for d in t.needs)
+-    result = []
+-    for lvl in range(max(depth.values()) + 1):
+-        result.append(sorted(n for n in depth if depth[n] == lvl))
+-    return result
+-
+-
+-def finish_times(graph):
+-    finish = {}
+-    for name in order(graph):
+-        t = graph.get(name)
+-        start = 0
+-        for d in t.needs:
+-            if finish[d] > start:
+-                start = finish[d]
+-        finish[name] = start + t.duration
+-    return finish
+-
+-
+-def critical_path(graph):
+-    """Return the length and the tasks of the critical path."""
+-    finish = finish_times(graph)
+-    end = sorted(finish, key=lambda n: (-finish[n], n))[0]
+-    path = [end]
+-    cur = graph.get(end)
+-    while cur.needs:
+-        nxt = sorted(cur.needs, key=lambda n: (-finish[n], n))[0]
+-        path.append(nxt)
+-        cur = graph.get(nxt)
+-    path.reverse()
+-    return finish[end], path
+-
+-
+-def slack(graph):
+-    """Return how many minutes each task can slip without delaying the end."""
+-    finish = finish_times(graph)
+-    total = max(finish.values())
+-    users = dict((t.name, []) for t in graph.tasks)
+-    for t in graph.tasks:
+-        for dep in t.needs:
+-            users[dep].append(t.name)
+-    latest = {}
+-    for name in reversed(order(graph)):
+-        if users[name]:
+-            latest[name] = min(latest[u] - graph.get(u).duration for u in users[name])
+-        else:
+-            latest[name] = total
+-    return dict((t.name, latest[t.name] - finish[t.name]) for t in graph.tasks)
+diff --git b/src/taskgraph/index.py b/src/taskgraph/index.py
+new file mode 100644
+index 0000000..49f2aca
+--- /dev/null
++++ b/src/taskgraph/index.py
+@@ -0,0 +1,15 @@
++"""Lookups over a graph."""
++
++from taskgraph.model import Graph, Task
++
++__all__ = ["by_name", "dependents"]
++
++
++def by_name(graph: Graph) -> dict[str, Task]:
++    """Map each task name to its task."""
++    return {task.name: task for task in graph.tasks}
++
++
++def dependents(graph: Graph) -> dict[str, list[str]]:
++    """Map each task name to the tasks that need it, in definition order."""
++    return {task.name: [user.name for user in graph.tasks if task.name in user.needs] for task in graph.tasks}
+diff --git b/src/taskgraph/lines.py b/src/taskgraph/lines.py
+new file mode 100644
+index 0000000..55b61c2
+--- /dev/null
++++ b/src/taskgraph/lines.py
+@@ -0,0 +1,46 @@
++"""Parsing one manifest line."""
++
++import re
++
++from taskgraph.durations import parse_duration
++from taskgraph.errors import ParseError
++from taskgraph.model import Task
++from taskgraph.names import check_name
++
++__all__ = ["parse_line", "parse_needs"]
++
++_CLAUSES = r"^(?:needs\s+(?P<needs>.+?))?(?:\s*\bpriority\s+(?P<priority>-?[0-9]+))?$"
++
++
++def parse_needs(text: str | None, line: int) -> tuple[str, ...]:
++    """Split a needs clause into distinct, valid task names."""
++    items = tuple(part.strip() for part in text.split(",")) if text is not None else ()
++    for position, item in enumerate(items):
++        if not item:
++            raise ParseError(f"line {line}: empty dependency")
++        if check_name(item, line) in items[:position]:
++            raise ParseError(f"line {line}: duplicate dependency {item!r}")
++    return items
++
++
++def _clauses(words: list[str], line: int) -> tuple[tuple[str, ...], int]:
++    rest = " ".join(words)
++    match = re.match(_CLAUSES, rest)
++    if match is None:
++        raise ParseError(f"line {line}: bad clause {rest!r}")
++    priority = match.group("priority")
++    return parse_needs(match.group("needs"), line), int(priority) if priority else 0
++
++
++def parse_line(text: str, line: int) -> Task:
++    """Parse 'name: duration [needs a, b] [priority n]'."""
++    head, colon, rest = text.partition(":")
++    if not colon:
++        raise ParseError(f"line {line}: expected 'name: duration'")
++    name = check_name(head.strip(), line)
++    words = rest.split()
++    if not words:
++        raise ParseError(f"line {line}: missing duration")
++    duration = parse_duration(words[0], line)
++    needs, priority = _clauses(words[1:], line)
++    return Task(name, duration, needs, priority, line)
+diff --git b/src/taskgraph/manifest.py b/src/taskgraph/manifest.py
+new file mode 100644
+index 0000000..b49657c
+--- /dev/null
++++ b/src/taskgraph/manifest.py
+@@ -0,0 +1,33 @@
++"""Parsing a whole manifest."""
++
++from taskgraph.errors import ParseError
++from taskgraph.lines import parse_line
++from taskgraph.model import Graph, Task
++
++__all__ = ["parse_manifest", "strip_comment"]
++
++
++def strip_comment(raw: str) -> str:
++    """Drop a # comment and surrounding blanks from one line."""
++    return raw.split("#", 1)[0].strip()
++
++
++def _added(tasks: tuple[Task, ...], task: Task) -> tuple[Task, ...]:
++    for seen in tasks:
++        if seen.name == task.name:
++            raise ParseError(f"line {task.line}: task {task.name!r} already defined on line {seen.line}")
++    return tasks + (task,)
++
++
++def parse_manifest(text: str) -> Graph:
++    """Parse every task line of a manifest, in order."""
++    if not isinstance(text, str):
++        raise ParseError("manifest must be a string")
++    tasks: tuple[Task, ...] = ()
++    for number, raw in enumerate(text.splitlines(), 1):
++        body = strip_comment(raw)
++        if body:
++            tasks = _added(tasks, parse_line(body, number))
++    if not tasks:
++        raise ParseError("manifest has no tasks")
++    return Graph(tasks)
+diff --git b/src/taskgraph/model.py b/src/taskgraph/model.py
+new file mode 100644
+index 0000000..3db4f30
+--- /dev/null
++++ b/src/taskgraph/model.py
+@@ -0,0 +1,53 @@
++"""Plain data: tasks, graphs, schedule slots and their enums."""
++
++import enum
++from dataclasses import dataclass
++
++__all__ = ["Command", "Graph", "Slot", "Task", "Unit"]
++
++
++class Unit(enum.Enum):
++    """A duration unit; a bare number is minutes."""
++
++    MINUTES = "m"
++    HOURS = "h"
++
++
++class Command(enum.Enum):
++    """A command-line action."""
++
++    ORDER = "order"
++    LEVELS = "levels"
++    CRITICAL = "critical"
++    SCHEDULE = "schedule"
++    CHECK = "check"
++    SLACK = "slack"
++    DOT = "dot"
++
++
++@dataclass(frozen=True, slots=True)
++class Task:
++    """One task: its duration in minutes, its dependencies and priority."""
++
++    name: str
++    duration: int
++    needs: tuple[str, ...] = ()
++    priority: int = 0
++    line: int = 0
++
++
++@dataclass(frozen=True, slots=True)
++class Graph:
++    """The tasks of a manifest in definition order."""
++
++    tasks: tuple[Task, ...]
++
++
++@dataclass(frozen=True, slots=True)
++class Slot:
++    """One task placed on a worker."""
++
++    name: str
++    start: int
++    end: int
++    worker: int
+diff --git b/src/taskgraph/names.py b/src/taskgraph/names.py
+new file mode 100644
+index 0000000..510e19e
+--- /dev/null
++++ b/src/taskgraph/names.py
+@@ -0,0 +1,16 @@
++"""Task names."""
++
++import re
++
++from taskgraph.errors import ParseError
++
++__all__ = ["NAME_PATTERN", "check_name"]
++
++NAME_PATTERN = r"[a-z][a-z0-9_-]*"
++
++
++def check_name(text: str, line: int) -> str:
++    """Return a valid task name or raise for its line."""
++    if not re.fullmatch(NAME_PATTERN, text):
++        raise ParseError(f"line {line}: bad task name {text!r}")
++    return text
+diff --git b/src/taskgraph/ordering.py b/src/taskgraph/ordering.py
+new file mode 100644
+index 0000000..a887d51
+--- /dev/null
++++ b/src/taskgraph/ordering.py
+@@ -0,0 +1,40 @@
++"""Topological order and dependency levels."""
++
++from taskgraph.index import by_name, dependents
++from taskgraph.model import Graph, Task
++
++__all__ = ["levels", "ready_key", "topological_order"]
++
++
++def ready_key(task: Task) -> tuple[int, str]:
++    """Order ready tasks: higher priority first, then by name."""
++    return (-task.priority, task.name)
++
++
++def _release(waiting: dict[str, int], users: list[str]) -> tuple[dict[str, int], list[str]]:
++    left = {name: count - (1 if name in users else 0) for name, count in waiting.items()}
++    return left, [user for user in users if left[user] == 0]
++
++
++def topological_order(graph: Graph) -> list[str]:
++    """Return every task after its dependencies, picking ready tasks by key."""
++    tasks, users = by_name(graph), dependents(graph)
++    waiting = {task.name: len(task.needs) for task in graph.tasks}
++    ready = [task for task in graph.tasks if not task.needs]
++    order: list[str] = []
++    while ready:
++        current = min(ready, key=ready_key)
++        waiting, freed = _release(waiting, users[current.name])
++        ready = [t for t in ready if t is not current] + [tasks[name] for name in freed]
++        order = order + [current.name]
++    return order
++
++
++def levels(graph: Graph) -> list[list[str]]:
++    """Group tasks by depth: no dependencies is level 0; names sorted."""
++    tasks = by_name(graph)
++    depth: dict[str, int] = {}
++    for name in topological_order(graph):
++        depth = {**depth, name: 1 + max((depth[d] for d in tasks[name].needs), default=-1)}
++    top = max(depth.values())
++    return [sorted(name for name, level in depth.items() if level == wanted) for wanted in range(top + 1)]
+diff --git a/src/taskgraph/parser.py a/src/taskgraph/parser.py
+deleted file mode 100644
+index 30a0384..0000000
+--- a/src/taskgraph/parser.py
++++ /dev/null
+@@ -1,95 +0,0 @@
+-"""Reading task manifests."""
+-import re
+-
+-from . import config
+-from .util import _strip
+-
+-NAME_RE = re.compile(r"[a-z][a-z0-9_-]*")
+-DURATION_RE = re.compile(r"([0-9]+)([mh]?)")
+-CLAUSE_RE = re.compile(r"^(?:needs\s+(?P<needs>.+?))?(?:\s*\bpriority\s+(?P<priority>-?[0-9]+))?$")
+-
+-
+-class PlanError(ValueError):
+-    pass
+-
+-
+-class ParseError(PlanError):
+-    pass
+-
+-
+-class task:
+-    def __init__(self, name, duration, needs=(), priority=0, line=0):
+-        self.name = name
+-        self.duration = duration
+-        self.needs = tuple(needs)
+-        self.priority = priority
+-        self.line = line
+-
+-    def __repr__(self):
+-        return "task(%r, %r, %r, %r, %r)" % (self.name, self.duration, self.needs, self.priority, self.line)
+-
+-
+-class Graph:
+-    """The tasks of a manifest in definition order."""
+-
+-    def __init__(self, tasks):
+-        self.tasks = tuple(tasks)
+-        self._by_name = dict((t.name, t) for t in self.tasks)
+-
+-    def get(self, name):
+-        return self._by_name[name]
+-
+-
+-def parse_manifest(text):
+-    """Parse every task line of a manifest, in order."""
+-    if not isinstance(text, str):
+-        raise ParseError("manifest must be a string")
+-    tasks = []
+-    seen = {}
+-    lineno = 0
+-    for raw in text.splitlines():
+-        lineno += 1
+-        line = _strip(raw)
+-        if not line:
+-            continue
+-        head, colon, rest = line.partition(":")
+-        if not colon:
+-            raise ParseError("line %d: expected 'name: duration'" % lineno)
+-        name = head.strip()
+-        if not NAME_RE.fullmatch(name):
+-            raise ParseError("line %d: bad task name %r" % (lineno, name))
+-        words = rest.split()
+-        if not words:
+-            raise ParseError("line %d: missing duration" % lineno)
+-        m = DURATION_RE.fullmatch(words[0])
+-        if not m:
+-            raise ParseError("line %d: bad duration %r" % (lineno, words[0]))
+-        minutes = int(m.group(1)) * config.UNITS[m.group(2)]
+-        if minutes > config.SETTINGS["max_minutes"]:
+-            raise ParseError("line %d: duration %r is over %d minutes" % (lineno, words[0], config.SETTINGS["max_minutes"]))
+-        clauses = " ".join(words[1:])
+-        cm = CLAUSE_RE.match(clauses)
+-        if cm is None:
+-            raise ParseError("line %d: bad clause %r" % (lineno, clauses))
+-        needs = []
+-        if cm.group("needs") is not None:
+-            for dep in cm.group("needs").split(","):
+-                dep = dep.strip()
+-                if dep == "":
+-                    raise ParseError("line %d: empty dependency" % lineno)
+-                if not NAME_RE.fullmatch(dep):
+-                    raise ParseError("line %d: bad task name %r" % (lineno, dep))
+-                if dep in needs:
+-                    raise ParseError("line %d: duplicate dependency %r" % (lineno, dep))
+-                needs.append(dep)
+-        try:
+-            priority = int(cm.group("priority")) if cm.group("priority") else 0
+-        except:  # noqa: E722
+-            raise
+-        if name in seen:
+-            raise ParseError("line %d: task %r already defined on line %d" % (lineno, name, seen[name]))
+-        seen[name] = lineno
+-        tasks.append(task(name, minutes, needs, priority, lineno))
+-    if not tasks:
+-        raise ParseError("manifest has no tasks")
+-    return Graph(tasks)
+diff --git b/src/taskgraph/render.py b/src/taskgraph/render.py
+new file mode 100644
+index 0000000..8873ff4
+--- /dev/null
++++ b/src/taskgraph/render.py
+@@ -0,0 +1,36 @@
++"""Text renderings of schedules and summaries."""
++
++from taskgraph.critical import critical_path
++from taskgraph.durations import format_duration
++from taskgraph.model import Graph, Slot
++
++__all__ = ["format_schedule", "summary", "to_dot"]
++
++
++def format_schedule(slots: list[Slot]) -> str:
++    """Render one line per slot: name, start-end and worker, in columns."""
++    spans = [f"{s.start}-{s.end}" for s in slots]
++    name_width = max(len(s.name) for s in slots)
++    span_width = max(len(span) for span in spans)
++    lines = [f"{s.name.ljust(name_width)}  {span.ljust(span_width)}  w{s.worker}" for s, span in zip(slots, spans)]
++    return "\n".join(lines)
++
++
++def summary(graph: Graph, slots: list[Slot]) -> str:
++    """Render the task count, total work, makespan and critical path."""
++    total, path = critical_path(graph)
++    work = sum(task.duration for task in graph.tasks)
++    makespan = max(s.end for s in slots)
++    return "\n".join([
++        f"tasks: {len(graph.tasks)}",
++        f"work: {format_duration(work)}",
++        f"makespan: {format_duration(makespan)}",
++        f"critical: {' > '.join(path)} ({format_duration(total)})",
++    ])
++
++
++def to_dot(graph: Graph) -> str:
++    """Render a graph in Graphviz dot syntax."""
++    nodes = [f'  "{t.name}" [label="{t.name} ({format_duration(t.duration)})"];' for t in graph.tasks]
++    edges = [f'  "{d}" -> "{t.name}";' for t in graph.tasks for d in t.needs]
++    return "\n".join(["digraph tasks {"] + nodes + edges + ["}"])
+diff --git a/src/taskgraph/report.py a/src/taskgraph/report.py
+deleted file mode 100644
+index f5abcc9..0000000
+--- a/src/taskgraph/report.py
++++ /dev/null
+@@ -1,31 +0,0 @@
+-from .util import format_duration
+-
+-
+-def render(graph, slots):
+-    """Render a schedule and its summary."""
+-    w1 = max(len(s[0]) for s in slots)
+-    spans = ["%d-%d" % (s[1], s[2]) for s in slots]
+-    w2 = max(len(x) for x in spans)
+-    lines = []
+-    for s, span in zip(slots, spans):
+-        lines.append("%s  %s  w%d" % (s[0].ljust(w1), span.ljust(w2), s[3]))
+-    from .graph import critical_path
+-    total, path = critical_path(graph)
+-    lines.append("")
+-    lines.append("tasks: %d" % len(graph.tasks))
+-    lines.append("work: %s" % format_duration(sum(t.duration for t in graph.tasks)))
+-    lines.append("makespan: %s" % format_duration(max(s[2] for s in slots)))
+-    lines.append("critical: %s (%s)" % (" > ".join(path), format_duration(total)))
+-    return "\n".join(lines)
+-
+-
+-def toDot(graph):
+-    """Render a graph in Graphviz dot syntax."""
+-    out = ["digraph tasks {"]
+-    for t in graph.tasks:
+-        out.append('  "%s" [label="%s (%s)"];' % (t.name, t.name, format_duration(t.duration)))
+-    for t in graph.tasks:
+-        for d in t.needs:
+-            out.append('  "%s" -> "%s";' % (d, t.name))
+-    out.append("}")
+-    return "\n".join(out)
+diff --git a/src/taskgraph/scheduler.py a/src/taskgraph/scheduler.py
+deleted file mode 100644
+index 01cb8f6..0000000
+--- a/src/taskgraph/scheduler.py
++++ /dev/null
+@@ -1,42 +0,0 @@
+-"""Simulating a fixed number of workers."""
+-from . import config
+-from .graph import order
+-from .parser import PlanError
+-
+-
+-class ArgumentError(PlanError):
+-    pass
+-
+-
+-_runs = 0
+-DEBUG = False
+-
+-
+-def simulate(graph, workers):
+-    """Place every task on the lowest free worker as soon as it is ready."""
+-    global _runs
+-    _runs += 1
+-    limit = config.SETTINGS["max_workers"]
+-    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1 or workers > limit:
+-        raise ArgumentError("workers must be 1-%d, got %r" % (limit, workers))
+-    slots = []
+-    now = 0
+-    while len(slots) < len(graph.tasks):
+-        while True:
+-            finished = set(s[0] for s in slots if s[2] <= now)
+-            started = set(s[0] for s in slots)
+-            ready = [t for t in graph.tasks if t.name not in started and all(d in finished for d in t.needs)]
+-            ready.sort(key=lambda t: (-t.priority, t.name))
+-            busy = set(s[3] for s in slots if s[2] > now)
+-            free = [w for w in range(1, workers + 1) if w not in busy]
+-            if not ready or not free:
+-                break
+-            t = ready[0]
+-            slots.append((t.name, now, now + t.duration, free[0]))
+-            if DEBUG:
+-                print("start", t.name, now)
+-        later = [s[2] for s in slots if s[2] > now]
+-        if later:
+-            now = min(later)
+-    slots.sort(key=lambda s: (s[1], s[3], s[0]))
+-    return slots
+diff --git b/src/taskgraph/simulate.py b/src/taskgraph/simulate.py
+new file mode 100644
+index 0000000..b82cc53
+--- /dev/null
++++ b/src/taskgraph/simulate.py
+@@ -0,0 +1,60 @@
++"""List scheduling of a graph on a fixed number of workers."""
++
++from taskgraph.errors import ArgumentError
++from taskgraph.model import Graph, Slot, Task
++from taskgraph.ordering import ready_key
++
++__all__ = ["MAX_WORKERS", "check_workers", "simulate"]
++
++MAX_WORKERS = 64
++
++
++def check_workers(workers: int) -> int:
++    """Return a usable worker count or raise."""
++    if isinstance(workers, bool) or not isinstance(workers, int) or not 1 <= workers <= MAX_WORKERS:
++        raise ArgumentError(f"workers must be 1-{MAX_WORKERS}, got {workers!r}")
++    return workers
++
++
++def _waiting(graph: Graph, slots: tuple[Slot, ...]) -> list[Task]:
++    started = {s.name for s in slots}
++    return [t for t in graph.tasks if t.name not in started]
++
++
++def _ready(graph: Graph, slots: tuple[Slot, ...], now: int) -> list[Task]:
++    finished = {s.name for s in slots if s.end <= now}
++    return sorted((t for t in _waiting(graph, slots) if finished.issuperset(t.needs)), key=ready_key)
++
++
++def _free(slots: tuple[Slot, ...], now: int, workers: int) -> list[int]:
++    busy = {s.worker for s in slots if s.end > now}
++    return [w for w in range(1, workers + 1) if w not in busy]
++
++
++def _place(graph: Graph, slots: tuple[Slot, ...], clock: tuple[int, int]) -> Slot | None:
++    now, workers = clock
++    ready, free = _ready(graph, slots, now), _free(slots, now, workers)
++    placed = None
++    if ready and free:
++        placed = Slot(ready[0].name, now, now + ready[0].duration, free[0])
++    return placed
++
++
++def _fill(graph: Graph, slots: tuple[Slot, ...], clock: tuple[int, int]) -> tuple[Slot, ...]:
++    placed = _place(graph, slots, clock)
++    while placed is not None:
++        slots = slots + (placed,)
++        placed = _place(graph, slots, clock)
++    return slots
++
++
++def simulate(graph: Graph, workers: int) -> list[Slot]:
++    """Place every task on the lowest free worker as soon as it is ready."""
++    check_workers(workers)
++    slots: tuple[Slot, ...] = ()
++    now = 0
++    while len(slots) < len(graph.tasks):
++        slots = _fill(graph, slots, (now, workers))
++        later = [s.end for s in slots if s.end > now]
++        now = min(later) if later else now
++    return sorted(slots, key=lambda s: (s.start, s.worker, s.name))
+diff --git a/src/taskgraph/util.py a/src/taskgraph/util.py
+deleted file mode 100644
+index 10acfc0..0000000
+--- a/src/taskgraph/util.py
++++ /dev/null
+@@ -1,19 +0,0 @@
+-"""Odds and ends."""
+-
+-calls = {"format": 0}
+-
+-
+-def format_duration(minutes):
+-    """Render minutes as 1h30m, 2h or 45m."""
+-    calls["format"] += 1
+-    h = minutes // 60
+-    m = minutes % 60
+-    if h and m:
+-        return "%dh%dm" % (h, m)
+-    if h:
+-        return "%dh" % h
+-    return "%dm" % m
+-
+-
+-def _strip(line):
+-    return line.split("#", 1)[0].strip()
+diff --git b/src/taskgraph/validate.py b/src/taskgraph/validate.py
+new file mode 100644
+index 0000000..22fdce2
+--- /dev/null
++++ b/src/taskgraph/validate.py
+@@ -0,0 +1,71 @@
++"""Checking that a graph's dependencies exist and form no cycle."""
++
++from taskgraph.errors import CycleError, GraphError
++from taskgraph.index import by_name
++from taskgraph.model import Graph
++
++__all__ = ["check_graph", "find_cycle", "rotate_cycle"]
++
++
++def _unknown(graph: Graph) -> None:
++    names = by_name(graph)
++    for task, dep in ((t, d) for t in graph.tasks for d in t.needs):
++        if dep not in names:
++            raise GraphError(f"task {task.name!r} needs unknown task {dep!r}")
++
++
++def _advance(frames: tuple[tuple[str, int], ...], done: frozenset[str], dep: str) -> tuple[tuple[tuple[str, int], ...], frozenset[str], list[str] | None]:
++    name, index = frames[-1]
++    frames = frames[:-1] + ((name, index + 1),)
++    names = [frame[0] for frame in frames]
++    if dep in names:
++        result = (frames, done, names[names.index(dep):])
++    elif dep in done:
++        result = (frames, done, None)
++    else:
++        result = (frames + ((dep, 0),), done, None)
++    return result
++
++
++def _step(frames: tuple[tuple[str, int], ...], done: frozenset[str], needs: dict[str, tuple[str, ...]]) -> tuple[tuple[tuple[str, int], ...], frozenset[str], list[str] | None]:
++    name, index = frames[-1]
++    deps = needs[name]
++    if index == len(deps):
++        result = (frames[:-1], done | {name}, None)
++    else:
++        result = _advance(frames, done, deps[index])
++    return result
++
++
++def _search(start: str, needs: dict[str, tuple[str, ...]], done: frozenset[str]) -> tuple[list[str] | None, frozenset[str]]:
++    frames, cycle = ((start, 0),), None
++    while frames and cycle is None:
++        frames, done, cycle = _step(frames, done, needs)
++    return cycle, done
++
++
++def find_cycle(graph: Graph) -> list[str] | None:
++    """Return the first cycle a depth-first walk in definition order meets."""
++    needs = {task.name: task.needs for task in graph.tasks}
++    done: frozenset[str] = frozenset()
++    cycle = None
++    for task in graph.tasks:
++        if cycle is None and task.name not in done:
++            cycle, done = _search(task.name, needs, done)
++    return cycle
++
++
++def rotate_cycle(cycle: list[str]) -> list[str]:
++    """Start a cycle at its smallest name and close it."""
++    start = cycle.index(min(cycle))
++    turned = cycle[start:] + cycle[:start]
++    return turned + [turned[0]]
++
++
++def check_graph(graph: Graph) -> Graph:
++    """Reject unknown dependencies, then cycles; return the graph."""
++    _unknown(graph)
++    cycle = find_cycle(graph)
++    if cycle is not None:
++        raise CycleError("cycle: " + " -> ".join(rotate_cycle(cycle)))
++    return graph

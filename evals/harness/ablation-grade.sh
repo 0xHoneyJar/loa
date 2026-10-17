@@ -217,6 +217,13 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
+# grader 1.2.11 (Sprint 261): 1.2.10's --import-mode=importlib is reverted (it broke the sibling-module imports hidden
+# suites and fixture suites rely on: import _oracle_x, from helpers import …); instead a Python file the agent added
+# (no fixture file and no hidden overlay at its path) whose basename equals a hidden overlay's or a fixture test file's
+# basename is removed before any command runs (counted in grade.json colliding_tests_removed, paths beside the tree in
+# grading/<label>.colliding-removed.txt): under pytest's default import mode two test modules with one basename in
+# package-less directories abort collection (import file mismatch) and would grade a correct solution as failing.
+# grader 1.2.10 (Sprint 261, superseded by 1.2.11): pytest ran with --import-mode=importlib.
 # grader 1.2.9 (Sprint 260 audit round 2): the glob rule reads * and ? only — a [ after a one-component word
 # is a regex bracket expression (two P1 commands read as contaminated under 1.2.8: grep '/home[^"]*…',
 # sed 's/job\["status"\]…'; KF-046 recurrence 7) — and a quoted one-component pattern stays exempt.
@@ -295,7 +302,7 @@ import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, sub
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.9"
+GRADER_VERSION = "1.2.11"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1008,7 +1015,9 @@ def prepare(t, tree):
                 remove_path(os.path.join(tree, *parts))
     for _s, dest, full in t.overlay:
         put_file(tree, dest, full)
-    return remove_harness(t, tree)
+    n = remove_harness(t, tree)
+    COLLIDING[0] += remove_colliding(t, tree)
+    return n
 
 
 def is_harness(parts):
@@ -1055,6 +1064,41 @@ def remove_harness(t, tree):
     for _rel, p in found:
         os.unlink(p)
     with open(tree.rstrip("/") + ".harness-removed.txt", "w", encoding="utf-8") as f:
+        f.write("".join(rel + "\n" for rel, _p in sorted(found)))
+    return len(found)
+
+
+COLLIDING = [0]   # agent-added .py files removed for a basename collision in this grade (1.2.11)
+
+
+def remove_colliding(t, tree):
+    """1.2.11: a .py file at a path that is neither a hidden overlay dest nor present in the fixture, whose basename
+    equals the basename of a hidden overlay .py file or of a fixture .py file under tests/ or test/, is removed: under
+    the default import mode pytest imports package-less test modules by basename and a second module with the same
+    basename aborts collection. Paths go to grading/<label>.colliding-removed.txt beside the tree → count"""
+    owned = {d for _s, d, f in t.overlay if not os.path.isdir(f)}
+    owned_dirs = tuple(d + "/" for _s, d, f in t.overlay if os.path.isdir(f))
+    reserved = {d.rsplit("/", 1)[-1] for d in owned if d.endswith(".py")}
+    fx = t.fixture or ""
+    if fx and os.path.isdir(fx):
+        for r, _ds, fs in os.walk(fx, followlinks=False):
+            parts = os.path.relpath(r, fx).replace(os.sep, "/").split("/")
+            if any(p in ("tests", "test") for p in parts):
+                reserved.update(n for n in fs if n.endswith(".py") and n not in ("__init__.py", "conftest.py"))
+    reserved.discard("conftest.py")   # pytest registers conftest modules per directory; remove_harness owns them
+    found = []
+    for r, ds, fs in os.walk(tree, followlinks=False):
+        relr = os.path.relpath(r, tree)
+        for name in sorted(fs):
+            if name not in reserved:
+                continue
+            rel = name if relr == "." else relr.replace(os.sep, "/") + "/" + name
+            if rel in owned or rel.startswith(owned_dirs) or (fx and os.path.lexists(os.path.join(fx, *rel.split("/")))):
+                continue
+            found.append((rel, os.path.join(r, name)))
+    for _rel, p in found:
+        os.unlink(p)
+    with open(tree.rstrip("/") + ".colliding-removed.txt", "w", encoding="utf-8") as f:
         f.write("".join(rel + "\n" for rel, _p in sorted(found)))
     return len(found)
 
@@ -1646,6 +1690,7 @@ def grade(t, run_dir, frozen):
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
     OVERSIZED[0] = 0
+    COLLIDING[0] = 0
     HISTORY_PROBES[0] = 0
     HEREDOC_INTERP[0] = 0
     RUN_TAG[0] = re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(run_dir))[:40] or "run"
@@ -1725,6 +1770,7 @@ def grade(t, run_dir, frozen):
             if v is not None:
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
     g["oversized_files_skipped"] = OVERSIZED[0]
+    g["colliding_tests_removed"] = COLLIDING[0]
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
     g["contaminated"] = contamination(run_dir)

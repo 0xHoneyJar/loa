@@ -1,0 +1,1 @@
+{"files": [{"src": "tests/test_zq_snapx_accept.py", "dest": "tests/acceptance/test_zq_snapx_accept.py"}, {"src": "tests/test_zq_snapgen_accept.py", "dest": "tests/acceptance/test_zq_snapgen_accept.py"}, {"src": "tests/_oracle_zq_snap.py", "dest": "tests/acceptance/_oracle_zq_snap.py"}]}

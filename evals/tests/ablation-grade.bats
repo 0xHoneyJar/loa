@@ -1102,6 +1102,24 @@ bash_case() {
   bash_case hidden 'cd tests/hidden'
 }
 
+@test "AG-35 basename collisions (1.2.11): an agent test file with a hidden test's basename in another directory is removed before the run, so the hidden suite still collects; a fixture file is never removed" {
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/tests/extra"
+  printf 'def test_mine():\n    assert True\n' > "$RD/sandbox/tests/extra/test_slug.py"   # same basename as the hidden tests/test_slug.py
+  printf 'def test_other():\n    assert True\n' > "$RD/sandbox/tests/extra/test_unrelated.py"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 1 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]   # the 7 hidden cases + the agent's own test_unrelated (test_command runs tests/)
+  [ ! -e "$RD/grading/final/tests/extra/test_slug.py" ]
+  [ -f "$RD/grading/final/tests/extra/test_unrelated.py" ]
+  grep -qx 'tests/extra/test_slug.py' "$RD/grading/final.colliding-removed.txt"
+  [ -f "$RD/sandbox/tests/extra/test_slug.py" ]   # the sandbox is never written
+  RD="$T/clean"; make_run bf-py "$RD"; apply_ref "$RD"
+  grade "$RD" bf-py
+  [ "$(G '.colliding_tests_removed')" = 0 ]
+}
+
 @test "AG-33 heredoc_interpreters (LOW-3): heredocs fed to an interpreter are counted, never contamination" {
   bash_case null $'python3 - <<\'PY\'\nprint(1)\nPY'
   [ "$(G '.heredoc_interpreters')" = 1 ]
@@ -1115,5 +1133,5 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.9 ]
+  [ "$(G '.grader_version')" = 1.2.11 ]
 }

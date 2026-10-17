@@ -1,0 +1,346 @@
+diff -ruN a/src/cronzone/cli.py b/src/cronzone/cli.py
+--- a/src/cronzone/cli.py
++++ b/src/cronzone/cli.py
+@@ -1,6 +1,7 @@
+ """Command line.
+ 
+     python -m cronzone next EXPRESSION ZONE START [COUNT]
++    python -m cronzone between EXPRESSION ZONE START END
+ 
+ ``START`` and ``END`` are ISO 8601 date-times with an offset (or ``Z``).
+ Each fire time is printed on its own line as ``<UTC> <wall time><offset>``,
+@@ -12,7 +13,7 @@
+ from .errors import CronError
+ from .schedule import Schedule
+ 
+-USAGE = "usage: cronzone next EXPRESSION ZONE START [COUNT]"
++USAGE = "usage: cronzone next EXPRESSION ZONE START [COUNT] | cronzone between EXPRESSION ZONE START END"
+ 
+ 
+ def format_fire(schedule, instant):
+@@ -40,6 +41,9 @@
+             count = int(argv[4]) if len(argv) == 5 else 1
+             schedule = Schedule(argv[1], argv[2])
+             fires = schedule.next_fires(_instant(argv[3]), count)
++        elif len(argv) == 5 and argv[0] == "between":
++            schedule = Schedule(argv[1], argv[2])
++            fires = schedule.fires_between(_instant(argv[3]), _instant(argv[4]))
+         else:
+             print(USAGE, file=stderr)
+             return 2
+diff -ruN a/src/cronzone/days.py b/src/cronzone/days.py
+--- a/src/cronzone/days.py
++++ b/src/cronzone/days.py
+@@ -28,9 +28,9 @@
+             return set()
+         wd = _weekday(first, day)
+         if wd == 6:
+-            return {day - 1}
++            return {day - 1} if day > 1 else {day + 2}
+         if wd == 0:
+-            return {day + 1}
++            return {day + 1} if day < length else {day - 2}
+         return {day}
+     if kind == "nth":
+         _, dow, k = special
+diff -ruN a/src/cronzone/expr.py b/src/cronzone/expr.py
+--- a/src/cronzone/expr.py
++++ b/src/cronzone/expr.py
+@@ -12,11 +12,11 @@
+         if not isinstance(text, str):
+             raise CronError(f"expected 5 fields, got {text!r}")
+         self.text = text
+-        source = text
++        source = text.strip()
+         if source.startswith("@"):
+-            if source not in MACROS:
++            if source.lower() not in MACROS:
+                 raise CronError(f"unknown macro: {source!r}")
+-            source = MACROS[source]
++            source = MACROS[source.lower()]
+         parts = source.split()
+         if len(parts) != 5:
+             raise CronError(f"expected 5 fields, got {len(parts)}")
+@@ -32,10 +32,9 @@
+         if month not in self.month.values:
+             return ()
+         shape = month_shape(year, month)
+-        key = (month, shape[1])
+-        if key not in self._days:
+-            self._days[key] = matching_days(self.dom, self.dow, *shape)
+-        return self._days[key]
++        if shape not in self._days:
++            self._days[shape] = matching_days(self.dom, self.dow, *shape)
++        return self._days[shape]
+ 
+     def matches(self, wall):
+         """True when the naive wall-clock datetime ``wall`` is selected."""
+diff -ruN a/src/cronzone/fields.py b/src/cronzone/fields.py
+--- a/src/cronzone/fields.py
++++ b/src/cronzone/fields.py
+@@ -70,8 +70,13 @@
+     """Values of one comma-separated element (no specials)."""
+     raw = token
+     base, slash, step_text = token.partition("/")
++    step = 1
++    if slash:
++        if _NUMBER.fullmatch(step_text) is None or int(step_text) == 0:
++            raise CronError(f"invalid {spec.name} step: {raw!r}")
++        step = int(step_text)
+     if base in ("*", "?") and (base == "*" or spec in (DOM, DOW)):
+-        lo, hi = 0, spec.hi
++        lo, hi = spec.lo, spec.hi
+     elif "-" in base:
+         first, _, last = base.partition("-")
+         lo, hi = _value(first, spec, raw), _value(last, spec, raw)
+@@ -80,11 +85,6 @@
+     else:
+         lo = _value(base, spec, raw)
+         hi = spec.hi if slash else lo
+-    step = 1
+-    if slash:
+-        if _NUMBER.fullmatch(step_text) is None or int(step_text) == 0:
+-            raise CronError(f"invalid {spec.name} step: {raw!r}")
+-        step = int(step_text)
+     return set(range(lo, hi + 1, step))
+ 
+ 
+@@ -101,5 +101,5 @@
+             values |= _element(token, spec)
+     if spec is DOW:
+         values = {v % 7 for v in values}
+-    restricted = not (spec in (DOM, DOW) and text == "*")
++    restricted = not (spec in (DOM, DOW) and text in ("*", "?"))
+     return FieldSet(frozenset(values), tuple(specials), restricted, text)
+diff -ruN a/src/cronzone/jobs.py b/src/cronzone/jobs.py
+--- a/src/cronzone/jobs.py
++++ b/src/cronzone/jobs.py
+@@ -33,7 +33,7 @@
+             except CronError:
+                 break
+             events.append((moment, position, job.name))
+-    events.sort(key=lambda e: (e[0], e[2]))
++    events.sort(key=lambda e: (e[0], e[1]))
+     return [(instant, name) for instant, _, name in events[:count]]
+ 
+ 
+@@ -49,5 +49,14 @@
+         raise CronError(f"unknown policy: {policy!r}")
+     if policy == "skip":
+         return []
+-    missed = job.schedule.fires_between(last_run, now)
++    missed = []
++    moment = last_run
++    while True:
++        try:
++            moment = job.schedule.next_fire(moment)
++        except CronError:
++            break
++        if moment > now:
++            break
++        missed.append(moment)
+     return missed if policy == "all" else missed[-1:]
+diff -ruN a/src/cronzone/schedule.py b/src/cronzone/schedule.py
+--- a/src/cronzone/schedule.py
++++ b/src/cronzone/schedule.py
+@@ -25,7 +25,7 @@
+ 
+     def prev_fire(self, before):
+         """The latest firing instant strictly before ``before``."""
+-        top = floor_minutes(before)
++        top = ceil_minutes(before)
+         found = last_at_or_before(self.expr, self.zone, top - 1, top - HORIZON)
+         if found is None:
+             raise CronError(NEVER)
+@@ -41,7 +41,7 @@
+ 
+     def fires_between(self, start, end):
+         """Every firing instant ``t`` with ``start <= t < end``, ascending."""
+-        u, last = floor_minutes(start) + 1, ceil_minutes(end) - 1
++        u, last = ceil_minutes(start), ceil_minutes(end) - 1
+         out = []
+         while True:
+             found = first_at_or_after(self.expr, self.zone, u, last)
+diff -ruN a/src/cronzone/search.py b/src/cronzone/search.py
+--- a/src/cronzone/search.py
++++ b/src/cronzone/search.py
+@@ -1,8 +1,13 @@
+ """Finding fire times.
+ 
+-The search runs over the wall-clock calendar: it finds the next (or
+-previous) matching wall time and converts it to UTC with the zone.  A wall
+-time that does not exist in the zone is passed over.
++Within a stretch of time between two transitions of the zone the offset is
++constant, so wall-clock time runs in step with UTC there and a forward (or
++backward) search over the wall-clock calendar finds the answer.  The search
++therefore goes segment by segment: it looks for a matching wall time inside
++the current segment only, and moves on to the next segment when there is
++none.  A wall time that a backward transition repeats belongs to two
++segments and is found in each; one that a forward transition skips belongs
++to none.
+ """
+ from datetime import date, datetime, timedelta
+ 
+@@ -10,7 +15,6 @@
+ 
+ HORIZON_DAYS = 2922
+ HORIZON = HORIZON_DAYS * 1440
+-MAX_OFFSET = 24 * 60
+ ONE_DAY = timedelta(days=1)
+ 
+ 
+@@ -31,7 +35,7 @@
+     day, low_h, low_m = start.date(), start.hour, start.minute
+     while day <= last_day:
+         if day.month not in expr.month.values:
+-            day = _first_of_next_month(day)
++            day, low_h, low_m = _first_of_next_month(day), 0, 0
+             continue
+         if day.day in expr.days(day.year, day.month):
+             for h in expr.hours:
+@@ -55,7 +59,7 @@
+     day, high_h, high_m = start.date(), start.hour, start.minute
+     while day >= first_day:
+         if day.month not in expr.month.values:
+-            day = _last_of_previous_month(day)
++            day, high_h, high_m = _last_of_previous_month(day), 23, 59
+             continue
+         if day.day in expr.days(day.year, day.month):
+             for h in reversed(expr.hours):
+@@ -72,27 +76,25 @@
+ 
+ def first_at_or_after(expr, zone, u, last):
+     """The first firing minute in ``[u, last]``, or None."""
+-    w = u + zone.offset_minutes(u)
+-    while True:
+-        found = next_wall(expr, w, last + 1 + MAX_OFFSET)
+-        if found is None:
+-            return None
+-        candidates = [i for i in zone.instants_minutes(found) if i >= u]
+-        if candidates:
+-            first = min(candidates)
+-            return first if first <= last else None
+-        w = found + 1
++    while u <= last:
++        offset = zone.offset_minutes(u)
++        change = zone.next_change(u)
++        segment_end = last + 1 if change is None else min(change, last + 1)
++        found = next_wall(expr, u + offset, segment_end + offset)
++        if found is not None:
++            return found - offset
++        u = segment_end
++    return None
+ 
+ 
+ def last_at_or_before(expr, zone, u, first):
+     """The last firing minute in ``[first, u]``, or None."""
+-    w = u + zone.offset_minutes(u)
+-    while True:
+-        found = prev_wall(expr, w, first - MAX_OFFSET)
+-        if found is None:
+-            return None
+-        candidates = [i for i in zone.instants_minutes(found) if i <= u]
+-        if candidates:
+-            last = max(candidates)
+-            return last if last >= first else None
+-        w = found - 1
++    while u >= first:
++        offset = zone.offset_minutes(u)
++        change = zone.last_change(u)
++        segment_start = first if change is None else max(change, first)
++        found = prev_wall(expr, u + offset, segment_start + offset)
++        if found is not None:
++            return found - offset
++        u = segment_start - 1
++    return None
+diff -ruN a/src/cronzone/zones.py b/src/cronzone/zones.py
+--- a/src/cronzone/zones.py
++++ b/src/cronzone/zones.py
+@@ -4,7 +4,8 @@
+ ``hour:minute`` UTC on the ``nth`` (1-4, or -1 for the last) ``weekday``
+ (0 = Sunday) of ``month`` (by UTC date).  A zone with daylight saving uses
+ ``dst`` from its start rule (inclusive) to its end rule (exclusive) every
+-year.
++year; when the start month is later than the end month the saving period
++spans the new year.
+ """
+ import calendar
+ from dataclasses import dataclass
+@@ -12,7 +13,7 @@
+ from typing import Optional, Tuple
+ 
+ from .errors import CronError
+-from .timeutil import ceil_minutes, floor_minutes, to_instant, to_wall, wall_minutes
++from .timeutil import floor_minutes, to_instant, to_wall, wall_minutes
+ 
+ Rule = Tuple[int, int, int, int, int]
+ 
+@@ -37,8 +38,9 @@
+         """[(minute, offset after), ...] of ``year``, in time order."""
+         if self.dst is None:
+             return []
+-        return [(self._rule_minutes(year, self.start), self.dst),
+-                (self._rule_minutes(year, self.end), self.std)]
++        out = [(self._rule_minutes(year, self.start), self.dst),
++               (self._rule_minutes(year, self.end), self.std)]
++        return sorted(out)
+ 
+     def offset_minutes(self, u):
+         """The offset in effect at whole minute ``u``."""
+@@ -47,7 +49,31 @@
+         year = to_instant(u).year
+         start = self._rule_minutes(year, self.start)
+         end = self._rule_minutes(year, self.end)
+-        return self.dst if start <= u < end else self.std
++        if start < end:
++            return self.dst if start <= u < end else self.std
++        return self.dst if u >= start or u < end else self.std
++
++    def next_change(self, u):
++        """The first transition minute strictly after ``u`` (None for a fixed zone)."""
++        if self.dst is None:
++            return None
++        year = to_instant(u).year
++        for y in (year, year + 1):
++            for minute, _ in self.transitions_minutes(y):
++                if minute > u:
++                    return minute
++        raise AssertionError("unreachable")
++
++    def last_change(self, u):
++        """The last transition minute at or before ``u`` (None for a fixed zone)."""
++        if self.dst is None:
++            return None
++        year = to_instant(u).year
++        for y in (year, year - 1):
++            for minute, _ in reversed(self.transitions_minutes(y)):
++                if minute <= u:
++                    return minute
++        raise AssertionError("unreachable")
+ 
+     # -- public, on datetimes ---------------------------------------------
+     def offset(self, instant):
+@@ -56,17 +82,15 @@
+ 
+     def wall(self, instant):
+         """The naive wall-clock time of an aware instant (to the minute)."""
+-        u = ceil_minutes(instant)
++        u = floor_minutes(instant)
+         return to_wall(u + self.offset_minutes(u))
+ 
+-    def instants_minutes(self, w):
+-        """The whole minutes whose wall time is wall minute ``w``."""
+-        offsets = [self.std] if self.dst is None else [self.std, self.dst]
+-        return [w - off for off in offsets if self.offset_minutes(w - off) == off]
+-
+     def instants(self, wall):
+-        """The UTC instants (0, 1 or 2) whose wall time is ``wall``."""
+-        return [to_instant(u) for u in self.instants_minutes(wall_minutes(wall))]
++        """The UTC instants (0, 1 or 2, ascending) whose wall time is ``wall``."""
++        w = wall_minutes(wall)
++        offsets = {self.std} if self.dst is None else {self.std, self.dst}
++        found = sorted(w - off for off in offsets if self.offset_minutes(w - off) == off)
++        return [to_instant(u) for u in found]
+ 
+     def transitions(self, year):
+         """[(aware UTC instant, offset after), ...] of ``year``."""
