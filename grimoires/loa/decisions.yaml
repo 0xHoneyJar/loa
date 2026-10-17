@@ -18938,3 +18938,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0592"
+    created_at: "2026-10-17T20:53:43Z"
+    updated_at: "2026-10-17T20:53:43Z"
+    phase: "implementation"
+    category: "process"
+    summary: "HALT on the v2 read: H1 not established (a1 excluded share 0.75 > 0.25 from a Codex credential failure; one task left); A4 not testable; operator decides (L82)"
+    decision: "priority-v2-p1 (24 rows, USD 142.49): nine of twelve a1_full rows are degraded (the OpenAI dissent voice failed with 401 refresh_token_reused in every container, KF-048), so under the pre-registered pairwise exclusion and the 25 % guard (DEC-0393) the H1 comparison on defect_catch_rate is inconclusive by degradation; the residual single-task pair (review-04) gives a zero-variance interval from the rate fallback and is not evidence. The pass-rate H1 and A4 are not testable on suite v2 (DEC-0590/0591). H1 is therefore not established on suite v2 — the operator's halt condition: the run halts before promotion, no pruning, PR #1283 stays [INCOMPLETE]. The sensitivity figure with degraded rows included (decides nothing) reads +0.298 [+0.208, +0.392] on 19 defects. Options for the operator in reads-v2.md: (a) codex login, harness fix, rerun the nine cells (~USD 95); (b) accept inconclusive and ship; (c) companion-only rerun as a deviation; (d) stop."
+    rationale: "the pre-registered rules decide the read; the cause is repairable only with the operator's interactive re-authentication"
+    alternatives_considered:
+      - option: "report H1 established as the script printed"
+        rejected_because: "the script misses the guard and a degenerate interval; one task with identical per-defect diffs is not an interval"
+      - option: "rerun now without the OpenAI voice"
+        rejected_because: "changes the arm; the credential needs the operator"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "d9c256a5"
+    source: "grimoires/loa/a2a/sprint-261/reads-v2.md#resulting-action (L82)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T20:53:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reads-v2.md#resulting-action (L82)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
