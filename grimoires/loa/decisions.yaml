@@ -18872,3 +18872,69 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0590"
+    created_at: "2026-10-17T18:22:31Z"
+    updated_at: "2026-10-17T18:22:31Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Hardness criterion fails after the second and last authoring round (a0 1.0 on 19 of 20; mean 0.956): no build task enters suite v2's batch (L80)"
+    decision: "calib-v2-02a (a0_bare x ten swapped tasks x 2, USD 20.38): every trial completed at 1.0 except refactor-v2-08 (0.975, 0.975); one row contaminated by a false positive (JSON Pointer literals, KF-046 rec 8) also at 1.0. The twelve together (with bugfix-v2-02 0.5 and feature-v2-01 1.0 from round 1): mean 0.956, two below 1.0, one at or below 0.5 — criterion (ii) fails after the two pre-registered authoring rounds (2026-10-16T22:00:49Z). Under the pre-registered rule no build task enters suite v2's batch. The finding is recorded for the report: fully specified, fair build tasks of 600–1,500 lines with 30–90 hidden cases, oracle-conformance suites and 40-constraint refactors do not defeat Opus 5.5 at effort high without Loa; every round-2 author's blind self-solves agreed (1.0 in 2–7 minutes)."
+    rationale: "the criterion was written before authoring so that a task's admission could not be tuned after the fact; two rounds is the pre-registered limit"
+    alternatives_considered:
+      - option: "a third authoring round"
+        rejected_because: "outside the pre-registration, and seventeen fair designs across three authors, plus their blind solves, all landed at 1.0; nothing suggests a third round would differ"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "bde0c22e"
+    source: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L80)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T18:22:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L80)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0591"
+    created_at: "2026-10-17T18:22:45Z"
+    updated_at: "2026-10-17T18:22:45Z"
+    phase: "implementation"
+    category: "process"
+    summary: "priority-v2-p1 runs on the four review-catch tasks (A0, A1, 3 trials): H1 read on the catch rate; pass-rate H1 and A4 not testable on v2 (L81)"
+    decision: "The operator's prompt halts only when H1 fails on suite v2 or spend would exceed the cap. With no admissible build task, the measurable part of the rerun the operator chose is the review-catch half, the half v1 left unanswered because the USD 12 cap cut five of A1's twelve runs in AUDIT. priority-v2-p1 therefore runs a0_bare and a1_full on review-01 … review-04 at 3 trials per cell (the pre-registration's '3 if the actuals fit the ceiling'; about USD 190 at calib-v2-01b's A1 actuals), under the review-catch cap USD 20 whose cap-fit read passed (median 14.62 <= 15.00). H1 is evaluated on defect_catch_rate (the rule's 'at least one primary'); H1 failing halts as the operator ordered. The pass-rate primary and the A4 sensitivity have no admissible task on v2 and are reported as 'not testable on suite v2: no build task met the pre-registered hardness bar', so no pruning of A4 follows (DEC-0559's reading). This supersedes the halt-on-second-failure plan written in DEC-0584 L74, which was the lead's own and is not one of the operator's halt conditions."
+    rationale: "a halt the operator did not order would leave the question they chose to answer unanswered when a USD ~190 batch answers its measurable half within the pre-registration"
+    alternatives_considered:
+      - option: "run A0/A1/A4 on the round-2 build tasks anyway"
+        rejected_because: "the pre-registered criterion excludes them, and with a0 at 1.0 neither H1 on the pass rate nor A4 can move; about USD 360 for a predicted null"
+      - option: "halt and wait for the operator"
+        rejected_because: "not an operator halt condition; the review-catch read is measurable now"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "bde0c22e"
+    source: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L81)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T18:22:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/smoke-v2.md#round-2 (L81)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
