@@ -74,7 +74,8 @@ PY
   commit_refactor
   SHA="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
   read -r F I D < <(git -C "$G" diff --numstat "$BASE" "$SHA" | awk '{f++; i+=$1; d+=$2} END {print f, i, d}')
-  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  # the written suite is validated against the real suite file below: seed its suite_version
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
   [ "$status" -eq 0 ]
   grep -q "^candidate ${SHA:0:12} " <<<"$output"
   grep -qx "proof refactor-01 ${SHA:0:12}: green at base (2 passed) / green at reference (2 passed)" <<<"$output"

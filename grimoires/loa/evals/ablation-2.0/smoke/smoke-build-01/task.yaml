@@ -13,4 +13,4 @@ grader_protected: [tests/conftest.py]
 structural_check: null
 bounds: {max_turns: {}, timeout_min: {}}
 review_catch: null
-suite_version: 1
+suite_version: 2

@@ -1,0 +1,16 @@
+id: bugfix-v2-03
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D2: ordering with ties and stability (tie-break by name and by time-of-readiness instead of submission; reprioritise requeues paused and waiting jobs; the drain consumer dispatches from a stale snapshot)"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-03/fixture
+criterion: "ready jobs dispatch by priority and then by fixed submission position, the ready listing, the next job handed out and the sort key always agree, reprioritising never starts a paused or waiting job nor moves a job's submission place, and draining dispatches one job at a time so changes made while a job runs count for the very next dispatch"
+success_criterion: "hidden/tests/test_dispatch_order.py (overlaid at tests/acceptance/test_dispatch_order.py) passes 12 of 12 under python3 -m pytest -q tests (26 of 26 with the fixture suite); red at base (11 failed, 15 passed), green with hidden/reference.patch; regression_command (fixture suite, 14 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_queue_runner.py, tests/test_scheduler.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

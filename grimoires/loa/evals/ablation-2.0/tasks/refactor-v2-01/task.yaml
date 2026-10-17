@@ -1,0 +1,16 @@
+id: refactor-v2-01
+schema_version: 1
+type: refactor
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E2: duplicated validation (one order-line check copied seven times across four modules, with two pinned drifts) consolidated into one shared function", churn: {files: 5, insertions: 29, deletions: 63}}
+post_cutoff: true
+fixture: tasks/refactor-v2-01/fixture
+criterion: "the order-line check becomes one keyword-configurable validation function with named limit constants in its own module that imports nothing else from the package, every one of the eight listed operations calls it directly, and no copy of the check (pattern matching, the bool test, the limit numbers or the check messages) is left anywhere else, with every public result and error message unchanged"
+success_criterion: "hidden/structural/single_line_check_test.py (overlaid at tests/structure/single_line_check_test.py) passes 15 of 15 under python3 -m pytest -q tests/structure, red at base (15 failed), green with hidden/reference.patch; test_command (the fixture suite, 26 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_orderdesk.py]
+structural_check: hidden/structural/single_line_check_test.py
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

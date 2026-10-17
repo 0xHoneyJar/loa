@@ -1,0 +1,16 @@
+id: feature-v2-04
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E2: an exact-path allow-only permission checker gains deny rules, principal/action/path wildcards, an overrides source, a three-level precedence, an explain output and exact errors for malformed rules"}
+post_cutoff: true
+fixture: tasks/feature-v2-04/fixture
+criterion: "permission rules gain deny, principal and action wildcards and single- and multi-segment path wildcards, a second overrides source that wins whenever one of its rules matches, a precedence of most specific pattern by the stated three-part order and then deny over allow with deny by default, an explain result naming the first deciding rule in file order, command-line options for overrides and explain, and exact ordered errors for malformed rules"
+success_criterion: "hidden/tests/test_precedence.py (overlaid at tests/acceptance/test_precedence.py) passes 13 of 13 under python3 -m pytest -q tests (34 of 34 with the fixture suite); red at base (13 failed), green with hidden/reference.patch; regression_command (the fixture suite, 21 cases) green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_permit.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

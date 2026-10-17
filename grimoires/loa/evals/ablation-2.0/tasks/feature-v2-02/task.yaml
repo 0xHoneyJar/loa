@@ -1,0 +1,16 @@
+id: feature-v2-02
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D2: grouped aggregation in a CSV report pipeline (group by one or two keys, count/sum/min/max, sort and limit with ties, footer, exact error contract)"}
+post_cutoff: true
+fixture: tasks/feature-v2-02/fixture
+criterion: "the CSV table tool gains grouping by one or two keys with count, exact decimal sum, min and max per group over the rows the existing filter keeps, sorting groups by an output column under the existing sort rules, a limit that keeps rows tied with the last kept one after a sort, a footer counting groups and rows, the existing layout and alignment rules on grouped output, and exact usage errors for unknown fields, invalid option values and non-numeric cells"
+success_criterion: "hidden/tests/test_grouping.py (overlaid at tests/acceptance/test_grouping.py) passes 15 of 15 under python3 -m pytest -q tests (29 of 29 with the fixture suite); red at base (15 failed, 14 passed), green with hidden/reference.patch; regression_command (fixture suite, 14 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_sort.py, tests/test_table.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

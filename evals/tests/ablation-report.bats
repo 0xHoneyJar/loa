@@ -248,7 +248,8 @@ PY
 }
 
 @test "AR-18 the header cites suite_version, source commit, suite manifest sha256, batch seed and pre-registration; cells name their rows collapsed" {
-  grep -qF -- '- suite: `'"$SUITE"'` (name ablation-2.0, suite_version 1)' "$FX/main/report.md"
+  # the suite file's own suite_version (1 for suite v1, 2 since Sprint 261)
+  grep -qF -- '- suite: `'"$SUITE"'` (name ablation-2.0, suite_version '"$(yq -r .suite_version "$SUITE")"')' "$FX/main/report.md"
   grep -qF -- '- source commit(s): 1111111111111111111111111111111111111111' "$FX/main/report.md"
   grep -qF -- '- suite manifest sha256: 30e1f2ad' "$FX/main/report.md"
   grep -qF 'shuffle_seed 20261015, pre_registration_ref NOTES.md § Decision Log 2026-10-15T09:00:00Z' "$FX/main/report.md"

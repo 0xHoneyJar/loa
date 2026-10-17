@@ -1,0 +1,206 @@
+diff -ruN a/src/stockroom/index.py b/src/stockroom/index.py
+--- a/src/stockroom/index.py
++++ b/src/stockroom/index.py
+@@ -4,8 +4,8 @@
+ class Index:
+     """Maps case-folded names to items and tags to skus.
+ 
+-    The maps are rebuilt on the first lookup after the store's revision
+-    moves; ``rebuilds`` counts the rebuilds.
++    The maps are rebuilt on the first lookup after the store changes (its
++    generation moves, inside a batch too); ``rebuilds`` counts the rebuilds.
+     """
+ 
+     def __init__(self, store):
+@@ -16,7 +16,7 @@
+         self.rebuilds = 0
+ 
+     def _fresh(self):
+-        if self._seen == self._store.revision:
++        if self._seen == self._store.generation:
+             return
+         by_name, by_tag = {}, {}
+         for item in self._store.items():
+@@ -25,7 +25,7 @@
+                 by_tag.setdefault(tag, []).append(item.sku)
+         self._by_name = by_name
+         self._by_tag = {tag: sorted(skus) for tag, skus in by_tag.items()}
+-        self._seen = self._store.revision
++        self._seen = self._store.generation
+         self.rebuilds += 1
+ 
+     def find(self, name):
+diff -ruN a/src/stockroom/inventory.py b/src/stockroom/inventory.py
+--- a/src/stockroom/inventory.py
++++ b/src/stockroom/inventory.py
+@@ -42,8 +42,7 @@
+ 
+     def move(self, sku, category):
+         moved = replace(self.store.get(sku), category=category)
+-        self.store.pop(sku)
+-        self.store.put(moved)
++        self.store.update(moved)
+         return moved
+ 
+     def restock(self, sku, delta):
+@@ -52,15 +51,19 @@
+         if qty < 0:
+             raise InvalidItem(f"qty below zero: {sku}")
+         restocked = replace(item, qty=qty)
+-        self.store.pop(sku)
+-        self.store.put(restocked)
++        self.store.update(restocked)
+         return restocked
+ 
+     def restore(self, sku):
++        """Bring a removed item back, under the rules of ``add``.
++
++        The checks run before anything changes, so a refused restore leaves
++        the item in the trash and the revision where it was.
++        """
+         item = self.trash.peek(sku)
+         self._check_free(item)
+-        self.trash.take(sku)
+         self.store.put(item)
++        self.trash.take(sku)
+         return item
+ 
+     # -- lookups ----------------------------------------------------------
+diff -ruN a/src/stockroom/stats.py b/src/stockroom/stats.py
+--- a/src/stockroom/stats.py
++++ b/src/stockroom/stats.py
+@@ -4,9 +4,10 @@
+ class Summary:
+     """Item counts per category and the total quantity of a store.
+ 
+-    The figures only change when items come or go, so they are recomputed
+-    on the first lookup after the store's size changes; ``rebuilds`` counts
+-    the recomputations.
++    The figures change whenever an item comes, goes or changes, so they are
++    recomputed on the first lookup after the store's generation moves (a
++    size check misses moves, restocks and a remove followed by an add);
++    ``rebuilds`` counts the recomputations.
+     """
+ 
+     def __init__(self, store):
+@@ -17,8 +18,8 @@
+         self.rebuilds = 0
+ 
+     def _fresh(self):
+-        size = len(self._store)
+-        if self._seen == size:
++        generation = self._store.generation
++        if self._seen == generation:
+             return
+         counts, qty = {}, 0
+         for item in self._store.items():
+@@ -26,7 +27,7 @@
+             qty += item.qty
+         self._counts = {cat: counts[cat] for cat in sorted(counts)}
+         self._qty = qty
+-        self._seen = size
++        self._seen = generation
+         self.rebuilds += 1
+ 
+     def counts(self):
+diff -ruN a/src/stockroom/store.py b/src/stockroom/store.py
+--- a/src/stockroom/store.py
++++ b/src/stockroom/store.py
+@@ -10,11 +10,16 @@
+     ``revision`` counts the changes made to the collection. Inside a
+     ``batch()`` block the changes are grouped: ``revision`` advances once,
+     when the outermost block ends, if anything in the block changed.
++
++    ``generation`` advances on every single change, inside a batch or not;
++    caches derived from the store key on it, so a lookup made inside a
++    batch sees the changes made so far.
+     """
+ 
+     def __init__(self):
+         self._items = {}
+         self.revision = 0
++        self.generation = 0
+         self._depth = 0
+         self._pending = False
+ 
+@@ -38,16 +43,26 @@
+         self._changed()
+ 
+     def pop(self, sku):
+-        """Take an item out of the collection and return it.
+-
+-        Callers that put a changed item back report the change once, through
+-        ``put``, so a pop on its own does not count as a change.
+-        """
++        """Take an item out of the collection and return it (one change)."""
+         item = self.get(sku)
+         del self._items[sku]
++        self._changed()
+         return item
+ 
++    def update(self, item):
++        """Swap in a new version of a live item as one change.
++
++        An item equal to the live one is no change. Returns whether the
++        collection changed.
++        """
++        if self.get(item.sku) == item:
++            return False
++        self._items[item.sku] = item
++        self._changed()
++        return True
++
+     def _changed(self):
++        self.generation += 1
+         if self._depth:
+             self._pending = True
+         else:
+diff -ruN a/tests/test_regressions.py b/tests/test_regressions.py
+--- a/tests/test_regressions.py
++++ b/tests/test_regressions.py
+@@ -0,0 +1,45 @@
++from stockroom import Inventory, Item
++
++
++def make():
++    inv = Inventory()
++    inv.add(Item("A1", "Bolt", "hardware", 10, ("metal",)))
++    inv.add(Item("C3", "Glue", "supplies", 2))
++    inv.find("bolt")
++    inv.counts()
++    return inv
++
++
++def test_remove_frees_the_name():
++    inv = make()
++    inv.remove("A1")
++    assert inv.find("bolt") is None and inv.with_tag("metal") == []
++    inv.add(Item("A2", "bolt", "hardware"))
++    assert inv.find("BOLT").sku == "A2"
++
++
++def test_summary_follows_a_move():
++    inv = make()
++    inv.move("C3", "hardware")
++    assert inv.counts() == {"hardware": 2}
++
++
++def test_batch_lookups_and_single_revision():
++    inv = make()
++    start = inv.revision
++    with inv.batch():
++        inv.add(Item("D4", "Saw", "tools"))
++        assert inv.find("saw").sku == "D4"
++        inv.remove("D4")
++        assert inv.find("saw") is None
++    assert inv.revision == start + 1
++
++
++def test_no_op_changes_keep_revision_and_caches():
++    inv = make()
++    before = (inv.revision, inv.index.rebuilds, inv.summary.rebuilds)
++    inv.move("A1", "hardware")
++    inv.restock("A1", 0)
++    inv.find("bolt")
++    inv.counts()
++    assert (inv.revision, inv.index.rebuilds, inv.summary.rebuilds) == before

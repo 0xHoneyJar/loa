@@ -28,7 +28,7 @@ setup() {
   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
-  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+  unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
 }
 
@@ -46,7 +46,7 @@ rules() { printf '%s\n' "$@" > "$T/rules"; export STUB_RULES="$T/rules"; }
 row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
 
 @test "RAB-1 --dry-run: plan shape (arms x applicable tasks x trials), one refused line per inapplicable pair, trial-major order, MANIFEST.json with every §3.4 field, no run dir and no pipeline call" {
-  ra --arms a0_bare,a1_full,a4_no_gates --tasks bugfix-01,review-01 --trials-build 2 --trials-review 1 --batch b1 \
+  ra --arms a0_bare,a1_full,a4_no_gates --tasks bugfix-v2-01,review-01 --trials-build 2 --trials-review 1 --batch b1 \
      --max-usd 100 --pre-registration-ref "NOTES ## Pre-registration 2026-10-15T08:00:00Z" --dry-run
   [ "$status" -eq 0 ]
   grep -q '^plan: 3 arms, 2 tasks, 8 trials, shuffle seed 20261015' <<<"$output"
@@ -77,7 +77,8 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
   [ "$(jq -r '.arm_map | length' "$M")" = 8 ]
   [ "$(jq -r '.arm_map["b1-a1_full-review-01-t1"]' "$M")" = a1_full ]
   [ "$(jq -c '.trials_per_type' "$M")" = '{"build":2,"review-catch":1}' ]
-  [ "$(jq -c '.caps' "$M")" = '{"cycle_usd":1500,"run_usd":12,"reserve_usd":250,"max_usd":100}' ]
+  # Sprint 261 (DEC-0567): caps gains run_usd_by_type, the effective per-kind caps
+  [ "$(jq -c '.caps' "$M")" = '{"cycle_usd":1500,"run_usd":12,"reserve_usd":250,"max_usd":100,"run_usd_by_type":{"build":15,"review-catch":20}}' ]
   [ "$(jq -r '.executor_mode' "$M")" = container ]
   [ "$(jq -r '.image_digest' "$M")" = "sha256:feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface" ]
   [ "$(jq -r '.cli_version' "$M")" = "2.1.299" ]   # the image's CLI, not the host's 2.1.300
@@ -87,28 +88,33 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
   [ "$(jq -r '.pre_registration_ref' "$M")" = "NOTES ## Pre-registration 2026-10-15T08:00:00Z" ]
   [ "$(jq -r '.suite_manifest_sha256' "$M")" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$REPO_ROOT/grimoires/loa/evals/ablation-2.0/MANIFEST.sha256")" ]
   [ "$(jq -r '.refused | length' "$M")" = 1 ]
-  # the watchdog deadline is twice the phase-sum timeout: A0 BARE 70 min, A1 build 130 min, A4 build 40 min
-  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare")][0].watchdog_s' "$M")" = 8400 ]
-  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].watchdog_s' "$M")" = 15600 ]
-  [ "$(jq -r '[.plan[] | select(.arm == "a4_no_gates")][0].phase_sum_min' "$M")" = 40 ]
+  # the watchdog deadline is twice the phase-sum timeout. Suite v2 build tasks carry bounds
+  # timeout_min {IMPLEMENT: 35}: A1 build 15 + 35 + 30 + 15 + 30 + 15 = 140 min, A4 build 15 + 35 = 50,
+  # A1 review-catch (no bounds) 60. A0 BARE stays 70 min: the suite's phase_defaults declares BARE,
+  # so pipeline-run.sh's PLAN + IMPLEMENT + 2 x FIX derivation (80) does not apply
+  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare" and .type == "bug-fix")][0].watchdog_s' "$M")" = 9600 ]   # BARE = 15 + 35 + 2 x 15 on a v2 task (per-task bounds, DEC-0580)
+  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].watchdog_s' "$M")" = 16800 ]
+  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].phase_sum_min' "$M")" = 140 ]
+  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "review-catch")][0].phase_sum_min' "$M")" = 60 ]
+  [ "$(jq -r '[.plan[] | select(.arm == "a4_no_gates")][0].phase_sum_min' "$M")" = 50 ]
 }
 
 @test "RAB-2 the shuffle is a seeded Fisher-Yates per trial block: reproducible for a seed (and equal to random.Random(seed).shuffle), different for another seed" {
-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s1 --dry-run
+  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-01,refactor-v2-01,review-01 --trials-build 2 --trials-review 2 --batch s1 --dry-run
   [ "$status" -eq 0 ]
   first="$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s1/MANIFEST.json")"
-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s2 --dry-run
+  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-01,refactor-v2-01,review-01 --trials-build 2 --trials-review 2 --batch s2 --dry-run
   [ "$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s2/MANIFEST.json")" = "$first" ]
   # an independent re-derivation: arm-major blocks, tasks by id, one generator, blocks in trial order
   want="$(python3 -I -c '
 import random
 rng = random.Random(20261015); out = []
 for t in (1, 2):
-    b = [(a, k) for a in ("a0_bare", "a1_full", "a3_one_voice") for k in ("bugfix-01", "refactor-01", "review-01")]
+    b = [(a, k) for a in ("a0_bare", "a1_full", "a3_one_voice") for k in ("bugfix-v2-01", "refactor-v2-01", "review-01")]
     rng.shuffle(b); out += ["%s/%s/%d" % (a, k, t) for a, k in b]
 print(",".join(out))')"
   [ "$first" = "$want" ]
-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s3 --seed 7 --dry-run
+  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-01,refactor-v2-01,review-01 --trials-build 2 --trials-review 2 --batch s3 --seed 7 --dry-run
   [ "$status" -eq 0 ]
   other="$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s3/MANIFEST.json")"
   [ "$other" != "$first" ]
@@ -120,7 +126,7 @@ print(",".join(out))')"
 
 @test "RAB-3 hard gate (DEC-0435): a non-smoke batch without MANIFEST.sha256, without the self-check log, or with a task lacking REVIEW.md is refused (exit 2, REFUSED.txt only); with all three their hashes land in MANIFEST.json gate" {
   S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g0 --dry-run
+  ra --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g0 --dry-run
   [ "$status" -eq 0 ]
   G="$RES/g0/MANIFEST.json"
   [ "$(jq -r '.gate.review_md | length' "$G")" = 16 ]
@@ -130,29 +136,29 @@ print(",".join(out))')"
   [ "$(jq -r '.gate.review_md["review-03"]' "$G")" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$S/tasks/review-03/REVIEW.md")" ]
   # 1. the self-check log missing
   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --docker-bin "$T/bin/docker" \
-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1 --dry-run
+    --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g1 --dry-run
   [ "$status" -eq 2 ]
   [ "$(ls -A "$RES/g1")" = "REFUSED.txt" ]
   grep -q 'self-check log .* is missing' "$RES/g1/REFUSED.txt"
   # a log with a FAIL line, or too few PASS lines
   { cat "$T/self-check.log"; echo "self-check base x: FAIL hidden 0/1"; } > "$T/fail.log"
   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/fail.log" --docker-bin "$T/bin/docker" \
-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1b --dry-run
+    --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g1b --dry-run
   [ "$status" -eq 2 ]; grep -q '1 FAIL line' "$RES/g1b/REFUSED.txt"
   head -35 "$T/self-check.log" > "$T/short.log"
   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/short.log" --docker-bin "$T/bin/docker" \
-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1c --dry-run
+    --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g1c --dry-run
   [ "$status" -eq 2 ]; grep -q '35 PASS lines, want 36' "$RES/g1c/REFUSED.txt"
   # 2. a task without REVIEW.md (the suite re-frozen so only the gate can refuse)
   rm "$S/tasks/review-02/REVIEW.md"
   "$REPO_ROOT/evals/harness/freeze.sh" --smoke --root "$S" >/dev/null
-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g2 --dry-run
+  ra --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g2 --dry-run
   [ "$status" -eq 2 ]
   grep -q 'no REVIEW.md in tasks/{review-02}' "$RES/g2/REFUSED.txt"
   [ ! -e "$RES/g2/MANIFEST.json" ]
   # 3. no MANIFEST.sha256
   rm "$S/MANIFEST.sha256"
-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g3 --dry-run
+  ra --arms a1_full --tasks bugfix-v2-01 --suite-root "$S" --batch g3 --dry-run
   [ "$status" -eq 2 ]
   grep -q 'MANIFEST.sha256 is missing' "$RES/g3/REFUSED.txt"
   [ "$(ls -A "$RES/g3")" = "REFUSED.txt" ]
@@ -187,51 +193,52 @@ print(",".join(out))')"
 }
 
 @test "RAB-5 dispatch and rows: completed rows validate; agent_error is never retried (not even when the agent writes 'rate limit'); a transport failure is retried once (attempts 2, retry_reason, one row) and twice is transport_error; a cap failure charges run_cap; a grade exit 2 rows infrastructure_error" {
-  rules '*-bugfix-02-* agent_error' '*-refactor-01-* transport_once' '*-refactor-02-* transport' '*-feature-01-* cap_failure' '*-feature-02-* ok'
-  export STUB_GRADE_FAIL='*-feature-02-*'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,refactor-01,refactor-02,feature-01,feature-02,review-01 --trials-build 1 --trials-review 1 \
+  rules '*-bugfix-v2-02-* agent_error' '*-refactor-v2-01-* transport_once' '*-refactor-v2-02-* transport' '*-feature-v2-01-* cap_failure' '*-feature-v2-02-* ok'
+  export STUB_GRADE_FAIL='*-feature-v2-02-*'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,refactor-v2-01,refactor-v2-02,feature-v2-01,feature-v2-02,review-01 --trials-build 1 --trials-review 1 \
      --batch d1 --concurrency 2
   [ "$status" -eq 1 ]   # partial: the transport_error and infrastructure_error rows are excluded
   B="$RES/d1"
   "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
   [ "$(wc -l < "$RES/runs.jsonl")" -eq 7 ]
   [ "$(jq -r '.run_id' "$RES/runs.jsonl" | sort -u | wc -l)" -eq 7 ]
-  [ "$(row d1-a1_full-bugfix-01-t1 | jq -r '.status, .attempts, .retry_reason, .arm, .batch' | tr '\n' ' ')" = "completed 1 null a1_full d1 " ]
+  [ "$(row d1-a1_full-bugfix-v2-01-t1 | jq -r '.status, .attempts, .retry_reason, .arm, .batch' | tr '\n' ' ')" = "completed 1 null a1_full d1 " ]
   [ "$(row d1-a1_full-review-01-t1 | jq -r '.defect_catch_rate')" = "0.5" ]
-  [ "$(row d1-a1_full-bugfix-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "agent_error 1 " ]
-  [ "$(grep -c 'd1-a1_full-bugfix-02-t1 ' "$T/stub.log")" -eq 1 ]
-  [ "$(grep -c 'd1-a1_full-refactor-01-t1 ' "$T/stub.log")" -eq 2 ]
-  grep -q 'd1-a1_full-refactor-01-t1 a1_full refactor-01 1 refactor-01-t1-r2$' "$T/stub.log"
-  [ "$(row d1-a1_full-refactor-01-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "completed 2 " ]
-  [ "$(row d1-a1_full-refactor-01-t1 | jq -r '.retry_reason')" = "transport: stderr in phase FIX2" ]
-  [ -d "$B/a1_full/refactor-01-t1" ] && [ -d "$B/a1_full/refactor-01-t1-r2" ]
-  [ "$(row d1-a1_full-refactor-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "transport_error 2 " ]
-  [ "$(row d1-a1_full-feature-01-t1 | jq -r '.status')" = cap_failure ]
-  [ "$(row d1-a1_full-feature-02-t1 | jq -r '.status')" = infrastructure_error ]
-  grep -q 'grade exit 2' "$B/a1_full/feature-02-t1.log"
+  [ "$(row d1-a1_full-bugfix-v2-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "agent_error 1 " ]
+  [ "$(grep -c 'd1-a1_full-bugfix-v2-02-t1 ' "$T/stub.log")" -eq 1 ]
+  [ "$(grep -c 'd1-a1_full-refactor-v2-01-t1 ' "$T/stub.log")" -eq 2 ]
+  grep -q 'd1-a1_full-refactor-v2-01-t1 a1_full refactor-v2-01 1 refactor-v2-01-t1-r2$' "$T/stub.log"
+  [ "$(row d1-a1_full-refactor-v2-01-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "completed 2 " ]
+  [ "$(row d1-a1_full-refactor-v2-01-t1 | jq -r '.retry_reason')" = "transport: stderr in phase FIX2" ]
+  [ -d "$B/a1_full/refactor-v2-01-t1" ] && [ -d "$B/a1_full/refactor-v2-01-t1-r2" ]
+  [ "$(row d1-a1_full-refactor-v2-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "transport_error 2 " ]
+  [ "$(row d1-a1_full-feature-v2-01-t1 | jq -r '.status')" = cap_failure ]
+  [ "$(row d1-a1_full-feature-v2-02-t1 | jq -r '.status')" = infrastructure_error ]
+  grep -q 'grade exit 2' "$B/a1_full/feature-v2-02-t1.log"
   S="$B/STATUS.json"
   [ "$(jq -r '.state' "$S")" = partial ]
   [ "$(jq -c '.per_arm.a1_full' "$S")" = '{"trials_planned":7,"launched":7,"completed":3,"failed":1,"excluded":2,"cap_failures":1,"degraded":0,"skipped_paused":0}' ]
   [ "$(jq -r '.retries | length' "$S")" = 2 ]
-  [ "$(jq -r '.retries[] | select(.run_id == "d1-a1_full-refactor-01-t1") | .first_attempt_usd' "$S")" = 2.5 ]
-  # rows 7 x 2.5 = 17.5; first attempts 2 x 2.5; the cap failure (2.5 < 12) is charged 12
+  [ "$(jq -r '.retries[] | select(.run_id == "d1-a1_full-refactor-v2-01-t1") | .first_attempt_usd' "$S")" = 2.5 ]
+  # rows 7 x 2.5 = 17.5; first attempts 2 x 2.5; the build cap failure (2.5 < 15, the build
+  # cap since DEC-0567; 12 before) is charged 15: 17.5 - 2.5 + 15 + 5 = 35
   [ "$(jq -r '.spend.rows_usd' "$S")" = 17.5 ]
   [ "$(jq -r '.spend.ledger_usd' "$S")" = 5 ]
   [ "$(jq -r '.spend.assumed_cap_trials' "$S")" = 1 ]
-  [ "$(jq -r '.spend.spent_usd' "$S")" = 32 ]
+  [ "$(jq -r '.spend.spent_usd' "$S")" = 35 ]
   [ "$(jq -r '.resume_cursor' "$S")" = 7 ]
   jq -e '.finished != null and .drift == null and .paused_arms == {} and .cuts == []' "$S" >/dev/null
 }
 
 @test "RAB-6 took-effect pause (DEC-0418): a run whose evidence fails rows infrastructure_error and pauses the arm, later trials of that arm do not launch; --resume --clear-arm continues them" {
-  rules '*-a1_full-bugfix-01-t1 bad_evidence'
-  ra --arms a0_bare,a1_full --tasks bugfix-01,bugfix-02 --trials-build 2 --batch p1 --concurrency 1
+  rules '*-a1_full-bugfix-v2-01-t1 bad_evidence'
+  ra --arms a0_bare,a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 2 --batch p1 --concurrency 1
   [ "$status" -eq 1 ]
   B="$RES/p1" S="$RES/p1/STATUS.json"
-  [ "$(row p1-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
-  jq -e '.paused_arms.a1_full | test("p1-a1_full-bugfix-01-t1: took-effect exit 1: arm a1_full: integrity_clean FAIL")' "$S" >/dev/null
+  [ "$(row p1-a1_full-bugfix-v2-01-t1 | jq -r '.status')" = infrastructure_error ]
+  jq -e '.paused_arms.a1_full | test("p1-a1_full-bugfix-v2-01-t1: took-effect exit 1: arm a1_full: integrity_clean FAIL")' "$S" >/dev/null
   # every a1_full entry after the failing one in plan order never reached the pipeline
-  after="$(jq -r '.plan | (map(.run_id) | index("p1-a1_full-bugfix-01-t1")) as $k | .[$k + 1:][] | select(.arm == "a1_full") | .run_id' "$B/MANIFEST.json")"
+  after="$(jq -r '.plan | (map(.run_id) | index("p1-a1_full-bugfix-v2-01-t1")) as $k | .[$k + 1:][] | select(.arm == "a1_full") | .run_id' "$B/MANIFEST.json")"
   [ -n "$after" ]
   for r in $after; do ! grep -q "^$r " "$T/stub.log" || false; done
   [ "$(grep -c ' a0_bare ' "$T/stub.log")" -eq 4 ]
@@ -256,7 +263,7 @@ print(",".join(out))')"
 
 @test "RAB-7 drift guard (DEC-0407): an init claude_code_version other than MANIFEST cli_version fails the batch (state failed, drift populated, nothing more launches); a foreign model id does too" {
   rules '* drift_cli'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch dr1 --concurrency 1
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03 --trials-build 1 --batch dr1 --concurrency 1
   [ "$status" -eq 3 ]
   S="$RES/dr1/STATUS.json"
   [ "$(jq -r '.state' "$S")" = failed ]
@@ -268,7 +275,7 @@ print(",".join(out))')"
   ra --batch dr1 --resume
   [ "$status" -eq 2 ]
   rules '* drift_model'
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch dr2
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch dr2
   [ "$status" -eq 3 ]
   jq -e '.drift.field | startswith("models_used.")' "$RES/dr2/STATUS.json" >/dev/null
   # DEC-0545: the requested model is absent; got is the sorted models_used keys, expected the manifest model
@@ -276,13 +283,13 @@ print(",".join(out))')"
 }
 
 @test "RAB-8 watchdog (DEC-0429): a pipeline that hangs past the deadline (with a running record, or with none) is SIGTERMed and rowed interrupted" {
-  rules '*-bugfix-01-* hang' '*-bugfix-02-* hang_norecord'
+  rules '*-bugfix-v2-01-* hang' '*-bugfix-v2-02-* hang_norecord'
   export LOA_ABLATION_WATCHDOG_S=2 LOA_ABLATION_WATCHDOG_GRACE_S=2
-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch w1 --concurrency 2
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch w1 --concurrency 2
   [ "$status" -eq 3 ]   # no trial completed
-  [ "$(row w1-a1_full-bugfix-01-t1 | jq -r '.status')" = interrupted ]
-  [ "$(row w1-a1_full-bugfix-02-t1 | jq -r '.status')" = interrupted ]
-  [ "$(jq -r '.synthesized_by' "$RES/w1/a1_full/bugfix-02-t1/meta/pipeline.json")" = run-ablation.sh ]
+  [ "$(row w1-a1_full-bugfix-v2-01-t1 | jq -r '.status')" = interrupted ]
+  [ "$(row w1-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = interrupted ]
+  [ "$(jq -r '.synthesized_by' "$RES/w1/a1_full/bugfix-v2-02-t1/meta/pipeline.json")" = run-ablation.sh ]
   [ "$(grep -c 'watchdog: .* SIGTERM' "$RES/w1/run.log")" -eq 2 ]
   [ "$(jq -r '.per_arm.a1_full.excluded' "$RES/w1/STATUS.json")" = 2 ]
   # every interrupted trial without a reported cost is charged the run cap
@@ -291,7 +298,7 @@ print(",".join(out))')"
 
 @test "RAB-9 --max-usd: USD 5 per trial under max 12 launches two (0+7 hint, 5+5) and cuts the third (10+5 > 12) with cuts[] populated; exit 1" {
   export STUB_COST=5
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch c1 --concurrency 1 --max-usd 12
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04 --trials-build 1 --batch c1 --concurrency 1 --max-usd 12
   [ "$status" -eq 1 ]
   S="$RES/c1/STATUS.json"
   [ "$(wc -l < "$T/stub.log")" -eq 2 ]
@@ -303,7 +310,7 @@ print(",".join(out))')"
 }
 
 @test "RAB-10 --resume: an interrupted batch (STATUS mid-plan, two rows, one stale run dir) resumes without duplicate run_ids and finishes" {
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch r1 --concurrency 1
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04 --trials-build 1 --batch r1 --concurrency 1
   [ "$status" -eq 0 ]
   B="$RES/r1"
   mapfile -t ids < <(jq -r '.plan[].run_id' "$B/MANIFEST.json")
@@ -329,12 +336,12 @@ print(",".join(out))')"
   : > "$T/stub.log"
   ra --batch r1 --resume
   [ "$status" -eq 0 ]; [ ! -s "$T/stub.log" ]
-  ra --arms a1_full --tasks bugfix-01 --batch r1
+  ra --arms a1_full --tasks bugfix-v2-01 --batch r1
   [ "$status" -eq 2 ]; grep -q 'use --resume' <<<"$output"
 }
 
 @test "RAB-11 --detach re-execs in a new session, prints the batch dir and pid, and the batch completes in the background" {
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch dt1 --detach
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch dt1 --detach
   [ "$status" -eq 0 ]
   grep -q "^detached: batch $RES/dt1 pid [0-9]*" <<<"$output"
   pid="$(sed -n 's/.* pid \([0-9]*\).*/\1/p' <<<"$output")"
@@ -355,20 +362,20 @@ print(",".join(out))')"
   [ "$status" -eq 2 ]
   ra --arms a1_full --tasks nope-01 --batch u3 --dry-run
   [ "$status" -eq 2 ]
-  DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-01 --batch u4 --dry-run
+  DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-v2-01 --batch u4 --dry-run
   [ "$status" -eq 2 ]; grep -q 'image loa-ablation:258 not found' "$RES/u4/REFUSED.txt"
   echo y > "$T/src/.claude/new" && git -C "$T/src" add -A && git -C "$T/src" -c user.email=t@t -c user.name=t commit -q -m two
-  ra --arms a1_full --tasks bugfix-01 --batch u5 --dry-run
+  ra --arms a1_full --tasks bugfix-v2-01 --batch u5 --dry-run
   [ "$status" -eq 2 ]; grep -q "is not at" "$RES/u5/REFUSED.txt"
   # the default arm list is the suite's priority minus absent arms
-  ra --source-commit "$(git -C "$T/src" rev-parse HEAD)" --tasks bugfix-01 --batch u6 --dry-run
+  ra --source-commit "$(git -C "$T/src" rev-parse HEAD)" --tasks bugfix-v2-01 --batch u6 --dry-run
   [ "$status" -eq 0 ]
   [ "$(jq -r '.arms | join(",")' "$RES/u6/MANIFEST.json")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a7_effort_medium,a5_no_flatline,a6_one_window" ]
 }
 
 @test "RAB-13 a signalled driver marks the batch partial, terminates its running pipelines by process group, and --resume reruns the unrowed trial into a fresh run dir" {
   export STUB_HANG=1
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch sg1 --detach
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch sg1 --detach
   [ "$status" -eq 0 ]
   pid="$(sed -n 's/.* pid \([0-9]*\).*/\1/p' <<<"$output")"
   pg=""
@@ -390,7 +397,7 @@ print(",".join(out))')"
   unset STUB_HANG
   ra --batch sg1 --resume
   [ "$status" -eq 0 ]
-  [ -d "$RES/sg1/a1_full/bugfix-01-t1-r2" ]
+  [ -d "$RES/sg1/a1_full/bugfix-v2-01-t1-r2" ]
   [ "$(jq -r '.status' "$RES/runs.jsonl")" = completed ]
   [ "$(jq -r '.state' "$RES/sg1/STATUS.json")" = complete ]
 }
@@ -423,7 +430,7 @@ print(",".join(out))')"
 }
 
 @test "RAB-15 a start is refused while a process group recorded by an earlier (SIGKILLed) driver still runs" {
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch k1
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch k1
   [ "$status" -eq 0 ]
   mkdir -p "$RES/k1/.jobs"
   setsid sleep 60 & sp=$!
@@ -438,29 +445,29 @@ print(",".join(out))')"
 }
 
 @test "RAB-16 an extra model beside the requested one (a WebFetch summariser, DEC-0545) is not drift: the trial completes and grades, the trial log names it, STATUS.json extra_models counts it, the row is not degraded" {
-  rules '*-bugfix-01-* extra_model'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch x1 --concurrency 1
+  rules '*-bugfix-v2-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch x1 --concurrency 1
   [ "$status" -eq 0 ]
   S="$RES/x1/STATUS.json"
   jq -e '.drift == null and .state == "complete" and .drift_cleared == [] and .rerowed == []' "$S" >/dev/null
   [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
-  [ "$(jq -c '.extra_models_by_run | keys' "$S")" = '["x1-a1_full-bugfix-01-t1"]' ]
-  grep -qF 'run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in FIX2 (516 output tokens; a WebFetch summariser or built-in subagent, not drift' "$RES/x1/a1_full/bugfix-01-t1.log"
-  ! grep -q 'extra model' "$RES/x1/a1_full/bugfix-02-t1.log" || false
-  [ "$(row x1-a1_full-bugfix-01-t1 | jq -r '.status + " " + (.degraded | tostring) + " " + (.hidden_test_pass_rate | tostring)')" = "completed false 0.75" ]
+  [ "$(jq -c '.extra_models_by_run | keys' "$S")" = '["x1-a1_full-bugfix-v2-01-t1"]' ]
+  grep -qF 'run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in FIX2 (516 output tokens; a WebFetch summariser or built-in subagent, not drift' "$RES/x1/a1_full/bugfix-v2-01-t1.log"
+  ! grep -q 'extra model' "$RES/x1/a1_full/bugfix-v2-02-t1.log" || false
+  [ "$(row x1-a1_full-bugfix-v2-01-t1 | jq -r '.status + " " + (.degraded | tostring) + " " + (.hidden_test_pass_rate | tostring)')" = "completed false 0.75" ]
   [ "$(wc -l < "$T/grade.log")" -eq 2 ]
   # a batch without one carries an empty object
   unset STUB_RULES
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch x0
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch x0
   [ "$status" -eq 0 ]
   [ "$(jq -c '.extra_models' "$RES/x0/STATUS.json")" = '{}' ]
 }
 
 @test "RAB-17 --clear-drift: a drift recorded under the old rule on an extra-model run is re-read clean (drift null, drift_cleared[], the rest of the plan runs); a real substitution is still a drift (exit 2, STATUS.json unchanged); --clear-drift needs --resume" {
-  rules '*-bugfix-01-* extra_model'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch cd1 --concurrency 1
+  rules '*-bugfix-v2-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03 --trials-build 1 --batch cd1 --concurrency 1
   [ "$status" -eq 0 ]
-  B="$RES/cd1" x=cd1-a1_full-bugfix-01-t1
+  B="$RES/cd1" x=cd1-a1_full-bugfix-v2-01-t1
   # the old rule's stop: the drift recorded on the extra-model run, no other row
   jq -c --arg r "$x" 'select(.run_id == $r)' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
   jq --arg r "$x" '.state = "failed" | .drift = {run_id: $r, field: "models_used.FIX2", expected: ["claude-fable-5-1", "claude-opus-5-5"],
@@ -487,11 +494,11 @@ print(",".join(out))')"
   ! grep -q "^$x " "$T/stub.log" || false
   [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
   # a real substitution (the requested model absent) stays a drift
-  rules '*-bugfix-01-* drift_model'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch cd2 --concurrency 1
+  rules '*-bugfix-v2-01-* drift_model'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch cd2 --concurrency 1
   [ "$status" -eq 3 ]
   cp "$RES/cd2/STATUS.json" "$T/st2.before"; cp "$RES/runs.jsonl" "$T/rows2.before"
-  [ "$(jq -r '.drift.run_id' "$RES/cd2/STATUS.json")" = cd2-a1_full-bugfix-01-t1 ]
+  [ "$(jq -r '.drift.run_id' "$RES/cd2/STATUS.json")" = cd2-a1_full-bugfix-v2-01-t1 ]
   ra --batch cd2 --resume --clear-drift
   [ "$status" -eq 2 ]; grep -q 'still drifts under the current rule' <<<"$output"
   cmp "$RES/cd2/STATUS.json" "$T/st2.before"
@@ -500,12 +507,12 @@ print(",".join(out))')"
 }
 
 @test "RAB-18 --rerow: an infrastructure_error row left by the old drift rule on an extra-model run is rowed again (one row, completed, rerowed[], spend counts it once, no pipeline call); an unknown id, another batch's id, a duplicated row, an interrupted row and a rerow without --resume are refused with the rows file byte-identical" {
-  rules '*-bugfix-01-* extra_model'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rr1 --concurrency 1
+  rules '*-bugfix-v2-01-* extra_model'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03 --trials-build 1 --batch rr1 --concurrency 1
   [ "$status" -eq 0 ]
   unset STUB_RULES
-  B="$RES/rr1" x=rr1-a1_full-bugfix-01-t1 y=rr1-a1_full-bugfix-03-t1
-  xd="$B/a1_full/bugfix-01-t1"
+  B="$RES/rr1" x=rr1-a1_full-bugfix-v2-01-t1 y=rr1-a1_full-bugfix-v2-03-t1
+  xd="$B/a1_full/bugfix-v2-01-t1"
   # x's row as the old rule left it: drift, never graded, --status infrastructure_error, in its place
   rm "$xd/grade.json"
   "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
@@ -523,7 +530,7 @@ print(",".join(out))')"
   [ "$status" -eq 2 ]; grep -q 'failed on drift' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
   ra --batch rr1 --resume --clear-drift --rerow rr1-a1_full-nope-01-t1
   [ "$status" -eq 2 ]; grep -q 'not in the batch' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
-  ra --batch rr1 --resume --clear-drift --rerow other-a1_full-bugfix-01-t1
+  ra --batch rr1 --resume --clear-drift --rerow other-a1_full-bugfix-v2-01-t1
   [ "$status" -eq 2 ]; grep -q 'not a run of batch rr1' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
   { cat "$T/rows.before"; jq -c --arg r "$x" 'select(.run_id == $r)' "$T/rows.before"; } > "$RES/runs.jsonl"; cp "$RES/runs.jsonl" "$T/rows.dup"
   ra --batch rr1 --resume --clear-drift --rerow "$x"
@@ -552,19 +559,19 @@ print(",".join(out))')"
   [ "$(jq -r '.spend.rows_usd, .per_arm.a1_full.completed, .per_arm.a1_full.excluded, .per_arm.a1_full.launched' "$S" | tr '\n' ' ')" = "7.5 3 0 3 " ]
   [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
   grep -qF "rerow $x: infrastructure_error → completed" "$B/run.log"
-  grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-01-t1.log"
+  grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-v2-01-t1.log"
   ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false   # no temp file left beside the rows file
 }
 
 @test "RAB-19 --rerun-status transport_error (DEC-0553): a finished batch's two transport rows are launched again into -r3 dirs and replaced in place (one row per run_id, rerun[], no assumed charge left, spent = rows + ledger); --rerun of a completed row, --rerun-status completed, --rerun without --resume and an id given to both --rerun and --rerow are refused with the rows file byte-identical" {
   export LOA_ABLATION_OUTAGE_BREAKER=0
-  rules '*-bugfix-02-* transport' '*-bugfix-04-* transport'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch rn1 --concurrency 1
+  rules '*-bugfix-v2-02-* transport' '*-bugfix-v2-04-* transport'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04 --trials-build 1 --batch rn1 --concurrency 1
   [ "$status" -eq 1 ]
-  B="$RES/rn1" S="$RES/rn1/STATUS.json" x=rn1-a1_full-bugfix-02-t1 y=rn1-a1_full-bugfix-04-t1
+  B="$RES/rn1" S="$RES/rn1/STATUS.json" x=rn1-a1_full-bugfix-v2-02-t1 y=rn1-a1_full-bugfix-v2-04-t1
   [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
   [ "$(row "$y" | jq -r '.status')" = transport_error ]
-  [ -d "$B/a1_full/bugfix-02-t1-r2" ] && [ ! -e "$B/a1_full/bugfix-02-t1-r3" ]
+  [ -d "$B/a1_full/bugfix-v2-02-t1-r2" ] && [ ! -e "$B/a1_full/bugfix-v2-02-t1-r3" ]
   # the P1 shape: a transport row reports no cost, so reconciliation would charge it the run cap
   jq -c --arg x "$x" --arg y "$y" 'if .run_id == $x or .run_id == $y then .cost_usd = 0 else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
   order="$(jq -r '.run_id' "$RES/runs.jsonl")"
@@ -574,7 +581,7 @@ print(",".join(out))')"
   [ "$status" -eq 2 ]; grep -q -- '--rerun needs --resume' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
   ra --batch rn1 --resume --rerun-status completed
   [ "$status" -eq 2 ]; grep -q -- '--rerun-status must be transport_error, interrupted or infrastructure_error' <<<"$output"
-  ra --batch rn1 --resume --rerun rn1-a1_full-bugfix-01-t1
+  ra --batch rn1 --resume --rerun rn1-a1_full-bugfix-v2-01-t1
   [ "$status" -eq 2 ]; grep -q 'the row is completed; only transport_error' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
   ra --batch rn1 --resume --rerun "$x" --rerow "$x"
   [ "$status" -eq 2 ]; grep -q 'is also a --rerow' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
@@ -585,8 +592,8 @@ print(",".join(out))')"
   ra --batch rn1 --resume --rerun-status transport_error
   [ "$status" -eq 0 ]
   [ "$(wc -l < "$T/stub.log")" -eq 2 ]
-  grep -q "^$x a1_full bugfix-02 1 bugfix-02-t1-r3$" "$T/stub.log"
-  grep -q "^$y a1_full bugfix-04 1 bugfix-04-t1-r3$" "$T/stub.log"
+  grep -q "^$x a1_full bugfix-v2-02 1 bugfix-v2-02-t1-r3$" "$T/stub.log"
+  grep -q "^$y a1_full bugfix-v2-04 1 bugfix-v2-04-t1-r3$" "$T/stub.log"
   # one row per run_id, in the old file order, every one completed with the new run's own attempts
   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
   [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
@@ -612,17 +619,17 @@ print(",".join(out))')"
   [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
   [ "$(jq -c '.rerun[-1] | [.run_id, .from, .to]' "$S")" = "[\"$x\",\"interrupted\",\"transport_error\"]" ]
-  [ -d "$B/a1_full/bugfix-02-t1-r4" ] && [ -d "$B/a1_full/bugfix-02-t1-r5" ]
+  [ -d "$B/a1_full/bugfix-v2-02-t1-r4" ] && [ -d "$B/a1_full/bugfix-v2-02-t1-r5" ]
 }
 
 @test "RAB-19b --rerow and --rerun in one resume: an infrastructure_error row left by the old drift rule is rowed again and a transport row is launched again; each lands in its own STATUS array" {
   export LOA_ABLATION_OUTAGE_BREAKER=0
-  rules '*-bugfix-01-* extra_model' '*-bugfix-03-* transport'
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rn2 --concurrency 1
+  rules '*-bugfix-v2-01-* extra_model' '*-bugfix-v2-03-* transport'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03 --trials-build 1 --batch rn2 --concurrency 1
   [ "$status" -eq 1 ]
   unset STUB_RULES
-  B="$RES/rn2" x=rn2-a1_full-bugfix-01-t1 y=rn2-a1_full-bugfix-03-t1
-  xd="$B/a1_full/bugfix-01-t1"
+  B="$RES/rn2" x=rn2-a1_full-bugfix-v2-01-t1 y=rn2-a1_full-bugfix-v2-03-t1
+  xd="$B/a1_full/bugfix-v2-01-t1"
   rm "$xd/grade.json"
   "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
     --task-yaml "$(jq -r --arg r "$x" '.plan[] | select(.run_id == $r) | .task_yaml' "$B/MANIFEST.json")" --out "$T/old.row"
@@ -633,7 +640,7 @@ print(",".join(out))')"
   ra --batch rn2 --resume --rerow "$x" --rerun-status transport_error --rerun-status infrastructure_error
   [ "$status" -eq 0 ]
   [ "$(wc -l < "$T/stub.log")" -eq 1 ]
-  grep -q "^$y a1_full bugfix-03 1 bugfix-03-t1-r3$" "$T/stub.log"
+  grep -q "^$y a1_full bugfix-v2-03 1 bugfix-v2-03-t1-r3$" "$T/stub.log"
   [ "$(wc -l < "$T/grade.log")" -eq 2 ]
   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
   [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
@@ -644,13 +651,13 @@ print(",".join(out))')"
 }
 
 @test "RAB-20 outage breaker (DEC-0554): three consecutive transport_error collections stop launches (partial, STATUS.outage, the message in run.log); a non-transport collection resets the count; --resume --rerun-status transport_error completes the batch and moves outage to outage_history; LOA_ABLATION_OUTAGE_BREAKER=0 runs to the end" {
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --dry-run
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04,feature-v2-01,feature-v2-02,feature-v2-03 --trials-build 1 --batch ob1 --dry-run
   [ "$status" -eq 0 ]
   mapfile -t ids < <(jq -r '.plan[].run_id' "$RES/ob1/MANIFEST.json")
   [ "${#ids[@]}" -eq 7 ]
   # plan order: T T ok T T T | x — the ok at the third resets the count, the sixth trips it
   rules "${ids[0]} transport" "${ids[1]} transport" "${ids[2]} ok" "${ids[3]} transport" "${ids[4]} transport" "${ids[5]} transport" "${ids[6]} ok"
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --concurrency 1
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04,feature-v2-01,feature-v2-02,feature-v2-03 --trials-build 1 --batch ob1 --concurrency 1
   [ "$status" -eq 1 ]
   S="$RES/ob1/STATUS.json"
   [ "$(jq -r '.state' "$S")" = partial ]
@@ -676,30 +683,30 @@ print(",".join(out))')"
   export LOA_ABLATION_OUTAGE_BREAKER=0
   rules '* transport'
   : > "$T/stub.log"
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob2 --concurrency 1
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,bugfix-v2-03,bugfix-v2-04,feature-v2-01,feature-v2-02,feature-v2-03 --trials-build 1 --batch ob2 --concurrency 1
   [ "$status" -eq 3 ]   # no trial completed
   [ "$(wc -l < "$T/stub.log")" -eq 14 ]
   [ "$(jq -r 'select(.batch == "ob2") | .status' "$RES/runs.jsonl" | sort | uniq -c | awk '{print $1, $2}')" = "7 transport_error" ]
   jq -e '.outage == null and .outage_history == []' "$RES/ob2/STATUS.json" >/dev/null
   # a breaker value that is not a whole number is a usage error
   export LOA_ABLATION_OUTAGE_BREAKER=x
-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch ob3
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch ob3
   [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_OUTAGE_BREAKER must be a whole number' <<<"$output"
 }
 
 @test "RAB-21 post-run deadlines (Sprint 260 LOW-4): a grade that hangs past LOA_ABLATION_GRADE_TIMEOUT_S rows infrastructure_error and the batch finishes; a hung took-effect too, without pausing the arm; MANIFEST watchdog records both; a non-integer value is a usage error" {
-  export STUB_GRADE_HANG='*-bugfix-01-*' LOA_ABLATION_GRADE_TIMEOUT_S=2
+  export STUB_GRADE_HANG='*-bugfix-v2-01-*' LOA_ABLATION_GRADE_TIMEOUT_S=2
   SECONDS=0
-  ra --arms a1_full --tasks bugfix-01,bugfix-02,review-01 --trials-build 1 --trials-review 1 --batch gt1 --concurrency 2
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch gt1 --concurrency 2
   [ "$status" -eq 1 ]   # partial: the timed-out row is excluded
   [ "$SECONDS" -lt 120 ]
   B="$RES/gt1"
   [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
-  [ "$(row gt1-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
-  [ "$(row gt1-a1_full-bugfix-02-t1 | jq -r '.status')" = completed ]
+  [ "$(row gt1-a1_full-bugfix-v2-01-t1 | jq -r '.status')" = infrastructure_error ]
+  [ "$(row gt1-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = completed ]
   [ "$(row gt1-a1_full-review-01-t1 | jq -r '.status')" = completed ]
-  grep -q 'run-ablation: grade timed out after 2s' "$B/a1_full/bugfix-01-t1.log"
-  ! grep -q 'grade timed out' "$B/a1_full/bugfix-02-t1.log" || false
+  grep -q 'run-ablation: grade timed out after 2s' "$B/a1_full/bugfix-v2-01-t1.log"
+  ! grep -q 'grade timed out' "$B/a1_full/bugfix-v2-02-t1.log" || false
   [ "$(jq -r '.state' "$B/STATUS.json")" = partial ]
   [ "$(jq -r '.per_arm.a1_full.excluded' "$B/STATUS.json")" = 1 ]
   [ "$(jq -c '.watchdog | [.grade_timeout_s, .took_effect_timeout_s]' "$B/MANIFEST.json")" = '[2,300]' ]
@@ -708,18 +715,136 @@ print(",".join(out))')"
   unset STUB_GRADE_HANG
   printf '%s\n' '#!/usr/bin/env bash' 'sleep 600' > "$T/te-hang"; chmod +x "$T/te-hang"
   export LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=1
-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch gt2 --concurrency 1 --took-effect-bin "$T/te-hang"
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch gt2 --concurrency 1 --took-effect-bin "$T/te-hang"
   [ "$status" -eq 3 ]   # failed: no trial completed — but both launched (no pause after the first)
-  [ "$(row gt2-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
-  [ "$(row gt2-a1_full-bugfix-02-t1 | jq -r '.status')" = infrastructure_error ]
-  grep -q 'run-ablation: took-effect timed out after 1s' "$RES/gt2/a1_full/bugfix-01-t1.log"
+  [ "$(row gt2-a1_full-bugfix-v2-01-t1 | jq -r '.status')" = infrastructure_error ]
+  [ "$(row gt2-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = infrastructure_error ]
+  grep -q 'run-ablation: took-effect timed out after 1s' "$RES/gt2/a1_full/bugfix-v2-01-t1.log"
   [ "$(jq -c '.paused_arms' "$RES/gt2/STATUS.json")" = '{}' ]
   [ "$(jq -r '.watchdog.took_effect_timeout_s' "$RES/gt2/MANIFEST.json")" = 1 ]
   # a deadline that is not a positive whole number is a usage error
   for v in x 0 1.5 1234567; do
-    LOA_ABLATION_GRADE_TIMEOUT_S="$v" ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt3 --dry-run
+    LOA_ABLATION_GRADE_TIMEOUT_S="$v" ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch gt3 --dry-run
     [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds' <<<"$output"
   done
-  LOA_ABLATION_GRADE_TIMEOUT_S=5 LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=abc ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt4 --dry-run
+  LOA_ABLATION_GRADE_TIMEOUT_S=5 LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=abc ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch gt4 --dry-run
   [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds' <<<"$output"
+}
+
+# --- Sprint 261 Task 4.2: per-task-type run caps (DEC-0559, DEC-0567) -------------------
+# line <pattern> → the first run.log line number matching it (launch/done order checks)
+logline() { grep -n -E "$1" "$2" | head -1 | cut -d: -f1; }
+
+@test "RAB-22 per-kind caps in the plan and the manifest (DEC-0567): the suite's run_usd_by_type lands in MANIFEST caps; --run-cap 9 overrides both kinds; a suite without run_usd_by_type falls back to run_usd per kind; a malformed entry is a usage error" {
+  ra --arms a1_full,a4_no_gates --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k1 --dry-run
+  [ "$status" -eq 0 ]
+  grep -q 'run caps build 15 review-catch 20, in-flight reserve 20 per trial' <<<"$output"
+  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k1/MANIFEST.json")" = '{"build":15,"review-catch":20}' ]
+  [ "$(jq -r '.caps.run_usd' "$RES/k1/MANIFEST.json")" = 12 ]
+  # the single-cap override
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k2 --run-cap 9 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.caps | {run_usd, run_usd_by_type}' "$RES/k2/MANIFEST.json")" = '{"run_usd":9,"run_usd_by_type":{"build":9,"review-catch":9}}' ]
+  grep -q 'run caps build 9 review-catch 9, in-flight reserve 9 per trial' <<<"$output"
+  # a build-only plan reserves the build cap
+  ra --arms a1_full --tasks bugfix-v2-01,refactor-v2-01 --trials-build 1 --batch k3 --dry-run
+  [ "$status" -eq 0 ]
+  grep -q 'in-flight reserve 15 per trial' <<<"$output"
+  # suite v1 shape: no run_usd_by_type, both kinds take run_usd; one kind missing falls back alone
+  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/v1.yaml"
+  yq -i 'del(.caps.run_usd_by_type)' "$T/v1.yaml"
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k4 --suite-file "$T/v1.yaml" --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k4/MANIFEST.json")" = '{"build":12,"review-catch":12}' ]
+  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/half.yaml"
+  yq -i 'del(.caps.run_usd_by_type["review-catch"])' "$T/half.yaml"
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k5 --suite-file "$T/half.yaml" --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k5/MANIFEST.json")" = '{"build":15,"review-catch":12}' ]
+  # a present but malformed entry, or a run_usd_by_type that is not a map: refused, never skipped
+  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/bad.yaml"
+  yq -i '.caps.run_usd_by_type.build = "fifteen"' "$T/bad.yaml"
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch k6 --suite-file "$T/bad.yaml" --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'caps.run_usd_by_type.build is not an amount in USD: fifteen' <<<"$output"
+  [ ! -e "$RES/k6/MANIFEST.json" ]
+  yq -i '.caps.run_usd_by_type = [15, 20]' "$T/bad.yaml"
+  ra --arms a1_full --tasks bugfix-v2-01 --trials-build 1 --batch k7 --suite-file "$T/bad.yaml" --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'caps.run_usd_by_type must be a map' <<<"$output"
+}
+
+@test "RAB-23 dispatch passes the trial kind's cap to pipeline-run.sh --max-run-usd (build 15, review-catch 20); --run-cap 9 passes 9 to both" {
+  export STUB_ARGV_LOG="$T/argv.log"
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k8 --concurrency 2
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$T/argv.log")" -eq 2 ]
+  grep -qx 'k8-a1_full-bugfix-v2-01-t1 max-run-usd 15' "$T/argv.log"
+  grep -qx 'k8-a1_full-review-01-t1 max-run-usd 20' "$T/argv.log"
+  : > "$T/argv.log"
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch k9 --concurrency 2 --run-cap 9
+  [ "$status" -eq 0 ]
+  grep -qx 'k9-a1_full-bugfix-v2-01-t1 max-run-usd 9' "$T/argv.log"
+  grep -qx 'k9-a1_full-review-01-t1 max-run-usd 9' "$T/argv.log"
+}
+
+@test "RAB-24 assumed charges per kind (DEC-0567): a review-catch cap_failure is charged 20 and a costless failed build trial 15; a completed build trial its cost" {
+  rules '*-review-01-* cap_failure' '*-bugfix-v2-01-* agent_error_nocost' '*-bugfix-v2-02-* ok'
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch ka --concurrency 2
+  [ "$status" -eq 0 ]
+  [ "$(row ka-a1_full-review-01-t1 | jq -r '.status, .cost_usd' | tr '\n' ' ')" = "cap_failure 2.5 " ]
+  [ "$(row ka-a1_full-bugfix-v2-01-t1 | jq -r '.status, .cost_usd' | tr '\n' ' ')" = "agent_error 0 " ]
+  S="$RES/ka/STATUS.json"
+  # rows 2.5 + 0 + 2.5; spent = 20 (review-catch cap, not 12 or 15) + 15 (build cap) + 2.5
+  [ "$(jq -r '.spend.rows_usd, .spend.spent_usd, .spend.assumed_cap_trials' "$S" | tr '\n' ' ')" = "5 37.5 2 " ]
+  grep -q 'assumed cap: ka-a1_full-review-01-t1 ended cap_failure at USD 2.5; USD 20 (review-catch cap) charged to spent' "$RES/ka/run.log"
+  grep -q 'assumed cap: ka-a1_full-bugfix-v2-01-t1 ended agent_error with no reported cost; USD 15 charged to spent' "$RES/ka/run.log"
+}
+
+@test "RAB-25 in-flight reservation = running trials x the largest cap among the plan's kinds (DEC-0567): a build trial running in a plan with review-catch reserves 20 (max 27.99 waits, 28 launches); a build-only plan reserves 15 (21.99 waits, 22 launches)" {
+  export STUB_COST=1
+  # seed 5 puts the build trial first; the second gate sees one build trial running and the
+  # review-catch hint 8: 0 + 1 x 20 + 8 = 28 (a per-own-kind rule would give 23, the old cap 20)
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch kb --concurrency 2 --seed 5 --max-usd 27.99
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.plan[0].task_id' "$RES/kb/MANIFEST.json")" = bugfix-v2-01 ]
+  L="$RES/kb/run.log"
+  [ "$(logline 'done kb-a1_full-bugfix-v2-01-t1 ' "$L")" -lt "$(logline 'launch kb-a1_full-review-01-t1 ' "$L")" ]
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch kc --concurrency 2 --seed 5 --max-usd 28
+  [ "$status" -eq 0 ]
+  L="$RES/kc/run.log"
+  [ "$(logline 'launch kc-a1_full-review-01-t1 ' "$L")" -lt "$(logline 'done kc-a1_full-bugfix-v2-01-t1 ' "$L")" ]
+  # build only: 0 + 1 x 15 + 7 = 22
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch kd --concurrency 2 --max-usd 21.99
+  [ "$status" -eq 0 ]
+  first="$(jq -r '.plan[0].run_id' "$RES/kd/MANIFEST.json")" second="$(jq -r '.plan[1].run_id' "$RES/kd/MANIFEST.json")"
+  L="$RES/kd/run.log"
+  [ "$(logline "done $first " "$L")" -lt "$(logline "launch $second " "$L")" ]
+  ra --arms a1_full --tasks bugfix-v2-01,bugfix-v2-02 --trials-build 1 --batch ke --concurrency 2 --max-usd 22
+  [ "$status" -eq 0 ]
+  first="$(jq -r '.plan[0].run_id' "$RES/ke/MANIFEST.json")" second="$(jq -r '.plan[1].run_id' "$RES/ke/MANIFEST.json")"
+  L="$RES/ke/run.log"
+  [ "$(logline "launch $second " "$L")" -lt "$(logline "done $first " "$L")" ]
+}
+
+@test "RAB-26 --resume keeps the batch's recorded caps: the suite file's caps edited after the start (and a --run-cap on the resume) change neither the dispatch caps nor MANIFEST caps" {
+  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/suite.yaml"
+  export STUB_ARGV_LOG="$T/argv.log"
+  ra --arms a1_full --tasks bugfix-v2-01,review-01 --trials-build 1 --trials-review 1 --batch kf --concurrency 2 --suite-file "$T/suite.yaml"
+  [ "$status" -eq 0 ]
+  B="$RES/kf"
+  before="$(jq -c '.caps' "$B/MANIFEST.json")"
+  [ "$(jq -c '.caps.run_usd_by_type' "$B/MANIFEST.json")" = '{"build":15,"review-catch":20}' ]
+  yq -i '.caps.run_usd = 50 | .caps.run_usd_by_type = {"build": 30, "review-catch": 40}' "$T/suite.yaml"
+  # the driver "died" before either row landed
+  : > "$RES/runs.jsonl"
+  jq '.state = "running" | .finished = null | .resume_cursor = 0' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
+  : > "$T/argv.log"
+  ra --batch kf --resume --run-cap 9
+  [ "$status" -eq 0 ]
+  grep -q -- '--run-cap 9 ignored on --resume' <<<"$output"
+  grep -qx 'kf-a1_full-bugfix-v2-01-t1 max-run-usd 15' "$T/argv.log"
+  grep -qx 'kf-a1_full-review-01-t1 max-run-usd 20' "$T/argv.log"
+  [ "$(jq -c '.caps' "$B/MANIFEST.json")" = "$before" ]
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 2 ]
 }

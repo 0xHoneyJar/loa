@@ -1,0 +1,16 @@
+id: feature-v2-03
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E2: a step pipeline gains resumable runs (a digest-keyed checkpoint rewritten atomically after every step, prefix reuse, downstream invalidation, conflict and corruption errors, CLI flags)"}
+post_cutoff: true
+fixture: tasks/feature-v2-03/fixture
+criterion: "pipeline runs gain an optional checkpoint file in the stated JSON format, rewritten atomically after every completed step, and a resume mode that reuses the leading completed steps whose recorded input digest still matches and reruns everything from the first step that does not, with a fresh run deleting the old file first, per-run reporting of ran and reused steps, exact errors for a corrupt checkpoint, a checkpoint from a different pipeline and an unserialisable output, and command-line flags with exact usage and error handling"
+success_criterion: "hidden/tests/test_resume.py (overlaid at tests/acceptance/test_resume.py) passes 12 of 12 under python3 -m pytest -q tests (28 of 28 with the fixture suite); red at base (12 failed), green with hidden/reference.patch; regression_command (the fixture suite, 16 cases) green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_stagerun.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

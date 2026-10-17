@@ -1,0 +1,185 @@
+diff -ruN a/src/orderdesk/orders.py b/src/orderdesk/orders.py
+--- a/src/orderdesk/orders.py
++++ b/src/orderdesk/orders.py
+@@ -1,23 +1,12 @@
+ """Customer orders: lines priced against the catalog."""
+-import re
+-
+-MAX_QTY = 999
+-_SKU_RE = re.compile(r"[A-Z]{3}-[0-9]{4}")
+-
+-
+-def _valid_line(sku, qty):
+-    if not isinstance(sku, str) or _SKU_RE.fullmatch(sku) is None:
+-        raise ValueError(f"invalid sku: {sku!r}")
+-    if isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= MAX_QTY:
+-        raise ValueError(f"invalid quantity for {sku}: {qty!r}")
+-    return sku, qty
++from .validation import validate_line
+ 
+ 
+ def place_order(catalog, lines):
+     """An order for ``lines`` [(sku, qty), ...]; the quantities of a repeated SKU add up."""
+     merged = {}
+     for sku, qty in lines:
+-        sku, qty = _valid_line(sku, qty)
++        sku, qty = validate_line(sku, qty)
+         catalog.get(sku)
+         merged[sku] = merged.get(sku, 0) + qty
+     if not merged:
+@@ -33,9 +22,6 @@
+     """The total in cents of ``lines`` without building an order."""
+     total = 0
+     for sku, qty in lines:
+-        if not isinstance(sku, str) or not _SKU_RE.fullmatch(sku):
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if isinstance(qty, bool) or not isinstance(qty, int) or qty < 1 or qty > MAX_QTY:
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty)
+         total += catalog.get(sku).price_cents * qty
+     return total
+diff -ruN a/src/orderdesk/quotes.py b/src/orderdesk/quotes.py
+--- a/src/orderdesk/quotes.py
++++ b/src/orderdesk/quotes.py
+@@ -1,20 +1,9 @@
+ """Price quotes with volume discounts; a bulk quote allows larger quantities."""
+-import re
++from .validation import MAX_BULK_QTY, validate_line
+ 
+-_PATTERN = r"[A-Z]{3}-[0-9]{4}"
+-STANDARD_LIMIT = 999
+-BULK_LIMIT = 9999
+ DISCOUNT_STEPS = ((1000, 15), (100, 10), (10, 5))
+ 
+ 
+-def _line_ok(sku, qty, limit):
+-    if not isinstance(sku, str) or not re.fullmatch(_PATTERN, sku):
+-        return "sku"
+-    if isinstance(qty, bool) or not isinstance(qty, int) or qty < 1 or qty > limit:
+-        return "qty"
+-    return None
+-
+-
+ def _discount(qty):
+     for threshold, pct in DISCOUNT_STEPS:
+         if qty >= threshold:
+@@ -32,11 +21,7 @@
+     """A quote for ``lines``; each line is discounted by its own quantity."""
+     rows = []
+     for sku, qty in lines:
+-        problem = _line_ok(sku, qty, STANDARD_LIMIT)
+-        if problem == "sku":
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if problem == "qty":
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty)
+         rows.append(_row(catalog, sku, qty))
+     return {"rows": rows, "total_cents": sum(row["cents"] for row in rows)}
+ 
+@@ -45,10 +30,6 @@
+     """Like ``quote`` but for quantities up to the bulk limit."""
+     rows = []
+     for sku, qty in lines:
+-        problem = _line_ok(sku, qty, BULK_LIMIT)
+-        if problem is not None:
+-            if problem == "sku":
+-                raise ValueError(f"invalid sku: {sku!r}")
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty, max_qty=MAX_BULK_QTY)
+         rows.append(_row(catalog, sku, qty))
+     return {"rows": rows, "total_cents": sum(row["cents"] for row in rows), "bulk": True}
+diff -ruN a/src/orderdesk/returns.py b/src/orderdesk/returns.py
+--- a/src/orderdesk/returns.py
++++ b/src/orderdesk/returns.py
+@@ -1,8 +1,5 @@
+ """Returns against a placed order; SKUs are accepted in any case and with stray spaces."""
+-import re
+-
+-SKU_PATTERN = re.compile(r"[A-Z]{3}-[0-9]{4}")
+-LIMIT = 999
++from .validation import validate_line
+ 
+ 
+ def return_items(order, lines):
+@@ -10,13 +7,7 @@
+     ordered = {item["sku"]: item["qty"] for item in order["items"]}
+     out = []
+     for raw_sku, qty in lines:
+-        sku = raw_sku.strip().upper() if isinstance(raw_sku, str) else raw_sku
+-        if not isinstance(sku, str) or not SKU_PATTERN.fullmatch(sku):
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if type(qty) is bool or not isinstance(qty, int):
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
+-        if qty < 1 or qty > LIMIT:
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(raw_sku, qty, normalise=True)
+         if sku not in ordered:
+             raise ValueError(f"{sku} was not ordered")
+         if qty > ordered[sku]:
+@@ -38,10 +29,7 @@
+     unit = {item["sku"]: item["cents"] // item["qty"] for item in order["items"]}
+     taken = []
+     for sku, qty in new_lines:
+-        if not isinstance(sku, str) or SKU_PATTERN.fullmatch(sku) is None:
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= LIMIT:
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty)
+         taken.append({"sku": sku, "qty": qty, "cents": catalog.get(sku).price_cents * qty})
+     credit = sum(unit[line["sku"]] * line["qty"] for line in returned)
+     return {"returned": returned, "taken": taken, "due_cents": sum(t["cents"] for t in taken) - credit}
+diff -ruN a/src/orderdesk/transfers.py b/src/orderdesk/transfers.py
+--- a/src/orderdesk/transfers.py
++++ b/src/orderdesk/transfers.py
+@@ -1,5 +1,5 @@
+ """Stock transfers between the warehouses."""
+-import re
++from .validation import validate_line
+ 
+ WAREHOUSES = ("NORTH", "SOUTH", "EAST")
+ 
+@@ -14,10 +14,7 @@
+     moves = []
+     seen = set()
+     for sku, qty in lines:
+-        if not isinstance(sku, str) or re.fullmatch(r"[A-Z]{3}-[0-9]{4}", sku) is None:
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if isinstance(qty, bool) or not isinstance(qty, int) or not 0 < qty <= 999:
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty)
+         if sku in seen:
+             raise ValueError(f"{sku} listed twice")
+         seen.add(sku)
+@@ -38,10 +35,7 @@
+         raise ValueError(f"invalid parts: {parts!r}")
+     shipments = [[] for _ in range(parts)]
+     for sku, qty in lines:
+-        if not isinstance(sku, str) or not re.fullmatch(r"[A-Z]{3}-[0-9]{4}", sku):
+-            raise ValueError(f"invalid sku: {sku!r}")
+-        if isinstance(qty, bool) or not isinstance(qty, int) or qty < 1 or qty > 999:
+-            raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++        sku, qty = validate_line(sku, qty)
+         each, extra = divmod(qty, parts)
+         for i in range(parts):
+             n = each + (1 if i < extra else 0)
+diff -ruN a/src/orderdesk/validation.py b/src/orderdesk/validation.py
+--- a/src/orderdesk/validation.py
++++ b/src/orderdesk/validation.py
+@@ -0,0 +1,17 @@
++"""The one check of an order line (SKU format and quantity) that every operation uses."""
++import re
++
++MAX_QTY = 999
++MAX_BULK_QTY = 9999
++_SKU_RE = re.compile(r"[A-Z]{3}-[0-9]{4}")
++
++
++def validate_line(sku, qty, *, normalise=False, max_qty=MAX_QTY):
++    """Return ``(sku, qty)`` for a valid line; ``normalise`` strips and upper-cases the SKU first."""
++    if normalise and isinstance(sku, str):
++        sku = sku.strip().upper()
++    if not isinstance(sku, str) or _SKU_RE.fullmatch(sku) is None:
++        raise ValueError(f"invalid sku: {sku!r}")
++    if isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= max_qty:
++        raise ValueError(f"invalid quantity for {sku}: {qty!r}")
++    return sku, qty

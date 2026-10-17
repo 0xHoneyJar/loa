@@ -1,0 +1,154 @@
+diff -ruN a/src/batchkit/batch.py b/src/batchkit/batch.py
+--- a/src/batchkit/batch.py
++++ b/src/batchkit/batch.py
+@@ -7,22 +7,25 @@
+ def run_batch(pool, ledger, journal, items, owner="batch"):
+     """Apply ``items`` in order while holding every account they touch.
+ 
+-    Returns a ``Report``.  A refused item ends the batch.
++    Returns a ``Report``.  The batch is all-or-nothing: a refused item undoes
++    every balance change and every journal record this batch made, and the
++    report says ``rolled back``.  The lease is released however the call ends;
++    a lease that cannot be taken raises ``ResourceBusy`` before anything
++    changes.
+     """
+     items = list(items)
+     report = Report()
+     accounts = sorted({item.account for item in items})
+-    for account in accounts:
+-        pool.acquire(account, owner)
+-    for item in items:
+-        try:
+-            outcome = apply_item(ledger, journal, item)
+-        except LedgerError as exc:
+-            report.fail(item.id, str(exc))
+-            return report
+-        report.note(item.id, outcome)
+-    for item_id in report.applied:
+-        journal.record(item_id)
+-    for account in accounts:
+-        pool.release(account, owner)
++    with pool.lease(accounts, owner):
++        before = ledger.snapshot()
++        for item in items:
++            try:
++                outcome = apply_item(ledger, journal, item)
++            except LedgerError as exc:
++                ledger.restore(before)
++                for item_id in report.applied:
++                    journal.forget(item_id)
++                report.roll_back(item.id, str(exc))
++                return report
++            report.note(item.id, outcome)
+     return report
+diff -ruN a/src/batchkit/journal.py b/src/batchkit/journal.py
+--- a/src/batchkit/journal.py
++++ b/src/batchkit/journal.py
+@@ -17,6 +17,11 @@
+         if item_id not in self._ids:
+             self._ids.append(item_id)
+ 
++    def forget(self, item_id):
++        """Drop ``item_id`` (undoing its ``record``); unknown ids are ignored."""
++        if item_id in self._ids:
++            self._ids.remove(item_id)
++
+     def ids(self):
+         return list(self._ids)
+ 
+diff -ruN a/src/batchkit/ledger.py b/src/batchkit/ledger.py
+--- a/src/batchkit/ledger.py
++++ b/src/batchkit/ledger.py
+@@ -28,3 +28,11 @@
+     def balances(self):
+         """A copy of every balance."""
+         return dict(self._balances)
++
++    def snapshot(self):
++        """An opaque copy of the balances, for ``restore``."""
++        return dict(self._balances)
++
++    def restore(self, snapshot):
++        """Put every balance back as it was when ``snapshot`` was taken."""
++        self._balances = dict(snapshot)
+diff -ruN a/src/batchkit/pool.py b/src/batchkit/pool.py
+--- a/src/batchkit/pool.py
++++ b/src/batchkit/pool.py
+@@ -33,13 +33,18 @@
+ 
+     @contextmanager
+     def lease(self, names, owner):
+-        """Lock every distinct name in sorted order for the duration of the block."""
++        """Lock every distinct name in sorted order for the duration of the block.
++
++        Every name this lease locked is released when the block ends, normally
++        or by an exception, and also when a later name cannot be locked (the
++        ``ResourceBusy`` then propagates with nothing of this lease held).
++        """
+         taken = []
+-        for name in sorted(set(names)):
+-            self.acquire(name, owner)
+-            taken.append(name)
+         try:
+-            yield taken
++            for name in sorted(set(names)):
++                self.acquire(name, owner)
++                taken.append(name)
++            yield list(taken)
+         finally:
+             for name in reversed(taken):
+                 self.release(name, owner)
+diff -ruN a/src/batchkit/report.py b/src/batchkit/report.py
+--- a/src/batchkit/report.py
++++ b/src/batchkit/report.py
+@@ -8,24 +8,22 @@
+ @dataclass
+ class Report:
+     status: str = COMMITTED
+-    attempted: list = field(default_factory=list)
++    applied: list = field(default_factory=list)
+     skipped: list = field(default_factory=list)
+     failed: str = None
+     error: str = None
+ 
+-    @property
+-    def applied(self):
+-        """Ids applied by the batch, in item order."""
+-        return [i for i in self.attempted if i not in self.skipped]
+-
+     def note(self, item_id, outcome):
+-        self.attempted.append(item_id)
++        """Count one item that went through: applied or skipped."""
+         if outcome == "skipped":
+             self.skipped.append(item_id)
++        else:
++            self.applied.append(item_id)
+ 
+-    def fail(self, item_id, error):
+-        self.attempted.append(item_id)
++    def roll_back(self, item_id, error):
++        """The batch was undone at ``item_id``: nothing it applied remains."""
+         self.status = ROLLED_BACK
++        self.applied = []
+         self.failed = item_id
+         self.error = error
+ 
+diff -ruN a/src/batchkit/worker.py b/src/batchkit/worker.py
+--- a/src/batchkit/worker.py
++++ b/src/batchkit/worker.py
+@@ -7,10 +7,13 @@
+ def apply_item(ledger, journal, item):
+     """Apply ``item`` unless the journal already has its id.
+ 
+-    Returns ``"applied"`` or ``"skipped"``; a refused change raises the
+-    ledger's error.
++    Returns ``"applied"`` or ``"skipped"``.  The id is recorded only once the
++    ledger has accepted the change, so a later item with the same id (in this
++    batch or another) is skipped; a refused change raises the ledger's error
++    and records nothing.
+     """
+     if journal.seen(item.id):
+         return SKIPPED
+     ledger.apply(item.account, item.amount)
++    journal.record(item.id)
+     return APPLIED

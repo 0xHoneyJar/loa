@@ -34,16 +34,19 @@
 #   est_next <key> [<pool>]    the next trial's expected cost: the key's mean, else the
 #                              pool's mean (default pool "all"), else `est_hint <key>`
 #                              (default: $COST_HINT; a runner may redefine est_hint)
-#   spend_charge <status> <cost> <what>
+#   spend_charge <status> <cost> <what> [<cap>]
 #                              charge one finished trial to SPENT: a trial that ended
 #                              without status completed and without a reported cost is
-#                              charged RUN_CAP (ASSUMED_CAP+1, logged); else its cost.
+#                              charged <cap> (default RUN_CAP; run-ablation.sh passes the
+#                              trial kind's cap, DEC-0567) (ASSUMED_CAP+1, logged); else its cost.
 #                              Sets CHARGED_COST to the reported cost it accepted (0 for an
 #                              assumed charge); call it directly, never in $( ), or SPENT
 #                              is lost with the subshell
-#   budget_gate <key> <trial-number> [<pool>]
+#   budget_gate <key> <trial-number> [<pool>] [<reserve-per-trial>]
 #                              0 launch; 1 cut (CUT_JSON set). Waits (reap) while only the
-#                              in-flight reservation (${#PIDS[@]} × RUN_CAP) blocks the launch
+#                              in-flight reservation (${#PIDS[@]} × <reserve-per-trial>,
+#                              default RUN_CAP; run-ablation.sh passes the largest cap among
+#                              its plan's kinds, DEC-0567) blocks the launch
 #
 # Globals read: RUN_CAP, MAX_USD, COST_HINT, LAUNCHED, PIDS (array); written: SPENT,
 # ASSUMED_CAP, CHARGED_COST, CUT_JSON, EST_KEYS/EST_SUM/EST_N, POOL_KEYS/POOL_SUM/POOL_N (parallel
@@ -122,13 +125,13 @@ est_next() {  # est_next <key> [<pool>]
   else est_hint "$1"; fi
 }
 
-spend_charge() {  # spend_charge <status> <cost> <what>
-  local st="$1" cost="$2" what="$3"
+spend_charge() {  # spend_charge <status> <cost> <what> [<cap>]
+  local st="$1" cost="$2" what="$3" cap="${4:-$RUN_CAP}"
   [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
   if [[ "$st" != "completed" ]] && awk -v c="$cost" 'BEGIN { exit !(c + 0 == 0) }'; then
     # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
-    log "assumed cap: $what ended ${st:-without a status} with no reported cost; USD $RUN_CAP charged to spent"
+    SPENT="$(fadd "$SPENT" "$cap")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+    log "assumed cap: $what ended ${st:-without a status} with no reported cost; USD $cap charged to spent"
     CHARGED_COST=0
   else
     SPENT="$(fadd "$SPENT" "$cost")"
@@ -136,11 +139,11 @@ spend_charge() {  # spend_charge <status> <cost> <what>
   fi
 }
 
-budget_gate() {  # budget_gate <key> <trial-number> [<pool>]
-  local key="$1" at="$2" pool="${3:-all}" est inflight reserved
+budget_gate() {  # budget_gate <key> <trial-number> [<pool>] [<reserve-per-trial>]
+  local key="$1" at="$2" pool="${3:-all}" per="${4:-$RUN_CAP}" est inflight reserved
   while true; do
     est="$(est_next "$key" "$pool")"; inflight=${#PIDS[@]}
-    reserved="$(awk -v k="$inflight" -v c="$RUN_CAP" 'BEGIN { printf "%.10g", k * c }')"
+    reserved="$(awk -v k="$inflight" -v c="$per" 'BEGIN { printf "%.10g", k * c }')"
     if awk -v s="$SPENT" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + e > m) }'; then
       CUT_JSON="$(jq -cn --arg s "$SPENT" --arg r "$reserved" --arg m "$MAX_USD" --arg e "$est" \
         --argjson launched "$LAUNCHED" --argjson at "$at" \

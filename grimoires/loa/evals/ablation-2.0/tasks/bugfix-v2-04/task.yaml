@@ -1,0 +1,16 @@
+id: bugfix-v2-04
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D2: lifecycle and partial failure (a refused item leaves locks held and earlier items applied, the report counts the failed item, the journal is written only at the end so a retry and a repeated id double-apply, a partially acquired lease is not released)"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-04/fixture
+criterion: "a batch is all-or-nothing: a refused item undoes every balance change and journal record the batch made and reports a rollback naming the item and its error, locks are released however the batch or a lease ends (including a lease refused part-way), already recorded ids are skipped within and across batches, and a retry applies each item exactly once"
+success_criterion: "hidden/tests/test_batch_failure.py (overlaid at tests/acceptance/test_batch_failure.py) passes 11 of 11 under python3 -m pytest -q tests (22 of 22 with the fixture suite); red at base (10 failed, 12 passed), green with hidden/reference.patch; regression_command (fixture suite, 11 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_batch.py, tests/test_parts.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2

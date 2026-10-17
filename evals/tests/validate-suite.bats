@@ -134,14 +134,16 @@ teardown() {
   make_task "$R" tasks refactor-01 refactor
   make_task "$R" tasks odd-01 bug-fix
   yq -i 'del(.success_criterion)' "$R/tasks/bug-fix-01/task.yaml"
-  yq -i '.suite_version = 2' "$R/tasks/bug-fix-01/task.yaml"
+  # one past the suite file's suite_version, whatever it is (1 for suite v1, 2 since Sprint 261)
+  sv="$(yq -r .suite_version "$SUITE")"; other=$(( sv + 1 ))
+  yq -i ".suite_version = $other" "$R/tasks/bug-fix-01/task.yaml"
   yq -i '.review_catch = null' "$R/tasks/review-catch-01/task.yaml"
   yq -i '.structural_check = null' "$R/tasks/refactor-01/task.yaml"
   yq -i '.type = "chore" | .post_cutoff = "yes"' "$R/tasks/odd-01/task.yaml"
   run "$VS" --root "$R" --allow-partial
   [ "$status" -eq 1 ]
   grep -q "tasks/bug-fix-01: schema: missing field 'success_criterion'" <<<"$output"
-  grep -q "tasks/bug-fix-01: schema: suite_version 2 differs from the suite file's 1" <<<"$output"
+  grep -q "tasks/bug-fix-01: schema: suite_version $other differs from the suite file's $sv" <<<"$output"
   grep -q "tasks/review-catch-01: schema: review_catch {fixture, manifest} is required for review-catch" <<<"$output"
   grep -q "tasks/refactor-01: schema: structural_check is required for refactor" <<<"$output"
   grep -q "tasks/odd-01: schema: type 'chore' not in" <<<"$output"

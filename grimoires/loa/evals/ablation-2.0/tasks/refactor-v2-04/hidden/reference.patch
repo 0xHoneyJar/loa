@@ -1,0 +1,258 @@
+diff -ruN a/src/shipflow/billing.py b/src/shipflow/billing.py
+--- a/src/shipflow/billing.py
++++ b/src/shipflow/billing.py
+@@ -1,6 +1,8 @@
+ """What a shipment has cost so far, in cents."""
+ import math
+ 
++from .status import Status
++
+ HANDLING = 150
+ RATE_PER_KG = 120
+ 
+@@ -12,17 +14,17 @@
+ 
+ def charge_for(shipment):
+     status = shipment.status
+-    if status == "pending":
++    if status is Status.PENDING:
+         return 0
+-    if status == "cancelled":
++    if status is Status.CANCELLED:
+         return HANDLING if "pack" in shipment.history else 0
+-    if status == "packed":
++    if status is Status.PACKED:
+         return HANDLING
+-    if status in ("shipped", "delivered"):
++    if status is Status.SHIPPED or status is Status.DELIVERED:
+         return HANDLING + postage(shipment.weight_kg)
+-    if status == "returned":
++    if status is Status.RETURNED:
+         return HANDLING + 2 * postage(shipment.weight_kg)
+-    return 0
++    raise TypeError(f"not a Status: {status!r}")
+ 
+ 
+ def invoice_total(shipments):
+diff -ruN a/src/shipflow/model.py b/src/shipflow/model.py
+--- a/src/shipflow/model.py
++++ b/src/shipflow/model.py
+@@ -1,12 +1,14 @@
+ """The shipment record."""
+ from dataclasses import dataclass, field
+ 
++from .status import Status
++
+ 
+ @dataclass
+ class Shipment:
+     id: str
+     weight_kg: float
+-    status: str = "pending"
++    status: Status = Status.PENDING
+     history: list = field(default_factory=list)
+ 
+ 
+@@ -21,4 +23,4 @@
+ 
+ def is_final(shipment):
+     """No event can move a returned or cancelled shipment."""
+-    return shipment.status in ("returned", "cancelled")
++    return shipment.status in (Status.RETURNED, Status.CANCELLED)
+diff -ruN a/src/shipflow/notify.py b/src/shipflow/notify.py
+--- a/src/shipflow/notify.py
++++ b/src/shipflow/notify.py
+@@ -1,26 +1,28 @@
+ """Customer notifications."""
++from .status import Status
+ 
+ 
+ def message_for(shipment):
+     status = shipment.status
+-    if status == "pending":
++    if status is Status.PENDING:
+         return f"Shipment {shipment.id} is waiting to be packed."
+-    elif status == "packed":
++    if status is Status.PACKED:
+         return f"Shipment {shipment.id} is packed and will leave soon."
+-    elif status == "shipped":
++    if status is Status.SHIPPED:
+         return f"Shipment {shipment.id} is on its way."
+-    elif status == "delivered":
++    if status is Status.DELIVERED:
+         return f"Shipment {shipment.id} was delivered."
+-    elif status == "returned":
++    if status is Status.RETURNED:
+         return f"Shipment {shipment.id} came back to us; a refund follows."
+-    else:
++    if status is Status.CANCELLED:
+         return f"Shipment {shipment.id} was cancelled."
++    raise TypeError(f"not a Status: {status!r}")
+ 
+ 
+ def subject(shipment):
+-    return f"[{shipment.status.upper()}] shipment {shipment.id}"
++    return f"[{shipment.status.value.upper()}] shipment {shipment.id}"
+ 
+ 
+ def should_notify(old_status, shipment):
+     """Customers hear about every change except packing."""
+-    return shipment.status != old_status and shipment.status != "packed"
++    return shipment.status != old_status and shipment.status is not Status.PACKED
+diff -ruN a/src/shipflow/report.py b/src/shipflow/report.py
+--- a/src/shipflow/report.py
++++ b/src/shipflow/report.py
+@@ -1,15 +1,16 @@
+ """Counts and ratios over many shipments."""
+-ORDER = ["pending", "packed", "shipped", "delivered", "returned", "cancelled"]
+-OPEN = {"pending", "packed", "shipped"}
++from .status import Status
++
++OPEN = (Status.PENDING, Status.PACKED, Status.SHIPPED)
+ 
+ 
+ def counts(shipments):
+     """Shipments per status, in lifecycle order, statuses with none left out."""
+     result = {}
+-    for status in ORDER:
+-        n = sum(1 for s in shipments if s.status == status)
++    for status in Status:
++        n = sum(1 for s in shipments if s.status is status)
+         if n:
+-            result[status] = n
++            result[status.value] = n
+     return result
+ 
+ 
+@@ -23,7 +24,7 @@
+ 
+ def return_rate(shipments):
+     """Returned shipments as a share of those that reached the customer, or None."""
+-    reached = [s for s in shipments if s.status == "delivered" or s.status == "returned"]
++    reached = [s for s in shipments if s.status in (Status.DELIVERED, Status.RETURNED)]
+     if not reached:
+         return None
+-    return sum(1 for s in reached if s.status == "returned") / len(reached)
++    return sum(1 for s in reached if s.status is Status.RETURNED) / len(reached)
+diff -ruN a/src/shipflow/status.py b/src/shipflow/status.py
+--- a/src/shipflow/status.py
++++ b/src/shipflow/status.py
+@@ -0,0 +1,21 @@
++"""The shipment status vocabulary: the one place its words appear."""
++import enum
++
++
++class Status(enum.Enum):
++    """Lifecycle order; the values are the words used in storage and reports."""
++
++    PENDING = "pending"
++    PACKED = "packed"
++    SHIPPED = "shipped"
++    DELIVERED = "delivered"
++    RETURNED = "returned"
++    CANCELLED = "cancelled"
++
++    @classmethod
++    def parse(cls, value):
++        """The member whose value is ``value``; ValueError naming the value otherwise."""
++        try:
++            return cls(value)
++        except ValueError:
++            raise ValueError(f"unknown status: {value!r}") from None
+diff -ruN a/src/shipflow/storage.py b/src/shipflow/storage.py
+--- a/src/shipflow/storage.py
++++ b/src/shipflow/storage.py
+@@ -2,18 +2,15 @@
+ import json
+ 
+ from .model import Shipment
+-
+-STATUSES = ("pending", "packed", "shipped", "delivered", "returned", "cancelled")
++from .status import Status
+ 
+ 
+ def to_dict(shipment):
+-    return {"id": shipment.id, "weight_kg": shipment.weight_kg, "status": shipment.status, "history": list(shipment.history)}
++    return {"id": shipment.id, "weight_kg": shipment.weight_kg, "status": shipment.status.value, "history": list(shipment.history)}
+ 
+ 
+ def from_dict(data):
+-    status = data.get("status", "pending")
+-    if status not in STATUSES:
+-        raise ValueError(f"unknown status: {status!r}")
++    status = Status.parse(data["status"]) if "status" in data else Status.PENDING
+     return Shipment(data["id"], float(data["weight_kg"]), status, list(data.get("history", [])))
+ 
+ 
+diff -ruN a/src/shipflow/tracking.py b/src/shipflow/tracking.py
+--- a/src/shipflow/tracking.py
++++ b/src/shipflow/tracking.py
+@@ -1,7 +1,8 @@
+ """Delivery estimates and the customer-facing timeline."""
++from .status import Status
+ from .transitions import EVENTS
+ 
+-DAYS_LEFT = {"pending": 3, "packed": 2, "shipped": 1}
++DAYS_LEFT = {Status.PENDING: 3, Status.PACKED: 2, Status.SHIPPED: 1}
+ 
+ 
+ def eta_days(shipment):
+@@ -11,11 +12,11 @@
+ 
+ def timeline(shipment):
+     """The statuses the shipment went through, starting from pending."""
+-    steps = ["pending"]
++    steps = [Status.PENDING.value]
+     for event in shipment.history:
+-        steps.append(EVENTS[event])
++        steps.append(EVENTS[event].value)
+     return " > ".join(steps)
+ 
+ 
+ def is_late(shipment, days_since_shipped):
+-    return shipment.status == "shipped" and days_since_shipped > DAYS_LEFT["shipped"] + 1
++    return shipment.status is Status.SHIPPED and days_since_shipped > DAYS_LEFT[Status.SHIPPED] + 1
+diff -ruN a/src/shipflow/transitions.py b/src/shipflow/transitions.py
+--- a/src/shipflow/transitions.py
++++ b/src/shipflow/transitions.py
+@@ -1,5 +1,7 @@
+ """The lifecycle: which event moves a shipment from which status to which."""
+-EVENTS = {"pack": "packed", "ship": "shipped", "deliver": "delivered", "return": "returned", "cancel": "cancelled"}
++from .status import Status
++
++EVENTS = {"pack": Status.PACKED, "ship": Status.SHIPPED, "deliver": Status.DELIVERED, "return": Status.RETURNED, "cancel": Status.CANCELLED}
+ 
+ 
+ def next_status(status, event):
+@@ -7,18 +9,21 @@
+     if event not in EVENTS:
+         raise ValueError(f"unknown event: {event!r}")
+     target = EVENTS[event]
+-    if status == "pending":
+-        allowed = ("packed", "cancelled")
+-    elif status == "packed":
+-        allowed = ("shipped", "cancelled")
+-    elif status == "shipped":
+-        allowed = ("delivered", "returned")
+-    elif status == "delivered":
+-        allowed = ("returned",)
+-    else:
++    if not isinstance(status, Status):
++        raise TypeError(f"not a Status: {status!r}")
++    allowed = ()
++    if status is Status.PENDING:
++        allowed = (Status.PACKED, Status.CANCELLED)
++    elif status is Status.PACKED:
++        allowed = (Status.SHIPPED, Status.CANCELLED)
++    elif status is Status.SHIPPED:
++        allowed = (Status.DELIVERED, Status.RETURNED)
++    elif status is Status.DELIVERED:
++        allowed = (Status.RETURNED,)
++    elif status is Status.RETURNED or status is Status.CANCELLED:
+         allowed = ()
+     if target not in allowed:
+-        raise ValueError(f"cannot {event} a {status} shipment")
++        raise ValueError(f"cannot {event} a {status.value} shipment")
+     return target
+ 
+ 

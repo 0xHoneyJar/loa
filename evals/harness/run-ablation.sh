@@ -2,7 +2,7 @@
 # =============================================================================
 # run-ablation.sh — the cycle-130 ablation batch runner (SDD §5.9, §3.4; sprint Task 3.2;
 # DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435, DEC-0545,
-# DEC-0553, DEC-0554)
+# DEC-0553, DEC-0554, DEC-0567)
 #
 # Plans a batch (arm × applicable task × trial), dispatches every trial to
 # pipeline-run.sh against a pinned source tree, checks after each trial that the arm
@@ -31,9 +31,11 @@
 #   --trials-build N     trials per build task (default the suite's trials.build; --smoke 1)
 #   --trials-review N    trials per review-catch task (default trials.review-catch; --smoke 1)
 #   --max-usd USD        batch spend cap (see Spend); no cap when absent
-#   --run-cap USD        per-run cap passed to pipeline-run.sh --max-run-usd and reserved per
-#                        running trial (default evals.ablation.run_cap_usd in .loa.config.yaml,
-#                        else the suite's caps.run_usd, else 12)
+#   --run-cap USD        the single-cap override: one per-run cap for both task kinds (see
+#                        Run caps). Without it each kind takes the suite's
+#                        caps.run_usd_by_type[<kind>], else evals.ablation.run_cap_usd in
+#                        .loa.config.yaml, else the suite's caps.run_usd, else 12. Ignored
+#                        (with a stderr note) on --resume: a batch keeps its MANIFEST caps
 #   --concurrency N      trials at once, 1-9 (default 3)
 #   --batch NAME         batch directory name (default batch-<UTC ts>; --smoke smoke-<UTC ts>;
 #                        the smoke- prefix is reserved for --smoke)
@@ -121,7 +123,7 @@
 #
 # Per trial, in order: pipeline-run.sh --task-yaml … --arm … --run-dir … --run-id … --trial …
 #   --source-tree <pinned> --suite-file … --executor … --image … --docker-bin …
-#   --max-run-usd <run-cap>, output to <batch>/<arm>/<task>-t<n>.log; then
+#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log; then
 #   1. status from meta/pipeline.json (missing or `running` → interrupted; a missing record
 #      is written as a minimal pipeline.json with synthesized_by: run-ablation.sh)
 #   2. transport: agent_error plus a provider signature in the failing phase's
@@ -171,16 +173,29 @@
 #   is set and the batch finishes partial (exit 1): `partial (outage breaker): N consecutive
 #   transport failures; --resume --rerun-status transport_error after the network is back`.
 #
+# Run caps (DEC-0559, DEC-0567): each task kind (build = feature-build, bug-fix, refactor;
+#   review-catch) has its own per-run cap, cap_for <kind>: --run-cap when given (both kinds),
+#   else the suite's caps.run_usd_by_type[<kind>] (a present entry that is not an amount in
+#   USD, or a run_usd_by_type that is not a map, is a usage error), else the single-cap chain
+#   (evals.ablation.run_cap_usd in .loa.config.yaml, else caps.run_usd, else 12), which is
+#   also MANIFEST caps.run_usd. The kind's cap goes to pipeline-run.sh --max-run-usd and is
+#   the assumed charge of that kind's trials (Spend). The in-flight reservation per running
+#   trial is the largest cap among the plan's kinds (a build-only plan reserves the build
+#   cap; a plan with review-catch trials reserves the larger of the two for every running
+#   trial, whatever its kind). --resume reads all three from MANIFEST.json caps (a manifest
+#   without run_usd_by_type gives both kinds its run_usd), never from the suite file.
+#
 # Spend (--max-usd, SDD §5.5 reused through lib/arms-common.sh): before each launch,
-#   spent + in_flight × run_cap + est_next > max waits for a running trial and
+#   spent + in_flight × reserve_cap + est_next > max waits for a running trial and
 #   spent + est_next > max cuts (no further launches; STATUS.json cuts[] gets {reason,
 #   spent, in_flight_reserved, max, est_next, trials_launched, at_trial}; exit 1).
+#   reserve_cap = the largest run cap among the plan's kinds (Run caps).
 #   est_next = the mean cost of this arm's completed trials of the task kind (build |
 #   review-catch), else the kind's pooled mean, else the suite's cost_hint[kind]. spent =
 #   rows' cost_usd + transport first attempts' spent_usd + assumed charges: a trial ending
-#   neither completed nor with a reported cost is charged run_cap, a cap_failure is charged
-#   max(cost, run_cap); both count in spend.assumed_cap_trials when the charge exceeds the
-#   reported cost.
+#   neither completed nor with a reported cost is charged its kind's run cap, a cap_failure
+#   is charged max(cost, its kind's run cap); both count in spend.assumed_cap_trials when
+#   the charge exceeds the reported cost.
 #
 # Files: <results-root>/<batch>/{MANIFEST.json, STATUS.json, run.log, spend.txt,
 #   REFUSED.txt, driver.log, .gitignore (non-smoke: the run directories and logs stay out of
@@ -192,7 +207,9 @@
 #   tasks, refused, trials_per_type, trials_planned, plan, arm_map, shuffle_seed, shuffle,
 #   fingerprint, image, image_digest, executor_mode, cli_version (`docker run --rm --network
 #   none <image> claude --version`, host: the CLI's), cli_version_raw, tools, phase_models,
-#   caps {cycle_usd, run_usd, reserve_usd, max_usd}, cost_hint, concurrency, retry,
+#   caps {cycle_usd, run_usd (the single-cap fallback), reserve_usd, max_usd,
+#   run_usd_by_type {build, review-catch} (the effective per-kind caps after the chain)},
+#   cost_hint, concurrency, retry,
 #   watchdog {multiplier, override_s, grace_s, grade_timeout_s, took_effect_timeout_s},
 #   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.
 #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
@@ -211,7 +228,7 @@
 #   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
 #   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
 #
-# --resume: reads MANIFEST.json (plan, arms, suite paths, executor, image, run cap, rows
+# --resume: reads MANIFEST.json (plan, arms, suite paths, executor, image, run caps, rows
 #   file) and STATUS.json (paused_arms, cuts, retries, first-attempt spend); a plan run_id
 #   with a row of this batch is done; a trial without a row reruns into a fresh -r<k> run
 #   dir (the stale dir is kept); counters and spend are recomputed from the rows.
@@ -258,6 +275,7 @@ SELF_ARGS=("$@")
 
 ARMS_CSV="" SOURCE_COMMIT="" TASKS_CSV="" TYPES_CSV="" TRIALS_BUILD="" TRIALS_REVIEW=""
 MAX_USD="" RUN_CAP="" CONCURRENCY=3 BATCH="" RESULTS_ROOT="" ROWS=""
+CAP_BUILD="" CAP_REVIEW=""   # the per-kind run caps (DEC-0567; cap_for)
 SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
@@ -330,6 +348,7 @@ case "$EXECUTOR" in container|host) ;; *) die "--executor must be container or h
 [[ "$SEED" =~ ^[0-9]{1,10}$ ]] || die "--seed must be a non-negative integer"
 if [[ -n "$MAX_USD" ]]; then usd_ok "$MAX_USD" && [[ "$MAX_USD" != "0" ]] || die "--max-usd must be a positive amount in USD"; fi
 [[ -z "$RUN_CAP" ]] || usd_ok "$RUN_CAP" || die "--run-cap must be an amount in USD"
+RUN_CAP_OVERRIDE="$RUN_CAP"   # --run-cap: the single-cap override of both kinds
 [[ -z "$SOURCE_COMMIT" || "$SOURCE_COMMIT" =~ ^[0-9a-f]{7,40}$ ]] || die "--source-commit must be a hex commit id"
 [[ "$IMAGE" =~ ^[A-Za-z0-9._:/@-]{1,200}$ ]] || die "--image has unexpected characters"
 [[ "${#PRE_REG_REF}" -le 300 && "$PRE_REG_REF" != *$'\n'* ]] || die "--pre-registration-ref must be one line of at most 300 characters"
@@ -409,7 +428,12 @@ if [[ "$RESUME" == true ]]; then
   ARMS_CSV="$(jq -r '.arms | join(",")' "$MAN_PATH")"
   SUITE_ROOT="$(jq -r '.suite_root' "$MAN_PATH")" SUITE_FILE="$(jq -r '.suite_file_path' "$MAN_PATH")"
   EXECUTOR="$(jq -r '.executor_mode' "$MAN_PATH")" IMAGE="$(jq -r '.image' "$MAN_PATH")"
+  [[ -z "$RUN_CAP_OVERRIDE" ]] || echo "run-ablation: --run-cap $RUN_CAP_OVERRIDE ignored on --resume; batch $BATCH keeps the caps in its MANIFEST.json" >&2
   RUN_CAP="$(jq -r '.caps.run_usd' "$MAN_PATH")" SEED="$(jq -r '.shuffle_seed' "$MAN_PATH")"
+  # a manifest written before DEC-0567 has no run_usd_by_type: both kinds keep its run_usd
+  CAP_BUILD="$(jq -r '.caps.run_usd_by_type.build // .caps.run_usd' "$MAN_PATH")"
+  CAP_REVIEW="$(jq -r '.caps.run_usd_by_type["review-catch"] // .caps.run_usd' "$MAN_PATH")"
+  for c in "$RUN_CAP" "$CAP_BUILD" "$CAP_REVIEW"; do usd_ok "$c" || die "$MAN_PATH caps hold a run cap that is not an amount in USD: $c"; done
   ROWS="$(jq -r '.rows_file' "$MAN_PATH")"
   [[ -n "$MAX_USD" ]] || MAX_USD="$(jq -r '.caps.max_usd // empty' "$MAN_PATH")"
   PRE_REG_REF="$(jq -r '.pre_registration_ref // ""' "$MAN_PATH")"
@@ -454,6 +478,25 @@ if [[ -z "$RUN_CAP" ]]; then
   usd_ok "${RUN_CAP:-x}" || RUN_CAP="$(jq -r '.caps.run_usd // ""' <<<"$SUITE_JSON")"
   usd_ok "${RUN_CAP:-x}" || RUN_CAP=12
 fi
+# per-kind caps (DEC-0567): --run-cap, else the suite's caps.run_usd_by_type[<kind>], else
+# RUN_CAP from the chain above (.loa.config.yaml evals.ablation.run_cap_usd, else
+# caps.run_usd, else 12). A present but malformed per-kind entry is refused, never skipped.
+suite_kind_cap() {  # suite_kind_cap <kind> → the suite's entry, or empty when it has none
+  local v
+  v="$(jq -r --arg k "$1" '.caps.run_usd_by_type // null
+        | if . == null then "" elif type == "object" then (.[$k] // "" | tostring) else "!" end' <<<"$SUITE_JSON")"
+  [[ "$v" != "!" ]] || die "suite caps.run_usd_by_type must be a map of task kind to USD ($SUITE_FILE)"
+  [[ -z "$v" ]] || usd_ok "$v" || die "suite caps.run_usd_by_type.$1 is not an amount in USD: $v ($SUITE_FILE)"
+  printf '%s' "$v"
+}
+if [[ -z "$CAP_BUILD" ]]; then   # --resume set both from MANIFEST.json
+  if [[ -n "$RUN_CAP_OVERRIDE" ]]; then CAP_BUILD="$RUN_CAP_OVERRIDE" CAP_REVIEW="$RUN_CAP_OVERRIDE"
+  else
+    CAP_BUILD="$(suite_kind_cap build)" || exit 2; CAP_BUILD="${CAP_BUILD:-$RUN_CAP}"
+    CAP_REVIEW="$(suite_kind_cap review-catch)" || exit 2; CAP_REVIEW="${CAP_REVIEW:-$RUN_CAP}"
+  fi
+fi
+cap_for() { if [[ "$1" == review-catch ]]; then printf '%s' "$CAP_REVIEW"; else printf '%s' "$CAP_BUILD"; fi; }
 hint_for() { local h; h="$(jq -r --arg k "$1" '.cost_hint | if type == "object" then .[$k] // "" else (. // "") end' <<<"$SUITE_JSON")"; usd_ok "${h:-x}" || h=5.0; printf '%s' "$h"; }
 HINT_BUILD="$(hint_for build)" HINT_REVIEW="$(hint_for review-catch)"
 # est_next's last fallback per kind (the key is "<arm>|<kind>")
@@ -724,7 +767,12 @@ done < <(jq -r '.[] | [.arm, .task_id, .type, .kind, (.trial | tostring), .run_i
 EST_TOTAL=0
 for k in ${PL_KIND[@]+"${PL_KIND[@]}"}; do EST_TOTAL="$(fadd "$EST_TOTAL" "$(est_hint "x|$k")")"; done
 N_TASKS="$(jq 'length' "$WORK/tasks.json")"
-PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials, shuffle seed $SEED, est USD $EST_TOTAL (cap ${MAX_USD:-none}, run cap $RUN_CAP, reserve $(jq -r '.caps.reserve_usd // "n/a"' <<<"$SUITE_JSON"))"
+# the in-flight reservation per running trial: the largest cap among the plan's kinds (DEC-0567)
+RESERVE_CAP=0
+for k in ${PL_KIND[@]+"${PL_KIND[@]}"}; do
+  c="$(cap_for "$k")"; awk -v c="$c" -v r="$RESERVE_CAP" 'BEGIN { exit !(c > r) }' && RESERVE_CAP="$c"
+done
+PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials, shuffle seed $SEED, est USD $EST_TOTAL (cap ${MAX_USD:-none}, run caps build $CAP_BUILD review-catch $CAP_REVIEW, in-flight reserve $RESERVE_CAP per trial, reserve $(jq -r '.caps.reserve_usd // "n/a"' <<<"$SUITE_JSON"))"
 
 write_manifest() {  # write_manifest <path> <dry_run>
   local out="$1" dry="$2" harness_commit harness_dirty=false
@@ -742,7 +790,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg tasks_dir "$TASKS_DIR_NAME" --arg rows "$ROWS" --arg msha "$SUITE_MANIFEST_SHA" \
     --argjson arms "$(json_array "${ARMS[@]}")" --argjson tb "$TB" --argjson tr "$TR" --argjson seed "$SEED" \
     --arg fp "$FINGERPRINT" --arg image "$IMAGE" --arg digest "$IMAGE_DIGEST" --arg mode "$EXECUTOR" \
-    --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" \
+    --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" --arg cap_b "$CAP_BUILD" --arg cap_r "$CAP_REVIEW" \
     --arg hb "$HINT_BUILD" --arg hr "$HINT_REVIEW" --argjson conc "$CONCURRENCY" --argjson rw "$RETRY_WAIT" \
     --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --argjson tmo "$TMO_ON" --arg prr "$PRE_REG_REF" \
     --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" \
@@ -764,7 +812,8 @@ write_manifest() {  # write_manifest <path> <dry_run>
        cli_version: $cli, cli_version_raw: $cli_raw,
        tools: ($s.phase_defaults.tools // null), phase_models: ($s.phase_defaults.models // {}),
        caps: {cycle_usd: ($s.caps.cycle_usd // null), run_usd: ($run_cap | tonumber), reserve_usd: ($s.caps.reserve_usd // null),
-              max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end)},
+              max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end),
+              run_usd_by_type: {build: ($cap_b | tonumber), "review-catch": ($cap_r | tonumber)}},
        cost_hint: {build: ($hb | tonumber), "review-catch": ($hr | tonumber)},
        concurrency: $conc, retry: {transport_retries: 1, wait_s: $rw},
        watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace,
@@ -911,15 +960,16 @@ account_row() {
   esac
   [[ "$deg" == true ]] && C_DEGRADED[$i]=$(( ${C_DEGRADED[$i]} + 1 ))
   ROWS_USD="$(fadd "$ROWS_USD" "$cost")"
+  local cap; cap="$(cap_for "$kind")"   # the trial kind's cap (DEC-0567)
   if [[ "$st" == cap_failure ]]; then
-    if awk -v c="$cost" -v r="$RUN_CAP" 'BEGIN { exit !(c < r) }'; then
-      SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
-      log "assumed cap: $rid ended cap_failure at USD $cost; USD $RUN_CAP charged to spent"
+    if awk -v c="$cost" -v r="$cap" 'BEGIN { exit !(c < r) }'; then
+      SPENT="$(fadd "$SPENT" "$cap")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+      log "assumed cap: $rid ended cap_failure at USD $cost; USD $cap ($kind cap) charged to spent"
     else
       SPENT="$(fadd "$SPENT" "$cost")"
     fi
   else
-    spend_charge "$st" "$cost" "$rid"
+    spend_charge "$st" "$cost" "$rid" "$cap"
     if [[ "$st" == completed ]]; then est_record "$arm|$kind" "$kind" "$CHARGED_COST"; fi
   fi
 }
@@ -1053,7 +1103,7 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     printf '%s run-ablation: %s attempt %d run_dir %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rid" "$attempt" "$rd" >> "$tlog"
     local -a cmd=("$PIPELINE_BIN" --task-yaml "$tyaml" --arm "$arm" --run-dir "$rd" --run-id "$rid" --trial "$trial"
                   --source-tree "$TREE" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE"
-                  --docker-bin "$DOCKER_BIN" --max-run-usd "$RUN_CAP")
+                  --docker-bin "$DOCKER_BIN" --max-run-usd "$(cap_for "$kind")")
     # its own process group, so the watchdog can signal the pipeline and everything under it
     if command -v setsid >/dev/null 2>&1; then setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
@@ -1151,8 +1201,8 @@ outage_tick() {
 collect() {  # collect <jid> <plan-index>
   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
   if [[ ! -f "$res" ]]; then
-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
-    log "FAILED $rid (the trial job ended without a result; see $BATCH_DIR/$arm/${PL_TASK[$k]}-t${PL_TRIAL[$k]}.log); assumed cap: USD $RUN_CAP charged to spent"
+    SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+    log "FAILED $rid (the trial job ended without a result; see $BATCH_DIR/$arm/${PL_TASK[$k]}-t${PL_TRIAL[$k]}.log); assumed cap: USD $(cap_for "$kind") ($kind cap) charged to spent"
     outage_tick "$rid" ""
     rm -f "$JOBS_DIR/$jid".*; write_status; return 0
   fi
@@ -1189,8 +1239,8 @@ collect() {  # collect <jid> <plan-index>
     account_row "$arm" "$kind" "$rid" "$st" "$cost" "$deg"
     log "done $rid $st pass=$pass USD $cost $(( $(jq -r '.seconds' "$res") / 60 ))m attempts $att${rr:+ ($rr)}"
   else
-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
-    log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $RUN_CAP charged to spent"
+    SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+    log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $(cap_for "$kind") ($kind cap) charged to spent"
   fi
   outage_tick "$rid" "$st"
   apply_flags "$arm" "$rid" "$te" "$ter" "$drift"
@@ -1401,7 +1451,7 @@ for k in "${!PL_RUN[@]}"; do
   reap "$CONCURRENCY"
   [[ -z "$STOP" ]] || break
   if is_paused "$a"; then i="$(arm_index "$a")"; C_SKIPPED[$i]=$(( ${C_SKIPPED[$i]} + 1 )); continue; fi
-  if [[ -n "$MAX_USD" ]] && ! budget_gate "$a|${PL_KIND[$k]}" "$((k + 1))" "${PL_KIND[$k]}"; then
+  if [[ -n "$MAX_USD" ]] && ! budget_gate "$a|${PL_KIND[$k]}" "$((k + 1))" "${PL_KIND[$k]}" "$RESERVE_CAP"; then
     CUTS_JSON="$(jq -c --argjson c "$CUT_JSON" '. + [$c]' <<<"$CUTS_JSON")"; STOP=cut; write_status; break
   fi
   [[ -z "$STOP" ]] || break

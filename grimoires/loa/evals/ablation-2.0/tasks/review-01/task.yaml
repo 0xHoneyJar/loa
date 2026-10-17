@@ -13,4 +13,4 @@ grader_protected: []
 structural_check: null
 bounds: {max_turns: {}, timeout_min: {}}
 review_catch: {fixture: review-prs/pr-05, manifest: evals/fixtures/review-prs/manifests/pr-05.json}
-suite_version: 1
+suite_version: 2

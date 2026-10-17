@@ -18488,3 +18488,163 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0578"
+    created_at: "2026-10-16T23:27:20Z"
+    updated_at: "2026-10-16T23:27:20Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Grader 1.2.8 (audit MEDIUM-A1): dot-dir skip after normpath; an empty quote before a path is not glued; an unquoted globbed word stays a candidate (L66)"
+    decision: "Audit dissent DISS-C-001 confirmed: three skip rules of the contamination scan ran before normalisation, so /./root/x, ''/root/x and /roo* (ABS_WORD stops at a glob metacharacter) read clean while grader 1.2.0 caught them. Grader 1.2.8: the 1.2.4 dot-directory skip applies only when os.path.normpath(w) still begins with /.; after_closing_quote returns False when the character before the closing quote is itself a quote; a one-component word followed by a glob metacharacter is never a slash command. AG-34. None of the shapes occurs in the 132 P1 runs; the agents are not adversarial by brief; the container executor leaves the roots empty."
+    rationale: "a scan defeatable by a dot segment, an empty quote or a glob is not a lower bound; the fixes are three one-line conditions"
+    alternatives_considered:
+      - option: "accept as documented gaps like the interpreter heredocs"
+        rejected_because: "these are evasions of rules that exist to catch exactly these paths, not a scope limit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4434d450"
+    source: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L66)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:27:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L66)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0579"
+    created_at: "2026-10-16T23:27:21Z"
+    updated_at: "2026-10-16T23:27:21Z"
+    phase: "review"
+    category: "architecture"
+    summary: "Grader 1.2.8 (audit LOW-A1): bare hidden as the direct argument of cd/ls/cat/stat/find -name is a probe (hit); -k hidden, grep, prose exempt (L67)"
+    decision: "Audit dissent DISS-C-002 confirmed in the narrow form: the 1.2.4 bare-word exemption (DEC-0561) also exempted filesystem probes. HIDDEN_FS, read on the heredoc-stripped command, flags a bare hidden that is the direct argument of a filesystem command (cd, ls, cat, stat, tree, head, tail, less, more, du, file; option words allowed) or of find -name/-iname/-path/-wholename; selectors (-k/-m hidden), grep/rg arguments and prose stay exempt because agents in a suite about hidden state grep and write the word. AG-34."
+    rationale: "the tool-dependence the dissent named (Read on 'hidden' flagged, Bash cd hidden not) is real for filesystem commands and only there"
+    alternatives_considered:
+      - option: "flag any Bash word equal to the hidden directory name from task.yaml"
+        rejected_because: "the directory is named hidden for every task, so it collapses into the same rule without the command context"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4434d450"
+    source: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L67)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback.md#round-1-items-verified-against-the-tree (L67)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0580"
+    created_at: "2026-10-16T23:34:19Z"
+    updated_at: "2026-10-16T23:34:19Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Suite v2 tasks set bounds BARE 80 min / 190 turns so a0_bare gets the implementer-side sum (15 + 35 + 2 x 15) that A1's IMPLEMENT bump implies (L70)"
+    decision: "Implementer K's finding (k2): the suite file declares phase_defaults BARE 70 min / 170 turns explicitly, and both pipeline-run.sh phase_cap and the runner read a declared BARE before the PLAN + IMPLEMENT + 2 x FIX derivation, so the v2 IMPLEMENT bump (35 min, 80 turns) reached a1_full but not a0_bare — an unequal budget between the two arms H1 compares. Every v2 build task.yaml now sets bounds {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}} (task bounds win in phase_cap and in the runner's tmin); the suite file's phase_defaults are untouched (the v1 tasks' derivation 15 + 25 + 2 x 15 = 70 / 30 + 60 + 2 x 40 = 170 still matches its declaration); RAB-1 asserts a0_bare watchdog_s 9600 on a v2 bug-fix task. Done before the freeze and before any calibration row, so the pre-registered hardness read compares arms with equal implementer-side budgets."
+    rationale: "H1 compares a0_bare with a1_full; a bare arm with 70 of the 80 minutes and 170 of the 190 turns its opponent's implementer gets would bias the hardness read against A0 and inflate H1"
+    alternatives_considered:
+      - option: "drop BARE from phase_defaults so the derivation applies everywhere"
+        rejected_because: "it edits the pre-registered suite defaults for v1 too; per-task bounds are the mechanism the schema already provides and the v1 derivation equals the declaration anyway"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4434d450"
+    source: "grimoires/loa/a2a/sprint-261/reviewer-k.md#finding-for-the-lead-a0s-bare-budget (L70)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-16T23:34:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reviewer-k.md#finding-for-the-lead-a0s-bare-budget (L70)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0581"
+    created_at: "2026-10-17T00:13:36Z"
+    updated_at: "2026-10-17T00:13:36Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Suite v2 fairness: bugfix-v2-01 FAIL on check 2 (the reference adds 4 regression cases) → the lead restates success_criterion on v2-01/v2-02; re-review (L71)"
+    decision: "The per-task fairness review of bugfix-v2-01 (reviewer R2) FAILED check 2: the reference patch adds tests/test_regressions.py (4 cases), so the reference-end run is 34 of 34 and the regression command 23 at the reference, while success_criterion said 30 of 30 and 19 — a non-mechanical criterion at one end. bugfix-v2-02 had the same shape (42 / 31 vs 38 / 27; its reviewer passed it). The lead restated both grader-facing success_criterion strings to the exact counts at each end (the hidden tests, the brief, the fixtures, the manifests and the reference patches are untouched) rather than dropping the reference's regression tests, because TASK.md asks the agent for regression tests and the reference models that; bugfix-v2-01 goes back to its reviewer for the second review. All other ten v2 criteria match the image self-check counts."
+    rationale: "success_criterion is grader-side metadata the DEC-0435 gate requires to be mechanical at both ends; the authoring content a fairness review protects is unchanged"
+    alternatives_considered:
+      - option: "drop tests/test_regressions.py from the two reference patches"
+        rejected_because: "the brief asks for regression tests and the reference should model a complete answer; the counts are the defect, not the file"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4434d450"
+    source: "grimoires/loa/evals/ablation-2.0/tasks/bugfix-v2-01/REVIEW.md#2-red-then-green (L71)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T00:13:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/evals/ablation-2.0/tasks/bugfix-v2-01/REVIEW.md#2-red-then-green (L71)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0582"
+    created_at: "2026-10-17T00:13:38Z"
+    updated_at: "2026-10-17T00:13:38Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Fairness reviews run as one narrow Opus agent per task after two six-task reviewers stalled silently; six reviews landed in five minutes (L72)"
+    decision: "Two successive six-task fairness reviewers for D2's tasks (R2, R2b) ran 100 and 25 minutes without writing a file, starting a process or answering a status check, while the six-task reviewer for E2's tasks finished in 35 minutes; both were stopped. Six per-task reviewers with a bounded, step-by-step brief (read, prove with timeout 120, trace, write) produced all six REVIEW.md files within five minutes (five PASS, one FAIL on a count mismatch). The cycle's fairness protocol is unchanged (a non-author Opus session per task, the three DEC-0435 checks); the dispatch shape is one agent per task."
+    rationale: "a stalled long-horizon subagent is invisible from the lead's side (no partial output); narrow briefs with early writes make progress observable and bound the loss"
+    alternatives_considered:
+      - option: "keep waiting for the six-task reviewer"
+        rejected_because: "two instances stalled the same way; the batch window was the cost"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "4434d450"
+    source: "grimoires/loa/NOTES.md#sprint-261-k2-merged-bare-budget-equalised (L72)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-17T00:13:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprint-261-k2-merged-bare-budget-equalised (L72)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

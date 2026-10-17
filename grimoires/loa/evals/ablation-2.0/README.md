@@ -8,7 +8,7 @@ The frozen task suite for the Loa 2.0 component ablation (PRD FR-5, SDD §3.2). 
 grimoires/loa/evals/ablation-2.0/
   MANIFEST.sha256        freeze.sh: one "<sha256>  <relpath>" line per file under tasks/ (and smoke/ with --smoke)
   README.md              this file
-  tasks/<id>/            the sixteen frozen tasks (Sprint 259)
+  tasks/<id>/            the sixteen frozen tasks (suite v2, Sprint 261: twelve v2 build tasks + the four review-catch tasks; v1's build tasks are in git history)
     task.yaml            schema below; validate-suite.sh checks it
     TASK.md              the brief the agent sees (no grader paths, test names, defect ids or arm ids)
     REVIEW.md            the fairness review by a non-author session (Sprint 259 Task 2.7)
@@ -17,7 +17,7 @@ grimoires/loa/evals/ablation-2.0/
   smoke/<id>/            the two Sprint 258 smoke tasks, same layout, never counted
 ```
 
-- **Task ids:** `bugfix-01` … `bugfix-04`, `refactor-01` … `refactor-04`, `feature-01` … `feature-04`, `review-01` … `review-04`. An id matches `^[a-z0-9][a-z0-9-]{0,63}$` and equals its directory name.
+- **Task ids:** suite v2: `bugfix-v2-01` … `bugfix-v2-04`, `refactor-v2-01` … `refactor-v2-04`, `feature-v2-01` … `feature-v2-04`, `review-01` … `review-04` (suite v1 used `bugfix-01` … `feature-04`; a version-bearing id means a v1 row can never pool with a v2 cell). An id matches `^[a-z0-9][a-z0-9-]{0,63}$` and equals its directory name.
 - **The fixture lives inside the task directory.** `task.yaml` says `fixture: tasks/<id>/fixture`, a path relative to this root, so `freeze.sh` covers the fixture with the rest of the task. The SDD §3.2 example's `fixture: fixtures/<id>` (a sibling `fixtures/` directory) is superseded by this layout (DEC-0436). Review-catch tasks have `fixture: null`; their tree is the frozen corpus fixture named in `review_catch`.
 - **A fixture is a plain tree, never a clone.** It never holds `.claude/`, `CLAUDE.md`, `.loa.config.yaml`, `grimoires/`, `.run/` or `.git/`. It holds no caches (`__pycache__`, `.pytest_cache`) and nothing named `hidden*`. The answer must not be recoverable from history.
 - **`hidden/manifest.json`** is `{"files": [{"src", "dest"}]}`. `src` is relative to `hidden/`. `dest` is the path inside the grading tree where the grader overlays the file. A hidden file may overwrite a same-named fixture file, and no `dest` lands on a mount-owned path.
@@ -68,6 +68,15 @@ The grader builds a fresh grading tree for the final tree and for every gate sna
 | review-catch | recall of the corpus defects over the arm-neutral combined findings; false positives deduplicated by region | a findings file citing every key anchor scores recall 1; an empty one scores 0 |
 
 In this suite's bug-fix tasks, the hidden tests overlay under `tests/acceptance/`. `regression_command` runs the fixture suite with `--ignore=tests/acceptance`. In the refactor tasks, the structural check overlays under `tests/structure/`. `test_command` runs the fixture suite with `--ignore=tests/structure`, and the grader runs the structural check at its `dest` with the same runner. For a refactor task the grader reports the structural check as `hidden_tests` and the fixture suite, run at base and at the final tree, as `regressions`; `regression_command` stays null. A gate's verdict on a refactor snapshot is accurate when it approves a tree on which both the structural check and the suite are green, or asks for changes on a tree where either is red.
+
+## Suite versions
+
+| `suite_version` | Frozen | Tasks | `MANIFEST.sha256` | Why it ended |
+|---|---|---|---|---|
+| 1 | 2026-10-15 (Sprint 259) | `bugfix-01` … `feature-04` + `review-01` … `review-04`; 158 files incl. smoke | `30e1f2ad7015590227e9cc2fa25ca791e31867fec65289e4a41554e9e53357ba` | the twelve build tasks saturated at 1.000 on every arm of batch `priority-p1` and the USD 12 per-run cap stopped five of A1's twelve review runs in AUDIT; the pre-registered H1/A4 reads halted the cycle (DEC-0558) and the operator chose to harden (DEC-0559) |
+| 2 | 2026-10-17 (Sprint 261) | `bugfix-v2-01` … `feature-v2-04` + `review-01` … `review-04` (unchanged in content); 215 files incl. smoke | `7bc1b538f742e44ae35122928626db8d4254e5eeb40e80b36d67a9189caaec9a` | current. Harder build tasks (3–6 files, references 80–425 diff lines, hidden interaction tests), authored under a pre-registered hardness criterion (NOTES 2026-10-16T22:00:49Z: a0_bare ≤ 0.5 per task over 2 calibration trials, mean ≤ 0.75, ≥ six tasks below 1.0; swap, ≤ 2 rounds); `bounds {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}`; per-task-type run caps in the suite file (`caps.run_usd_by_type {build: 15, review-catch: 20}`, DEC-0567) |
+
+Rows carry `suite_version` and the manifest hash of the batch; the report never pools versions (the v1 rows of `priority-p1` are reported in their own section).
 
 ## Freeze protocol
 

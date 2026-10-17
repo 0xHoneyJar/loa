@@ -1,0 +1,175 @@
+diff -ruN a/src/jobq/keys.py b/src/jobq/keys.py
+--- a/src/jobq/keys.py
++++ b/src/jobq/keys.py
+@@ -2,5 +2,9 @@
+ 
+ 
+ def order_key(job):
+-    """Sort key for dispatch: higher priority first, ties broken deterministically."""
+-    return (-job.priority, job.name)
++    """Sort key for dispatch: higher priority first, then earlier submission.
++
++    The submission number never changes, so a job keeps its place among the
++    jobs of its priority whatever happens to it while it waits.
++    """
++    return (-job.priority, job.seq)
+diff -ruN a/src/jobq/queue.py b/src/jobq/queue.py
+--- a/src/jobq/queue.py
++++ b/src/jobq/queue.py
+@@ -1,48 +1,59 @@
+ """The ready queue: jobs that may start now."""
++import heapq
++
++from .keys import order_key
+ 
+ 
+ class ReadyQueue:
+-    """Ready job names grouped by priority, highest priority first.
++    """Ready job names in dispatch order (see ``order_key``).
+ 
+-    Within one priority, names leave in the order they were pushed.
++    Entries are kept in a heap.  Pushing a queued job again re-keys it: the old
++    entry stays in the heap but its token no longer matches, so it is skipped.
+     """
+ 
+     def __init__(self):
+-        self._buckets = {}
++        self._heap = []
++        self._token = {}
++        self._counter = 0
+ 
+     def push(self, job):
+-        """Add ``job`` (or move it to its current priority)."""
+-        self.discard(job.name)
+-        self._buckets.setdefault(job.priority, []).append(job.name)
++        """Add ``job`` (or re-key it after a priority change)."""
++        self._counter += 1
++        self._token[job.name] = self._counter
++        heapq.heappush(self._heap, (order_key(job), self._counter, job.name))
+ 
+     def discard(self, name):
+         """Remove ``name`` if it is queued; do nothing otherwise."""
+-        for bucket in self._buckets.values():
+-            if name in bucket:
+-                bucket.remove(name)
+-                return
++        self._token.pop(name, None)
+ 
+     def __contains__(self, name):
+-        return any(name in bucket for bucket in self._buckets.values())
++        return name in self._token
+ 
+     def __len__(self):
+-        return sum(len(bucket) for bucket in self._buckets.values())
++        return len(self._token)
++
++    def _live(self, entry):
++        _, token, name = entry
++        return self._token.get(name) == token
++
++    def _prune(self):
++        while self._heap and not self._live(self._heap[0]):
++            heapq.heappop(self._heap)
+ 
+     def names(self):
+         """Every queued name in leaving order."""
+-        out = []
+-        for priority in sorted(self._buckets, reverse=True):
+-            out.extend(self._buckets[priority])
+-        return out
++        return [entry[2] for entry in sorted(self._heap) if self._live(entry)]
+ 
+     def peek(self):
+         """The name that would leave next, or None."""
+-        names = self.names()
+-        return names[0] if names else None
++        self._prune()
++        return self._heap[0][2] if self._heap else None
+ 
+     def pop(self):
+         """Remove and return the next name, or None when empty."""
+-        name = self.peek()
+-        if name is not None:
+-            self.discard(name)
++        self._prune()
++        if not self._heap:
++            return None
++        _, _, name = heapq.heappop(self._heap)
++        del self._token[name]
+         return name
+diff -ruN a/src/jobq/runner.py b/src/jobq/runner.py
+--- a/src/jobq/runner.py
++++ b/src/jobq/runner.py
+@@ -4,17 +4,18 @@
+ def drain(scheduler, fn=None):
+     """Run every job that can run; return the names in run order.
+ 
+-    ``fn(name)`` is called for each job while it runs.  Jobs that never become
+-    ready (paused, or waiting for a paused job) are left pending.
++    ``fn(name)`` is called for each job while it runs.  Jobs are dispatched
++    one at a time through ``scheduler.next()``, so whatever ``fn`` changes (a
++    pause, a reprioritise) and whatever a completion releases counts for the
++    very next dispatch.  Jobs that never become ready (paused, or waiting for a
++    paused job) are left pending.
+     """
+     order = []
+     while True:
+-        batch = scheduler.ready()
+-        if not batch:
++        name = scheduler.next()
++        if name is None:
+             return order
+-        for name in batch:
+-            scheduler.start(name)
+-            if fn is not None:
+-                fn(name)
+-            scheduler.complete(name)
+-            order.append(name)
++        if fn is not None:
++            fn(name)
++        scheduler.complete(name)
++        order.append(name)
+diff -ruN a/src/jobq/scheduler.py b/src/jobq/scheduler.py
+--- a/src/jobq/scheduler.py
++++ b/src/jobq/scheduler.py
+@@ -1,6 +1,5 @@
+ """The scheduler: submission, readiness, dispatch and state changes."""
+ from .errors import DuplicateJob, SchedulerError, UnknownJob
+-from .keys import order_key
+ from .model import DONE, PENDING, RUNNING, Job
+ from .queue import ReadyQueue
+ 
+@@ -64,8 +63,13 @@
+             raise TypeError("priority must be an int")
+         job = self.job(name)
+         self._require_pending(job)
++        if job.priority == priority:
++            return
+         job.priority = priority
+-        self._queue.push(job)
++        if name in self._queue:
++            # re-key in place; a paused or waiting job is not queued and
++            # simply keeps its new priority until it becomes ready
++            self._queue.push(job)
+ 
+     def pause(self, name):
+         """Hold a pending job back until it is resumed."""
+@@ -84,8 +88,7 @@
+     # -- dispatch -----------------------------------------------------------
+     def ready(self):
+         """Names of the jobs that may start now, in dispatch order."""
+-        names = list(self._queue.names())
+-        return sorted(names, key=lambda n: order_key(self._jobs[n]))
++        return self._queue.names()
+ 
+     def start(self, name):
+         """Start a specific pending job."""
+@@ -93,6 +96,8 @@
+         self._require_pending(job)
+         if not self._deps_done(job):
+             raise SchedulerError(f"job {name} is waiting")
++        if job.paused:
++            raise SchedulerError(f"job {name} is paused")
+         job.state = RUNNING
+         self._queue.discard(name)
+         return job

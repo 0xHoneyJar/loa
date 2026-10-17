@@ -6,6 +6,7 @@
 # event with claude_code_version, a result event), sandbox/.claude/checksums.json (a
 # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
 #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
+#   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
 #   STUB_COST      USD per run (default 2.5), on the first phase record
 #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
 #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
@@ -19,11 +20,12 @@
 #                  phase's models_used holds the requested model and, beside it,
 #                  global.anthropic.claude-haiku-4-5-20251001-v1:0 with 516 output tokens:
 #                  a WebFetch summariser, DEC-0545) | hang (pipeline.json `running`, then sleeps) |
-#                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0)
+#                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0) |
+#                  agent_error_nocost (agent_error as above, reporting cost 0)
 #   STUB_HANG=1    every run hangs (mode hang)
 set -euo pipefail
 export LC_ALL=C
-TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE=""
+TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE="" MAX_RUN_USD=none
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --task-yaml) TASK_YAML="$2"; shift 2 ;;
@@ -36,13 +38,14 @@ while [[ $# -gt 0 ]]; do
     --docker-bin) DOCKER_BIN="$2"; shift 2 ;;
     --executor) EXECUTOR="$2"; shift 2 ;;
     --image) IMAGE="$2"; shift 2 ;;
-    --max-run-usd) shift 2 ;;
+    --max-run-usd) MAX_RUN_USD="$2"; shift 2 ;;
     *) echo "stub: unknown flag $1" >&2; exit 2 ;;
   esac
 done
 [[ -e "$RUN_DIR" && -n "$(ls -A "$RUN_DIR" 2>/dev/null)" ]] && { echo "stub: run dir not empty: $RUN_DIR" >&2; exit 2; }
 TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
 [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
+[[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
 
 MODE=ok
 if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then
@@ -57,6 +60,7 @@ if [[ "$MODE" == transport_once ]]; then
   if [[ "$(basename "$RUN_DIR")" =~ -r[0-9]+$ ]]; then MODE=ok; else MODE=transport; fi
 fi
 [[ "$MODE" == hang_norecord ]] && exec sleep 600
+NOCOST=0; [[ "$MODE" == agent_error_nocost ]] && { MODE=agent_error; NOCOST=1; }
 
 mkdir -p "$RUN_DIR"/{meta,sandbox,transcripts,eval,snapshots}
 printf '%s\n' "$ARM" > "$RUN_DIR/meta/arm"
@@ -72,7 +76,7 @@ PHASES="$(jq -c -n --argjson arm "$DEF" --argjson suite "$S" --arg kind "$KIND" 
   | reduce $p3[] as $n ({out: [], fix: 0}; if $n == "FIX" then .fix += 1 | .out += [{name: "FIX", label: ("FIX" + (.fix | tostring))}]
                                         else .out += [{name: $n, label: $n}] end) | .out')"
 NPH="$(jq 'length' <<<"$PHASES")"
-COST="${STUB_COST:-2.5}"; [[ "$MODE" == zero_cost ]] && COST=0
+COST="${STUB_COST:-2.5}"; [[ "$MODE" == zero_cost || $NOCOST -eq 1 ]] && COST=0
 # the whole cost sits on the first phase (exact sums in the tests)
 CLI="${STUB_CLI:-2.1.299}"; [[ "$MODE" == drift_cli ]] && CLI="9.9.9"
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

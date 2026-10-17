@@ -76,7 +76,8 @@ commit_claude_fix() {
 @test "SB-1 a clean fix commit becomes a task: fixture from the parent, hidden tests from the commit, proof printed, validate-suite passes" {
   commit_clean_fix
   FIX="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
-  run "$SEED" --since 2000-01-01 --select 4 --out "$S" --repo "$G"
+  # the written suite is validated against the real suite file below: seed its suite_version
+  run "$SEED" --since 2000-01-01 --select 4 --out "$S" --repo "$G" --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
   [ "$status" -eq 0 ]
   grep -q "^candidate ${FIX:0:12} " <<<"$output"
   grep -qx "proof bugfix-01 ${FIX:0:12}: red 2 failed / green 3 passed" <<<"$output"

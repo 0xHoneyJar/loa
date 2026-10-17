@@ -1,0 +1,16 @@
+id: bugfix-v2-02
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D2: writer/reader round-trip asymmetry (the writer leaves trailing whitespace and comment characters bare, the escape decoder is a replace chain, the reader folds key case, and the model's set/add_section compare names by exact spelling while get folds case, so a merge duplicates names)"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-02/fixture
+criterion: "every settings config survives a save and a load unchanged, whatever its values contain and with the spelling of every section and key kept, plain values stay bare, an unknown escape in a quoted value is refused with an exact message, and section and key names are compared case-insensitively everywhere, so setting or merging a name in another case replaces the value in place instead of duplicating the name"
+success_criterion: "hidden/tests/test_round_trip.py (overlaid at tests/acceptance/test_round_trip.py) passes 11 of 11 under python3 -m pytest -q tests; red at base (9 failed, 29 passed of 38), green with hidden/reference.patch (42 of 42: the 11 hidden, the 27 fixture cases and the 4 regression cases the reference adds); regression_command (fixture suite: 27 cases at base, 31 at the reference) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_reader.py, tests/test_writer_model.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}   # BARE = PLAN + IMPLEMENT + 2 x FIX (the bare arm gets the same implementer-side sum as A1; K2 finding, DEC-0580)
+review_catch: null
+suite_version: 2
