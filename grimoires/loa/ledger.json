@@ -2631,9 +2631,9 @@
         {
           "global_id": 262,
           "local_label": "sprint-5",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-14T13:59:27Z",
-          "completed": null,
+          "completed": "2026-10-18T12:29:50Z",
           "theme": "Analysis, report, documentation, rc.6",
           "epic": "bd-u3ns5",
           "beads": [
@@ -3048,5 +3048,5 @@
     }
   ],
   "next_sprint_number": 263,
-  "last_updated": "2026-10-18T10:36:51Z"
+  "last_updated": "2026-10-18T12:29:50Z"
 }

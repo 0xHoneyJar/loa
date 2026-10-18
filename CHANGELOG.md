@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.6] — 2026-10-18 — Loa 2.0 component ablation (release candidate)
+
 > cycle-130 "Loa 2.0 component ablation" (sprints 258–262): a frozen sixteen-task suite with hidden tests graded outside the agent tree, nine pre-registered arms (bare Claude Code, full Loa at v2.0.0-rc.5 plus the #1267 mount fix, seven single-component removals), a pipeline executor that runs Loa's phases as separate container sessions, spend caps as scripts, paired-bootstrap decision rules fixed before the first run, prune-to-opt-in and re-verification before the 2.0.0 promotion. The floor (review, audit, verdict-derive, the dissent artefact gate, the deny list, fence FR-1.2b, the System-Zone rules, the operator-only commands) is unchanged.
 
 ### Added
