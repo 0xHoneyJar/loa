@@ -29,4 +29,8 @@ rc.6 is the sixth release candidate of the 2.0.0 line (rc.1 model-generation flo
 
 ## Release body (as published)
 
-Filled by the lead after the post-merge pipeline publishes the candidate.
+Published 2026-10-18 from the verified candidate (tag `v2.0.0-rc.6` at `4628f763`, the post-merge pipeline's `chore(ledger): archive cycle-130-ablation-2.0 after merge` commit on top of the PR #1283 merge `dfc47772`; pre-release; release id 416489275; candidate sha256 `7dfcb108…` approved and verified in an isolated clone; notification comment 6250934727 on PR #1283). Record branch: `record/cycle-130-a2a` (`d3a1eab2`: the merged tree plus the a2a records of sprints 258–262, the continuation prompts, NOTES and its archive).
+
+## Release v2.0.0-rc.6
+
+- Merge pull request #1283 from 0xHoneyJar/feature/cycle-130-ablation-2.0 — cycle-130 "Loa 2.0 component ablation" (sprints 258–262): the ablation harness, the frozen suite v2, the blind grader 1.2.13, the report, and the findings above. No framework default changes.
