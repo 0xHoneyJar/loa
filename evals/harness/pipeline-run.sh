@@ -81,8 +81,9 @@
 #     -v <run>/sandbox:/workspace:rw -v <run>/meta/home:/home/evaluser:rw
 #     -w /workspace -e <KEY=value…> -e AWS_BEARER_TOKEN_BEDROCK <image> python3 -I -c <shim> … claude …
 # Exactly two mounts. meta/home/ (mode 0700) holds a copy of $HOME/.codex/config.toml and
-# an access-token-only copy of $HOME/.codex/auth.json (mode 0600; tokens.refresh_token is
-# deleted because it is single-use and a container refresh burned the host's, KF-048)
+# a copy of $HOME/.codex/auth.json whose tokens.refresh_token is the placeholder
+# "loa-ablation-no-refresh-token" (mode 0600; the real one is single-use and a container
+# refresh burned the host's; the codex CLI treats a MISSING key as logged out, KF-048)
 # when present, and empty .claude/ and .aws/; the CLI's session store
 # lives there for the whole run, so A6's --resume works across phases. No ~/.claude
 # file is ever copied. The directory is deleted at exit and on interrupt.
@@ -600,7 +601,7 @@ build_prompt() {  # build_prompt <name> <out-file>
 # --- per-run HOME (container mode; DEC-0411 as amended in Sprint 258) -------------------------
 # One writable host directory mounted at /home/evaluser: the CLI's session store lives
 # there for the whole run (A6 --resume continues across phases), and it holds only the
-# codex CLI's own files: config.toml verbatim and auth.json WITHOUT tokens.refresh_token
+# codex CLI's own files: config.toml verbatim and auth.json with a PLACEHOLDER tokens.refresh_token
 # (KF-048: the refresh token is single-use, so a container that refreshed with a verbatim
 # copy invalidated the host's token and every later run's; an unreadable auth.json gives
 # the run no codex credential and one WARN line). ~/.claude/.credentials.json and
@@ -613,9 +614,11 @@ make_home() {
   # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
   printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
   if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
-  # auth.json: an access-token-only copy (KF-048). The refresh token is single-use; a container
-  # that refreshed with a verbatim copy consumed the host's token and every later run and the
-  # host failed with 401 refresh_token_reused. Paths only in argv; the host file is never written.
+  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
+  # container that refreshed with a verbatim copy consumed the host's token and every later run and
+  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
+  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
+  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
   if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
     python3 -I -c '
 import json, os, sys
@@ -629,7 +632,8 @@ if not isinstance(data, dict):
     sys.exit(3)
 tok = data.get("tokens")
 if isinstance(tok, dict):
-    tok.pop("refresh_token", None)
+    if "refresh_token" in tok:
+        tok["refresh_token"] = "loa-ablation-no-refresh-token"
 fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 os.fchmod(fd, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as out:

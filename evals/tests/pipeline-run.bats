@@ -915,7 +915,7 @@ rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth 
   [ "$(grep -nF 'rev-parse HEAD' "$df" | cut -d: -f1)" -lt "$(grep -nF 'install.sh /usr/local' "$df" | cut -d: -f1)" ]
 }
 
-# --- KF-048: the per-run HOME carries an access-token-only codex auth.json (Sprint 261) -------
+# --- KF-048: the per-run HOME carries a codex auth.json with a placeholder refresh token (Sprint 261) ---
 # snap_docker: a docker wrapper that, on the first `docker run`, copies the mounted HOME's
 # .codex/ to $T/snap (mode preserved) before handing over to the stub; the HOME itself is
 # deleted at exit.
@@ -935,7 +935,7 @@ EOF
   chmod +x "$T/docker"
 }
 
-@test "container: KF-048 — the per-run auth.json has no tokens.refresh_token, keeps every other key, mode 0600; the host file is untouched" {
+@test "container: KF-048 — the per-run auth.json carries the placeholder refresh token (never the host's), keeps every other key, mode 0600; the host file is untouched" {
   cat > "$T/home/.codex/auth.json" <<'JSON'
 {"OPENAI_API_KEY": null, "auth_mode": "chatgpt", "last_refresh": "2026-10-18T00:00:00Z", "extra": {"k": 1},
  "tokens": {"access_token": "x.y.z", "refresh_token": "R", "id_token": "i.d.t", "account_id": "acct-1"}}
@@ -948,7 +948,7 @@ JSON
   local c="$T/snap/.codex/auth.json"
   [ -f "$c" ]
   [ "$(stat -c %a "$c")" = 600 ]
-  jq -e '(.tokens | has("refresh_token") | not)
+  jq -e '.tokens.refresh_token == "loa-ablation-no-refresh-token"
          and .tokens.access_token == "x.y.z" and .tokens.id_token == "i.d.t" and .tokens.account_id == "acct-1"
          and has("OPENAI_API_KEY") and .auth_mode == "chatgpt" and .last_refresh == "2026-10-18T00:00:00Z"
          and .extra.k == 1' "$c"

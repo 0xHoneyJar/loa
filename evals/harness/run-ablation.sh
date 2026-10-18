@@ -111,7 +111,7 @@
 #      after the plan is built, when a planned arm uses codex (every arm except one whose
 #      toggles set loa_mount: false; a0_bare never runs the dissent): the exp claim of the JWT
 #      tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json (the file
-#      pipeline-run.sh copies, minus its refresh token; payload decoded with base64url, no
+#      pipeline-run.sh copies with a placeholder refresh token; payload decoded with base64url, no
 #      signature check) must be later than required_until = now + 2 x (sum of the plan's
 #      watchdog_s) / concurrency (on --resume the whole recorded plan counts). Refused: exp <=
 #      required_until (`codex access token expires <ISO>, before the batch's required horizon
@@ -778,7 +778,7 @@ PLAN_N="$(jq 'length' "$WORK/plan-only.json")"
 [[ "$PLAN_N" -gt 0 ]] || die "the plan is empty: every arm is refused on every selected task (task_types)"
 
 # --- codex token freshness (KF-048): the access token must outlive the batch's horizon -------
-# The per-run HOME carries no refresh token (pipeline-run.sh), so a container cannot renew an
+# The per-run HOME carries a placeholder refresh token (pipeline-run.sh), so a container cannot renew an
 # expired access token; a batch that would outlive it degrades every codex-using row. Only the
 # JWT payload's exp claim is read (no signature check); no token value is printed.
 CODEX_AUTH="${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json"
