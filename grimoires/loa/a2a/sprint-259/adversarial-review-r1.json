@@ -1,0 +1,135 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": "evals/harness/ablation-grade.sh:remove_path",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Deleting a grading tree changes permissions on directories outside that tree through agent-controlled symlinks.",
+      "failure_mode": "copy_tree preserves directory symlinks from sandbox/. On the next grading invocation, fresh_dir calls remove_path, whose os.walk includes those symlinks in ds. os.chmod follows each symlink and sets its external target to mode 0700 before rmtree removes the link. An agent-created link to an owned shared directory therefore changes host permissions even with the container executor.",
+      "suggested_fix": "Skip symlinks when adjusting directory permissions and use operations that cannot follow symlinks outside the grading tree.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-grade.sh:all_pass",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "A parsed passing summary overrides command failure or timeout.",
+      "failure_mode": "run_suite preserves passing counts when output contains a complete passing summary, regardless of the command's exit status. all_pass ignores both rc and timed_out, so a command that prints passing TAP and subsequently fails or hangs is considered green. This produces incorrect gate accuracy and suite-green results; reference self-checks similarly omit exit-status checks.",
+      "suggested_fix": "Require rc == 0 and timed_out == false when deciding success, including self-check success, and retain execution failure in the recorded grade.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-003",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:grade",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Regression commands without pytest or TAP summaries can never report newly failing tests.",
+      "failure_mode": "For an allowed regression_command such as a bash script, an unparseable successful base run receives fallback passing cases but parse_error=true. grade then sets base_ok=[] solely because parsing failed. If the final command fails, newly_failing remains empty despite the recorded counts changing from 1/1 to 0/1, silently losing the regression.",
+      "suggested_fix": "Use the fallback case identities and exit status to compare unparsed commands, or explicitly represent the regression result as indeterminate instead of reporting an empty failure list.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-259",
+    "timestamp": "2026-10-15T04:47:15Z",
+    "tokens_input": 156559,
+    "tokens_output": 1753,
+    "cost_usd": 0,
+    "latency_ms": 53797,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-259/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": null,
+      "status": "failed",
+      "failure_class": "timeout",
+      "cost_cents": null,
+      "attempts": [
+        "claude-headless:api_failure"
+      ],
+      "independent": null,
+      "counted_as": null,
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null,
+      "last_error": "RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s"
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-259/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7c19952f2cafd2d7b53baa926ee15bdb43ae28bfb3e3a8047e9c826e44ef0bd2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [
+      {
+        "voice": "claude-headless",
+        "reason": "Other",
+        "exit_code": 1,
+        "blocker_risk": "unknown"
+      }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "med",
+    "rationale": "multi-voice aggregate (1/2 succeeded); chain_health=degraded; dropped: claude-headless(Other/unknown)",
+    "single_voice_call": false,
+    "status": "DEGRADED"
+  }
+}

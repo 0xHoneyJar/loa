@@ -1,0 +1,200 @@
+{
+  "findings": [
+    {
+      "title": "Untrusted tests can survive the grading timeout",
+      "severity": "MEDIUM",
+      "category": "config",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor": "exec_in_tree(): A.image, \"timeout\", str(TEST_TIMEOUT_S)",
+      "body": "Agent-controlled code executes inside the grading container and can ignore SIGTERM. GNU timeout without --kill-after then waits indefinitely. After 180 seconds, subprocess.run kills the Docker CLI, but killing the client does not stop its container; --rm removes containers only after they exit. Malicious tests can therefore leave persistent processes consuming host resources, with no memory or PID limits. Add a forced termination deadline, resource limits, and explicit container cleanup on every timeout and error path.",
+      "confidence_score": 0.98,
+      "id": "DISS-001",
+      "description": "Agent-controlled code executes inside the grading container and can ignore SIGTERM. GNU timeout without --kill-after then waits indefinitely. After 180 seconds, subprocess.run kills the Docker CLI, but killing the client does not stop its container; --rm removes containers only after they exit. Malicious tests can therefore leave persistent processes consuming host resources, with no memory or PID limits. Add a forced termination deadline, resource limits, and explicit container cleanup on every timeout and error path.",
+      "id_derived": true,
+      "failure_mode": "Agent-controlled code executes inside the grading container and can ignore SIGTERM.",
+      "failure_mode_derived": true,
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "prepare",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "run_suite",
+      "cross_file_justification": null,
+      "description": "The graded tree is the agent's sandbox copy with only EXCLUDE_TOP names removed, the task's grader_protected paths restored, and the hidden tests overlaid. Everything else the agent left in place becomes part of the test harness that produces the grade. In particular: (1) a root `conftest.py`, `tests/conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg` or `tox.ini` that the fixture did not ship is kept (validate-suite.sh rejects a grader_protected entry that is not in the fixture, so the 'path the fixture lacks is removed' branch is unreachable for a validated suite). pytest still discovers ini files and loads conftest.py under `--rootdir`, so a `pytest_runtest_makereport` hookwrapper (or ini `addopts = -p plugin`) can flip every FAILED to PASSED and yield a parseable `N passed` summary with rc 0 → all_pass. (2) When test_command[0] is `bash`/`node`/`npx` with a script path from the tree, the agent simply rewrites that script to print a summary and exit 0. (3) The tree is mounted rw and the same tree is reused for the hidden run, then the regression run (and for refactor: structural then suite). Protected files are restored exactly once in prepare(), so code executed during the first run can overwrite tests/ before the second run. (4) Any in-process code can `atexit.register` a fake summary print plus `os._exit(0)`, and can dup2 fd 1 to /dev/null during the real run to suppress the FAILED/-rA lines the parser relies on.",
+      "failure_mode": "The evaluated agent trivially self-grades hidden_tests/regressions/structural as green, defeating the AC the grader exists to enforce (DEC-0413 integrity model).",
+      "suggested_fix": "Before each run_suite: delete any pytest/bats harness/config files (conftest.py at any level, pytest.ini, .pytest.ini, pyproject.toml, setup.cfg, tox.ini, setup_suite.bash, *helper*.bash) that are not byte-identical to the fixture; run pytest with `-c <grader-written ini> -o addopts= --noconftest` (or `--confcutdir` limited to the protected fixture conftest) and bats with a grader-supplied BATS_LIB_PATH; re-run prepare() (restore protected + overlay hidden) immediately before every run_suite call, or grade each command on a fresh copy; collect results with `--junitxml` written to a path the test process cannot reach and treat a stdout summary that disagrees with it, or a missing junit file with rc 0, as parse_error with passed = 0; require test_command to name only grader_protected scripts when [0] is bash/node/npx.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "def_line",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "parse_pytest",
+      "cross_file_justification": null,
+      "description": "parse_pytest takes node ids from `PASSED|FAILED|ERROR <\\S+>` lines in the test process's stdout, which the agent's code can print freely, and then opens `os.path.join(tree, path)` on the host in def_line() and in the collection-error expansion loop. There is no safe_rel/is_within check and no lstat: `os.path.join(tree, '/dev/zero')` yields `/dev/zero`, and `.read()` exhausts grader memory; a FIFO (created via the rw /workspace mount during the run, e.g. `os.mkfifo('/workspace/f')`, then `print('ERROR f')`) blocks the grader indefinitely on open(); a symlink planted in the tree during the run is followed. The resulting def line also acts as a weak oracle on arbitrary host files (does `def <name>(` exist and where), since it changes the t<k> ordering emitted in failed_names.",
+      "failure_mode": "Containerized agent code reaches back into the host grader process after the container exits: grader hang/OOM (denial of grading, affects batch), plus a low-bandwidth file-content oracle.",
+      "suggested_fix": "Validate node paths with safe_rel() and is_within(tree); open with os.open(..., O_RDONLY|O_NOFOLLOW|O_NONBLOCK) and check S_ISREG and a size cap via fstat before reading; better, derive case order from the grader-owned hidden test copies under the task directory (t.overlay sources) instead of files in the agent-shaped tree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "exec_in_tree",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "exec_in_tree",
+      "cross_file_justification": null,
+      "description": "Container runs use `timeout 120 <cmd>` without `-k`, so a test process that ignores SIGTERM (or whose children do) never ends; after TEST_TIMEOUT_S+60 the Python-side TimeoutExpired SIGKILLs only the `docker run` client, and the daemon keeps the container running indefinitely with /workspace still rw-bound to <run-dir>/grading/<label>. The grader then proceeds with rc 124, re-mounts and re-reads that tree (regression run, def_line, later fresh_dir rmtree) while the orphan can still modify it. The run has no --pids-limit, --memory, --cap-drop ALL or --security-opt no-new-privileges, and stdout is captured unbounded into memory (stdout=PIPE), so a 120 s print loop or fork bomb also pressures the grader host.",
+      "failure_mode": "Resource exhaustion and orphaned containers on the grading host; a timed-out run keeps a live writer on the tree that subsequent grading steps trust.",
+      "suggested_fix": "Use `timeout -k 10 120`, add `--init`, give the container a deterministic `--name` and run `docker kill`/`docker rm -f` on TimeoutExpired; add `--pids-limit`, `--memory`, `--cpus`, `--cap-drop ALL`, `--security-opt no-new-privileges`; cap captured output (read with a byte limit and truncate), and after a timeout treat the tree as untrusted for any further run.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "rate-limiting",
+      "anchor": "churn",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "copy_tree",
+      "cross_file_justification": null,
+      "description": "Agent-controlled files are copied and read with no size bound. copy_tree() shutil.copyfile()s every regular file in sandbox/ (a sparse `truncate -s 1T sandbox/x` becomes a dense multi-terabyte write on the host, filling the run disk); churn() does open(p,'rb').read() on both trees; combined_findings() .read()s review.md and the a2a feedback files; review_md_verdict()/gate_verdict() iterate lines of a file that may hold no newline (one multi-GB line). gate_verdict/review_md_verdict also do not reject symlinks (combined_findings does), so a symlink to a large host file is followed.",
+      "failure_mode": "Grader OOM or disk-full from a single oversized or sparse file in the sandbox, denying the grade and impacting co-located runs.",
+      "suggested_fix": "lstat every source and skip/record files above a cap (e.g. 16 MiB) before copy and before any read; read verdict/citation files with a bounded read (e.g. first 2 MiB) and reject symlinks consistently; use os.copy_file_range or `cp --sparse=always` semantics if large fixtures are expected.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "shape_command",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "exec_in_tree",
+      "cross_file_justification": null,
+      "description": "--executor host runs the agent-authored tree's code (imported by the hidden tests, plus any conftest.py/ini the agent left, see AG-001) directly on the grader host as the invoking user. `env -i` and a scratch HOME strip the environment but give no filesystem, network or process isolation; `python3 -P` does not stop pytest from inserting the rootdir and loading conftest.py, and PYTHONUSERBASE exposes the operator's user site. The agent's code can read the operator's real home (via pwd/getpwuid), SSH keys, ~/.aws, or plant persistence.",
+      "failure_mode": "Untrusted model output executes with the grader operator's full host privileges whenever host mode is selected.",
+      "suggested_fix": "Treat host mode as development-only: refuse it unless an explicit env override is set and warn loudly in grade.json; if it must exist, wrap the command in a minimal sandbox (bwrap/unshare -rn with a tmpfs home and only the tree bind-mounted, or a rootless container), and apply the AG-001 harness-file stripping regardless of executor.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "allowed_roots",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "check_value",
+      "cross_file_justification": null,
+      "description": "The contamination scan is documented as a lower bound, but several gaps are cheap to close: in host mode allowed_roots explicitly whitelists the operator's ~/.aws, ~/.claude.json, ~/.codex and ~/.claude, so a Bash `cat /home/<user>/.aws/credentials` is not reported; ABS_WORD never matches `~/...` or `$HOME/...`; a one-component `/x/` word is skipped, so `cd /root/ && cat .ssh/id_rsa` evades outside_path; /proc and /var are allowed, so `cat /proc/self/environ` (secrets in env) is invisible.",
+      "failure_mode": "Credential or hidden-material access by the evaluated agent is not surfaced in grade.json's contaminated field, weakening the only telemetry the grade carries.",
+      "suggested_fix": "Remove credential stores from allowed_roots (only ~/.claude needs to be tolerated, and only for Read/Glob, not Bash); extend ABS_WORD to `~/` and `$HOME/` prefixes; do not skip `/x/` words when x is not a known regex delimiter context; flag /proc/*/environ, /proc/*/cmdline and /var/run explicitly; record all hits (list) rather than only the first.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-259",
+    "timestamp": "2026-10-15T06:20:22Z",
+    "tokens_input": 156985,
+    "tokens_output": 29196,
+    "cost_usd": 0,
+    "latency_ms": 70260,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-259/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 16,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-259/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "edf6df70ce36814078ed9493dee3b721f6d64b6070914a7a7416feddbdb66296",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,2332 @@
+{
+  "a4": {
+    "comparison": {
+      "control": "a1_full",
+      "d": 0.027778,
+      "defect_identity": [],
+      "dropped": [
+        {
+          "arm": "a4_no_gates",
+          "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+          "task_id": "bugfix-02",
+          "trial": 3
+        },
+        {
+          "arm": "a4_no_gates",
+          "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+          "task_id": "refactor-02",
+          "trial": 3
+        }
+      ],
+      "half_width": 0.041667,
+      "hi": 0.083333,
+      "lo": 0.0,
+      "mde": 0.081289,
+      "metric": "hidden_test_pass_rate",
+      "n": 12,
+      "n_tasks": 12,
+      "pairs": [
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-bugfix-01-t1",
+            "priority-p1-a4_no_gates-bugfix-01-t2",
+            "priority-p1-a4_no_gates-bugfix-01-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-bugfix-01-t1",
+            "priority-p1-a1_full-bugfix-01-t2",
+            "priority-p1-a1_full-bugfix-01-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "bugfix-01"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-bugfix-02-t1",
+            "priority-p1-a4_no_gates-bugfix-02-t2"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-bugfix-02-t1",
+            "priority-p1-a1_full-bugfix-02-t2"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "bugfix-02"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-bugfix-03-t1",
+            "priority-p1-a4_no_gates-bugfix-03-t2",
+            "priority-p1-a4_no_gates-bugfix-03-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-bugfix-03-t1",
+            "priority-p1-a1_full-bugfix-03-t2",
+            "priority-p1-a1_full-bugfix-03-t3"
+          ],
+          "control_value": 0.666667,
+          "defects": null,
+          "diff": 0.333333,
+          "task_id": "bugfix-03"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-bugfix-04-t1",
+            "priority-p1-a4_no_gates-bugfix-04-t2",
+            "priority-p1-a4_no_gates-bugfix-04-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-bugfix-04-t1",
+            "priority-p1-a1_full-bugfix-04-t2",
+            "priority-p1-a1_full-bugfix-04-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "bugfix-04"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-feature-01-t1",
+            "priority-p1-a4_no_gates-feature-01-t2",
+            "priority-p1-a4_no_gates-feature-01-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-feature-01-t1",
+            "priority-p1-a1_full-feature-01-t2",
+            "priority-p1-a1_full-feature-01-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "feature-01"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-feature-02-t1",
+            "priority-p1-a4_no_gates-feature-02-t2",
+            "priority-p1-a4_no_gates-feature-02-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-feature-02-t1",
+            "priority-p1-a1_full-feature-02-t2",
+            "priority-p1-a1_full-feature-02-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "feature-02"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-feature-03-t1",
+            "priority-p1-a4_no_gates-feature-03-t2",
+            "priority-p1-a4_no_gates-feature-03-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-feature-03-t1",
+            "priority-p1-a1_full-feature-03-t2",
+            "priority-p1-a1_full-feature-03-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "feature-03"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-feature-04-t1",
+            "priority-p1-a4_no_gates-feature-04-t2",
+            "priority-p1-a4_no_gates-feature-04-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-feature-04-t1",
+            "priority-p1-a1_full-feature-04-t2",
+            "priority-p1-a1_full-feature-04-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "feature-04"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-refactor-01-t1",
+            "priority-p1-a4_no_gates-refactor-01-t2",
+            "priority-p1-a4_no_gates-refactor-01-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-refactor-01-t1",
+            "priority-p1-a1_full-refactor-01-t2",
+            "priority-p1-a1_full-refactor-01-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "refactor-01"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-refactor-02-t1",
+            "priority-p1-a4_no_gates-refactor-02-t2"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-refactor-02-t1",
+            "priority-p1-a1_full-refactor-02-t2"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "refactor-02"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-refactor-03-t1",
+            "priority-p1-a4_no_gates-refactor-03-t2",
+            "priority-p1-a4_no_gates-refactor-03-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-refactor-03-t1",
+            "priority-p1-a1_full-refactor-03-t2",
+            "priority-p1-a1_full-refactor-03-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "refactor-03"
+        },
+        {
+          "arm_runs": [
+            "priority-p1-a4_no_gates-refactor-04-t1",
+            "priority-p1-a4_no_gates-refactor-04-t2",
+            "priority-p1-a4_no_gates-refactor-04-t3"
+          ],
+          "arm_value": 1.0,
+          "control_runs": [
+            "priority-p1-a1_full-refactor-04-t1",
+            "priority-p1-a1_full-refactor-04-t2",
+            "priority-p1-a1_full-refactor-04-t3"
+          ],
+          "control_value": 1.0,
+          "defects": null,
+          "diff": 0.0,
+          "task_id": "refactor-04"
+        }
+      ],
+      "unit": "tasks",
+      "unpaired": []
+    },
+    "holds": false,
+    "line": "A4 sensitivity: fails — harden tasks before acting on other arms",
+    "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms"
+  },
+  "absent": [
+    {
+      "arm": "a8_no_ceremonies",
+      "evidence": "no /meeting command, skill or sosyete config key at 4d69c3c4 (grep -rli sosyete .claude/ docs/; ls .claude/commands .claude/skills)",
+      "label": "A8",
+      "state": "component_absent"
+    }
+  ],
+  "arms": {
+    "a0_bare": {
+      "by_status": {
+        "completed": 48
+      },
+      "cost_per_run": 0.251814,
+      "cost_per_task": 0.251814,
+      "defect_catch_rate": 0.545142,
+      "degraded_rows": 0,
+      "diff_lines_per_run": 93.555556,
+      "false_positives_per_task": {
+        "review-01": 2.666667,
+        "review-02": 4.666667,
+        "review-03": 16.666667,
+        "review-04": 15.666667
+      },
+      "files_changed_per_run": 2.944444,
+      "hidden_test_pass_rate": 1.0,
+      "regressions_per_run": 0.0,
+      "rows": 48,
+      "tokens_in_per_run": 14.541667,
+      "tokens_out_per_run": 5465.666667,
+      "valid_cells": 48,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": 68020.833333
+    },
+    "a1_full": {
+      "by_status": {
+        "cap_failure": 6,
+        "completed": 42
+      },
+      "cost_per_run": 9.946131,
+      "cost_per_task": 10.019497,
+      "defect_catch_rate": 0.55,
+      "degraded_rows": 4,
+      "diff_lines_per_run": 167.705882,
+      "false_positives_per_task": {
+        "review-01": 23.5,
+        "review-02": 25.333333,
+        "review-03": 37.0,
+        "review-04": 32.666667
+      },
+      "files_changed_per_run": 3.852941,
+      "hidden_test_pass_rate": 0.972222,
+      "regressions_per_run": 0.0,
+      "rows": 48,
+      "tokens_in_per_run": 1164.227273,
+      "tokens_out_per_run": 77223.295455,
+      "valid_cells": 44,
+      "verdict_accuracy": 0.931818,
+      "verdict_accuracy_audit": 0.930233,
+      "verdict_accuracy_review": 0.272727,
+      "wall_clock_ms_per_run": 1746181.818182
+    },
+    "a2_no_sprint_plan": {
+      "by_status": {},
+      "cost_per_run": null,
+      "cost_per_task": null,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": null,
+      "false_positives_per_task": {},
+      "files_changed_per_run": null,
+      "hidden_test_pass_rate": null,
+      "regressions_per_run": null,
+      "rows": 0,
+      "tokens_in_per_run": null,
+      "tokens_out_per_run": null,
+      "valid_cells": 0,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": null
+    },
+    "a3_one_voice": {
+      "by_status": {},
+      "cost_per_run": null,
+      "cost_per_task": null,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": null,
+      "false_positives_per_task": {},
+      "files_changed_per_run": null,
+      "hidden_test_pass_rate": null,
+      "regressions_per_run": null,
+      "rows": 0,
+      "tokens_in_per_run": null,
+      "tokens_out_per_run": null,
+      "valid_cells": 0,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": null
+    },
+    "a4_no_gates": {
+      "by_status": {
+        "completed": 36
+      },
+      "cost_per_run": 2.879548,
+      "cost_per_task": 2.879548,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": 152.972222,
+      "false_positives_per_task": {},
+      "files_changed_per_run": 3.277778,
+      "hidden_test_pass_rate": 1.0,
+      "regressions_per_run": 0.0,
+      "rows": 36,
+      "tokens_in_per_run": 33.777778,
+      "tokens_out_per_run": 14527.805556,
+      "valid_cells": 36,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": 479416.666667
+    },
+    "a5_no_flatline": {
+      "by_status": {},
+      "cost_per_run": null,
+      "cost_per_task": null,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": null,
+      "false_positives_per_task": {},
+      "files_changed_per_run": null,
+      "hidden_test_pass_rate": null,
+      "regressions_per_run": null,
+      "rows": 0,
+      "tokens_in_per_run": null,
+      "tokens_out_per_run": null,
+      "valid_cells": 0,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": null
+    },
+    "a6_one_window": {
+      "by_status": {},
+      "cost_per_run": null,
+      "cost_per_task": null,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": null,
+      "false_positives_per_task": {},
+      "files_changed_per_run": null,
+      "hidden_test_pass_rate": null,
+      "regressions_per_run": null,
+      "rows": 0,
+      "tokens_in_per_run": null,
+      "tokens_out_per_run": null,
+      "valid_cells": 0,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": null
+    },
+    "a7_effort_medium": {
+      "by_status": {},
+      "cost_per_run": null,
+      "cost_per_task": null,
+      "defect_catch_rate": null,
+      "degraded_rows": 0,
+      "diff_lines_per_run": null,
+      "false_positives_per_task": {},
+      "files_changed_per_run": null,
+      "hidden_test_pass_rate": null,
+      "regressions_per_run": null,
+      "rows": 0,
+      "tokens_in_per_run": null,
+      "tokens_out_per_run": null,
+      "valid_cells": 0,
+      "verdict_accuracy": null,
+      "verdict_accuracy_audit": null,
+      "verdict_accuracy_review": null,
+      "wall_clock_ms_per_run": null
+    }
+  },
+  "bootstrap": {
+    "level": 0.9,
+    "resamples": 10000,
+    "seed": 20261015
+  },
+  "cap_failures": [
+    "priority-p1-a1_full-bugfix-03-t2",
+    "priority-p1-a1_full-review-03-t1",
+    "priority-p1-a1_full-review-03-t2",
+    "priority-p1-a1_full-review-04-t1",
+    "priority-p1-a1_full-review-04-t3"
+  ],
+  "cuts": [],
+  "decisions": [
+    {
+      "arm": "a2_no_sprint_plan",
+      "arm_label": "A2",
+      "c": null,
+      "cells_seen": 0,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "hidden_test_pass_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "unit": "tasks",
+          "unpaired": [
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "bugfix-01"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "bugfix-02"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "bugfix-03"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "bugfix-04"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "feature-01"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "feature-02"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "feature-03"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "feature-04"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "refactor-01"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "refactor-02"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "refactor-03"
+            },
+            {
+              "reason": "no row in a2_no_sprint_plan",
+              "task_id": "refactor-04"
+            }
+          ]
+        }
+      ],
+      "cost_tasks": 0,
+      "decidable": false,
+      "excluded_cells": 0,
+      "excluded_share": null,
+      "figure": null,
+      "label": "no rows",
+      "mde_flag": [],
+      "predicate_rule": "no rows for this arm",
+      "predicate_state": "no_rows",
+      "primaries": [
+        "hidden_test_pass_rate"
+      ],
+      "rule": "no rows for this arm",
+      "state": "no_rows",
+      "w": null
+    },
+    {
+      "arm": "a3_one_voice",
+      "arm_label": "A3",
+      "c": null,
+      "cells_seen": 0,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "hidden_test_pass_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "unit": "tasks",
+          "unpaired": [
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "bugfix-01"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "bugfix-02"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "bugfix-03"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "bugfix-04"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "feature-01"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "feature-02"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "feature-03"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "feature-04"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "refactor-01"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "refactor-02"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "refactor-03"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "refactor-04"
+            }
+          ]
+        },
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "defect_catch_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "task_level": {
+            "d": null,
+            "hi": null,
+            "lo": null,
+            "n": 0,
+            "unit": "tasks"
+          },
+          "unit": "defects",
+          "unpaired": [
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "review-01"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "review-02"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "review-03"
+            },
+            {
+              "reason": "no row in a3_one_voice",
+              "task_id": "review-04"
+            }
+          ]
+        }
+      ],
+      "cost_tasks": 0,
+      "decidable": false,
+      "excluded_cells": 0,
+      "excluded_share": null,
+      "figure": null,
+      "label": "no rows",
+      "mde_flag": [],
+      "predicate_rule": "no rows for this arm",
+      "predicate_state": "no_rows",
+      "primaries": [
+        "hidden_test_pass_rate",
+        "defect_catch_rate"
+      ],
+      "rule": "no rows for this arm",
+      "state": "no_rows",
+      "w": null
+    },
+    {
+      "arm": "a4_no_gates",
+      "arm_label": "A4",
+      "c": -70.189546,
+      "cells_seen": 36,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": 0.027778,
+          "defect_identity": [],
+          "dropped": [
+            {
+              "arm": "a4_no_gates",
+              "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+              "task_id": "bugfix-02",
+              "trial": 3
+            },
+            {
+              "arm": "a4_no_gates",
+              "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+              "task_id": "refactor-02",
+              "trial": 3
+            }
+          ],
+          "half_width": 0.041667,
+          "hi": 0.083333,
+          "lo": 0.0,
+          "mde": 0.081289,
+          "metric": "hidden_test_pass_rate",
+          "n": 12,
+          "n_tasks": 12,
+          "pairs": [
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-bugfix-01-t1",
+                "priority-p1-a4_no_gates-bugfix-01-t2",
+                "priority-p1-a4_no_gates-bugfix-01-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-bugfix-01-t1",
+                "priority-p1-a1_full-bugfix-01-t2",
+                "priority-p1-a1_full-bugfix-01-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "bugfix-01"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-bugfix-02-t1",
+                "priority-p1-a4_no_gates-bugfix-02-t2"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-bugfix-02-t1",
+                "priority-p1-a1_full-bugfix-02-t2"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "bugfix-02"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-bugfix-03-t1",
+                "priority-p1-a4_no_gates-bugfix-03-t2",
+                "priority-p1-a4_no_gates-bugfix-03-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-bugfix-03-t1",
+                "priority-p1-a1_full-bugfix-03-t2",
+                "priority-p1-a1_full-bugfix-03-t3"
+              ],
+              "control_value": 0.666667,
+              "defects": null,
+              "diff": 0.333333,
+              "task_id": "bugfix-03"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-bugfix-04-t1",
+                "priority-p1-a4_no_gates-bugfix-04-t2",
+                "priority-p1-a4_no_gates-bugfix-04-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-bugfix-04-t1",
+                "priority-p1-a1_full-bugfix-04-t2",
+                "priority-p1-a1_full-bugfix-04-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "bugfix-04"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-feature-01-t1",
+                "priority-p1-a4_no_gates-feature-01-t2",
+                "priority-p1-a4_no_gates-feature-01-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-feature-01-t1",
+                "priority-p1-a1_full-feature-01-t2",
+                "priority-p1-a1_full-feature-01-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "feature-01"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-feature-02-t1",
+                "priority-p1-a4_no_gates-feature-02-t2",
+                "priority-p1-a4_no_gates-feature-02-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-feature-02-t1",
+                "priority-p1-a1_full-feature-02-t2",
+                "priority-p1-a1_full-feature-02-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "feature-02"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-feature-03-t1",
+                "priority-p1-a4_no_gates-feature-03-t2",
+                "priority-p1-a4_no_gates-feature-03-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-feature-03-t1",
+                "priority-p1-a1_full-feature-03-t2",
+                "priority-p1-a1_full-feature-03-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "feature-03"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-feature-04-t1",
+                "priority-p1-a4_no_gates-feature-04-t2",
+                "priority-p1-a4_no_gates-feature-04-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-feature-04-t1",
+                "priority-p1-a1_full-feature-04-t2",
+                "priority-p1-a1_full-feature-04-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "feature-04"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-refactor-01-t1",
+                "priority-p1-a4_no_gates-refactor-01-t2",
+                "priority-p1-a4_no_gates-refactor-01-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-refactor-01-t1",
+                "priority-p1-a1_full-refactor-01-t2",
+                "priority-p1-a1_full-refactor-01-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "refactor-01"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-refactor-02-t1",
+                "priority-p1-a4_no_gates-refactor-02-t2"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-refactor-02-t1",
+                "priority-p1-a1_full-refactor-02-t2"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "refactor-02"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-refactor-03-t1",
+                "priority-p1-a4_no_gates-refactor-03-t2",
+                "priority-p1-a4_no_gates-refactor-03-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-refactor-03-t1",
+                "priority-p1-a1_full-refactor-03-t2",
+                "priority-p1-a1_full-refactor-03-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "refactor-03"
+            },
+            {
+              "arm_runs": [
+                "priority-p1-a4_no_gates-refactor-04-t1",
+                "priority-p1-a4_no_gates-refactor-04-t2",
+                "priority-p1-a4_no_gates-refactor-04-t3"
+              ],
+              "arm_value": 1.0,
+              "control_runs": [
+                "priority-p1-a1_full-refactor-04-t1",
+                "priority-p1-a1_full-refactor-04-t2",
+                "priority-p1-a1_full-refactor-04-t3"
+              ],
+              "control_value": 1.0,
+              "defects": null,
+              "diff": 0.0,
+              "task_id": "refactor-04"
+            }
+          ],
+          "unit": "tasks",
+          "unpaired": []
+        }
+      ],
+      "cost_tasks": 12,
+      "decidable": true,
+      "excluded_cells": 0,
+      "excluded_share": 0.0,
+      "figure": null,
+      "label": "Remove",
+      "mde_flag": [],
+      "predicate_rule": "remove: every applicable primary has d >= -0.03 and (c <= -15 or w <= -15) (c = -70.2, w = -72.0)",
+      "predicate_state": "remove",
+      "primaries": [
+        "hidden_test_pass_rate"
+      ],
+      "rule": "remove: every applicable primary has d >= -0.03 and (c <= -15 or w <= -15) (c = -70.2, w = -72.0)",
+      "state": "remove",
+      "w": -71.977827
+    },
+    {
+      "arm": "a5_no_flatline",
+      "arm_label": "A5",
+      "c": null,
+      "cells_seen": 0,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "hidden_test_pass_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "unit": "tasks",
+          "unpaired": [
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "bugfix-01"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "bugfix-02"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "bugfix-03"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "bugfix-04"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "feature-01"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "feature-02"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "feature-03"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "feature-04"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "refactor-01"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "refactor-02"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "refactor-03"
+            },
+            {
+              "reason": "no row in a5_no_flatline",
+              "task_id": "refactor-04"
+            }
+          ]
+        }
+      ],
+      "cost_tasks": 0,
+      "decidable": false,
+      "excluded_cells": 0,
+      "excluded_share": null,
+      "figure": null,
+      "label": "no rows",
+      "mde_flag": [],
+      "predicate_rule": "no rows for this arm",
+      "predicate_state": "no_rows",
+      "primaries": [
+        "hidden_test_pass_rate"
+      ],
+      "rule": "no rows for this arm",
+      "state": "no_rows",
+      "w": null
+    },
+    {
+      "arm": "a6_one_window",
+      "arm_label": "A6",
+      "c": null,
+      "cells_seen": 0,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "hidden_test_pass_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "unit": "tasks",
+          "unpaired": [
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "bugfix-01"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "bugfix-02"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "bugfix-03"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "bugfix-04"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "feature-01"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "feature-02"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "feature-03"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "feature-04"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "refactor-01"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "refactor-02"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "refactor-03"
+            },
+            {
+              "reason": "no row in a6_one_window",
+              "task_id": "refactor-04"
+            }
+          ]
+        }
+      ],
+      "cost_tasks": 0,
+      "decidable": false,
+      "excluded_cells": 0,
+      "excluded_share": null,
+      "figure": null,
+      "label": "no rows",
+      "mde_flag": [],
+      "predicate_rule": "no rows for this arm",
+      "predicate_state": "no_rows",
+      "primaries": [
+        "hidden_test_pass_rate"
+      ],
+      "rule": "no rows for this arm",
+      "state": "no_rows",
+      "w": null
+    },
+    {
+      "arm": "a7_effort_medium",
+      "arm_label": "A7",
+      "c": null,
+      "cells_seen": 0,
+      "comparisons": [
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "hidden_test_pass_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "unit": "tasks",
+          "unpaired": [
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "bugfix-01"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "bugfix-02"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "bugfix-03"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "bugfix-04"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "feature-01"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "feature-02"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "feature-03"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "feature-04"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "refactor-01"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "refactor-02"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "refactor-03"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "refactor-04"
+            }
+          ]
+        },
+        {
+          "control": "a1_full",
+          "d": null,
+          "defect_identity": [],
+          "dropped": [],
+          "half_width": null,
+          "hi": null,
+          "lo": null,
+          "mde": null,
+          "metric": "defect_catch_rate",
+          "n": 0,
+          "n_tasks": 0,
+          "pairs": [],
+          "task_level": {
+            "d": null,
+            "hi": null,
+            "lo": null,
+            "n": 0,
+            "unit": "tasks"
+          },
+          "unit": "defects",
+          "unpaired": [
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "review-01"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "review-02"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "review-03"
+            },
+            {
+              "reason": "no row in a7_effort_medium",
+              "task_id": "review-04"
+            }
+          ]
+        }
+      ],
+      "cost_tasks": 0,
+      "decidable": false,
+      "excluded_cells": 0,
+      "excluded_share": null,
+      "figure": null,
+      "label": "no rows",
+      "mde_flag": [],
+      "predicate_rule": "no rows for this arm",
+      "predicate_state": "no_rows",
+      "primaries": [
+        "hidden_test_pass_rate",
+        "defect_catch_rate"
+      ],
+      "rule": "no rows for this arm",
+      "state": "no_rows",
+      "w": null
+    }
+  ],
+  "duplicates": [],
+  "exclude_degraded": true,
+  "exclusions": [
+    {
+      "arm": "a1_full",
+      "cell_excluded": true,
+      "reason": "degraded: review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed",
+      "run_id": "priority-p1-a1_full-bugfix-02-t3",
+      "status": "completed",
+      "task_id": "bugfix-02",
+      "trial": 3
+    },
+    {
+      "arm": "a1_full",
+      "cell_excluded": true,
+      "reason": "degraded: review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed",
+      "run_id": "priority-p1-a1_full-refactor-02-t3",
+      "status": "completed",
+      "task_id": "refactor-02",
+      "trial": 3
+    },
+    {
+      "arm": "a1_full",
+      "cell_excluded": true,
+      "reason": "degraded: review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed",
+      "run_id": "priority-p1-a1_full-review-01-t3",
+      "status": "completed",
+      "task_id": "review-01",
+      "trial": 3
+    },
+    {
+      "arm": "a1_full",
+      "cell_excluded": true,
+      "reason": "degraded: audit envelope 1 of 4 voices completed",
+      "run_id": "priority-p1-a1_full-review-03-t3",
+      "status": "cap_failure",
+      "task_id": "review-03",
+      "trial": 3
+    }
+  ],
+  "expected_false_positives": {
+    "components": 6,
+    "line": "Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).",
+    "per_direction": 0.3
+  },
+  "generator": "ablation-report.py 1.0.0",
+  "h1": {
+    "comparisons": [
+      {
+        "control": "a0_bare",
+        "d": -0.027778,
+        "defect_identity": [],
+        "dropped": [
+          {
+            "arm": "a0_bare",
+            "run_id": "priority-p1-a0_bare-bugfix-02-t3",
+            "task_id": "bugfix-02",
+            "trial": 3
+          },
+          {
+            "arm": "a0_bare",
+            "run_id": "priority-p1-a0_bare-refactor-02-t3",
+            "task_id": "refactor-02",
+            "trial": 3
+          }
+        ],
+        "half_width": 0.041667,
+        "hi": 0.0,
+        "lo": -0.083333,
+        "mde": 0.081289,
+        "metric": "hidden_test_pass_rate",
+        "n": 12,
+        "n_tasks": 12,
+        "pairs": [
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-bugfix-01-t1",
+              "priority-p1-a1_full-bugfix-01-t2",
+              "priority-p1-a1_full-bugfix-01-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-bugfix-01-t1",
+              "priority-p1-a0_bare-bugfix-01-t2",
+              "priority-p1-a0_bare-bugfix-01-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "bugfix-01"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-bugfix-02-t1",
+              "priority-p1-a1_full-bugfix-02-t2"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-bugfix-02-t1",
+              "priority-p1-a0_bare-bugfix-02-t2"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "bugfix-02"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-bugfix-03-t1",
+              "priority-p1-a1_full-bugfix-03-t2",
+              "priority-p1-a1_full-bugfix-03-t3"
+            ],
+            "arm_value": 0.666667,
+            "control_runs": [
+              "priority-p1-a0_bare-bugfix-03-t1",
+              "priority-p1-a0_bare-bugfix-03-t2",
+              "priority-p1-a0_bare-bugfix-03-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": -0.333333,
+            "task_id": "bugfix-03"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-bugfix-04-t1",
+              "priority-p1-a1_full-bugfix-04-t2",
+              "priority-p1-a1_full-bugfix-04-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-bugfix-04-t1",
+              "priority-p1-a0_bare-bugfix-04-t2",
+              "priority-p1-a0_bare-bugfix-04-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "bugfix-04"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-feature-01-t1",
+              "priority-p1-a1_full-feature-01-t2",
+              "priority-p1-a1_full-feature-01-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-feature-01-t1",
+              "priority-p1-a0_bare-feature-01-t2",
+              "priority-p1-a0_bare-feature-01-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "feature-01"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-feature-02-t1",
+              "priority-p1-a1_full-feature-02-t2",
+              "priority-p1-a1_full-feature-02-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-feature-02-t1",
+              "priority-p1-a0_bare-feature-02-t2",
+              "priority-p1-a0_bare-feature-02-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "feature-02"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-feature-03-t1",
+              "priority-p1-a1_full-feature-03-t2",
+              "priority-p1-a1_full-feature-03-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-feature-03-t1",
+              "priority-p1-a0_bare-feature-03-t2",
+              "priority-p1-a0_bare-feature-03-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "feature-03"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-feature-04-t1",
+              "priority-p1-a1_full-feature-04-t2",
+              "priority-p1-a1_full-feature-04-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-feature-04-t1",
+              "priority-p1-a0_bare-feature-04-t2",
+              "priority-p1-a0_bare-feature-04-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "feature-04"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-refactor-01-t1",
+              "priority-p1-a1_full-refactor-01-t2",
+              "priority-p1-a1_full-refactor-01-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-refactor-01-t1",
+              "priority-p1-a0_bare-refactor-01-t2",
+              "priority-p1-a0_bare-refactor-01-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "refactor-01"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-refactor-02-t1",
+              "priority-p1-a1_full-refactor-02-t2"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-refactor-02-t1",
+              "priority-p1-a0_bare-refactor-02-t2"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "refactor-02"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-refactor-03-t1",
+              "priority-p1-a1_full-refactor-03-t2",
+              "priority-p1-a1_full-refactor-03-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-refactor-03-t1",
+              "priority-p1-a0_bare-refactor-03-t2",
+              "priority-p1-a0_bare-refactor-03-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "refactor-03"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-refactor-04-t1",
+              "priority-p1-a1_full-refactor-04-t2",
+              "priority-p1-a1_full-refactor-04-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-refactor-04-t1",
+              "priority-p1-a0_bare-refactor-04-t2",
+              "priority-p1-a0_bare-refactor-04-t3"
+            ],
+            "control_value": 1.0,
+            "defects": null,
+            "diff": 0.0,
+            "task_id": "refactor-04"
+          }
+        ],
+        "unit": "tasks",
+        "unpaired": []
+      },
+      {
+        "control": "a0_bare",
+        "d": -0.096493,
+        "defect_identity": [
+          "rate"
+        ],
+        "dropped": [
+          {
+            "arm": "a0_bare",
+            "run_id": "priority-p1-a0_bare-review-01-t3",
+            "task_id": "review-01",
+            "trial": 3
+          },
+          {
+            "arm": "a0_bare",
+            "run_id": "priority-p1-a0_bare-review-03-t3",
+            "task_id": "review-03",
+            "trial": 3
+          }
+        ],
+        "half_width": 0.097294,
+        "hi": 0.006575,
+        "lo": -0.188012,
+        "mde": 0.179435,
+        "metric": "defect_catch_rate",
+        "n": 19,
+        "n_tasks": 4,
+        "pairs": [
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-review-01-t1",
+              "priority-p1-a1_full-review-01-t2"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-review-01-t1",
+              "priority-p1-a0_bare-review-01-t2"
+            ],
+            "control_value": 1.0,
+            "defects": 3,
+            "diff": 0.0,
+            "task_id": "review-01"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-review-02-t1",
+              "priority-p1-a1_full-review-02-t2",
+              "priority-p1-a1_full-review-02-t3"
+            ],
+            "arm_value": 1.0,
+            "control_runs": [
+              "priority-p1-a0_bare-review-02-t1",
+              "priority-p1-a0_bare-review-02-t2",
+              "priority-p1-a0_bare-review-02-t3"
+            ],
+            "control_value": 0.555567,
+            "defects": 3,
+            "diff": 0.444433,
+            "task_id": "review-02"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-review-03-t1",
+              "priority-p1-a1_full-review-03-t2"
+            ],
+            "arm_value": 0.0,
+            "control_runs": [
+              "priority-p1-a0_bare-review-03-t1",
+              "priority-p1-a0_bare-review-03-t2"
+            ],
+            "control_value": 0.3125,
+            "defects": 8,
+            "diff": -0.3125,
+            "task_id": "review-03"
+          },
+          {
+            "arm_runs": [
+              "priority-p1-a1_full-review-04-t1",
+              "priority-p1-a1_full-review-04-t2",
+              "priority-p1-a1_full-review-04-t3"
+            ],
+            "arm_value": 0.2,
+            "control_runs": [
+              "priority-p1-a0_bare-review-04-t1",
+              "priority-p1-a0_bare-review-04-t2",
+              "priority-p1-a0_bare-review-04-t3"
+            ],
+            "control_value": 0.333333,
+            "defects": 5,
+            "diff": -0.133333,
+            "task_id": "review-04"
+          }
+        ],
+        "task_level": {
+          "d": -0.00035,
+          "hi": 0.2552,
+          "lo": -0.222917,
+          "n": 4,
+          "unit": "tasks"
+        },
+        "unit": "defects",
+        "unpaired": []
+      }
+    ],
+    "established": false,
+    "line": "H1: not established — halt before promotion",
+    "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion"
+  },
+  "listed": [],
+  "partial": true,
+  "provenance": {
+    "batches": [
+      {
+        "batch": "priority-p1",
+        "cli_version": "2.1.299",
+        "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+        "manifest": "grimoires/loa/reports/ablation-2.0/batches/priority-p1/MANIFEST.json",
+        "pre_registration_ref": "NOTES.md § Batch plan — cycle-130 ablation (Task 3.4) — 2026-10-15T10:26:23Z",
+        "shuffle_seed": 20261015,
+        "smoke": false,
+        "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde"
+      }
+    ],
+    "image_digests": [
+      "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f"
+    ],
+    "source_commits": [
+      "ba11b860e4b3d2112bf010c8f056d7e7bb521dde"
+    ],
+    "suite_manifest_sha256": [
+      "30e1f2ad7015590227e9cc2fa25ca791e31867fec65289e4a41554e9e53357ba"
+    ],
+    "suite_versions": [
+      "1"
+    ]
+  },
+  "schema_version": 1,
+  "sensitivity": {
+    "label": "sensitivity (cap failures excluded) — no decision uses this",
+    "rows": [
+      {
+        "arm": "a2_no_sprint_plan",
+        "c": null,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "hidden_test_pass_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "unit": "tasks",
+            "unpaired": [
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "bugfix-01"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "bugfix-02"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "bugfix-03"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "bugfix-04"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "feature-01"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "feature-02"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "feature-03"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "feature-04"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "refactor-01"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "refactor-02"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "refactor-03"
+              },
+              {
+                "reason": "no row in a2_no_sprint_plan",
+                "task_id": "refactor-04"
+              }
+            ]
+          }
+        ],
+        "excluded_share": null,
+        "predicate_state": "no_rows",
+        "w": null
+      },
+      {
+        "arm": "a3_one_voice",
+        "c": null,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "hidden_test_pass_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "unit": "tasks",
+            "unpaired": [
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "bugfix-01"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "bugfix-02"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "bugfix-03"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "bugfix-04"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "feature-01"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "feature-02"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "feature-03"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "feature-04"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "refactor-01"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "refactor-02"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "refactor-03"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "refactor-04"
+              }
+            ]
+          },
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "defect_catch_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "task_level": {
+              "d": null,
+              "hi": null,
+              "lo": null,
+              "n": 0,
+              "unit": "tasks"
+            },
+            "unit": "defects",
+            "unpaired": [
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "review-01"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "review-02"
+              },
+              {
+                "reason": "no row in a3_one_voice; every cell of a1_full excluded",
+                "task_id": "review-03"
+              },
+              {
+                "reason": "no row in a3_one_voice",
+                "task_id": "review-04"
+              }
+            ]
+          }
+        ],
+        "excluded_share": null,
+        "predicate_state": "no_rows",
+        "w": null
+      },
+      {
+        "arm": "a4_no_gates",
+        "c": -70.306847,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": 0.0,
+            "defect_identity": [],
+            "dropped": [
+              {
+                "arm": "a4_no_gates",
+                "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+                "task_id": "bugfix-02",
+                "trial": 3
+              },
+              {
+                "arm": "a4_no_gates",
+                "run_id": "priority-p1-a4_no_gates-bugfix-03-t2",
+                "task_id": "bugfix-03",
+                "trial": 2
+              },
+              {
+                "arm": "a4_no_gates",
+                "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+                "task_id": "refactor-02",
+                "trial": 3
+              }
+            ],
+            "half_width": 0.0,
+            "hi": 0.0,
+            "lo": 0.0,
+            "mde": 0.0,
+            "metric": "hidden_test_pass_rate",
+            "n": 12,
+            "n_tasks": 12,
+            "pairs": [
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-bugfix-01-t1",
+                  "priority-p1-a4_no_gates-bugfix-01-t2",
+                  "priority-p1-a4_no_gates-bugfix-01-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-bugfix-01-t1",
+                  "priority-p1-a1_full-bugfix-01-t2",
+                  "priority-p1-a1_full-bugfix-01-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "bugfix-01"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-bugfix-02-t1",
+                  "priority-p1-a4_no_gates-bugfix-02-t2"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-bugfix-02-t1",
+                  "priority-p1-a1_full-bugfix-02-t2"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "bugfix-02"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-bugfix-03-t1",
+                  "priority-p1-a4_no_gates-bugfix-03-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-bugfix-03-t1",
+                  "priority-p1-a1_full-bugfix-03-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "bugfix-03"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-bugfix-04-t1",
+                  "priority-p1-a4_no_gates-bugfix-04-t2",
+                  "priority-p1-a4_no_gates-bugfix-04-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-bugfix-04-t1",
+                  "priority-p1-a1_full-bugfix-04-t2",
+                  "priority-p1-a1_full-bugfix-04-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "bugfix-04"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-feature-01-t1",
+                  "priority-p1-a4_no_gates-feature-01-t2",
+                  "priority-p1-a4_no_gates-feature-01-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-feature-01-t1",
+                  "priority-p1-a1_full-feature-01-t2",
+                  "priority-p1-a1_full-feature-01-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "feature-01"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-feature-02-t1",
+                  "priority-p1-a4_no_gates-feature-02-t2",
+                  "priority-p1-a4_no_gates-feature-02-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-feature-02-t1",
+                  "priority-p1-a1_full-feature-02-t2",
+                  "priority-p1-a1_full-feature-02-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "feature-02"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-feature-03-t1",
+                  "priority-p1-a4_no_gates-feature-03-t2",
+                  "priority-p1-a4_no_gates-feature-03-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-feature-03-t1",
+                  "priority-p1-a1_full-feature-03-t2",
+                  "priority-p1-a1_full-feature-03-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "feature-03"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-feature-04-t1",
+                  "priority-p1-a4_no_gates-feature-04-t2",
+                  "priority-p1-a4_no_gates-feature-04-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-feature-04-t1",
+                  "priority-p1-a1_full-feature-04-t2",
+                  "priority-p1-a1_full-feature-04-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "feature-04"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-refactor-01-t1",
+                  "priority-p1-a4_no_gates-refactor-01-t2",
+                  "priority-p1-a4_no_gates-refactor-01-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-refactor-01-t1",
+                  "priority-p1-a1_full-refactor-01-t2",
+                  "priority-p1-a1_full-refactor-01-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "refactor-01"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-refactor-02-t1",
+                  "priority-p1-a4_no_gates-refactor-02-t2"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-refactor-02-t1",
+                  "priority-p1-a1_full-refactor-02-t2"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "refactor-02"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-refactor-03-t1",
+                  "priority-p1-a4_no_gates-refactor-03-t2",
+                  "priority-p1-a4_no_gates-refactor-03-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-refactor-03-t1",
+                  "priority-p1-a1_full-refactor-03-t2",
+                  "priority-p1-a1_full-refactor-03-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "refactor-03"
+              },
+              {
+                "arm_runs": [
+                  "priority-p1-a4_no_gates-refactor-04-t1",
+                  "priority-p1-a4_no_gates-refactor-04-t2",
+                  "priority-p1-a4_no_gates-refactor-04-t3"
+                ],
+                "arm_value": 1.0,
+                "control_runs": [
+                  "priority-p1-a1_full-refactor-04-t1",
+                  "priority-p1-a1_full-refactor-04-t2",
+                  "priority-p1-a1_full-refactor-04-t3"
+                ],
+                "control_value": 1.0,
+                "defects": null,
+                "diff": 0.0,
+                "task_id": "refactor-04"
+              }
+            ],
+            "unit": "tasks",
+            "unpaired": []
+          }
+        ],
+        "excluded_share": 0.0,
+        "predicate_state": "remove",
+        "w": -72.153745
+      },
+      {
+        "arm": "a5_no_flatline",
+        "c": null,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "hidden_test_pass_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "unit": "tasks",
+            "unpaired": [
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "bugfix-01"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "bugfix-02"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "bugfix-03"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "bugfix-04"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "feature-01"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "feature-02"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "feature-03"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "feature-04"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "refactor-01"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "refactor-02"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "refactor-03"
+              },
+              {
+                "reason": "no row in a5_no_flatline",
+                "task_id": "refactor-04"
+              }
+            ]
+          }
+        ],
+        "excluded_share": null,
+        "predicate_state": "no_rows",
+        "w": null
+      },
+      {
+        "arm": "a6_one_window",
+        "c": null,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "hidden_test_pass_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "unit": "tasks",
+            "unpaired": [
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "bugfix-01"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "bugfix-02"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "bugfix-03"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "bugfix-04"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "feature-01"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "feature-02"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "feature-03"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "feature-04"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "refactor-01"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "refactor-02"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "refactor-03"
+              },
+              {
+                "reason": "no row in a6_one_window",
+                "task_id": "refactor-04"
+              }
+            ]
+          }
+        ],
+        "excluded_share": null,
+        "predicate_state": "no_rows",
+        "w": null
+      },
+      {
+        "arm": "a7_effort_medium",
+        "c": null,
+        "comparisons": [
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "hidden_test_pass_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "unit": "tasks",
+            "unpaired": [
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "bugfix-01"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "bugfix-02"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "bugfix-03"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "bugfix-04"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "feature-01"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "feature-02"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "feature-03"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "feature-04"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "refactor-01"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "refactor-02"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "refactor-03"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "refactor-04"
+              }
+            ]
+          },
+          {
+            "control": "a1_full",
+            "d": null,
+            "defect_identity": [],
+            "dropped": [],
+            "half_width": null,
+            "hi": null,
+            "lo": null,
+            "mde": null,
+            "metric": "defect_catch_rate",
+            "n": 0,
+            "n_tasks": 0,
+            "pairs": [],
+            "task_level": {
+              "d": null,
+              "hi": null,
+              "lo": null,
+              "n": 0,
+              "unit": "tasks"
+            },
+            "unit": "defects",
+            "unpaired": [
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "review-01"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "review-02"
+              },
+              {
+                "reason": "no row in a7_effort_medium; every cell of a1_full excluded",
+                "task_id": "review-03"
+              },
+              {
+                "reason": "no row in a7_effort_medium",
+                "task_id": "review-04"
+              }
+            ]
+          }
+        ],
+        "excluded_share": null,
+        "predicate_state": "no_rows",
+        "w": null
+      }
+    ]
+  },
+  "suite": {
+    "name": "ablation-2.0",
+    "path": "evals/suites/ablation-2.0.yaml",
+    "suite_version": 1
+  }
+}

@@ -1,0 +1,4 @@
+{"hidden_tests": {"passed": 7, "total": 8, "failed_names": ["t8"]}, "regressions": {"newly_failing": []},
+ "recall": null, "false_positives": null, "verdict": {"source_file": "auditor-sprint-feedback.md", "value": "APPROVED"},
+ "verdict_accuracy": false, "verdict_accuracy_review": true, "verdict_accuracy_audit": false,
+ "diff_lines": 12, "files_changed": 1, "contaminated": null, "grader_version": "1"}

@@ -119,6 +119,34 @@ providers:
         pricing:
           input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
+      gpt-6.1-sol:
+        # cycle-130 Sprint 258 (2026-10-15): the model Codex on a ChatGPT plan
+        # serves by default after it withdrew every gpt-5.x name (KF-044); the
+        # codex-headless hop's cli_model points here so its estimates price
+        # through this entry. Listed by /v1/models with the operator's key.
+        # Shape mirrored from gpt-5.5 (400K window, /v1/responses, 32K out).
+        auth_type: http_api
+        dispatch_group: openai-gpt
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 400000
+        token_param: max_completion_tokens
+        # within-company chain, terminating in the CLI hop as every OpenAI primary does
+        fallback_chain:
+          - openai:codex-headless
+        endpoint_family: responses
+        max_output_tokens: 32000
+        max_input_tokens: 200000
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 24000
+        params:
+          temperature_supported: false
+        pricing:
+          # PLACEHOLDER: gpt-5.5 list prices copied 2026-10-15 until the gpt-6.1
+          # rate card is confirmed (bead at the Sprint 258 close). The codex
+          # hop itself bills the operator's subscription; this entry prices
+          # estimates and MODELINV rows only.
+          input_per_mtok: 5000000       # $5.00 per million tokens (placeholder, see above)
+          output_per_mtok: 30000000     # $30.00 per million tokens (placeholder, see above)
       gpt-5.5-pro:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: http_api
@@ -202,8 +230,14 @@ providers:
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
         # passed to `codex exec --model <name>`. The CLI doesn't
         # recognize the Loa alias; this maps to the real codex model.
+        # cycle-130 Sprint 258 (2026-10-15): Codex on a ChatGPT plan no longer
+        # serves any gpt-5.x name (HTTP 400 "not supported when using Codex
+        # with a ChatGPT account" for gpt-5.5, gpt-5.5-pro, gpt-5.5-codex,
+        # gpt-5.3-codex; codex 0.137 and 0.162 alike). The CLI's own default
+        # is gpt-6.1-sol, which answers; the HTTP gpt-5.5 entries above are
+        # unchanged (the API still lists them). Recorded as KF-044.
         extra:
-          cli_model: gpt-5.5
+          cli_model: gpt-6.1-sol
 
   google:
     type: google

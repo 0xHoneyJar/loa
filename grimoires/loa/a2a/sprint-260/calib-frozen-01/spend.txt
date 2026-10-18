@@ -1,0 +1,2 @@
+2026-10-15T09:52:48Z cycle spend USD 108.51 (runs 79.08 + ledger 29.43 since 2026-10-14T13:50:00Z); cap 1,500; headroom 1,391.49; reserve 250
+2026-10-15T09:52:48Z batch calib-frozen-01 spend USD 66.2802453 (rows 66.2802453 + first attempts 0; 0 assumed cap charge(s)); max 100

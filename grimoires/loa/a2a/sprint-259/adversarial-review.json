@@ -1,0 +1,163 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:self_check",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The new suite_green calculation accepts an unparseable fixture-suite run when it exits 0. Unparsed successful runs receive fallback passed == total, so the count and exit-status checks all succeed. For refactor self-checks, this weakens the previous suite_green_final check, which rejected parse_error.",
+      "failure_mode": "A refactor reference patch that terminates pytest with os._exit(0) during fixture-test collection can pass the reference self-check provided its structural check passes, despite the fixture suite never completing. This contradicts the documented requirement that green runs have a parsed summary.",
+      "suggested_fix": "Preserve parse_error separately in each regression run summary and require final.parse_error == false when calculating suite_green, or reuse the existing all_pass result for the refactor fixture suite.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:drop_escaping_links",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The final tree gets two defences (link_escapes in copy_tree, then drop_escaping_links as a stable-state post-pass), but the snapshot trees (grading/implement, grading/fix1) rely only on tarfile.data_filter during extraction. The header now claims \"a symlink member with an absolute or escaping target is skipped\" and AG-19 asserts \"snapshot links are filtered\", yet data_filter evaluates os.path.realpath per member at extraction time, in archive order. git archive emits entries in sorted tree order, so a link whose target is lexically in-tree but only escapes through a *later* link passes the filter: e.g. `tests/conftest.py -> ../zz/root/../../zz/root/../../home/u/.bashrc` (realpath'd while `zz` does not yet exist resolves lexically to <tree>/home/u/.bashrc, accepted) followed by `zz/root -> ..` (resolves to the tree root, accepted). After extraction the first link really resolves outside the tree. This is exactly the shape AG-19's `hop -> sub/root/..` case covers for the final tree, but the snapshot path never runs drop_escaping_links, so the fix is incomplete for the trees the gates read.",
+      "failure_mode": "An agent-shaped IMPLEMENT/FIX1 commit leaves a host-escaping symlink in grading/<label>/. Every later host-side step that opens a path in that tree can follow it: prepare() restores each grader_protected path and overlays hidden files by writing at the dest (\"a same-named file is overwritten\"), so if the agent made e.g. tests/conftest.py (a name it knows from the fixture) the escaping leaf, the fixture content is written to an arbitrary host path such as a file under the run dir or the user's home. At minimum the header/README/AG-19 claim that snapshot trees are symlink-filtered is false for this ordering.",
+      "suggested_fix": "After extract_snapshot(...) returns True (or inside it, after extractall), call drop_escaping_links(tree) and add the result to g[\"symlinks_dropped\"] (or a per-label count). Make put_file / the grader_protected restore unlink a leaf that is a symlink before writing. Extend AG-19's snapshot case with `aaa -> zz/root/../..` plus `zz/root -> ..` (helper sorting after the escaping link) and assert the link is gone.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:regressions",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "regressions() only consults the exit status / timeout when one side is unparseable. When both runs parse, newly_failing is computed purely from case ids, so a final regression run that reports every base case as passing but exits non-zero (or times out after printing a summary) yields newly_failing = [] and parse_error = false. The DISS-002 rule applied to hidden_tests in this same diff (\"a passing TAP block followed by exit 1 is not green\") is therefore not applied to the regression check for bug-fix/feature-build; only refactor sees it via all_pass(rf) -> suite_green_final. The README pass rule for bug-fix is \"regression_command has no newly failing case\", and ablation-row.sh (per AG-20) counts newly_failing, so the non-zero exit is recorded in regressions.final.rc but influences nothing.",
+      "failure_mode": "A bug-fix/feature-build final tree whose fixture suite exits non-zero or times out while every parsed case passes is scored as having zero regressions; the row's regression count and the pass rule do not see the red exit.",
+      "suggested_fix": "Either surface it as data (e.g. regressions.final_green = all_pass(rf), base_green = all_pass(rb)) and have ablation-row.sh consume it, or treat `rb exit 0 and final_red` with no id-level regressions as a regression (document which ids, e.g. every base-passing case, mirroring the unparsed-final branch).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:grade",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "For refactor tasks grade() now sets rcmd = t.test_command and never reads t.regression_command. The README says \"regression_command stays null\" for refactor, but validate-suite.sh still accepts `regression_command: array | null` for every type, and load_task does not reject a non-null value on a refactor task. A future refactor task that sets regression_command would have it silently ignored, with no violation and no grade.json indication.",
+      "failure_mode": "Silent drop of a configured regression command on refactor tasks; the task author believes an extra suite is being run at base/final when it is not.",
+      "suggested_fix": "In validate-suite.sh add `if ttype == \"refactor\" and t.get(\"regression_command\") is not None: bad(tid, \"schema: regression_command must be null for refactor (test_command is the regression check)\")`, and/or raise GradeError in load_task.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/evals/ablation-2.0/MANIFEST.sha256:@@ -30,8 +30,8 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The manifest changes the sha256 of tasks/bugfix-02/hidden/tests/test_memo_freshness.py (d7c5… -> 94cb…), and bugfix-02's success_criterion is reworded to describe a new behaviour (\"address reuse within five allocations\"), but the diff contains no change to that hidden test file. Either the file change is missing from this change set or the manifest was regenerated against an uncommitted working copy.",
+      "failure_mode": "If the hidden test is not actually updated in the commit, the freeze check fails for bugfix-02 (suite_frozen false / grader refuses) and the stated success criterion no longer describes the shipped test.",
+      "suggested_fix": "Confirm the modified test_memo_freshness.py is included in the commit; regenerate MANIFEST.sha256 from the committed tree and verify with the freeze protocol before merging.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-259",
+    "timestamp": "2026-10-15T05:40:32Z",
+    "tokens_input": 143554,
+    "tokens_output": 33633,
+    "cost_usd": 0,
+    "latency_ms": 43690,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-259/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-259/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "14dba8c0f5af038375d4923577599a2dbfbbf672f3e180928ca2aef7db267080",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

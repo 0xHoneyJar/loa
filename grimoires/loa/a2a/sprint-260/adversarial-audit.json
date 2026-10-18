@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "check_value",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-grade.sh",
+      "cross_file_justification": null,
+      "description": "Three skip rules added to the Bash path-word scan in check_value run before os.path.normpath and before the SENSITIVE / allowed-roots test in outside(). (1) The 1.2.4 rule `if w.startswith(\"/.\"): continue` is meant for repo-relative /.claude/ references, but it also drops any word of the form /./<dir>/... or /../<dir>/..., which the shell resolves to /<dir>/... (normpath would turn /./root/x into /root/x, which SENSITIVE matches). (2) after_closing_quote returns True whenever body[pos-2] is not whitespace or a separator; when body[pos-2] is itself a quote character the token before the path is an empty quoted string, so the word is a complete absolute path, not a tail. (3) The 1.2.1 one-component rule treats /<name> as a slash command unless <name> is in SENSITIVE_SINGLE, but ABS_WORD stops at glob characters (* ? [), so a sensitive component whose last characters are globbed is read as a non-sensitive one-component word and skipped. Grader 1.2.0 flagged all three shapes as outside_path; 1.2.7 reports them clean. The scan is the grader's integrity signal that the agent under test did not read outside its sandbox.",
+      "failure_mode": "A run whose Bash tool_use reached a sensitive root through a dot-segment, an empty-quote prefix, or a globbed component is graded with contaminated = null and its row counts as a scored trial, so the batch's recall and hidden-test figures can include a leaked run.",
+      "suggested_fix": "Normalize first: compute n = os.path.normpath(w) and apply the dot-dir skip only when n still begins with '/.' (a true root dot-dir). In after_closing_quote, return False when body[pos-2] is a quote character (an empty string before the path). For the one-component rule, treat the word as a candidate when the character right after the match is a glob metacharacter (* ? [), or extend ABS_WORD's character class to include glob characters and strip them before the sensitive test. Add bats cases for each shape asserting outside_path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "HIDDEN_TOKEN",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-grade.sh",
+      "cross_file_justification": null,
+      "description": "For Bash tool inputs the hidden check moved from a case-insensitive substring to HIDDEN_TOKEN / HIDDEN_GLOB, which require HIDDEN in capitals, an adjacent path or identifier character, a camelCase continuation, or a glob character. The comment accepts `pytest -k hidden` as the bare-argument gap, but the rule equally exempts a bare directory argument: `cd hidden`, `ls hidden`, `cat hidden`, or `find . -name hidden` carry the word with only whitespace or a separator around it and are not hits, while the same directory reached as tests/hidden is. Read/Grep/Glob inputs still use the substring, so only Bash is relaxed.",
+      "failure_mode": "An agent that changes into or lists a directory literally named hidden through Bash is not flagged, while the Read tool on the same path would be; the contamination result depends on which tool the agent chose.",
+      "suggested_fix": "Keep the bare-word exemption narrow: exempt `hidden` only when it is the argument of -k/-m (pytest selectors) and otherwise flag a bare `hidden` that is the direct argument of cd, ls, cat, find -name/-path, or a shell redirect. Alternatively read the hidden tests directory name from task.yaml and flag any Bash word equal to it or ending in it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "strip_heredocs",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-grade.sh",
+      "cross_file_justification": null,
+      "description": "strip_heredocs removes heredoc bodies before the absolute-path scan, including bodies fed to python3, python, bash, sh, node, perl or ruby (count_interpreter_heredocs only counts them). Code in such a body opens whatever path it names. The comment justifies the gap by the container executor, where the sensitive roots are empty, and notes host grading needs LOA_EVAL_ALLOW_HOST_GRADING=1. In host mode the same gap is a real missed leak: an interpreter heredoc can read the suite root or the hidden tests on the host and the path scan never sees it; the hidden/suite_path/repo_name substring scans do read the body but are string-literal checks.",
+      "failure_mode": "Under host grading a run that read hidden material from an interpreter heredoc body is graded clean; heredoc_interpreters is telemetry and does not affect contaminated.",
+      "suggested_fix": "When A.executor == \"host\", scan heredoc bodies whose operator command is an interpreter with ABS_WORD (accept the prose false-positive risk there, since host mode is already an opt-in), or at minimum treat heredoc_interpreters > 0 together with a sensitive path word anywhere in the body as a contamination hit in host mode. Document the residual gap in the --help text next to LOA_EVAL_ALLOW_HOST_GRADING.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "model_missing",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-row.sh",
+      "cross_file_justification": null,
+      "description": "DEC-0545 changes degraded from 'any models_used key differs from model_requested' to 'the requested model is absent from a non-empty models_used'. A phase whose models_used contains the requested model with a token count of 1 and another model with the rest is now not degraded, and the row carries no per-model token share. The run-ablation.sh header applies the same rule to the drift guard, with extra models recorded as telemetry only. The row therefore cannot distinguish a WebFetch summariser from a provider-side substitution that still touched the requested model once.",
+      "failure_mode": "A substituted phase whose transcript shows the requested model for even one turn is rowed degraded = false and the batch report treats it as a clean trial of the arm.",
+      "suggested_fix": "Make the degraded test share-aware: compute the requested model's fraction of models_used output tokens per phase and degrade when it is below a threshold (e.g. 0.5), or when any non-requested model's tokens exceed the requested model's. Emit the per-model token map in the row so the report can audit extra models.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-260",
+    "timestamp": "2026-10-16T23:02:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": true,
+    "parse_path": "schema_enforced",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 4,
+    "tokens_output": 20722,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4d2d84ab45c72075f44d574e82f0ef7d8deb2eb62b94ef9771129739f22816a1",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "degraded",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=degraded",
+    "single_voice_call": false,
+    "status": "DEGRADED"
+  }
+}

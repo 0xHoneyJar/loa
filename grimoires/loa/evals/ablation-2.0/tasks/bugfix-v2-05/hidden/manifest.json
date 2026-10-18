@@ -1,0 +1,1 @@
+{"files": [{"src": "tests/test_zoned_cron_rules.py", "dest": "tests/acceptance/test_zoned_cron_rules.py"}, {"src": "tests/_oracle_cron.py", "dest": "tests/acceptance/_oracle_cron.py"}]}

@@ -1,0 +1,7 @@
+base_commit=bd96e2c1be4c1ca71114de708fd8ae3f514fb602
+mount=whole_tree
+effort=medium
+effort_stripped=4
+beads=opt-out
+manifest_files=5
+manifest_sha256=0564a0cb75af166fef1e15d3f0df749c66ec070930e673668bbc31eb2420c29c

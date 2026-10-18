@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "defects_missed: (if ($task.type // $p.task_type // \"\") != \"review-catch\" or $rc == null then null",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/ablation-report.py: res[\"degenerate\"] = bool(metric == CATCH and n > 0 and res[\"n_tasks\"] == 1 and \"ids\" not in res[\"defect_identity\"])",
+      "cross_file_justification": "evals/harness/ablation-row.sh (diff-touched) writes defects_missed with only a 'list of non-empty strings' check, and its --validate gate applies the same check. evals/harness/ablation-report.py (diff-touched) consumes the field as the per-defect identity vector: the degenerate check keys on 'ids' in defect_identity, so rows carrying ids switch the defect_catch_rate bootstrap (the H1 decision input) from rate mode to id mode, and the budget-matched union reads 'ids d1 … dN from defects_missed'.",
+      "description": "The new defects_missed field is the only per-defect identity the report has, and it changes how the pre-registered H1 catch-rate interval is built (id vectors instead of the row's rate). Neither the row writer nor --validate constrains the ids beyond 'non-empty string': no d<N> grammar, no uniqueness (['d2','d2'] passes), no bound against defects_seeded (five missed ids on a three-defect task pass), and no cross-check that defects_seeded − |missed| equals defects_caught. The validator is the schema gate for runs.jsonl, yet it will accept a row whose id list contradicts its own numeric fields, and the report's handling of unknown or duplicate ids is in the truncated hunks and cannot be confirmed from the diff.",
+      "failure_mode": "A grader regression, a hand-edited or re-rowed row, or a concatenated legacy file with inconsistent ids passes --validate and reaches the H1 bootstrap in id mode, where the per-defect vector may be mis-sized or over-count caught defects, silently shifting a decision-bearing interval that the row writer's own numeric fields would have contradicted.",
+      "suggested_fix": "In ablation-row.sh --validate (and mirror it in the row jq), when task_type is review-catch and defects_missed is non-null: require each id to match ^d[1-9][0-9]*$, require unique ids, require length ≤ defects_seeded when defects_seeded is a number, and reject when defects_caught is a number and defects_seeded − length ≠ defects_caught. In ablation-report.py, have defect_vector refuse (list the row) when an id is outside d1…dN or duplicated rather than silently coercing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "#                   batch record (1.2.2) prints \"Not rendered (…)\" with JSON batches [] and batches_note set",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The batch record is wrapped in catch-all exception handling that copies the exception text verbatim into report.md ('Not rendered (ValueError: …); it decides nothing.') and into report.json (batches_note, batches[].note). AR-41 pins the ValueError message from int() on a manifest suite_version, and Python's int()/float()/json error strings embed the offending value, and FileNotFoundError embeds the absolute path. Reports are shared artefacts (the CHANGELOG files them under a2a/sprint-*/), so arbitrary fragments of STATUS.json, MANIFEST.json or grade.json content and host paths can end up in a published document. The exception handler itself lives in the truncated hunks; the behaviour is confirmed by the header contract and AR-41.",
+      "failure_mode": "A malformed or unexpected value in a batch-record input is echoed, with its surrounding path, into the committed report and JSON twin, leaking local filesystem layout or file content that the report was never meant to carry.",
+      "suggested_fix": "Record only the exception class and a fixed message in the rendered report (e.g. 'Not rendered (ValueError while reading STATUS.json for batch pr-2)'), log the full str(e) to stderr, and strip or relativise paths before any text reaches report.md or report.json.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "usd += float(r.get(\"cost_usd\") or 0)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new precision block in arm_metrics converts cost_usd with float() and no type guard, unlike the surrounding code which uses isinstance checks (and unlike the defects_caught/false_positives handling three lines above). A cost_usd that is a non-numeric string raises ValueError and aborts the whole report with a traceback, so a presentation item that is documented as 'informational, decides nothing' can prevent the decision table from being written. Separately, json.loads accepts NaN/Infinity literals, which pass isinstance(float) and propagate into true_defects/flagged_regions and then into report.json as non-standard tokens that jq consumers reject.",
+      "failure_mode": "One malformed row (a string cost_usd, or NaN) in a runs.jsonl that was not run through ablation-row.sh --validate turns a cosmetic section into a report-wide crash, or yields a report.json that downstream jq-based tooling cannot parse.",
+      "suggested_fix": "Guard cost_usd the same way as defects_caught (isinstance(v, (int, float)) and not bool, and math.isfinite), treat anything else as 0 with a note, and pass allow_nan=False to json.dump so non-finite values fail loudly at write time rather than producing invalid JSON.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "GRADE_DIR = re.compile(r\"(.+)-t(\\d+)(?:-r(\\d+))?\")",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The batch record attributes each row to '<batch dir>/<arm>/<task>-t<n>-r<k>' and opens meta/pipeline.json and grade.json beneath it. The arm component comes from the row; the arm grammar ^[a-z][a-z0-9_]{0,63}$ is enforced only by ablation-row.sh --validate, which the report does not invoke, and the report's own arm check only lists unknown arms rather than rejecting them. A row with arm '../..' would make the report enumerate and open JSON files outside the manifests tree. The GRADE_DIR pattern is also unanchored: with re.match a stray directory such as rc-01-t1-r2.bak is read as trial 1 rerun 2. The attribution code is in the truncated hunks, so this is inferred from the header contract and AR-37/AR-42; impact is read-only (only grader_version and run_id are extracted).",
+      "failure_mode": "A crafted or corrupted row steers the read-only tally into directories outside the batch tree, or a leftover directory with a suffix is mis-attributed to a trial, giving a wrong grader-version tally; neither affects a decision, but the report trusts an unvalidated row field as a path segment.",
+      "suggested_fix": "Re-apply the arm grammar (and a task_id grammar) in ablation-report.py before any filesystem path is built, resolve the candidate directory and refuse it unless it is inside the manifests root, and use GRADE_DIR.fullmatch (or anchor the pattern with ^…$) so only exact <task>-t<n>[-r<k>] names are attributed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-262",
+    "timestamp": "2026-10-18T11:53:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16067,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6624c724d10299496a953c084439a40795bc12d6812d6e4204aad62481276f3f",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

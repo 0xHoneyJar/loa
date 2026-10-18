@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "secrets",
+      "anchor": "make_home",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/pipeline-run.sh:make_home",
+      "cross_file_justification": null,
+      "description": "The rewritten make_home in evals/harness/pipeline-run.sh copies the operator's ~/.codex/auth.json into <run>/meta/home/.codex/auth.json, which is bind-mounted read-write at /home/evaluser inside the container where the untrusted agent under evaluation runs with Bash and network access. Only tokens.refresh_token is replaced with a placeholder; tokens.access_token (a bearer JWT valid for the whole batch horizon, since run-ablation.sh's pre-flight refuses tokens that expire before 2x the summed watchdog), tokens.id_token (operator email / account id) and, when `tokens` is absent or not a dict, the whole file including a long-lived OPENAI_API_KEY are written verbatim. The run-ablation.sh header explicitly documents that API-key mode 'copies the file unchanged'. The agent process and the codex CLI share the same UID and HOME, so any `cat ~/.codex/auth.json` in a tool call reads the credential. This is partly pre-existing (the old code copied everything including the refresh token), and the diff is an improvement, but the API-key passthrough and multi-hour access token remain exposed to a workload the harness elsewhere treats as adversarial (contamination detection, mount-integrity checks).",
+      "failure_mode": "An agent under evaluation exfiltrates the operator's ChatGPT access token / id token or, in API-key mode, a non-expiring OPENAI_API_KEY from its own home directory; the key stays valid after the batch. The id_token also leaks the operator's email and account id into every run directory's meta/home copy.",
+      "suggested_fix": "Do not place long-lived credentials in the agent-writable HOME. Options: refuse API-key mode in make_home (or require a dedicated short-lived, scoped key via a separate env var passed only to the codex process), strip tokens.id_token and any non-essential fields before writing, and consider routing codex calls through a host-side proxy or a sidecar that holds the credential so the agent container never sees it. At minimum, make run-ablation.sh's pre-flight refuse (not merely note) API-key mode unless an operator opt-in flag is set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "remove_colliding",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "cross_file_justification": null,
+      "description": "remove_colliding (grader 1.2.13) adds a 'helper shadow' rule: an unowned non-collectable module whose stem matches a protected helper (e.g. _oracle_x.py beside hidden tests) is removed only when its package-less directory also holds a collectable module, because that is 'the one case pytest puts it on sys.path'. That premise is incomplete and the rule explicitly exempts conftest.py (`rel.rsplit('/', 1)[-1] in ('__init__.py', 'conftest.py')` → skip; the `live` sibling check only counts `collectable(x, pats)` files). In pytest's default prepend import mode, loading a conftest.py from a package-less directory also inserts that directory at sys.path[0], and conftest.py files are imported before any test module beneath them. So an agent-added conftest.py (at the tree root, which is always in live_dirs, or in any package-less ancestor of the hidden tests' directory) with `import _oracle_x` next to an agent-written _oracle_x.py primes sys.modules with the agent's copy; the hidden test's later `import _oracle_x` resolves from sys.modules and gets the agent's module. No collectable sibling is needed, so the new rule does not fire and the helper file survives. Even without a helper file, the same conftest.py can assign sys.modules['_oracle_x'] directly, leaving nothing for a file-based rule to remove. The agent knows the stems of fixture tests/ helpers (they are visible in the repo) and the docstring itself names the _oracle_x convention. The grading tree is the trust boundary between the model under test and its score, and the harness otherwise treats the agent as adversarial, so this is a grading-integrity gap rather than a mere correctness nit.",
+      "failure_mode": "An agent under evaluation ships a root (or tests/) conftest.py that shadows a protected helper/oracle module; hidden tests import the agent's substitute and pass, inflating hidden_test_pass_rate and the ablation report's conclusions without triggering colliding_tests_removed or contamination.",
+      "suggested_fix": "Treat agent-added conftest.py as a sys.path/sys.modules vector: either remove unowned conftest.py files from the grading tree (or from any directory that is an ancestor of a protected module) before the test command runs, or run the hidden suite with `-p no:cacheprovider --noconftest` plus an explicit `--rootdir`/`--confcutdir` so only harness-owned conftest.py files load. Additionally, make protected helpers unshadowable by importing them with an explicit package path (e.g. `from tests.hidden import _oracle_x` with harness-owned __init__.py) or by having the harness pre-populate sys.modules via a trusted conftest. Record any unowned conftest.py in grade.json so a bypass attempt is at least visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "collision_rule",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-grade.sh:collision_rule",
+      "cross_file_justification": null,
+      "description": "collision_rule reads python_files from test_command overrides or from the pristine fixture root (t.fixture) and caches the result. pytest, however, runs inside the grading tree and resolves its ini file (pytest.ini, pyproject.toml, tox.ini, setup.cfg) from that tree, which the agent controls, unless test_command pins `-c` or `-o python_files=`. When the tree's config differs from the fixture's, the grader's notion of 'collectable' diverges from what pytest will actually collect: an agent that edits python_files in the tree can make hidden test_*.py modules non-collectable (silently skipped) or make its own non-test modules collectable, and the collision/helper logic will compute protected import names against patterns pytest no longer uses. The underlying 'agent edits pytest config' exposure is pre-existing, but the new code bakes in the assumption that the fixture's config is authoritative, which it is not at run time.",
+      "failure_mode": "Grader and pytest disagree on which files are test modules; hidden tests may be silently not collected, or the removal rule may fire/not fire on the wrong set, producing misleading colliding_tests_removed / collision_rule telemetry and potentially inflated pass rates.",
+      "suggested_fix": "Have the grader pass the resolved patterns to pytest explicitly (append `-o python_files=<patterns>` and `-c <fixture ini>` / `--rootdir` to the in-container command), or restore the fixture's pytest config files into the grading tree in prepare() before the test command runs, so the config the grader models is the config pytest reads. Record a grade.json flag when the tree's ini files differ from the fixture's.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-261",
+    "timestamp": "2026-10-18T10:19:11Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 22196,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4541aa2c1e8ad476a70bf637b7b5505999641bd0ef7df0811a6267490224e129",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

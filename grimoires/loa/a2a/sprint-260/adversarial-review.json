@@ -1,0 +1,171 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:HIDDEN_TOKEN",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "1.2.6 adds `*` and `?` to both adjacency classes of HIDDEN_TOKEN with no glob or path context required. The hidden scan reads every Bash value including heredoc bodies (the comment block says so explicitly), so ordinary English and Markdown now match: `Is any state hidden?` matches `\\bhidden(?=[?])`, and `**hidden**` or `*hidden*` emphasis matches `(?<=[*])hidden\\b`. Reviewer heredocs that write reviewer-concerns.md in a suite whose briefs are about hidden state are exactly where this prose appears. This contradicts the regex's own stated contract (`not as a bare English word in written prose`, DEC-0551) and re-opens the KF-046 prose false positives the same comment block says it is avoiding. AG-32's prose cases contain neither `hidden?` nor `**hidden**`, so the test suite passes.",
+      "failure_mode": "A clean run is reported contaminated=hidden on a prose heredoc and the trial is excluded or flagged in the ablation analysis, silently removing valid data from the experiment.",
+      "suggested_fix": "Apply the `*`/`?` adjacency branches only to the heredoc-stripped command (strip_heredocs(val)) so glob shapes in real argv are still caught while heredoc bodies keep the 1.2.4 class. At minimum drop `?` from the lookahead (a `hidden?` glob is rare, the English question is not). Add AG-32 cases for `Is it hidden?` and `**hidden**` inside a heredoc expecting null.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "evals/harness/run-ablation.sh:post_run",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/run-ablation.sh:post_run",
+      "cross_file_justification": "The new GRADE_TMO wrapper in post_run kills ablation-grade.sh, whose grade() (also in this diff) computes a per-run RUN_TAG and launches docker containers; the cleanup behaviour of that grader under SIGTERM is what determines whether the kill leaks.",
+      "description": "post_run now kills a hung grade with SIGTERM and SIGKILL after 30 s, but nothing cleans up what the grader started. ablation-grade.sh runs as `exec python3 -I -`; Python's default SIGTERM disposition terminates without running finally or atexit, so tempfile directories and the docker container launched for hidden tests are abandoned. The docker CLI in the same process group forwards TERM into the container, but a shell PID 1 ignores TERM, and after --kill-after the CLI is SIGKILLed while the container keeps running on the daemon. That container is the most likely cause of the hang in the first place.",
+      "failure_mode": "Each timed-out trial leaves a running container competing for CPU with later trials and skewing their wall-clock; a later --rerow of the same run reuses the RUN_TAG-derived container name and `docker run --name` fails with a conflict, rowing infrastructure_error again.",
+      "suggested_fix": "In the 124/137 branch run `docker rm -f` on containers named or labelled with the run tag, or have the grader install a SIGTERM handler that kills its container and removes its temp dirs before exiting. Cover with a stub that leaves a sleeping container behind.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/run-ablation.sh:GRADE_TMO",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The wrappers use GNU long options `--signal=TERM --kill-after=30`, but the only guard is `command -v timeout`. BusyBox timeout (Alpine hosts) accepts `-s`/`-k` and rejects long options with a usage error, exit 1. The post_run branches recognise only 124 and 137 as deadline exits, so an exit 1 from the wrapper itself is read as a real tool failure. Separately, MANIFEST records grade_timeout_s and took_effect_timeout_s as numbers even when timeout(1) is absent and the calls run unwrapped.",
+      "failure_mode": "On a BusyBox host every took-effect call fails with exit 1, PR_TE=fail pauses the arm after its first trial, and every grade rows infrastructure_error; the manifest still claims deadlines were enforced.",
+      "suggested_fix": "Use the portable short flags `-s TERM -k 30`, or probe `timeout --version` for GNU before enabling the wrapper. Write null into MANIFEST watchdog when the wrapper is disabled so the record matches what ran.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/run-ablation.sh:post_run",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/run-ablation.sh:post_run",
+      "cross_file_justification": "post_run introduces PR_TE=timeout and the header promises `took_effect \"timeout\"` in the trial result; every consumer of that field (ablation-row.sh and its --validate, STATUS.json aggregation, analysis scripts) is outside the diff and may still enumerate ok|fail|skipped.",
+      "description": "A fourth took-effect value, `timeout`, now flows out of post_run. The runner executes `ablation-row.sh --validate` on every row, and the docs for the row and status schemas list only ok, fail and skipped. Nothing in the diff updates those consumers, and RAB-21 asserts only the row status, not the took_effect value.",
+      "failure_mode": "If a consumer validates took_effect against the old enum, the row is rejected or the validate step fails after the trial already ran; if a consumer treats anything that is not ok/skipped as fail, the arm is paused despite the comment saying a hang is no evidence about the arm.",
+      "suggested_fix": "Grep ablation-row.sh, took-effect.sh, STATUS aggregation and the analysis scripts for took_effect / PR_TE handling and extend their enums and schema; assert the row's took_effect value in RAB-21.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/run-ablation.sh:GRADE_TIMEOUT_S",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/run-ablation.sh:GRADE_TIMEOUT_S",
+      "cross_file_justification": "The new 1800 s outer deadline wraps ablation-grade.sh, which has its own per-step budget (LOA_EVAL_GRADE_TIMEOUT_S, visible in the diff context) and may build the task image on first grade (`if t.build:`); the two are not coordinated.",
+      "description": "The outer deadline is independent of the grader's internal budget. The grader honours LOA_EVAL_GRADE_TIMEOUT_S per container step, may build the task image on first use, and under --concurrency several grades contend for docker. Nothing ties the 1800 s default to the inner timeout or to the number of containerised steps, and a kill is indistinguishable from a hang in the trial log.",
+      "failure_mode": "A legitimately slow grade (cold image build plus hidden tests plus regressions) is killed at the deadline and rowed infrastructure_error, excluding a real completed trial; with the outage breaker counting infrastructure_errors, a few slow grades in a row can abort the batch.",
+      "suggested_fix": "Derive the outer default from the grader's budget (inner timeout × steps plus a build allowance) or validate at startup that GRADE_TIMEOUT_S exceeds LOA_EVAL_GRADE_TIMEOUT_S when set; have the grader log its current stage so a timeout line shows what was running.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:HIDDEN_TOKEN",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The camelCase branch `\\bhidden(?=[A-Z])` sits outside the (?i:) group, so `hiddenTests/` is a hit but `HiddenTests/` and `HiddenCases.py` are not, while the adjacency branches and the comment describe any-case matching. PascalCase directory and file names are at least as common as camelCase for test fixtures.",
+      "failure_mode": "A probe such as `ls HiddenTests/` or `cat HiddenTests.md` is a missed contamination signal.",
+      "suggested_fix": "Use `\\b[Hh]idden(?=[A-Z])` for the camelCase branch and add `ls HiddenTests/` to AG-32.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-260",
+    "timestamp": "2026-10-16T22:43:38Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": true,
+    "parse_path": "schema_enforced",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 36539,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6f3265523fbd497201cf2dd492d8377dac98230b945c490abff0bd05b76aceec",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "degraded",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=degraded",
+    "single_voice_call": false,
+    "status": "DEGRADED"
+  }
+}

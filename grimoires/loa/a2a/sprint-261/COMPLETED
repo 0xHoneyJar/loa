@@ -1,0 +1,9 @@
+sprint: sprint-261 (local sprint-4)
+completed_at: 2026-10-18T10:36:51Z
+commit: e95139fe
+review: engineer-feedback.md APPROVED (round 3; rounds 1–2 archived as engineer-feedback-r1.md, -r2.md)
+audit: auditor-sprint-feedback.md APPROVED (round 1, dissent run 3 of 3 --type audit; one fix e95139fe, one refuted finding, two beads)
+batches: priority-v2-p1 24 rows + priority-v2-p1b 9 rows (suite v2, MANIFEST.sha256 ddd200b3…); reads: H1 established on the catch rate (+0.263 [+0.158, +0.386]); pass rate and A4 not testable → no pruning (DEC-0597)
+grader: 1.2.13 (1.2.10 … 1.2.13 inside the sprint; inline v2 grades 1.2.11; blind re-grade of 165 run dirs under 1.2.13 identical)
+harness: per-type caps, --types fix, KF-048 credential copy + codex pre-flight 6 (two causes), row writer 1.2, report 1.2.0
+spend: USD 1,167.98 of 1,500 (incl. manual ledgers 21.70 + 12.88)

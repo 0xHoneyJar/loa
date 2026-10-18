@@ -1,0 +1,16 @@
+id: refactor-v2-08
+schema_version: 1
+type: refactor
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 F3 swap round 1: a tangled task-manifest scheduler (one long manifest parser, graph algorithms with nested closures, a list-scheduling simulator in nested loops, a cached name dict, settings and counters at module level, a cli that imports the package back) rebuilt on a stated eight-layer layout under 27 stated structural rules, three of which force algorithmic rewrites (no recursion, single exit, no in-place mutation), with behaviour pinned by a flattened reference over generated manifests, cyclic graphs and worker counts", churn: {files: 21, insertions: 623, deletions: 406}}
+post_cutoff: true
+fixture: tasks/refactor-v2-08/fixture
+criterion: "the task-graph package is rebuilt into the stated modules and layers with the stated data model, signatures and error classes, every structural rule of the brief holds across the whole package, and every exported function, the command line and the new layer functions behave exactly as the package does today for every input"
+success_criterion: "hidden/structural/graph_layout_test.py (overlaid at tests/structure/graph_layout_test.py with its helper hidden/structural/_oracle_graph.py at tests/structure/_oracle_graph.py) passes 40 of 40 under python3 -m pytest -q tests/structure (32 rule cases, 8 conformance cases over seeded generated inputs), red at base (39 failed, 1 passed: the exported-behaviour conformance case, which the base satisfies by construction), green with hidden/reference.patch; test_command (the fixture suite, 40 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cli.py, tests/test_manifest.py, tests/test_plan.py]
+structural_check: hidden/structural/graph_layout_test.py
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

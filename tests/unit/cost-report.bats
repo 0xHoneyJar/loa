@@ -163,7 +163,7 @@ ROWS
   [ "$status" -eq 0 ]
   [ "$(wc -l < "$RP")" -eq 5 ]
   [ "$(stat -c %i "$RP")" = "$inode_before" ]   # rewritten in place under the writer's lock (audit F-1)
-  grep '"u1"' "$RP" | jq -e '.pricing_source == "config" and .pricing_resolution == "hop" and .resolved_model == "gpt-5.5" and .cost_estimated == true and .cost_micro_usd > 0 and .repriced_from == {"pricing_source":"unknown","cost_micro_usd":0} and (.repriced_at|test("^2026")) and .request_id == "u1" and .tokens_in == 1000' >/dev/null
+  grep '"u1"' "$RP" | jq -e '.pricing_source == "config" and .pricing_resolution == "hop" and .resolved_model == "gpt-6.1-sol" and .cost_estimated == true and .cost_micro_usd > 0 and .repriced_from == {"pricing_source":"unknown","cost_micro_usd":0} and (.repriced_at|test("^2026")) and .request_id == "u1" and .tokens_in == 1000' >/dev/null
   grep '"u2"' "$RP" | jq -e '.pricing_source == "config" and .cost_micro_usd > 0' >/dev/null
   [ "$(sed -n '3p' "$RP")" = "$l3" ]; [ "$(sed -n '4p' "$RP")" = "$l4" ]; [ "$(sed -n '5p' "$RP")" = "$l5" ]
   backup=$(ls "$RP.pre-reprice-"* | head -1); [ -n "$backup" ]

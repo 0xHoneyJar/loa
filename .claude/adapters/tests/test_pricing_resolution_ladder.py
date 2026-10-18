@@ -27,7 +27,7 @@ FLEET_IDS = [
     ("openai", "gpt-5.5-2026-04-23", "dated", "gpt-5.5"),
     ("openai", "gpt-5.2-2025-12-11", "dated", "gpt-5.2"),
     ("google", "gemini-2.5-pro", "exact", "gemini-2.5-pro"),
-    ("openai", "codex-headless", "hop", "gpt-5.5"),
+    ("openai", "codex-headless", "hop", "gpt-6.1-sol"),   # cycle-130: cli_model repointed (KF-044)
     ("anthropic", "claude-headless", "hop", "claude-fable-5-1"),
     ("anthropic", "claude-fable-5-1", "exact", "claude-fable-5-1"),
     ("anthropic", "fable", "alias", "claude-fable-5-1"),

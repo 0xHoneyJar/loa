@@ -1,0 +1,401 @@
+diff -ruN a/src/semrange/bump.py b/src/semrange/bump.py
+--- a/src/semrange/bump.py
++++ b/src/semrange/bump.py
+@@ -34,7 +34,7 @@
+         out = (major, minor, 0, ()) if pre and patch == 0 \
+             else (major, minor + 1, 0, ())
+     elif kind == "patch":
+-        out = (major, minor, patch + 1, ())
++        out = (major, minor, patch, ()) if pre else (major, minor, patch + 1, ())
+     elif kind == "premajor":
+         out = (major + 1, 0, 0, start)
+     elif kind == "preminor":
+@@ -42,13 +42,15 @@
+     elif kind == "prepatch":
+         out = (major, minor, patch + 1, start)
+     else:
+-        out = _next_prerelease(major, minor, patch, pre, start)
++        out = _next_prerelease(major, minor, patch, pre, preid, start)
+     return str(Version(*out))
+ 
+ 
+-def _next_prerelease(major, minor, patch, pre, start):
++def _next_prerelease(major, minor, patch, pre, preid, start):
+     if not pre:
+         return (major, minor, patch + 1, start)
++    if preid is not None and pre[0] != preid:
++        return (major, minor, patch, (preid, "0"))
+     ids = list(pre)
+     for i in range(len(ids) - 1, -1, -1):
+         if is_numeric(ids[i]):
+diff -ruN a/src/semrange/compare.py b/src/semrange/compare.py
+--- a/src/semrange/compare.py
++++ b/src/semrange/compare.py
+@@ -24,10 +24,8 @@
+ def sort_versions(versions, reverse=False):
+     """Return the versions as ``Version`` objects in precedence order.
+ 
+-    ``reverse=True`` gives the newest version first.
++    The sort is stable in both directions: versions of equal precedence keep
++    their input order whether ``reverse`` is false or true.
+     """
+     items = [coerce_version(v) for v in versions]
+-    ordered = sorted(items, key=cmp_to_key(compare_versions))
+-    if reverse:
+-        ordered.reverse()
+-    return ordered
++    return sorted(items, key=cmp_to_key(compare_versions), reverse=reverse)
+diff -ruN a/src/semrange/desugar.py b/src/semrange/desugar.py
+--- a/src/semrange/desugar.py
++++ b/src/semrange/desugar.py
+@@ -19,33 +19,49 @@
+     return [Comparator(">=", _v(0, 0, 0))]
+ 
+ 
++def _nothing():
++    return [Comparator("<", _v(0, 0, 0, LOWEST))]
++
++
+ def primitive(op, p):
+     """``op`` in ``< <= > >= =`` applied to the partial version ``p``."""
+     if p.major is None:
++        if op in ("<", ">"):
++            return _nothing()
+         return _any()
+     if p.patch is not None:
+         return [Comparator(op, _v(p.major, p.minor, p.patch, p.prerelease))]
+-    # fill the missing components with zeros
+-    low = _v(p.major, p.minor or 0, 0)
++    if p.minor is None:
++        low = _v(p.major, 0, 0)
++        low_pre = _v(p.major, 0, 0, LOWEST)
++        high = _v(p.major + 1, 0, 0, LOWEST)
++        after = _v(p.major + 1, 0, 0)
++    else:
++        low = _v(p.major, p.minor, 0)
++        low_pre = _v(p.major, p.minor, 0, LOWEST)
++        high = _v(p.major, p.minor + 1, 0, LOWEST)
++        after = _v(p.major, p.minor + 1, 0)
+     if op == "=":
+-        if p.minor is None:
+-            high = _v(p.major + 1, 0, 0, LOWEST)
+-        else:
+-            high = _v(p.major, p.minor + 1, 0, LOWEST)
+         return [Comparator(">=", low), Comparator("<", high)]
++    if op == ">":
++        return [Comparator(">=", after)]
++    if op == ">=":
++        return [Comparator(">=", low)]
+     if op == "<":
+-        return [Comparator("<", _v(low.major, low.minor, 0, LOWEST))]
+-    return [Comparator(op, low)]
++        return [Comparator("<", low_pre)]
++    return [Comparator("<", high)]  # "<="
+ 
+ 
+ def tilde(p):
+     """``~``: patch-level changes, or minor-level ones when only X is given."""
+     if p.major is None:
+         return _any()
+-    minor = p.minor or 0
+-    patch = p.patch or 0
+-    return [Comparator(">=", _v(p.major, minor, patch, p.prerelease)),
+-            Comparator("<", _v(p.major, minor + 1, 0, LOWEST))]
++    if p.minor is None:
++        return [Comparator(">=", _v(p.major, 0, 0)),
++                Comparator("<", _v(p.major + 1, 0, 0, LOWEST))]
++    patch = 0 if p.patch is None else p.patch
++    return [Comparator(">=", _v(p.major, p.minor, patch, p.prerelease)),
++            Comparator("<", _v(p.major, p.minor + 1, 0, LOWEST))]
+ 
+ 
+ def caret(p):
+@@ -65,8 +81,10 @@
+     low = _v(p.major, p.minor, p.patch, p.prerelease)
+     if p.major > 0:
+         high = _v(p.major + 1, 0, 0, LOWEST)
+-    else:
++    elif p.minor > 0:
+         high = _v(0, p.minor + 1, 0, LOWEST)
++    else:
++        high = _v(0, 0, p.patch + 1, LOWEST)
+     return [Comparator(">=", low), Comparator("<", high)]
+ 
+ 
+@@ -79,8 +97,13 @@
+                                    low.prerelease))]
+     if high.major is None:
+         return out
+-    out.append(Comparator("<=", _v(high.major, high.minor or 0, high.patch or 0,
+-                                   high.prerelease)))
++    if high.patch is not None:
++        out.append(Comparator("<=", _v(high.major, high.minor, high.patch,
++                                       high.prerelease)))
++    elif high.minor is None:
++        out.append(Comparator("<", _v(high.major + 1, 0, 0, LOWEST)))
++    else:
++        out.append(Comparator("<", _v(high.major, high.minor + 1, 0, LOWEST)))
+     return out
+ 
+ 
+diff -ruN a/src/semrange/identifiers.py b/src/semrange/identifiers.py
+--- a/src/semrange/identifiers.py
++++ b/src/semrange/identifiers.py
+@@ -21,8 +21,12 @@
+ 
+ 
+ def valid_prerelease_identifier(text):
+-    """A prerelease identifier: a non-empty run of the allowed characters."""
+-    return is_identifier(text)
++    """A prerelease identifier: numeric ones have no leading zero."""
++    if not is_identifier(text):
++        return False
++    if is_numeric(text) and len(text) > 1 and text[0] == "0":
++        return False
++    return True
+ 
+ 
+ def valid_build_identifier(text):
+@@ -42,13 +46,20 @@
+ def compare_identifier(a, b):
+     """Order two prerelease identifiers (-1, 0 or 1).
+ 
+-    Numeric identifiers sort before alphanumeric ones; otherwise the
+-    identifiers compare as text.
++    Numeric identifiers compare numerically, a numeric identifier is lower
++    than an alphanumeric one, and alphanumeric identifiers compare in ASCII
++    order.
+     """
+     a_num, b_num = is_numeric(a), is_numeric(b)
+-    if a_num != b_num:
+-        return -1 if a_num else 1
+-    return (a > b) - (a < b)
++    if a_num and b_num:
++        x, y = int(a), int(b)
++    elif a_num:
++        return -1
++    elif b_num:
++        return 1
++    else:
++        x, y = a, b
++    return (x > y) - (x < y)
+ 
+ 
+ def compare_prerelease(a, b):
+@@ -63,4 +74,4 @@
+         c = compare_identifier(x, y)
+         if c:
+             return c
+-    return 0
++    return (len(a) > len(b)) - (len(a) < len(b))
+diff -ruN a/src/semrange/index.py b/src/semrange/index.py
+--- a/src/semrange/index.py
++++ b/src/semrange/index.py
+@@ -9,8 +9,7 @@
+ groups a set names are searched.
+ 
+ A query plan (the intervals and the prerelease groups of each set) is
+-cached per range text; whitespace does not change a plan, so the cache key
+-is the text with its whitespace removed.
++cached per range text.
+ """
+ from bisect import bisect_left, bisect_right
+ from functools import cmp_to_key
+@@ -35,16 +34,27 @@
+         """``(start, stop)`` of the entries inside ``interval``."""
+         lo, lo_incl, hi, hi_incl = interval
+         keys = self.keys
+-        start = 0 if lo is None else bisect_left(keys, KEY(lo))
+-        if lo is not None and not lo_incl:
+-            start += 1  # step over the bound itself
+-        stop = len(keys) if hi is None else bisect_right(keys, KEY(hi))
++        if lo is None:
++            start = 0
++        elif lo_incl:
++            start = bisect_left(keys, KEY(lo))
++        else:
++            start = bisect_right(keys, KEY(lo))
++        if hi is None:
++            stop = len(keys)
++        elif hi_incl:
++            stop = bisect_right(keys, KEY(hi))
++        else:
++            stop = bisect_left(keys, KEY(hi))
+         return start, max(start, stop)
+ 
+     def highest(self, interval):
+         """The earliest entry of the highest precedence inside, or None."""
+         start, stop = self.span(interval)
+-        return self.entries[stop - 1] if start < stop else None
++        if start == stop:
++            return None
++        first = bisect_left(self.keys, self.keys[stop - 1], start, stop)
++        return self.entries[first]
+ 
+     def lowest(self, interval):
+         start, stop = self.span(interval)
+@@ -58,25 +68,33 @@
+ def _interval(comparators):
+     """``(lo, lo_inclusive, hi, hi_inclusive)`` bounded by a set's comparators.
+ 
+-    Of two bounds on the same side the stricter wins.
++    Of two bounds on the same side the stricter wins; at equal precedence
++    the exclusive bound is the stricter.
+     """
+     lo, lo_incl, hi, hi_incl = None, True, None, True
+     for c in comparators:
+         v = c.version
+         if c.op in (">", ">=", "="):
+-            if lo is None or compare_versions(v, lo) > 0:
+-                lo, lo_incl = v, c.op != ">"
++            incl = c.op != ">"
++            d = 1 if lo is None else compare_versions(v, lo)
++            if d > 0 or (d == 0 and not incl):
++                lo, lo_incl = v, incl
+         if c.op in ("<", "<=", "="):
+-            if hi is None or compare_versions(v, hi) < 0:
+-                hi, hi_incl = v, c.op != "<"
++            incl = c.op != "<"
++            d = -1 if hi is None else compare_versions(v, hi)
++            if d < 0 or (d == 0 and not incl):
++                hi, hi_incl = v, incl
+     return lo, lo_incl, hi, hi_incl
+ 
+ 
+ def _plan(range_):
+     """Per set: its interval and the release lines whose prereleases it admits."""
+-    lines = sorted({c.version.core for comparators in range_.sets
+-                    for c in comparators if c.version.prerelease})
+-    return [(_interval(comparators), lines) for comparators in range_.sets]
++    plan = []
++    for comparators in range_.sets:
++        lines = sorted({c.version.core for c in comparators
++                        if c.version.prerelease})
++        plan.append((_interval(comparators), lines))
++    return plan
+ 
+ 
+ def _better(a, b, sign):
+@@ -120,10 +138,9 @@
+     def _plan_for(self, range_):
+         if isinstance(range_, Range):
+             return _plan(range_)
+-        key = "".join(range_.split()) if isinstance(range_, str) else range_
+-        plan = self._plans.get(key)
++        plan = self._plans.get(range_)
+         if plan is None:
+-            plan = self._plans[key] = _plan(Range(range_))
++            plan = self._plans[range_] = _plan(Range(range_))
+         return plan
+ 
+     def _lines(self, lines):
+@@ -148,13 +165,9 @@
+         return None if best is None else best[1]
+ 
+     def filter_satisfying(self, range_):
+-        out, seen = [], set()
++        found = {}
+         for interval, lines in self._plan_for(range_):
+-            hits = []
+             for line in self._lines(lines):
+-                hits.extend(line.inside(interval))
+-            for position, item, _ in sorted(hits, key=lambda e: e[0]):
+-                if position not in seen:
+-                    seen.add(position)
+-                    out.append(item)
+-        return out
++                for position, item, _ in line.inside(interval):
++                    found[position] = item
++        return [found[p] for p in sorted(found)]
+diff -ruN a/src/semrange/range.py b/src/semrange/range.py
+--- a/src/semrange/range.py
++++ b/src/semrange/range.py
+@@ -20,15 +20,7 @@
+     def test(self, version):
+         """True when ``version`` (string or ``Version``) is in the range."""
+         v = coerce_version(version)
+-        if v.prerelease and not self._names_prerelease_of(v):
+-            return False
+-        return any(all(c.test(v) for c in comparators)
+-                   for comparators in self.sets)
+-
+-    def _names_prerelease_of(self, version):
+-        """True when some comparator names a prerelease of the same release."""
+-        return any(c.version.prerelease and c.version.core == version.core
+-                   for comparators in self.sets for c in comparators)
++        return any(_set_admits(comparators, v) for comparators in self.sets)
+ 
+     def __contains__(self, version):
+         return self.test(version)
+@@ -41,6 +33,17 @@
+         return f"Range({str(self)!r})"
+ 
+ 
++def _set_admits(comparators, version):
++    if not all(c.test(version) for c in comparators):
++        return False
++    if not version.prerelease:
++        return True
++    # A prerelease is admitted only through a comparator of the same set
++    # that names a prerelease of the same major.minor.patch.
++    return any(c.version.prerelease and c.version.core == version.core
++               for c in comparators)
++
++
+ def coerce_range(value):
+     """A ``Range`` is returned as is; anything else is parsed."""
+     if isinstance(value, Range):
+diff -ruN a/src/semrange/rangeparse.py b/src/semrange/rangeparse.py
+--- a/src/semrange/rangeparse.py
++++ b/src/semrange/rangeparse.py
+@@ -14,6 +14,7 @@
+ WILDCARDS = frozenset({"x", "X", "*"})
+ # longest first, so that "<=" is not read as "<" followed by "=1.2.3"
+ TERM_OPERATORS = ("<=", ">=", "<", ">", "=", "~", "^")
++_OPERATOR_CHARS = frozenset("<>=~^")
+ _NUMBER = re.compile(r"0|[1-9][0-9]*")
+ 
+ 
+@@ -111,18 +112,25 @@
+     """Parse one comparator set into a list of terms."""
+     tokens = text.split()
+     if not tokens:
+-        raise InvalidRange(whole)
++        return [Term("=", STAR)]
+     if "-" in tokens:
+         if len(tokens) != 3 or tokens[1] != "-":
+             raise InvalidRange(whole)
+         return [HyphenTerm(parse_partial(tokens[0], whole),
+                            parse_partial(tokens[2], whole))]
+     terms = []
+-    for token in tokens:
+-        op, rest = _split_operator(token)
+-        if not rest:
+-            raise InvalidRange(whole)
++    i = 0
++    while i < len(tokens):
++        op, rest = _split_operator(tokens[i])
++        if op and not rest:
++            i += 1
++            if i >= len(tokens):
++                raise InvalidRange(whole)
++            rest = tokens[i]
++            if rest[0] in _OPERATOR_CHARS:
++                raise InvalidRange(whole)
+         terms.append(Term(op or "=", parse_partial(rest, whole)))
++        i += 1
+     return terms
+ 
+ 
+diff -ruN a/src/semrange/version.py b/src/semrange/version.py
+--- a/src/semrange/version.py
++++ b/src/semrange/version.py
+@@ -6,7 +6,7 @@
+ from .identifiers import (compare_prerelease, split_identifiers,
+                           valid_build_identifier, valid_prerelease_identifier)
+ 
+-NUMBER = r"[0-9]+"
++NUMBER = r"0|[1-9][0-9]*"
+ _VERSION = re.compile(
+     rf"(?P<major>{NUMBER})\.(?P<minor>{NUMBER})\.(?P<patch>{NUMBER})"
+     r"(?:-(?P<pre>[^+]*))?(?:\+(?P<build>.*))?",

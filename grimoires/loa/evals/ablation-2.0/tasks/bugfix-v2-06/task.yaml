@@ -1,0 +1,16 @@
+id: bugfix-v2-06
+schema_version: 1
+type: bug-fix
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 D3 swap round 1: Semantic Versioning 2.0.0 parse/precedence and npm-style range resolution (caret/tilde/x-range/hyphen desugaring with -0 bounds, per-set prerelease rule, selection ties, increments); 25 deviations from the stated spec across 8 modules"}
+post_cutoff: true
+fixture: tasks/bugfix-v2-06/fixture
+criterion: "versions parse, compare, sort and increment exactly by the stated semantic-versioning rules, and every range expression (caret, tilde, wildcards, partial versions under operators, hyphen ranges, whitespace and empty sets) desugars to the stated comparators and admits a prerelease only through a comparator of its own set with the same release numbers, so selection, resolution reports and lock checks pick and judge the right versions"
+success_criterion: "hidden/tests/test_resolution_rules.py (overlaid at tests/acceptance/test_resolution_rules.py with its helper hidden/tests/_oracle_semver.py at tests/acceptance/_oracle_semver.py) passes 36 of 36 (21 hand-written, 15 conformance against the helper model) under python3 -m pytest -q tests; red at base (35 failed, 35 passed of 70: 1 of 36 hidden cases and the 34 fixture cases green), green with hidden/reference.patch (70 of 70); regression_command (fixture suite: 34 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_ranges.py, tests/test_tools.py, tests/test_versions.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

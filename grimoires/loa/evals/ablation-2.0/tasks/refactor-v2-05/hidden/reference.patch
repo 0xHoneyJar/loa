@@ -1,0 +1,1468 @@
+diff --git a/src/semverkit/__init__.py b/src/semverkit/__init__.py
+index d6c2956..283b430 100644
+--- a/src/semverkit/__init__.py
++++ b/src/semverkit/__init__.py
+@@ -1,28 +1,19 @@
+ """Semantic versions and npm-style ranges."""
+-import functools
+ 
+-from .core import Version, InvalidVersion, parse, bump, compare_versions, _sort_cmp, _fmt
+-from .ranges import InvalidRange, satisfies, max_satisfying, min_satisfying, normalize_range
++from semverkit.errors import InvalidBumpError, SemverError
++from semverkit.errors import InvalidRangeError as InvalidRange
++from semverkit.errors import InvalidVersionError as InvalidVersion
++from semverkit.facade import bump_text as bump
++from semverkit.facade import compare_text as compare
++from semverkit.facade import max_satisfying_text as max_satisfying
++from semverkit.facade import min_satisfying_text as min_satisfying
++from semverkit.facade import normalize_range, parse, valid
++from semverkit.facade import satisfies_text as satisfies
++from semverkit.facade import sort_text as sort
++from semverkit.model import Version
++from semverkit.report import render_table
+ 
+-
+-def valid(text):
+-    """Return the canonical form of a version string, or None."""
+-    try:
+-        return _fmt(parse(text))
+-    except Exception:
+-        return None
+-
+-
+-def compare(a, b):
+-    """Compare two version strings by precedence."""
+-    return compare_versions(parse(a), parse(b))
+-
+-
+-def sort(texts):
+-    """Sort version strings by precedence, keeping their spelling."""
+-    pairs = [(parse(t), t) for t in texts]
+-    pairs.sort(key=functools.cmp_to_key(_sort_cmp))
+-    return [t for _, t in pairs]
+-
+-
+-from .report import render_table  # noqa: E402  (report needs sort)
++__all__ = [
++    "InvalidBumpError", "InvalidRange", "InvalidVersion", "SemverError", "Version", "bump", "compare",
++    "max_satisfying", "min_satisfying", "normalize_range", "parse", "render_table", "satisfies", "sort", "valid",
++]
+diff --git b/src/semverkit/bumping.py b/src/semverkit/bumping.py
+new file mode 100644
+index 0000000..9086e76
+--- /dev/null
++++ b/src/semverkit/bumping.py
+@@ -0,0 +1,74 @@
++"""Bumping a version by one part."""
++
++from semverkit.errors import InvalidBumpError
++from semverkit.model import Part, Version
++from semverkit.versions import format_version
++
++__all__ = ["bump", "check_identifier"]
++
++
++def _word(ident: str) -> bool:
++    chars = all(c.isascii() and (c.isalnum() or c == "-") for c in ident)
++    return bool(ident) and chars and not ident.isdigit()
++
++
++def check_identifier(part: Part, ident: str | None) -> None:
++    """Reject an identifier that a bump cannot use."""
++    if ident is None:
++        return
++    if part is not Part.PRERELEASE:
++        raise InvalidBumpError("identifier only applies to prerelease")
++    if not _word(ident):
++        raise InvalidBumpError(f"invalid identifier: {ident!r}")
++
++
++def _major(v: Version) -> Version:
++    keep = bool(v.prerelease) and v.minor == 0 and v.patch == 0
++    return Version(v.major if keep else v.major + 1, 0, 0)
++
++
++def _minor(v: Version) -> Version:
++    keep = bool(v.prerelease) and v.patch == 0
++    return Version(v.major, v.minor if keep else v.minor + 1, 0)
++
++
++def _patch(v: Version) -> Version:
++    return Version(v.major, v.minor, v.patch if v.prerelease else v.patch + 1)
++
++
++def _next_prerelease(v: Version, ident: str | None) -> tuple[int | str, ...]:
++    pre = v.prerelease
++    if ident is not None and pre[0] != ident:
++        return (ident, 0)
++    if isinstance(pre[-1], int):
++        return pre[:-1] + (pre[-1] + 1,)
++    return pre + (0,)
++
++
++def _prerelease(v: Version, ident: str | None) -> Version:
++    if not v.prerelease:
++        start: tuple[int | str, ...] = (ident, 0) if ident is not None else (0,)
++        return Version(v.major, v.minor, v.patch + 1, start)
++    return Version(v.major, v.minor, v.patch, _next_prerelease(v, ident))
++
++
++def _release(v: Version) -> Version:
++    if not v.prerelease:
++        raise InvalidBumpError(f"already a release: {format_version(v)!r}")
++    return Version(v.major, v.minor, v.patch)
++
++
++def bump(version: Version, part: Part, ident: str | None = None) -> Version:
++    """Return the version after bumping one part; build metadata is dropped."""
++    check_identifier(part, ident)
++    match part:
++        case Part.MAJOR:
++            return _major(version)
++        case Part.MINOR:
++            return _minor(version)
++        case Part.PATCH:
++            return _patch(version)
++        case Part.PRERELEASE:
++            return _prerelease(version, ident)
++        case Part.RELEASE:
++            return _release(version)
+diff --git a/src/semverkit/cache.py a/src/semverkit/cache.py
+deleted file mode 100644
+index ce3dde6..0000000
+--- a/src/semverkit/cache.py
++++ /dev/null
+@@ -1,21 +0,0 @@
+-"""A process-wide cache of parsed ranges."""
+-
+-_cache = {}
+-_HITS = 0
+-
+-
+-def cached_range(text, parser):
+-    global _HITS
+-    if isinstance(text, str) and text in _cache:
+-        _HITS += 1
+-        return _cache[text]
+-    result = parser(text)
+-    if isinstance(text, str):
+-        _cache[text] = result
+-    return result
+-
+-
+-def clear():
+-    global _HITS
+-    _cache.clear()
+-    _HITS = 0
+diff --git a/src/semverkit/cli.py b/src/semverkit/cli.py
+index 06ff5fa..3c702bf 100644
+--- a/src/semverkit/cli.py
++++ b/src/semverkit/cli.py
+@@ -1,66 +1,82 @@
+-"""The command line entry point main()."""
++"""The command line: python -m semverkit.cli <command> ..."""
++
+ import argparse
+ import sys
+ 
+-import semverkit
+-from semverkit.ranges import InvalidRange
++from semverkit.errors import SemverError
++from semverkit.facade import bump_text, max_satisfying_text, normalize_range, satisfies_text, sort_text, valid
++from semverkit.report import render_table
++
++__all__ = ["build_parser", "main", "run"]
+ 
+ 
+-def main(argv=None):
+-    """Run the command line and return the exit code."""
++def build_parser() -> argparse.ArgumentParser:
++    """Build the argument parser with one subcommand per action."""
+     parser = argparse.ArgumentParser(prog="semverkit")
+     sub = parser.add_subparsers(dest="command", required=True)
+     sub.add_parser("parse").add_argument("version")
+     sub.add_parser("sort").add_argument("versions", nargs="+")
+-    b = sub.add_parser("bump")
+-    b.add_argument("version")
+-    b.add_argument("part")
+-    b.add_argument("--id", dest="ident")
+-    t = sub.add_parser("test")
+-    t.add_argument("version")
+-    t.add_argument("range")
+-    t.add_argument("--pre", action="store_true")
+-    m = sub.add_parser("max")
+-    m.add_argument("range")
+-    m.add_argument("versions", nargs="+")
+-    m.add_argument("--pre", action="store_true")
+-    tb = sub.add_parser("table")
+-    tb.add_argument("--range", dest="ranges", action="append", required=True)
+-    tb.add_argument("versions", nargs="*")
++    bumper = sub.add_parser("bump")
++    bumper.add_argument("version")
++    bumper.add_argument("part")
++    bumper.add_argument("--id", dest="ident")
++    tester = sub.add_parser("test")
++    tester.add_argument("version")
++    tester.add_argument("range")
++    tester.add_argument("--pre", action="store_true")
++    best = sub.add_parser("max")
++    best.add_argument("range")
++    best.add_argument("versions", nargs="+")
++    best.add_argument("--pre", action="store_true")
++    table = sub.add_parser("table")
++    table.add_argument("--range", dest="ranges", action="append", required=True)
++    table.add_argument("versions", nargs="*")
+     sub.add_parser("normalize").add_argument("range")
+-    args = parser.parse_args(argv)
++    return parser
++
++
++def _parse_command(args: argparse.Namespace) -> tuple[str, int]:
++    text = valid(args.version)
++    if text is None:
++        return f"error: invalid version: {args.version!r}", 2
++    return text, 0
++
++
++def _test_command(args: argparse.Namespace) -> tuple[str, int]:
++    hit = satisfies_text(args.version, args.range, args.pre)
++    return ("yes", 0) if hit else ("no", 1)
++
++
++def _max_command(args: argparse.Namespace) -> tuple[str, int]:
++    best = max_satisfying_text(args.versions, args.range, args.pre)
++    return ("none", 1) if best is None else (best, 0)
++
++
++def run(args: argparse.Namespace) -> tuple[str, int]:
++    """Run one parsed command and return its output and exit code."""
++    if args.command == "parse":
++        return _parse_command(args)
++    if args.command == "sort":
++        return "\n".join(sort_text(args.versions)), 0
++    if args.command == "bump":
++        return bump_text(args.version, args.part, args.ident), 0
++    if args.command == "test":
++        return _test_command(args)
++    if args.command == "max":
++        return _max_command(args)
++    if args.command == "table":
++        return render_table(args.versions, args.ranges), 0
++    return normalize_range(args.range), 0
++
++
++def main(argv: list[str] | None = None) -> int:
++    """Run the command line and return the exit code."""
++    args = build_parser().parse_args(argv)
+     try:
+-        if args.command == "parse":
+-            out = semverkit.valid(args.version)
+-            if out is None:
+-                print("error: invalid version: %r" % (args.version,), file=sys.stderr)
+-                return 2
+-            print(out)
+-        elif args.command == "sort":
+-            print("\n".join(semverkit.sort(args.versions)))
+-        elif args.command == "bump":
+-            print(semverkit.bump(args.version, args.part, args.ident))
+-        elif args.command == "test":
+-            if semverkit.satisfies(args.version, args.range, args.pre):
+-                print("yes")
+-            else:
+-                print("no")
+-                return 1
+-        elif args.command == "max":
+-            best = semverkit.max_satisfying(args.versions, args.range, args.pre)
+-            if best is None:
+-                print("none")
+-                return 1
+-            print(best)
+-        elif args.command == "table":
+-            print(semverkit.render_table(args.versions, args.ranges))
+-        else:
+-            print(semverkit.normalize_range(args.range))
+-    except (ValueError, InvalidRange) as exc:
+-        print("error: %s" % exc, file=sys.stderr)
++        text, code = run(args)
++    except SemverError as exc:
++        print(f"error: {exc}", file=sys.stderr)
+         return 2
+-    return 0
+-
+-
+-if __name__ == "__main__":
+-    sys.exit(main())
++    stream = sys.stderr if code == 2 else sys.stdout
++    print(text, file=stream)
++    return code
+diff --git a/src/semverkit/compat.py a/src/semverkit/compat.py
+deleted file mode 100644
+index b5893c1..0000000
+--- a/src/semverkit/compat.py
++++ /dev/null
+@@ -1,17 +0,0 @@
+-"""Compatibility shims kept from the 0.x days."""
+-import functools
+-
+-text_type = str
+-string_types = (str,)
+-
+-
+-@functools.lru_cache(maxsize=None)
+-def is_wildcard(part):
+-    from semverkit import config
+-    return part in config.WILDCARDS
+-
+-
+-def ensure_str(value, what):
+-    if not isinstance(value, string_types):
+-        raise ValueError("not a string: %r" % (value,))
+-    return value
+diff --git a/src/semverkit/config.py a/src/semverkit/config.py
+deleted file mode 100644
+index 16e9ab0..0000000
+--- a/src/semverkit/config.py
++++ /dev/null
+@@ -1,16 +0,0 @@
+-# shared settings for the whole package
+-DEFAULTS = {
+-    "max_length": 256,
+-    "max_range_length": 1024,
+-    "include_prerelease": False,
+-}
+-
+-# the wildcard spellings accepted inside ranges
+-WILDCARDS = ["x", "X", "*"]
+-
+-# operator spellings, longest first so that ">=" wins over ">"
+-OPERATORS = [">=", "<=", "~>", ">", "<", "=", "^", "~"]
+-
+-
+-def get(key):
+-    return DEFAULTS[key]
+diff --git a/src/semverkit/core.py a/src/semverkit/core.py
+deleted file mode 100644
+index 5de8eaf..0000000
+--- a/src/semverkit/core.py
++++ /dev/null
+@@ -1,172 +0,0 @@
+-"""Versions: parsing, ordering and bumping."""
+-import re
+-from typing import Optional
+-
+-from . import config
+-from .utils import _strip, _sign, _is_num, _fmt, isWord
+-
+-_version_re = re.compile(
+-    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+-    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+-)
+-
+-_parse_count = 0
+-
+-
+-class InvalidVersion(ValueError):
+-    pass
+-
+-
+-class Version:
+-    """A parsed semantic version."""
+-
+-    def __init__(self, major, minor, patch, prerelease=(), build=()):
+-        self.major = major
+-        self.minor = minor
+-        self.patch = patch
+-        self.prerelease = tuple(prerelease)
+-        self.build = tuple(build)
+-
+-    def __eq__(self, other):
+-        if not isinstance(other, Version):
+-            return NotImplemented
+-        return (self.major, self.minor, self.patch, self.prerelease, self.build) == (
+-            other.major, other.minor, other.patch, other.prerelease, other.build)
+-
+-    def __hash__(self):
+-        return hash((self.major, self.minor, self.patch, self.prerelease, self.build))
+-
+-    def __repr__(self):
+-        return "Version(major=%r, minor=%r, patch=%r, prerelease=%r, build=%r)" % (
+-            self.major, self.minor, self.patch, self.prerelease, self.build)
+-
+-
+-def parse(text):
+-    """Parse one version string, accepting a leading = and v."""
+-    global _parse_count
+-    _parse_count += 1
+-    if not isinstance(text, str):
+-        raise InvalidVersion("not a string: %r" % (text,))
+-    if len(text) > config.get("max_length"):
+-        raise InvalidVersion("version too long")
+-    m = _version_re.match(_strip(text))
+-    if m is None:
+-        raise InvalidVersion("invalid version: %r" % (text,))
+-    pre = []
+-    if m.group(4):
+-        for ident in m.group(4).split("."):
+-            if _is_num(ident):
+-                if len(ident) > 1 and ident[0] == "0":
+-                    raise InvalidVersion("invalid version: %r" % (text,))
+-                pre.append(int(ident))
+-            else:
+-                pre.append(ident)
+-    build = m.group(5).split(".") if m.group(5) else []
+-    return Version(int(m.group(1)), int(m.group(2)), int(m.group(3)), pre, build)
+-
+-
+-def _fmt(v):
+-    return "%d.%d.%d" % (v.major, v.minor, v.patch) + (
+-        ("-" + ".".join(str(x) for x in v.prerelease)) if v.prerelease else "") + (
+-        ("+" + ".".join(v.build)) if v.build else "")
+-
+-
+-def toStr(v):
+-    return _fmt(v)
+-
+-
+-def compare_versions(a, b):
+-    """Return -1, 0 or 1 by precedence; build metadata is ignored."""
+-    if a.major != b.major:
+-        return _sign(a.major, b.major)
+-    if a.minor != b.minor:
+-        return _sign(a.minor, b.minor)
+-    if a.patch != b.patch:
+-        return _sign(a.patch, b.patch)
+-    pa, pb = a.prerelease, b.prerelease
+-    if not pa and not pb:
+-        return 0
+-    if not pa:
+-        return 1
+-    if not pb:
+-        return -1
+-    i = 0
+-    while i < len(pa) and i < len(pb):
+-        x, y = pa[i], pb[i]
+-        if isinstance(x, int) and isinstance(y, int):
+-            if x != y:
+-                return _sign(x, y)
+-        elif isinstance(x, int):
+-            return -1
+-        elif isinstance(y, int):
+-            return 1
+-        else:
+-            if x != y:
+-                return _sign(x, y)
+-        i += 1
+-    return _sign(len(pa), len(pb))
+-
+-
+-def _sort_cmp(a, b):
+-    c = compare_versions(a[0], b[0])
+-    if c:
+-        return c
+-    return _sign(_fmt(a[0]), _fmt(b[0]))
+-
+-
+-def bump(text, part, ident: Optional[str] = None):
+-    """Bump one part of a version string."""
+-    if part not in ("major", "minor", "patch", "prerelease", "release"):
+-        raise ValueError("unknown part: %r" % (part,))
+-    v = parse(text)
+-    if ident is not None:
+-        if part != "prerelease":
+-            raise ValueError("identifier only applies to prerelease")
+-        if not isWord(ident):
+-            raise ValueError("invalid identifier: %r" % (ident,))
+-    if part == "major":
+-        if v.prerelease and v.minor == 0 and v.patch == 0:
+-            n = Version(v.major, 0, 0)
+-        else:
+-            n = Version(v.major + 1, 0, 0)
+-    elif part == "minor":
+-        if v.prerelease and v.patch == 0:
+-            n = Version(v.major, v.minor, 0)
+-        else:
+-            n = Version(v.major, v.minor + 1, 0)
+-    elif part == "patch":
+-        if v.prerelease:
+-            n = Version(v.major, v.minor, v.patch)
+-        else:
+-            n = Version(v.major, v.minor, v.patch + 1)
+-    elif part == "prerelease":
+-        if not v.prerelease:
+-            if ident is not None:
+-                n = Version(v.major, v.minor, v.patch + 1, (ident, 0))
+-            else:
+-                n = Version(v.major, v.minor, v.patch + 1, (0,))
+-        else:
+-            pre = v.prerelease
+-            if ident is not None and pre[0] != ident:
+-                pre = (ident, 0)
+-            elif isinstance(pre[-1], int):
+-                pre = pre[:-1] + (pre[-1] + 1,)
+-            else:
+-                pre = pre + (0,)
+-            n = Version(v.major, v.minor, v.patch, pre)
+-    else:
+-        if not v.prerelease:
+-            raise ValueError("already a release: %r" % (_fmt(v),))
+-        n = Version(v.major, v.minor, v.patch)
+-    return toStr(n)
+-
+-
+-def satisfies_version(v, sets, include_prerelease=None):
+-    """Check a parsed version against parsed comparator sets."""
+-    from .ranges import test_set
+-    if include_prerelease is None:
+-        include_prerelease = config.get("include_prerelease")
+-    for group in sets:
+-        if test_set(v, group, include_prerelease):
+-            return True
+-    return False
+diff --git b/src/semverkit/desugar.py b/src/semverkit/desugar.py
+new file mode 100644
+index 0000000..e0394c5
+--- /dev/null
++++ b/src/semverkit/desugar.py
+@@ -0,0 +1,111 @@
++"""Turning one written comparator into primitive comparators."""
++
++from semverkit.model import Comparator, Op, Partial, Prefix, Version
++
++__all__ = ["any_version", "expand", "expand_hyphen", "no_version"]
++
++
++def any_version() -> Comparator:
++    """Return the comparator every release satisfies."""
++    return Comparator(Op.GE, Version(0, 0, 0))
++
++
++def no_version() -> Comparator:
++    """Return the comparator no version satisfies."""
++    return Comparator(Op.LT, Version(0, 0, 0, (0,)))
++
++
++def _floor(p: Partial) -> Version:
++    return Version(p.major or 0, p.minor or 0, p.patch or 0, p.prerelease)
++
++
++def _ceiling(major: int, minor: int, patch: int) -> Comparator:
++    return Comparator(Op.LT, Version(major, minor, patch, (0,)))
++
++
++def _next_major_or_minor(p: Partial) -> Comparator:
++    if p.minor is None:
++        return _ceiling(p.major + 1, 0, 0)
++    return _ceiling(p.major, p.minor + 1, 0)
++
++
++def _plain(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (any_version(),)
++    if p.patch is None:
++        return (Comparator(Op.GE, _floor(p)), _next_major_or_minor(p))
++    return (Comparator(Op.EQ, _floor(p)),)
++
++
++def _caret(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (any_version(),)
++    low = Comparator(Op.GE, _floor(p))
++    if p.minor is None or p.major > 0:
++        return (low, _ceiling(p.major + 1, 0, 0))
++    if p.patch is None or p.minor > 0:
++        return (low, _ceiling(0, p.minor + 1, 0))
++    return (low, _ceiling(0, 0, p.patch + 1))
++
++
++def _tilde(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (any_version(),)
++    return (Comparator(Op.GE, _floor(p)), _next_major_or_minor(p))
++
++
++def _greater(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (no_version(),)
++    if p.minor is None:
++        return (Comparator(Op.GE, Version(p.major + 1, 0, 0)),)
++    if p.patch is None:
++        return (Comparator(Op.GE, Version(p.major, p.minor + 1, 0)),)
++    return (Comparator(Op.GT, _floor(p)),)
++
++
++def _at_least(p: Partial) -> tuple[Comparator, ...]:
++    return (any_version(),) if p.major is None else (Comparator(Op.GE, _floor(p)),)
++
++
++def _less(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (no_version(),)
++    if p.patch is None:
++        return (_ceiling(p.major, p.minor or 0, 0),)
++    return (Comparator(Op.LT, _floor(p)),)
++
++
++def _at_most(p: Partial) -> tuple[Comparator, ...]:
++    if p.major is None:
++        return (any_version(),)
++    if p.patch is None:
++        return (_next_major_or_minor(p),)
++    return (Comparator(Op.LE, _floor(p)),)
++
++
++def expand(prefix: Prefix, partial: Partial) -> tuple[Comparator, ...]:
++    """Expand one prefixed partial version into primitive comparators."""
++    match prefix:
++        case Prefix.NONE | Prefix.EQ:
++            return _plain(partial)
++        case Prefix.CARET:
++            return _caret(partial)
++        case Prefix.TILDE:
++            return _tilde(partial)
++        case Prefix.GT:
++            return _greater(partial)
++        case Prefix.GE:
++            return _at_least(partial)
++        case Prefix.LT:
++            return _less(partial)
++        case Prefix.LE:
++            return _at_most(partial)
++
++
++def expand_hyphen(low: Partial, high: Partial) -> tuple[Comparator, ...]:
++    """Expand an inclusive hyphen range into primitive comparators."""
++    lower = _at_least(low)
++    if high.major is None:
++        return lower
++    return lower + _at_most(high)
+diff --git b/src/semverkit/errors.py b/src/semverkit/errors.py
+new file mode 100644
+index 0000000..7120d36
+--- /dev/null
++++ b/src/semverkit/errors.py
+@@ -0,0 +1,19 @@
++"""The errors the package raises."""
++
++__all__ = ["InvalidBumpError", "InvalidRangeError", "InvalidVersionError", "SemverError"]
++
++
++class SemverError(ValueError):
++    """Base class of every error the package raises."""
++
++
++class InvalidVersionError(SemverError):
++    """A version string does not follow the grammar."""
++
++
++class InvalidRangeError(SemverError):
++    """A range string does not follow the grammar."""
++
++
++class InvalidBumpError(SemverError):
++    """A bump request cannot be applied."""
+diff --git b/src/semverkit/facade.py b/src/semverkit/facade.py
+new file mode 100644
+index 0000000..984d606
+--- /dev/null
++++ b/src/semverkit/facade.py
+@@ -0,0 +1,99 @@
++"""The string-in, string-out functions the package exports."""
++
++import functools
++
++from semverkit.bumping import bump
++from semverkit.errors import InvalidBumpError, InvalidVersionError
++from semverkit.matching import max_satisfying, min_satisfying, satisfies
++from semverkit.model import Part, Version
++from semverkit.precedence import compare
++from semverkit.ranges import format_range, parse_range
++from semverkit.versions import format_version, parse_version
++
++__all__ = [
++    "bump_text", "compare_text", "max_satisfying_text", "min_satisfying_text",
++    "normalize_range", "parse", "satisfies_text", "sort_text", "valid",
++]
++
++
++def parse(text: str) -> Version:
++    """Parse a version string."""
++    return parse_version(text)
++
++
++def valid(text: object) -> str | None:
++    """Return the canonical form of a version string, or None."""
++    try:
++        return format_version(parse_version(text))
++    except InvalidVersionError:
++        return None
++
++
++def compare_text(a: str, b: str) -> int:
++    """Compare two version strings by precedence."""
++    return compare(parse_version(a), parse_version(b))
++
++
++def _by_precedence(a: tuple[Version, str], b: tuple[Version, str]) -> int:
++    order = compare(a[0], b[0])
++    if order:
++        return order
++    left, right = format_version(a[0]), format_version(b[0])
++    return (left > right) - (left < right)
++
++
++def sort_text(texts: list[str]) -> list[str]:
++    """Sort version strings by precedence, keeping their spelling."""
++    pairs = [(parse_version(t), t) for t in texts]
++    return [t for _, t in sorted(pairs, key=functools.cmp_to_key(_by_precedence))]
++
++
++def bump_text(text: str, part: str, ident: str | None = None) -> str:
++    """Bump one part of a version string."""
++    try:
++        which = Part(part)
++    except ValueError:
++        raise InvalidBumpError(f"unknown part: {part!r}") from None
++    return format_version(bump(parse_version(text), which, ident))
++
++
++def satisfies_text(version: str, range_text: str, include_prerelease: bool = False) -> bool:
++    """Tell whether a version string satisfies a range; bad ones never do."""
++    sets = parse_range(range_text)
++    try:
++        parsed = parse_version(version)
++    except InvalidVersionError:
++        return False
++    return satisfies(parsed, sets, include_prerelease)
++
++
++def _parsed_pairs(texts: list[str]) -> tuple[list[Version], list[str]]:
++    versions, kept = [], []
++    for text in texts:
++        try:
++            versions.append(parse_version(text))
++        except InvalidVersionError:
++            continue
++        kept.append(text)
++    return versions, kept
++
++
++def max_satisfying_text(texts: list[str], range_text: str, include_prerelease: bool = False) -> str | None:
++    """Return the highest satisfying version string, skipping bad ones."""
++    sets = parse_range(range_text)
++    versions, kept = _parsed_pairs(texts)
++    best = max_satisfying(versions, sets, include_prerelease)
++    return None if best is None else kept[versions.index(best)]
++
++
++def min_satisfying_text(texts: list[str], range_text: str, include_prerelease: bool = False) -> str | None:
++    """Return the lowest satisfying version string, skipping bad ones."""
++    sets = parse_range(range_text)
++    versions, kept = _parsed_pairs(texts)
++    best = min_satisfying(versions, sets, include_prerelease)
++    return None if best is None else kept[versions.index(best)]
++
++
++def normalize_range(text: str) -> str:
++    """Return the canonical form of a range string."""
++    return format_range(parse_range(text))
+diff --git b/src/semverkit/matching.py b/src/semverkit/matching.py
+new file mode 100644
+index 0000000..344064a
+--- /dev/null
++++ b/src/semverkit/matching.py
+@@ -0,0 +1,63 @@
++"""Checking versions against parsed ranges."""
++
++from semverkit.model import Comparator, Op, Version
++from semverkit.precedence import compare
++
++__all__ = ["filter_satisfying", "max_satisfying", "min_satisfying", "satisfies", "test_op"]
++
++
++def test_op(op: Op, order: int) -> bool:
++    """Tell whether a comparison result passes an operator."""
++    match op:
++        case Op.LT:
++            return order < 0
++        case Op.LE:
++            return order <= 0
++        case Op.GT:
++            return order > 0
++        case Op.GE:
++            return order >= 0
++        case Op.EQ:
++            return order == 0
++
++
++def _same_core(a: Version, b: Version) -> bool:
++    return (a.major, a.minor, a.patch) == (b.major, b.minor, b.patch)
++
++
++def _prerelease_allowed(version: Version, group: tuple[Comparator, ...]) -> bool:
++    return any(c.version.prerelease and _same_core(c.version, version) for c in group)
++
++
++def _test_group(version: Version, group: tuple[Comparator, ...], include_prerelease: bool) -> bool:
++    if not all(test_op(c.op, compare(version, c.version)) for c in group):
++        return False
++    return include_prerelease or not version.prerelease or _prerelease_allowed(version, group)
++
++
++def satisfies(version: Version, comparator_sets: tuple[tuple[Comparator, ...], ...], include_prerelease: bool = False) -> bool:
++    """Tell whether a version satisfies any alternative of a parsed range."""
++    return any(_test_group(version, group, include_prerelease) for group in comparator_sets)
++
++
++def filter_satisfying(versions: list[Version], comparator_sets: tuple[tuple[Comparator, ...], ...], include_prerelease: bool = False) -> list[Version]:
++    """Keep the versions that satisfy a parsed range, in input order."""
++    return [v for v in versions if satisfies(v, comparator_sets, include_prerelease)]
++
++
++def _extreme(versions: list[Version], sign: int) -> Version | None:
++    best: Version | None = None
++    for version in versions:
++        if best is None or compare(version, best) == sign:
++            best = version
++    return best
++
++
++def max_satisfying(versions: list[Version], comparator_sets: tuple[tuple[Comparator, ...], ...], include_prerelease: bool = False) -> Version | None:
++    """Return the highest satisfying version; the first one wins a tie."""
++    return _extreme(filter_satisfying(versions, comparator_sets, include_prerelease), 1)
++
++
++def min_satisfying(versions: list[Version], comparator_sets: tuple[tuple[Comparator, ...], ...], include_prerelease: bool = False) -> Version | None:
++    """Return the lowest satisfying version; the first one wins a tie."""
++    return _extreme(filter_satisfying(versions, comparator_sets, include_prerelease), -1)
+diff --git b/src/semverkit/model.py b/src/semverkit/model.py
+new file mode 100644
+index 0000000..a36602d
+--- /dev/null
++++ b/src/semverkit/model.py
+@@ -0,0 +1,68 @@
++"""Plain data: versions, comparators and the enums that name their parts."""
++
++import enum
++from dataclasses import dataclass
++
++__all__ = ["Comparator", "Op", "Part", "Partial", "Prefix", "Version"]
++
++
++class Op(enum.Enum):
++    """A comparator operator."""
++
++    LT = "<"
++    LE = "<="
++    GT = ">"
++    GE = ">="
++    EQ = "="
++
++
++class Prefix(enum.Enum):
++    """The operator written before a partial version in a range."""
++
++    NONE = ""
++    EQ = "="
++    LT = "<"
++    LE = "<="
++    GT = ">"
++    GE = ">="
++    CARET = "^"
++    TILDE = "~"
++
++
++class Part(enum.Enum):
++    """A part of a version that a bump changes."""
++
++    MAJOR = "major"
++    MINOR = "minor"
++    PATCH = "patch"
++    PRERELEASE = "prerelease"
++    RELEASE = "release"
++
++
++@dataclass(frozen=True, slots=True)
++class Version:
++    """A parsed semantic version."""
++
++    major: int
++    minor: int
++    patch: int
++    prerelease: tuple[int | str, ...] = ()
++    build: tuple[str, ...] = ()
++
++
++@dataclass(frozen=True, slots=True)
++class Comparator:
++    """One operator applied to one version."""
++
++    op: Op
++    version: Version
++
++
++@dataclass(frozen=True, slots=True)
++class Partial:
++    """A version in a range whose missing or wildcard parts are None."""
++
++    major: int | None
++    minor: int | None
++    patch: int | None
++    prerelease: tuple[int | str, ...] = ()
+diff --git b/src/semverkit/precedence.py b/src/semverkit/precedence.py
+new file mode 100644
+index 0000000..e802b16
+--- /dev/null
++++ b/src/semverkit/precedence.py
+@@ -0,0 +1,50 @@
++"""Version precedence and ordering."""
++
++import functools
++
++from semverkit.model import Version
++from semverkit.versions import format_version
++
++__all__ = ["compare", "compare_identifier", "sort_versions"]
++
++
++def _sign(a: int | str, b: int | str) -> int:
++    return (a > b) - (a < b)
++
++
++def compare_identifier(a: int | str, b: int | str) -> int:
++    """Order two prerelease identifiers: numbers before words."""
++    if isinstance(a, int) and isinstance(b, int):
++        return _sign(a, b)
++    if isinstance(a, int):
++        return -1
++    if isinstance(b, int):
++        return 1
++    return _sign(a, b)
++
++
++def _compare_prerelease(a: tuple[int | str, ...], b: tuple[int | str, ...]) -> int:
++    if not a or not b:
++        return _sign(len(b), len(a))
++    for left, right in zip(a, b):
++        order = compare_identifier(left, right)
++        if order:
++            return order
++    return _sign(len(a), len(b))
++
++
++def compare(a: Version, b: Version) -> int:
++    """Return -1, 0 or 1 by precedence; build metadata is ignored."""
++    for left, right in ((a.major, b.major), (a.minor, b.minor), (a.patch, b.patch)):
++        if left != right:
++            return _sign(left, right)
++    return _compare_prerelease(a.prerelease, b.prerelease)
++
++
++def _total(a: Version, b: Version) -> int:
++    return compare(a, b) or _sign(format_version(a), format_version(b))
++
++
++def sort_versions(versions: list[Version]) -> list[Version]:
++    """Sort ascending by precedence; equal ones by canonical text."""
++    return sorted(versions, key=functools.cmp_to_key(_total))
+diff --git a/src/semverkit/ranges.py b/src/semverkit/ranges.py
+index 9e691fb..306a79c 100644
+--- a/src/semverkit/ranges.py
++++ b/src/semverkit/ranges.py
+@@ -1,223 +1,95 @@
+-"""Ranges: parsing, normalising and matching."""
++"""Parsing and formatting range strings."""
++
+ import re
+-import sys
+-from typing import List, Optional
+ 
+-from . import config
+-from .compat import ensure_str, is_wildcard
+-from .core import Version, parse, compare_versions, _fmt, InvalidVersion
+-from . import cache
++from semverkit.desugar import any_version, expand, expand_hyphen
++from semverkit.errors import InvalidRangeError
++from semverkit.model import Comparator, Op, Partial, Prefix
++from semverkit.versions import format_version
+ 
+-_partial_re = re.compile(
++__all__ = ["MAX_RANGE_LENGTH", "format_range", "parse_partial", "parse_range"]
++
++MAX_RANGE_LENGTH = 1024
++_PARTIAL = (
+     r"^[vV]?(0|[1-9][0-9]*|[xX*])(?:\.(0|[1-9][0-9]*|[xX*])(?:\.(0|[1-9][0-9]*|[xX*])"
+     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?)?)?$"
+ )
+-_glue_re = re.compile(r"(>=|<=|~>|>|<|=|\^|~)\s+")
+-_hyphen_re = re.compile(r"^(\S+)\s+-\s+(\S+)$")
++_TOKEN = r"^(>=|<=|~>|>|<|=|\^|~)?(.*)$"
++_GLUE = r"(>=|<=|~>|>|<|=|\^|~)\s+"
++_HYPHEN = r"^(\S+)\s+-\s+(\S+)$"
+ 
+ 
+-class InvalidRange(ValueError):
+-    pass
++def _number(text: str | None) -> int | None:
++    if text is None or text in ("x", "X", "*"):
++        return None
++    return int(text)
+ 
+ 
+-class comparator:
+-    def __init__(self, op, version):
+-        self.op = op
+-        self.version = version
+-
+-    def __eq__(self, other):
+-        return isinstance(other, comparator) and (self.op, self.version) == (other.op, other.version)
+-
+-    def __repr__(self):
+-        return "comparator(%r, %r)" % (self.op, self.version)
++def _partial_prerelease(text: str | None, token: str) -> tuple[int | str, ...]:
++    if text is None:
++        return ()
++    out: list[int | str] = []
++    for ident in text.split("."):
++        if ident.isdigit() and len(ident) > 1 and ident[0] == "0":
++            raise InvalidRangeError(f"invalid comparator: {token!r}")
++        out.append(int(ident) if ident.isdigit() else ident)
++    return tuple(out)
+ 
+ 
+-def _any():
+-    return comparator(">=", Version(0, 0, 0))
++def _wildcarded(parts: list[int | None]) -> list[int | None]:
++    for i, part in enumerate(parts):
++        if part is None:
++            return parts[:i] + [None] * (3 - i)
++    return parts
+ 
+ 
+-def _partial(text, token):
+-    m = _partial_re.match(text)
+-    if m is None:
+-        raise InvalidRange("invalid comparator: %r" % (token,))
+-    parts = []
+-    wild = False
+-    for g in m.groups()[:3]:
+-        if wild or g is None or is_wildcard(g):
+-            wild = True
+-            parts.append(None)
+-        else:
+-            parts.append(int(g))
+-    if parts[2] is None and (m.group(4) or m.group(5)):
+-        raise InvalidRange("invalid comparator: %r" % (token,))
+-    pre = []
+-    if m.group(4):
+-        for ident in m.group(4).split("."):
+-            if ident.isdigit() and len(ident) > 1 and ident[0] == "0":
+-                raise InvalidRange("invalid comparator: %r" % (token,))
+-            pre.append(int(ident) if ident.isdigit() else ident)
+-    return parts[0], parts[1], parts[2], tuple(pre)
++def parse_partial(text: str, token: str) -> Partial:
++    """Parse a possibly partial or wildcard version written in a range."""
++    match = re.match(_PARTIAL, text, re.DOTALL)
++    if match is None:
++        raise InvalidRangeError(f"invalid comparator: {token!r}")
++    major, minor, patch = _wildcarded([_number(g) for g in match.groups()[:3]])
++    if patch is None and (match.group(4) or match.group(5)):
++        raise InvalidRangeError(f"invalid comparator: {token!r}")
++    return Partial(major, minor, patch, _partial_prerelease(match.group(4), token))
+ 
+ 
+-def _ceil(major, minor, patch):
+-    return comparator("<", Version(major, minor, patch, (0,)))
++def _prefix(text: str | None) -> Prefix:
++    if text is None:
++        return Prefix.NONE
++    return Prefix.TILDE if text == "~>" else Prefix(text)
+ 
+ 
+-def parse_range(rangeText):
+-    """Parse a range string into alternatives of comparators."""
+-    if not isinstance(rangeText, str):
+-        raise InvalidRange("not a string: %r" % (rangeText,))
+-    if len(rangeText) > config.get("max_range_length"):
+-        raise InvalidRange("range too long")
+-    result = []
+-    for piece in rangeText.split("||"):
+-        piece = piece.strip()
+-        group = []
+-        hm = _hyphen_re.match(piece)
+-        if hm:
+-            low, high = hm.group(1), hm.group(2)
+-            M, m, p, pre = _partial(low, low)
+-            if M is None:
+-                group.append(_any())
+-            else:
+-                group.append(comparator(">=", Version(M, m or 0, p or 0, pre)))
+-            M, m, p, pre = _partial(high, high)
+-            if M is not None:
+-                if m is None:
+-                    group.append(_ceil(M + 1, 0, 0))
+-                elif p is None:
+-                    group.append(_ceil(M, m + 1, 0))
+-                else:
+-                    group.append(comparator("<=", Version(M, m, p, pre)))
+-            result.append(group)
+-            continue
+-        tokens = _glue_re.sub(r"\1", piece).split()
+-        if not tokens:
+-            result.append([_any()])
+-            continue
+-        for token in tokens:
+-            op = ""
+-            for candidate in config.OPERATORS:
+-                if token.startswith(candidate):
+-                    op = candidate
+-                    break
+-            M, m, p, pre = _partial(token[len(op):], token)
+-            floor = Version(M or 0, m or 0, p or 0, pre)
+-            if op == "~>":
+-                op = "~"
+-            if M is None:
+-                if op in (">", "<"):
+-                    group.append(comparator("<", Version(0, 0, 0, (0,))))
+-                else:
+-                    group.append(_any())
+-            elif op in ("", "="):
+-                if m is None:
+-                    group += [comparator(">=", floor), _ceil(M + 1, 0, 0)]
+-                elif p is None:
+-                    group += [comparator(">=", floor), _ceil(M, m + 1, 0)]
+-                else:
+-                    group.append(comparator("=", floor))
+-            elif op == "^":
+-                if m is None or M > 0:
+-                    group += [comparator(">=", floor), _ceil(M + 1, 0, 0)]
+-                elif p is None or m > 0:
+-                    group += [comparator(">=", floor), _ceil(0, m + 1, 0)]
+-                else:
+-                    group += [comparator(">=", floor), _ceil(0, 0, p + 1)]
+-            elif op == "~":
+-                if m is None:
+-                    group += [comparator(">=", floor), _ceil(M + 1, 0, 0)]
+-                else:
+-                    group += [comparator(">=", floor), _ceil(M, m + 1, 0)]
+-            elif op == ">":
+-                if m is None:
+-                    group.append(comparator(">=", Version(M + 1, 0, 0)))
+-                elif p is None:
+-                    group.append(comparator(">=", Version(M, m + 1, 0)))
+-                else:
+-                    group.append(comparator(">", floor))
+-            elif op == ">=":
+-                group.append(comparator(">=", floor))
+-            elif op == "<":
+-                if p is None:
+-                    group.append(_ceil(M, m or 0, 0))
+-                else:
+-                    group.append(comparator("<", floor))
+-            else:
+-                if m is None:
+-                    group.append(_ceil(M + 1, 0, 0))
+-                elif p is None:
+-                    group.append(_ceil(M, m + 1, 0))
+-                else:
+-                    group.append(comparator("<=", floor))
+-        result.append(group)
+-    return result
++def _parse_token(token: str) -> tuple[Comparator, ...]:
++    match = re.match(_TOKEN, token, re.DOTALL)
++    return expand(_prefix(match.group(1)), parse_partial(match.group(2), token))
+ 
+ 
+-def normalize_range(rangeText):
+-    """Return the canonical form of a range string."""
+-    sets = cache.cached_range(rangeText, parse_range)
+-    out = []
+-    for group in sets:
+-        out.append(" ".join(("" if c.op == "=" else c.op) + _fmt(c.version) for c in group))
+-    return " || ".join(out)
++def _parse_piece(piece: str) -> tuple[Comparator, ...]:
++    hyphen = re.match(_HYPHEN, piece)
++    if hyphen is not None:
++        low, high = hyphen.groups()
++        return expand_hyphen(parse_partial(low, low), parse_partial(high, high))
++    tokens = re.sub(_GLUE, r"\1", piece).split()
++    if not tokens:
++        return (any_version(),)
++    return tuple(c for token in tokens for c in _parse_token(token))
+ 
+ 
+-def test_set(v, group, include_prerelease):
+-    for c in group:
+-        order = compare_versions(v, c.version)
+-        if c.op == "<" and not order < 0:
+-            return False
+-        if c.op == "<=" and not order <= 0:
+-            return False
+-        if c.op == ">" and not order > 0:
+-            return False
+-        if c.op == ">=" and not order >= 0:
+-            return False
+-        if c.op == "=" and order != 0:
+-            return False
+-    if v.prerelease and not include_prerelease:
+-        for c in group:
+-            if c.version.prerelease and (c.version.major, c.version.minor, c.version.patch) == (v.major, v.minor, v.patch):
+-                return True
+-        return False
+-    return True
++def parse_range(text: str) -> tuple[tuple[Comparator, ...], ...]:
++    """Parse a range into alternatives of comparators that must all hold."""
++    if not isinstance(text, str):
++        raise InvalidRangeError(f"not a string: {text!r}")
++    if len(text) > MAX_RANGE_LENGTH:
++        raise InvalidRangeError("range too long")
++    return tuple(_parse_piece(piece.strip()) for piece in text.split("||"))
+ 
+ 
+-def satisfies(version, rangeText, include_prerelease=False):
+-    """Tell whether a version string satisfies a range; bad ones never do."""
+-    from .core import satisfies_version
+-    sets = cache.cached_range(rangeText, parse_range)
+-    try:
+-        v = parse(version)
+-    except InvalidVersion:
+-        return False
+-    return satisfies_version(v, sets, include_prerelease)
++def _format_comparator(comparator: Comparator) -> str:
++    op = "" if comparator.op is Op.EQ else comparator.op.value
++    return op + format_version(comparator.version)
+ 
+ 
+-def _best(versions: List[str], rangeText, include_prerelease, sign) -> Optional[str]:
+-    sets = cache.cached_range(rangeText, parse_range)
+-    best = None
+-    best_text = None
+-    for text in versions:
+-        try:
+-            v = parse(text)
+-        except InvalidVersion:
+-            if config.DEFAULTS.get("strict"):
+-                sys.stderr.write("skipping %r\n" % (text,))
+-            continue
+-        if not any(test_set(v, g, include_prerelease) for g in sets):
+-            continue
+-        if best is None or compare_versions(v, best) == sign:
+-            best, best_text = v, text
+-    return best_text
+-
+-
+-def max_satisfying(versions, rangeText, include_prerelease=False):
+-    """Return the highest satisfying version string, skipping bad ones."""
+-    return _best(versions, rangeText, include_prerelease, 1)
+-
+-
+-def min_satisfying(versions, rangeText, include_prerelease=False):
+-    """Return the lowest satisfying version string, skipping bad ones."""
+-    return _best(versions, rangeText, include_prerelease, -1)
++def format_range(comparator_sets: tuple[tuple[Comparator, ...], ...]) -> str:
++    """Render parsed alternatives in the canonical form."""
++    return " || ".join(" ".join(_format_comparator(c) for c in group) for group in comparator_sets)
+diff --git a/src/semverkit/report.py b/src/semverkit/report.py
+index 5ae7b44..228be87 100644
+--- a/src/semverkit/report.py
++++ b/src/semverkit/report.py
+@@ -1,44 +1,44 @@
+ """A text table of which versions satisfy which ranges."""
+-from . import ranges as R
+-from .core import parse, InvalidVersion
++
++from semverkit.errors import InvalidVersionError
++from semverkit.facade import sort_text
++from semverkit.matching import satisfies
++from semverkit.model import Comparator
++from semverkit.ranges import parse_range
++from semverkit.versions import parse_version
++
++__all__ = ["render_table"]
+ 
+ 
+-def render_table(texts, ranges):
+-    """Render one row per valid version and one column per range."""
+-    from . import sort
+-    parsed = [R.parse_range(r) for r in ranges]
+-    good = []
+-    bad = []
+-    for t in texts:
++def _split_valid(texts: list[str]) -> tuple[list[str], list[str]]:
++    good, bad = [], []
++    for text in texts:
+         try:
+-            parse(t)
+-            good.append(t)
+-        except InvalidVersion:
+-            bad.append(t)
++            parse_version(text)
++        except InvalidVersionError:
++            bad.append(text)
++            continue
++        good.append(text)
++    return good, bad
++
++
++def _line(cells: list[str], widths: list[int]) -> str:
++    return "  ".join(cell.ljust(width) for cell, width in zip(cells, widths)).rstrip()
++
++
++def _row(text: str, parsed: list[tuple[tuple[Comparator, ...], ...]]) -> list[str]:
++    version = parse_version(text)
++    return [text] + ["yes" if satisfies(version, p) else "no" for p in parsed]
++
++
++def render_table(texts: list[str], ranges: list[str]) -> str:
++    """Render one row per valid version and one column per range."""
++    parsed = [parse_range(r) for r in ranges]
++    good, bad = _split_valid(texts)
+     rows = [["version"] + list(ranges)]
+-    for t in sort(good):
+-        v = parse(t)
+-        row = [t]
+-        for p in parsed:
+-            hit = False
+-            for g in p:
+-                if R.test_set(v, g, False):
+-                    hit = True
+-                    break
+-            row.append("yes" if hit else "no")
+-        rows.append(row)
+-    widths = []
+-    for i in range(len(rows[0])):
+-        w = 0
+-        for row in rows:
+-            if len(row[i]) > w:
+-                w = len(row[i])
+-        widths.append(w)
+-    lines = []
+-    for n, row in enumerate(rows):
+-        lines.append("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row)).rstrip())
+-        if n == 0:
+-            lines.append("  ".join("-" * w for w in widths).rstrip())
+-    for t in bad:
+-        lines.append("invalid: %s" % t)
++    rows.extend(_row(text, parsed) for text in sort_text(good))
++    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
++    lines = [_line(rows[0], widths), _line(["-" * w for w in widths], widths)]
++    lines.extend(_line(row, widths) for row in rows[1:])
++    lines.extend(f"invalid: {text}" for text in bad)
+     return "\n".join(lines)
+diff --git a/src/semverkit/utils.py a/src/semverkit/utils.py
+deleted file mode 100644
+index 108b651..0000000
+--- a/src/semverkit/utils.py
++++ /dev/null
+@@ -1,46 +0,0 @@
+-"""Little helpers used all over the place."""
+-import re
+-
+-DEBUG = False
+-
+-_ident_re = re.compile(r"^[0-9A-Za-z-]+$")
+-
+-
+-def debug(*args):
+-    if DEBUG:
+-        print("[semverkit]", *args)
+-
+-
+-def _strip(text):
+-    body = text.strip()
+-    if body.startswith("="):
+-        body = body[1:]
+-    if body[:1] in ("v", "V"):
+-        body = body[1:]
+-    return body
+-
+-
+-def _sign(a, b):
+-    return (a > b) - (a < b)
+-
+-
+-def _is_num(s):
+-    return s.isascii() and s.isdigit()
+-
+-
+-def _fmt(major, minor, patch, pre=(), build=()):
+-    s = "%d.%d.%d" % (major, minor, patch)
+-    if pre:
+-        s += "-" + ".".join(str(x) for x in pre)
+-    if build:
+-        s += "+" + ".".join(build)
+-    return s
+-
+-
+-def isWord(ident):
+-    if not ident:
+-        return False
+-    for c in ident:
+-        if not (c.isascii() and (c.isalnum() or c == "-")):
+-            return False
+-    return not ident.isdigit()
+diff --git b/src/semverkit/versions.py b/src/semverkit/versions.py
+new file mode 100644
+index 0000000..983d87c
+--- /dev/null
++++ b/src/semverkit/versions.py
+@@ -0,0 +1,60 @@
++"""Parsing and formatting single versions."""
++
++import re
++
++from semverkit.errors import InvalidVersionError
++from semverkit.model import Version
++
++__all__ = ["MAX_LENGTH", "format_version", "parse_identifiers", "parse_version"]
++
++MAX_LENGTH = 256
++_PATTERN = (
++    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
++    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
++)
++
++
++def _strip_prefix(text: str) -> str:
++    body = text.strip()
++    if body.startswith("="):
++        body = body[1:]
++    if body[:1] in ("v", "V"):
++        body = body[1:]
++    return body
++
++
++def parse_identifiers(text: str, original: str) -> tuple[int | str, ...]:
++    """Split a dotted prerelease into numbers and words."""
++    out: list[int | str] = []
++    for ident in text.split("."):
++        if not ident.isascii() or not ident.isdigit():
++            out.append(ident)
++        elif len(ident) > 1 and ident[0] == "0":
++            raise InvalidVersionError(f"invalid version: {original!r}")
++        else:
++            out.append(int(ident))
++    return tuple(out)
++
++
++def parse_version(text: str) -> Version:
++    """Parse one version string, accepting a leading = and v."""
++    if not isinstance(text, str):
++        raise InvalidVersionError(f"not a string: {text!r}")
++    if len(text) > MAX_LENGTH:
++        raise InvalidVersionError("version too long")
++    match = re.match(_PATTERN, _strip_prefix(text))
++    if match is None:
++        raise InvalidVersionError(f"invalid version: {text!r}")
++    major, minor, patch, pre, build = match.groups()
++    prerelease = parse_identifiers(pre, text) if pre else ()
++    return Version(int(major), int(minor), int(patch), prerelease, tuple(build.split(".")) if build else ())
++
++
++def format_version(version: Version) -> str:
++    """Render a version in its canonical form."""
++    text = f"{version.major}.{version.minor}.{version.patch}"
++    if version.prerelease:
++        text += "-" + ".".join(str(i) for i in version.prerelease)
++    if version.build:
++        text += "+" + ".".join(version.build)
++    return text

@@ -1,0 +1,2682 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "priority-p1",
+  "dry_run": false,
+  "smoke": false,
+  "created": "2026-10-15T10:26:27Z",
+  "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
+  "source_worktree": "/home/merlin/.cache/loa/ablation-src-ba11b860e4b3",
+  "source_commit_dot_claude_delta": " .../tests/test_pricing_resolution_ladder.py        |    2 +-\n .claude/checksums.json                             | 1498 +-------------------\n .claude/defaults/model-config.yaml                 |   36 +-\n .claude/defaults/model-config.yaml.checksum        |    2 +-\n .claude/scripts/check-loa.sh                       |   29 +-\n .claude/scripts/generated-model-maps.sh            |    6 +\n .claude/scripts/preflight.sh                       |   22 +-\n .../bridgebuilder-review/dist/.build-manifest.json |    8 +-\n .../dist/config.generated.d.ts.map                 |    2 +-\n .../bridgebuilder-review/dist/config.generated.js  |   10 +\n .../dist/config.generated.js.map                   |    2 +-\n .../dist/core/truncation.generated.d.ts.map        |    2 +-\n .../dist/core/truncation.generated.js              |    1 +\n .../dist/core/truncation.generated.js.map          |    2 +-\n .../resources/config.generated.ts                  |   10 +\n .../resources/core/truncation.generated.ts         |    1 +\n 16 files changed, 160 insertions(+), 1473 deletions(-)",
+  "harness_commit": "ae9df520d4103b3ccca5442ba544727a82dbd9d2",
+  "harness_dirty": false,
+  "suite_file": "evals/suites/ablation-2.0.yaml",
+  "suite_file_path": "/home/merlin/Documents/thj/code/loa/evals/suites/ablation-2.0.yaml",
+  "suite_root": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0",
+  "tasks_dir": "tasks",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/grimoires/loa/reports/ablation-2.0/runs.jsonl",
+  "suite_version": 1,
+  "suite_manifest_sha256": "30e1f2ad7015590227e9cc2fa25ca791e31867fec65289e4a41554e9e53357ba",
+  "arms": [
+    "a0_bare",
+    "a1_full",
+    "a4_no_gates"
+  ],
+  "tasks": [
+    {
+      "id": "bugfix-01",
+      "type": "bug-fix"
+    },
+    {
+      "id": "bugfix-02",
+      "type": "bug-fix"
+    },
+    {
+      "id": "bugfix-03",
+      "type": "bug-fix"
+    },
+    {
+      "id": "bugfix-04",
+      "type": "bug-fix"
+    },
+    {
+      "id": "feature-01",
+      "type": "feature-build"
+    },
+    {
+      "id": "feature-02",
+      "type": "feature-build"
+    },
+    {
+      "id": "feature-03",
+      "type": "feature-build"
+    },
+    {
+      "id": "feature-04",
+      "type": "feature-build"
+    },
+    {
+      "id": "refactor-01",
+      "type": "refactor"
+    },
+    {
+      "id": "refactor-02",
+      "type": "refactor"
+    },
+    {
+      "id": "refactor-03",
+      "type": "refactor"
+    },
+    {
+      "id": "refactor-04",
+      "type": "refactor"
+    },
+    {
+      "id": "review-01",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-02",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-03",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-04",
+      "type": "review-catch"
+    }
+  ],
+  "refused": [
+    {
+      "arm": "a4_no_gates",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "task_types": [
+        "build"
+      ]
+    },
+    {
+      "arm": "a4_no_gates",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "task_types": [
+        "build"
+      ]
+    },
+    {
+      "arm": "a4_no_gates",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "task_types": [
+        "build"
+      ]
+    },
+    {
+      "arm": "a4_no_gates",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "task_types": [
+        "build"
+      ]
+    }
+  ],
+  "trials_per_type": {
+    "build": 3,
+    "review-catch": 3
+  },
+  "trials_planned": 132,
+  "plan": [
+    {
+      "i": 1,
+      "arm": "a1_full",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-review-04-t1",
+      "run_dir": "a1_full/review-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 2,
+      "arm": "a1_full",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-feature-04-t1",
+      "run_dir": "a1_full/feature-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 3,
+      "arm": "a0_bare",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-refactor-02-t1",
+      "run_dir": "a0_bare/refactor-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 4,
+      "arm": "a0_bare",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-bugfix-04-t1",
+      "run_dir": "a0_bare/bugfix-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 5,
+      "arm": "a0_bare",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-feature-01-t1",
+      "run_dir": "a0_bare/feature-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 6,
+      "arm": "a0_bare",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-refactor-03-t1",
+      "run_dir": "a0_bare/refactor-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 7,
+      "arm": "a1_full",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-feature-03-t1",
+      "run_dir": "a1_full/feature-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 8,
+      "arm": "a0_bare",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-feature-03-t1",
+      "run_dir": "a0_bare/feature-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 9,
+      "arm": "a1_full",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-refactor-01-t1",
+      "run_dir": "a1_full/refactor-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 10,
+      "arm": "a1_full",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-bugfix-01-t1",
+      "run_dir": "a1_full/bugfix-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 11,
+      "arm": "a1_full",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-bugfix-03-t1",
+      "run_dir": "a1_full/bugfix-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 12,
+      "arm": "a1_full",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-review-02-t1",
+      "run_dir": "a1_full/review-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 13,
+      "arm": "a4_no_gates",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-feature-04-t1",
+      "run_dir": "a4_no_gates/feature-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 14,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t1",
+      "run_dir": "a4_no_gates/refactor-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 15,
+      "arm": "a1_full",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-bugfix-04-t1",
+      "run_dir": "a1_full/bugfix-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 16,
+      "arm": "a4_no_gates",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-feature-01-t1",
+      "run_dir": "a4_no_gates/feature-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 17,
+      "arm": "a1_full",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-feature-01-t1",
+      "run_dir": "a1_full/feature-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 18,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-refactor-01-t1",
+      "run_dir": "a4_no_gates/refactor-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 19,
+      "arm": "a0_bare",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-refactor-04-t1",
+      "run_dir": "a0_bare/refactor-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 20,
+      "arm": "a4_no_gates",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-feature-03-t1",
+      "run_dir": "a4_no_gates/feature-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 21,
+      "arm": "a0_bare",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-refactor-01-t1",
+      "run_dir": "a0_bare/refactor-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 22,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t1",
+      "run_dir": "a4_no_gates/refactor-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 23,
+      "arm": "a1_full",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-refactor-03-t1",
+      "run_dir": "a1_full/refactor-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 24,
+      "arm": "a0_bare",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-feature-02-t1",
+      "run_dir": "a0_bare/feature-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 25,
+      "arm": "a1_full",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-bugfix-02-t1",
+      "run_dir": "a1_full/bugfix-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 26,
+      "arm": "a0_bare",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-feature-04-t1",
+      "run_dir": "a0_bare/feature-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 27,
+      "arm": "a4_no_gates",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-feature-02-t1",
+      "run_dir": "a4_no_gates/feature-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 28,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t1",
+      "run_dir": "a4_no_gates/bugfix-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 29,
+      "arm": "a1_full",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-feature-02-t1",
+      "run_dir": "a1_full/feature-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 30,
+      "arm": "a0_bare",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-review-04-t1",
+      "run_dir": "a0_bare/review-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 31,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-bugfix-01-t1",
+      "run_dir": "a4_no_gates/bugfix-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 32,
+      "arm": "a0_bare",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-review-03-t1",
+      "run_dir": "a0_bare/review-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 33,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t1",
+      "run_dir": "a4_no_gates/bugfix-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 34,
+      "arm": "a1_full",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-refactor-02-t1",
+      "run_dir": "a1_full/refactor-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 35,
+      "arm": "a1_full",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-refactor-04-t1",
+      "run_dir": "a1_full/refactor-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 36,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t1",
+      "run_dir": "a4_no_gates/bugfix-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 37,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t1",
+      "run_dir": "a4_no_gates/refactor-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 38,
+      "arm": "a0_bare",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-bugfix-02-t1",
+      "run_dir": "a0_bare/bugfix-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 39,
+      "arm": "a0_bare",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-bugfix-03-t1",
+      "run_dir": "a0_bare/bugfix-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 40,
+      "arm": "a0_bare",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-bugfix-01-t1",
+      "run_dir": "a0_bare/bugfix-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 41,
+      "arm": "a1_full",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-review-03-t1",
+      "run_dir": "a1_full/review-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 42,
+      "arm": "a1_full",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a1_full-review-01-t1",
+      "run_dir": "a1_full/review-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 43,
+      "arm": "a0_bare",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-review-01-t1",
+      "run_dir": "a0_bare/review-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 44,
+      "arm": "a0_bare",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "priority-p1-a0_bare-review-02-t1",
+      "run_dir": "a0_bare/review-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 45,
+      "arm": "a1_full",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-bugfix-04-t2",
+      "run_dir": "a1_full/bugfix-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 46,
+      "arm": "a0_bare",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-refactor-03-t2",
+      "run_dir": "a0_bare/refactor-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 47,
+      "arm": "a0_bare",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-review-03-t2",
+      "run_dir": "a0_bare/review-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 48,
+      "arm": "a4_no_gates",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-feature-04-t2",
+      "run_dir": "a4_no_gates/feature-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 49,
+      "arm": "a0_bare",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-refactor-01-t2",
+      "run_dir": "a0_bare/refactor-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 50,
+      "arm": "a0_bare",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-feature-02-t2",
+      "run_dir": "a0_bare/feature-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 51,
+      "arm": "a4_no_gates",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-feature-01-t2",
+      "run_dir": "a4_no_gates/feature-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 52,
+      "arm": "a1_full",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-refactor-01-t2",
+      "run_dir": "a1_full/refactor-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 53,
+      "arm": "a1_full",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-feature-04-t2",
+      "run_dir": "a1_full/feature-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 54,
+      "arm": "a0_bare",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-bugfix-01-t2",
+      "run_dir": "a0_bare/bugfix-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 55,
+      "arm": "a1_full",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-bugfix-03-t2",
+      "run_dir": "a1_full/bugfix-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 56,
+      "arm": "a0_bare",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-review-04-t2",
+      "run_dir": "a0_bare/review-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 57,
+      "arm": "a1_full",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-review-04-t2",
+      "run_dir": "a1_full/review-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 58,
+      "arm": "a1_full",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-feature-02-t2",
+      "run_dir": "a1_full/feature-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 59,
+      "arm": "a0_bare",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-feature-03-t2",
+      "run_dir": "a0_bare/feature-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 60,
+      "arm": "a1_full",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-refactor-04-t2",
+      "run_dir": "a1_full/refactor-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 61,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-bugfix-01-t2",
+      "run_dir": "a4_no_gates/bugfix-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 62,
+      "arm": "a1_full",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-bugfix-01-t2",
+      "run_dir": "a1_full/bugfix-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 63,
+      "arm": "a4_no_gates",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-feature-03-t2",
+      "run_dir": "a4_no_gates/feature-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 64,
+      "arm": "a1_full",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-feature-01-t2",
+      "run_dir": "a1_full/feature-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 65,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-refactor-01-t2",
+      "run_dir": "a4_no_gates/refactor-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 66,
+      "arm": "a0_bare",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-refactor-02-t2",
+      "run_dir": "a0_bare/refactor-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 67,
+      "arm": "a0_bare",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-bugfix-04-t2",
+      "run_dir": "a0_bare/bugfix-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 68,
+      "arm": "a1_full",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-refactor-02-t2",
+      "run_dir": "a1_full/refactor-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 69,
+      "arm": "a4_no_gates",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-feature-02-t2",
+      "run_dir": "a4_no_gates/feature-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 70,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t2",
+      "run_dir": "a4_no_gates/refactor-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 71,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t2",
+      "run_dir": "a4_no_gates/refactor-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 72,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t2",
+      "run_dir": "a4_no_gates/refactor-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 73,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t2",
+      "run_dir": "a4_no_gates/bugfix-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 74,
+      "arm": "a1_full",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-refactor-03-t2",
+      "run_dir": "a1_full/refactor-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 75,
+      "arm": "a1_full",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-feature-03-t2",
+      "run_dir": "a1_full/feature-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 76,
+      "arm": "a1_full",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-bugfix-02-t2",
+      "run_dir": "a1_full/bugfix-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 77,
+      "arm": "a0_bare",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-refactor-04-t2",
+      "run_dir": "a0_bare/refactor-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 78,
+      "arm": "a1_full",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-review-02-t2",
+      "run_dir": "a1_full/review-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 79,
+      "arm": "a0_bare",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-bugfix-02-t2",
+      "run_dir": "a0_bare/bugfix-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 80,
+      "arm": "a1_full",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-review-03-t2",
+      "run_dir": "a1_full/review-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 81,
+      "arm": "a0_bare",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-review-02-t2",
+      "run_dir": "a0_bare/review-02-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 82,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t2",
+      "run_dir": "a4_no_gates/bugfix-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 83,
+      "arm": "a1_full",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a1_full-review-01-t2",
+      "run_dir": "a1_full/review-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 84,
+      "arm": "a0_bare",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-bugfix-03-t2",
+      "run_dir": "a0_bare/bugfix-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 85,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t2",
+      "run_dir": "a4_no_gates/bugfix-03-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 86,
+      "arm": "a0_bare",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-review-01-t2",
+      "run_dir": "a0_bare/review-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 87,
+      "arm": "a0_bare",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-feature-01-t2",
+      "run_dir": "a0_bare/feature-01-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 88,
+      "arm": "a0_bare",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 2,
+      "run_id": "priority-p1-a0_bare-feature-04-t2",
+      "run_dir": "a0_bare/feature-04-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 89,
+      "arm": "a1_full",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-feature-04-t3",
+      "run_dir": "a1_full/feature-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 90,
+      "arm": "a1_full",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-feature-03-t3",
+      "run_dir": "a1_full/feature-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 91,
+      "arm": "a0_bare",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-refactor-03-t3",
+      "run_dir": "a0_bare/refactor-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 92,
+      "arm": "a1_full",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-refactor-01-t3",
+      "run_dir": "a1_full/refactor-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 93,
+      "arm": "a1_full",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-feature-01-t3",
+      "run_dir": "a1_full/feature-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 94,
+      "arm": "a1_full",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-review-04-t3",
+      "run_dir": "a1_full/review-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 95,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-refactor-03-t3",
+      "run_dir": "a4_no_gates/refactor-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 96,
+      "arm": "a1_full",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-bugfix-03-t3",
+      "run_dir": "a1_full/bugfix-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 97,
+      "arm": "a0_bare",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-review-02-t3",
+      "run_dir": "a0_bare/review-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 98,
+      "arm": "a0_bare",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-feature-02-t3",
+      "run_dir": "a0_bare/feature-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 99,
+      "arm": "a0_bare",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-feature-01-t3",
+      "run_dir": "a0_bare/feature-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 100,
+      "arm": "a0_bare",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-review-03-t3",
+      "run_dir": "a0_bare/review-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 101,
+      "arm": "a0_bare",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-refactor-01-t3",
+      "run_dir": "a0_bare/refactor-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 102,
+      "arm": "a0_bare",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-refactor-02-t3",
+      "run_dir": "a0_bare/refactor-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 103,
+      "arm": "a1_full",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-bugfix-01-t3",
+      "run_dir": "a1_full/bugfix-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 104,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-bugfix-02-t3",
+      "run_dir": "a4_no_gates/bugfix-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 105,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-bugfix-03-t3",
+      "run_dir": "a4_no_gates/bugfix-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 106,
+      "arm": "a0_bare",
+      "task_id": "bugfix-03",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-bugfix-03-t3",
+      "run_dir": "a0_bare/bugfix-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 107,
+      "arm": "a1_full",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-bugfix-04-t3",
+      "run_dir": "a1_full/bugfix-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 108,
+      "arm": "a0_bare",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-bugfix-02-t3",
+      "run_dir": "a0_bare/bugfix-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 109,
+      "arm": "a1_full",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-feature-02-t3",
+      "run_dir": "a1_full/feature-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 110,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-bugfix-04-t3",
+      "run_dir": "a4_no_gates/bugfix-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 111,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-refactor-04-t3",
+      "run_dir": "a4_no_gates/refactor-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 112,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-refactor-02-t3",
+      "run_dir": "a4_no_gates/refactor-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 113,
+      "arm": "a0_bare",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-feature-03-t3",
+      "run_dir": "a0_bare/feature-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 114,
+      "arm": "a0_bare",
+      "task_id": "bugfix-04",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-bugfix-04-t3",
+      "run_dir": "a0_bare/bugfix-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 115,
+      "arm": "a4_no_gates",
+      "task_id": "feature-03",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-feature-03-t3",
+      "run_dir": "a4_no_gates/feature-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 116,
+      "arm": "a4_no_gates",
+      "task_id": "feature-02",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-feature-02-t3",
+      "run_dir": "a4_no_gates/feature-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 117,
+      "arm": "a4_no_gates",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-feature-04-t3",
+      "run_dir": "a4_no_gates/feature-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 118,
+      "arm": "a0_bare",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-review-01-t3",
+      "run_dir": "a0_bare/review-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 119,
+      "arm": "a1_full",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-review-02-t3",
+      "run_dir": "a1_full/review-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-02/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 120,
+      "arm": "a0_bare",
+      "task_id": "feature-04",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-feature-04-t3",
+      "run_dir": "a0_bare/feature-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 121,
+      "arm": "a1_full",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-refactor-04-t3",
+      "run_dir": "a1_full/refactor-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 122,
+      "arm": "a0_bare",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-bugfix-01-t3",
+      "run_dir": "a0_bare/bugfix-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 123,
+      "arm": "a1_full",
+      "task_id": "refactor-03",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-refactor-03-t3",
+      "run_dir": "a1_full/refactor-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-03/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 124,
+      "arm": "a0_bare",
+      "task_id": "refactor-04",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-refactor-04-t3",
+      "run_dir": "a0_bare/refactor-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 125,
+      "arm": "a4_no_gates",
+      "task_id": "feature-01",
+      "type": "feature-build",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-feature-01-t3",
+      "run_dir": "a4_no_gates/feature-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/feature-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 126,
+      "arm": "a0_bare",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a0_bare-review-04-t3",
+      "run_dir": "a0_bare/review-04-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-04/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 127,
+      "arm": "a1_full",
+      "task_id": "bugfix-02",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-bugfix-02-t3",
+      "run_dir": "a1_full/bugfix-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 128,
+      "arm": "a1_full",
+      "task_id": "refactor-02",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-refactor-02-t3",
+      "run_dir": "a1_full/refactor-02-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-02/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT",
+        "REVIEW",
+        "FIX",
+        "AUDIT",
+        "FIX"
+      ],
+      "phase_sum_min": 130,
+      "watchdog_s": 15600
+    },
+    {
+      "i": 129,
+      "arm": "a4_no_gates",
+      "task_id": "bugfix-01",
+      "type": "bug-fix",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-bugfix-01-t3",
+      "run_dir": "a4_no_gates/bugfix-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/bugfix-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 130,
+      "arm": "a1_full",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-review-01-t3",
+      "run_dir": "a1_full/review-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-01/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 131,
+      "arm": "a4_no_gates",
+      "task_id": "refactor-01",
+      "type": "refactor",
+      "kind": "build",
+      "trial": 3,
+      "run_id": "priority-p1-a4_no_gates-refactor-01-t3",
+      "run_dir": "a4_no_gates/refactor-01-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/refactor-01/task.yaml",
+      "phases": [
+        "PLAN",
+        "IMPLEMENT"
+      ],
+      "phase_sum_min": 40,
+      "watchdog_s": 4800
+    },
+    {
+      "i": 132,
+      "arm": "a1_full",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "priority-p1-a1_full-review-03-t3",
+      "run_dir": "a1_full/review-03-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/tasks/review-03/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    }
+  ],
+  "arm_map": {
+    "priority-p1-a1_full-review-04-t1": "a1_full",
+    "priority-p1-a1_full-feature-04-t1": "a1_full",
+    "priority-p1-a0_bare-refactor-02-t1": "a0_bare",
+    "priority-p1-a0_bare-bugfix-04-t1": "a0_bare",
+    "priority-p1-a0_bare-feature-01-t1": "a0_bare",
+    "priority-p1-a0_bare-refactor-03-t1": "a0_bare",
+    "priority-p1-a1_full-feature-03-t1": "a1_full",
+    "priority-p1-a0_bare-feature-03-t1": "a0_bare",
+    "priority-p1-a1_full-refactor-01-t1": "a1_full",
+    "priority-p1-a1_full-bugfix-01-t1": "a1_full",
+    "priority-p1-a1_full-bugfix-03-t1": "a1_full",
+    "priority-p1-a1_full-review-02-t1": "a1_full",
+    "priority-p1-a4_no_gates-feature-04-t1": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-04-t1": "a4_no_gates",
+    "priority-p1-a1_full-bugfix-04-t1": "a1_full",
+    "priority-p1-a4_no_gates-feature-01-t1": "a4_no_gates",
+    "priority-p1-a1_full-feature-01-t1": "a1_full",
+    "priority-p1-a4_no_gates-refactor-01-t1": "a4_no_gates",
+    "priority-p1-a0_bare-refactor-04-t1": "a0_bare",
+    "priority-p1-a4_no_gates-feature-03-t1": "a4_no_gates",
+    "priority-p1-a0_bare-refactor-01-t1": "a0_bare",
+    "priority-p1-a4_no_gates-refactor-02-t1": "a4_no_gates",
+    "priority-p1-a1_full-refactor-03-t1": "a1_full",
+    "priority-p1-a0_bare-feature-02-t1": "a0_bare",
+    "priority-p1-a1_full-bugfix-02-t1": "a1_full",
+    "priority-p1-a0_bare-feature-04-t1": "a0_bare",
+    "priority-p1-a4_no_gates-feature-02-t1": "a4_no_gates",
+    "priority-p1-a4_no_gates-bugfix-03-t1": "a4_no_gates",
+    "priority-p1-a1_full-feature-02-t1": "a1_full",
+    "priority-p1-a0_bare-review-04-t1": "a0_bare",
+    "priority-p1-a4_no_gates-bugfix-01-t1": "a4_no_gates",
+    "priority-p1-a0_bare-review-03-t1": "a0_bare",
+    "priority-p1-a4_no_gates-bugfix-04-t1": "a4_no_gates",
+    "priority-p1-a1_full-refactor-02-t1": "a1_full",
+    "priority-p1-a1_full-refactor-04-t1": "a1_full",
+    "priority-p1-a4_no_gates-bugfix-02-t1": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-03-t1": "a4_no_gates",
+    "priority-p1-a0_bare-bugfix-02-t1": "a0_bare",
+    "priority-p1-a0_bare-bugfix-03-t1": "a0_bare",
+    "priority-p1-a0_bare-bugfix-01-t1": "a0_bare",
+    "priority-p1-a1_full-review-03-t1": "a1_full",
+    "priority-p1-a1_full-review-01-t1": "a1_full",
+    "priority-p1-a0_bare-review-01-t1": "a0_bare",
+    "priority-p1-a0_bare-review-02-t1": "a0_bare",
+    "priority-p1-a1_full-bugfix-04-t2": "a1_full",
+    "priority-p1-a0_bare-refactor-03-t2": "a0_bare",
+    "priority-p1-a0_bare-review-03-t2": "a0_bare",
+    "priority-p1-a4_no_gates-feature-04-t2": "a4_no_gates",
+    "priority-p1-a0_bare-refactor-01-t2": "a0_bare",
+    "priority-p1-a0_bare-feature-02-t2": "a0_bare",
+    "priority-p1-a4_no_gates-feature-01-t2": "a4_no_gates",
+    "priority-p1-a1_full-refactor-01-t2": "a1_full",
+    "priority-p1-a1_full-feature-04-t2": "a1_full",
+    "priority-p1-a0_bare-bugfix-01-t2": "a0_bare",
+    "priority-p1-a1_full-bugfix-03-t2": "a1_full",
+    "priority-p1-a0_bare-review-04-t2": "a0_bare",
+    "priority-p1-a1_full-review-04-t2": "a1_full",
+    "priority-p1-a1_full-feature-02-t2": "a1_full",
+    "priority-p1-a0_bare-feature-03-t2": "a0_bare",
+    "priority-p1-a1_full-refactor-04-t2": "a1_full",
+    "priority-p1-a4_no_gates-bugfix-01-t2": "a4_no_gates",
+    "priority-p1-a1_full-bugfix-01-t2": "a1_full",
+    "priority-p1-a4_no_gates-feature-03-t2": "a4_no_gates",
+    "priority-p1-a1_full-feature-01-t2": "a1_full",
+    "priority-p1-a4_no_gates-refactor-01-t2": "a4_no_gates",
+    "priority-p1-a0_bare-refactor-02-t2": "a0_bare",
+    "priority-p1-a0_bare-bugfix-04-t2": "a0_bare",
+    "priority-p1-a1_full-refactor-02-t2": "a1_full",
+    "priority-p1-a4_no_gates-feature-02-t2": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-03-t2": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-02-t2": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-04-t2": "a4_no_gates",
+    "priority-p1-a4_no_gates-bugfix-02-t2": "a4_no_gates",
+    "priority-p1-a1_full-refactor-03-t2": "a1_full",
+    "priority-p1-a1_full-feature-03-t2": "a1_full",
+    "priority-p1-a1_full-bugfix-02-t2": "a1_full",
+    "priority-p1-a0_bare-refactor-04-t2": "a0_bare",
+    "priority-p1-a1_full-review-02-t2": "a1_full",
+    "priority-p1-a0_bare-bugfix-02-t2": "a0_bare",
+    "priority-p1-a1_full-review-03-t2": "a1_full",
+    "priority-p1-a0_bare-review-02-t2": "a0_bare",
+    "priority-p1-a4_no_gates-bugfix-04-t2": "a4_no_gates",
+    "priority-p1-a1_full-review-01-t2": "a1_full",
+    "priority-p1-a0_bare-bugfix-03-t2": "a0_bare",
+    "priority-p1-a4_no_gates-bugfix-03-t2": "a4_no_gates",
+    "priority-p1-a0_bare-review-01-t2": "a0_bare",
+    "priority-p1-a0_bare-feature-01-t2": "a0_bare",
+    "priority-p1-a0_bare-feature-04-t2": "a0_bare",
+    "priority-p1-a1_full-feature-04-t3": "a1_full",
+    "priority-p1-a1_full-feature-03-t3": "a1_full",
+    "priority-p1-a0_bare-refactor-03-t3": "a0_bare",
+    "priority-p1-a1_full-refactor-01-t3": "a1_full",
+    "priority-p1-a1_full-feature-01-t3": "a1_full",
+    "priority-p1-a1_full-review-04-t3": "a1_full",
+    "priority-p1-a4_no_gates-refactor-03-t3": "a4_no_gates",
+    "priority-p1-a1_full-bugfix-03-t3": "a1_full",
+    "priority-p1-a0_bare-review-02-t3": "a0_bare",
+    "priority-p1-a0_bare-feature-02-t3": "a0_bare",
+    "priority-p1-a0_bare-feature-01-t3": "a0_bare",
+    "priority-p1-a0_bare-review-03-t3": "a0_bare",
+    "priority-p1-a0_bare-refactor-01-t3": "a0_bare",
+    "priority-p1-a0_bare-refactor-02-t3": "a0_bare",
+    "priority-p1-a1_full-bugfix-01-t3": "a1_full",
+    "priority-p1-a4_no_gates-bugfix-02-t3": "a4_no_gates",
+    "priority-p1-a4_no_gates-bugfix-03-t3": "a4_no_gates",
+    "priority-p1-a0_bare-bugfix-03-t3": "a0_bare",
+    "priority-p1-a1_full-bugfix-04-t3": "a1_full",
+    "priority-p1-a0_bare-bugfix-02-t3": "a0_bare",
+    "priority-p1-a1_full-feature-02-t3": "a1_full",
+    "priority-p1-a4_no_gates-bugfix-04-t3": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-04-t3": "a4_no_gates",
+    "priority-p1-a4_no_gates-refactor-02-t3": "a4_no_gates",
+    "priority-p1-a0_bare-feature-03-t3": "a0_bare",
+    "priority-p1-a0_bare-bugfix-04-t3": "a0_bare",
+    "priority-p1-a4_no_gates-feature-03-t3": "a4_no_gates",
+    "priority-p1-a4_no_gates-feature-02-t3": "a4_no_gates",
+    "priority-p1-a4_no_gates-feature-04-t3": "a4_no_gates",
+    "priority-p1-a0_bare-review-01-t3": "a0_bare",
+    "priority-p1-a1_full-review-02-t3": "a1_full",
+    "priority-p1-a0_bare-feature-04-t3": "a0_bare",
+    "priority-p1-a1_full-refactor-04-t3": "a1_full",
+    "priority-p1-a0_bare-bugfix-01-t3": "a0_bare",
+    "priority-p1-a1_full-refactor-03-t3": "a1_full",
+    "priority-p1-a0_bare-refactor-04-t3": "a0_bare",
+    "priority-p1-a4_no_gates-feature-01-t3": "a4_no_gates",
+    "priority-p1-a0_bare-review-04-t3": "a0_bare",
+    "priority-p1-a1_full-bugfix-02-t3": "a1_full",
+    "priority-p1-a1_full-refactor-02-t3": "a1_full",
+    "priority-p1-a4_no_gates-bugfix-01-t3": "a4_no_gates",
+    "priority-p1-a1_full-review-01-t3": "a1_full",
+    "priority-p1-a4_no_gates-refactor-01-t3": "a4_no_gates",
+    "priority-p1-a1_full-review-03-t3": "a1_full"
+  },
+  "shuffle_seed": 20261015,
+  "shuffle": "trial-major; python3 random.Random(shuffle_seed).shuffle per trial block, blocks in order",
+  "fingerprint": "fp:fdd72f05bc58ff25f127bcd986d05baead423b6b55636938e9bf8bf751dcdbe7",
+  "image": "loa-ablation:258",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "executor_mode": "container",
+  "cli_version": "2.1.299",
+  "cli_version_raw": "2.1.299 (Claude Code)",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "phase_models": {
+    "PLAN": "global.anthropic.claude-opus-5-5",
+    "IMPLEMENT": "global.anthropic.claude-opus-5-5",
+    "FIX": "global.anthropic.claude-opus-5-5",
+    "BARE": "global.anthropic.claude-opus-5-5",
+    "REVIEW": "global.anthropic.claude-fable-5-1",
+    "AUDIT": "global.anthropic.claude-fable-5-1"
+  },
+  "caps": {
+    "cycle_usd": 1500,
+    "run_usd": 12,
+    "reserve_usd": 250,
+    "max_usd": 1039
+  },
+  "cost_hint": {
+    "build": 7,
+    "review-catch": 8
+  },
+  "concurrency": 3,
+  "retry": {
+    "transport_retries": 1,
+    "wait_s": 120
+  },
+  "watchdog": {
+    "multiplier": 2,
+    "override_s": null,
+    "grace_s": 60
+  },
+  "pre_registration_ref": "NOTES.md § Batch plan — cycle-130 ablation (Task 3.4) — 2026-10-15T10:26:23Z",
+  "gate": {
+    "manifest": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/MANIFEST.sha256",
+    "manifest_sha256": "30e1f2ad7015590227e9cc2fa25ca791e31867fec65289e4a41554e9e53357ba",
+    "review_md": {
+      "bugfix-01": "68bab2b583f83dd76aaca8f2d1ca0b41c3046b4082ee37c6269d18842168a7a2",
+      "bugfix-02": "e8b4ed90e5d1ee1d17b274197a4d2bf16ae0fa828fa0a438f843fcaa5e48caf4",
+      "bugfix-03": "e1c633695d11faa6bd49e53ce74511aa40918dddcbe8cb7de52b1a57c1bc737e",
+      "bugfix-04": "f7baa148b96deda50fdc6d43756f431e3db26555a7c1c3877ec0688721b7e67b",
+      "feature-01": "79c95d1fc1a32980826ece8de2f144a56883a7ffa062c7f836312006ea693fee",
+      "feature-02": "fd7c9ff1bb1b086f5cfa7617dca602a8bb9c2cdc1d5621eec2f5f2050f241d46",
+      "feature-03": "b22f97738e868cafa4fd5d059be0c9fb790f8975431969cf9b8bc3314c96fb34",
+      "feature-04": "980fc7db8cc902d040a80673439d96f7ec1a11955434662a288a6f4f52a861f5",
+      "refactor-01": "bf3b82231ff184123718a18cc5ccc481c157d2d0f2dd60a480ea356f72258562",
+      "refactor-02": "a4c48ef8ce428b6bb968fd2cdb44eefbe51b7766f21b776b97717688a75eedfe",
+      "refactor-03": "21ac2404b43678ea4a7cf4b4d52ce66e372d7d9eb420e9a2a67102e185a6953b",
+      "refactor-04": "ec0650a433ba466b0d609622d67d08f1c6ab185b35ae0554ddb3e30d2ec87740",
+      "review-01": "51bbec686a03335d89e4f9db86f2265d3f3b487ea4385e3e00e1cf894542ee53",
+      "review-02": "4dc21fdb58aeff2aa0d01c7a5fccd6382189b9e9348644e525e2297101d48ed8",
+      "review-03": "a3a6507e5c6a3017d9e97704dde8e010862ad524dcda8aef4fdfe75029723f26",
+      "review-04": "b65ae5720d96e5d988dc60331e2262fc976d590e4f098a9f4c2d5ab45dec616a"
+    },
+    "self_check_log": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/sprint-259/self-check-image.log",
+    "self_check_log_sha256": "453c44ca4e050cc73114107b38e377f07a41faa8be94277ee52cb45b4a2fa640",
+    "self_check_pass_lines": 36
+  },
+  "corpus": {
+    "manifest": "evals/fixtures/review-prs/SHA256SUMS",
+    "sha256": "8796b39d970155d11db3139041bc0dfdb36b31313af5f7bde319af1838aceaf3"
+  },
+  "agy_opt_in": false,
+  "environment": {
+    "os": "Linux 6.16.12+deb13-amd64 x86_64",
+    "bash": "5.2.37(1)-release",
+    "jq": "jq-1.7",
+    "yq": "yq (https://github.com/mikefarah/yq/) version v4.44.1",
+    "python": "Python 3.13.5",
+    "git": "git version 2.47.3"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "calib-frozen-01",
+  "smoke": false,
+  "state": "partial",
+  "per_arm": {
+    "a0_bare": {
+      "trials_planned": 2,
+      "launched": 2,
+      "completed": 2,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a1_full": {
+      "trials_planned": 2,
+      "launched": 2,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 2,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a2_no_sprint_plan": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a3_one_voice": {
+      "trials_planned": 2,
+      "launched": 2,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 2,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a4_no_gates": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a5_no_flatline": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a6_one_window": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a7_effort_medium": {
+      "trials_planned": 2,
+      "launched": 2,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 2,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 66.2802453,
+    "ledger_usd": 0,
+    "spent_usd": 66.2802453,
+    "max_usd": 100,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 12,
+  "resume_cursor": 12,
+  "drift": null,
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl",
+  "started": "2026-10-15T08:33:28Z",
+  "finished": "2026-10-15T09:52:48Z"
+}

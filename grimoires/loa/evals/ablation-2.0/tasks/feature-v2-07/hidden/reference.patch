@@ -1,0 +1,834 @@
+diff -ruN a/src/cronq/agenda.py b/src/cronq/agenda.py
+--- a/src/cronq/agenda.py
++++ b/src/cronq/agenda.py
+@@ -6,14 +6,19 @@
+ """
+ import heapq
+ 
++from .errors import CronError
+ from .timeutil import format_local
+ 
+ 
+ def upcoming(job, after, count):
+-    """The next ``count`` fire instants of ``job`` strictly after ``after``."""
++    """The next ``count`` fire instants of ``job`` strictly after ``after`` (fewer when
++    a cron job runs out of fire times within its horizon)."""
+     result, instant = [], after
+     while len(result) < count:
+-        instant = job.next_after(instant)
++        try:
++            instant = job.next_after(instant)
++        except CronError:
++            break
+         result.append(instant)
+     return result
+ 
+diff -ruN a/src/cronq/cli.py b/src/cronq/cli.py
+--- a/src/cronq/cli.py
++++ b/src/cronq/cli.py
+@@ -3,6 +3,9 @@
+   cronq validate --jobs FILE --zones FILE [--config FILE]
+   cronq agenda   --jobs FILE --zones FILE [--config FILE] --now INSTANT [--count N]
+   cronq run      --jobs FILE --zones FILE [--config FILE] --from INSTANT --to INSTANT [--step MINUTES]
++  cronq next     [--zones FILE] [--zone NAME | --tz RULE] --after INSTANT [--count N] [--horizon DAYS] EXPRESSION
++  cronq prev     [--zones FILE] [--zone NAME | --tz RULE] --before INSTANT [--count N] [--horizon DAYS] EXPRESSION
++  cronq count    [--zones FILE] [--zone NAME | --tz RULE] --from INSTANT --to INSTANT EXPRESSION
+ 
+ Exit status 0 on success.  On any error: exit status 2 and one line
+ ``cronq: <message>`` on standard error (a malformed command line prints the
+@@ -13,20 +16,28 @@
+ from .agenda import build_agenda, format_agenda
+ from .clock import SimClock
+ from .config import Config, parse_config
++from .cron import parse_cron
+ from .errors import CronqError, UsageError
+ from .jobs import parse_jobs
+ from .runner import Runner
+ from .timeutil import parse_instant
+-from .zones import parse_zones
++from .timeutil import format_local
++from .zones import UTC, lookup, parse_tz, parse_zones
+ 
+ USAGE = """usage: cronq validate --jobs FILE --zones FILE [--config FILE]
+        cronq agenda --jobs FILE --zones FILE [--config FILE] --now INSTANT [--count N]
+-       cronq run --jobs FILE --zones FILE [--config FILE] --from INSTANT --to INSTANT [--step MINUTES]"""
++       cronq run --jobs FILE --zones FILE [--config FILE] --from INSTANT --to INSTANT [--step MINUTES]
++       cronq next [--zones FILE] [--zone NAME | --tz RULE] --after INSTANT [--count N] [--horizon DAYS] EXPRESSION
++       cronq prev [--zones FILE] [--zone NAME | --tz RULE] --before INSTANT [--count N] [--horizon DAYS] EXPRESSION
++       cronq count [--zones FILE] [--zone NAME | --tz RULE] --from INSTANT --to INSTANT EXPRESSION"""
+ 
+ COMMANDS = {
+     "validate": ({"jobs", "zones"}, {"config"}, 0),
+     "agenda": ({"jobs", "zones", "now"}, {"config", "count"}, 0),
+     "run": ({"jobs", "zones", "from", "to"}, {"config", "step"}, 0),
++    "next": ({"after"}, {"zones", "zone", "tz", "count", "horizon"}, 1),
++    "prev": ({"before"}, {"zones", "zone", "tz", "count", "horizon"}, 1),
++    "count": ({"from", "to"}, {"zones", "zone", "tz"}, 1),
+ }
+ 
+ 
+@@ -98,7 +109,41 @@
+         print(entry.format(), file=out)
+ 
+ 
+-HANDLERS = {"validate": cmd_validate, "agenda": cmd_agenda, "run": cmd_run}
++def pick_zone(options):
++    if "zone" in options and "tz" in options:
++        raise CronqError("--zone and --tz are exclusive")
++    if "tz" in options:
++        return parse_tz(options["tz"])
++    zones = parse_zones(read_file(options["zones"])) if "zones" in options else {"UTC": UTC}
++    return lookup(zones, options.get("zone", "UTC"))
++
++
++def _walk(options, positionals, out, key, step):
++    zone = pick_zone(options)
++    instant = parse_instant(options[key])
++    count = positive_int(options["count"], "count", 1000) if "count" in options else 1
++    horizon = positive_int(options["horizon"], "horizon", 36600) if "horizon" in options else 1830
++    schedule = parse_cron(positionals[0], horizon)
++    for _ in range(count):
++        instant = step(schedule, instant, zone)
++        print(format_local(instant, zone.offset_at(instant)), file=out)
++
++
++def cmd_next(options, positionals, out):
++    _walk(options, positionals, out, "after", lambda s, i, z: s.next_after(i, z))
++
++
++def cmd_prev(options, positionals, out):
++    _walk(options, positionals, out, "before", lambda s, i, z: s.prev_before(i, z))
++
++
++def cmd_count(options, positionals, out):
++    zone = pick_zone(options)
++    start, end = parse_instant(options["from"]), parse_instant(options["to"])
++    print(parse_cron(positionals[0]).count_between(start, end, zone), file=out)
++
++
++HANDLERS = {"validate": cmd_validate, "agenda": cmd_agenda, "run": cmd_run, "next": cmd_next, "prev": cmd_prev, "count": cmd_count}
+ 
+ 
+ def main(argv, stdout=None, stderr=None):
+diff -ruN a/src/cronq/cron.py b/src/cronq/cron.py
+--- a/src/cronq/cron.py
++++ b/src/cronq/cron.py
+@@ -0,0 +1,334 @@
++"""Cron schedules: five-field expressions evaluated on local wall-clock time.
++
++``parse_cron(text, horizon_days)`` parses an expression into a CronSchedule;
++``CronSchedule.next_after(instant, zone)`` finds the first fire instant
++strictly after ``instant``.  A minute fires when its local wall time matches
++and that wall time has not already occurred at an earlier instant (so a
++wall time repeated by a backward offset change fires once, and a wall time
++skipped by a forward change never fires).
++"""
++import calendar
++import datetime
++import re
++
++from .errors import CronError
++from .schedule import DEFAULT_HORIZON_DAYS
++from .timeutil import to_datetime
++
++FIELDS = (("minute", 0, 59), ("hour", 0, 23), ("dom", 1, 31), ("month", 1, 12), ("dow", 0, 7))
++MONTH_NAMES = {name: index for index, name in enumerate(
++    ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"), 1)}
++DAY_NAMES = {name: index for index, name in enumerate(("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"))}
++MACROS = {
++    "@yearly": "0 0 1 1 *",
++    "@annually": "0 0 1 1 *",
++    "@monthly": "0 0 1 * *",
++    "@weekly": "0 0 * * 0",
++    "@daily": "0 0 * * *",
++    "@midnight": "0 0 * * *",
++    "@hourly": "0 * * * *",
++}
++_DIGITS = re.compile(r"^[0-9]+$")
++_DOM_W = re.compile(r"^([0-9]+)W$", re.IGNORECASE)
++_DOW_LAST = re.compile(r"^([0-9]+|[A-Za-z]{3})L$", re.IGNORECASE)
++_DOW_NTH = re.compile(r"^([0-9]+|[A-Za-z]{3})#([0-9]+)$")
++_EPOCH_DATE = datetime.date(1970, 1, 1)
++SPAN_DAYS = 1096
++
++
++class _Bad(Exception):
++    """A field-level reason; parse_cron prefixes the field."""
++
++
++class _Field:
++    def __init__(self, text):
++        self.text = text
++        self.values = set()
++        self.last = False          # dom L
++        self.last_weekday = False  # dom LW
++        self.nearest = set()       # dom nW
++        self.last_of = set()       # dow nL
++        self.nth = set()           # dow (n, k)
++
++    @property
++    def restricted(self):
++        return self.text != "*"
++
++
++def _value(text, index):
++    name, low, high = FIELDS[index]
++    if _DIGITS.match(text):
++        value = int(text)
++    else:
++        names = MONTH_NAMES if name == "month" else DAY_NAMES if name == "dow" else {}
++        if text.upper() not in names:
++            raise _Bad(f"bad value {text!r}")
++        value = names[text.upper()]
++    if not low <= value <= high:
++        raise _Bad(f"value {value} out of range {low}-{high}")
++    return value
++
++
++def _special(item, index, field):
++    """Handle L / LW / nW (dom) and nL / n#k (dow); False when the item is not special."""
++    name = FIELDS[index][0]
++    if name == "dom":
++        if item.upper() == "L":
++            field.last = True
++            return True
++        if item.upper() == "LW":
++            field.last_weekday = True
++            return True
++        match = _DOM_W.match(item)
++        if match:
++            field.nearest.add(_value(match.group(1), index))
++            return True
++    elif name == "dow":
++        match = _DOW_LAST.match(item)
++        if match:
++            field.last_of.add(_value(match.group(1), index) % 7)
++            return True
++        match = _DOW_NTH.match(item)
++        if match:
++            day = _value(match.group(1), index) % 7
++            occurrence = int(match.group(2))
++            if not 1 <= occurrence <= 5:
++                raise _Bad(f"occurrence {occurrence} out of range 1-5")
++            field.nth.add((day, occurrence))
++            return True
++    return False
++
++
++def _item(item, index, field):
++    _, low, high = FIELDS[index]
++    if item == "":
++        raise _Bad("empty item")
++    if _special(item, index, field):
++        return
++    base, slash, step_text = item.partition("/")
++    if base == "*":
++        start, end = low, high
++    elif "-" in base:
++        first, _, second = base.partition("-")
++        start, end = _value(first, index), _value(second, index)
++        if start > end:
++            raise _Bad(f"reversed range {base!r}")
++    else:
++        start = _value(base, index)
++        end = high if slash else start
++    step = 1
++    if slash:
++        if not _DIGITS.match(step_text):
++            raise _Bad(f"bad step {step_text!r}")
++        step = int(step_text)
++        if step < 1:
++            raise _Bad("step must be at least 1")
++    values = range(start, end + 1, step)
++    if FIELDS[index][0] == "dow":
++        values = [value % 7 for value in values]
++    field.values.update(values)
++
++
++def _field(text, index):
++    field = _Field(text)
++    for item in text.split(","):
++        _item(item, index, field)
++    return field
++
++
++def _last_day(year, month):
++    return calendar.monthrange(year, month)[1]
++
++
++def _cron_weekday(day):
++    return (day.weekday() + 1) % 7
++
++
++def _nearest_weekday(year, month, nominal):
++    last = _last_day(year, month)
++    if nominal > last:
++        return None
++    weekday = _cron_weekday(datetime.date(year, month, nominal))
++    if weekday == 6:
++        return nominal - 1 if nominal > 1 else nominal + 2
++    if weekday == 0:
++        return nominal + 1 if nominal < last else nominal - 2
++    return nominal
++
++
++def _pieces(zone, low, high, reverse):
++    """Split minute indexes ``[low, high]`` into constant-offset pieces.
++
++    Yields ``(begin, end, offset, prior)``: minute indexes ``begin..end`` share
++    ``offset``, and ``prior`` is the largest wall minute reached by any minute
++    index before the piece's offset span began (a wall above it cannot have
++    occurred earlier)."""
++    if low > high:
++        return
++    bounds = []  # (first minute index of a span, offset)
++    for when, _ in zone.changes:
++        index = -(-when // 60)
++        if not bounds or bounds[-1][0] != index:
++            bounds.append((index, zone.offset_at(index * 60)))
++        else:
++            bounds[-1] = (index, zone.offset_at(index * 60))
++    spans = []
++    begin, offset, prior = None, zone.offset_at((bounds[0][0] - 1) * 60) if bounds else zone.initial, None
++    for index, value in bounds:
++        spans.append((begin, index - 1, offset, prior))
++        top = index - 1 + offset
++        prior = top if prior is None else max(prior, top)
++        begin, offset = index, value
++    spans.append((begin, None, offset, prior))
++    pieces = []
++    for begin, end, offset, prior in spans:
++        lo = low if begin is None else max(low, begin)
++        hi = high if end is None else min(high, end)
++        if lo <= hi:
++            pieces.append((lo, hi, offset, float("-inf") if prior is None else prior))
++    yield from (reversed(pieces) if reverse else pieces)
++
++
++class CronSchedule:
++    def __init__(self, text, fields, horizon_days):
++        self.text = text
++        self.minute, self.hour, self.dom, self.month, self.dow = fields
++        self.horizon_days = horizon_days
++
++    def describe(self):
++        return "cron " + self.text
++
++    def _dom_matches(self, day):
++        field = self.dom
++        if day.day in field.values:
++            return True
++        last = _last_day(day.year, day.month)
++        if field.last and day.day == last:
++            return True
++        if field.last_weekday:
++            final = datetime.date(day.year, day.month, last)
++            shift = {6: 1, 0: 2}.get(_cron_weekday(final), 0)
++            if day.day == last - shift:
++                return True
++        return any(_nearest_weekday(day.year, day.month, n) == day.day for n in field.nearest)
++
++    def _dow_matches(self, day):
++        field = self.dow
++        weekday = _cron_weekday(day)
++        if weekday in field.values:
++            return True
++        if weekday in field.last_of and day.day + 7 > _last_day(day.year, day.month):
++            return True
++        return (weekday, (day.day - 1) // 7 + 1) in field.nth
++
++    def day_matches(self, day):
++        if day.month not in self.month.values:
++            return False
++        if self.dom.restricted and self.dow.restricted:
++            return self._dom_matches(day) or self._dow_matches(day)
++        if self.dom.restricted:
++            return self._dom_matches(day)
++        if self.dow.restricted:
++            return self._dow_matches(day)
++        return True
++
++    def matches(self, wall):
++        """Whether the wall minute ``wall`` (a naive datetime) matches the expression."""
++        return wall.minute in self.minute.values and wall.hour in self.hour.values and self.day_matches(wall.date())
++
++    def _first_occurrence(self, wall_minutes, zone):
++        """The earliest instant whose wall time is ``wall_minutes`` (minutes since the epoch), or None."""
++        best = None
++        for offset in zone.offsets():
++            instant = (wall_minutes - offset) * 60
++            if zone.offset_at(instant) == offset and (best is None or instant < best):
++                best = instant
++        return best
++
++    def _walls(self, first, last, reverse=False):
++        """Matching wall minutes (minutes since the epoch) in ``[first, last]``, ascending or descending."""
++        if first > last:
++            return
++        day = to_datetime(first * 60).date()
++        final = to_datetime(last * 60).date()
++        hours = sorted(self.hour.values, reverse=reverse)
++        minutes = sorted(self.minute.values, reverse=reverse)
++        step = datetime.timedelta(days=-1 if reverse else 1)
++        if reverse:
++            day, final = final, day
++        while (day >= final) if reverse else (day <= final):
++            if self.day_matches(day):
++                base = (day - _EPOCH_DATE).days * 1440
++                for hour in hours:
++                    for minute in minutes:
++                        wall = base + hour * 60 + minute
++                        if first <= wall <= last:
++                            yield wall
++            day += step
++
++    def _fires(self, zone, low, high, reverse=False):
++        """Fire instants with minute index in ``[low, high]``, in time order (or reversed)."""
++        for begin, end, offset, prior in _pieces(zone, low, high, reverse):
++            for wall in self._walls(begin + offset, end + offset, reverse):
++                instant = (wall - offset) * 60
++                if wall > prior or self._first_occurrence(wall, zone) == instant:
++                    yield instant
++
++    def next_after(self, instant, zone):
++        """The first fire instant strictly after ``instant``; CronError past the horizon."""
++        for fire in self._fires(zone, instant // 60 + 1, (instant + self.horizon_days * 86400) // 60):
++            return fire
++        raise CronError(f"no fire time within {self.horizon_days} days")
++
++    def prev_before(self, instant, zone):
++        """The last fire instant strictly before ``instant``; CronError past the horizon."""
++        low = -(-(instant - self.horizon_days * 86400) // 60)
++        for fire in self._fires(zone, low, -(-instant // 60) - 1, reverse=True):
++            return fire
++        raise CronError(f"no fire time within {self.horizon_days} days before")
++
++    def count_between(self, start, end, zone):
++        """How many fire instants lie in ``(start, end]``."""
++        if end < start:
++            raise CronError("end before start")
++        if end - start > SPAN_DAYS * 86400:
++            raise CronError(f"span longer than {SPAN_DAYS} days")
++        return sum(1 for _ in self._fires(zone, start // 60 + 1, end // 60))
++
++    def nth_after(self, instant, n, zone):
++        """The n-th fire instant after ``instant`` (n >= 1) within SPAN_DAYS days."""
++        if n < 1:
++            raise CronError("n must be at least 1")
++        seen = 0
++        for fire in self._fires(zone, instant // 60 + 1, (instant + SPAN_DAYS * 86400) // 60):
++            seen += 1
++            if seen == n:
++                return fire
++        raise CronError(f"fewer than {n} fire times within {SPAN_DAYS} days")
++
++    def __repr__(self):
++        return f"CronSchedule({self.text!r})"
++
++
++def parse_cron(text, horizon_days=DEFAULT_HORIZON_DAYS):
++    """Parse a cron expression or macro; raises CronError."""
++    stripped = text.strip()
++    if not stripped:
++        raise CronError("empty expression")
++    if stripped.startswith("@"):
++        expanded = MACROS.get(stripped.lower())
++        if expanded is None:
++            raise CronError(f"unknown macro {stripped!r}")
++        shown, words = stripped, expanded.split()
++    else:
++        words = stripped.split()
++        if len(words) != 5:
++            raise CronError(f"expected 5 fields, got {len(words)}")
++        shown = " ".join(words)
++    fields = []
++    for index, word in enumerate(words):
++        try:
++            fields.append(_field(word, index))
++        except _Bad as exc:
++            raise CronError(f"field {index + 1} ({FIELDS[index][0]}): {exc}") from None
++    return CronSchedule(shown, fields, horizon_days)
+diff -ruN a/src/cronq/errors.py b/src/cronq/errors.py
+--- a/src/cronq/errors.py
++++ b/src/cronq/errors.py
+@@ -17,6 +17,10 @@
+     """A schedule text cannot be parsed, or a schedule cannot be evaluated."""
+ 
+ 
++class CronError(ScheduleError):
++    """A cron expression is malformed, or it does not fire within the horizon."""
++
++
+ class JobsError(CronqError):
+     """The jobs file is malformed."""
+ 
+diff -ruN a/src/cronq/__init__.py b/src/cronq/__init__.py
+--- a/src/cronq/__init__.py
++++ b/src/cronq/__init__.py
+@@ -4,8 +4,10 @@
+ optional config file.  The runner records one log entry per job and tick, and
+ the agenda previews upcoming fire times.
+ """
++from .cron import CronSchedule, parse_cron
+ from .errors import (
+     ConfigError,
++    CronError,
+     CronqError,
+     JobsError,
+     ScheduleError,
+@@ -15,12 +17,14 @@
+ )
+ from .schedule import IntervalSchedule, parse_schedule
+ from .timeutil import format_local, format_utc, parse_instant
+-from .zones import UTC, Zone, parse_zones
++from .zones import UTC, Zone, parse_tz, parse_zones
+ 
+ __version__ = "0.4.0"
+ 
+ __all__ = [
+     "ConfigError",
++    "CronError",
++    "CronSchedule",
+     "CronqError",
+     "IntervalSchedule",
+     "JobsError",
+@@ -32,7 +36,9 @@
+     "ZoneError",
+     "format_local",
+     "format_utc",
++    "parse_cron",
+     "parse_instant",
+     "parse_schedule",
++    "parse_tz",
+     "parse_zones",
+ ]
+diff -ruN a/src/cronq/runner.py b/src/cronq/runner.py
+--- a/src/cronq/runner.py
++++ b/src/cronq/runner.py
+@@ -4,9 +4,10 @@
+ Catch-up rule: all the fire instants of a job in ``(previous tick, this tick]``
+ coalesce into a single entry whose time is the latest of them and whose
+ ``fires`` is their number.  Entries of one tick are ordered by time, then by
+-the jobs' file order.
++the jobs' file order.  A cron job that finds no fire time within its horizon
++simply has no further fires.
+ """
+-from .errors import CronqError
++from .errors import CronError, CronqError
+ from .runlog import Entry, RunLog
+ 
+ 
+@@ -19,10 +20,13 @@
+ 
+     def _fires(self, job, after, until):
+         fires = []
+-        instant = job.next_after(after)
+-        while instant <= until:
+-            fires.append(instant)
+-            instant = job.next_after(instant)
++        try:
++            instant = job.next_after(after)
++            while instant <= until:
++                fires.append(instant)
++                instant = job.next_after(instant)
++        except CronError:
++            pass
+         return fires
+ 
+     def tick(self, now):
+diff -ruN a/src/cronq/schedule.py b/src/cronq/schedule.py
+--- a/src/cronq/schedule.py
++++ b/src/cronq/schedule.py
+@@ -6,7 +6,9 @@
+     every 15m      every 2h      every 1d
+ 
+ An interval fires at every instant that is a whole multiple of its length
+-counted from 1970-01-01T00:00Z; the zone does not affect it.
++counted from 1970-01-01T00:00Z; the zone does not affect it.  The second kind
++is ``cron <expression>`` (see cron.py), searched at most ``horizon_days``
++ahead.
+ """
+ import re
+ 
+@@ -46,10 +48,14 @@
+ 
+ 
+ def parse_schedule(text, horizon_days=DEFAULT_HORIZON_DAYS):
+-    """Parse a schedule text (``every ...``)."""
++    """Parse a schedule text (``every ...`` or ``cron ...``)."""
+     words = text.split()
+     if not words:
+         raise ScheduleError("empty schedule")
+     if words[0] == "every":
+         return _parse_interval(words, text.strip())
++    if words[0] == "cron":
++        from .cron import parse_cron
++
++        return parse_cron(text.strip()[len("cron"):], horizon_days)
+     raise ScheduleError(f"unknown schedule kind {words[0]!r}")
+diff -ruN a/src/cronq/zones.py b/src/cronq/zones.py
+--- a/src/cronq/zones.py
++++ b/src/cronq/zones.py
+@@ -9,14 +9,187 @@
+       2026-03-29T01:00Z +02:00
+       2026-10-25T01:00Z +01:00
+ 
++A zone may instead hold a single POSIX-TZ-style rule line (parse_rule below)::
++
++    zone Eastern
++      rule EST5EDT,M3.2.0/2,M11.1.0/2
++
+ The zone ``UTC`` (offset 0, no transitions) always exists and may not be
+ redefined.
+ """
++import bisect
++import calendar
++import datetime
+ import re
++import string
+ 
+ from .errors import TimeFormatError, ZoneError
+ from .timeutil import format_offset, parse_instant, parse_offset, wall_time
+ 
++# ---- POSIX-TZ-style rule strings: parse_rule(text) -> (std, dst, start, end) in east-positive
++# minutes; rule_changes(...) -> the transitions of 1970-2199 in time order.
++
++FIRST_YEAR, LAST_YEAR = 1970, 2199
++_QUOTED = set(string.ascii_letters + string.digits + "+-")
++_LETTERS = set(string.ascii_letters)
++_DIGITS = set(string.digits)
++_EPOCH = datetime.date(1970, 1, 1)
++
++
++class _Cursor:
++    def __init__(self, text):
++        self.text = text
++        self.pos = 0
++
++    def peek(self):
++        return self.text[self.pos] if self.pos < len(self.text) else ""
++
++    def at_end(self):
++        return self.pos >= len(self.text)
++
++    def digits(self):
++        start = self.pos
++        while self.peek() in _DIGITS and self.peek():
++            self.pos += 1
++        return self.text[start:self.pos]
++
++
++def _name(cur, which):
++    if cur.peek() == "<":
++        close = cur.text.find(">", cur.pos + 1)
++        inner = cur.text[cur.pos + 1:close] if close >= 0 else ""
++        if close < 0 or len(inner) < 3 or any(c not in _QUOTED for c in inner):
++            raise ZoneError(f"bad {which} name")
++        cur.pos = close + 1
++        return
++    start = cur.pos
++    while cur.peek() and cur.peek() in _LETTERS:
++        cur.pos += 1
++    if cur.pos - start < 3:
++        raise ZoneError(f"bad {which} name")
++
++
++def _clock(cur, hour_digits, hour_max):
++    """``[+|-]h[:mm[:ss]]`` in signed minutes, or None when malformed."""
++    sign = 1
++    if cur.peek() in ("+", "-") and cur.peek():
++        sign = -1 if cur.peek() == "-" else 1
++        cur.pos += 1
++    hours = cur.digits()
++    if not 1 <= len(hours) <= hour_digits or int(hours) > hour_max:
++        return None
++    total = int(hours) * 60
++    if cur.peek() == ":":
++        cur.pos += 1
++        minutes = cur.digits()
++        if len(minutes) != 2 or int(minutes) > 59:
++            return None
++        total += int(minutes)
++        if cur.peek() == ":":
++            cur.pos += 1
++            if cur.digits() != "00":
++                return None
++    return sign * total
++
++
++def _date(cur):
++    """``('J', n)``, ``('N', n)`` or ``('M', m, w, d)``, or None when malformed."""
++    if cur.peek() == "J":
++        cur.pos += 1
++        n = cur.digits()
++        return ("J", int(n)) if 1 <= len(n) <= 3 and 1 <= int(n) <= 365 else None
++    if cur.peek() == "M":
++        cur.pos += 1
++        month = cur.digits()
++        if not 1 <= len(month) <= 2 or not 1 <= int(month) <= 12 or cur.peek() != ".":
++            return None
++        cur.pos += 1
++        week = cur.digits()
++        if len(week) != 1 or not 1 <= int(week) <= 5 or cur.peek() != ".":
++            return None
++        cur.pos += 1
++        day = cur.digits()
++        if len(day) != 1 or int(day) > 6:
++            return None
++        return ("M", int(month), int(week), int(day))
++    n = cur.digits()
++    return ("N", int(n)) if 1 <= len(n) <= 3 and int(n) <= 365 else None
++
++
++def _rule_part(cur, which, last):
++    date = _date(cur)
++    if date is None or cur.peek() not in ("/", "" if last else ","):
++        raise ZoneError(f"bad {which} rule")
++    time = 120
++    if cur.peek() == "/":
++        cur.pos += 1
++        time = _clock(cur, 3, 167)
++        if time is None or cur.peek() != ("" if last else ","):
++            raise ZoneError(f"bad {which} time")
++    return date, time
++
++
++def parse_rule(text):
++    stripped = text.strip()
++    if not stripped:
++        raise ZoneError("empty rule")
++    cur = _Cursor(stripped)
++    _name(cur, "std")
++    std = _clock(cur, 2, 24)
++    if std is None or not (cur.at_end() or cur.peek() == "<" or cur.peek() in _LETTERS):
++        raise ZoneError("bad std offset")
++    std = -std
++    if cur.at_end():
++        return std, None, None, None
++    _name(cur, "dst")
++    dst = std + 60
++    if cur.peek() and cur.peek() in "+-0123456789":
++        value = _clock(cur, 2, 24)
++        if value is None or cur.peek() not in ("", ","):
++            raise ZoneError("bad dst offset")
++        dst = -value
++    if cur.at_end():
++        raise ZoneError("dst rules required")
++    if cur.peek() != ",":
++        raise ZoneError("bad dst offset")
++    cur.pos += 1
++    start = _rule_part(cur, "start", False)
++    cur.pos += 1
++    if cur.at_end():
++        raise ZoneError("bad end rule")
++    end = _rule_part(cur, "end", True)
++    return std, dst, start, end
++
++
++def _day(year, date):
++    if date[0] == "J":
++        n = date[1]
++        extra = 1 if calendar.isleap(year) and n >= 60 else 0
++        return datetime.date(year, 1, 1) + datetime.timedelta(days=n - 1 + extra)
++    if date[0] == "N":
++        return datetime.date(year, 1, 1) + datetime.timedelta(days=date[1])
++    _, month, week, weekday = date
++    first = datetime.date(year, month, 1)
++    shift = (weekday - (first.weekday() + 1) % 7) % 7
++    day = 1 + shift + 7 * (week - 1)
++    if day > calendar.monthrange(year, month)[1]:
++        day -= 7
++    return datetime.date(year, month, day)
++
++
++def rule_changes(std, dst, start, end):
++    """``[(instant, offset), ...]`` for 1970-2199 in time order (a start before an end at the same instant)."""
++    if dst is None:
++        return []
++    items = []
++    for year in range(FIRST_YEAR, LAST_YEAR + 1):
++        for kind, (date, time), before, after in ((0, start, std, dst), (1, end, dst, std)):
++            midnight = (_day(year, date) - _EPOCH).days * 86400
++            items.append((midnight + time * 60 - before * 60, kind, after))
++    items.sort()
++    return [(instant, offset) for instant, _, offset in items]
++
++
+ _NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/+-]*$")
+ 
+ 
+@@ -24,17 +197,13 @@
+     def __init__(self, name, initial, changes=()):
+         self.name = name
+         self.initial = initial
+-        self.changes = tuple(changes)  # ((instant, offset), ...), strictly increasing instants
++        self.changes = tuple(changes)  # ((instant, offset), ...), increasing instants
++        self._times = [when for when, _ in self.changes]
+ 
+     def offset_at(self, instant):
+         """The offset in effect at ``instant``: that of the last transition at or before it."""
+-        offset = self.initial
+-        for when, value in self.changes:
+-            if when <= instant:
+-                offset = value
+-            else:
+-                break
+-        return offset
++        index = bisect.bisect_right(self._times, instant)
++        return self.changes[index - 1][1] if index else self.initial
+ 
+     def offsets(self):
+         """Every offset the zone ever uses, sorted."""
+@@ -63,7 +232,7 @@
+ 
+     def finish():
+         if current is not None:
+-            zones[current[0]] = Zone(current[0], current[1], current[2])
++            zones[current[0]] = current[4] or Zone(current[0], current[1], current[2])
+ 
+     for number, raw in enumerate(text.splitlines(), 1):
+         line = raw.strip()
+@@ -76,12 +245,22 @@
+             if words[1] in zones or (current is not None and current[0] == words[1]):
+                 raise ZoneError(f"zones:{number}: duplicate zone {words[1]!r}")
+             finish()
+-            current = [words[1], None, [], number]
++            current = [words[1], None, [], number, None]
+             continue
+         if current is None:
+             raise ZoneError(f"zones:{number}: entry outside a zone")
+         if len(words) != 2:
+             raise ZoneError(f"zones:{number}: expected 2 fields, got {len(words)}")
++        if words[0] == "rule" or current[4] is not None:
++            if current[4] is not None and words[0] == "rule":
++                raise ZoneError(f"zones:{number}: second rule")
++            if current[4] is not None or current[1] is not None or current[2]:
++                raise ZoneError(f"zones:{number}: rule and table entries cannot be mixed")
++            try:
++                current[4] = parse_tz(words[1], current[0])
++            except ZoneError as exc:
++                raise ZoneError(f"zones:{number}: {exc}") from None
++            continue
+         try:
+             offset = parse_offset(words[1])
+             if words[0] == "initial":
+@@ -97,12 +276,18 @@
+         if current[2] and when <= current[2][-1][0]:
+             raise ZoneError(f"zones:{number}: transitions must increase")
+         current[2].append((when, offset))
+-    if current is not None and current[1] is None:
++    if current is not None and current[1] is None and current[4] is None:
+         raise ZoneError(f"zones:{current[3]}: zone {current[0]!r} has no initial offset")
+     finish()
+     return zones
+ 
+ 
++def parse_tz(text, name="TZ"):
++    """A Zone from a POSIX-TZ-style rule string; raises ZoneError(reason)."""
++    std, dst, start, end = parse_rule(text)
++    return Zone(name, std, rule_changes(std, dst, start, end))
++
++
+ def lookup(zones, name):
+     try:
+         return zones[name]

@@ -1,0 +1,1 @@
+{"files": [{"src": "structural/patch_layout_test.py", "dest": "tests/structure/patch_layout_test.py"}, {"src": "structural/_oracle_patch.py", "dest": "tests/structure/_oracle_patch.py"}]}

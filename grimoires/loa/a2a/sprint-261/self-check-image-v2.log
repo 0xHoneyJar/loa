@@ -1,0 +1,38 @@
+start 2026-10-17T17:21:20Z grader GRADER_VERSION = "1.2.11"
+self-check base bugfix-v2-02: PASS hidden 29/38, fixture suite 27/27
+self-check reference bugfix-v2-02: PASS hidden 42/42, fixture suite 31/31
+self-check base bugfix-v2-05: PASS hidden 35/63, fixture suite 33/33
+self-check reference bugfix-v2-05: PASS hidden 63/63, fixture suite 33/33
+self-check base bugfix-v2-06: PASS hidden 35/70, fixture suite 34/34
+self-check reference bugfix-v2-06: PASS hidden 70/70, fixture suite 34/34
+self-check base bugfix-v2-07: PASS hidden 28/63, fixture suite 28/28
+self-check reference bugfix-v2-07: PASS hidden 63/63, fixture suite 28/28
+self-check base feature-v2-01: PASS hidden 15/31, fixture suite 15/15
+self-check reference feature-v2-01: PASS hidden 31/31, fixture suite 15/15
+self-check base feature-v2-05: PASS hidden 20/56, fixture suite 20/20
+self-check reference feature-v2-05: PASS hidden 56/56, fixture suite 20/20
+self-check base feature-v2-07: PASS hidden 36/92, fixture suite 36/36
+self-check reference feature-v2-07: PASS hidden 92/92, fixture suite 36/36
+self-check base feature-v2-08: PASS hidden 27/87, fixture suite 27/27
+self-check reference feature-v2-08: PASS hidden 87/87, fixture suite 27/27
+self-check base refactor-v2-05: PASS structural 0/40, suite green
+self-check reference refactor-v2-05: PASS structural 40/40, suite green
+self-check base refactor-v2-06: PASS structural 1/40, suite green
+self-check reference refactor-v2-06: PASS structural 40/40, suite green
+self-check base refactor-v2-07: PASS structural 1/40, suite green
+self-check reference refactor-v2-07: PASS structural 40/40, suite green
+self-check base refactor-v2-08: PASS structural 1/40, suite green
+self-check reference refactor-v2-08: PASS structural 40/40, suite green
+self-check base review-01: PASS recall 0.0 (0/3), false_positives 0
+self-check reference review-01: PASS recall 1.0 (3/3), false_positives 0
+self-check noisy review-01: PASS recall 1.0 (3/3), false_positives 7 vs reference 0
+self-check base review-02: PASS recall 0.0 (0/3), false_positives 0
+self-check reference review-02: PASS recall 1.0 (3/3), false_positives 0
+self-check noisy review-02: PASS recall 1.0 (3/3), false_positives 6 vs reference 0
+self-check base review-03: PASS recall 0.0 (0/8), false_positives 0
+self-check reference review-03: PASS recall 1.0 (8/8), false_positives 0
+self-check noisy review-03: PASS recall 1.0 (8/8), false_positives 25 vs reference 0
+self-check base review-04: PASS recall 0.0 (0/5), false_positives 0
+self-check reference review-04: PASS recall 1.0 (5/5), false_positives 0
+self-check noisy review-04: PASS recall 1.0 (5/5), false_positives 58 vs reference 0
+done 2026-10-17T17:23:24Z failures 0

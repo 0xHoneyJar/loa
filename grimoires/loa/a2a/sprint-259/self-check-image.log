@@ -1,0 +1,37 @@
+self-check base bugfix-01: PASS hidden 17/25, fixture suite 12/12
+self-check reference bugfix-01: PASS hidden 25/25, fixture suite 12/12
+self-check base bugfix-02: PASS hidden 7/13, fixture suite 5/5
+self-check reference bugfix-02: PASS hidden 13/13, fixture suite 5/5
+self-check base bugfix-03: PASS hidden 7/13, fixture suite 6/6
+self-check reference bugfix-03: PASS hidden 13/13, fixture suite 6/6
+self-check base bugfix-04: PASS hidden 8/14, fixture suite 6/6
+self-check reference bugfix-04: PASS hidden 14/14, fixture suite 6/6
+self-check base feature-01: PASS hidden 6/12, fixture suite 5/5
+self-check reference feature-01: PASS hidden 12/12, fixture suite 5/5
+self-check base feature-02: PASS hidden 6/15, fixture suite 6/6
+self-check reference feature-02: PASS hidden 15/15, fixture suite 6/6
+self-check base feature-03: PASS hidden 6/16, fixture suite 6/6
+self-check reference feature-03: PASS hidden 16/16, fixture suite 6/6
+self-check base feature-04: PASS hidden 5/14, fixture suite 5/5
+self-check reference feature-04: PASS hidden 14/14, fixture suite 5/5
+self-check base refactor-01: PASS structural 0/8, suite green
+self-check reference refactor-01: PASS structural 8/8, suite green
+self-check base refactor-02: PASS structural 0/8, suite green
+self-check reference refactor-02: PASS structural 8/8, suite green
+self-check base refactor-03: PASS structural 0/10, suite green
+self-check reference refactor-03: PASS structural 10/10, suite green
+self-check base refactor-04: PASS structural 0/9, suite green
+self-check reference refactor-04: PASS structural 9/9, suite green
+self-check base review-01: PASS recall 0.0 (0/3), false_positives 0
+self-check reference review-01: PASS recall 1.0 (3/3), false_positives 0
+self-check noisy review-01: PASS recall 1.0 (3/3), false_positives 7 vs reference 0
+self-check base review-02: PASS recall 0.0 (0/3), false_positives 0
+self-check reference review-02: PASS recall 1.0 (3/3), false_positives 0
+self-check noisy review-02: PASS recall 1.0 (3/3), false_positives 6 vs reference 0
+self-check base review-03: PASS recall 0.0 (0/8), false_positives 0
+self-check reference review-03: PASS recall 1.0 (8/8), false_positives 0
+self-check noisy review-03: PASS recall 1.0 (8/8), false_positives 25 vs reference 0
+self-check base review-04: PASS recall 0.0 (0/5), false_positives 0
+self-check reference review-04: PASS recall 1.0 (5/5), false_positives 0
+self-check noisy review-04: PASS recall 1.0 (5/5), false_positives 58 vs reference 0
+done 2026-10-15T04:32:39Z

@@ -1,0 +1,874 @@
+diff -ruN a/src/snapkit/braces.py b/src/snapkit/braces.py
+--- a/src/snapkit/braces.py
++++ b/src/snapkit/braces.py
+@@ -0,0 +1,123 @@
++"""Brace expansion for rules-file lines and the ``match`` command.
++
++Lists ``{a,b}`` and sequences ``{1..5}``, ``{a..e}``, ``{01..10..3}`` expand
++to every combination, leftmost braces varying slowest; braces that form
++neither stay literal.  Backslashes are kept for the glob to read.
++"""
++import re
++from itertools import product
++
++from .errors import BraceError
++
++LIMIT = 256
++_INT = r"-?[0-9]+"
++_INT_SEQ = re.compile(rf"({_INT})\.\.({_INT})(?:\.\.({_INT}))?\Z")
++_CHAR_SEQ = re.compile(rf"([a-z]\.\.[a-z]|[A-Z]\.\.[A-Z])(?:\.\.({_INT}))?\Z")
++
++
++def _closing(text, start):
++    depth = 0
++    i = start
++    while i < len(text):
++        c = text[i]
++        if c == "\\":
++            i += 2
++            continue
++        if c == "{":
++            depth += 1
++        elif c == "}":
++            depth -= 1
++            if depth == 0:
++                return i
++        i += 1
++    return -1
++
++
++def _split_items(body):
++    items, depth, last, i = [], 0, 0, 0
++    while i < len(body):
++        c = body[i]
++        if c == "\\":
++            i += 2
++            continue
++        if c == "{":
++            depth += 1
++        elif c == "}":
++            depth -= 1
++        elif c == "," and depth == 0:
++            items.append(body[last:i])
++            last = i + 1
++        i += 1
++    items.append(body[last:])
++    return items
++
++
++def _format_numbers(x, y, values):
++    pad = any(len(t.lstrip("-")) > 1 and t.lstrip("-").startswith("0") for t in (x, y))
++    if not pad:
++        return [str(v) for v in values]
++    width = max(len(x), len(y))
++    return [("-" + str(-v).zfill(width - 1)) if v < 0 else str(v).zfill(width) for v in values]
++
++
++def _sequence(body):
++    m = _INT_SEQ.match(body)
++    if m:
++        x, y, s = m.group(1), m.group(2), m.group(3)
++        step = abs(int(s)) if s is not None else 1
++        if step == 0:
++            return None
++        a, b = int(x), int(y)
++        values = range(a, b + 1, step) if a <= b else range(a, b - 1, -step)
++        return _format_numbers(x, y, list(values))
++    m = _CHAR_SEQ.match(body)
++    if m:
++        a, b = ord(m.group(1)[0]), ord(m.group(1)[-1])
++        step = abs(int(m.group(2))) if m.group(2) is not None else 1
++        if step == 0:
++            return None
++        values = range(a, b + 1, step) if a <= b else range(a, b - 1, -step)
++        return [chr(v) for v in values]
++    return None
++
++
++def _parts(text):
++    """Split text into a list of alternatives-lists (literal text is a 1-list)."""
++    parts, literal, i = [], [], 0
++    while i < len(text):
++        c = text[i]
++        if c == "\\":
++            literal.append(text[i:i + 2])
++            i += 2
++            continue
++        if c == "{":
++            end = _closing(text, i)
++            if end >= 0:
++                body = text[i + 1:end]
++                items = _split_items(body)
++                if len(items) > 1:
++                    choices = [s for item in items for s in _expand_all(item)]
++                else:
++                    choices = _sequence(body)
++                if choices is not None:
++                    parts.append(["".join(literal)])
++                    parts.append(choices)
++                    literal = []
++                    i = end + 1
++                    continue
++        literal.append(c)
++        i += 1
++    parts.append(["".join(literal)])
++    return parts
++
++
++def _expand_all(text):
++    return ["".join(combo) for combo in product(*_parts(text))]
++
++
++def expand(text):
++    """Every string the brace expansion of ``text`` makes, duplicates removed."""
++    raw = _expand_all(text)
++    if len(raw) > LIMIT:
++        raise BraceError(f"brace expansion exceeds {LIMIT} patterns")
++    return list(dict.fromkeys(raw))
+diff -ruN a/src/snapkit/cli.py b/src/snapkit/cli.py
+--- a/src/snapkit/cli.py
++++ b/src/snapkit/cli.py
+@@ -3,24 +3,33 @@
+     snapkit snapshot [--root DIR] [--config FILE] [--output FILE]
+     snapkit diff OLD NEW
+     snapkit du [--root DIR] [--config FILE] [--depth N] [--human]
++    snapkit check-ignore [--root DIR] [--config FILE] PATH...
++    snapkit match [--ignore-case] PATTERN PATH...
+ 
+ The config file is ``--config FILE`` when given, else ``<root>/snapkit.conf``
+ when it exists, else the defaults.  Errors print ``snapkit: <message>`` on
+ standard error and exit with status 2; ``diff`` exits 1 when the snapshots
+-differ and 0 when they are equal.
++differ and 0 when they are equal; ``check-ignore`` exits 0 when at least one
++path is excluded and 1 when none is; ``match`` exits 0 when at least one path
++matched and 1 when none did.
+ """
+ import sys
+ 
+-from . import sizes, walker
++from . import sizes, tree, walker
++from .braces import expand
++from .glob import Glob
+ from .config import load_config
+ from .diff import diff_snapshots, format_diff
+ from .errors import SnapError
++from .paths import ancestors, normalize
+ from .report import format_du
+ from .snapshot import build_snapshot, format_snapshot, parse_snapshot
+ 
+ USAGE = """usage: snapkit snapshot [--root DIR] [--config FILE] [--output FILE]
+        snapkit diff OLD NEW
+-       snapkit du [--root DIR] [--config FILE] [--depth N] [--human]"""
++       snapkit du [--root DIR] [--config FILE] [--depth N] [--human]
++       snapkit check-ignore [--root DIR] [--config FILE] PATH...
++       snapkit match [--ignore-case] PATTERN PATH..."""
+ 
+ 
+ class UsageError(SnapError):
+@@ -96,7 +105,53 @@
+     return 0
+ 
+ 
+-COMMANDS = {"snapshot": _cmd_snapshot, "diff": _cmd_diff, "du": _cmd_du}
++def _check_one(root, config, given):
++    path = normalize(given)
++    is_dir = given.endswith("/") or tree.kind_of(root, path) == tree.DIRECTORY
++    ignore = walker.new_ignore_rules(config)
++    walker.load_rules_file(root, "", config, ignore)
++    for anc in ancestors(path):
++        if ignore.check(anc, True).excluded:
++            break
++        walker.load_rules_file(root, anc, config, ignore)
++    return path, ignore.check(path, is_dir)
++
++
++def _cmd_check_ignore(args, out):
++    opts, pos = _options(args, ("--root", "--config"))
++    if not pos:
++        raise UsageError("check-ignore needs at least one PATH")
++    root = opts.get("--root", ".")
++    config = load_config(root, opts.get("--config"))
++    any_excluded = False
++    for given in pos:
++        path, decision = _check_one(root, config, given)
++        rule = decision.rule
++        if rule is None:
++            out.write(f"::\t{path}\n")
++        else:
++            out.write(f"{rule.source}:{rule.line}:{rule.text}\t{path}\n")
++        any_excluded = any_excluded or decision.excluded
++    return 0 if any_excluded else 1
++
++
++def _cmd_match(args, out):
++    opts, pos = _options(args, (), ("--ignore-case",))
++    if len(pos) < 2:
++        raise UsageError("match needs a PATTERN and at least one PATH")
++    casefold = bool(opts.get("--ignore-case"))
++    globs = [Glob(p, casefold) for p in expand(pos[0])]
++    any_matched = False
++    for given in pos[1:]:
++        path = normalize(given)
++        matched = any(g.match(path) for g in globs)
++        out.write(f"{'yes' if matched else 'no'}\t{path}\n")
++        any_matched = any_matched or matched
++    return 0 if any_matched else 1
++
++
++COMMANDS = {"snapshot": _cmd_snapshot, "diff": _cmd_diff, "du": _cmd_du,
++            "check-ignore": _cmd_check_ignore, "match": _cmd_match}
+ 
+ 
+ def main(argv, stdout=None, stderr=None):
+diff -ruN a/src/snapkit/config.py b/src/snapkit/config.py
+--- a/src/snapkit/config.py
++++ b/src/snapkit/config.py
+@@ -12,6 +12,11 @@
+     positive integer, the allocation unit ``du`` rounds sizes up to (4096).
+ ``digest_length``
+     integer from 8 to 64, the number of hex digits of each digest (16).
++``ignore_file``
++    the name of the rules file read in every directory (``.snapignore``).
++``ignore_case``
++    ``yes``, ``no``, ``true`` or ``false``: fold ASCII case when matching
++    rules (no).
+ 
+ Errors raise ``ConfigError`` with the message ``<source>:<line>: <reason>``.
+ """
+@@ -24,14 +29,18 @@
+ 
+ 
+ class Config:
+-    def __init__(self, exclude=(), block_size=4096, digest_length=16):
++    def __init__(self, exclude=(), block_size=4096, digest_length=16,
++                 ignore_file=".snapignore", ignore_case=False):
+         self.exclude = list(exclude)
+         self.block_size = block_size
+         self.digest_length = digest_length
++        self.ignore_file = ignore_file
++        self.ignore_case = ignore_case
+ 
+     def __repr__(self):
+         return (f"Config(exclude={self.exclude!r}, block_size={self.block_size!r}, "
+-                f"digest_length={self.digest_length!r})")
++                f"digest_length={self.digest_length!r}, ignore_file={self.ignore_file!r}, "
++                f"ignore_case={self.ignore_case!r})")
+ 
+ 
+ def _int_value(value, source, lineno, key, low, high=None):
+@@ -58,6 +67,21 @@
+     return entries
+ 
+ 
++BOOLEANS = {"yes": True, "true": True, "no": False, "false": False}
++
++
++def _ignore_file_value(value, source, lineno):
++    if not value or "/" in value or value in (".", ".."):
++        raise ConfigError(f"{source}:{lineno}: ignore_file must be a plain file name")
++    return value
++
++
++def _ignore_case_value(value, source, lineno):
++    if value not in BOOLEANS:
++        raise ConfigError(f"{source}:{lineno}: ignore_case must be yes, no, true or false")
++    return BOOLEANS[value]
++
++
+ def parse_config(text, source=CONFIG_NAME):
+     config = Config()
+     for lineno, raw in enumerate(text.splitlines(), 1):
+@@ -74,6 +98,10 @@
+             config.block_size = _int_value(value, source, lineno, key, 1)
+         elif key == "digest_length":
+             config.digest_length = _int_value(value, source, lineno, key, 8, 64)
++        elif key == "ignore_file":
++            config.ignore_file = _ignore_file_value(value, source, lineno)
++        elif key == "ignore_case":
++            config.ignore_case = _ignore_case_value(value, source, lineno)
+         else:
+             raise ConfigError(f"{source}:{lineno}: unknown key {key!r}")
+     return config
+diff -ruN a/src/snapkit/errors.py b/src/snapkit/errors.py
+--- a/src/snapkit/errors.py
++++ b/src/snapkit/errors.py
+@@ -15,3 +15,15 @@
+ 
+ class SnapshotError(SnapError):
+     """A snapshot file cannot be parsed."""
++
++
++class GlobError(SnapError):
++    """A glob pattern is invalid."""
++
++
++class BraceError(SnapError):
++    """A brace expansion makes too many strings."""
++
++
++class RuleError(SnapError):
++    """A rules file line is invalid; the message starts with ``<source>:<line>: ``."""
+diff -ruN a/src/snapkit/glob.py b/src/snapkit/glob.py
+--- a/src/snapkit/glob.py
++++ b/src/snapkit/glob.py
+@@ -0,0 +1,281 @@
++"""Glob patterns, matched segment by segment.
++
++A pattern is split at every ``/``; each segment is parsed into elements
++(literals, ``?``, ``*``, bracket expressions and extended groups) and matched
++by computing, for every element in turn, the set of positions of the path
++segment it can end at.  ``**`` segments match zero or more whole path
++segments (one or more as the last segment of a pattern with several).
++"""
++import string
++
++from .errors import GlobError
++
++CLASSES = {
++    "alpha": frozenset(string.ascii_letters),
++    "digit": frozenset(string.digits),
++    "alnum": frozenset(string.ascii_letters + string.digits),
++    "upper": frozenset(string.ascii_uppercase),
++    "lower": frozenset(string.ascii_lowercase),
++    "space": frozenset(" \t\n\r\f\v"),
++    "punct": frozenset(string.punctuation),
++}
++GROUP_OPENERS = "?*+@!"
++GLOBSTAR = "**"
++
++
++def _other_case(c):
++    if c.isascii() and c.isalpha():
++        return c.swapcase()
++    return None
++
++
++class _Char:
++    """A one-character element: a literal, ``?`` or a bracket expression."""
++
++    __slots__ = ("test",)
++
++    def __init__(self, test):
++        self.test = test
++
++
++class _Star:
++    __slots__ = ()
++
++
++class _Group:
++    __slots__ = ("op", "alternatives")
++
++    def __init__(self, op, alternatives):
++        self.op = op
++        self.alternatives = alternatives
++
++
++def _scan_bracket(seg, i):
++    """Return (negated, tokens, end) for the bracket at seg[i], or None."""
++    j = i + 1
++    negated = j < len(seg) and seg[j] in "!^"
++    if negated:
++        j += 1
++    tokens = []
++    while j < len(seg):
++        c = seg[j]
++        if c == "]" and tokens:
++            return negated, tokens, j + 1
++        if seg.startswith("[:", j):
++            k = j + 2
++            while k < len(seg) and "a" <= seg[k] <= "z":
++                k += 1
++            if k > j + 2 and seg.startswith(":]", k):
++                tokens.append(("class", seg[j + 2:k]))
++                j = k + 2
++                continue
++        if c == "\\":
++            tokens.append(("char", seg[j + 1], False))
++            j += 2
++        else:
++            tokens.append(("char", c, c == "-"))
++            j += 1
++    return None
++
++
++def _bracket_test(negated, tokens, pattern, casefold):
++    chars, ranges = set(), []
++    k = 0
++    while k < len(tokens):
++        tok = tokens[k]
++        if (tok[0] == "char" and k + 2 < len(tokens) and tokens[k + 1][0] == "char"
++                and tokens[k + 1][2] and tokens[k + 2][0] == "char"):
++            lo, hi = tok[1], tokens[k + 2][1]
++            if lo > hi:
++                raise GlobError(f"invalid range {lo!r}-{hi!r} in pattern {pattern!r}")
++            ranges.append((lo, hi))
++            k += 3
++            continue
++        if tok[0] == "class":
++            if tok[1] not in CLASSES:
++                raise GlobError(f"unknown class {tok[1]!r} in pattern {pattern!r}")
++            chars |= CLASSES[tok[1]]
++        else:
++            chars.add(tok[1])
++        k += 1
++
++    def member(c):
++        return c in chars or any(lo <= c <= hi for lo, hi in ranges)
++
++    def test(c):
++        hit = member(c)
++        if not hit and casefold:
++            other = _other_case(c)
++            hit = other is not None and member(other)
++        return hit != negated
++
++    return test
++
++
++def _literal_test(ch, casefold):
++    if casefold and _other_case(ch) is not None:
++        low = ch.lower()
++        return lambda c: c.isascii() and c.lower() == low
++    return lambda c: c == ch
++
++
++def _any_char(c):
++    return True
++
++
++def _parse(seg, i, pattern, casefold, in_group):
++    """Parse seg[i:]; return (list of alternatives, next index)."""
++    alternatives, elements = [], []
++    while i < len(seg):
++        c = seg[i]
++        if in_group and c == "|":
++            alternatives.append(elements)
++            elements = []
++            i += 1
++        elif in_group and c == ")":
++            alternatives.append(elements)
++            return alternatives, i + 1
++        elif c == "\\":
++            elements.append(_Char(_literal_test(seg[i + 1], casefold)))
++            i += 2
++        elif c in GROUP_OPENERS and seg.startswith("(", i + 1):
++            alts, i = _parse(seg, i + 2, pattern, casefold, True)
++            elements.append(_Group(c, alts))
++        elif c == "*":
++            elements.append(_Star())
++            i += 1
++        elif c == "?":
++            elements.append(_Char(_any_char))
++            i += 1
++        elif c == "[":
++            scanned = _scan_bracket(seg, i)
++            if scanned is None:
++                elements.append(_Char(_literal_test("[", casefold)))
++                i += 1
++            else:
++                negated, tokens, end = scanned
++                elements.append(_Char(_bracket_test(negated, tokens, pattern, casefold)))
++                i = end
++        else:
++            elements.append(_Char(_literal_test(c, casefold)))
++            i += 1
++    if in_group:
++        raise GlobError(f"unclosed group in pattern {pattern!r}")
++    alternatives.append(elements)
++    return alternatives, i
++
++
++class _SegmentMatcher:
++    """Match one path segment against parsed elements via end-position sets."""
++
++    def __init__(self, text):
++        self.text = text
++        self.memo = {}
++
++    def seq_ends(self, elements, start):
++        key = (id(elements), start)
++        hit = self.memo.get(key)
++        if hit is not None:
++            return hit
++        positions = {start}
++        for element in elements:
++            nxt = set()
++            for p in positions:
++                nxt |= self.element_ends(element, p)
++            positions = nxt
++            if not positions:
++                break
++        result = frozenset(positions)
++        self.memo[key] = result
++        return result
++
++    def union_ends(self, alternatives, start):
++        ends = set()
++        for alt in alternatives:
++            ends |= self.seq_ends(alt, start)
++        return ends
++
++    def plus_ends(self, alternatives, start):
++        reached = set(self.union_ends(alternatives, start))
++        frontier = [p for p in reached if p > start]
++        while frontier:
++            p = frontier.pop()
++            for q in self.union_ends(alternatives, p):
++                if q not in reached:
++                    reached.add(q)
++                    frontier.append(q)
++        return reached
++
++    def element_ends(self, element, start):
++        n = len(self.text)
++        if isinstance(element, _Char):
++            if start < n and element.test(self.text[start]):
++                return {start + 1}
++            return set()
++        if isinstance(element, _Star):
++            return set(range(start, n + 1))
++        op, alts = element.op, element.alternatives
++        if op == "@":
++            return self.union_ends(alts, start)
++        if op == "?":
++            return {start} | self.union_ends(alts, start)
++        if op == "+":
++            return self.plus_ends(alts, start)
++        if op == "*":
++            return {start} | self.plus_ends(alts, start)
++        inside = self.union_ends(alts, start)
++        return {p for p in range(start, n + 1) if p not in inside}
++
++
++def _trailing_backslash(seg):
++    stripped = seg.rstrip("\\")
++    return (len(seg) - len(stripped)) % 2 == 1
++
++
++class Glob:
++    """A validated glob pattern; ``match(path)`` tests a relative path."""
++
++    def __init__(self, pattern, casefold=False):
++        self.pattern = pattern
++        self.casefold = casefold
++        segments = pattern.split("/")
++        for seg in segments:
++            if _trailing_backslash(seg):
++                raise GlobError(f"trailing backslash in pattern {pattern!r}")
++        self._segments = []
++        for seg in segments:
++            if seg == GLOBSTAR:
++                self._segments.append(GLOBSTAR)
++            else:
++                self._segments.append(_parse(seg, 0, pattern, casefold, False)[0][0])
++
++    @staticmethod
++    def _segment_matches(elements, text):
++        return len(text) in _SegmentMatcher(text).seq_ends(elements, 0)
++
++    def match(self, path):
++        parts = path.split("/")
++        segs = self._segments
++        last = len(segs) - 1
++        states = {0}
++        for k, seg in enumerate(segs):
++            nxt = set()
++            if seg is GLOBSTAR:
++                least = 1 if (k == last and len(segs) > 1) else 0
++                for s in states:
++                    nxt.update(range(s + least, len(parts) + 1))
++            else:
++                for s in states:
++                    if s < len(parts) and self._segment_matches(seg, parts[s]):
++                        nxt.add(s + 1)
++            states = nxt
++            if not states:
++                return False
++        return len(parts) in states
++
++    def __repr__(self):
++        return f"Glob({self.pattern!r}, casefold={self.casefold!r})"
++
++
++def match(pattern, path, casefold=False):
++    return Glob(pattern, casefold).match(path)
+diff -ruN a/src/snapkit/ignore.py b/src/snapkit/ignore.py
+--- a/src/snapkit/ignore.py
++++ b/src/snapkit/ignore.py
+@@ -0,0 +1,57 @@
++"""Evaluation of ignore rules: config entries first, then rules files by depth.
++
++``check(path, is_dir)`` judges every proper ancestor directory, shallowest
++first, then the path; the first excluded one decides, so nothing inside an
++excluded directory is ever included again.
++"""
++from .paths import ancestors, depth
++from .rules import Rule
++
++
++class Decision:
++    __slots__ = ("excluded", "rule")
++
++    def __init__(self, excluded, rule):
++        self.excluded = excluded
++        self.rule = rule
++
++    def __repr__(self):
++        return f"Decision(excluded={self.excluded!r}, rule={self.rule!r})"
++
++
++class IgnoreRules:
++    def __init__(self, casefold=False, fixed=()):
++        self.casefold = casefold
++        self.fixed = {}
++        for n, entry in enumerate(fixed, 1):
++            self.fixed.setdefault(entry, Rule("config", n, entry, False, False, False, entry, ""))
++        self._files = {}
++
++    def add_file(self, base, rules):
++        self._files[base] = list(rules)
++
++    def _ordered(self):
++        for base in sorted(self._files, key=depth):
++            yield from self._files[base]
++
++    def judge(self, path, is_dir):
++        """(excluded, rule) for ``path`` alone, ancestors not considered."""
++        fixed = self.fixed.get(path)
++        if fixed is not None:
++            return True, fixed
++        last = None
++        for rule in self._ordered():
++            if rule.matches(path, is_dir, self.casefold):
++                last = rule
++        return (last is not None and not last.negated), last
++
++    def check(self, path, is_dir):
++        for anc in ancestors(path):
++            excluded, rule = self.judge(anc, True)
++            if excluded:
++                return Decision(True, rule)
++        excluded, rule = self.judge(path, is_dir)
++        return Decision(excluded, rule)
++
++    def excluded(self, path, is_dir):
++        return self.check(path, is_dir).excluded
+diff -ruN a/src/snapkit/__init__.py b/src/snapkit/__init__.py
+--- a/src/snapkit/__init__.py
++++ b/src/snapkit/__init__.py
+@@ -1,20 +1,33 @@
+ """snapkit: snapshots, diffs and size summaries of a directory tree."""
+ from .config import Config, load_config, parse_config
+ from .diff import diff_snapshots
+-from .errors import ConfigError, PathError, SnapError, SnapshotError
++from .braces import expand
++from .errors import BraceError, ConfigError, GlobError, PathError, RuleError, SnapError, SnapshotError
++from .glob import Glob
++from .ignore import Decision, IgnoreRules
++from .rules import Rule, parse_rules
+ from .snapshot import Snapshot, build_snapshot, format_snapshot, parse_snapshot
+ 
+ __all__ = [
++    "BraceError",
+     "Config",
+     "ConfigError",
++    "Decision",
++    "Glob",
++    "GlobError",
++    "IgnoreRules",
+     "PathError",
++    "Rule",
++    "RuleError",
+     "SnapError",
+     "Snapshot",
+     "SnapshotError",
+     "build_snapshot",
+     "diff_snapshots",
++    "expand",
+     "format_snapshot",
+     "load_config",
+     "parse_config",
++    "parse_rules",
+     "parse_snapshot",
+ ]
+diff -ruN a/src/snapkit/rules.py b/src/snapkit/rules.py
+--- a/src/snapkit/rules.py
++++ b/src/snapkit/rules.py
+@@ -0,0 +1,95 @@
++"""Rules files: one glob rule per line (blank lines and ``#`` comments skipped).
++
++``!`` negates, a trailing ``/`` restricts a rule to directories, and a ``/``
++anywhere else anchors the pattern to the directory the file applies to;
++an unanchored pattern matches the last segment of a path at any depth.  A
++line is brace-expanded after its ``!`` is removed; each expansion becomes
++one rule sharing the line's source, number, text and negation.
++"""
++from .braces import expand
++from .errors import BraceError, GlobError, RuleError
++from .glob import Glob
++
++
++class Rule:
++    __slots__ = ("source", "line", "text", "negated", "dir_only", "anchored", "pattern", "base",
++                 "_globs")
++
++    def __init__(self, source, line, text, negated, dir_only, anchored, pattern, base=""):
++        self.source = source
++        self.line = line
++        self.text = text
++        self.negated = negated
++        self.dir_only = dir_only
++        self.anchored = anchored
++        self.pattern = pattern
++        self.base = base
++        self._globs = {}
++
++    def _glob(self, casefold):
++        glob = self._globs.get(casefold)
++        if glob is None:
++            glob = self._globs[casefold] = Glob(self.pattern, casefold)
++        return glob
++
++    def matches(self, path, is_dir, casefold=False):
++        if self.base:
++            prefix = self.base + "/"
++            if not path.startswith(prefix):
++                return False
++            rel = path[len(prefix):]
++        else:
++            rel = path
++        if self.dir_only and not is_dir:
++            return False
++        target = rel if self.anchored else rel.rsplit("/", 1)[-1]
++        return self._glob(casefold).match(target)
++
++    def __repr__(self):
++        return f"Rule({self.source!r}, {self.line!r}, {self.text!r})"
++
++
++def _strip_trailing_spaces(line):
++    while line.endswith(" "):
++        body = line[:-1]
++        run = len(body) - len(body.rstrip("\\"))
++        if run % 2 == 1:
++            break
++        line = body
++    return line
++
++
++def _make_rule(source, number, line, negated, pattern, base):
++    dir_only = pattern.endswith("/")
++    pattern = pattern.rstrip("/")
++    if not pattern:
++        raise RuleError(f"{source}:{number}: empty pattern")
++    anchored = "/" in pattern
++    if pattern.startswith("/"):
++        pattern = pattern[1:]
++    try:
++        Glob(pattern)
++    except GlobError as exc:
++        raise RuleError(f"{source}:{number}: {exc}") from None
++    return Rule(source, number, line, negated, dir_only, anchored, pattern, base)
++
++
++def parse_rules(text, source, base=""):
++    rules = []
++    for number, raw in enumerate(text.split("\n"), 1):
++        if raw.endswith("\r"):
++            raw = raw[:-1]
++        line = _strip_trailing_spaces(raw)
++        if not line or line.startswith("#"):
++            continue
++        rest = line
++        negated = rest.startswith("!")
++        if negated:
++            rest = rest[1:]
++        try:
++            expansions = expand(rest)
++        except BraceError as exc:
++            raise RuleError(f"{source}:{number}: {exc}") from None
++        for pattern in expansions:
++            rules.append(_make_rule(source, number, line, negated, pattern, base))
++    return rules
+diff -ruN a/src/snapkit/walker.py b/src/snapkit/walker.py
+--- a/src/snapkit/walker.py
++++ b/src/snapkit/walker.py
+@@ -1,46 +1,59 @@
+-"""Walk a tree, leaving out what the config excludes.
++"""Walk a tree, leaving out what the config and the rules files exclude.
+ 
+ ``walk(root, config)`` yields an ``Entry`` for every directory and regular
+ file that is kept, parents before children, each directory's entries in name
+-order.  Symbolic links and other special files are skipped.  An excluded
+-directory is never entered, so nothing below it is yielded.
++order.  Symbolic links and other special files are skipped.  The rules file
++(``config.ignore_file``) of every directory entered is read before that
++directory's entries are judged; an excluded directory is never entered, so
++nothing below it is yielded and its rules file is never read.
+ """
+ from . import tree
++from .errors import RuleError
++from .ignore import IgnoreRules
+ from .paths import join
++from .rules import parse_rules
+ 
+ 
+-class Exclusions:
+-    """The config's ``exclude`` list: exact relative paths."""
++def new_ignore_rules(config):
++    return IgnoreRules(casefold=config.ignore_case, fixed=config.exclude)
+ 
+-    def __init__(self, entries=()):
+-        self.entries = set(entries)
+ 
+-    def excluded(self, path, is_dir):
+-        return path in self.entries
++def load_rules_file(root, directory, config, ignore):
++    """Add the rules file of ``directory`` to ``ignore`` when it is a regular file."""
++    source = join(directory, config.ignore_file)
++    if tree.kind_of(root, source) != tree.FILE:
++        return
++    try:
++        text = tree.read_text(root, source)
++    except UnicodeDecodeError:
++        raise RuleError(f"{source}: not UTF-8") from None
++    ignore.add_file(directory, parse_rules(text, source, directory))
+ 
+ 
+-def walk(root, config, exclusions=None):
+-    if exclusions is None:
+-        exclusions = Exclusions(config.exclude)
+-    yield from _walk_dir(root, "", exclusions)
++def walk(root, config, ignore=None):
++    if ignore is None:
++        ignore = new_ignore_rules(config)
++    load_rules_file(root, "", config, ignore)
++    yield from _walk_dir(root, "", config, ignore)
+ 
+ 
+-def _walk_dir(root, rel, exclusions):
++def _walk_dir(root, rel, config, ignore):
+     for name in tree.list_names(root, rel):
+         path = join(rel, name)
+         kind = tree.kind_of(root, path)
+         if kind not in (tree.FILE, tree.DIRECTORY):
+             continue
+         is_dir = kind == tree.DIRECTORY
+-        if exclusions.excluded(path, is_dir):
++        if ignore.check(path, is_dir).excluded:
+             continue
+         if is_dir:
+             yield tree.Entry(path, kind, 0)
+-            yield from _walk_dir(root, path, exclusions)
++            load_rules_file(root, path, config, ignore)
++            yield from _walk_dir(root, path, config, ignore)
+         else:
+             yield tree.Entry(path, kind, tree.file_size(root, path))
+ 
+ 
+-def files(root, config, exclusions=None):
++def files(root, config, ignore=None):
+     """Only the regular files of ``walk``."""
+-    return [e for e in walk(root, config, exclusions) if not e.is_dir]
++    return [e for e in walk(root, config, ignore) if not e.is_dir]

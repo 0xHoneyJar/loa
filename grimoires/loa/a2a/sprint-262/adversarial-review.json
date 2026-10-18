@@ -1,0 +1,162 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-report.py:build",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Appending unversioned rows directly to main.listed bypasses the arm_map provenance validation in Analysis._classify.",
+      "failure_mode": "With two suite versions present, an unversioned smoke-batch row whose arm disagrees with its manifest's arm_map is now accepted and listed. The report succeeds despite a provenance conflict, which is documented to require exit 2. Versioned smoke rows still undergo this validation.",
+      "suggested_fix": "Validate manifest arm_map agreement for every row before partitioning, or apply the same provenance check to unversioned rows before appending them to the primary version's listed rows.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-report.py:list_reason",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "list_reason() deliberately omits the manifest arm_map provenance check that Analysis._classify runs before any listing decision. partition() now uses list_reason() to accept version-less rows (among 2+ versions) that would be listed anyway, so such a row never reaches _classify. A versioned row in a smoke batch (or with a not-run arm / unknown task type) whose manifest arm_map names a different arm still exits 2 as a provenance conflict; the identical row without a suite_version is now listed with reason 'no suite_version; smoke batch …' and the report exits 0. Before this change every version-less row among two versions exited 2, so the provenance conflict was never silently swallowed.",
+      "failure_mode": "A provenance conflict (row arm disagrees with manifest arm_map) on a version-less row is not reported; the header's 'exit 2 on provenance conflict' contract is not honoured for this class of rows, and the listed line names an arm the manifest contradicts.",
+      "suggested_fix": "In partition(), before calling list_reason(), apply the same arm_map check (raise Fail when mans[batch]['arm_map'][run_id] != row['arm']); or move the check into list_reason() so both call sites share it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": "evals/harness/ablation-report.py:build",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "version_key() now yields non-integer numeric keys ('2.1') that previously could not occur. The diff routes only the top-level primary_suite_version through the new version_value() helper; the other JSON emitters of a version key that the header documents (by_suite_version[N].suite_version, h1.suite_version, a4.suite_version, batches[].suite_version, and version_json()) are not shown and presumably still use the old `int(v) if v.isdigit() else v` idiom or a raw string. For a key like '2.1' they would emit a string while primary_suite_version emits a float. AR-38 compares `jq -r .primary_suite_version` to the text '2.1', which passes for either a float or a string, so the test does not pin the type anywhere.",
+      "failure_mode": "JSON consumers see primary_suite_version as a float 2.1 but by_suite_version['2.1'].suite_version (and h1/a4) as the string '2.1' or an int-cast failure, breaking equality joins between the top-level block and the per-version block.",
+      "suggested_fix": "Grep for other emitters of a version key (isdigit()/int(...) on a version string, suite_version fields in version_json, h1/a4, batch_record) and route them through version_value(); add a jq -c / type assertion in AR-38 (e.g. `jq '.primary_suite_version|type'` == number and the same for by_suite_version[\"2.1\"].suite_version).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-report.py:build",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header now states the batch record is 'Never fatal' and that 'neither aborts the report'. The diff guards batch_status(), grader_tally() and render_batches(), but `recs = batch_record(mans, rows)` remains a bare call outside the new try block in build(). Any exception in batch_record()'s own body (grouping rows by batch, manifest/path lookup, computing the batch's suite_version or directory) still propagates and aborts the whole report, including the decision sections it is documented not to affect.",
+      "failure_mode": "A malformed manifest field or unexpected row shape in the presentation-only batch record aborts the report with a traceback instead of printing 'Not rendered (…)'.",
+      "suggested_fix": "Move `recs = batch_record(mans, rows)` inside the same try block as render_batches(), so a failure anywhere in the batch record degrades to the 'Not rendered (…)' section.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-report.py:run_dir_of",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two attribution edges changed silently. (1) The old tally matched a run directory by `mm.group(1) == task_id and int(mm.group(2)) == trial` (numeric trial compare); run_dir_of() now compares the formatted string `f'{task}-t{trial}'` and uses `base in names`, so a zero-padded directory such as rc-01-t01 no longer matches and is counted as 'no run dir' / n/a. (2) When a row has rerun directories but none carries the row's run_id in meta/pipeline.json and none holds a grade.json, and the base <task>-t<n> directory is absent, run_dir_of() returns None and the row increments run_dirs_missing, although directories for that trial do exist; the rendered 'no run dir ×N' then overstates missing directories.",
+      "failure_mode": "Grader-version tallies and run_dirs_missing drift from reality for batches with zero-padded trial names or with interrupted-only reruns; presentation only, no decision impact.",
+      "suggested_fix": "Keep the numeric trial comparison (int(mm.group(2)) == int(r['trial'])) when collecting reruns and when locating the base directory; and either return the highest rerun directory as a last fallback (so its missing grade counts as n/a without incrementing run_dirs_missing) or rename/document run_dirs_missing as 'rows with no attributable directory'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-262",
+    "timestamp": "2026-10-18T11:22:44Z",
+    "tokens_input": 109090,
+    "tokens_output": 30502,
+    "cost_usd": 0,
+    "latency_ms": 32217,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-262/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-262/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f1eb0f262444dcabb2ed493367022818cc59537cd97f0c86ed838375ec7b23a4",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

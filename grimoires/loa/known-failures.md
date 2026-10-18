@@ -76,7 +76,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-019](#kf-019-confabulated-absence--an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth--potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts--gitignored--check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
-| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 4 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 5 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
@@ -84,13 +84,18 @@ actually tried, not just what someone *said* was tried.
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 2 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 4 |
-| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 9 |
+| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 10 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 4 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 5 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
+| [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
+| [KF-045](#kf-045-run-ablationsh-drift-guard-reads-a-claude-code-small-model-utility-call-webfetch-summariser-as-model-drift-the-trial-is-rowed-infrastructure_error-and-the-batch-stops-launching) | active | evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1) | 1 |
+| [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 8 |
+| [KF-047](#kf-047-run-mode-circuit-breaker-trips-on-a-stale-timeout-clock-carried-over-from-the-previous-run) | Open (worked around) | run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json | 1 |
+| [KF-048](#kf-048-ablation-containers-consume-the-host-codex-refresh-token-every-later-container-and-the-host-lose-the-openai-voice) | Open (operator re-auth needed) | evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers | 2 |
 
 ---
 
@@ -1210,7 +1215,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 **Feature**: beads_rust (br) sync
 **Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
 **First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
 **Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
 **Related visions / lore**: none
@@ -1223,6 +1228,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 | 2026-07-11 | br create x5 then br sync --flush-only | recurred: new beads stranded until --force (2nd time same day) | agent-ergonomics pass 1 session; beads bd-5fpl..bd-y04d |
 | 2026-07-29 | br sync + br sync --flush-only after 25 creates (br 0.2.6, cycle-121 kickoff) | Both report 'current/nothing to export' while all 25 cycle-121 ids are DB-only (issues.jsonl has 0). Proceeded per Reading guide: DB authoritative, NO --rebuild/--import-only, JSONL export deferred. | run-20260729-68d1b75c |
 | 2026-09-17 | framework review session: br sync --status vs beads-health on branch feature/cycle-123-bug-burndown (br 0.2.6) | --status reports 'Dirty issues: 1 / Database is newer' while beads-health reports JSONL 1607h stale; not chased per Reading guide | framework-review-2026-09-17.md §3.4 (grimoires/loa/a2a/); local HEAD 65e0c4a0 |
+| 2026-10-15 | cycle-130 kickoff: 44 br create (5 epics, 39 tasks) left issues.jsonl at its 2026-10-13 mtime; --status said Dirty issues: 1 while --flush-only exported nothing; --flush-only --force once | ids landed in .beads/issues.jsonl (verified by grep); Dirty issues: 1 persists after the force; also br create --parent fails on this DB (no such column: last_child in table child_counters) so tasks carry epic:<id> labels and the epic depends on its tasks | grimoires/loa/NOTES.md 2026-10-15 kickoff entry; ~/.cache/loa/cycle-130/seed-beads.sh; cycle-130 plan commit |
 
 ### Reading guide
 
@@ -1560,7 +1566,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 **Feature**: .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout
 **Symptom**: adversarial-review.json: companion_voice.status failed with last_error 'claude -p timed out after 610s' (failure_class timeout since sprint-248 round 1f; model_unavailable on older envelopes); the MODELINV row's models_failed[].message_redacted reads RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE … timed out. The same hop answers in ~384 s when the CLI is otherwise idle (sprint-247/248 round 0).
 **First observed**: 2026-09-25 (cycle-126 sprint-248 review re-run while the Sprint 3 baseline eval ran claude -p at concurrency 2)
-**Recurrence count**: 9
+**Recurrence count**: 10
 **Current workaround**: Run dissents and other claude CLI workloads (eval harness, Bridgebuilder claude-headless) serially — pause the eval before a review/audit; or raise flatline_protocol.<block>.timeout_seconds (the companion wait cap follows it: timeout × hops + 30 s). The dissent still completes on the primary (voices_planned 2, voices_succeeded 1).
 **Upstream issue**: cycle-126 residue: cheval could report a CLI-hop timeout as TIMEOUT (exit 3) rather than PROVIDER_UNAVAILABLE (exit 1); a host-level claude CLI concurrency budget would make the contention visible before the call
 **Related visions / lore**: KF-010 (google CLI hops under a concurrent BB sweep), KF-035
@@ -1581,6 +1587,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 | 2026-10-04 | thirty-seventh two-voice run (round 1ak 009ee894): a1-script-1's first companion attempt and all six of a4-script-4's (57604 bytes) timed out at 910 s (claude -p) with ~12 other Claude sessions live | a1 attempt 2 two-voice; a4 single-voice after six attempts (driver cap) — the chunk's size compounds the contention, so run 38 splits the script in five (chunk script 248i); every other chunk two-voice on attempt 1; structural residue unchanged (cheval-level per-binary lock + per-consumer breaker, cycle-end bead) | run37.log a1 attempts 1-2, a4 attempts 1-6 (~/.cache/loa/cycle-126-dissent/run37-out); branch feature/cycle-126-full-size @ 009ee894 |
 | 2026-10-04 | thirty-eighth two-voice run (round 1al 9bb1fe4c): a3-script-3's first companion attempt and a4-script-4's first three timed out at 910 s (claude -p) with ~12 other Claude sessions live, host load ~1.5 | a3 attempt 2 and a4 attempt 4 two-voice via run-dissent-two-voice.sh; every chunk two-voice; run 39 splits a4 (57 KB) into a4a/a4b to shorten the companion's hop | commit 9bb1fe4c; run38.log (cycle-126 dissent cache) |
 | 2026-10-05 | Thirty-ninth two-voice run (24 chunks, companion on claude-bedrock) with about twelve other Claude sessions live: retried each timed-out chunk until two-voice (a1, a2, b1 once; a3 twice; a4b six times at 910 s) | All 24 chunks two-voice; retry-until-two-voice holds but costs about an hour per run under host contention; dissent capped at 3 runs per sprint from here | run39.log on 332f254c (round 1am), sprint-248 feedback §43 |
+| 2026-10-15 | cycle-130 Sprint 259 review dissent run 1 on 6be23186: code-only diff of 166 files / 10,298 lines incl. 16 task fixtures; codex-headless gpt-5.5-pro primary succeeded (3 findings), claude-headless companion timed out after 910s (PROVIDER_UNAVAILABLE) → DEGRADED 1/2 | degraded envelope accepted for review round 1 (the primary delivered); run 2 excludes tasks/*/fixture and tasks/*/hidden from the dissent diff so the companion sees the ~3.5k-line harness diff only | grimoires/loa/a2a/sprint-259/adversarial-review.json; ~/.cache/loa/cycle-130/logs/dissent-s2-review.log |
 
 ### Reading guide
 
@@ -1659,7 +1666,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
 **Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
@@ -1670,6 +1677,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 |------|---------------|---------|----------|
 | 2026-10-07 | three planning-doc reviews in one session (prd, sdd, sprint) with CLAUDE_HEADLESS_BIN=claude-bedrock | all three degraded the same way; integrated the 33 + 33 + sprint improvements by judgment into SDD §1.5 / PRD FR-x.5 | ~/.cache/loa/cycle-127/flatline-127.log; grimoires/loa/a2a/flatline/{prd,sdd,sprint}-final_consensus.json; commit 6daf2e06 |
 | 2026-10-14 | cycle-129 planning: three Flatline runs (prd flatline-24474-6736, sdd, sprint) with codex-headless + claude-headless, Phase 1 2/2 voices | all three degraded the same way (Phase 2 cross-scoring null, exit 6); blockers and per-voice improvements integrated by lead judgment into PRD App. G, SDD §11.4/§11.5, sprint App. D; routed to an upstream issue (sprint-255 Task 1.10) per DEC-0134, no retry | ~/.cache/loa/cycle-129/flatline/{prd,sdd,sprint}.{json,log}; grimoires/loa/a2a/flatline/*-final_consensus.json |
+| 2026-10-15 | cycle-130 planning Flatline on prd.md (2 voices codex-headless + claude-headless, Phase 1 2/2, 18 blockers, 61 improvements): cross-scoring returned gpt_score null on every item, scoring_degraded true, high_consensus 0; integrated by judgment per DEC-0370, no retry | KF-041 shape again; raw_reviews read and 20 integration decisions recorded (DEC-0391..DEC-0410, PRD Appendix G) | ~/.cache/loa/cycle-130/flatline/prd.json; grimoires/loa/a2a/flatline/prd-flatline-16617-*-final_consensus.json; cycle-130 plan commit |
 
 ### Reading guide
 
@@ -1717,3 +1725,116 @@ If a cycle kickoff shows this denial text, stop the cycle: it is the harness per
 ### Reading guide
 
 This is harness behaviour, not a Loa defect: the key IS enforced in the main session (good) but session-scoped (surprising) and unenforced in subagents (recorded in skill-invariants.md). Do not retry Write/Edit, do not re-invoke skills hoping to reset, do not ask a peer session to write for you (permission laundering). Halt and resume in a new session.
+
+## KF-044: Codex on a ChatGPT plan refuses every gpt-5.x model; the codex-headless hop (cli_model gpt-5.5) fails and the dissent falls to one voice
+
+**Status**: active
+**Feature**: codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only)
+**Symptom**: codex exec -m gpt-5.5 (also gpt-5.5-pro, gpt-5.5-codex, gpt-5.3-codex) returns HTTP 400 'The model is not supported when using Codex with a ChatGPT account'; cheval classifies the stderr as AUTH_REVOKED ('codex token revoked/expired') and walks the chain to the HTTP hops (no OPENAI_API_KEY in a sandbox) and then claude-headless, so adversarial-review.json reads verdict_quality FAILED, voices 1 of 4, primary ceded to the companion; codex 0.137 additionally logs 'failed to decode models response: unknown variant max'
+**First observed**: 2026-10-15 cycle-130 Sprint 258 smoke (A1 on smoke-build-01); reproduced on the host with codex 0.137.0 and 0.162.1
+**Recurrence count**: 1
+**Current workaround**: point codex-headless.extra.cli_model at the CLI's own default gpt-6.1-sol (model-config.yaml, regen-model-artifacts.sh); the HTTP gpt-5.5 entries still exist on the API; cycle-130 does this in Sprint 258 (DEC-0485) and the arms carry the new model
+**Upstream issue**: not filed (OpenAI account policy change observed 2026-10-15; the cheval AUTH_REVOKED misclassification of this stderr is a Loa defect to fix in a later sprint)
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+
+### Reading guide
+
+When a dissent or Flatline envelope shows every codex-headless attempt as api_failure/AUTH_REVOKED while codex login works, run codex exec without -m to read the account's default model and compare it with model-config's cli_model; do not re-auth, do not retry the chain. A single-voice envelope under this failure is a degraded run for any measurement.
+
+## KF-045: run-ablation.sh drift guard reads a Claude Code small-model utility call (WebFetch summariser) as model drift; the trial is rowed infrastructure_error and the batch stops launching
+
+**Status**: active
+**Feature**: evals/harness/run-ablation.sh drift_check (DEC-0407); evals/harness/ablation-row.sh degraded cause (1)
+**Symptom**: run.log: DRIFT <run_id>: {"field":"models_used.<PHASE>","expected":["claude-fable-5-1","claude-opus-5-5"],"got":"global.anthropic.claude-haiku-4-5-20251001-v1:0"}; STATUS.json state failed on drift; --resume refuses; the run completed every phase and its assistant messages all carry the requested model; the phase result modelUsage holds a few hundred Haiku output tokens beside the requested model
+**First observed**: 2026-10-15 cycle-130 Sprint 260 priority batch P1, priority-p1-a1_full-feature-04-t1 (AUDIT used WebFetch twice on raw.githubusercontent.com cmark-gfm sources)
+**Recurrence count**: 1
+**Current workaround**: none needed after DEC-0545: drift = requested model differs from the manifest or is absent from models_used; extra models are telemetry; resume with --clear-drift --rerow <run_id>
+**Upstream issue**: none (harness defect; fixed in Sprint 260 by implementer I)
+**Related visions / lore**: DEC-0407, DEC-0545, DEC-0547; KF-046
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-15 | DEC-0545: drift_check and the degraded rule narrowed to substitution; extra_models telemetry; --clear-drift and --rerow added (implementer I, worktree loa-wt-s3i) | in progress at the time of writing | grimoires/loa/reports/ablation-2.0/batches/priority-p1/run.log 11:03:47Z; NOTES 2026-10-15T11:18:02Z |
+
+### Reading guide
+
+Before trusting a models_used drift, open <run-dir>/transcripts/events-<PHASE>.jsonl and check (1) the model of the assistant messages (jq -r 'select(.type=="assistant") | .message.model' | sort | uniq -c) and (2) tool_use names (WebFetch, Agent/Explore). A small-model id with a few hundred output tokens next to the requested model is a Claude Code utility, not a substitution. Do not start a new batch: fix the rule, then --resume --clear-drift --rerow. Never edit run-ablation.sh or ablation-row.sh while the driver runs (bash reads the script incrementally).
+
+## KF-046: ablation-grade.sh contamination scan flags ordinary agent text and shell idioms as outside_path or git_history (slash commands, git log --all, heredoc prose, sed address ranges, container home)
+
+**Status**: active
+**Feature**: evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan)
+**Symptom**: grade.json contaminated {phase, pattern: outside_path|git_history, excerpt_id: <PHASE>:<line>} and the row status contaminated on a run that never left the sandbox; the excerpt line holds a Loa slash command (/review-sprint), git log --all, prose inside a heredoc, ls ~/.cargo/bin in the container, a sed range /,/ or /re1/,/re2/p
+**First observed**: 2026-10-15 cycle-130 Sprint 260 calibration smoke calib-frozen-01 (10 of 12 rows), then priority batch P1 review-04 REVIEW:39
+**Recurrence count**: 8
+**Current workaround**: re-grade the run directories under the current grader (no agent re-run) and re-row: run-ablation.sh --resume --rerow <run_id> (DEC-0547); the grader fixes are 1.2.1 (DEC-0540), 1.2.2 (DEC-0541), 1.2.3 (DEC-0546)
+**Upstream issue**: none (harness heuristic; structural: a path-word regex over free-form Bash text cannot be made exact; the scan is a lower bound by design, D-4.7)
+**Related visions / lore**: DEC-0540, DEC-0541, DEC-0546, DEC-0547; KF-045
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-15 | grader 1.2.1 (one-component words, history probes), 1.2.2 (heredoc bodies, container home, /x/ delimiters), 1.2.3 (sed address ranges) | calibration rows 10 contaminated to 0; P1 review-04 re-rowed under 1.2.3 | commits 2ef83aa8, ae9df520; a2a/sprint-260/smoke.md; NOTES 2026-10-15T11:18:02Z |
+| 2026-10-15 | grader 1.2.4 prepared (DEC-0551): words beginning with /, (range remnant after a spaced first address) and words carrying = are regex-shaped, not paths; applied after P1 ends, then --rerow of every contaminated row | pending (P1 running; a1_full review-02-t1 AUDIT:86 is the fourth false-positive class: sed -n '/=== VERIFY python ValueError ===/,/=== scanner usage ===/p') | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/review-02-t1/grade.json; ~/.cache/loa/cycle-130/grader-124-patch.py |
+| 2026-10-15 | fifth class: the hidden keyword matched ordinary English in a reviewer heredoc (a1_full bugfix-04-t1 REVIEW:148 'any hidden interaction'); grader 1.2.4 also narrows hidden in Bash text to token shapes (DEC-0551) | pending (applied after P1 ends; rows re-rowed) | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/bugfix-04-t1/grade.json; ~/.cache/loa/cycle-130/grader-124-patch.py |
+| 2026-10-16 | grader 1.2.4 applied (6c454de7) after P1 stopped; the seven contaminated P1 rows re-graded clean in scratch copies and were re-rowed on the resume | 0 of 7 contaminated under 1.2.4 (review-03-t1 reads cap_failure, the rest completed) | a2a/sprint-260/reviewer.md; grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] |
+| 2026-10-16 | sixth class: a path tail after a closing quote glued to its token ("$D"/evals/harness/x) read as an absolute outside path (a1_full feature-01-t2 AUDIT:122, grader 1.2.4); grader 1.2.5 prepared (DEC-0557), applied after P1 ends, the row re-rowed | pending | grimoires/loa/reports/ablation-2.0/batches/priority-p1/a1_full/feature-01-t2-r3/grade.json; ~/.cache/loa/cycle-130/grader-125-patch.py |
+| 2026-10-16 | grader 1.2.5 applied (bf155cc7) after P1 completed; both rows re-rowed; P1 ends with 0 contaminated rows after six grader rounds (1.2.1–1.2.5) | 0 of 132 P1 rows contaminated; every contaminated row of the cycle so far was a scan false positive, none a real reach | grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json rerowed[] (11 entries); runs.jsonl |
+| 2026-10-16 | grader 1.2.8 (Sprint 260 audit fix) treated a [ after a one-component absolute word as a glob metacharacter so the word stayed a path candidate; re-scan of the 132 graded P1 run dirs under 1.2.8 | two new false positives (a1_full feature-03-t2-r3 AUDIT:115 grep '/home[^"]*loader.py' regex; refactor-04-t2-r3 IMPLEMENT:47 sed 's/job\["status"\]…'): a bracket after the word is a regex bracket expression in agent commands, not a glob — grader 1.2.9 reads * and ? only and keeps a quoted one-component pattern exempt; the re-scan is back to 0 changes | rescan-p1-126.py over priority-p1 under 1.2.8 vs the stored grade.json (2 changed) and under 1.2.9 (0 changed); commit 60503096 (1.2.8) and the 1.2.9 commit that follows; a2a/sprint-260/auditor-sprint-feedback.md round 2 |
+| 2026-10-17 | grader 1.2.11 on the suite v2 round-2 calibration (calib-v2-02a, a0_bare x 10 tasks x 2) | one row contaminated (refactor-v2-07 t1, BARE:145 outside_path): the bare agent passed JSON Pointer literals (get clit/d.json /a/1, /a/9) as CLI arguments while differential-testing a JSON Patch package — a two-component word indistinguishable from an absolute path by shape; read by hand, not a reach; pass rate 1.0 either way, so the hardness read is unchanged; no grader change (a pointer-literal exemption would also exempt real paths); the task is not run in the v2 batch | evals/results/ablation-2.0/calib-v2-02a/a0_bare/refactor-v2-07-t1/grade.json contaminated BARE:145; commit bde0c22e (grader 1.2.11) |
+
+### Reading guide
+
+A contaminated row is a claim to verify, not a verdict: print the excerpt line (sed -n '<line>p' <run-dir>/transcripts/events-<PHASE>.jsonl | jq '.message.content[] | select(.type=="tool_use") | .input') and ask whether the word reaches a path outside the sandbox, the container home, /tmp or the system dirs. Shell idioms seen so far: slash commands, sed/awk delimiters and ranges, heredoc prose, regexes beginning with = or a letter. If it is an idiom: fix the grader (bump GRADER_VERSION, extend AG-10), re-grade every affected run directory, --rerow. If it is a real reach: the exclusion stands. Recurrence 3 in one day means the heuristic is structural: budget a re-read of every contaminated row before the report.
+
+## KF-047: Run-mode circuit breaker trips on a stale timeout clock carried over from the previous run
+
+**Status**: Open (worked around)
+**Feature**: run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json
+**Symptom**: record-round prints TRIPPED: timeout: run older than 72 hours and sets .run/state.json HALTED although the current run (sprint-plan-state.json timestamps.started) is younger than its options.timeout_hours; circuit-breaker.json triggers.timeout.started still holds the PREVIOUS run's start and limit_hours its limit
+**First observed**: 2026-10-16T23:15:01Z, cycle-130 run-20261015-cc341d39 (started 2026-10-14T15:05:04Z, timeout 96 h) tripped at the Sprint 260 audit record-round because triggers.timeout.started was 2026-10-13T22:30:30Z (the cycle-129 run) with limit_hours 72; cycle-129 had already noted the breaker cache is not reset at a run boundary
+**Recurrence count**: 1
+**Current workaround**: halt-resume.md § run-resume --reset-ice by hand: jq .state=CLOSED, counters 0, triggers.timeout.started=now, reset_at=now (and limit_hours aligned with .run/state.json options.timeout_hours), then .run/state.json .state=RUNNING and run-checkpoint.sh derive --write; record the reset in NOTES
+**Upstream issue**: none yet — /run sprint-plan should re-initialise .run/circuit-breaker.json (timeout.started, limit_hours from options.timeout_hours, counters) at run start, and derive should treat a timeout.started older than the run's own started as stale
+**Related visions / lore**: KF-022 (caches drift from files), feedback_quality_cycle_discipline
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-16 | reset the breaker by hand (CLOSED, counters 0, started=now, limit_hours 96) and set the run RUNNING after the Sprint 260 audit round-1 record | run continues; derive clean; the trip was a false positive | cycle-130 .run/circuit-breaker.json history[-1] timestamp 2026-10-16T23:15:01Z trigger timeout; NOTES entry 2026-10-16T23:4xZ; commit b7e9967a HEAD at the time |
+
+### Reading guide
+
+Before trusting a TRIPPED: timeout line compare circuit-breaker.json triggers.timeout.started with sprint-plan-state.json timestamps.started; when the breaker clock predates the run, the trip is false: reset per the workaround and continue; a real timeout has both clocks agreeing
+
+## KF-048: Ablation containers consume the host Codex refresh token; every later container and the host lose the OpenAI voice
+
+**Status**: Fixed in the harness (00ce0a5a; verified live 2026-10-18T06:49Z, voices_succeeded 2) — operator re-auth still needed whenever the host token dies
+**Feature**: evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers
+**Symptom**: rows degraded: 'review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed'; eval/model-invoke.jsonl: openai:codex-headless AUTH_REVOKED '…Failed to refresh token status=401 … refresh_token_reused'; on the host: codex exec → 'Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.'
+**First observed**: 2026-10-16 ~08:00Z (P1 trial-3 a1_full rows degraded 1 of 4 voices; the host access token expired 2026-10-16T06:51:19Z, last_refresh 2026-10-06); every a1_full run of calib-v2-01b, calib-v2-02b and 9 of 12 of priority-v2-p1 (2026-10-17)
+**Recurrence count**: 2
+**Current workaround**: the operator re-authenticates on the host (! codex login) when the host token is dead; the harness now gives each container a copy of ~/.codex/auth.json whose tokens.refresh_token is the placeholder `loa-ablation-no-refresh-token` (the key must stay — the codex CLI treats a missing key as logged out and sends no bearer; 00ce0a5a), and run-ablation.sh's pre-flight refuses a batch whose access token expires before now + 2 x summed watchdog / concurrency (b4ef76bf)
+**Upstream issue**: fixed in Sprint 261 (b4ef76bf: access-token-only copy + token-freshness pre-flight; 00ce0a5a: the copy keeps a placeholder refresh_token because a missing key logs codex out — recurrence 2)
+**Related visions / lore**: KF-044 (codex refuses gpt-5.x on the ChatGPT plan), KF-041, DEC-0545
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-17 | probe codex on the host after priority-v2-p1 (9 of 12 a1_full rows degraded) | host credential dead (refresh token already used); interactive codex login required; batch halted on the pre-registered H1 read | grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a1_full/review-01-t1/eval/model-invoke.jsonl; ~/.codex/auth.json last_refresh 2026-10-06T06:51:19Z, access exp 2026-10-16T06:51:19Z; commit d9c256a5 |
+| 2026-10-18 | operator re-authenticated Codex on the host (DEC-0593); lead landed the harness fix: pipeline-run.sh copies auth.json without tokens.refresh_token (0600) into the per-run HOME; run-ablation.sh pre-flight 6 refuses a non-smoke batch whose access-token exp is before now + 2 x summed watchdog / concurrency and records codex_token_exp in MANIFEST | fix committed b4ef76bf (pipeline-run.bats +3, RAB-28 … RAB-34); the first a1_full row of priority-v2-p1b is the live proof (voices_succeeded must read 2) | commit b4ef76bf; grimoires/loa/a2a/sprint-261/reviewer-c.md |
+| 2026-10-18 | launched priority-v2-p1b with the access-token-only copy (tokens.refresh_token deleted, b4ef76bf) | FAILED differently: the codex CLI treats an auth.json without the refresh_token key as logged out and sends no bearer at all (401 Missing bearer or basic authentication; cheval AUTH_REVOKED on every codex call); reproduced on the host with HOME=<tmp> and the stripped copy; the host credential stayed intact; a copy with the key present but a placeholder value works (host probe OK, copy not rewritten) — the batch was stopped after three REVIEW phases (USD 12.88, no rows) | grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-01-t1/eval/model-invoke.jsonl (model.invoke.complete, openai:codex-headless AUTH_REVOKED, 401 Unauthorized wss://api.openai.com/v1/responses); driver.log 06:30:19Z interrupted |
+
+### Reading guide
+
+When a1_full rows read degraded 1 of N voices inside the ablation containers, open the run's eval/model-invoke.jsonl (model.invoke.complete → models_failed): `refresh_token_reused` means the host credential is dead — re-auth needs the operator (! codex login) and the per-run copy must carry only a placeholder refresh token; `401 Unauthorized … Missing bearer` with a fresh host token means the per-run copy lacks the refresh_token KEY (codex treats it as logged out) — never delete the key, replace its value; check the batch MANIFEST codex_preflight (token_exp vs required_until) before blaming the arms.
