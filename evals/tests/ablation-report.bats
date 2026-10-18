@@ -5,8 +5,10 @@
 #
 # ablation-report.py on planted rows: fixtures/ablation-report/gen-fixtures.py writes four
 # scenarios (main, boundary, exclusions, partial; the header there lists every planted
-# number) into the file tmpdir; setup_file builds the three full reports once against the
-# real suite file evals/suites/ablation-2.0.yaml.
+# number) into the file tmpdir; setup_file builds the full reports once against the
+# real suite file evals/suites/ablation-2.0.yaml. AR-23 … AR-30 (Sprint 262): the suite_version
+# partition, the not-testable / not-yet-decidable states (bd-wqbz3), the degradation guard on
+# the H1 and A4 lines, and the degenerate single-task rate-fallback pair.
 # =============================================================================
 
 setup_file() {
@@ -18,7 +20,7 @@ setup_file() {
   export FX="$BATS_FILE_TMPDIR/fx"
   mkdir -p "$FX"
   python3 -I "$TESTS_DIR/fixtures/ablation-report/gen-fixtures.py" "$FX"
-  for s in main boundary exclusions; do
+  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids; do
     python3 -I "$REPORT" --runs "$FX/$s/runs.jsonl" --manifests "$FX/$s/manifests" --suite "$SUITE" \
       --out "$FX/$s/report.md" --json "$FX/$s/report.json" >/dev/null
   done
@@ -207,7 +209,7 @@ PY
   run python3 -I "$REPORT" --runs "$FX/partial/runs.jsonl" --manifests "$FX/partial/manifests" --suite "$SUITE" --out "$T/q2.md"
   [ "$status" -eq 0 ]
   ! grep -qF 'PARTIAL' "$T/q2.md" || false
-  grep -qF 'H1: not established — halt before promotion' "$T/q2.md"
+  grep -qF 'H1: not yet decidable (no pair)' "$T/q2.md"
 }
 
 @test "AR-15 schema_version 2, a missing schema_version or a non-JSON line stops the report (exit 2, naming the row); nothing is written" {
@@ -283,7 +285,7 @@ PY
 }
 
 @test "AR-20 the planted rows hold the real row shape (ablation-row.sh --validate)" {
-  for s in main boundary exclusions partial; do
+  for s in main boundary exclusions partial versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids; do
     run bash "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$FX/$s/runs.jsonl" --allow-ungraded
     [ "$status" -eq 0 ]
   done
@@ -310,4 +312,126 @@ PY
   [ "$(jq -r '.decisions[] | select(.arm == "a5_no_flatline") | .comparisons[0] | (.d | . * 1000 | round) == -100 and .hi < 0' "$T/r.json")" = "true" ]
   [ "$(jq -r '.decisions[] | select(.arm == "a5_no_flatline") | .label' "$T/r.json")" = "Inconclusive-by-degradation" ]
   grep -qF 'degradation guard first' "$T/r.md"
+}
+
+@test "AR-23 two suite_versions are never pooled: main sections on v2 (catch-rate H1, pass rate and A4 not testable), v1 in its own section; --suite-version 1 flips the primary" {
+  J="$FX/versions/report.json"; M="$FX/versions/report.md"
+  [ "$(jq -r .primary_suite_version "$J")" = "2" ]
+  [ "$(jq -r '.by_suite_version | keys | join(",")' "$J")" = "1,2" ]
+  [ "$(jq -r .h1.line "$J")" = "H1: established" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "hidden_test_pass_rate") | .read' "$J")" = "not_testable" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .d' "$J")" = "0.444444" ]
+  [ "$(jq -r .a4.line "$J")" = "A4 sensitivity: not testable on suite_version 2 — no admissible build task" ]
+  [ "$(jq -r .a4.state "$J")" = "not_testable" ]
+  # the same task ids and trials in both versions: no duplicate-cell collision, no pooled rows
+  [ "$(jq '.exclusions | length' "$J")" -eq 0 ]
+  [ "$(jq -r .arms.a1_full.rows "$J")" -eq 12 ]
+  [ "$(jq -r '.by_suite_version["1"].arms.a1_full.rows' "$J")" -eq 48 ]
+  [ "$(jq -r '.by_suite_version["1"].h1.line' "$J")" = "H1: established" ]
+  [ "$(jq -r '.by_suite_version["1"].a4.line' "$J")" = "A4 sensitivity: holds" ]
+  [ "$(jq -r '.by_suite_version["2"].h1.line' "$J")" = "$(jq -r .h1.line "$J")" ]
+  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 6 ]
+  grep -qF 'hidden_test_pass_rate: not testable on suite_version 2 — no admissible task' "$M"
+  grep -qxF '## Suite version 1 (batches: ver-v1) — reported separately, never pooled' "$M"
+  grep -qF -- '  - suite_version 2 (primary: the main sections): 24 rows; batches ver-v2; suite manifest sha256 ddd200b3' "$M"
+  grep -qF -- '  - suite_version 1 (reported separately, never pooled): 132 rows; batches ver-v1; suite manifest sha256 30e1f2ad' "$M"
+  ! grep -qF 'DRIFT' "$M" || false
+  # the v1 section carries its own H1 and A4 lines after the main sections
+  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**H1: established** — a1_full − a0_bare: hidden_test_pass_rate +0.200 [+0.200, +0.200] (n = 12 tasks)'
+  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**A4 sensitivity: holds**'
+  report versions "$T/v1" --suite-version 1
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .primary_suite_version "$T/v1.json")" = "1" ]
+  [ "$(jq -r .a4.line "$T/v1.json")" = "A4 sensitivity: holds" ]
+  [ "$(jq -r .arms.a1_full.rows "$T/v1.json")" -eq 48 ]
+  grep -qxF '## Suite version 2 (batches: ver-v2) — reported separately, never pooled' "$T/v1.md"
+  report versions "$T/v3" --suite-version 3
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--suite-version 3: no row has that suite_version (present: 1, 2)"* ]]
+}
+
+@test "AR-24 a row without suite_version among two versions stops the report (exit 2); a single-version input without the field works as before" {
+  jq -c 'if .run_id == "ver-v2-a1_full-rc-01-t1" then del(.suite_version) else . end' "$FX/versions/runs.jsonl" > "$T/miss.jsonl"
+  run python3 -I "$REPORT" --runs "$T/miss.jsonl" --manifests "$FX/versions/manifests" --suite "$SUITE" --out "$T/miss.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"row ver-v2-a1_full-rc-01-t1 has no suite_version while the rows hold suite_version 1, 2"* ]]
+  [ ! -e "$T/miss.md" ]
+  jq -c 'del(.suite_version)' "$FX/main/runs.jsonl" > "$T/one.jsonl"
+  run python3 -I "$REPORT" --runs "$T/one.jsonl" --manifests "$FX/main/manifests" --suite "$SUITE" --out "$T/one.md" --json "$T/one.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .h1.line "$T/one.json")" = "H1: established" ]
+  [ "$(jq -c '[.decisions[] | .state]' "$T/one.json")" = "$(jq -c '[.decisions[] | .state]' "$FX/main/report.json")" ]
+}
+
+@test "AR-25 --partial with no pair reads 'not yet decidable (no pair)', exits 1 and prints no halt phrase (bd-wqbz3)" {
+  report partial "$T/p" --partial
+  [ "$status" -eq 1 ]
+  [ "$(jq -r .h1.line "$T/p.json")" = "H1: not yet decidable (no pair)" ]
+  [ "$(jq -r .h1.state "$T/p.json")" = "not_yet_decidable" ]
+  ! grep -qF 'halt before promotion**' "$T/p.md" || false
+  ! grep -qF 'harden tasks before acting on other arms**' "$T/p.md" || false
+  # a4 rows without a1 rows: the A4 line has a task but no pair
+  cp -R "$FX/partial" "$T/pa"
+  jq -c '.arm = "a4_no_gates" | .run_id = (.run_id | sub("a0_bare"; "a4_no_gates"))' "$FX/partial/runs.jsonl" >> "$T/pa/runs.jsonl"
+  run python3 -I "$REPORT" --runs "$T/pa/runs.jsonl" --manifests "$T/pa/manifests" --suite "$SUITE" --out "$T/pa.md" --json "$T/pa.json" --partial
+  [ "$status" -eq 1 ]
+  [ "$(jq -r .a4.line "$T/pa.json")" = "A4 sensitivity: not yet decidable (no pair)" ]
+  [ "$(jq -r .h1.line "$T/pa.json")" = "H1: not yet decidable (no pair)" ]
+}
+
+@test "AR-26 the degradation guard governs H1: 9 of 12 a1 review rows degraded read inconclusive by degradation; --exclude-degraded false lets the same rows establish H1" {
+  J="$FX/degraded/report.json"
+  [ "$(jq -r .h1.line "$J")" = "H1: inconclusive by degradation — not established" ]
+  [ "$(jq -r .h1.established "$J")" = "false" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$J")" = "inconclusive_by_degradation" ]
+  grep -qF 'defect_catch_rate inconclusive by degradation (a1_full excluded share 0.750 > 0.25)' "$FX/degraded/report.md"
+  ! grep -qF 'H1: established' "$FX/degraded/report.md" || false
+  report degraded "$T/nd" --exclude-degraded false
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .h1.line "$T/nd.json")" = "H1: established" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$T/nd.json")" = "tested" ]
+}
+
+@test "AR-27 the degradation guard governs the A4 line and H1's pass rate (a1 12 of 36 build cells degraded, share 0.333); --exclude-degraded false: A4 holds, H1 established" {
+  J="$FX/degraded-a4/report.json"
+  [ "$(jq -r .a4.line "$J")" = "A4 sensitivity: inconclusive by degradation (a1_full excluded share 0.333 > 0.25) — not decided" ]
+  [ "$(jq -r .a4.holds "$J")" = "false" ]
+  [ "$(jq -r .h1.line "$J")" = "H1: inconclusive by degradation — not established" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$J")" = "not_testable" ]
+  report degraded-a4 "$T/nd" --exclude-degraded false
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .a4.line "$T/nd.json")" = "A4 sensitivity: holds" ]
+  [ "$(jq -r .h1.line "$T/nd.json")" = "H1: established" ]
+}
+
+@test "AR-28 a single-task rate-fallback catch pair is degenerate: flagged, and read as no valid pair by H1 and by the component decision" {
+  J="$FX/degenerate-1/report.json"
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$J")" = "true" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .lo > 0' "$J")" = "true" ]
+  [[ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate_reason' "$J")" == "valid pairs on one task (rc-04) with no per-defect ids"* ]]
+  [ "$(jq -r .h1.line "$J")" = "H1: not yet decidable (no pair)" ]
+  [ "$(cmp_of degenerate-1 a3_one_voice defect_catch_rate .degenerate)" = "true" ]
+  [ "$(dec degenerate-1 a3_one_voice .rule)" = "inconclusive: no valid pair (hidden_test_pass_rate, defect_catch_rate: degenerate)" ]
+  [ "$(dec degenerate-1 a3_one_voice .decidable)" = "false" ]
+  grep -qF 'defect_catch_rate +0.500 [+0.500, +0.500] (degenerate) (n = 4 defects) — read as no valid pair' "$FX/degenerate-1/report.md"
+  grep -qF '  - degenerate (read as no valid pair): valid pairs on one task (rc-04)' "$FX/degenerate-1/report.md"
+}
+
+@test "AR-29 not degenerate with pairs on two tasks, or with per-defect ids on one task" {
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-2/report.json")" = "false" ]
+  [ "$(jq -r .h1.line "$FX/degenerate-2/report.json")" = "H1: established" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-ids/report.json")" = "false" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degenerate-ids/report.json")" = "tested" ]
+  [ "$(jq -r .h1.line "$FX/degenerate-ids/report.json")" = "H1: not established — halt before promotion" ]
+  ! grep -qF '(degenerate)' "$FX/degenerate-2/report.md" || false
+  # a build primary is never degenerate (one task, one value per task)
+  [ "$(jq '[.. | objects | select(.metric == "hidden_test_pass_rate") | select(.degenerate == true)] | length' "$FX/main/report.json")" -eq 0 ]
+}
+
+@test "AR-30 --not-run still applies where A4 is not testable; --partial exits 0 when H1 is decided on the remaining primary" {
+  report versions "$T/c" --not-run a4_no_gates --partial
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
+  [ "$(jq -r .a4.line "$T/c.json")" = "A4 sensitivity: not testable on suite_version 2 — no admissible build task" ]
+  [ "$(jq -r '.by_suite_version["1"].decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
 }

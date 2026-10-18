@@ -28,6 +28,25 @@
 #               rc-01 caught d1..d4 of 8 (a1 catches every defect): the defect unit weighs
 #               rc-01 eight times; rc-02 rows carry no defects_missed (rate fallback)
 #   partial     a0 rows only (no a1_full): --partial has no decidable comparison (exit 1)
+#
+# Sprint 262 (suite_version partition, read states, degradation guard on H1/A4, degenerate pairs):
+#   versions      batch ver-v1 (suite_version 1): a1/a0/a4 build rows as in main (H1 +0.20,
+#                 A4 −0.10 holds) and a1/a0 review rows; batch ver-v2 (suite_version 2, its own
+#                 manifest sha ddd200b3…): a1/a0 on the SAME review task ids and trials, a1 misses
+#                 nothing, a0 misses d1, d2 everywhere (catch d = 8/18 = +0.444, H1 established on
+#                 the catch rate); v2 has no build task (pass rate and A4 not testable)
+#   degraded      batch deg-v2 (suite_version 2): a0/a1 on rc-01..04 × 3 with ids; a1 misses
+#                 nothing, a0 misses d1, d2; 9 of 12 a1 rows degraded (rc-01..03), rc-04 valid →
+#                 a1 excluded share 0.750 (H1 inconclusive by degradation); with --exclude-degraded
+#                 false the same rows establish H1
+#   degraded-a4   batch deg-a4 (suite_version 1): build rows only, a1 base, a0 −0.20, a4 −0.10;
+#                 a1's fb-01..04 (12 of 36 cells) degraded → share 0.333 on both H1's pass rate and
+#                 A4 (both inconclusive by degradation); with false, H1 established, A4 holds
+#   degenerate-1  batch dg-1 (suite_version 2): a0/a1/a3 on rc-04 only, rows without
+#                 defects_missed (rate fallback); a1 1.0, a0 0.5, a3 0.75 → one task, zero variance:
+#                 degenerate (H1 not yet decidable; a3 inconclusive, no valid pair)
+#   degenerate-2  the same on rc-03 and rc-04 (a0 rc-03 0.75): two tasks → not degenerate, H1 established
+#   degenerate-ids  degenerate-1 with defects_missed on every row → not degenerate (ids decide)
 # =============================================================================
 import json
 import os
@@ -40,6 +59,7 @@ RC = [("rc-01", 8), ("rc-02", 2), ("rc-03", 4), ("rc-04", 4)]
 TRIALS = (1, 2, 3)
 SRC = "1111111111111111111111111111111111111111"
 SHA = "30e1f2ad" + "0" * 56
+SHA2 = "ddd200b3" + "0" * 56
 IMG = "sha256:4e37cb5f" + "0" * 56
 
 
@@ -49,12 +69,12 @@ def base(i):
 
 def row(batch, arm, task, ttype, trial, status="completed", rate=None, catch=None, seeded=None,
         missed=None, cost=10.0, wall=1000000, degraded=False, degraded_reason=None, run_id=None,
-        with_missed=True):
+        with_missed=True, sv=1, sha=SHA):
     rid = run_id or f"{batch}-{arm}-{task}-t{trial}"
     rc = ttype == "review-catch"
     r = {
         "schema_version": 1, "run_id": rid, "batch": batch, "arm": arm, "task_id": task, "task_type": ttype,
-        "trial": trial, "source_commit": SRC, "suite_manifest_sha256": SHA, "suite_version": 1,
+        "trial": trial, "source_commit": SRC, "suite_manifest_sha256": sha, "suite_version": sv,
         "host_fingerprint": "fp:planted", "image_digest": IMG, "executor_mode": "container", "agy_opt_in": False,
         "started": "2026-10-15T00:00:00Z", "finished": "2026-10-15T00:10:00Z", "phases": [],
         "voices_run": None,
@@ -84,22 +104,22 @@ def rc_row(batch, arm, task, n, trial, missed, ids=True, **kw):
                missed=missed, with_missed=ids, **kw)
 
 
-def build_rows(batch, arm, f, cost=10.0, wall=1000000, trials=TRIALS):
-    return [row(batch, arm, t, ty, k, rate=f(i, k), cost=cost, wall=wall)
+def build_rows(batch, arm, f, cost=10.0, wall=1000000, trials=TRIALS, **kw):
+    return [row(batch, arm, t, ty, k, rate=f(i, k), cost=cost, wall=wall, **kw)
             for i, (t, ty) in enumerate(BUILD) for k in trials]
 
 
 A1_MISSED_MAIN = {"rc-01": ["d1", "d2"], "rc-02": [], "rc-03": ["d4"], "rc-04": ["d1"]}
 
 
-def rc_rows(batch, arm, missed_map, cost=10.0, wall=1000000, ids=True):
-    return [rc_row(batch, arm, t, n, k, missed_map[t], ids=ids, cost=cost, wall=wall)
+def rc_rows(batch, arm, missed_map, cost=10.0, wall=1000000, ids=True, **kw):
+    return [rc_row(batch, arm, t, n, k, missed_map[t], ids=ids, cost=cost, wall=wall, **kw)
             for t, n in RC for k in TRIALS]
 
 
-def manifest(batch, smoke=False):
+def manifest(batch, smoke=False, sv=1, sha=SHA):
     return {"schema_version": 1, "batch": batch, "smoke": smoke, "arm_map": {}, "shuffle_seed": 20261015,
-            "source_commit": SRC, "suite_manifest_sha256": SHA, "suite_version": 1,
+            "source_commit": SRC, "suite_manifest_sha256": sha, "suite_version": sv,
             "pre_registration_ref": "NOTES.md § Decision Log 2026-10-15T09:00:00Z",
             "cli_version": "2.1.300 (Claude Code)", "image_digest": IMG}
 
@@ -200,6 +220,61 @@ def partial_scenario():
     return rows, {b: manifest(b)}
 
 
+V2 = {"sv": 2, "sha": SHA2}
+A0_MISS_D12 = {t: ["d1", "d2"] for t, _ in RC}
+NONE = {t: [] for t, _ in RC}
+
+
+def versions_scenario():
+    b1, b2 = "ver-v1", "ver-v2"
+    rows = []
+    rows += build_rows(b1, "a1_full", lambda i, k: base(i))
+    rows += rc_rows(b1, "a1_full", A1_MISSED_MAIN)
+    rows += build_rows(b1, "a0_bare", lambda i, k: base(i) - 0.20, cost=2.0)
+    rows += rc_rows(b1, "a0_bare", {t: ["d%d" % j for j in range(2, n + 1)] for t, n in RC}, cost=2.0)
+    rows += build_rows(b1, "a4_no_gates", lambda i, k: base(i) - 0.10, cost=3.0)
+    rows += rc_rows(b2, "a1_full", NONE, **V2)
+    rows += rc_rows(b2, "a0_bare", A0_MISS_D12, cost=1.0, **V2)
+    return rows, {b1: manifest(b1), b2: manifest(b2, **V2)}
+
+
+def degraded_scenario():
+    b = "deg-v2"
+    rows = rc_rows(b, "a0_bare", A0_MISS_D12, cost=1.0, **V2)
+    a1 = rc_rows(b, "a1_full", NONE, **V2)
+    for r in a1:
+        if r["task_id"] != "rc-04":
+            r["degraded"] = True
+            r["degraded_reason"] = "review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed"
+    return rows + a1, {b: manifest(b, **V2)}
+
+
+def degraded_a4_scenario():
+    b = "deg-a4"
+    a1 = build_rows(b, "a1_full", lambda i, k: base(i))
+    for r in a1:
+        if r["task_id"].startswith("fb-"):
+            r["degraded"], r["degraded_reason"] = True, "IMPLEMENT models_used planted"
+    rows = a1 + build_rows(b, "a0_bare", lambda i, k: base(i) - 0.20, cost=2.0) + \
+        build_rows(b, "a4_no_gates", lambda i, k: base(i) - 0.10, cost=3.0)
+    return rows, {b: manifest(b)}
+
+
+def degenerate_scenario(batch, tasks, ids):
+    def f():
+        rows = []
+        for t, n in RC:
+            if t not in tasks:
+                continue
+            a0_miss = ["d1"] if t == "rc-03" else ["d1", "d2"]
+            for k in TRIALS:
+                rows.append(rc_row(batch, "a1_full", t, n, k, [], ids=ids, **V2))
+                rows.append(rc_row(batch, "a0_bare", t, n, k, a0_miss, ids=ids, cost=1.0, **V2))
+                rows.append(rc_row(batch, "a3_one_voice", t, n, k, ["d1"], ids=ids, **V2))
+        return rows, {batch: manifest(batch, **V2)}
+    return f
+
+
 def write(out, name, rows, mans):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
@@ -219,7 +294,12 @@ def main(argv):
         sys.stderr.write("usage: gen-fixtures.py OUTDIR\n")
         return 2
     for name, fn in (("main", main_scenario), ("boundary", boundary_scenario),
-                     ("exclusions", exclusions_scenario), ("partial", partial_scenario)):
+                     ("exclusions", exclusions_scenario), ("partial", partial_scenario),
+                     ("versions", versions_scenario), ("degraded", degraded_scenario),
+                     ("degraded-a4", degraded_a4_scenario),
+                     ("degenerate-1", degenerate_scenario("dg-1", ("rc-04",), False)),
+                     ("degenerate-2", degenerate_scenario("dg-2", ("rc-03", "rc-04"), False)),
+                     ("degenerate-ids", degenerate_scenario("dg-ids", ("rc-04",), True))):
         rows, mans = fn()
         write(argv[0], name, rows, mans)
     return 0
