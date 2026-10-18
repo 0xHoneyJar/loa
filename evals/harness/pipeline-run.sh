@@ -80,8 +80,10 @@
 #     --tmpfs /tmp:rw,size=1g --pids-limit 512 --memory 4g --cpus 2
 #     -v <run>/sandbox:/workspace:rw -v <run>/meta/home:/home/evaluser:rw
 #     -w /workspace -e <KEY=value…> -e AWS_BEARER_TOKEN_BEDROCK <image> python3 -I -c <shim> … claude …
-# Exactly two mounts. meta/home/ (mode 0700) holds copies of $HOME/.codex/{auth.json,
-# config.toml} when present and empty .claude/ and .aws/; the CLI's session store
+# Exactly two mounts. meta/home/ (mode 0700) holds a copy of $HOME/.codex/config.toml and
+# an access-token-only copy of $HOME/.codex/auth.json (mode 0600; tokens.refresh_token is
+# deleted because it is single-use and a container refresh burned the host's, KF-048)
+# when present, and empty .claude/ and .aws/; the CLI's session store
 # lives there for the whole run, so A6's --resume works across phases. No ~/.claude
 # file is ever copied. The directory is deleted at exit and on interrupt.
 # image_digest = the image's RepoDigest or id (container), else the fingerprint (host).
@@ -598,19 +600,45 @@ build_prompt() {  # build_prompt <name> <out-file>
 # --- per-run HOME (container mode; DEC-0411 as amended in Sprint 258) -------------------------
 # One writable host directory mounted at /home/evaluser: the CLI's session store lives
 # there for the whole run (A6 --resume continues across phases), and it holds only the
-# codex CLI's own files. ~/.claude/.credentials.json and ~/.claude/settings.json are never
-# copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
+# codex CLI's own files: config.toml verbatim and auth.json WITHOUT tokens.refresh_token
+# (KF-048: the refresh token is single-use, so a container that refreshed with a verbatim
+# copy invalidated the host's token and every later run's; an unreadable auth.json gives
+# the run no codex credential and one WARN line). ~/.claude/.credentials.json and
+# ~/.claude/settings.json are never copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
 # and --setting-sources project ignores user settings.
 CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
 make_home() {
-  local f
   mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
   # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
   # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
   printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
-  for f in auth.json config.toml; do
-    if [[ -f "$CREDS_HOME/.codex/$f" ]]; then cp "$CREDS_HOME/.codex/$f" "$HOME_DIR/.codex/$f"; fi
-  done
+  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
+  # auth.json: an access-token-only copy (KF-048). The refresh token is single-use; a container
+  # that refreshed with a verbatim copy consumed the host's token and every later run and the
+  # host failed with 401 refresh_token_reused. Paths only in argv; the host file is never written.
+  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
+    python3 -I -c '
+import json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+try:
+    with open(src, "rb") as fh:
+        data = json.loads(fh.read().decode("utf-8"))
+except Exception:
+    data = None
+if not isinstance(data, dict):
+    sys.exit(3)
+tok = data.get("tokens")
+if isinstance(tok, dict):
+    tok.pop("refresh_token", None)
+fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+os.fchmod(fd, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as out:
+    json.dump(data, out)
+    out.write("\n")
+' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
+      || { rm -f "$HOME_DIR/.codex/auth.json"
+           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
+  fi
   chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
 }
 [[ "$EXECUTOR" == container ]] && make_home

@@ -30,6 +30,8 @@ setup() {
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
   unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
+  # hermetic codex credentials (KF-048 pre-flight): an empty directory unless a case writes one
+  mkdir -p "$T/creds/.codex"; export LOA_EVAL_CREDS_HOME="$T/creds"
 }
 
 teardown() {
@@ -861,4 +863,106 @@ logline() { grep -n -E "$1" "$2" | head -1 | cut -d: -f1; }
   grep -qx 'kf-a1_full-review-01-t1 max-run-usd 20' "$T/argv.log"
   [ "$(jq -c '.caps' "$B/MANIFEST.json")" = "$before" ]
   [ "$(wc -l < "$RES/runs.jsonl")" -eq 2 ]
+}
+
+# --- KF-048: the codex access-token freshness pre-flight (Sprint 261) ------------------------
+# codex_auth <exp offset s> — a crafted auth.json whose access token is h.<base64url({"exp": now+offset})>.s;
+# prints the exp instant (ISO 8601 UTC)
+codex_auth() {
+  python3 -I - "$T/creds/.codex/auth.json" "$1" <<'PY'
+import base64, json, sys, time
+exp = int(time.time()) + int(sys.argv[2])
+pl = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).decode().rstrip("=")
+json.dump({"auth_mode": "chatgpt", "tokens": {"access_token": "h.%s.s" % pl, "refresh_token": "R", "account_id": "a"}},
+          open(sys.argv[1], "w"))
+print(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(exp)))
+PY
+}
+
+@test "RAB-28 KF-048 pre-flight: an expired codex access token with a1_full planned refuses a fresh batch (exit 2, REFUSED.txt names codex and KF-048, no MANIFEST.json)" {
+  codex_auth -60 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf1 --max-usd 100
+  [ "$status" -eq 2 ]
+  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
+  [ ! -e "$RES/kf1/MANIFEST.json" ]
+  [ ! -e "$T/stub.log" ]
+  # no token material in the refusal
+  ! grep -qE 'h\.[A-Za-z0-9_-]+\.s|"R"' "$RES/kf1/REFUSED.txt" || false
+  ! grep -q 'refresh' <<<"$output"
+}
+
+@test "RAB-29 KF-048 pre-flight: a token that expires inside the horizon (now + 60 s; 2 x summed watchdog / concurrency is hours) is refused" {
+  codex_auth 60 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf2 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'KF-048' "$RES/kf2/REFUSED.txt"
+}
+
+@test "RAB-30 KF-048 pre-flight: a fresh token (now + 10 days) is accepted; MANIFEST.json records codex_token_exp at second precision and codex_preflight" {
+  local exp; exp="$(codex_auth 864000)"
+  ra --arms a0_bare,a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf3 --dry-run
+  [ "$status" -eq 0 ]
+  M="$RES/kf3/MANIFEST.json"
+  [ "$(jq -r '.codex_token_exp' "$M")" = "$exp" ]
+  [ "$(jq -c '.codex_preflight | keys' "$M")" = '["auth_file_present","checked","codex_arms","required_until","token_exp"]' ]
+  [ "$(jq -r '.codex_preflight.checked' "$M")" = true ]
+  [ "$(jq -r '.codex_preflight.auth_file_present' "$M")" = true ]
+  [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '["a1_full"]' ]
+  [ "$(jq -r '.codex_preflight.token_exp' "$M")" = "$exp" ]
+  # required_until = now + 2 x (9600 + 16800) / 3 s, about 4.9 h ahead
+  jq -e '.codex_preflight.required_until | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$M"
+  local ru; ru="$(jq -r '.codex_preflight.required_until' "$M")"
+  python3 -I -c '
+import calendar, sys, time
+ru = calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")); d = ru - time.time()
+sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"
+  ! grep -q 'WARN no codex auth.json' <<<"$output" || false
+}
+
+@test "RAB-31 KF-048 pre-flight: an expired token with only a0_bare planned is not refused; checked false, codex_arms []" {
+  codex_auth -60 >/dev/null
+  ra --arms a0_bare --tasks bugfix-v2-02 --trials-build 1 --batch kf4 --dry-run
+  [ "$status" -eq 0 ]
+  M="$RES/kf4/MANIFEST.json"
+  [ "$(jq -r '.codex_preflight.checked' "$M")" = false ]
+  [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '[]' ]
+  [ "$(jq -r '.codex_token_exp' "$M")" = null ]
+  [ ! -e "$RES/kf4/REFUSED.txt" ]
+}
+
+@test "RAB-32 KF-048 pre-flight: no auth.json is not a refusal; one WARN line, codex_token_exp null" {
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf5 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(grep -c "^run-ablation: WARN no codex auth.json under $T/creds/.codex; codex-using arms will run without the OpenAI voice\$" <<<"$output")" -eq 1 ]
+  M="$RES/kf5/MANIFEST.json"
+  [ "$(jq -r '.codex_token_exp' "$M")" = null ]
+  [ "$(jq -c '.codex_preflight' "$M")" = '{"auth_file_present":false,"checked":false,"codex_arms":["a1_full"],"required_until":null,"token_exp":null}' ]
+}
+
+@test "RAB-33 KF-048 pre-flight: --smoke skips the check (an expired token is not refused)" {
+  codex_auth -60 >/dev/null
+  ra --smoke --arms a1_full --batch smoke-kf6 --dry-run
+  [ "$status" -eq 0 ]
+  [ ! -e "$RES/smoke-kf6/REFUSED.txt" ]
+  [ "$(jq -r '.codex_preflight.checked' "$RES/smoke-kf6/MANIFEST.json")" = false ]
+}
+
+@test "RAB-34 KF-048 pre-flight: --dry-run with an expired token is refused (the dry run is where the operator sees it first); a malformed access token is refused too" {
+  codex_auth -60 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf7 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'codex access token expires' "$RES/kf7/REFUSED.txt"
+  [ ! -e "$RES/kf7/MANIFEST.json" ]
+  echo '{"tokens": {"access_token": "not-a-jwt"}}' > "$T/creds/.codex/auth.json"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf8 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'not a three-part JWT (KF-048)' "$RES/kf8/REFUSED.txt"
+  echo '{"tokens": {"access_token": "h.e30.s"}}' > "$T/creds/.codex/auth.json"   # payload {}
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf9 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'no numeric exp claim (KF-048)' "$RES/kf9/REFUSED.txt"
+  echo 'nope' > "$T/creds/.codex/auth.json"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf10 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'is not JSON (KF-048)' "$RES/kf10/REFUSED.txt"
 }

@@ -914,3 +914,71 @@ rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth 
   # the check sits between the clone and install.sh
   [ "$(grep -nF 'rev-parse HEAD' "$df" | cut -d: -f1)" -lt "$(grep -nF 'install.sh /usr/local' "$df" | cut -d: -f1)" ]
 }
+
+# --- KF-048: the per-run HOME carries an access-token-only codex auth.json (Sprint 261) -------
+# snap_docker: a docker wrapper that, on the first `docker run`, copies the mounted HOME's
+# .codex/ to $T/snap (mode preserved) before handing over to the stub; the HOME itself is
+# deleted at exit.
+snap_docker() {
+  mv "$T/docker" "$T/docker.inner"
+  cat > "$T/docker" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == run && ! -e "$T/snap" ]]; then
+  prev=""
+  for a in "\$@"; do
+    if [[ "\$prev" == -v && "\$a" == *:/home/evaluser* ]]; then mkdir -p "$T/snap"; cp -a "\${a%%:*}/.codex" "$T/snap/"; fi
+    prev="\$a"
+  done
+fi
+exec "$T/docker.inner" "\$@"
+EOF
+  chmod +x "$T/docker"
+}
+
+@test "container: KF-048 — the per-run auth.json has no tokens.refresh_token, keeps every other key, mode 0600; the host file is untouched" {
+  cat > "$T/home/.codex/auth.json" <<'JSON'
+{"OPENAI_API_KEY": null, "auth_mode": "chatgpt", "last_refresh": "2026-10-18T00:00:00Z", "extra": {"k": 1},
+ "tokens": {"access_token": "x.y.z", "refresh_token": "R", "id_token": "i.d.t", "account_id": "acct-1"}}
+JSON
+  local before; before="$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/home/.codex/auth.json")"
+  snap_docker
+  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  local c="$T/snap/.codex/auth.json"
+  [ -f "$c" ]
+  [ "$(stat -c %a "$c")" = 600 ]
+  jq -e '(.tokens | has("refresh_token") | not)
+         and .tokens.access_token == "x.y.z" and .tokens.id_token == "i.d.t" and .tokens.account_id == "acct-1"
+         and has("OPENAI_API_KEY") and .auth_mode == "chatgpt" and .last_refresh == "2026-10-18T00:00:00Z"
+         and .extra.k == 1' "$c"
+  ! grep -q '"R"' "$c"
+  [ "$(cat "$T/snap/.codex/config.toml")" = "model = 'x'" ]
+  # the host file is byte-identical and still carries its refresh token
+  [ "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/home/.codex/auth.json")" = "$before" ]
+  jq -e '.tokens.refresh_token == "R"' "$T/home/.codex/auth.json"
+  # no token value reaches the docker argv
+  ! tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -qE 'x\.y\.z|i\.d\.t'
+}
+
+@test "container: KF-048 — an unreadable auth.json gives the run no codex credential, one WARN line, and the run proceeds" {
+  printf 'not json {\n' > "$T/home/.codex/auth.json"
+  snap_docker
+  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c 'pipeline-run: WARN codex auth.json unreadable; the run has no codex credential' <<<"$output")" -eq 1 ]
+  [ ! -e "$T/snap/.codex/auth.json" ]
+  [ -f "$T/snap/.codex/config.toml" ]
+  ! grep -q 'codex/auth.json' "$T/dlog/run-1.mounts"
+}
+
+@test "container: KF-048 — a JSON auth.json that is not an object is unreadable too" {
+  printf '[1, 2]\n' > "$T/home/.codex/auth.json"
+  snap_docker
+  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  grep -q 'pipeline-run: WARN codex auth.json unreadable' <<<"$output"
+  [ ! -e "$T/snap/.codex/auth.json" ]
+}

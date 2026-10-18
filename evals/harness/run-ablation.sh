@@ -107,6 +107,18 @@
 #      $LOA_ABLATION_CACHE/ablation-src-<sha12> (default ~/.cache/loa) cut from
 #      $LOA_ABLATION_SOURCE_REPO (default this repository) with git worktree add --detach;
 #      it must be at the commit and pristine (git status --porcelain --ignored empty)
+#   6. codex token freshness (KF-048), non-smoke batches only (fresh, --resume and --dry-run),
+#      after the plan is built, when a planned arm uses codex (every arm except one whose
+#      toggles set loa_mount: false; a0_bare never runs the dissent): the exp claim of the JWT
+#      tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json (the file
+#      pipeline-run.sh copies, minus its refresh token; payload decoded with base64url, no
+#      signature check) must be later than required_until = now + 2 x (sum of the plan's
+#      watchdog_s) / concurrency (on --resume the whole recorded plan counts). Refused: exp <=
+#      required_until (`codex access token expires <ISO>, before the batch's required horizon
+#      <ISO> (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host`),
+#      and a present file that is not JSON or whose access token is missing, not a three-part
+#      JWT or has no numeric exp. A missing auth.json is no refusal: one `run-ablation: WARN no
+#      codex auth.json under <dir>; codex-using arms will run without the OpenAI voice` line.
 #   --resume also refuses when the source commit, the suite manifest hash, the image digest
 #   or the CLI version differ from MANIFEST.json, or when STATUS.json records a drift
 #   (unless --clear-drift re-reads that run clean under the current rule).
@@ -211,7 +223,11 @@
 #   run_usd_by_type {build, review-catch} (the effective per-kind caps after the chain)},
 #   cost_hint, concurrency, retry,
 #   watchdog {multiplier, override_s, grace_s, grade_timeout_s, took_effect_timeout_s},
-#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.
+#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in,
+#   codex_token_exp (the access token's exp, ISO 8601 UTC, or null when not checked),
+#   codex_preflight {checked (true only when the token was read and its exp compared),
+#   auth_file_present, codex_arms (the planned arms that use codex, sorted), token_exp,
+#   required_until (ISO or null)} (pre-flight 6; --resume keeps the start's record), environment.
 #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
 #   state: running|complete|partial|failed, per_arm: {<arm>: {trials_planned, launched,
 #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
@@ -760,6 +776,69 @@ fi
 jq -c '.plan' "$WORK/plan.json" > "$WORK/plan-only.json"
 PLAN_N="$(jq 'length' "$WORK/plan-only.json")"
 [[ "$PLAN_N" -gt 0 ]] || die "the plan is empty: every arm is refused on every selected task (task_types)"
+
+# --- codex token freshness (KF-048): the access token must outlive the batch's horizon -------
+# The per-run HOME carries no refresh token (pipeline-run.sh), so a container cannot renew an
+# expired access token; a batch that would outlive it degrades every codex-using row. Only the
+# JWT payload's exp claim is read (no signature check); no token value is printed.
+CODEX_AUTH="${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json"
+CODEX_SKIP=false; [[ "$SMOKE" == true ]] && CODEX_SKIP=true
+CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" <<'PY'
+import base64, json, math, os, sys, time
+auth, plan_p, suite_p, conc, skip = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5] == "true"
+plan = json.load(open(plan_p)); suite = json.load(open(suite_p))
+defs = {a.get("id"): a for a in suite.get("arms") or []}
+iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
+def uses_codex(a):   # a0_bare (loa_mount: false) never runs the dissent
+    return ((defs.get(a) or {}).get("toggles") or {}).get("loa_mount") is not False
+arms = sorted({e["arm"] for e in plan if uses_codex(e["arm"])})
+present = os.path.isfile(auth)
+pf = {"checked": False, "auth_file_present": present, "codex_arms": arms, "token_exp": None, "required_until": None}
+out = {"preflight": pf, "refuse": None, "warn": None}
+def done():
+    print(json.dumps(out, sort_keys=True)); sys.exit(0)
+if skip or not arms:
+    done()
+if not present:
+    out["warn"] = "run-ablation: WARN no codex auth.json under %s; codex-using arms will run without the OpenAI voice" % os.path.dirname(auth)
+    done()
+now = time.time()
+required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in plan) / max(conc, 1)))
+pf["required_until"] = iso(required)
+def bad(why):
+    out["refuse"] = "codex auth.json %s: %s (KF-048) — run codex login on the host" % (auth, why); done()
+try:
+    data = json.loads(open(auth, "rb").read().decode("utf-8"))
+except Exception:
+    bad("is not JSON")
+tok = (data.get("tokens") if isinstance(data, dict) else None) or {}
+at = tok.get("access_token") if isinstance(tok, dict) else None
+if not isinstance(at, str) or not at:
+    bad("has no tokens.access_token")
+parts = at.split(".")
+if len(parts) != 3:
+    bad("tokens.access_token is not a three-part JWT")
+try:
+    seg = parts[1] + "=" * (-len(parts[1]) % 4)
+    claims = json.loads(base64.urlsafe_b64decode(seg.encode("ascii")).decode("utf-8"))
+except Exception:
+    bad("the access token's JWT payload does not decode")
+exp = claims.get("exp") if isinstance(claims, dict) else None
+if isinstance(exp, bool) or not isinstance(exp, (int, float)) or not math.isfinite(exp):
+    bad("the access token has no numeric exp claim")
+exp = int(exp)
+pf["checked"] = True; pf["token_exp"] = iso(exp)
+if exp <= required:
+    out["refuse"] = ("codex access token expires %s, before the batch's required horizon %s "
+                     "(now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host") % (iso(exp), iso(required))
+done()
+PY
+)" || die "the codex token pre-flight failed"
+printf '%s' "$CODEX_PF" | jq -c '.preflight' > "$WORK/codex-preflight.json"
+CODEX_WARN="$(jq -r '.warn // ""' <<<"$CODEX_PF")"
+[[ -z "$CODEX_WARN" ]] || echo "$CODEX_WARN" >&2
+CODEX_REFUSE="$(jq -r '.refuse // ""' <<<"$CODEX_PF")"
+[[ -z "$CODEX_REFUSE" ]] || refuse "$CODEX_REFUSE"
 PL_ARM=() PL_TASK=() PL_TYPE=() PL_KIND=() PL_TRIAL=() PL_RUN=() PL_YAML=() PL_WD=()
 while IFS=$'\t' read -r a t ty k tr rid y wd; do
   PL_ARM+=("$a"); PL_TASK+=("$t"); PL_TYPE+=("$ty"); PL_KIND+=("$k"); PL_TRIAL+=("$tr"); PL_RUN+=("$rid"); PL_YAML+=("$y"); PL_WD+=("$wd")
@@ -783,7 +862,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
   printf '%s' "$GATE_JSON" > "$WORK/gate.json"
   jq -n \
     --slurpfile plan_f "$WORK/plan.json" --slurpfile suite_f "$WORK/suite.json" --slurpfile tasks_f "$WORK/tasks.json" \
-    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" \
+    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" --slurpfile cpf_f "$WORK/codex-preflight.json" \
     --arg batch "$BATCH" --argjson dry "$dry" --argjson smoke "$SMOKE" --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg src "$SRC_FULL" --arg tree "$TREE" --arg hc "$harness_commit" --argjson hd "$harness_dirty" \
     --arg suite_file "${SUITE_FILE#"$REPO_ROOT"/}" --arg suite_file_path "$SUITE_FILE" --arg suite_root "$SUITE_ROOT" \
@@ -821,6 +900,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        pre_registration_ref: (if $prr == "" then null else $prr end),
        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
        agy_opt_in: ($s.agy_opt_in // false),
+       codex_token_exp: $cpf_f[0].token_exp, codex_preflight: $cpf_f[0],
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
 }
