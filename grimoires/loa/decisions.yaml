@@ -19004,3 +19004,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0594"
+    created_at: "2026-10-18T06:09:22Z"
+    updated_at: "2026-10-18T06:09:22Z"
+    phase: "implementation"
+    category: "technical"
+    summary: "KF-048 fix: per-run codex copy without the refresh token; the pre-flight refuses a token expiring inside the batch horizon (L363)"
+    decision: "pipeline-run.sh make_home() writes ~/.codex/auth.json into the per-run HOME without tokens.refresh_token (python3 -I stdlib, mode 0600, paths only in argv, the host file never written; an unreadable file gives the run no codex credential and one WARN line, the row writer flags the degradation). run-ablation.sh pre-flight 6 (non-smoke; fresh, --resume and --dry-run) reads the JWT exp of tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json when a planned arm uses codex (every arm except toggles loa_mount: false) and refuses (REFUSED.txt, exit 2) when exp <= now + 2 x sum(plan watchdog_s) / concurrency; a missing auth.json is a WARN, not a refusal; MANIFEST.json records codex_token_exp and codex_preflight {checked, auth_file_present, codex_arms, token_exp, required_until}. Commit b4ef76bf; pipeline-run.bats +3, RAB-28 … RAB-34; the RAB setup points LOA_EVAL_CREDS_HOME at an empty directory so the suite never reads the operator's credential."
+    rationale: "the refresh token is single-use: the first container to refresh with a verbatim copy consumed the host's token and every later run and the host lost the OpenAI voice (nine of twelve a1_full rows degraded, DEC-0592); an access-token-only copy makes an expired token fail one run cleanly, and the pre-flight stops a batch that would outlive the token before any row is spent"
+    alternatives_considered:
+      - option: "refresh once on the host before each batch and keep copying the refresh token"
+        rejected_because: "a container could still refresh and burn the host token on any transient 401; the failure mode stays"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "5f152161"
+    source: "grimoires/loa/NOTES.md#session-resumed-kf-048-fix (L363)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T06:09:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#session-resumed-kf-048-fix (L363)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0595"
+    created_at: "2026-10-18T06:09:24Z"
+    updated_at: "2026-10-18T06:09:24Z"
+    phase: "implementation"
+    category: "process"
+    summary: "priority-v2-p1b pre-registered: a1_full x review-01..03 x 3 trials (nine KF-048 cells); a valid row supersedes a degraded one per cell (L371)"
+    decision: "The nine a1_full cells of priority-v2-p1 that degraded by the Codex credential failure (review-01, review-02, review-03 x trials 1-3) are re-run as batch priority-v2-p1b (arm a1_full only, concurrency 3, review-catch cap USD 20, --max-usd 389 = 1,500 - 1,050.84 - 3 x 20, seed 20261015, pin ba11b860, image loa-ablation:258, suite v2 ddd200b3…, grader 1.2.11) after the KF-048 fix (b4ef76bf) and the re-row of the 24 existing rows under row writer 1.2. A valid completed row supersedes a degraded row in the same arm x task x trial cell (the report's cell logic, AR-21); the degraded rows stay in runs.jsonl for the record; review-04's three a1_full rows are not degraded and stay; no a0_bare row is re-run. The pre-registered H1 read is then taken on twelve a1_full cells against the twelve a0_bare cells with the report's degradation guard and degenerate checks; pass-rate H1 and A4 stay not testable on suite v2; H1 not established → halt. Every new row's eval/adversarial-review.json must show voices_succeeded 2, else the batch is stopped and the run halts with the evidence. Informational figures that decide nothing: the sensitivity with degraded rows included, per-arm precision and cost per true defect, a budget-matched baseline (the union of a0_bare's three trials per task)."
+    rationale: "the comparison was emptied by an infrastructure failure, not by the arms; re-running exactly the degraded cells under the same pre-registration restores the twelve-cell read at about USD 100 without repeating any valid trial"
+    alternatives_considered:
+      - option: "rerun all 24 cells as a fresh batch"
+        rejected_because: "the fifteen valid cells would be repeated for about USD 120 more and the a0 rows carry no dependency on the Codex credential"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "5f152161"
+    source: "grimoires/loa/NOTES.md#re-pre-registration-addendum-priority-v2-p1b (L371)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T06:09:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#re-pre-registration-addendum-priority-v2-p1b (L371)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
