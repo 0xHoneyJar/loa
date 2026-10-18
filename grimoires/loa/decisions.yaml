@@ -19068,3 +19068,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0596"
+    created_at: "2026-10-18T06:37:28Z"
+    updated_at: "2026-10-18T06:37:28Z"
+    phase: "implementation"
+    category: "technical"
+    summary: "KF-048 rec 2: codex treats a missing refresh_token key as logged out; the per-run copy keeps a placeholder value; p1b stopped and resumed (L384)"
+    decision: "Batch priority-v2-p1b was stopped (SIGTERM, 06:30:18Z) after its first three REVIEW phases showed voices_succeeded 1: with tokens.refresh_token deleted the codex CLI treats the credential as absent and sends no bearer (401 Missing bearer or basic authentication), reproduced on the host in a temporary HOME; the host credential was untouched. pipeline-run.sh (00ce0a5a) keeps the refresh_token key with the placeholder value loa-ablation-no-refresh-token, so codex uses the access token and a refresh can only fail (the host's single-use token is never consumed); the pre-flight horizon rule is unchanged. The three interrupted REVIEW phases (USD 12.88, no rows) are carried as a manual ledger; the batch is resumed under the same pre-registration addendum with --max-usd 376 = 1,500 - 1,063.72 - 60; the interrupted trials relaunch into -r2 run directories."
+    rationale: "the pre-registered stop condition (the OpenAI voice failing again) fired; the cause was the shape of the fix, verified by a host reproduction in both directions, so the corrected copy is the smallest change that restores the two-voice arm without exposing the host token"
+    alternatives_considered:
+      - option: "give the containers OPENAI_API_KEY so cheval falls back to gpt-5.5-pro over HTTP"
+        rejected_because: "it changes the arm model mix recorded for P1 (codex-headless) and would be flagged as models_used drift"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "00ce0a5a"
+    source: "grimoires/loa/NOTES.md#priority-v2-p1b-stopped-kf-048-recurrence-2 (L384)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T06:37:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-v2-p1b-stopped-kf-048-recurrence-2 (L384)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
