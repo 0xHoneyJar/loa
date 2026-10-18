@@ -1,6 +1,6 @@
 # Loa 2.0 component ablation — report
 
-- report schema_version 1; ablation-report.py 1.2.0
+- report schema_version 1; ablation-report.py 1.2.1
 - suite: `evals/suites/ablation-2.0.yaml` (name ablation-2.0, suite_version 2)
 - row suite_version: 1, 2
   - suite_version 2 (primary: the main sections): 33 rows; batches priority-v2-p1, priority-v2-p1b; suite manifest sha256 ddd200b313c5c02353abdc829d3a3a6c78f52b9118da2cf0da8c1eb21ae788c7
@@ -488,14 +488,14 @@ From each batch's STATUS.json beside its MANIFEST.json (read-only) and the `grad
 
 | batch | state | trials planned / rowed | spend USD rows / ledger / spent / max | extra models | rerowed | rerun | drift cleared | outages | cuts | paused arms | grader versions |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `priority-p1` | complete | 132 / 132 | 592.43 / 21.70 / 614.13 / 799.00 | global.anthropic.claude-haiku-4-5-20251001-v1:0: runs 1, output tokens 516 | 11 (contaminated→cap_failure ×3, contaminated→completed ×7, infrastructure_error→completed ×1) | 67 (transport_error→cap_failure ×3, transport_error→completed ×63, transport_error→contaminated ×1) | 1 | 0 | reason max_usd, at_trial 120, spent 1044.674677, max 1039 | none | 1.2.2 ×7, 1.2.3 ×38, 1.2.4 ×85, 1.2.5 ×2, n/a ×134 |
+| `priority-p1` | complete | 132 / 132 | 592.43 / 21.70 / 614.13 / 799.00 | global.anthropic.claude-haiku-4-5-20251001-v1:0: runs 1, output tokens 516 | 11 (contaminated→cap_failure ×3, contaminated→completed ×7, infrastructure_error→completed ×1) | 67 (transport_error→cap_failure ×3, transport_error→completed ×63, transport_error→contaminated ×1) | 1 | 0 | reason max_usd, at_trial 120, spent 1044.674677, max 1039 | none | 1.2.2 ×7, 1.2.3 ×38, 1.2.4 ×85, 1.2.5 ×2 |
 
 ### suite_version 2
 
 | batch | state | trials planned / rowed | spend USD rows / ledger / spent / max | extra models | rerowed | rerun | drift cleared | outages | cuts | paused arms | grader versions |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `priority-v2-p1` | complete | 24 / 24 | 142.49 / 0.00 / 142.49 / 531.00 | none | 24 (completed→completed ×24) | 0 | 0 | 0 | none | none | 1.2.11 ×24 |
-| `priority-v2-p1b` | complete | 9 / 9 | 104.26 / 0.00 / 104.26 / 376.00 | none | 0 | 0 | 0 | 0 | none | none | 1.2.11 ×9, n/a ×3 |
+| `priority-v2-p1b` | complete | 9 / 9 | 104.26 / 0.00 / 104.26 / 376.00 | none | 0 | 0 | 0 | 0 | none | none | 1.2.11 ×9 |
 
 ## Method
 

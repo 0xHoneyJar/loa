@@ -271,9 +271,9 @@
         "1.2.2": 7,
         "1.2.3": 38,
         "1.2.4": 85,
-        "1.2.5": 2,
-        "n/a": 134
+        "1.2.5": 2
       },
+      "note": null,
       "outage_history": 0,
       "paused_arms": [],
       "rerowed": 11,
@@ -311,6 +311,7 @@
       "grader_versions": {
         "1.2.11": 24
       },
+      "note": null,
       "outage_history": 0,
       "paused_arms": [],
       "rerowed": 24,
@@ -340,9 +341,9 @@
       "drift_cleared": 0,
       "extra_models": {},
       "grader_versions": {
-        "1.2.11": 9,
-        "n/a": 3
+        "1.2.11": 9
       },
+      "note": null,
       "outage_history": 0,
       "paused_arms": [],
       "rerowed": 0,
@@ -5134,7 +5135,7 @@
     "line": "Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).",
     "per_direction": 0.3
   },
-  "generator": "ablation-report.py 1.2.0",
+  "generator": "ablation-report.py 1.2.1",
   "h1": {
     "comparisons": [
       {

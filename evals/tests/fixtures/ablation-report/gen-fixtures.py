@@ -64,6 +64,21 @@
 #                 1.2.5), rc-01-t2-r2 (1.2.11), rc-01-t3 (no grade.json). Batch pr-1 (suite_version 1,
 #                 build rows of a0/a1 only, no STATUS.json, no run dirs): the budget-matched section of
 #                 suite_version 1 reads "not available".
+#
+# Sprint 262 R4 (report 1.2.1: version keys, the batch-record grader tally, version-less listed rows):
+#   graders       batch gr-mixed (suite_version 2): a1_full rc-01 t1..t3 with run dirs rc-01-t1 (grader
+#                 1.2.0), rc-01-t2 (1.2.0-rc1), rc-01-t3 (no grade.json) → tally 1.2.0 ×1, 1.2.0-rc1 ×1,
+#                 n/a ×1 (1.2.0 aborted on the mixed int/str sort key); batch gr-rerun: a0_bare rc-01 t1
+#                 with rc-01-t1 (meta/pipeline.json run_id = the row's, interrupted, no grade), rc-01-t1-r2
+#                 (the same run_id, grader 1.2.11) and rc-01-t1-r3 (another run_id, grader 9.9.9) → the
+#                 row reads r2 once: 1.2.11 ×1, run_dirs_missing 0; batch gr-missing: a0_bare rc-01 t2
+#                 with no run dir → n/a ×1, run_dirs_missing 1
+#   versions-float  batch vf-2 (suite_version 2) and vf-21 (suite_version 2.1, a float): a1/a0 on the
+#                 review tasks as in versions' v2 (a0 misses d1, d2); vf-21's a0 misses d1 only → the two
+#                 versions are never pooled, keys "2" and "2.1", 2.1 primary
+#   legacy        the versions scenario plus version-less rows that never reach a decision: a smoke batch
+#                 leg-smoke (manifest suite_version null) with an a1_full row and an unbatched row (batch
+#                 leg-loose, no manifest) → listed under the primary version 2 as "no suite_version; …"
 # =============================================================================
 import json
 import os
@@ -323,6 +338,41 @@ def present_scenario():
     return rows, {b2: manifest(b2, **V2), b1: manifest(b1)}, extras
 
 
+def graders_scenario():
+    bm, br, bx = "gr-mixed", "gr-rerun", "gr-missing"
+    rows = [rc_row(bm, "a1_full", "rc-01", 8, k, [], **V2) for k in TRIALS]
+    rows.append(rc_row(br, "a0_bare", "rc-01", 8, 1, ["d1", "d2"], cost=1.0, **V2))
+    rows.append(rc_row(bx, "a0_bare", "rc-01", 8, 2, ["d1", "d2"], cost=1.0, **V2))
+    rid = f"{br}-a0_bare-rc-01-t1"
+    extras = {f"{bm}/a1_full/rc-01-t1/grade.json": {"grader_version": "1.2.0"},
+              f"{bm}/a1_full/rc-01-t2/grade.json": {"grader_version": "1.2.0-rc1"},
+              f"{bm}/a1_full/rc-01-t3": None,
+              f"{br}/a0_bare/rc-01-t1/meta/pipeline.json": {"run_id": rid, "status": "interrupted"},
+              f"{br}/a0_bare/rc-01-t1-r2/meta/pipeline.json": {"run_id": rid, "status": "completed"},
+              f"{br}/a0_bare/rc-01-t1-r2/grade.json": {"grader_version": "1.2.11"},
+              f"{br}/a0_bare/rc-01-t1-r3/meta/pipeline.json": {"run_id": "another-run", "status": "completed"},
+              f"{br}/a0_bare/rc-01-t1-r3/grade.json": {"grader_version": "9.9.9"}}
+    return rows, {bm: manifest(bm, **V2), br: manifest(br, **V2), bx: manifest(bx, **V2)}, extras
+
+
+def versions_float_scenario():
+    b2, b21 = "vf-2", "vf-21"
+    v21 = {"sv": 2.1, "sha": SHA2}
+    rows = rc_rows(b2, "a1_full", NONE, **V2) + rc_rows(b2, "a0_bare", A0_MISS_D12, cost=1.0, **V2)
+    rows += rc_rows(b21, "a1_full", NONE, **v21)
+    rows += rc_rows(b21, "a0_bare", {t: ["d1"] for t, _ in RC}, cost=1.0, **v21)
+    return rows, {b2: manifest(b2, **V2), b21: manifest(b21, **v21)}
+
+
+def legacy_scenario():
+    rows, mans = versions_scenario()
+    smoke = row("leg-smoke", "a1_full", "fb-01", "feature-build", 1, rate=0.5, sv=None)
+    loose = row("leg-loose", "a0_bare", "fb-01", "feature-build", 1, rate=0.5, sv=None)
+    mans = dict(mans)
+    mans["leg-smoke"] = manifest("leg-smoke", smoke=True, sv=None)
+    return rows + [smoke, loose], mans
+
+
 def write(out, name, rows, mans, extras=None):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
@@ -357,7 +407,8 @@ def main(argv):
                      ("degenerate-1", degenerate_scenario("dg-1", ("rc-04",), False)),
                      ("degenerate-2", degenerate_scenario("dg-2", ("rc-03", "rc-04"), False)),
                      ("degenerate-ids", degenerate_scenario("dg-ids", ("rc-04",), True)),
-                     ("present", present_scenario)):
+                     ("present", present_scenario), ("graders", graders_scenario),
+                     ("versions-float", versions_float_scenario), ("legacy", legacy_scenario)):
         write(argv[0], name, *fn())
     return 0
 

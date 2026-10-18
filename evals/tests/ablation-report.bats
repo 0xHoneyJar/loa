@@ -10,7 +10,9 @@
 # partition, the not-testable / not-yet-decidable states (bd-wqbz3), the degradation guard on
 # the H1 and A4 lines, and the degenerate single-task rate-fallback pair. AR-31 … AR-35 (Sprint 262
 # R3, presentation only): the sensitivity H1/A4 lines, the batch record, precision and cost per true
-# defect, the budget-matched baseline.
+# defect, the budget-matched baseline. AR-36 … AR-39 (Sprint 262 R4, report 1.2.1): the type-stable
+# grader-version sort and the never-fatal batch record, one run directory per row, float suite_version
+# keys, and version-less rows that never reach a decision.
 # =============================================================================
 
 setup_file() {
@@ -468,13 +470,13 @@ PY
   [ "$(b pr-2 .outage_history)" = "2" ]
   [ "$(b pr-2 .drift_cleared)" = "1" ]
   [ "$(b pr-2 '.paused_arms | join(",")')" = "a3_one_voice" ]
-  [ "$(b pr-2 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=1" ]
+  [ "$(b pr-2 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=16" ]
   [ "$(b pr-2 .run_dirs_missing)" = "15" ]
   [ "$(b pr-1 .status_note)" = "no STATUS.json" ]
   [ "$(b pr-1 .suite_version)" = "1" ]
   grep -qF '## Batch record' "$M"
   grep -qF '| `pr-2` | complete | 20 / 18 | 69.00 / 1.50 / 70.50 / 100.00 | global.anthropic.claude-haiku-4-5-20251001-v1:0: runs 2, output tokens 900 | 3 (completed→completed ×2, contaminated→cap_failure ×1) | 1 (transport_error→completed ×1) | 1 | 2 |' "$M"
-  grep -qF '| a3_one_voice | 1.2.5 ×1, 1.2.11 ×1, n/a ×1; no run dir ×15 |' "$M"
+  grep -qF '| a3_one_voice | 1.2.5 ×1, 1.2.11 ×1, n/a ×16; no run dir ×15 |' "$M"
   grep -qF '| `pr-1` | no STATUS.json | — / 72 |' "$M"
   awk '/^## Batch record/{f=1} /^## Method/{f=0} f' "$M" | grep -qF '### suite_version 1'
   # the report reads, never writes, beside the manifests
@@ -522,4 +524,82 @@ PY
   # the main H1 line ignores the sensitivity read: degraded stays inconclusive by degradation
   [ "$(jq -r .h1.line "$FX/degraded/report.json")" = "H1: inconclusive by degradation — not established" ]
   [ "$(jq -r '.decisions[] | select(.arm == "a3_one_voice") | .state' "$FX/present/report.json")" = "keep" ]
+}
+
+@test "AR-36 grader versions 1.2.0, 1.2.0-rc1 and an ungraded run dir: the report is written, the tally lists all three (n/a last), no traceback" {
+  report graders "$T/g"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Traceback"* ]]
+  [ -s "$T/g.md" ] && [ -s "$T/g.json" ]
+  b() { jq -r --arg b "$1" ".batches[] | select(.batch == \$b) | $2" "$T/g.json"; }
+  [ "$(b gr-mixed '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.0=1,1.2.0-rc1=1,n/a=1" ]
+  [ "$(b gr-mixed .run_dirs_missing)" = "0" ]
+  [ "$(b gr-mixed .note)" = "null" ]
+  grep -qF '| `gr-mixed` | no STATUS.json | — / 3 | — | — | — | — | — | — | — | — | 1.2.0 ×1, 1.2.0-rc1 ×1, n/a ×1 |' "$T/g.md"
+}
+
+@test "AR-37 one run directory per row: a rerun row reads its own -r<k> once (run_id match beats a higher graded sibling); a row without a directory is n/a ×1 and run_dirs_missing 1" {
+  report graders "$T/g"
+  [ "$status" -eq 0 ]
+  b() { jq -r --arg b "$1" ".batches[] | select(.batch == \$b) | $2" "$T/g.json"; }
+  [ "$(b gr-rerun '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1" ]
+  [ "$(b gr-rerun .run_dirs_missing)" = "0" ]
+  [ "$(b gr-missing '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "n/a=1" ]
+  [ "$(b gr-missing .run_dirs_missing)" = "1" ]
+  # every tally sums to the batch's rows
+  [ "$(jq '[.batches[] | ([.grader_versions[]] | add) == .trials_rowed] | all' "$T/g.json")" = "true" ]
+  # without a run_id match the highest graded rerun is read
+  jq -c 'select(.batch == "gr-rerun")' "$FX/graders/runs.jsonl" > "$T/rr.jsonl"
+  cp -R "$FX/graders/manifests" "$T/man"
+  printf '{"run_id": "elsewhere"}\n' > "$T/man/gr-rerun/a0_bare/rc-01-t1-r2/meta/pipeline.json"
+  run python3 -I "$REPORT" --runs "$T/rr.jsonl" --manifests "$T/man" --suite "$SUITE" --out "$T/rr.md" --json "$T/rr.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.batches[] | select(.batch == "gr-rerun") | .grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")' "$T/rr.json")" = "9.9.9=1" ]
+}
+
+@test "AR-38 suite_version 2 and 2.1 are two versions (keys 2 and 2.1, never pooled, 2.1 primary); --suite-version 2.0 selects 2; true and \"\" are absent" {
+  report versions-float "$T/f"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.by_suite_version | keys | join(",")' "$T/f.json")" = "2,2.1" ]
+  [ "$(jq -r .primary_suite_version "$T/f.json")" = "2.1" ]
+  [ "$(jq -r .arms.a1_full.rows "$T/f.json")" -eq 12 ]
+  [ "$(jq -r '.by_suite_version["2"].arms.a1_full.rows' "$T/f.json")" -eq 12 ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .d' "$T/f.json")" = "0.222222" ]
+  [ "$(jq -r '.by_suite_version["2"].h1.comparisons[] | select(.metric == "defect_catch_rate") | .d' "$T/f.json")" = "0.444444" ]
+  grep -qxF '## Suite version 2 (batches: vf-2) — reported separately, never pooled' "$T/f.md"
+  report versions-float "$T/f20" --suite-version 2.0
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .primary_suite_version "$T/f20.json")" = "2" ]
+  report versions-float "$T/f21" --suite-version 2.1
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .primary_suite_version "$T/f21.json")" = "2.1" ]
+  report versions-float "$T/f22" --suite-version 2.2
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--suite-version 2.2: no row has that suite_version (present: 2, 2.1)"* ]]
+  for v in true '""' '"  "'; do
+    jq -c --argjson v "$v" 'if .run_id == "vf-2-a1_full-rc-01-t1" then .suite_version = $v else . end' \
+      "$FX/versions-float/runs.jsonl" > "$T/abs.jsonl"
+    run python3 -I "$REPORT" --runs "$T/abs.jsonl" --manifests "$FX/versions-float/manifests" --suite "$SUITE" --out "$T/abs.md"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"row vf-2-a1_full-rc-01-t1 has no suite_version while the rows hold suite_version 2, 2.1"* ]]
+  done
+}
+
+@test "AR-39 version-less rows that never reach a decision (smoke, unbatched) are listed under the primary version; a version-less row that would be scored still exits 2" {
+  report legacy "$T/l"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .primary_suite_version "$T/l.json")" = "2" ]
+  [ "$(jq -r '.listed[] | select(.run_id == "leg-smoke-a1_full-fb-01-t1") | .reason' "$T/l.json")" = "no suite_version; smoke batch leg-smoke" ]
+  [ "$(jq -r '.listed[] | select(.run_id == "leg-loose-a0_bare-fb-01-t1") | .reason' "$T/l.json")" = "no suite_version; no manifest for batch leg-loose" ]
+  [ "$(jq '.by_suite_version["1"].listed | length' "$T/l.json")" -eq 0 ]
+  grep -qF -- '- `leg-smoke-a1_full-fb-01-t1` (`a1_full`, fb-01, completed): no suite_version; smoke batch leg-smoke' "$T/l.md"
+  # the decisions are those of the versions scenario
+  for k in h1 a4 decisions; do
+    [ "$(jq -c ".$k" "$T/l.json")" = "$(jq -c ".$k" "$FX/versions/report.json")" ]
+  done
+  [ "$(jq -c '.by_suite_version["1"].decisions' "$T/l.json")" = "$(jq -c '.by_suite_version["1"].decisions' "$FX/versions/report.json")" ]
+  jq -c 'if .run_id == "ver-v2-a0_bare-rc-02-t2" then del(.suite_version) else . end' "$FX/legacy/runs.jsonl" > "$T/sc.jsonl"
+  run python3 -I "$REPORT" --runs "$T/sc.jsonl" --manifests "$FX/legacy/manifests" --suite "$SUITE" --out "$T/sc.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"row ver-v2-a0_bare-rc-02-t2 has no suite_version while the rows hold suite_version 1, 2"* ]]
 }
