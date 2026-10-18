@@ -19100,3 +19100,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0597"
+    created_at: "2026-10-18T08:31:20Z"
+    updated_at: "2026-10-18T08:31:20Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Suite v2 H1 established on 12 valid a1 cells (+0.263 [+0.158, +0.386]); A4 not testable → no pruning; the cycle continues to Sprint 262 (L391)"
+    decision: "After priority-v2-p1b (nine valid a1_full rows superseding the KF-048-degraded cells), the pre-registered H1 read on suite v2 is established: defect_catch_rate a1_full - a0_bare +0.263 [+0.158, +0.386] on 19 defects (paired bootstrap 10,000 at 90 %), a1 excluded share 0, four tasks with per-defect ids (not degenerate); hidden_test_pass_rate and the A4 sensitivity are not testable on suite v2 (no build task met the hardness bar), so no pruning of A4 and no pruning in this cycle (A2, A3, A5, A6, A7 Not run (cut)). The run is not halted; Sprint 261 closes (dissent, review, audit) and Sprint 262 produces the report, docs and rc.6. Disclosed beside the read: four valid a1 cells ran a gate with no dissent envelope (review-04 x 3 budget_exceeded at both gates; p1b review-03-t1 REVIEW killed by the 420 s wall-clock cap) which row writer 1.2 cannot flag (bd-ocovl); treating them as degraded would read inconclusive by degradation (share 0.333; remaining pairs +0.274 [+0.107, +0.464]); the pre-registered definition is read as written because both shapes are the pinned framework's own behaviour, and the effect's direction holds under every reading. Spend USD 1,167.98 of 1,500."
+    rationale: "the pre-registered rule is the interval excluding zero on at least one primary with the degradation guard and the degenerate check applied first; both pass; the informational figures (budget-matched +0.110, precision 0.107 vs 0.199, USD 3.04 vs 0.27 per true defect) decide nothing and go to the report as context"
+    alternatives_considered:
+      - option: "re-define degraded post hoc to cover gates with no dissent envelope and read inconclusive by degradation"
+        rejected_because: "a post-hoc rule change; the budget gate and the wall-clock cap are the arm as shipped at the pin, and the stricter readings keep the direction; disclosed as a sensitivity and pre-registered for the next cycle via bd-ocovl"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "698ad73b"
+    source: "grimoires/loa/NOTES.md#priority-v2-p1b-complete-h1-established (L391)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T08:31:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#priority-v2-p1b-complete-h1-established (L391)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
