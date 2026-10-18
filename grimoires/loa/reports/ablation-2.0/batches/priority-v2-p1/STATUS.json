@@ -40,7 +40,152 @@
   "resume_cursor": 24,
   "drift": null,
   "drift_cleared": [],
-  "rerowed": [],
+  "rerowed": [
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-01-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:11Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-01-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:14Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-01-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:16Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-02-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:19Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-02-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:22Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-02-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:25Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-03-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:27Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-03-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:30Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-03-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:33Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-04-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:36Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-04-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:38Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a0_bare-review-04-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:41Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-01-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:44Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-01-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:47Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-01-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:50Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-02-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:52Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-02-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:55Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-02-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:02:58Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-03-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:01Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-03-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:04Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-03-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:07Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-04-t1",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:10Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-04-t2",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:14Z"
+    },
+    {
+      "run_id": "priority-v2-p1-a1_full-review-04-t3",
+      "from": "completed",
+      "to": "completed",
+      "at": "2026-10-18T06:03:16Z"
+    }
+  ],
   "rerun": [],
   "rerun_pending": [],
   "outage": null,
@@ -52,5 +197,5 @@
   "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
   "rows_file": "/home/merlin/Documents/thj/code/loa/grimoires/loa/reports/ablation-2.0/runs.jsonl",
   "started": "2026-10-17T18:41:26Z",
-  "finished": "2026-10-17T20:48:53Z"
+  "finished": "2026-10-18T06:03:17Z"
 }

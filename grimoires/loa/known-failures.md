@@ -1832,6 +1832,7 @@ Before trusting a TRIPPED: timeout line compare circuit-breaker.json triggers.ti
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-17 | probe codex on the host after priority-v2-p1 (9 of 12 a1_full rows degraded) | host credential dead (refresh token already used); interactive codex login required; batch halted on the pre-registered H1 read | grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a1_full/review-01-t1/eval/model-invoke.jsonl; ~/.codex/auth.json last_refresh 2026-10-06T06:51:19Z, access exp 2026-10-16T06:51:19Z; commit d9c256a5 |
+| 2026-10-18 | operator re-authenticated Codex on the host (DEC-0593); lead landed the harness fix: pipeline-run.sh copies auth.json without tokens.refresh_token (0600) into the per-run HOME; run-ablation.sh pre-flight 6 refuses a non-smoke batch whose access-token exp is before now + 2 x summed watchdog / concurrency and records codex_token_exp in MANIFEST | fix committed b4ef76bf (pipeline-run.bats +3, RAB-28 … RAB-34); the first a1_full row of priority-v2-p1b is the live proof (voices_succeeded must read 2) | commit b4ef76bf; grimoires/loa/a2a/sprint-261/reviewer-c.md |
 
 ### Reading guide
 
