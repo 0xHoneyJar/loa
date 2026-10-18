@@ -19228,3 +19228,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0601"
+    created_at: "2026-10-18T13:13:09Z"
+    updated_at: "2026-10-18T13:13:09Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Bridgebuilder round 1 on PR #1283: HIGH bats/python resolution fixed, 7 findings refuted with evidence, 3 beads; CI red since 10-16 fixed (CR-7 literal)"
+    decision: "Bridgebuilder run bridgebuilder-20261018T123217-6df1 on PR #1283 (REQUEST_CHANGES, 1 high-consensus, 3 disputed, 19 unique) triaged by the lead (PR comment, ~/.cache/loa/cycle-130/bb-1283-triage.md): fixed in 76ba937e — ablation-grade.bats resolves bats (LOA_EVAL_BATS_BIN, else the first PATH bats outside bats-core's libexec/, else the operator's checkout) and python3 from PATH, RAB-1's stale comment; refuted with evidence — the v1 cap censoring (the lift is read on suite v2 with zero cap failures), the P1 reclassifications (KF-046 scanner repairs re-scanned over every run, v2 rules frozen before any row), the corpus hash (HEAD SHA256SUMS = every batch's corpus.sha256), the integrity manifest (3,387 entries incl. untracked files → 1,973 = every tracked .claude file), fixture harness edits (remove_harness removes any non-identical copy), the frozen-suite docstring, the single-PR shape; carried as beads bd-vdvlx (STATUS resume history, repo-relative paths), bd-c7uuh (grade by digest, CLI integrity pins, no-op npm line), bd-jgvg6 (tokenizer-based contamination scanner, CI slow factor), bd-lfrkn (credential/egress). While verifying the HIGH the lead found Shell Tests red on the branch since 2026-10-16: tests/unit/cost-report.bats CR-7 expected the pre-Sprint-258 codex hop (gpt-5.5) after 05442536 repointed cli_model to gpt-6.1-sol (KF-044); literal corrected, so the eval-harness CI step runs for the first time on this branch."
+    rationale: "the pre-registered reads and the shipped report are untouched by every finding; the real defects were in test harness portability and a stale test literal, both fixed; the rest are documented trade-offs or next-cycle hardening"
+    alternatives_considered:
+      - option: "split the PR as the LOW suggests"
+        rejected_because: "one consolidated draft PR per /run sprint-plan is the run-mode contract; the sprint records on the record branch give each piece its own review and audit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "76ba937e"
+    source: "grimoires/loa/a2a/sprint-262/reviewer.md#bridgebuilder-round-1 (L1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T13:13:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-262/reviewer.md#bridgebuilder-round-1 (L1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
