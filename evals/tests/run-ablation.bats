@@ -92,8 +92,8 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
   [ "$(jq -r '.refused | length' "$M")" = 1 ]
   # the watchdog deadline is twice the phase-sum timeout. Suite v2 build tasks carry bounds
   # timeout_min {IMPLEMENT: 35}: A1 build 15 + 35 + 30 + 15 + 30 + 15 = 140 min, A4 build 15 + 35 = 50,
-  # A1 review-catch (no bounds) 60. A0 BARE stays 70 min: the suite's phase_defaults declares BARE,
-  # so pipeline-run.sh's PLAN + IMPLEMENT + 2 x FIX derivation (80) does not apply
+  # A1 review-catch (no bounds) 60. A0 BARE on a v2 build task is 80 min: the task's bounds (DEC-0580)
+  # override the suite's phase_defaults BARE 70, as pipeline-run.sh's PLAN + IMPLEMENT + 2 x FIX derivation does
   [ "$(jq -r '[.plan[] | select(.arm == "a0_bare" and .type == "bug-fix")][0].watchdog_s' "$M")" = 9600 ]   # BARE = 15 + 35 + 2 x 15 on a v2 task (per-task bounds, DEC-0580)
   [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].watchdog_s' "$M")" = 16800 ]
   [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].phase_sum_min' "$M")" = 140 ]

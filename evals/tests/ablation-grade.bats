@@ -13,7 +13,20 @@
 # of grimoires/loa/evals/ablation-2.0/smoke/.
 # =============================================================================
 
-BATS_BIN="$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats"
+# The bats that grades bats-tested tasks: LOA_EVAL_BATS_BIN, else the first bats on PATH, else the
+# operator's bats-core checkout (Bridgebuilder PR #1283 F-HIGH: a hard-coded dotfiles path dangled on CI).
+# Inside a bats run, PATH carries bats-core's libexec; a grading bats must be a real entry point, so
+# the first PATH candidate outside a libexec/ directory wins.
+find_bats() {
+  local c
+  [[ -n "${LOA_EVAL_BATS_BIN:-}" ]] && { printf '%s' "$LOA_EVAL_BATS_BIN"; return; }
+  for c in $(type -aP bats 2>/dev/null); do case "$c" in */libexec/*) ;; *) printf '%s' "$c"; return ;; esac; done
+  printf '%s' "$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats"
+}
+BATS_BIN="$(find_bats)"
+# The python3 that runs pytest for the grader: the one on PATH (actions/setup-python on CI, the
+# system interpreter here), never a hard-coded /usr/bin/python3.
+PY3_BIN="$(command -v python3)"
 
 setup() {
   TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -44,9 +57,9 @@ make_bin() {
 #!/usr/bin/env bash
 # the image's python3 stand-in: the image has pytest on its own path; the host's is in the user site
 while [[ \$# -gt 0 ]]; do case "\$1" in -I|-s|-P) shift ;; *) break ;; esac; done
-exec env PYTHONUSERBASE="$ub" /usr/bin/python3 "\$@"
+exec env PYTHONUSERBASE="$ub" "$PY3_BIN" "\$@"
 EOF
-  ln -s "$BATS_BIN" "$T/bin/bats"
+  if [[ -x "$BATS_BIN" ]]; then ln -s "$BATS_BIN" "$T/bin/bats"; fi   # absent → the bats-graded cases skip in their own setup
   cat > "$T/docker" <<EOF
 #!/usr/bin/env bash
 export DOCKER_STUB_LOG="$T/dlog" DOCKER_STUB_PATH="$T/bin:/usr/bin:/bin"
