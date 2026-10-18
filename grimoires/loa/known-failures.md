@@ -1818,13 +1818,13 @@ Before trusting a TRIPPED: timeout line compare circuit-breaker.json triggers.ti
 
 ## KF-048: Ablation containers consume the host Codex refresh token; every later container and the host lose the OpenAI voice
 
-**Status**: Open (operator re-auth needed)
+**Status**: Fixed in the harness (00ce0a5a; verified live 2026-10-18T06:49Z, voices_succeeded 2) — operator re-auth still needed whenever the host token dies
 **Feature**: evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers
 **Symptom**: rows degraded: 'review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed'; eval/model-invoke.jsonl: openai:codex-headless AUTH_REVOKED '…Failed to refresh token status=401 … refresh_token_reused'; on the host: codex exec → 'Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.'
 **First observed**: 2026-10-16 ~08:00Z (P1 trial-3 a1_full rows degraded 1 of 4 voices; the host access token expired 2026-10-16T06:51:19Z, last_refresh 2026-10-06); every a1_full run of calib-v2-01b, calib-v2-02b and 9 of 12 of priority-v2-p1 (2026-10-17)
 **Recurrence count**: 2
-**Current workaround**: the operator re-authenticates on the host (! codex login); then refresh once on the host before a batch and confirm the access token outlives the batch; do not let containers refresh: give the per-run HOME an access-token-only copy (refresh_token removed) so an expired token fails one container cleanly instead of consuming the shared refresh token
-**Upstream issue**: harness fix (Sprint 262): pipeline-run.sh copies ~/.codex/auth.json without tokens.refresh_token; run-ablation.sh preflight refuses a batch when the codex access token expires before the batch's estimated end; the row writer already flags the degradation
+**Current workaround**: the operator re-authenticates on the host (! codex login) when the host token is dead; the harness now gives each container a copy of ~/.codex/auth.json whose tokens.refresh_token is the placeholder `loa-ablation-no-refresh-token` (the key must stay — the codex CLI treats a missing key as logged out and sends no bearer; 00ce0a5a), and run-ablation.sh's pre-flight refuses a batch whose access token expires before now + 2 x summed watchdog / concurrency (b4ef76bf)
+**Upstream issue**: fixed in Sprint 261 (b4ef76bf: access-token-only copy + token-freshness pre-flight; 00ce0a5a: the copy keeps a placeholder refresh_token because a missing key logs codex out — recurrence 2)
 **Related visions / lore**: KF-044 (codex refuses gpt-5.x on the ChatGPT plan), KF-041, DEC-0545
 
 ### Attempts
@@ -1837,4 +1837,4 @@ Before trusting a TRIPPED: timeout line compare circuit-breaker.json triggers.ti
 
 ### Reading guide
 
-When a1_full rows read degraded 1 of N voices inside the ablation containers, open the run's eval/model-invoke.jsonl: refresh_token_reused means the host credential is already dead — re-auth needs the operator; do not rerun until codex exec works on the host and the per-run copy carries no refresh token
+When a1_full rows read degraded 1 of N voices inside the ablation containers, open the run's eval/model-invoke.jsonl (model.invoke.complete → models_failed): `refresh_token_reused` means the host credential is dead — re-auth needs the operator (! codex login) and the per-run copy must carry only a placeholder refresh token; `401 Unauthorized … Missing bearer` with a fresh host token means the per-run copy lacks the refresh_token KEY (codex treats it as logged out) — never delete the key, replace its value; check the batch MANIFEST codex_preflight (token_exp vs required_until) before blaming the arms.

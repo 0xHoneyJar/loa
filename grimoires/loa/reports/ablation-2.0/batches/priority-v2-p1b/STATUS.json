@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "priority-v2-p1b",
+  "smoke": false,
+  "state": "complete",
+  "per_arm": {
+    "a1_full": {
+      "trials_planned": 9,
+      "launched": 9,
+      "completed": 9,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 104.259451,
+    "ledger_usd": 0,
+    "spent_usd": 104.259451,
+    "max_usd": 376,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 9,
+  "resume_cursor": 9,
+  "drift": null,
+  "drift_cleared": [],
+  "rerowed": [],
+  "rerun": [],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "extra_models": {},
+  "extra_models_by_run": {},
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/grimoires/loa/reports/ablation-2.0/runs.jsonl",
+  "started": "2026-10-18T06:17:46Z",
+  "finished": "2026-10-18T08:24:54Z"
+}

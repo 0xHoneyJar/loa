@@ -1,0 +1,2 @@
+2026-10-18T08:24:55Z cycle spend USD 955.33 (runs 918.25 + ledger 37.08 since 2026-10-14T13:50:00Z); cap 1,500; headroom 544.67; reserve 250
+2026-10-18T08:24:55Z batch priority-v2-p1b spend USD 104.259451 (rows 104.259451 + first attempts 0; 0 assumed cap charge(s)); max 376
