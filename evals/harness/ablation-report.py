@@ -62,13 +62,18 @@
 # two or more versions → exit 2 when it would enter a cell; one that would be listed anyway (no
 # manifest, smoke batch, arm not run, unknown or inapplicable task type) is listed under the primary
 # version as never decided, reason "no suite_version; <the listing reason>" (report 1.2.1); when one
-# version (or none) is present, such rows join it.
+# version (or none) is present, such rows join it. Every row passes the manifest arm_map provenance
+# check (DEC-0407, exit 2) before any partition or listing decision, a version-less row included (1.2.2).
 # Version keys (report 1.2.1): an integer-valued number or numeric string keys to the integer ("2",
 # 2, 2.0 and "2.0" are one version "2"); another finite number keys to its shortest round-trip form
 # (2.1 and "2.10" → "2.1"); another string keys to itself, stripped; absent = null, a boolean, an
 # empty or blank string, or a non-number non-string. --suite-version is keyed by the same rule.
 # Numeric keys sort numerically, every other key after them, lexically; the primary is the last.
-# JSON primary_suite_version is an int for an integer key, a float for another numeric key.
+# JSON primary_suite_version is an int for an integer key, a float for another numeric key. Since 1.2.2 every
+# JSON version value has that type: primary_suite_version, by_suite_version[N].suite_version, h1/a4
+# .suite_version (top level, per version, sensitivity), budget_matched.suite_version and
+# batches[].suite_version (a string for a non-numeric key or a "1, 2" list, null for n/a); the
+# by_suite_version object keys stay strings.
 # JSON: primary_suite_version and by_suite_version {"N": {suite_version, rows, batches,
 # suite_manifest_sha256, decidable, h1, a4, decisions, arms, exclusions, listed, cap_failures}};
 # the top-level keys describe the primary version.
@@ -132,7 +137,7 @@
 #   not testable on suite_version N — no admissible build task | not yet decidable (no pair).
 #   JSON h1/a4 carry state and suite_version; each comparison carries read and read_text.
 #
-# Presentation items (Sprint 262 R3, report 1.2.0; fixes in 1.2.1; none of them changes a decision, an
+# Presentation items (Sprint 262 R3, report 1.2.0; fixes in 1.2.1 and 1.2.2; none of them changes a decision, an
 # H1/A4 state or an existing number):
 #   sensitivity H1/A4  the sensitivity figure prints the H1 and A4 lines, read the same way as the main
 #                   lines on a third Analysis with cap failures excluded and degraded rows included,
@@ -146,13 +151,15 @@
 #                   counts, cuts[], paused_arms, and the grade.json grader_version tally of the rows' run
 #                   directories. Attribution (report 1.2.1): each row is resolved to its own directory
 #                   once — the highest <batch dir>/<arm>/<task>-t<n>-r<k> whose meta/pipeline.json run_id
-#                   equals the row's, else the highest -r<k> holding a grade.json, else <task>-t<n> — and
+#                   equals the row's, else the highest -r<k> holding a grade.json, else <task>-t<n>, else
+#                   the highest -r<k> (1.2.2); n compares numerically, so rc-01-t01 is trial 1 (1.2.2) — and
 #                   counted once ("n/a" when the directory or its grade is absent), so the tally sums
-#                   to the batch's rows; run_dirs_missing counts the rows with no directory. Tally order:
-#                   dotted segments numeric before text, "n/a" last. Never fatal: an exception in the
-#                   batch record leaves that batch's tally unsorted or partial with a note in the row
-#                   (JSON batches[].note), and a rendering failure prints "Not rendered (…)"; neither
-#                   aborts the report. JSON batches[].
+#                   to the batch's rows; run_dirs_missing counts the rows with no attributable directory.
+#                   Tally order: dotted segments numeric before text, "n/a" last. Never fatal: an exception
+#                   in one batch's STATUS.json or tally leaves that tally unsorted or partial with a note in
+#                   the row (JSON batches[].note); an exception anywhere else in computing or rendering the
+#                   batch record (1.2.2) prints "Not rendered (…)" with JSON batches [] and batches_note set
+#                   (null otherwise); neither aborts the report. JSON batches[].
 #   precision       per-arm detail of review-catch arms: precision = Σ defects_caught ÷ (Σ defects_caught +
 #                   Σ false_positives) over the arm's valid review-catch rows with a numeric defects_caught
 #                   (cap_failure counts 0 caught; a null false_positives counts 0), null when 0; cost per
@@ -188,7 +195,7 @@ import statistics
 import subprocess
 import sys
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 REPORT_SCHEMA = 1
 ROW_SCHEMA_MAJOR = 1
 MANIFEST_SCHEMA_MAJOR = 1
@@ -514,12 +521,7 @@ class Analysis:
 
     def _classify(self, row, mans):
         arm, task, ttype = row["arm"], row["task_id"], row["task_type"]
-        m = mans.get(row["batch"])
-        if m is not None:
-            amap = m.get("arm_map") or {}
-            if isinstance(amap, dict) and row["run_id"] in amap and amap[row["run_id"]] != arm:
-                raise Fail(f"{row['_where']}: row {row['run_id']} arm {arm} disagrees with "
-                           f"{m['_path']} arm_map ({amap[row['run_id']]})")
+        provenance_check(row, mans)
         why = list_reason(row, mans, self.arms)
         if why is not None:
             return self.listed.append((row, why))
@@ -866,9 +868,12 @@ def version_key(v):
 
 
 def version_value(k):
-    """A version key as a JSON value: an integer key → int, another numeric key → float, "n/a" → null."""
-    if k == "n/a":
+    """A version key as a JSON value: an integer key → int, another numeric key → float, "n/a" (or None) →
+    null, any other key → the string. Every JSON emitter of a version key goes through it (report 1.2.2)."""
+    if k is None or k == "n/a":
         return None
+    if not isinstance(k, str):
+        return k
     if re.fullmatch(r"[+-]?\d+", k):
         return int(k)
     o = version_order(k)
@@ -884,9 +889,22 @@ def version_order(k):
     return (1, 0.0, k)
 
 
+def provenance_check(row, mans):
+    """DEC-0407: a row whose batch manifest arm_map names another arm for its run_id stops the report
+    (exit 2). Run on every row by partition() before any listing decision and again by
+    Analysis._classify (report 1.2.2)."""
+    m = mans.get(row.get("batch"))
+    if m is None:
+        return
+    amap = m.get("arm_map") or {}
+    if isinstance(amap, dict) and row["run_id"] in amap and amap[row["run_id"]] != row["arm"]:
+        raise Fail(f"{row['_where']}: row {row['run_id']} arm {row['arm']} disagrees with "
+                   f"{m['_path']} arm_map ({amap[row['run_id']]})")
+
+
 def list_reason(row, mans, arms):
     """Why a row is listed and never decided, or None when it enters a cell (the first checks of
-    Analysis._classify, without the arm_map provenance check); partition() reuses it (report 1.2.1)."""
+    Analysis._classify, after provenance_check); partition() reuses it (report 1.2.1)."""
     m = mans.get(row.get("batch"))
     if m is None:
         return "no manifest for batch " + str(row.get("batch"))
@@ -906,7 +924,10 @@ def partition(rows, wanted, mans=None, arms=None):
     """Rows by suite_version, never pooled; returns ({key: rows}, primary key, version-less rows listed
     under the primary). Among two or more versions a version-less row that would enter a cell stops the
     report; one that would be listed anyway (no manifest, smoke batch, arm not run, unknown or
-    inapplicable task type) is returned with its reason, never pooled into a version."""
+    inapplicable task type) is returned with its reason, never pooled into a version. Every row passes
+    provenance_check first (report 1.2.2), so no listing decision bypasses the arm_map check."""
+    for r in rows:
+        provenance_check(r, mans or {})
     keys = sorted({k for k in (version_key(r.get("suite_version")) for r in rows) if k is not None}, key=version_order)
     missing = [r for r in rows if version_key(r.get("suite_version")) is None]
     unversioned = []
@@ -1137,13 +1158,18 @@ def batch_status(e, d):
 def run_dir_of(ad, names, r):
     """The row's own run directory under the arm directory ad (names: its subdirectories): the highest
     <task>-t<n>-r<k> whose meta/pipeline.json run_id equals the row's, else the highest -r<k> holding a
-    grade.json, else <task>-t<n>; None when the row has none of them."""
-    base = f"{r['task_id']}-t{r['trial']}"
-    reruns = []
+    grade.json, else <task>-t<n>, else the highest -r<k> (its grade absent: n/a); None when the row has
+    none of them. The trial n compares numerically, so rc-01-t01 is trial 1 (report 1.2.2)."""
+    task, trial = r["task_id"], r["trial"]
+    reruns, bases = [], []
     for x in names:
         mm = GRADE_DIR.fullmatch(x)
-        if mm and mm.group(3) is not None and f"{mm.group(1)}-t{mm.group(2)}" == base:
+        if not mm or mm.group(1) != task or int(mm.group(2)) != trial:
+            continue
+        if mm.group(3) is not None:
             reruns.append((int(mm.group(3)), x))
+        else:
+            bases.append(x)
     reruns.sort(reverse=True)
     for _, x in reruns:
         pj = read_json_file(os.path.join(ad, x, "meta", "pipeline.json"))
@@ -1153,7 +1179,10 @@ def run_dir_of(ad, names, r):
         gp = os.path.join(ad, x, "grade.json")
         if os.path.isfile(gp) and not os.path.islink(gp):
             return x
-    return base if base in names else None
+    if bases:  # the canonical <task>-t<n> first, else the lexically first zero-padded form
+        canon = f"{task}-t{trial}"
+        return canon if canon in bases else sorted(bases)[0]
+    return reruns[0][1] if reruns else None
 
 
 def read_json_file(p):
@@ -1175,7 +1204,8 @@ def grader_key(kv):
 
 def grader_tally(e, d, brows):
     """The grade.json grader_version of each row's own run directory, counted once per row ("n/a" when
-    the directory or its grade is absent); run_dirs_missing counts rows without a directory."""
+    the directory or its grade is absent); run_dirs_missing counts the rows with no attributable
+    directory (run_dir_of returns None)."""
     listing, gv = {}, {}
     try:
         for r in brows:
@@ -1234,7 +1264,7 @@ def render_budget(L, B, h):
 
 
 def budget_json(B):
-    return {k: (j6(x) if isinstance(x, float) else
+    return {k: (version_value(x) if k == "suite_version" else j6(x) if isinstance(x, float) else
                 [{kk: (j6(y) if isinstance(y, float) else y) for kk, y in t.items()} for t in x] if k == "tasks" else x)
             for k, x in B.items()}
 
@@ -1458,7 +1488,7 @@ def render_exclusions(L, V, dups, h, sub):
 
 def h1_json(V, rules):
     return {"line": V["h1_line"], "established": V["h1_ok"], "state": V["h1_state"], "rule": rules.get("h1"),
-            "suite_version": V["version"],
+            "suite_version": version_value(V["version"]),
             "comparisons": [dict(comp_json(p), read=s, read_text=read_text(p, s, why, V["version"]))
                             for p, (s, why) in zip(V["h1_comps"], V["h1_reads"])]}
 
@@ -1470,7 +1500,7 @@ def a4_json(V, rules):
         s, why = V["a4_read"]
         comp = dict(comp_json(a4), read=s, read_text=read_text(a4, s, why, V["version"]))
     return {"line": V["a4_line"], "holds": V["a4_ok"], "state": V["a4_state"], "rule": rules.get("a4_sensitivity"),
-            "suite_version": V["version"], "comparison": comp}
+            "suite_version": version_value(V["version"]), "comparison": comp}
 
 
 def decisions_json(ds):
@@ -1674,11 +1704,16 @@ def build(args):
         render_sens(L, V, rules, "####")
         render_budget(L, V["budget"], "###")
 
-    recs = batch_record(mans, rows)
-    blines = []
-    try:  # never fatal: the batch record is presentation only (report 1.2.1)
+    # never fatal: the batch record is presentation only; its computation (grouping rows by batch, the
+    # manifest and path lookups, each batch's suite_version and directory), its JSON form and its rendering
+    # all degrade to "Not rendered (…)" with a note (report 1.2.2; rendering alone since 1.2.1)
+    blines, recs_json, recs_note = [], [], None
+    try:
+        recs = batch_record(mans, rows)
+        recs_json = [dict(e, suite_version=version_value(e["suite_version"])) for e in recs]
         render_batches(blines.append, recs)
     except Exception as x:
+        recs_json, recs_note = [], f"batch record not computed ({type(x).__name__}: {x}); it decides nothing"
         blines = ["## Batch record", "", f"Not rendered ({type(x).__name__}: {x}); it decides nothing.", ""]
     lines.extend(blines)
 
@@ -1719,7 +1754,7 @@ def build(args):
     L("")
 
     def version_json(V, ms):
-        return {"suite_version": V["version"], "rows": len(V["rows"]), "batches": V["batches"],
+        return {"suite_version": version_value(V["version"]), "rows": len(V["rows"]), "batches": V["batches"],
                 "suite_manifest_sha256": V["shas"], "decidable": V["decidable"],
                 "h1": h1_json(V, rules), "a4": a4_json(V, rules), "decisions": decisions_json(V["decisions"]),
                 "arms": arms_json(ms), "exclusions": exclusions_json(V), "listed": listed_json(V),
@@ -1762,7 +1797,8 @@ def build(args):
         "cuts": [dict(arm=a, **cuts[a]) for a in sorted(cuts)],
         "sensitivity": dict(sens_json(P), label=SENS_LABEL),
         "budget_matched": budget_json(P["budget"]),
-        "batches": recs,
+        "batches": recs_json,
+        "batches_note": recs_note,
     }
     return "\n".join(lines) + "\n", data, P["decidable"]
 

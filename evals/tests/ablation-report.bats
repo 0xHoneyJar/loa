@@ -12,7 +12,10 @@
 # R3, presentation only): the sensitivity H1/A4 lines, the batch record, precision and cost per true
 # defect, the budget-matched baseline. AR-36 … AR-39 (Sprint 262 R4, report 1.2.1): the type-stable
 # grader-version sort and the never-fatal batch record, one run directory per row, float suite_version
-# keys, and version-less rows that never reach a decision.
+# keys, and version-less rows that never reach a decision. AR-40 … AR-42 (Sprint 262 R5, report 1.2.2): the
+# arm_map provenance check before any listing decision, the never-fatal batch-record computation, and
+# run-directory attribution by numeric trial with the rerun fallback; AR-38 also asserts the JSON type of
+# every version value.
 # =============================================================================
 
 setup_file() {
@@ -583,6 +586,32 @@ PY
     [ "$status" -eq 2 ]
     [[ "$output" == *"row vf-2-a1_full-rc-01-t1 has no suite_version while the rows hold suite_version 2, 2.1"* ]]
   done
+  # report 1.2.2: every JSON version value is typed like primary_suite_version (int / float / string / null)
+  [ "$(jq -r '.primary_suite_version | type' "$T/f.json")" = "number" ]
+  [ "$(jq -r '[.h1.suite_version, .a4.suite_version, .sensitivity.h1.suite_version, .budget_matched.suite_version,
+      .by_suite_version["2.1"].suite_version, .by_suite_version["2.1"].h1.suite_version] | map(type) | unique | join(",")' "$T/f.json")" = "number" ]
+  [ "$(jq -c '[.h1.suite_version, .by_suite_version["2.1"].suite_version, .by_suite_version["2"].suite_version,
+      .by_suite_version["2"].h1.suite_version, .by_suite_version["2"].a4.suite_version]' "$T/f.json")" = "[2.1,2.1,2,2,2]" ]
+  [ "$(jq -c '[.batches[] | .suite_version]' "$T/f.json")" = "[2,2.1]" ]
+  [ "$(jq -r '.primary_suite_version | type' "$T/f20.json")" = "number" ]
+  [ "$(jq -c '[.h1.suite_version, .batches[0].suite_version]' "$T/f20.json")" = "[2,2]" ]
+  # a non-numeric key is a string
+  jq -c 'if .batch == "vf-2" then .suite_version = "v2" else . end' "$FX/versions-float/runs.jsonl" > "$T/nn.jsonl"
+  cp -R "$FX/versions-float/manifests" "$T/nnm"
+  jq '.suite_version = "v2"' "$FX/versions-float/manifests/vf-2/MANIFEST.json" > "$T/nnm/vf-2/MANIFEST.json"
+  run python3 -I "$REPORT" --runs "$T/nn.jsonl" --manifests "$T/nnm" --suite "$SUITE" --out "$T/nn.md" --json "$T/nn.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '[.primary_suite_version, .h1.suite_version, .by_suite_version.v2.suite_version, .by_suite_version["2.1"].suite_version,
+      (.batches[] | select(.batch == "vf-2") | .suite_version)]' "$T/nn.json")" = '["v2","v2","v2",2.1,"v2"]' ]
+  # no suite_version at all: n/a is null
+  jq -c 'del(.suite_version)' "$FX/versions-float/runs.jsonl" | jq -c 'select(.batch == "vf-2")' > "$T/na.jsonl"
+  cp -R "$FX/versions-float/manifests" "$T/nam"
+  jq 'del(.suite_version)' "$FX/versions-float/manifests/vf-2/MANIFEST.json" > "$T/nam/vf-2/MANIFEST.json"
+  run python3 -I "$REPORT" --runs "$T/na.jsonl" --manifests "$T/nam" --suite "$SUITE" --out "$T/na.md" --json "$T/na.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.by_suite_version | keys | join(",")' "$T/na.json")" = "n/a" ]
+  [ "$(jq -c '[.primary_suite_version, .h1.suite_version, .a4.suite_version, .by_suite_version["n/a"].suite_version,
+      .budget_matched.suite_version, (.batches[] | select(.batch == "vf-2") | .suite_version)]' "$T/na.json")" = "[null,null,null,null,null,null]" ]
 }
 
 @test "AR-39 version-less rows that never reach a decision (smoke, unbatched) are listed under the primary version; a version-less row that would be scored still exits 2" {
@@ -602,4 +631,52 @@ PY
   run python3 -I "$REPORT" --runs "$T/sc.jsonl" --manifests "$FX/legacy/manifests" --suite "$SUITE" --out "$T/sc.md"
   [ "$status" -eq 2 ]
   [[ "$output" == *"row ver-v2-a0_bare-rc-02-t2 has no suite_version while the rows hold suite_version 1, 2"* ]]
+}
+
+@test "AR-40 a version-less listed row (among two versions) passes the manifest arm_map check first: another arm exits 2 as a provenance conflict; the matching arm is listed as in AR-39" {
+  report legacy-conflict "$T/c"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"row leg-smoke-a1_full-fb-01-t1 arm a1_full disagrees with "*"/leg-smoke/MANIFEST.json arm_map (a0_bare)"* ]]
+  [ ! -e "$T/c.md" ]
+  report legacy-match "$T/m"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.listed[] | select(.run_id == "leg-smoke-a1_full-fb-01-t1") | .reason' "$T/m.json")" = "no suite_version; smoke batch leg-smoke" ]
+  [ "$(jq -r '.listed[] | select(.run_id == "leg-loose-a0_bare-fb-01-t1") | .reason' "$T/m.json")" = "no suite_version; no manifest for batch leg-loose" ]
+  report legacy "$T/l"
+  [ "$status" -eq 0 ]
+  for k in h1 a4 decisions listed by_suite_version; do
+    [ "$(jq -c ".$k" "$T/m.json")" = "$(jq -c ".$k" "$T/l.json")" ]
+  done
+}
+
+@test "AR-41 an exception while computing the batch record (a manifest suite_version int() refuses) leaves the report written: exit 0, decisions present, Not rendered with a note" {
+  report batch-broken "$T/b"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Traceback"* ]]
+  grep -qxF '## Decisions' "$T/b.md"
+  grep -qxF '## Batch record' "$T/b.md"
+  grep -qE '^Not rendered \(ValueError: .*\); it decides nothing\.$' "$T/b.md"
+  grep -qxF '## Method' "$T/b.md"
+  [ "$(jq -c .batches "$T/b.json")" = "[]" ]
+  [[ "$(jq -r .batches_note "$T/b.json")" == "batch record not computed (ValueError: "*"); it decides nothing" ]]
+  for k in h1 a4 decisions by_suite_version; do
+    [ "$(jq -c ".$k" "$T/b.json")" = "$(jq -c ".$k" "$FX/versions/report.json")" ]
+  done
+  [ "$(jq -r .batches_note "$FX/versions/report.json")" = "null" ]
+}
+
+@test "AR-42 run directories: zero-padded rc-01-t01 is trial 1; a trial with only a graded-less rerun is n/a x1 and not missing; a zero-padded rerun is read" {
+  report rundirs "$T/r"
+  [ "$status" -eq 0 ]
+  b() { jq -r --arg b "$1" ".batches[] | select(.batch == \$b) | $2" "$T/r.json"; }
+  [ "$(b rd-1 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=1" ]
+  [ "$(b rd-1 .run_dirs_missing)" = "0" ]
+  [ "$(b rd-1 '([.grader_versions[]] | add) == .trials_rowed')" = "true" ]
+  grep -qF '| `rd-1` | no STATUS.json | — / 3 | — | — | — | — | — | — | — | — | 1.2.5 ×1, 1.2.11 ×1, n/a ×1 |' "$T/r.md"
+  # the graded-less rerun is the only directory of t2: removing it makes t2 missing
+  cp -R "$FX/rundirs/manifests" "$T/rm"
+  rmdir "$T/rm/rd-1/a1_full/rc-01-t2-r2"
+  run python3 -I "$REPORT" --runs "$FX/rundirs/runs.jsonl" --manifests "$T/rm" --suite "$SUITE" --out "$T/rm.md" --json "$T/rm.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.batches[0].run_dirs_missing' "$T/rm.json")" = "1" ]
 }

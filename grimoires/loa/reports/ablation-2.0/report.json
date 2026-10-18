@@ -23,7 +23,7 @@
     "line": "A4 sensitivity: not testable on suite_version 2 — no admissible build task",
     "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
     "state": "not_testable",
-    "suite_version": "2"
+    "suite_version": 2
   },
   "absent": [
     {
@@ -299,7 +299,7 @@
       "state": "complete",
       "status_file": "grimoires/loa/reports/ablation-2.0/batches/priority-p1/STATUS.json",
       "status_note": null,
-      "suite_version": "1",
+      "suite_version": 1,
       "trials_planned": 132,
       "trials_rowed": 132
     },
@@ -331,7 +331,7 @@
       "state": "complete",
       "status_file": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/STATUS.json",
       "status_note": null,
-      "suite_version": "2",
+      "suite_version": 2,
       "trials_planned": 24,
       "trials_rowed": 24
     },
@@ -361,11 +361,12 @@
       "state": "complete",
       "status_file": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/STATUS.json",
       "status_note": null,
-      "suite_version": "2",
+      "suite_version": 2,
       "trials_planned": 9,
       "trials_rowed": 9
     }
   ],
+  "batches_note": null,
   "bootstrap": {
     "level": 0.9,
     "resamples": 10000,
@@ -380,7 +381,7 @@
     "diff_mean": 0.110417,
     "label": "informational, decides nothing",
     "note": "3 a0_bare trials cost USD 2.11 vs one a1_full trial USD 11.64 (task means over 4 tasks)",
-    "suite_version": "2",
+    "suite_version": 2,
     "tasks": [
       {
         "a0_cost_sum": 0.639395,
@@ -672,7 +673,7 @@
         "line": "A4 sensitivity: fails — harden tasks before acting on other arms",
         "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
         "state": "fails",
-        "suite_version": "1"
+        "suite_version": 1
       },
       "arms": {
         "a0_bare": {
@@ -905,7 +906,7 @@
         "diff_mean": -0.110425,
         "label": "informational, decides nothing",
         "note": "3 a0_bare trials cost USD 1.93 vs one a1_full trial USD 10.92 (task means over 4 tasks)",
-        "suite_version": "1",
+        "suite_version": 1,
         "tasks": [
           {
             "a0_cost_sum": 0.664565,
@@ -2134,7 +2135,7 @@
         "line": "H1: not established — halt before promotion",
         "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
         "state": "not_established",
-        "suite_version": "1"
+        "suite_version": 1
       },
       "listed": [],
       "rows": 132,
@@ -2373,7 +2374,7 @@
           "line": "sensitivity (decides nothing): A4 sensitivity: fails — harden tasks before acting on other arms",
           "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
           "state": "fails",
-          "suite_version": "1"
+          "suite_version": 1
         },
         "h1": {
           "comparisons": [
@@ -2723,7 +2724,7 @@
           "line": "sensitivity (decides nothing): H1: not established — halt before promotion",
           "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
           "state": "not_established",
-          "suite_version": "1"
+          "suite_version": 1
         },
         "rows": [
           {
@@ -3433,7 +3434,7 @@
       "suite_manifest_sha256": [
         "30e1f2ad7015590227e9cc2fa25ca791e31867fec65289e4a41554e9e53357ba"
       ],
-      "suite_version": "1"
+      "suite_version": 1
     },
     "2": {
       "a4": {
@@ -3460,7 +3461,7 @@
         "line": "A4 sensitivity: not testable on suite_version 2 — no admissible build task",
         "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
         "state": "not_testable",
-        "suite_version": "2"
+        "suite_version": 2
       },
       "arms": {
         "a0_bare": {
@@ -3691,7 +3692,7 @@
         "diff_mean": 0.110417,
         "label": "informational, decides nothing",
         "note": "3 a0_bare trials cost USD 2.11 vs one a1_full trial USD 11.64 (task means over 4 tasks)",
-        "suite_version": "2",
+        "suite_version": 2,
         "tasks": [
           {
             "a0_cost_sum": 0.639395,
@@ -4277,7 +4278,7 @@
         "line": "H1: established",
         "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
         "state": "established",
-        "suite_version": "2"
+        "suite_version": 2
       },
       "listed": [],
       "rows": 33,
@@ -4306,7 +4307,7 @@
           "line": "sensitivity (decides nothing): A4 sensitivity: not testable on suite_version 2 — no admissible build task",
           "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
           "state": "not_testable",
-          "suite_version": "2"
+          "suite_version": 2
         },
         "h1": {
           "comparisons": [
@@ -4431,7 +4432,7 @@
           "line": "sensitivity (decides nothing): H1: established",
           "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
           "state": "established",
-          "suite_version": "2"
+          "suite_version": 2
         },
         "rows": [
           {
@@ -4678,7 +4679,7 @@
       "suite_manifest_sha256": [
         "ddd200b313c5c02353abdc829d3a3a6c78f52b9118da2cf0da8c1eb21ae788c7"
       ],
-      "suite_version": "2"
+      "suite_version": 2
     }
   },
   "cap_failures": [],
@@ -5135,7 +5136,7 @@
     "line": "Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).",
     "per_direction": 0.3
   },
-  "generator": "ablation-report.py 1.2.1",
+  "generator": "ablation-report.py 1.2.2",
   "h1": {
     "comparisons": [
       {
@@ -5259,7 +5260,7 @@
     "line": "H1: established",
     "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
     "state": "established",
-    "suite_version": "2"
+    "suite_version": 2
   },
   "listed": [],
   "partial": false,
@@ -5338,7 +5339,7 @@
       "line": "sensitivity (decides nothing): A4 sensitivity: not testable on suite_version 2 — no admissible build task",
       "rule": "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms",
       "state": "not_testable",
-      "suite_version": "2"
+      "suite_version": 2
     },
     "h1": {
       "comparisons": [
@@ -5463,7 +5464,7 @@
       "line": "sensitivity (decides nothing): H1: established",
       "rule": "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion",
       "state": "established",
-      "suite_version": "2"
+      "suite_version": 2
     },
     "label": "sensitivity (cap failures excluded) — no decision uses this",
     "rows": [

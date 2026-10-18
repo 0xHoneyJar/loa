@@ -79,6 +79,17 @@
 #   legacy        the versions scenario plus version-less rows that never reach a decision: a smoke batch
 #                 leg-smoke (manifest suite_version null) with an a1_full row and an unbatched row (batch
 #                 leg-loose, no manifest) → listed under the primary version 2 as "no suite_version; …"
+#
+# Sprint 262 R5 (report 1.2.2: provenance before listing, never-fatal batch record, run-dir attribution):
+#   legacy-conflict  legacy with leg-smoke's manifest arm_map naming a0_bare for the version-less a1_full
+#                 row → exit 2 as a provenance conflict (1.2.1 listed it); legacy-match: the arm_map names
+#                 a1_full → listed as in legacy
+#   batch-broken  the versions scenario with ver-v2's manifest suite_version a 5,000-digit numeric string
+#                 (int() refuses it past 4,300 digits; only the batch record reads a manifest's
+#                 suite_version) → the batch record is not computed, the decisions are those of versions
+#   rundirs       batch rd-1 (suite_version 2): a1_full rc-01 t1..t3; run dirs rc-01-t01 (zero-padded,
+#                 grader 1.2.11), rc-01-t2-r2 only (no grade.json, no meta/pipeline.json), rc-01-t03-r02
+#                 only (zero-padded rerun, grader 1.2.5) → 1.2.11 ×1, 1.2.5 ×1, n/a ×1, run_dirs_missing 0
 # =============================================================================
 import json
 import os
@@ -373,6 +384,31 @@ def legacy_scenario():
     return rows + [smoke, loose], mans
 
 
+def legacy_arm_map_scenario(arm):
+    def f():
+        rows, mans = legacy_scenario()
+        mans = dict(mans)
+        mans["leg-smoke"] = dict(mans["leg-smoke"], arm_map={"leg-smoke-a1_full-fb-01-t1": arm})
+        return rows, mans
+    return f
+
+
+def batch_broken_scenario():
+    rows, mans = versions_scenario()
+    mans = dict(mans)
+    mans["ver-v2"] = dict(mans["ver-v2"], suite_version="1" * 5000)
+    return rows, mans
+
+
+def rundirs_scenario():
+    b = "rd-1"
+    rows = [rc_row(b, "a1_full", "rc-01", 8, k, [], **V2) for k in TRIALS]
+    extras = {f"{b}/a1_full/rc-01-t01/grade.json": {"grader_version": "1.2.11"},
+              f"{b}/a1_full/rc-01-t2-r2": None,
+              f"{b}/a1_full/rc-01-t03-r02/grade.json": {"grader_version": "1.2.5"}}
+    return rows, {b: manifest(b, **V2)}, extras
+
+
 def write(out, name, rows, mans, extras=None):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
@@ -408,7 +444,10 @@ def main(argv):
                      ("degenerate-2", degenerate_scenario("dg-2", ("rc-03", "rc-04"), False)),
                      ("degenerate-ids", degenerate_scenario("dg-ids", ("rc-04",), True)),
                      ("present", present_scenario), ("graders", graders_scenario),
-                     ("versions-float", versions_float_scenario), ("legacy", legacy_scenario)):
+                     ("versions-float", versions_float_scenario), ("legacy", legacy_scenario),
+                     ("legacy-conflict", legacy_arm_map_scenario("a0_bare")),
+                     ("legacy-match", legacy_arm_map_scenario("a1_full")),
+                     ("batch-broken", batch_broken_scenario), ("rundirs", rundirs_scenario)):
         write(argv[0], name, *fn())
     return 0
 
