@@ -130,7 +130,8 @@
 #      that is not a JSON object, an access token not a three-part JWT or without a numeric
 #      exp, and a file with neither a tokens.access_token nor a non-empty OPENAI_API_KEY (`… — run codex login on the host, or set OPENAI_API_KEY
 #      in auth.json`). API-key mode (no usable tokens.access_token, a non-empty OPENAI_API_KEY;
-#      pipeline-run.sh copies the file unchanged) passes without reading an exp, with one
+#      pipeline-run.sh copies the key into the per-run HOME only under LOA_EVAL_CODEX_APIKEY_COPY=1,
+#      audit DISS-C-001; otherwise that run has no codex credential) passes without reading an exp, with one
 #      `run-ablation: codex auth.json is in API-key mode; no token horizon applies (KF-048
 #      concerns the ChatGPT refresh token only)` line; the key is never printed. A missing
 #      auth.json is no refusal: one `run-ablation: WARN no codex auth.json under <dir>;

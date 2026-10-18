@@ -604,7 +604,13 @@ build_prompt() {  # build_prompt <name> <out-file>
 # codex CLI's own files: config.toml verbatim and auth.json with a PLACEHOLDER tokens.refresh_token
 # (KF-048: the refresh token is single-use, so a container that refreshed with a verbatim
 # copy invalidated the host's token and every later run's; an unreadable auth.json gives
-# the run no codex credential and one WARN line). ~/.claude/.credentials.json and
+# the run no codex credential and one WARN line). EXPOSURE (Sprint 261 audit DISS-C-001, bead
+# bd-lfrkn): the copy carries tokens.access_token, id_token and account_id because the codex CLI
+# needs all three (a copy without id_token gets 401 Missing bearer), and /home/evaluser is
+# readable by the agent under evaluation, so the bearer is exposed to it for the token's lifetime
+# (bounded by run-ablation.sh's pre-flight horizon). A long-lived OPENAI_API_KEY is never copied
+# unless LOA_EVAL_CODEX_APIKEY_COPY=1 (API-key mode only; the run otherwise has no codex
+# credential and says so). ~/.claude/.credentials.json and
 # ~/.claude/settings.json are never copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
 # and --setting-sources project ignores user settings.
 CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
@@ -634,6 +640,18 @@ tok = data.get("tokens")
 if isinstance(tok, dict):
     if "refresh_token" in tok:
         tok["refresh_token"] = "loa-ablation-no-refresh-token"
+# OPENAI_API_KEY (Sprint 261 audit DISS-C-001): a long-lived key never reaches the agent-writable HOME
+# unless the operator accepts the exposure with LOA_EVAL_CODEX_APIKEY_COPY=1 and the file is in API-key
+# mode (no usable access token); in ChatGPT mode the key is unused by codex and is dropped.
+has_at = isinstance(tok, dict) and isinstance(tok.get("access_token"), str) and bool(tok.get("access_token"))
+key = data.get("OPENAI_API_KEY")
+if isinstance(key, str) and key:
+    if has_at or os.environ.get("LOA_EVAL_CODEX_APIKEY_COPY") != "1":
+        data["OPENAI_API_KEY"] = None
+        if not has_at:
+            sys.stderr.write("pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied into the "
+                             "agent-writable HOME (set LOA_EVAL_CODEX_APIKEY_COPY=1 to accept the exposure); "
+                             "the run has no codex credential\n")
 fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 os.fchmod(fd, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as out:

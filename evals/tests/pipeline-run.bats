@@ -982,3 +982,30 @@ JSON
   grep -q 'pipeline-run: WARN codex auth.json unreadable' <<<"$output"
   [ ! -e "$T/snap/.codex/auth.json" ]
 }
+
+@test "container: audit DISS-C-001 — an API-key auth.json is copied without the key (WARN) unless LOA_EVAL_CODEX_APIKEY_COPY=1; a ChatGPT-mode file drops a stray key" {
+  printf '{"OPENAI_API_KEY": "sk-test-dummy-key", "auth_mode": "apikey"}\n' > "$T/home/.codex/auth.json"
+  snap_docker
+  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c 'pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied' <<<"$output")" -eq 1 ]
+  jq -e '.OPENAI_API_KEY == null and .auth_mode == "apikey"' "$T/snap/.codex/auth.json"
+  ! grep -q 'sk-test-dummy-key' "$T/snap/.codex/auth.json"
+  ! tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -q 'sk-test-dummy-key'
+  # the operator accepts the exposure
+  find "$T/run" -mindepth 1 -delete; find "$T/snap" -mindepth 1 -delete 2>/dev/null; rmdir "$T/snap" 2>/dev/null || true
+  LOA_EVAL_CODEX_APIKEY_COPY=1 run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r2 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  ! grep -q 'the key is not copied' <<<"$output"
+  jq -e '.OPENAI_API_KEY == "sk-test-dummy-key"' "$T/snap/.codex/auth.json"
+  # ChatGPT mode with a stray key: the key is dropped silently, the tokens stay
+  printf '{"OPENAI_API_KEY": "sk-test-dummy-key", "auth_mode": "chatgpt", "tokens": {"access_token": "x.y.z", "refresh_token": "R", "id_token": "i.d.t", "account_id": "acct-1"}}\n' > "$T/home/.codex/auth.json"
+  find "$T/run" -mindepth 1 -delete; find "$T/snap" -mindepth 1 -delete 2>/dev/null; rmdir "$T/snap" 2>/dev/null || true
+  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r3 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  ! grep -q 'API-key mode' <<<"$output"
+  jq -e '.OPENAI_API_KEY == null and .tokens.access_token == "x.y.z" and .tokens.id_token == "i.d.t" and .tokens.refresh_token == "loa-ablation-no-refresh-token"' "$T/snap/.codex/auth.json"
+}
