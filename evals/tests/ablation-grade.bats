@@ -1133,7 +1133,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.12 ]
+  [ "$(G '.grader_version')" = 1.2.13 ]
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1225,4 +1225,103 @@ hidden_add() {
   [ -f "$RD/grading/final/src/newpkg/__init__.py" ]
   [ -f "$RD/grading/final/src/newpkg/_oracle_z.py" ]
   [ -f "$RD/grading/final/scripts/_oracle_z.py" ]
+}
+
+# --- grader 1.2.13: pytest import names, helper shadowing, the fixture's python_files ------------------------------
+
+# pyini <python_files value or empty>: the bf-py fixture's pytest.ini, with that python_files line when one is given
+pyini() {
+  if [[ -n "$1" ]]; then printf '[pytest]\npython_files = %s\n' "$1"; else printf '[pytest]\n'; fi > "$S/tasks/bf-py/fixture/pytest.ini"
+}
+
+@test "AG-41 import names (1.2.13, DISS-001): an agent tests/pkg/test_x.py is pkg.test_x like the hidden tests/hidden/pkg/test_x.py and is removed; tests/other/test_x.py stays" {
+  mkdir -p "$S/tasks/bf-py/hidden/tests/pkg"
+  : > "$S/tasks/bf-py/hidden/tests/pkg/__init__.py"
+  printf 'def test_x_hidden():\n    assert True\n' > "$S/tasks/bf-py/hidden/tests/pkg/test_x.py"
+  hidden_add tests/pkg/__init__.py tests/hidden/pkg/__init__.py
+  hidden_add tests/pkg/test_x.py tests/hidden/pkg/test_x.py
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/tests/pkg" "$RD/sandbox/tests/other"
+  : > "$RD/sandbox/tests/pkg/__init__.py"
+  printf 'def test_x_mine():\n    assert True\n' > "$RD/sandbox/tests/pkg/test_x.py"
+  : > "$RD/sandbox/tests/other/__init__.py"
+  printf 'def test_x_other():\n    assert True\n' > "$RD/sandbox/tests/other/test_x.py"   # other.test_x: no clash
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 1 ]
+  [ ! -e "$RD/grading/final/tests/pkg/test_x.py" ]
+  [ -f "$RD/grading/final/tests/other/test_x.py" ]
+  [ -f "$RD/grading/final/tests/hidden/pkg/test_x.py" ]
+  [ "$(cat "$RD/grading/final.colliding-removed.txt")" = tests/pkg/test_x.py ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "9/9" ]   # 7 slug cases + the hidden pkg.test_x + the agent's other.test_x
+}
+
+@test "AG-42 helper shadowing (1.2.13, DISS-C-005): an agent _oracle_q.py beside its own test module goes with that module so the hidden import _oracle_q gets the oracle; with no test module beside it it stays" {
+  printf 'Q = 1\n' > "$S/tasks/bf-py/hidden/tests/_oracle_q.py"
+  printf 'import _oracle_q\n\n\ndef test_q():\n    assert _oracle_q.Q == 1\n' > "$S/tasks/bf-py/hidden/tests/test_q.py"
+  hidden_add tests/_oracle_q.py tests/hidden/_oracle_q.py
+  hidden_add tests/test_q.py tests/hidden/test_q.py
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/tests/api" "$RD/sandbox/src/app" "$RD/sandbox/tests/lib"
+  printf 'Q = 2\n' > "$RD/sandbox/tests/api/_oracle_q.py"
+  printf 'import _oracle_q\n\n\ndef test_api():\n    assert _oracle_q.Q\n' > "$RD/sandbox/tests/api/test_api.py"   # imported first (api < hidden): Q = 2 would answer the hidden import
+  printf 'Q = 3\n' > "$RD/sandbox/src/app/_oracle_q.py"     # no test module beside it: never on sys.path by pytest
+  printf 'Q = 4\n' > "$RD/sandbox/tests/lib/_oracle_q.py"   # tests/lib holds no collectable module
+  printf 'N = 1\n' > "$RD/sandbox/tests/lib/notes.py"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 2 ]
+  [ ! -e "$RD/grading/final/tests/api/_oracle_q.py" ]
+  [ ! -e "$RD/grading/final/tests/api/test_api.py" ]   # left alone, its import _oracle_q would abort collection
+  [ -f "$RD/grading/final/src/app/_oracle_q.py" ]
+  [ -f "$RD/grading/final/tests/lib/_oracle_q.py" ]
+  [ "$(cat "$RD/grading/final.colliding-removed.txt")" = $'tests/api/_oracle_q.py\ntests/api/test_api.py' ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]   # 7 slug cases + the hidden test_q (oracle Q == 1)
+}
+
+@test "AG-43 python_files (1.2.13, DISS-C-004): a fixture pytest.ini python_files = check_*.py makes tests/check_x.py collide with a hidden tests/hidden/check_x.py; with no setting both stay; collision_rule records the patterns" {
+  printf 'def test_check_hidden():\n    assert True\n' > "$S/tasks/bf-py/hidden/tests/check_x.py"
+  hidden_add tests/check_x.py tests/hidden/check_x.py
+  pyini 'check_*.py'
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  printf 'def test_check_mine():\n    assert True\n' > "$RD/sandbox/tests/check_x.py"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 1 ]
+  [ ! -e "$RD/grading/final/tests/check_x.py" ]
+  [ "$(G '.collision_rule | "\(.python_files | join(","))|\(.source)"')" = 'check_*.py|pytest.ini' ]
+  pyini ''
+  RD="$T/plain"; make_run bf-py "$RD"; apply_ref "$RD"
+  printf 'def test_check_mine():\n    assert True\n' > "$RD/sandbox/tests/check_x.py"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 0 ]
+  [ -f "$RD/grading/final/tests/check_x.py" ]
+  [ "$(G '.collision_rule | "\(.python_files | join(","))|\(.source)"')" = 'test_*.py,*_test.py|default' ]
+}
+
+@test "AG-44 python_files sources (1.2.13): pyproject.toml (array and string), tox.ini [pytest], setup.cfg [tool:pytest] and test_command -o are read; a tox.ini without [pytest] is not" {
+  printf 'def test_check_hidden():\n    assert True\n' > "$S/tasks/bf-py/hidden/tests/check_x.py"
+  hidden_add tests/check_x.py tests/hidden/check_x.py
+  local fx="$S/tasks/bf-py/fixture" n=0 shape want
+  rm -f "$fx/pytest.ini"
+  for shape in toml-array toml-string tox cfg tox-nosection override; do
+    rm -f "$fx/pyproject.toml" "$fx/tox.ini" "$fx/setup.cfg"
+    want=1
+    case "$shape" in
+      toml-array) printf '[project]\nname = "x"\n\n[tool.pytest.ini_options]\npython_files = ["check_*.py", "test_*.py"]\n' > "$fx/pyproject.toml"; src=pyproject.toml ;;
+      toml-string) printf '[tool.pytest.ini_options]\npython_files = "check_*.py test_*.py"\n' > "$fx/pyproject.toml"; src=pyproject.toml ;;
+      tox) printf '[tox]\nenvlist = py\n\n[pytest]\npython_files =\n    check_*.py\n    test_*.py\n' > "$fx/tox.ini"; src=tox.ini ;;
+      cfg) printf '[metadata]\nname = x\n\n[tool:pytest]\npython_files = check_*.py test_*.py\n' > "$fx/setup.cfg"; src=setup.cfg ;;
+      tox-nosection) printf '[tox]\nenvlist = py\n' > "$fx/tox.ini"; src=default; want=0 ;;
+      override) sed -i 's/^test_command: .*/test_command: ["python3", "-m", "pytest", "-q", "-o", "python_files=check_*.py test_*.py", "tests"]/' "$S/tasks/bf-py/task.yaml"; src=test_command ;;
+    esac
+    n=$((n+1)); RD="$T/r$n"; make_run bf-py "$RD"; apply_ref "$RD"
+    printf 'def test_check_mine():\n    assert True\n' > "$RD/sandbox/tests/check_x.py"
+    grade "$RD" bf-py
+    echo "$shape: status=$status rule=$(G '.collision_rule') removed=$(G '.colliding_tests_removed')"
+    [ "$status" -eq 0 ]
+    [ "$(G '.collision_rule.source')" = "$src" ]
+    [ "$(G '.colliding_tests_removed')" = "$want" ]
+  done
 }

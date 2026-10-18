@@ -217,7 +217,22 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
-# grader 1.2.12 (Sprint 261 dissent DISS-001/DISS-C-001/DISS-002/DISS-C-002): the 1.2.11 removal is narrowed to
+# grader 1.2.13 (Sprint 261 dissent run 2 DISS-001, DISS-C-004, DISS-C-005): the removal compares pytest import
+# names, not basenames. Under the default prepend import mode a test module imports by its dotted path from its basedir
+# (the first ancestor without __init__.py), so tests/hidden/pkg/test_x.py and an agent tests/pkg/test_x.py are both
+# pkg.test_x when each pkg/ is a package: 1.2.12 kept such a file and collection still aborted. Protected modules (the
+# hidden overlay file dests, files inside directory overlays, the fixture's tests/ or test/ files) are named from the
+# overlay-or-fixture view of __init__.py files; an agent-added (unowned) collectable module is named from the grading
+# tree's real __init__.py files and removed when its name is a protected collectable module's. A narrow helper rule
+# removes an unowned non-collectable module whose stem is a protected helper's (a package-less protected .py beside a
+# protected collectable module or conftest.py, or at the root: what import _oracle_x reaches) only when its directory
+# is package-less and also holds a collectable module (the one case pytest puts it on sys.path and the agent's copy
+# can answer the protected import), and removes the unowned test modules in that directory with it (the helper alone
+# would leave their import _oracle_x an ImportError that aborts collection). Collectable means pytest's python_files: -o python_files=… or a
+# -c file visible in test_command, else the fixture root's pytest.ini, .pytest.ini, pyproject.toml
+# ([tool.pytest.ini_options]), tox.ini ([pytest]) or setup.cfg ([tool:pytest]), else test_*.py and *_test.py;
+# grade.json collision_rule {python_files, source} records the patterns used (null for review-catch).
+# grader 1.2.12 (Sprint 261 dissent DISS-001/DISS-C-001/DISS-002/DISS-C-002; superseded by 1.2.13): the 1.2.11 removal is narrowed to
 # what pytest's import file mismatch actually hits. Reserved basenames are only pytest-collectable ones (test_*.py,
 # *_test.py; never __init__.py, conftest.py or helper modules), taken from the hidden overlay files, the .py files
 # inside directory overlays (unprotected under 1.2.11) and the fixture's tests/ or test/ files. A grading-tree file is
@@ -303,13 +318,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
 
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
-import argparse, difflib, filecmp, fnmatch, json, os, re, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time
+import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time, tomllib
 # 1.2.7 (Sprint 260 review round 2, DISS-C-002): a SIGTERM (the runner's post-run deadline) becomes SystemExit so
 # the finally below removes SCRATCH; a running docker command ends at its own in-container deadline (--init forwards
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.12"
+GRADER_VERSION = "1.2.13"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1075,53 +1090,221 @@ def remove_harness(t, tree):
     return len(found)
 
 
-COLLIDING = [0]   # agent-added test modules removed for a basename collision in this grade (1.2.11, narrowed 1.2.12)
-PYTEST_FILES = ("test_*.py", "*_test.py")   # pytest's default python_files; the grader reads no pytest config
+COLLIDING = [0]   # agent-added modules removed for an import-name collision or a helper shadow in this grade (1.2.11; 1.2.12; 1.2.13)
+PYTEST_DEFAULT_FILES = ["test_*.py", "*_test.py"]   # pytest's default python_files
+PYTEST_INI_ORDER = (("pytest.ini", "pytest"), (".pytest.ini", "pytest"), ("pyproject.toml", None),
+                    ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest"))   # pytest's inifile precedence at one directory
 
 
-def collectable(name):
-    """a basename pytest collects as a test module by default (never __init__.py, conftest.py or a helper)"""
-    return any(fnmatch.fnmatchcase(name, pat) for pat in PYTEST_FILES)
+def _ini_section(path, section):
+    """configparser read of one ini file → (section found, python_files value or None); unreadable → (False, None)"""
+    cp = configparser.ConfigParser(interpolation=None)
+    try:
+        with open(path, encoding="utf-8") as f:
+            cp.read_file(f)
+    except (OSError, UnicodeError, configparser.Error):
+        return False, None
+    if not cp.has_section(section):
+        return False, None
+    return True, cp.get(section, "python_files", fallback=None)
+
+
+def _toml_section(path):
+    """tomllib read of pyproject.toml → (tool.pytest.ini_options found, python_files value or None)"""
+    try:
+        with open(path, "rb") as f:
+            doc = tomllib.load(f)
+    except (OSError, ValueError):
+        return False, None
+    tool = doc.get("tool")
+    pt = tool.get("pytest") if isinstance(tool, dict) else None
+    opts = pt.get("ini_options") if isinstance(pt, dict) else None
+    if not isinstance(opts, dict):
+        return False, None
+    return True, opts.get("python_files")
+
+
+def _patterns(v):
+    """an ini value is pytest's args type (shell-split); a TOML array is taken as is → list or None"""
+    if isinstance(v, list):
+        return [x for x in v if isinstance(x, str)]
+    if isinstance(v, str):
+        try:
+            return shlex.split(v)
+        except ValueError:
+            return v.split()
+    return None
+
+
+def collision_rule(t):
+    """1.2.13 (DISS-C-004): the python_files patterns pytest uses for this task → {python_files, source}. A -o/--override-ini
+    python_files=… in test_command wins (source "test_command"); else -c/--config-file <fixture-relative file> in
+    test_command is read alone; else the first of pytest.ini, .pytest.ini, pyproject.toml ([tool.pytest.ini_options]),
+    tox.ini ([pytest]), setup.cfg ([tool:pytest]) at the fixture root that pytest would pick; the defaults when the picked
+    file sets no python_files or no file is picked (source "default"). Cached on the task."""
+    if getattr(t, "_collision_rule", None) is not None:
+        return t._collision_rule
+    cmd = list(t.test_command or [])
+    override, cfg = None, None
+    for i, a in enumerate(cmd):
+        nxt = cmd[i + 1] if i + 1 < len(cmd) else None
+        val = None
+        if a in ("-o", "--override-ini"):
+            val = nxt
+        elif a.startswith("--override-ini="):
+            val = a.split("=", 1)[1]
+        elif a.startswith("-o") and not a.startswith("--"):
+            val = a[2:]
+        if isinstance(val, str) and val.startswith("python_files="):
+            override = _patterns(val.split("=", 1)[1]) or []
+        if a in ("-c", "--config-file") and nxt:
+            cfg = nxt
+        elif a.startswith("--config-file="):
+            cfg = a.split("=", 1)[1]
+    rule = {"python_files": list(PYTEST_DEFAULT_FILES), "source": "default"}
+    fx = t.fixture or ""
+    if override is not None:
+        rule = {"python_files": override, "source": "test_command"}
+    elif fx and os.path.isdir(fx):
+        if cfg is not None:
+            parts = safe_rel(cfg)
+            name = parts[-1] if parts else ""
+            cands = [("/".join(parts), None if name.endswith(".toml") else ("tool:pytest" if name == "setup.cfg" else "pytest"))] if parts else []
+            explicit = True
+        else:
+            cands, explicit = list(PYTEST_INI_ORDER), False
+        for rel, section in cands:
+            p = os.path.join(fx, *rel.split("/"))
+            if os.path.islink(p) or not os.path.isfile(p) or not is_within(p, fx):
+                continue
+            found, val = _toml_section(p) if section is None else _ini_section(p, section)
+            if not (found or explicit or rel in ("pytest.ini", ".pytest.ini")):
+                continue   # pyproject.toml, tox.ini and setup.cfg count only with their pytest section; pytest.ini always
+            pats = _patterns(val)
+            if pats is not None:
+                rule = {"python_files": pats, "source": rel}
+            break
+    t._collision_rule = rule
+    return rule
+
+
+def collectable(rel, pats):
+    """a .py file pytest collects as a test module under python_files pats (pytest's fnmatch_ex: a pattern without / is
+    matched against the basename, one with / against the path); __init__.py and conftest.py never"""
+    name = rel.rsplit("/", 1)[-1]
+    if not name.endswith(".py") or name in ("__init__.py", "conftest.py"):
+        return False
+    for pat in pats:
+        if "/" in pat:
+            if fnmatch.fnmatchcase("/" + rel, pat if pat.startswith("/") else "*/" + pat):
+                return True
+        elif fnmatch.fnmatchcase(name, pat):
+            return True
+    return False
+
+
+def import_name(rel, has_init):
+    """pytest's prepend-mode module name of rel: walk up while the directory has an __init__.py (has_init(dir-rel));
+    the dotted path from that basedir, without .py"""
+    parts = rel.split("/")
+    names, dirs = [parts[-1][:-3]], parts[:-1]
+    while dirs and has_init("/".join(dirs)):
+        names.insert(0, dirs[-1])
+        dirs = dirs[:-1]
+    return ".".join(names)
 
 
 def remove_colliding(t, tree):
-    """1.2.12: reserved = the pytest-collectable basenames (test_*.py, *_test.py) of the hidden overlay files, of the
-    .py files inside directory overlays, and of the fixture's files under tests/ or test/. A file in the grading tree
-    is removed only when its basename is reserved, it is neither at an owned overlay path (file or inside a directory
-    overlay) nor present in the fixture at that path, AND its directory has no __init__.py: under the default
-    (prepend) import mode pytest imports only package-less test modules by bare basename, so only those abort
-    collection with an import file mismatch; helpers and packaged test modules never collide. Paths go to
-    grading/<label>.colliding-removed.txt beside the tree → count"""
+    """1.2.13 (DISS-001, DISS-C-005, DISS-C-004). Protected modules are the hidden overlay file dests, the files inside
+    directory overlays (at their dests) and the fixture's files under a tests/ or test/ directory. Each protected .py
+    gets its prepend-mode import name, with __init__.py presence read from the overlay-or-fixture view (an overlay file
+    dest, a file inside a directory overlay, or a fixture file). A candidate is a .py in the grading tree that is not
+    owned (no overlay file dest, not inside a directory overlay, no fixture file at that path).
+    (1) collision: a candidate pytest collects (collision_rule's python_files) whose import name, from the tree's real
+    __init__.py files, equals a protected collectable module's import name is removed (import file mismatch).
+    (2) helper shadow: a protected helper is a non-collectable protected .py (never __init__.py or conftest.py) in a
+    package-less directory of the view that pytest puts on sys.path (the tree root, or a directory holding a protected
+    collectable module or conftest.py), so a protected module can import it by bare name. A non-collectable candidate
+    (never __init__.py or conftest.py) whose stem is such a helper's, in a package-less directory that also holds a
+    collectable module after (1), is removed together with the unowned collectable modules in that directory (pytest
+    puts that directory on sys.path and, when an agent module there imports the helper first, the agent's copy answers
+    the protected import; removing the helper alone would turn that import into a collection-aborting ImportError). Paths go to grading/<label>.colliding-removed.txt beside the tree → count"""
+    pats = collision_rule(t)["python_files"]
     owned = {d for _s, d, f in t.overlay if not os.path.isdir(f)}
     owned_dirs = tuple(d + "/" for _s, d, f in t.overlay if os.path.isdir(f))
-    reserved = {d.rsplit("/", 1)[-1] for d in owned}
-    for _s, _d, f in t.overlay:
-        if os.path.isdir(f) and not os.path.islink(f):
-            for _r, _ds, fs in os.walk(f, followlinks=False):
-                reserved.update(fs)
     fx = t.fixture or ""
+    prot = set(owned)
+    for _s, d, f in t.overlay:
+        if os.path.isdir(f) and not os.path.islink(f):
+            for r, _ds, fs in os.walk(f, followlinks=False):
+                relr = os.path.relpath(r, f).replace(os.sep, "/")
+                prot.update(d + "/" + (n if relr == "." else relr + "/" + n) for n in fs)
+    view = set(prot)   # the overlay-or-fixture view (for __init__.py lookups)
     if fx and os.path.isdir(fx):
         for r, _ds, fs in os.walk(fx, followlinks=False):
-            parts = os.path.relpath(r, fx).replace(os.sep, "/").split("/")
-            if any(p in ("tests", "test") for p in parts):
-                reserved.update(fs)
-    reserved = {n for n in reserved if collectable(n)}
-    found = []
-    for r, ds, fs in os.walk(tree, followlinks=False):
-        relr = os.path.relpath(r, tree)
-        if os.path.isfile(os.path.join(r, "__init__.py")):
-            continue   # a package directory: pytest names its modules by package path, no basename clash
+            relr = os.path.relpath(r, fx).replace(os.sep, "/")
+            rels = [n if relr == "." else relr + "/" + n for n in fs]
+            view.update(rels)
+            if any(p in ("tests", "test") for p in relr.split("/")):
+                prot.update(rels)
+
+    def view_init(dr):
+        return (dr + "/__init__.py") in view
+
+    def tree_init(dr):
+        return os.path.isfile(os.path.join(tree, *dr.split("/"), "__init__.py"))
+
+    prot_coll, prot_help, live_dirs = set(), set(), {""}
+    for rel in prot:
+        dr, _sep, name = rel.rpartition("/")
+        if name == "conftest.py" or (name.endswith(".py") and name != "__init__.py" and collectable(rel, pats)):
+            live_dirs.add(dr)   # pytest imports this module, so a package-less dr is on sys.path
+        if not name.endswith(".py") or name in ("__init__.py", "conftest.py"):
+            continue
+        if collectable(rel, pats):
+            prot_coll.add(import_name(rel, view_init))
+    for rel in prot:
+        dr, _sep, name = rel.rpartition("/")
+        if name.endswith(".py") and name not in ("__init__.py", "conftest.py") and not collectable(rel, pats) \
+                and dr in live_dirs and not (dr and view_init(dr)):
+            prot_help.add(name[:-3])   # a helper a protected module imports by bare name (import _oracle_x)
+    cands = []
+    for r, _ds, fs in os.walk(tree, followlinks=False):
+        relr = os.path.relpath(r, tree).replace(os.sep, "/")
         for name in sorted(fs):
-            if name not in reserved:
+            rel = name if relr == "." else relr + "/" + name
+            if not name.endswith(".py") or rel in owned or rel.startswith(owned_dirs):
                 continue
-            rel = name if relr == "." else relr.replace(os.sep, "/") + "/" + name
-            if rel in owned or rel.startswith(owned_dirs) or (fx and os.path.lexists(os.path.join(fx, *rel.split("/")))):
+            if fx and os.path.lexists(os.path.join(fx, *rel.split("/"))):
                 continue
-            found.append((rel, os.path.join(r, name)))
-    for _rel, p in found:
-        os.unlink(p)
+            cands.append(rel)
+    cand_set = set(cands)
+    found = [rel for rel in cands if collectable(rel, pats) and import_name(rel, tree_init) in prot_coll]
+    gone = set(found)
+    for rel in cands:
+        if rel in gone or collectable(rel, pats) or rel.rsplit("/", 1)[-1] in ("__init__.py", "conftest.py"):
+            continue
+        dr, _sep, name = rel.rpartition("/")
+        if name[:-3] not in prot_help or (dr and tree_init(dr)):
+            continue
+        d_abs = os.path.join(tree, *dr.split("/")) if dr else tree
+        try:
+            sib = os.listdir(d_abs)
+        except OSError:
+            continue
+        sib_rels = [n if not dr else dr + "/" + n for n in sorted(sib)]
+        live = [x for x in sib_rels if x not in gone and os.path.isfile(os.path.join(tree, *x.split("/"))) and collectable(x, pats)]
+        if live:
+            # the helper and the unowned test modules beside it go together: a module that imports the helper and
+            # stays would abort collection with an ImportError (pytest 9, checked by hand), worse than the shadow
+            for x in [rel] + [x for x in live if x in cand_set]:
+                if x not in gone:
+                    gone.add(x)
+                    found.append(x)
+    for rel in found:
+        os.unlink(os.path.join(tree, *rel.split("/")))
     with open(tree.rstrip("/") + ".colliding-removed.txt", "w", encoding="utf-8") as f:
-        f.write("".join(rel + "\n" for rel, _p in sorted(found)))
+        f.write("".join(rel + "\n" for rel in sorted(found)))
     return len(found)
 
 
@@ -1793,6 +1976,7 @@ def grade(t, run_dir, frozen):
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
     g["oversized_files_skipped"] = OVERSIZED[0]
     g["colliding_tests_removed"] = COLLIDING[0]
+    g["collision_rule"] = collision_rule(t) if t.build else None
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
     g["contaminated"] = contamination(run_dir)
