@@ -49,6 +49,23 @@
 #                   exist and differ byte for byte (audit MEDIUM-A1)
 #   cost_usd        Σ phase cost_usd (result.total_cost_usd) + Σ phase ledger_cost_usd
 #   stalls          number of phases that timed out
+#   defects_missed  grade.json `recall.missed` (the seeded defect ids the review did not
+#                   catch, e.g. ["d2","d5"]; [] when every defect was caught) on a
+#                   review-catch row; null on a build row, with no grade.json, when
+#                   `recall` is null or absent, or when `missed` is not a list of
+#                   non-empty strings (row writer 1.2, bd-yz1rd)
+#   regressions_final_green  grade.json `regressions.final_green` (boolean: the task's
+#                   own regression suite was green on the final tree); null when
+#                   `regressions` is null or absent (review-catch rows, ungraded rows)
+#                   or `final_green` is not a boolean (row writer 1.2, bd-m0hw7)
+#   Both are optional for --validate (rows written before 1.2 lack them); when present
+#   defects_missed is a list of non-empty strings or null and regressions_final_green
+#   is a boolean or null. schema_version stays 1: the fields are additive and
+#   ablation-report.py refuses any other schema_version.
+#
+# Row writer version: 1.2 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
+# envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
+# regressions_final_green, Sprint 262).
 #
 # Usage:
 #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
@@ -103,7 +120,7 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
-    -h|--help)        sed -n '2,84p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,101p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -145,6 +162,12 @@ if [[ -n "$VALIDATE" ]]; then
       // (if ($row.arm | test("^[a-z][a-z0-9_]{0,63}$")) | not then "arm \(.arm) does not match the arm grammar" else empty end)
       // ([("dot_claude_writes", "bash_mount_refs", "mount_changed", "envelope_mismatch") as $k
            | select((($row.zone_violations | objects)[$k] | type) != "array") | "zone_violations.\($k) is not an array"][0])
+      // (if has("defects_missed") and .defects_missed != null
+             and ((.defects_missed | type) != "array"
+                  or any(.defects_missed[]; (type != "string") or (length == 0)))
+           then "field defects_missed has type \(.defects_missed | type), want a list of non-empty strings|null" else empty end)
+      // (if has("regressions_final_green") and ((.regressions_final_green | type) as $ty | ["boolean","null"] | index($ty)) == null
+           then "field regressions_final_green has type \(.regressions_final_green | type), want boolean|null" else empty end)
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
@@ -384,6 +407,11 @@ ROW="$(jq -n -c \
                                else first(($g.verdict_accuracy_per_gate | objects | .audit), null) | boolish end),
       regressions: ($g.regressions // null | if type == "object" then ((.newly_failing // []) | length)
                                             elif type == "array" then length else . end),
+      defects_missed: (if ($task.type // $p.task_type // "") != "review-catch" or $rc == null then null
+                       else first(($rc | objects | .missed), null) as $ms
+                       | if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0) then $ms
+                         else null end end),
+      regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
       diff_lines: ($g.diff_lines // null),
       files_changed: ($g.files_changed // null),
       cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),

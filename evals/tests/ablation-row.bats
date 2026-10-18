@@ -399,3 +399,81 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
   [[ "$output" == *"row build failed for abl-fixture-a1_full-bf-01-t1"* ]]
   [ ! -s "$T/rows.jsonl" ]
 }
+
+# --- row writer 1.2: defects_missed (bd-yz1rd) and regressions_final_green (bd-m0hw7) ---
+edit_grade() {  # edit_grade <run> <jq filter>
+  jq "$2" "$T/runs/$1/grade.json" > "$T/g.json" && mv "$T/g.json" "$T/runs/$1/grade.json"
+}
+
+@test "defects_missed: a review-catch row copies recall.missed; regressions_final_green is null" {
+  edit_grade a3-review '.recall.missed = ["d2","d5"]'
+  row a3-review "$REVIEW_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '[.defects_missed, .regressions_final_green]' <<<"$(last)")" = '[["d2","d5"],null]' ]
+}
+
+@test "defects_missed: an empty recall.missed is [], an absent one or a null recall is null" {
+  edit_grade a3-review '.recall.missed = []'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = '[]' ]
+  edit_grade a3-review 'del(.recall.missed)'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+  edit_grade a3-review '.recall = null'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+  edit_grade a3-review '.recall = {defects_seeded: 3, missed: "d2"}'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+}
+
+@test "regressions_final_green: a build row copies regressions.final_green (true, false); defects_missed is null" {
+  edit_grade a1-build '.regressions.final_green = true | .recall = {missed: ["d1"]}'
+  row a1-build "$BUILD_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[true,null]' ]
+  edit_grade a1-build '.regressions.final_green = false'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[false,null]' ]
+  edit_grade a1-build '.regressions.final_green = "yes"'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
+  edit_grade a1-build '.regressions = null'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "an ungraded run has defects_missed and regressions_final_green null" {
+  [ ! -f "$T/runs/a1-review/grade.json" ]
+  row a1-review "$REVIEW_TASK"
+  row a5-build "$BUILD_TASK"
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  [ "$(jq -s -c 'map([has("defects_missed"), .defects_missed, has("regressions_final_green"), .regressions_final_green])' "$T/rows.jsonl")" = '[[true,null,true,null],[true,null,true,null]]' ]
+}
+
+@test "--validate: defects_missed must be a list of non-empty strings or null, regressions_final_green a boolean or null; a legacy row lacking both keys validates" {
+  edit_grade a3-review '.recall.missed = ["d2"]'
+  row a3-review "$REVIEW_TASK"
+  local good; good="$(last)"
+  jq -c '.defects_missed = "d2"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"one.jsonl:1: field defects_missed has type string"* ]]
+  jq -c '.defects_missed = ["d2", 3]' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"field defects_missed has type array"* ]]
+  jq -c '.defects_missed = [""]' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]
+  jq -c '.regressions_final_green = "yes"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"field regressions_final_green has type string, want boolean|null"* ]]
+  { jq -c '.defects_missed = null | .regressions_final_green = true' <<<"$good"
+    jq -c 'del(.defects_missed) | del(.regressions_final_green)' <<<"$good"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl"
+  [ "$status" -eq 0 ] && [[ "$output" == *"2 rows valid"* ]]
+}
