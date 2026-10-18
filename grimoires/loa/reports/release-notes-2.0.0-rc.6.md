@@ -23,6 +23,10 @@ The ablation harness (`evals/harness/run-ablation.sh`, `pipeline-run.sh`, `ablat
 
 `tools/cycle-ratio.sh --from 252501b4 --to <cycle head> --sprint-plan grimoires/loa/sprint.md`: kinds mechanical 28 · judgment 19 · operator 0; volume: script lines changed 34,348 (`*.sh *.py *.ts *.js`) · prose bytes changed 409,797 (`*.md`) · model calls 25 (MODELINV rows on the host between the two commits' timestamps; the container runs are metered in `runs.jsonl`, USD 1,133.40 of runs).
 
+## Toward 2.0.0
+
+rc.6 is the sixth release candidate of the 2.0.0 line (rc.1 model-generation floor, rc.2 friction floor, rc.3 operator decisions, rc.4 decision surfaces, rc.5 earned guards and open voices, rc.6 the component ablation). The promotion to `## [2.0.0]` is the operator's call after the rc soak; the 2.0.0 notes will link each rc's notes file under `grimoires/loa/reports/` and this report. Nothing in rc.6 changes a framework default, so the soak measures stability, not behaviour.
+
 ## Release body (as published)
 
 Filled by the lead after the post-merge pipeline publishes the candidate.
