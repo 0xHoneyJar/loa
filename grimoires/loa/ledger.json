@@ -2616,9 +2616,9 @@
         {
           "global_id": 261,
           "local_label": "sprint-4",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-14T13:59:27Z",
-          "completed": null,
+          "completed": "2026-10-18T10:36:51Z",
           "theme": "Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads",
           "epic": "bd-ykvu4",
           "beads": [
@@ -2631,7 +2631,7 @@
         {
           "global_id": 262,
           "local_label": "sprint-5",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-14T13:59:27Z",
           "completed": null,
           "theme": "Analysis, report, documentation, rc.6",
@@ -3048,5 +3048,5 @@
     }
   ],
   "next_sprint_number": 263,
-  "last_updated": "2026-10-16T23:24:48Z"
+  "last_updated": "2026-10-18T10:36:51Z"
 }
