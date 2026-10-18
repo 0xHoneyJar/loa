@@ -217,7 +217,14 @@
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
-# grader 1.2.11 (Sprint 261): 1.2.10's --import-mode=importlib is reverted (it broke the sibling-module imports hidden
+# grader 1.2.12 (Sprint 261 dissent DISS-001/DISS-C-001/DISS-002/DISS-C-002): the 1.2.11 removal is narrowed to
+# what pytest's import file mismatch actually hits. Reserved basenames are only pytest-collectable ones (test_*.py,
+# *_test.py; never __init__.py, conftest.py or helper modules), taken from the hidden overlay files, the .py files
+# inside directory overlays (unprotected under 1.2.11) and the fixture's tests/ or test/ files. A grading-tree file is
+# removed only when its basename is reserved, it is at no owned overlay path and no fixture path, and its directory
+# has no __init__.py (pytest's default prepend mode imports only package-less test modules by bare basename). Under
+# 1.2.11 an agent's src/app/helpers.py beside a fixture tests/helpers.py was deleted and a correct solution failed.
+# grader 1.2.11 (Sprint 261, narrowed by 1.2.12): 1.2.10's --import-mode=importlib is reverted (it broke the sibling-module imports hidden
 # suites and fixture suites rely on: import _oracle_x, from helpers import …); instead a Python file the agent added
 # (no fixture file and no hidden overlay at its path) whose basename equals a hidden overlay's or a fixture test file's
 # basename is removed before any command runs (counted in grade.json colliding_tests_removed, paths beside the tree in
@@ -296,13 +303,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 case "${1:-}" in -h|--help) sed -n '3,/^# =====/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
 
 exec python3 -I - "$SCRIPT_DIR" "$REPO_ROOT" "${EVAL_DOCKER_BIN:-docker}" "$@" <<'PY'
-import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time
+import argparse, difflib, filecmp, fnmatch, json, os, re, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time
 # 1.2.7 (Sprint 260 review round 2, DISS-C-002): a SIGTERM (the runner's post-run deadline) becomes SystemExit so
 # the finally below removes SCRATCH; a running docker command ends at its own in-container deadline (--init forwards
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.11"
+GRADER_VERSION = "1.2.12"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1068,27 +1075,42 @@ def remove_harness(t, tree):
     return len(found)
 
 
-COLLIDING = [0]   # agent-added .py files removed for a basename collision in this grade (1.2.11)
+COLLIDING = [0]   # agent-added test modules removed for a basename collision in this grade (1.2.11, narrowed 1.2.12)
+PYTEST_FILES = ("test_*.py", "*_test.py")   # pytest's default python_files; the grader reads no pytest config
+
+
+def collectable(name):
+    """a basename pytest collects as a test module by default (never __init__.py, conftest.py or a helper)"""
+    return any(fnmatch.fnmatchcase(name, pat) for pat in PYTEST_FILES)
 
 
 def remove_colliding(t, tree):
-    """1.2.11: a .py file at a path that is neither a hidden overlay dest nor present in the fixture, whose basename
-    equals the basename of a hidden overlay .py file or of a fixture .py file under tests/ or test/, is removed: under
-    the default import mode pytest imports package-less test modules by basename and a second module with the same
-    basename aborts collection. Paths go to grading/<label>.colliding-removed.txt beside the tree → count"""
+    """1.2.12: reserved = the pytest-collectable basenames (test_*.py, *_test.py) of the hidden overlay files, of the
+    .py files inside directory overlays, and of the fixture's files under tests/ or test/. A file in the grading tree
+    is removed only when its basename is reserved, it is neither at an owned overlay path (file or inside a directory
+    overlay) nor present in the fixture at that path, AND its directory has no __init__.py: under the default
+    (prepend) import mode pytest imports only package-less test modules by bare basename, so only those abort
+    collection with an import file mismatch; helpers and packaged test modules never collide. Paths go to
+    grading/<label>.colliding-removed.txt beside the tree → count"""
     owned = {d for _s, d, f in t.overlay if not os.path.isdir(f)}
     owned_dirs = tuple(d + "/" for _s, d, f in t.overlay if os.path.isdir(f))
-    reserved = {d.rsplit("/", 1)[-1] for d in owned if d.endswith(".py")}
+    reserved = {d.rsplit("/", 1)[-1] for d in owned}
+    for _s, _d, f in t.overlay:
+        if os.path.isdir(f) and not os.path.islink(f):
+            for _r, _ds, fs in os.walk(f, followlinks=False):
+                reserved.update(fs)
     fx = t.fixture or ""
     if fx and os.path.isdir(fx):
         for r, _ds, fs in os.walk(fx, followlinks=False):
             parts = os.path.relpath(r, fx).replace(os.sep, "/").split("/")
             if any(p in ("tests", "test") for p in parts):
-                reserved.update(n for n in fs if n.endswith(".py") and n not in ("__init__.py", "conftest.py"))
-    reserved.discard("conftest.py")   # pytest registers conftest modules per directory; remove_harness owns them
+                reserved.update(fs)
+    reserved = {n for n in reserved if collectable(n)}
     found = []
     for r, ds, fs in os.walk(tree, followlinks=False):
         relr = os.path.relpath(r, tree)
+        if os.path.isfile(os.path.join(r, "__init__.py")):
+            continue   # a package directory: pytest names its modules by package path, no basename clash
         for name in sorted(fs):
             if name not in reserved:
                 continue

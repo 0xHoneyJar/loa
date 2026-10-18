@@ -1133,5 +1133,96 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.11 ]
+  [ "$(G '.grader_version')" = 1.2.12 ]
+}
+
+# --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
+
+# hidden_add <rel-src> <rel-dest>: one more hidden manifest entry on bf-py (src under hidden/ must already exist)
+hidden_add() {
+  local m="$S/tasks/bf-py/hidden/manifest.json"
+  jq --arg s "$1" --arg d "$2" '.files += [{src: $s, dest: $d}]' "$m" > "$m.tmp" && mv "$m.tmp" "$m"
+}
+
+@test "AG-36 basename collisions (1.2.12): an agent helper module in a package keeps its file although the fixture has tests/helpers.py" {
+  printf 'X = 1\n' > "$S/tasks/bf-py/fixture/tests/helpers.py"
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/src/pkg"
+  : > "$RD/sandbox/src/pkg/__init__.py"
+  printf 'def helper():\n    return 1\n' > "$RD/sandbox/src/pkg/helpers.py"
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 0 ]
+  [ -f "$RD/grading/final/src/pkg/helpers.py" ]
+  [ -f "$RD/grading/final/tests/helpers.py" ]
+  [ ! -s "$RD/grading/final.colliding-removed.txt" ]
+}
+
+@test "AG-37 basename collisions (1.2.12): a package-less agent tests/test_x.py beside a hidden tests/hidden/test_x.py is still removed and listed; the agent helpers.py beside a hidden helpers.py stays" {
+  printf 'def test_x_hidden():\n    assert True\n' > "$S/tasks/bf-py/hidden/tests/test_x.py"
+  printf 'H = 1\n' > "$S/tasks/bf-py/hidden/tests/helpers.py"
+  hidden_add tests/test_x.py tests/hidden/test_x.py
+  hidden_add tests/helpers.py tests/hidden/helpers.py
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  printf 'def test_x_mine():\n    assert True\n' > "$RD/sandbox/tests/test_x.py"
+  printf 'def helper():\n    return 1\n' > "$RD/sandbox/src/textkit/helpers.py"   # 1.2.11 removed this too
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 1 ]
+  [ ! -e "$RD/grading/final/tests/test_x.py" ]
+  [ -f "$RD/grading/final/tests/hidden/test_x.py" ]
+  [ -f "$RD/grading/final/src/textkit/helpers.py" ]
+  grep -qx 'tests/test_x.py' "$RD/grading/final.colliding-removed.txt"
+  [ "$(wc -l < "$RD/grading/final.colliding-removed.txt" | tr -d ' ')" = 1 ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]   # the 7 slug cases + the hidden test_x
+}
+
+@test "AG-38 basename collisions (1.2.12): an agent test module inside a package (tests/pkg/__init__.py) shares a hidden basename and stays" {
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/tests/pkg"
+  : > "$RD/sandbox/tests/pkg/__init__.py"
+  printf 'def test_pkg_mine():\n    assert True\n' > "$RD/sandbox/tests/pkg/test_slug.py"   # basename of the hidden tests/test_slug.py
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 0 ]
+  [ -f "$RD/grading/final/tests/pkg/test_slug.py" ]
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]   # pytest collects both: the packaged module is pkg.test_slug
+}
+
+@test "AG-39 basename collisions (1.2.12): a directory overlay's test_y.py reserves its basename; a package-less agent tests/test_y.py is removed" {
+  mkdir -p "$S/tasks/bf-py/hidden/suite"
+  printf 'def test_y_hidden():\n    assert True\n' > "$S/tasks/bf-py/hidden/suite/test_y.py"
+  printf 'Y = 2\n' > "$S/tasks/bf-py/hidden/suite/support.py"
+  hidden_add suite tests/suite
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  printf 'def test_y_mine():\n    assert True\n' > "$RD/sandbox/tests/test_y.py"
+  mkdir -p "$RD/sandbox/lib"
+  printf 'Z = 3\n' > "$RD/sandbox/lib/support.py"   # a helper basename of the overlay dir: never reserved
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 1 ]
+  [ ! -e "$RD/grading/final/tests/test_y.py" ]
+  [ -f "$RD/grading/final/tests/suite/test_y.py" ]
+  [ -f "$RD/grading/final/lib/support.py" ]
+  grep -qx 'tests/test_y.py' "$RD/grading/final.colliding-removed.txt"
+  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]
+}
+
+@test "AG-40 basename collisions (1.2.12): hidden __init__.py and _oracle_z.py overlays never make the agent's own __init__.py or _oracle_z.py candidates" {
+  mkdir -p "$S/tasks/bf-py/hidden/tests/oracle"
+  : > "$S/tasks/bf-py/hidden/tests/oracle/__init__.py"
+  printf 'ORACLE = 1\n' > "$S/tasks/bf-py/hidden/tests/oracle/_oracle_z.py"
+  hidden_add tests/oracle/__init__.py tests/oracle/__init__.py
+  hidden_add tests/oracle/_oracle_z.py tests/oracle/_oracle_z.py
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  mkdir -p "$RD/sandbox/src/newpkg" "$RD/sandbox/scripts"
+  : > "$RD/sandbox/src/newpkg/__init__.py"
+  printf 'Z = 1\n' > "$RD/sandbox/src/newpkg/_oracle_z.py"
+  printf 'Z = 2\n' > "$RD/sandbox/scripts/_oracle_z.py"   # package-less, but not pytest-collectable
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ]
+  [ "$(G '.colliding_tests_removed')" = 0 ]
+  [ -f "$RD/grading/final/src/newpkg/__init__.py" ]
+  [ -f "$RD/grading/final/src/newpkg/_oracle_z.py" ]
+  [ -f "$RD/grading/final/scripts/_oracle_z.py" ]
 }
