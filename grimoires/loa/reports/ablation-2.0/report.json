@@ -5136,7 +5136,7 @@
     "line": "Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).",
     "per_direction": 0.3
   },
-  "generator": "ablation-report.py 1.2.2",
+  "generator": "ablation-report.py 1.2.3",
   "h1": {
     "comparisons": [
       {

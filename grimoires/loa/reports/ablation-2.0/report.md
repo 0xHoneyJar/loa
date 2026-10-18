@@ -1,6 +1,6 @@
 # Loa 2.0 component ablation — report
 
-- report schema_version 1; ablation-report.py 1.2.2
+- report schema_version 1; ablation-report.py 1.2.3
 - suite: `evals/suites/ablation-2.0.yaml` (name ablation-2.0, suite_version 2)
 - row suite_version: 1, 2
   - suite_version 2 (primary: the main sections): 33 rows; batches priority-v2-p1, priority-v2-p1b; suite manifest sha256 ddd200b313c5c02353abdc829d3a3a6c78f52b9118da2cf0da8c1eb21ae788c7

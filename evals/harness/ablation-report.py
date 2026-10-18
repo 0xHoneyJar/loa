@@ -98,8 +98,11 @@
 #   catch-rate unit the defect: per review-catch task and defect dK, the share of the
 #                   arm's valid trials that caught it, arm minus a1_full; per-defect ids
 #                   come from the row's `defects_missed` (or `recall.missed`) list of dK
-#                   ids when present, else each defect of the task takes the row's
-#                   defect_catch_rate (aggregate rows); the task-level figure is also
+#                   ids when present and consistent, else each defect of the task takes the row's
+#                   defect_catch_rate (aggregate rows; report 1.2.3: a list with an id outside
+#                   d1 … dN of the task, a duplicate id, or N − len(ids) ≠ a numeric defects_caught
+#                   is inconsistent and reads as the rate, "rate" in defect_identity, never
+#                   "ids"; the row writer 1.3 rules); the task-level figure is also
 #                   reported (rules.bootstrap.also_report) and decides nothing
 #   interval        percentile bootstrap of the mean paired difference: `resamples`
 #                   resamples with replacement, linear interpolation between order
@@ -173,6 +176,28 @@
 #                   {suite_version, available, tasks[], a0_union_mean, a1_mean, diff_mean, note} (primary
 #                   version; by_suite_version[N].budget_matched for each).
 #
+# Input guards (report 1.2.3, the Sprint 262 audit; none changes a decision, an H1/A4 state or a number
+# on rows that ablation-row.sh --validate accepts):
+#   numbers         every cost read goes through usd_of(row) (and wall-clock through num_of): a finite
+#                   int/float that is not a bool, else 0 with one stderr note per row and key ("note: row
+#                   <run_id> cost_usd is a str, not a number; read as 0"); the per-arm means skip a
+#                   non-finite value. The JSON twin is serialised with allow_nan=False before any file is
+#                   written: a NaN or an infinity that still reaches it exits 2 with "refusing to write a
+#                   non-finite number to the JSON report at $.<key path>" and writes neither file.
+#   exception text  a never-fatal guard of the batch record renders the exception class and a fixed
+#                   phrase naming the stage and the batch ("Not rendered (ValueError while reading the
+#                   batch record of pr-2)", "grader tally incomplete (ValueError while tallying the grader
+#                   versions of pr-2)"); str(exception), which can carry a file's content or a host path,
+#                   goes to stderr once and never into report.md or report.json.
+#   paths           before a row's run directory is looked up, its arm must fullmatch ^[a-z][a-z0-9_]{0,63}$
+#                   and its task_id ^[a-z0-9][a-z0-9-]{0,63}$; a row outside either counts in
+#                   run_dirs_missing (n/a) with the note "<n> row(s) with an arm or task_id outside the
+#                   grammar (no attributable directory)" and is never used in a path. Every file read
+#                   below a batch directory (the arm directory, meta/pipeline.json, grade.json) is refused
+#                   when a component below the batch directory is a symlink or its realpath leaves the
+#                   realpath of that batch's manifest directory. The run-directory names themselves come
+#                   from os.listdir and are matched with GRADE_DIR.fullmatch.
+#
 # Exit codes:
 #   0  report written
 #   1  --partial and no decidable comparison in the primary version (the report is still
@@ -195,7 +220,7 @@ import statistics
 import subprocess
 import sys
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 REPORT_SCHEMA = 1
 ROW_SCHEMA_MAJOR = 1
 MANIFEST_SCHEMA_MAJOR = 1
@@ -219,6 +244,8 @@ SENS_PREFIX = "sensitivity (decides nothing): "
 SENS_H_TREATMENT = "cap failures excluded, degraded rows included"
 BUDGET_LABEL = "informational, decides nothing"
 GRADE_DIR = re.compile(r"(.+)-t(\d+)(?:-r(\d+))?")
+ARM_GRAMMAR = re.compile(r"[a-z][a-z0-9_]{0,63}")       # ablation-row.sh / execute-agent.sh (fullmatch)
+TASK_GRAMMAR = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")    # a task id as a path component (fullmatch)
 
 
 class Fail(Exception):
@@ -249,6 +276,49 @@ def pct(x):
 
 def j6(x):
     return None if x is None else round(x, 6)
+
+
+def is_num(v):
+    """A finite int/float that is not a bool."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+MISSED_ID = re.compile(r"d([1-9][0-9]*)")
+
+
+def missed_consistent(missed, n, caught):
+    """The report 1.2.3 id rules (audit DISS-C-001, the row writer 1.3 rules against the task's N): every
+    id is d1 … dN, no duplicate, and N − len(ids) == defects_caught when defects_caught is a number."""
+    ks = []
+    for x in missed:
+        mm = MISSED_ID.fullmatch(x)
+        if not mm or int(mm.group(1)) > n:
+            return False
+        ks.append(x)
+    if len(set(ks)) != len(ks):
+        return False
+    return not is_num(caught) or n - len(ks) == caught
+
+
+_NOTED = set()
+
+
+def num_of(row, key):
+    """A row's numeric field: a finite int/float that is not a bool, else 0 with one stderr note per row
+    and key (report 1.2.3, audit DISS-C-003); an absent or null field is 0 without a note."""
+    v = row.get(key)
+    if is_num(v):
+        return v
+    if v is not None and (row.get("run_id"), key) not in _NOTED:
+        _NOTED.add((row.get("run_id"), key))
+        kind = "NaN or an infinity" if isinstance(v, float) else f"a {type(v).__name__}, not a number"
+        sys.stderr.write(f"ablation-report.py: note: row {row.get('run_id')} {key} is {kind}; read as 0\n")
+    return 0
+
+
+def usd_of(row):
+    """The row's cost_usd as a finite number (0 with a stderr note otherwise); every cost read uses it."""
+    return num_of(row, "cost_usd")
 
 
 def schema_major(v):
@@ -563,7 +633,8 @@ class Analysis:
         missed = row.get("defects_missed")
         if missed is None and isinstance(row.get("recall"), dict):
             missed = row["recall"].get("missed")
-        if isinstance(missed, list) and all(isinstance(x, str) for x in missed):
+        if isinstance(missed, list) and all(isinstance(x, str) for x in missed) \
+                and missed_consistent(missed, n, row.get("defects_caught")):
             ms = set(missed)
             return [0.0 if f"d{k}" in ms else 1.0 for k in range(1, n + 1)], "ids"
         return [float(row[CATCH])] * n, "rate"
@@ -609,10 +680,10 @@ class Analysis:
                 res["unpaired"].append({"task_id": task, "reason": "; ".join(why)})
                 continue
             pair = {"task_id": task, "arm_runs": [r["run_id"] for r in va], "control_runs": [r["run_id"] for r in vc],
-                    "arm_cost": mean([float(r.get("cost_usd") or 0) for r in va]),
-                    "control_cost": mean([float(r.get("cost_usd") or 0) for r in vc]),
-                    "arm_wall": mean([float(r.get("wall_clock_ms") or 0) for r in va]),
-                    "control_wall": mean([float(r.get("wall_clock_ms") or 0) for r in vc])}
+                    "arm_cost": mean([float(usd_of(r)) for r in va]),
+                    "control_cost": mean([float(usd_of(r)) for r in vc]),
+                    "arm_wall": mean([float(num_of(r, "wall_clock_ms")) for r in va]),
+                    "control_wall": mean([float(num_of(r, "wall_clock_ms")) for r in vc])}
             if metric == PASS:
                 ma, mc = mean([self.pass_score(r) for r in va]), mean([self.pass_score(r) for r in vc])
                 pair.update(arm_value=ma, control_value=mc, diff=ma - mc)
@@ -771,8 +842,7 @@ class Analysis:
             return None if not vs else sum(1 for v in vs if v) / len(vs)
 
         def nums(key, rs=None):
-            vs = [r.get(key) for r in (valid if rs is None else rs)
-                  if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+            vs = [r.get(key) for r in (valid if rs is None else rs) if is_num(r.get(key))]
             return mean(vs)
 
         # precision and cost per true defect (Sprint 262 R3, informational): the arm's valid review-catch
@@ -787,12 +857,12 @@ class Analysis:
                     c = r.get("defects_caught")
                     if r["status"] == "cap_failure":
                         c = 0
-                    if isinstance(c, bool) or not isinstance(c, (int, float)):
+                    if not is_num(c):
                         continue
                     f = r.get("false_positives")
-                    f = f if isinstance(f, (int, float)) and not isinstance(f, bool) else 0
+                    f = f if is_num(f) else 0
                     caught, fp, nrows = caught + c, fp + f, nrows + 1
-                    usd += float(r.get("cost_usd") or 0)
+                    usd += usd_of(r)
             prec = {"precision": caught / (caught + fp) if caught + fp > 0 else None,
                     "usd_per_true_defect": usd / caught if caught > 0 else None,
                     "true_defects": int(caught) if float(caught).is_integer() else caught,
@@ -811,8 +881,8 @@ class Analysis:
             "false_positives_per_task": {t: nums("false_positives", rs) for t, rs in sorted(rc.items())},
             "regressions_per_run": nums("regressions"),
             "diff_lines_per_run": nums("diff_lines"), "files_changed_per_run": nums("files_changed"),
-            "cost_per_task": task_mean(by_task, lambda r: float(r.get("cost_usd") or 0)) if by_task else None,
-            "cost_per_run": nums("cost_usd"),
+            "cost_per_task": task_mean(by_task, lambda r: float(usd_of(r))) if by_task else None,
+            "cost_per_run": mean([usd_of(r) for r in valid]),
             "wall_clock_ms_per_run": nums("wall_clock_ms"),
             "tokens_in_per_run": nums("tokens_in"), "tokens_out_per_run": nums("tokens_out"),
         }
@@ -1052,10 +1122,10 @@ def budget_matched(an, v):
             else:
                 e["a0_union"] = max(an.catch_task_score(r) for r in a0)
                 e["method"] = "rate fallback"
-            e["a0_cost_sum"] = sum(float(r.get("cost_usd") or 0) for r in a0)
+            e["a0_cost_sum"] = sum(float(usd_of(r)) for r in a0)
         if a1:
             e["a1_mean"] = mean([an.catch_task_score(r) for r in a1])
-            e["a1_cost_mean"] = mean([float(r.get("cost_usd") or 0) for r in a1])
+            e["a1_cost_mean"] = mean([float(usd_of(r)) for r in a1])
         if a0 and a1:
             e["diff"] = e["a1_mean"] - e["a0_union"]
         else:
@@ -1079,11 +1149,22 @@ def budget_matched(an, v):
     return out
 
 
-def batch_record(mans, rows):
+def stage_note(x, stage):
+    """The sanitized text of a never-fatal exception (report 1.2.3, audit DISS-C-002): the exception class
+    and a fixed phrase naming the stage, never str(x) (which can carry a value from a file or a host path);
+    the full text goes to stderr once."""
+    sys.stderr.write(f"ablation-report.py: {type(x).__name__} while {stage}: {x}\n")
+    return f"{type(x).__name__} while {stage}"
+
+
+def batch_record(mans, rows, where=None):
     """Each batch's STATUS.json (beside its MANIFEST.json, read-only) and the grader versions of its rows'
-    run directories (Sprint 262 R3); a missing file or directory is reported, never fatal."""
+    run directories (Sprint 262 R3); a missing file or directory is reported, never fatal. `where` (a
+    dict) holds the current stage for the caller's sanitized "Not rendered" text."""
+    where = {} if where is None else where
     out = []
     for b, m in sorted(mans.items()):
+        where["stage"] = f"reading the batch record of {b}"
         d = os.path.dirname(m["_path"])
         brows = [r for r in rows if r["batch"] == b]
         vks = sorted({k for k in (version_key(r.get("suite_version")) for r in brows) if k is not None},
@@ -1097,14 +1178,15 @@ def batch_record(mans, rows):
         try:
             batch_status(e, d)
         except Exception as x:  # never fatal: a presentation-only section
-            e["note"] = f"STATUS.json record incomplete ({type(x).__name__}: {x})"
+            e["note"] = f"STATUS.json record incomplete ({stage_note(x, f'reading the STATUS.json of {b}')})"
         # grader versions (report 1.2.1): each row's own run directory, counted once
         try:
             grader_tally(e, d, brows)
         except Exception as x:  # never fatal: a presentation-only section
-            note = f"grader tally incomplete ({type(x).__name__}: {x})"
+            note = f"grader tally incomplete ({stage_note(x, f'tallying the grader versions of {b}')})"
             e["note"] = note if e["note"] is None else e["note"] + "; " + note
         out.append(e)
+    where["stage"] = "rendering the batch record"
     return out
 
 
@@ -1155,11 +1237,26 @@ def batch_status(e, d):
         e["paused_arms"] = sorted(str(x) for x in (pa if isinstance(pa, (dict, list)) else []))
 
 
-def run_dir_of(ad, names, r):
+def contained(root, base, *parts):
+    """base joined with parts, or None unless no component below base is a symlink and the realpath stays
+    inside realpath(root), the batch's manifest directory (report 1.2.3, audit DISS-C-004)."""
+    p = base
+    for part in parts:
+        p = os.path.join(p, part)
+        if os.path.islink(p):
+            return None
+    rr = os.path.realpath(root)
+    rp = os.path.realpath(p)
+    return p if rp == rr or rp.startswith(rr + os.sep) else None
+
+
+def run_dir_of(ad, names, r, root=None):
     """The row's own run directory under the arm directory ad (names: its subdirectories): the highest
     <task>-t<n>-r<k> whose meta/pipeline.json run_id equals the row's, else the highest -r<k> holding a
     grade.json, else <task>-t<n>, else the highest -r<k> (its grade absent: n/a); None when the row has
-    none of them. The trial n compares numerically, so rc-01-t01 is trial 1 (report 1.2.2)."""
+    none of them. The trial n compares numerically, so rc-01-t01 is trial 1 (report 1.2.2). root: the batch's
+    manifest directory; every file read below ad stays inside it (report 1.2.3)."""
+    root = ad if root is None else root
     task, trial = r["task_id"], r["trial"]
     reruns, bases = [], []
     for x in names:
@@ -1172,12 +1269,12 @@ def run_dir_of(ad, names, r):
             bases.append(x)
     reruns.sort(reverse=True)
     for _, x in reruns:
-        pj = read_json_file(os.path.join(ad, x, "meta", "pipeline.json"))
+        pj = read_json_file(contained(root, ad, x, "meta", "pipeline.json"))
         if isinstance(pj, dict) and pj.get("run_id") == r["run_id"]:
             return x
     for _, x in reruns:
-        gp = os.path.join(ad, x, "grade.json")
-        if os.path.isfile(gp) and not os.path.islink(gp):
+        gp = contained(root, ad, x, "grade.json")
+        if gp is not None and os.path.isfile(gp):
             return x
     if bases:  # the canonical <task>-t<n> first, else the lexically first zero-padded form
         canon = f"{task}-t{trial}"
@@ -1186,8 +1283,8 @@ def run_dir_of(ad, names, r):
 
 
 def read_json_file(p):
-    """A JSON file's content, None when absent, a symlink, unreadable or not JSON."""
-    if not os.path.isfile(p) or os.path.islink(p):
+    """A JSON file's content, None when p is None, absent, a symlink, unreadable or not JSON."""
+    if p is None or not os.path.isfile(p) or os.path.islink(p):
         return None
     try:
         with open(p, encoding="utf-8") as fh:
@@ -1206,10 +1303,22 @@ def grader_tally(e, d, brows):
     """The grade.json grader_version of each row's own run directory, counted once per row ("n/a" when
     the directory or its grade is absent); run_dirs_missing counts the rows with no attributable
     directory (run_dir_of returns None)."""
-    listing, gv = {}, {}
+    listing, gv, off_grammar = {}, {}, 0
     try:
         for r in brows:
-            ad = os.path.join(d, str(r["arm"]))
+            # report 1.2.3 (audit DISS-C-004): the arm and task_id grammars before any path is built; a row
+            # outside them has no attributable directory and is never used in a path
+            if not (isinstance(r.get("arm"), str) and ARM_GRAMMAR.fullmatch(r["arm"])
+                    and isinstance(r.get("task_id"), str) and TASK_GRAMMAR.fullmatch(r["task_id"])):
+                off_grammar += 1
+                e["run_dirs_missing"] += 1
+                gv["n/a"] = gv.get("n/a", 0) + 1
+                continue
+            ad = contained(d, d, r["arm"])
+            if ad is None:  # the arm directory is a symlink or resolves outside the batch directory
+                e["run_dirs_missing"] += 1
+                gv["n/a"] = gv.get("n/a", 0) + 1
+                continue
             if ad not in listing:
                 try:
                     listing[ad] = set(x for x in os.listdir(ad) if not os.path.islink(os.path.join(ad, x))
@@ -1217,16 +1326,20 @@ def grader_tally(e, d, brows):
                         if os.path.isdir(ad) and not os.path.islink(ad) else set()
                 except OSError:
                     listing[ad] = set()
-            x = run_dir_of(ad, listing[ad], r)
+            x = run_dir_of(ad, listing[ad], r, d)
             ver = "n/a"
             if x is None:
                 e["run_dirs_missing"] += 1
             else:
-                g = read_json_file(os.path.join(ad, x, "grade.json"))
+                g = read_json_file(contained(d, ad, x, "grade.json"))
                 if isinstance(g, dict) and g.get("grader_version") not in (None, ""):
                     ver = str(g["grader_version"])
             gv[ver] = gv.get(ver, 0) + 1
     finally:
+        if off_grammar:
+            note = (f"{off_grammar} row{'' if off_grammar == 1 else 's'} with an arm or task_id outside the "
+                    f"grammar (no attributable directory)")
+            e["note"] = note if e["note"] is None else e["note"] + "; " + note
         try:
             e["grader_versions"] = dict(sorted(gv.items(), key=grader_key))
         except Exception:
@@ -1470,7 +1583,7 @@ def render_exclusions(L, V, dups, h, sub):
     L("")
     for r in V["caps"]:
         L(f"- `{r['run_id']}` (`{r['arm']}`, {r['task_id']} t{r['trial']}, cap_phase {r.get('cap_phase') or 'n/a'}, "
-          f"USD {float(r.get('cost_usd') or 0):.2f})")
+          f"USD {float(usd_of(r)):.2f})")
     if not V["caps"]:
         L("- none")
     L("")
@@ -1707,14 +1820,18 @@ def build(args):
     # never fatal: the batch record is presentation only; its computation (grouping rows by batch, the
     # manifest and path lookups, each batch's suite_version and directory), its JSON form and its rendering
     # all degrade to "Not rendered (…)" with a note (report 1.2.2; rendering alone since 1.2.1)
+    # report 1.2.3 (audit DISS-C-002): the text names the exception class and the stage only; str(x) goes to
+    # stderr (it can carry a file's content or a host path)
     blines, recs_json, recs_note = [], [], None
+    where = {"stage": "grouping the batch record"}
     try:
-        recs = batch_record(mans, rows)
+        recs = batch_record(mans, rows, where)
         recs_json = [dict(e, suite_version=version_value(e["suite_version"])) for e in recs]
         render_batches(blines.append, recs)
     except Exception as x:
-        recs_json, recs_note = [], f"batch record not computed ({type(x).__name__}: {x}); it decides nothing"
-        blines = ["## Batch record", "", f"Not rendered ({type(x).__name__}: {x}); it decides nothing.", ""]
+        why = stage_note(x, where["stage"])
+        recs_json, recs_note = [], f"batch record not computed ({why}); it decides nothing"
+        blines = ["## Batch record", "", f"Not rendered ({why}); it decides nothing.", ""]
     lines.extend(blines)
 
     L("## Method")
@@ -1813,6 +1930,33 @@ def write_out(path, text):
         fh.write(text)
 
 
+def non_finite_key(x, path="$"):
+    """The JSON path of the first non-finite float in x (sorted keys), None when there is none."""
+    if isinstance(x, float) and not math.isfinite(x):
+        return path
+    if isinstance(x, dict):
+        for k in sorted(x, key=str):
+            hit = non_finite_key(x[k], f"{path}.{k}")
+            if hit:
+                return hit
+    elif isinstance(x, (list, tuple)):
+        for i, v in enumerate(x):
+            hit = non_finite_key(v, f"{path}[{i}]")
+            if hit:
+                return hit
+    return None
+
+
+def json_text(data):
+    """The JSON twin; allow_nan=False (report 1.2.3, audit DISS-C-003): a NaN or an infinity fails loudly
+    (exit 2, naming the key) instead of writing the non-standard NaN/Infinity tokens."""
+    try:
+        return json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n"
+    except ValueError:
+        raise Fail(f"refusing to write a non-finite number to the JSON report at {non_finite_key(data)} "
+                   f"(NaN or Infinity is not JSON); nothing was written")
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write(f"ablation-report.py: {message}\n")
@@ -1838,9 +1982,10 @@ def main(argv):
     args.exclude_degraded = args.exclude_degraded == "true"
     try:
         text, data, decidable = build(args)
+        jtext = json_text(data) if args.json_out else None  # before any write: a non-finite value writes nothing
         write_out(args.out, text)
         if args.json_out:
-            write_out(args.json_out, json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
+            write_out(args.json_out, jtext)
     except Fail as e:
         sys.stderr.write(f"ablation-report.py: {e}\n")
         return 2

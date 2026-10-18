@@ -406,7 +406,8 @@ edit_grade() {  # edit_grade <run> <jq filter>
 }
 
 @test "defects_missed: a review-catch row copies recall.missed; regressions_final_green is null" {
-  edit_grade a3-review '.recall.missed = ["d2","d5"]'
+  # row writer 1.3: the list must agree with the counts (8 seeded − 2 missed = 6 caught)
+  edit_grade a3-review '.recall.defects_seeded = 8 | .recall.defects_caught = 6 | .recall.missed = ["d2","d5"]'
   row a3-review "$REVIEW_TASK"
   run "$ROW" --validate "$T/rows.jsonl"
   [ "$status" -eq 0 ]
@@ -414,7 +415,7 @@ edit_grade() {  # edit_grade <run> <jq filter>
 }
 
 @test "defects_missed: an empty recall.missed is [], an absent one or a null recall is null" {
-  edit_grade a3-review '.recall.missed = []'
+  edit_grade a3-review '.recall.defects_caught = 3 | .recall.missed = []'
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '.defects_missed' <<<"$(last)")" = '[]' ]
   edit_grade a3-review 'del(.recall.missed)'
@@ -476,4 +477,80 @@ edit_grade() {  # edit_grade <run> <jq filter>
     jq -c 'del(.defects_missed) | del(.regressions_final_green)' <<<"$good"; } > "$T/two.jsonl"
   run "$ROW" --validate "$T/two.jsonl"
   [ "$status" -eq 0 ] && [[ "$output" == *"2 rows valid"* ]]
+}
+
+# --- row writer 1.3: the defects_missed id rules (Sprint 262 audit DISS-C-001) ---
+vrow() {  # vrow <missed json> <seeded> <caught> → $T/one.jsonl: the a3-review row with those fields
+  jq -c --argjson ms "$1" --argjson s "$2" --argjson c "$3" \
+    '.defects_missed = $ms | .defects_seeded = $s | .defects_caught = $c' <<<"$GOOD" > "$T/one.jsonl"
+}
+
+@test "--validate rejects defects_missed outside the id rules, naming the rule and the line" {
+  edit_grade a3-review '.recall.missed = ["d2"]'
+  row a3-review "$REVIEW_TASK"
+  GOOD="$(last)"
+  vrow '["x1"]' 3 2
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'one.jsonl:1: defects_missed ["x1"] violates the rule: id grammar ^d[1-9][0-9]*$'* ]]
+  vrow '["d2","d2"]' 3 1
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'one.jsonl:1: defects_missed ["d2","d2"] violates the rule: unique ids'* ]]
+  vrow '["d1","d2","d3","d4"]' 3 0
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'one.jsonl:1: defects_missed ["d1","d2","d3","d4"] violates the rule: at most defects_seeded ids'* ]]
+  vrow '["d2"]' 3 1
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'one.jsonl:1: defects_missed ["d2"] violates the rule: defects_seeded − ids == defects_caught'* ]]
+  vrow '["d4"]' 3 2
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'violates the rule: ids within d1 … d<defects_seeded>'* ]]
+  vrow '["d0"]' 3 2
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *'violates the rule: id grammar'* ]]
+  # the line number is the bad row's: a good row first, the bad one second
+  { printf '%s\n' "$GOOD"; cat "$T/one.jsonl"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"two.jsonl:2: defects_missed"* ]]
+}
+
+@test "--validate accepts consistent defects_missed: [d2,d5] on 8 seeded with 6 caught, [] with caught == seeded, null counts unchecked" {
+  edit_grade a3-review '.recall.missed = ["d2"]'
+  row a3-review "$REVIEW_TASK"
+  GOOD="$(last)"
+  vrow '["d2","d5"]' 8 6
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 0 ]
+  vrow '[]' 3 3
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 0 ]
+  vrow '["d2"]' null null
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 0 ]
+  # the rules apply to review-catch rows only: a build row is not checked
+  jq -c '.task_type = "bug-fix" | .defects_missed = ["x1"]' <<<"$GOOD" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+}
+
+@test "the row program writes defects_missed null for an inconsistent recall.missed, every other field unchanged" {
+  edit_grade a3-review '.recall.missed = ["d2"]'
+  row a3-review "$REVIEW_TASK"
+  local good; good="$(last)"
+  [ "$(jq -c .defects_missed <<<"$good")" = '["d2"]' ]
+  for ms in '["x1"]' '["d2","d2"]' '["d1","d2","d3","d4"]' '["d1","d2"]' '["d4"]'; do
+    edit_grade a3-review ".recall.missed = $ms"
+    row a3-review "$REVIEW_TASK"
+    [ "$(jq -c .defects_missed <<<"$(last)")" = null ]
+    [ "$(jq -c 'del(.defects_missed, .started, .finished, .wall_clock_ms)' <<<"$(last)")" = "$(jq -c 'del(.defects_missed, .started, .finished, .wall_clock_ms)' <<<"$good")" ]
+  done
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "the 165 tracked runs.jsonl rows still validate under row writer 1.3 (read-only copy)" {
+  local real="$REPO_ROOT/grimoires/loa/reports/ablation-2.0/runs.jsonl"
+  [ -f "$real" ] || skip "no tracked runs.jsonl"
+  cp "$real" "$T/real.jsonl"
+  run "$ROW" --validate "$T/real.jsonl"
+  [ "$status" -eq 0 ] && [[ "$output" == *"real.jsonl: 165 rows valid"* ]]
 }

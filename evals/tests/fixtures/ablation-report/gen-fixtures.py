@@ -90,6 +90,21 @@
 #   rundirs       batch rd-1 (suite_version 2): a1_full rc-01 t1..t3; run dirs rc-01-t01 (zero-padded,
 #                 grader 1.2.11), rc-01-t2-r2 only (no grade.json, no meta/pipeline.json), rc-01-t03-r02
 #                 only (zero-padded rerun, grader 1.2.5) → 1.2.11 ×1, 1.2.5 ×1, n/a ×1, run_dirs_missing 0
+#
+# Sprint 262 audit (report 1.2.3: id rules, numeric guards, path grammar):
+#   ids-bad       the versions scenario with ver-v2's a0_bare defects_missed inconsistent on every task
+#                 (rc-01 ["d1","d9"]: d9 outside d1 … d8; rc-02 ["d1","d1"]: a duplicate; rc-03 ["d1"]:
+#                 2 caught contradicts 4 − 1; rc-04 ["x1","d2"]: outside the grammar), defects_caught and
+#                 the rate unchanged → those rows read "rate"; d is the versions d (the rate spreads the
+#                 same per-task share), H1 established as in versions
+#   costs-bad     the versions scenario with one ver-v1 a4_no_gates row's cost_usd "12.5x" (a string) and
+#                 one ver-v2 a0_bare row's cost_usd NaN (written as the NaN token) → both read 0 with a
+#                 stderr note; report.json stays valid JSON
+#   escape        batch esc-1 (suite_version 2): a1_full rc-01 t1..t3 (rc-01-t1 grader 1.2.11; rc-01-t2
+#                 grader 1.2.5; rc-01-t3-r1 grader 1.2.5 and rc-01-t3-r2 whose meta/ is a symlink to
+#                 OUTDIR/escape/outside/meta holding the row's run_id) plus a row with arm "../.." (trial
+#                 1 of rc-01) and one with task_id "../x"; OUTDIR/escape/rc-01-t1/grade.json (outside the
+#                 batch directory, the target of arm "../..") holds the canary grader 6.6.6-canary
 # =============================================================================
 import json
 import os
@@ -409,7 +424,41 @@ def rundirs_scenario():
     return rows, {b: manifest(b, **V2)}, extras
 
 
-def write(out, name, rows, mans, extras=None):
+def ids_bad_scenario():
+    rows, mans = versions_scenario()
+    bad = {"rc-01": ["d1", "d9"], "rc-02": ["d1", "d1"], "rc-03": ["d1"], "rc-04": ["x1", "d2"]}
+    for r in rows:
+        if r["batch"] == "ver-v2" and r["arm"] == "a0_bare":
+            r["defects_missed"] = list(bad[r["task_id"]])
+    return rows, mans
+
+
+def costs_bad_scenario():
+    rows, mans = versions_scenario()
+    for r in rows:
+        if r["run_id"] == "ver-v1-a4_no_gates-fb-01-t1":
+            r["cost_usd"] = "12.5x"
+        if r["run_id"] == "ver-v2-a0_bare-rc-01-t1":
+            r["cost_usd"] = float("nan")
+    return rows, mans
+
+
+def escape_scenario():
+    b = "esc-1"
+    rows = [rc_row(b, "a1_full", "rc-01", 8, k, [], **V2) for k in TRIALS]
+    rows.append(rc_row(b, "../..", "rc-01", 8, 1, [], run_id="esc-1-up-rc-01-t1", **V2))
+    rows.append(rc_row(b, "a1_full", "../x", 8, 1, [], run_id="esc-1-a1_full-x-t1", status="infrastructure_error", **V2))
+    extras = {f"{b}/a1_full/rc-01-t1/grade.json": {"grader_version": "1.2.11"},
+              f"{b}/a1_full/rc-01-t2/grade.json": {"grader_version": "1.2.5"},
+              f"{b}/a1_full/rc-01-t3-r1/grade.json": {"grader_version": "1.2.5"},
+              f"{b}/a1_full/rc-01-t3-r2": None,
+              "../rc-01-t1/grade.json": {"grader_version": "6.6.6-canary"},
+              "../outside/meta/pipeline.json": {"run_id": f"{b}-a1_full-rc-01-t3", "status": "completed"}}
+    links = {f"{b}/a1_full/rc-01-t3-r2/meta": "../../../../outside/meta"}
+    return rows, {b: manifest(b, **V2)}, extras, links
+
+
+def write(out, name, rows, mans, extras=None, links=None):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, "runs.jsonl"), "w", encoding="utf-8") as fh:
@@ -430,6 +479,10 @@ def write(out, name, rows, mans, extras=None):
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2, sort_keys=True)
             fh.write("\n")
+    for rel, target in sorted((links or {}).items()):
+        path = os.path.join(d, "manifests", rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.symlink(target, path)
 
 
 def main(argv):
@@ -447,7 +500,9 @@ def main(argv):
                      ("versions-float", versions_float_scenario), ("legacy", legacy_scenario),
                      ("legacy-conflict", legacy_arm_map_scenario("a0_bare")),
                      ("legacy-match", legacy_arm_map_scenario("a1_full")),
-                     ("batch-broken", batch_broken_scenario), ("rundirs", rundirs_scenario)):
+                     ("batch-broken", batch_broken_scenario), ("rundirs", rundirs_scenario),
+                     ("ids-bad", ids_bad_scenario), ("costs-bad", costs_bad_scenario),
+                     ("escape", escape_scenario)):
         write(argv[0], name, *fn())
     return 0
 

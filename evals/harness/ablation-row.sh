@@ -53,7 +53,8 @@
 #                   catch, e.g. ["d2","d5"]; [] when every defect was caught) on a
 #                   review-catch row; null on a build row, with no grade.json, when
 #                   `recall` is null or absent, or when `missed` is not a list of
-#                   non-empty strings (row writer 1.2, bd-yz1rd)
+#                   non-empty strings (row writer 1.2, bd-yz1rd), or when the list breaks
+#                   an id rule below (row writer 1.3: null, every other field unchanged)
 #   regressions_final_green  grade.json `regressions.final_green` (boolean: the task's
 #                   own regression suite was green on the final tree); null when
 #                   `regressions` is null or absent (review-catch rows, ungraded rows)
@@ -62,10 +63,16 @@
 #   defects_missed is a list of non-empty strings or null and regressions_final_green
 #   is a boolean or null. schema_version stays 1: the fields are additive and
 #   ablation-report.py refuses any other schema_version.
+#   defects_missed id rules (row writer 1.3; checked by --validate on a review-catch row with
+#   a non-null list, and by the row program, which writes null instead of a violating list):
+#   every id matches ^d[1-9][0-9]*$; the ids are unique; at most defects_seeded ids and each
+#   id within d1 … d<defects_seeded> when defects_seeded is a number; defects_seeded − the
+#   number of ids == defects_caught when both are numbers. --validate names the rule:
+#   "defects_missed [...] violates the rule: <rule>".
 #
-# Row writer version: 1.2 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
+# Row writer version: 1.3 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
 # envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
-# regressions_final_green, Sprint 262).
+# regressions_final_green, Sprint 262; 1.3 the defects_missed id rules, Sprint 262 audit).
 #
 # Usage:
 #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
@@ -120,12 +127,26 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
-    -h|--help)        sed -n '2,101p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,108p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
 
 STATUSES='["completed","cap_failure","agent_error","transport_error","infrastructure_error","interrupted","contaminated"]'
+
+# The defects_missed id rules (row writer 1.3, Sprint 262 audit DISS-C-001): one jq definition
+# prepended to both the --validate program and the row program, so the writer never emits a list
+# --validate rejects. Input: the id list (an array of strings); $s defects_seeded, $c defects_caught.
+# Emits the first violated rule's name, nothing when the list is consistent.
+MISSED_RULES='
+  def missed_rule($s; $c):
+    if any(.[]; (type != "string") or (test("^d[1-9][0-9]*$") | not)) then "id grammar ^d[1-9][0-9]*$"
+    elif length != (unique | length) then "unique ids"
+    elif ($s | type) == "number" and length > $s then "at most defects_seeded ids"
+    elif ($s | type) == "number" and any(.[]; (.[1:] | tonumber) > $s) then "ids within d1 … d<defects_seeded>"
+    elif ($s | type) == "number" and ($c | type) == "number" and ($s - length) != $c
+      then "defects_seeded − ids == defects_caught"
+    else empty end;'
 
 # --- validate ----------------------------------------------------------------------
 if [[ -n "$VALIDATE" ]]; then
@@ -134,7 +155,7 @@ if [[ -n "$VALIDATE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     n=$((n + 1))
     [[ -n "${line//[[:space:]]/}" ]] || continue
-    err="$(jq -r --argjson st "$STATUSES" --argjson ungraded "$ALLOW_UNGRADED" '
+    err="$(jq -r --argjson st "$STATUSES" --argjson ungraded "$ALLOW_UNGRADED" "$MISSED_RULES"'
       def t(v; ts): (v | type) as $ty | (ts | index($ty)) != null;
       def need(k; ts): if has(k) | not then "missing field \(k)"
                        elif t(.[k]; ts) | not then "field \(k) has type \(.[k] | type), want \(ts | join("|"))"
@@ -166,6 +187,10 @@ if [[ -n "$VALIDATE" ]]; then
              and ((.defects_missed | type) != "array"
                   or any(.defects_missed[]; (type != "string") or (length == 0)))
            then "field defects_missed has type \(.defects_missed | type), want a list of non-empty strings|null" else empty end)
+      // (if .task_type == "review-catch" and (.defects_missed | type) == "array"
+           then ([.defects_missed | missed_rule($row.defects_seeded; $row.defects_caught)][0]
+                 | if . == null then empty else "defects_missed \($row.defects_missed | tojson) violates the rule: \(.)" end)
+           else empty end)
       // (if has("regressions_final_green") and ((.regressions_final_green | type) as $ty | ["boolean","null"] | index($ty)) == null
            then "field regressions_final_green has type \(.regressions_final_green | type), want boolean|null" else empty end)
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
@@ -310,7 +335,7 @@ ROW="$(jq -n -c \
   --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
   --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
-  --arg retry_reason "$RETRY_REASON" '
+  --arg retry_reason "$RETRY_REASON" "$MISSED_RULES"'
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
   # an unparseable timestamp (empty, an offset other than Z, not a string) is null, never an abort
   def ms(ts): if ts == null or ts == "" then null
@@ -409,7 +434,8 @@ ROW="$(jq -n -c \
                                             elif type == "array" then length else . end),
       defects_missed: (if ($task.type // $p.task_type // "") != "review-catch" or $rc == null then null
                        else first(($rc | objects | .missed), null) as $ms
-                       | if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0) then $ms
+                       | if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0)
+                            and ([$ms | missed_rule($seeded; $caught)] | length) == 0 then $ms
                          else null end end),
       regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
       diff_lines: ($g.diff_lines // null),

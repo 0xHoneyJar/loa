@@ -15,7 +15,9 @@
 # keys, and version-less rows that never reach a decision. AR-40 … AR-42 (Sprint 262 R5, report 1.2.2): the
 # arm_map provenance check before any listing decision, the never-fatal batch-record computation, and
 # run-directory attribution by numeric trial with the rerun fallback; AR-38 also asserts the JSON type of
-# every version value.
+# every version value. AR-43 … AR-47 (Sprint 262 audit, report 1.2.3): inconsistent defects_missed ids read
+# as the rate, the sanitized never-fatal text, a non-numeric or NaN cost_usd read as 0 with a note, the
+# loud allow_nan=False failure naming the key, and the arm / task_id grammar before any path is built.
 # =============================================================================
 
 setup_file() {
@@ -27,7 +29,7 @@ setup_file() {
   export FX="$BATS_FILE_TMPDIR/fx"
   mkdir -p "$FX"
   python3 -I "$TESTS_DIR/fixtures/ablation-report/gen-fixtures.py" "$FX"
-  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present; do
+  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present ids-bad; do
     python3 -I "$REPORT" --runs "$FX/$s/runs.jsonl" --manifests "$FX/$s/manifests" --suite "$SUITE" \
       --out "$FX/$s/report.md" --json "$FX/$s/report.json" >/dev/null
   done
@@ -655,10 +657,11 @@ PY
   [[ "$output" != *"Traceback"* ]]
   grep -qxF '## Decisions' "$T/b.md"
   grep -qxF '## Batch record' "$T/b.md"
-  grep -qE '^Not rendered \(ValueError: .*\); it decides nothing\.$' "$T/b.md"
+  # report 1.2.3 (audit DISS-C-002): the class and the stage only, never the exception text
+  grep -qxF 'Not rendered (ValueError while reading the batch record of ver-v2); it decides nothing.' "$T/b.md"
   grep -qxF '## Method' "$T/b.md"
   [ "$(jq -c .batches "$T/b.json")" = "[]" ]
-  [[ "$(jq -r .batches_note "$T/b.json")" == "batch record not computed (ValueError: "*"); it decides nothing" ]]
+  [ "$(jq -r .batches_note "$T/b.json")" = "batch record not computed (ValueError while reading the batch record of ver-v2); it decides nothing" ]
   for k in h1 a4 decisions by_suite_version; do
     [ "$(jq -c ".$k" "$T/b.json")" = "$(jq -c ".$k" "$FX/versions/report.json")" ]
   done
@@ -679,4 +682,77 @@ PY
   run python3 -I "$REPORT" --runs "$FX/rundirs/runs.jsonl" --manifests "$T/rm" --suite "$SUITE" --out "$T/rm.md" --json "$T/rm.json"
   [ "$status" -eq 0 ]
   [ "$(jq -r '.batches[0].run_dirs_missing' "$T/rm.json")" = "1" ]
+}
+
+@test "AR-43 inconsistent defects_missed ids (outside d1 … dN, a duplicate, a count against defects_caught, outside the grammar) read as the rate; H1 unchanged in state" {
+  c() { jq -r --arg m defect_catch_rate ".h1.comparisons[] | select(.metric == \$m) | $2" "$FX/$1/report.json"; }
+  [ "$(c ids-bad '.defect_identity | join(",")')" = "ids,rate" ]
+  [ "$(c versions '.defect_identity | join(",")')" = "ids" ]
+  [ "$(jq -r .h1.state "$FX/ids-bad/report.json")" = "$(jq -r .h1.state "$FX/versions/report.json")" ]
+  [ "$(jq -r .h1.state "$FX/ids-bad/report.json")" = "established" ]
+  # the rate spreads the same per-task share over the defects: d is the versions d (1.2.2 read 0.222)
+  [ "$(c ids-bad .d)" = "$(c versions .d)" ]
+  [ "$(c ids-bad .d)" = "0.444444" ]
+  # the budget-matched union refuses the ids too
+  [ "$(jq -r '[.budget_matched.tasks[].method] | unique | join(",")' "$FX/ids-bad/report.json")" = "rate fallback" ]
+  [ "$(jq -r '[.budget_matched.tasks[].method] | unique | join(",")' "$FX/versions/report.json")" = "defect union" ]
+}
+
+@test "AR-44 a non-numeric and a NaN cost_usd: the report is written, each cost read as 0 with one note, report.json is valid JSON, no traceback" {
+  report costs-bad "$T/c"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Traceback"* ]]
+  [[ "$output" == *"note: row ver-v1-a4_no_gates-fb-01-t1 cost_usd is a str, not a number; read as 0"* ]]
+  [[ "$output" == *"note: row ver-v2-a0_bare-rc-01-t1 cost_usd is NaN or an infinity; read as 0"* ]]
+  [ "$(grep -c 'note: row ver-v2-a0_bare-rc-01-t1 cost_usd' <<<"$output")" -eq 1 ]
+  ! grep -qE 'NaN|Infinity' "$T/c.json" || false
+  python3 -I -c 'import json,sys; json.loads(open(sys.argv[1]).read(), parse_constant=lambda c: sys.exit(1))' "$T/c.json"
+  for k in h1 a4 decisions; do
+    [ "$(jq -c "[.$k | .. | .state? // empty]" "$T/c.json")" = "$(jq -c "[.$k | .. | .state? // empty]" "$FX/versions/report.json")" ]
+  done
+  # each bad cost reads 0: a0 (v2) 1.0 → 11/12, a4 (v1) 3.0 → 105/36
+  jq -e '.arms.a0_bare.cost_per_run == 1' "$FX/versions/report.json"
+  jq -e '.arms.a0_bare.cost_per_run == 0.916667' "$T/c.json"
+  jq -e '.by_suite_version["1"].arms.a4_no_gates.cost_per_run == 2.916667' "$T/c.json"
+}
+
+@test "AR-45 a non-finite number that reaches the JSON twin fails loudly naming the key; nothing is written" {
+  cp -R "$FX/present/manifests" "$T/m"
+  python3 -I -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["spend"]["max_usd"]=float("nan"); json.dump(d, open(p,"w"))' \
+    "$T/m/pr-2/STATUS.json"
+  run python3 -I "$REPORT" --runs "$FX/present/runs.jsonl" --manifests "$T/m" --suite "$SUITE" --out "$T/n.md" --json "$T/n.json"
+  [ "$status" -eq 2 ]
+  [[ "$output" != *"Traceback"* ]]
+  [[ "$output" == *'refusing to write a non-finite number to the JSON report at $.batches[1].spend.max_usd'* ]]
+  [ ! -e "$T/n.md" ] && [ ! -e "$T/n.json" ]
+}
+
+@test "AR-46 an arm \"../..\" and a task_id \"../x\" never build a path: the canary outside the batch directory is not read; a symlinked meta/ is refused" {
+  report escape "$T/e"
+  [ "$status" -eq 0 ]
+  b() { jq -r ".batches[] | select(.batch == \"esc-1\") | $1" "$T/e.json"; }
+  # 1.2.2 read the canary through arm ../.. (6.6.6-canary ×1) and matched rc-01-t3-r2 through its symlinked meta/
+  [ "$(b '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=2,n/a=2" ]
+  [ "$(b .run_dirs_missing)" = "2" ]
+  [ "$(b .note)" = "2 rows with an arm or task_id outside the grammar (no attributable directory)" ]
+  ! grep -q 'canary' "$T/e.md" "$T/e.json" || false
+  [ "$(b '([.grader_versions[]] | add) == .trials_rowed')" = "true" ]
+  # the canary is still there, untouched, and outside the manifests root
+  [ "$(jq -r .grader_version "$FX/escape/rc-01-t1/grade.json")" = "6.6.6-canary" ]
+}
+
+@test "AR-47 the sanitized never-fatal text: an exception in one batch's grader tally names the class and the stage, never the exception text" {
+  cp -R "$FX/present/manifests" "$T/m"
+  # "²" passes str.isdigit() and int() refuses it: grader_key raises ValueError("invalid literal … '²'")
+  printf '{"grader_version": "SECRETVALUE.\\u00b2"}\n' > "$T/m/pr-2/a0_bare/rc-01-t1/grade.json"
+  run python3 -I "$REPORT" --runs "$FX/present/runs.jsonl" --manifests "$T/m" --suite "$SUITE" --out "$T/s.md" --json "$T/s.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Traceback"* ]]
+  # the full text goes to stderr once
+  [ "$(grep -c "ValueError while tallying the grader versions of pr-2: invalid literal" <<<"$output")" -eq 1 ]
+  [ "$(jq -r '.batches[] | select(.batch == "pr-2") | .note' "$T/s.json")" = \
+    "grader tally incomplete (ValueError while tallying the grader versions of pr-2)" ]
+  grep -qF 'grader tally incomplete (ValueError while tallying the grader versions of pr-2)' "$T/s.md"
+  ! grep -q 'invalid literal' "$T/s.md" "$T/s.json" || false
+  ! grep -qF "$T" "$T/s.md" || false
 }
