@@ -248,6 +248,15 @@ export const GENERATED_MODEL_REGISTRY = {
         capabilities: ["chat", "code", "function_calling", "tools"],
         pricing: { inputPerMtok: 30000000, outputPerMtok: 180000000 },
     },
+    "gpt-6.1-sol": {
+        provider: "openai",
+        modelId: "gpt-6.1-sol",
+        contextWindow: 400000,
+        reasoning: false,
+        endpointFamily: "responses",
+        capabilities: ["chat", "code", "function_calling", "tools"],
+        pricing: { inputPerMtok: 5000000, outputPerMtok: 30000000 },
+    },
     "grok-build": {
         provider: "xai",
         modelId: "grok-build",
@@ -294,6 +303,7 @@ export const GENERATED_REASONING = {
     "gpt-5.3-codex": false,
     "gpt-5.5": false,
     "gpt-5.5-pro": false,
+    "gpt-6.1-sol": false,
     "grok-build": false,
     "grok-composer-2.5-fast": false,
 };

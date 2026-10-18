@@ -1,0 +1,12 @@
+{
+  "verdict_quality": {
+    "status": "APPROVED",
+    "voices_planned": 1,
+    "voices_succeeded": 1
+  },
+  "metadata": {
+    "companion_voice": {
+      "planned": false
+    }
+  }
+}

@@ -1,0 +1,651 @@
+diff -ruN a/src/docstore/cli.py b/src/docstore/cli.py
+--- a/src/docstore/cli.py
++++ b/src/docstore/cli.py
+@@ -13,6 +13,11 @@
+     import FILE [--replace]   load a bundle
+     find PATH JSON            print the ids whose value at PATH equals JSON
+     stats                     print store statistics
++    get ID POINTER            print the value a JSON Pointer names
++    patch ID FILE [--rev N] [--dry-run]
++                              apply FILE's JSON Patch
++    diff ID REV               print the operations turning revision REV into the current document
++    revert ID REV [--rev N]   store revision REV's document as a new revision
+ 
+ The configuration is ``--config FILE`` or, when absent, ``<root>/docstore.conf``
+ if that file exists. Output goes to standard output, one item per line. An error
+@@ -24,8 +29,9 @@
+ import sys
+ 
+ from .canon import canonical, parse_json
++from .delta import diff
+ from .config import Config, load_config
+-from .errors import Conflict, DocstoreError, NotFound, ValidationError
++from .errors import Conflict, DocstoreError, NotFound, PatchError, PointerError, ValidationError
+ from .export import export_bundle, import_bundle
+ from .history import History
+ from .query import find, select
+@@ -37,6 +43,8 @@
+     (NotFound, 3),
+     (Conflict, 4),
+     (ValidationError, 5),
++    (PointerError, 6),
++    (PatchError, 6),
+     (DocstoreError, 1),
+ )
+ 
+@@ -81,6 +89,21 @@
+     p.add_argument("path")
+     p.add_argument("value")
+     sub.add_parser("stats", add_help=False)
++    p = sub.add_parser("get", add_help=False)
++    p.add_argument("id")
++    p.add_argument("pointer")
++    p = sub.add_parser("patch", add_help=False)
++    p.add_argument("id")
++    p.add_argument("file")
++    p.add_argument("--rev", type=int)
++    p.add_argument("--dry-run", action="store_true")
++    p = sub.add_parser("diff", add_help=False)
++    p.add_argument("id")
++    p.add_argument("rev", type=int)
++    p = sub.add_parser("revert", add_help=False)
++    p.add_argument("id")
++    p.add_argument("rev", type=int)
++    p.add_argument("--rev", dest="expected", type=int)
+     return parser
+ 
+ 
+@@ -144,6 +167,19 @@
+             out.write(doc_id + "\n")
+     elif command == "stats":
+         out.write(format_stats(store_stats(store)))
++    elif command == "get":
++        out.write(canonical(store.get(args.id, args.pointer)) + "\n")
++    elif command == "patch":
++        result = store.patch(args.id, _read_json(args.file), expected_rev=args.rev, dry_run=args.dry_run)
++        if args.dry_run:
++            out.write(canonical(result.document) + "\n")
++        else:
++            out.write(f"rev {result.revision}\n")
++    elif command == "diff":
++        out.write(canonical(diff(store.at(args.id, args.rev), store.get(args.id))) + "\n")
++    elif command == "revert":
++        result = store.revert(args.id, args.rev, expected_rev=args.expected)
++        out.write(f"rev {result.revision}\n")
+     return 0
+ 
+ 
+diff -ruN a/src/docstore/config.py b/src/docstore/config.py
+--- a/src/docstore/config.py
++++ b/src/docstore/config.py
+@@ -13,9 +13,10 @@
+     max_depth: int = 32
+     max_bytes: int = 65536
+     history_file: str = "history.log"
++    max_ops: int = 100
+ 
+ 
+-_INT_KEYS = ("max_depth", "max_bytes")
++_INT_KEYS = ("max_depth", "max_bytes", "max_ops")
+ 
+ 
+ def parse_config(text, source="config"):
+diff -ruN a/src/docstore/delta.py b/src/docstore/delta.py
+--- a/src/docstore/delta.py
++++ b/src/docstore/delta.py
+@@ -0,0 +1,86 @@
++"""Canonical structural diff (as specified for docstore): ``docstore.delta``.
++
++``diff(a, b)`` returns the JSON Patch operations that turn ``a`` into ``b``:
++objects recurse member by member in sorted key order, arrays keep a longest
++common subsequence of whole elements (the one whose index tuples into ``a``,
++then into ``b``, are lexicographically smallest), and any other difference is
++one ``replace``. ``strict_equal`` is the equality the diff uses.
++"""
++import copy
++
++from .pointer import format_pointer
++
++
++def strict_equal(a, b):
++    """Type-sensitive equality: null, bool, int, float, str, list, dict are distinct kinds."""
++    if type(a) is not type(b):
++        return False
++    if isinstance(a, list):
++        return len(a) == len(b) and all(strict_equal(x, y) for x, y in zip(a, b))
++    if isinstance(a, dict):
++        return a.keys() == b.keys() and all(strict_equal(a[k], b[k]) for k in a)
++    return a == b
++
++
++def keep_pairs(a, b):
++    """Return the (indexes into a, indexes into b) of the canonical common subsequence."""
++    m, n = len(a), len(b)
++    eq = [[strict_equal(a[i], b[j]) for j in range(n)] for i in range(m)]
++    # suffix[i][j]: length of a longest common subsequence of a[i:] and b[j:]
++    suffix = [[0] * (n + 1) for _ in range(m + 1)]
++    for i in range(m - 1, -1, -1):
++        for j in range(n - 1, -1, -1):
++            if eq[i][j]:
++                suffix[i][j] = suffix[i + 1][j + 1] + 1
++            else:
++                suffix[i][j] = max(suffix[i + 1][j], suffix[i][j + 1])
++    need = suffix[0][0]
++    keep_a, keep_b = [], []
++    i = j = 0
++    while need:
++        # the smallest a-index that can still start a completion of length `need`,
++        # matched with the smallest b-index that allows that completion
++        found = False
++        for ii in range(i, m):
++            for jj in range(j, n):
++                if eq[ii][jj] and suffix[ii + 1][jj + 1] >= need - 1:
++                    keep_a.append(ii)
++                    keep_b.append(jj)
++                    i, j, need, found = ii + 1, jj + 1, need - 1, True
++                    break
++            if found:
++                break
++    return keep_a, keep_b
++
++
++def _diff(a, b, tokens, out):
++    if strict_equal(a, b):
++        return
++    if isinstance(a, dict) and isinstance(b, dict):
++        for key in sorted(set(a) | set(b)):
++            path = tokens + [key]
++            if key not in b:
++                out.append({"op": "remove", "path": format_pointer(path)})
++            elif key not in a:
++                out.append({"op": "add", "path": format_pointer(path), "value": copy.deepcopy(b[key])})
++            else:
++                _diff(a[key], b[key], path, out)
++        return
++    if isinstance(a, list) and isinstance(b, list):
++        keep_a, keep_b = keep_pairs(a, b)
++        kept_a, kept_b = set(keep_a), set(keep_b)
++        for i in range(len(a) - 1, -1, -1):
++            if i not in kept_a:
++                out.append({"op": "remove", "path": format_pointer(tokens + [str(i)])})
++        for j in range(len(b)):
++            if j not in kept_b:
++                out.append({"op": "add", "path": format_pointer(tokens + [str(j)]), "value": copy.deepcopy(b[j])})
++        return
++    out.append({"op": "replace", "path": format_pointer(tokens), "value": copy.deepcopy(b)})
++
++
++def diff(a, b):
++    """Return the canonical list of operations turning ``a`` into ``b``."""
++    out = []
++    _diff(a, b, [], out)
++    return out
+diff -ruN a/src/docstore/errors.py b/src/docstore/errors.py
+--- a/src/docstore/errors.py
++++ b/src/docstore/errors.py
+@@ -27,3 +27,11 @@
+ 
+ class ExportError(DocstoreError):
+     """A bundle cannot be read or written."""
++
++
++class PointerError(DocstoreError):
++    """A JSON Pointer is malformed or names no value."""
++
++
++class PatchError(DocstoreError):
++    """A JSON Patch is malformed or cannot be applied."""
+diff -ruN a/src/docstore/history.py b/src/docstore/history.py
+--- a/src/docstore/history.py
++++ b/src/docstore/history.py
+@@ -9,7 +9,7 @@
+ 
+ HistoryEntry = namedtuple("HistoryEntry", "seq doc_id action rev digest detail")
+ 
+-ACTIONS = ("create", "put", "delete", "import")
++ACTIONS = ("create", "put", "delete", "import", "patch", "revert")
+ 
+ 
+ def format_entry(entry):
+diff -ruN a/src/docstore/__init__.py b/src/docstore/__init__.py
+--- a/src/docstore/__init__.py
++++ b/src/docstore/__init__.py
+@@ -7,9 +7,12 @@
+     ExportError,
+     InvalidId,
+     NotFound,
++    PatchError,
++    PointerError,
+     ValidationError,
+ )
+ from .history import History, HistoryEntry
++from .patch import PatchResult
+ from .storage import FileStorage, MemoryStorage
+ from .store import Store
+ 
+@@ -22,6 +25,9 @@
+     "ExportError",
+     "InvalidId",
+     "NotFound",
++    "PatchError",
++    "PointerError",
++    "PatchResult",
+     "ValidationError",
+     "History",
+     "HistoryEntry",
+diff -ruN a/src/docstore/patch.py b/src/docstore/patch.py
+--- a/src/docstore/patch.py
++++ b/src/docstore/patch.py
+@@ -0,0 +1,154 @@
++"""JSON Patch (RFC 6902 as specified for docstore).
++
++``apply_patch(doc, ops, max_ops)`` checks every operation's syntax first, then
++applies the operations in order to a deep copy of ``doc``. ``json_equal`` is the
++equality the ``test`` operation uses.
++"""
++import copy
++from collections import namedtuple
++
++from .errors import PatchError, PointerError
++from .pointer import array_index, parse_pointer, walk
++
++PatchResult = namedtuple("PatchResult", "revision document")
++
++OPS = ("add", "remove", "replace", "move", "copy", "test")
++_NEEDS_FROM = ("move", "copy")
++_NEEDS_VALUE = ("add", "replace", "test")
++
++
++def json_equal(a, b):
++    """JSON equality: numbers by value, booleans apart from numbers, objects unordered."""
++    if isinstance(a, bool) or isinstance(b, bool):
++        return isinstance(a, bool) and isinstance(b, bool) and a == b
++    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
++        return a == b
++    if a is None or b is None:
++        return a is None and b is None
++    if isinstance(a, str) and isinstance(b, str):
++        return a == b
++    if isinstance(a, list) and isinstance(b, list):
++        return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
++    if isinstance(a, dict) and isinstance(b, dict):
++        return a.keys() == b.keys() and all(json_equal(a[k], b[k]) for k in a)
++    return False
++
++
++class _Op:
++    def __init__(self, index, name, path, tokens, source=None, from_tokens=None, value=None):
++        self.index, self.name = index, name
++        self.path, self.tokens = path, tokens
++        self.source, self.from_tokens = source, from_tokens
++        self.value = value
++
++    def fail(self, reason):
++        return PatchError(f"op {self.index} ({self.name}): {reason}")
++
++
++def _pointer_member(op, index, name, member):
++    if member not in op:
++        raise PatchError(f"op {index} ({name}): missing {member!r}")
++    text = op[member]
++    if not isinstance(text, str):
++        raise PatchError(f"op {index} ({name}): {member!r} must be a string")
++    try:
++        return text, parse_pointer(text)
++    except PointerError as exc:
++        raise PatchError(f"op {index} ({name}): {exc}") from None
++
++
++def _check(index, op):
++    if not isinstance(op, dict):
++        raise PatchError(f"op {index}: operation must be an object")
++    if "op" not in op:
++        raise PatchError(f"op {index}: missing 'op'")
++    name = op["op"]
++    if not isinstance(name, str) or name not in OPS:
++        raise PatchError(f"op {index}: unknown op {name!r}")
++    path, tokens = _pointer_member(op, index, name, "path")
++    parsed = _Op(index, name, path, tokens)
++    if name in _NEEDS_FROM:
++        parsed.source, parsed.from_tokens = _pointer_member(op, index, name, "from")
++    if name in _NEEDS_VALUE:
++        if "value" not in op:
++            raise PatchError(f"op {index} ({name}): missing 'value'")
++        parsed.value = op["value"]
++    return parsed
++
++
++def _parent(doc, tokens, pointer):
++    return walk(doc, tokens[:-1], pointer)
++
++
++def _add(doc, tokens, pointer, value):
++    """Add ``value`` at ``tokens``; returns the new document."""
++    if not tokens:
++        return value
++    parent, last = _parent(doc, tokens, pointer), tokens[-1]
++    if isinstance(parent, dict):
++        parent[last] = value
++    elif isinstance(parent, list):
++        parent.insert(array_index(last, pointer, len(parent), True), value)
++    else:
++        raise PointerError(f"path {pointer!r} does not exist")
++    return doc
++
++
++def _remove(doc, tokens, pointer):
++    """Remove the value at ``tokens``; returns (new document, removed value)."""
++    parent, last = _parent(doc, tokens, pointer), tokens[-1]
++    if isinstance(parent, dict):
++        if last not in parent:
++            raise PointerError(f"path {pointer!r} does not exist")
++        return doc, parent.pop(last)
++    if isinstance(parent, list):
++        return doc, parent.pop(array_index(last, pointer, len(parent), False))
++    raise PointerError(f"path {pointer!r} does not exist")
++
++
++def _apply_one(doc, op):
++    name, tokens, path = op.name, op.tokens, op.path
++    if name == "add":
++        return _add(doc, tokens, path, copy.deepcopy(op.value))
++    if name == "remove":
++        if not tokens:
++            raise op.fail("cannot remove the document root")
++        return _remove(doc, tokens, path)[0]
++    if name == "replace":
++        walk(doc, tokens, path)
++        if not tokens:
++            return copy.deepcopy(op.value)
++        parent = _parent(doc, tokens, path)
++        key = tokens[-1] if isinstance(parent, dict) else array_index(tokens[-1], path, len(parent), False)
++        parent[key] = copy.deepcopy(op.value)
++        return doc
++    if name == "test":
++        if not json_equal(walk(doc, tokens, path), op.value):
++            raise op.fail(f"test failed at {path!r}")
++        return doc
++    value = walk(doc, op.from_tokens, op.source)
++    if name == "copy":
++        return _add(doc, tokens, path, copy.deepcopy(value))
++    # move
++    if op.from_tokens == tokens:
++        return doc
++    if tokens[: len(op.from_tokens)] == op.from_tokens:
++        raise op.fail(f"cannot move {op.source!r} into its own child {path!r}")
++    doc, value = _remove(doc, op.from_tokens, op.source)
++    return _add(doc, tokens, path, value)
++
++
++def apply_patch(doc, ops, max_ops=100):
++    """Return ``doc`` with ``ops`` applied; ``doc`` and ``ops`` are not modified."""
++    if not isinstance(ops, list):
++        raise PatchError("patch must be a list of operations")
++    if len(ops) > max_ops:
++        raise PatchError(f"too many operations: {len(ops)} > {max_ops}")
++    parsed = [_check(i, op) for i, op in enumerate(ops)]
++    result = copy.deepcopy(doc)
++    for op in parsed:
++        try:
++            result = _apply_one(result, op)
++        except PointerError as exc:
++            raise op.fail(str(exc)) from None
++    return result
+diff -ruN a/src/docstore/pointer.py b/src/docstore/pointer.py
+--- a/src/docstore/pointer.py
++++ b/src/docstore/pointer.py
+@@ -0,0 +1,68 @@
++"""JSON Pointer (RFC 6901 as specified for docstore).
++
++``parse_pointer`` turns pointer text into a token list, ``format_pointer`` turns
++a token list back into text, and ``resolve`` finds the value a pointer names.
++"""
++import re
++
++from .errors import PointerError
++
++_INDEX = re.compile(r"0|[1-9][0-9]*")
++_BAD_ESCAPE = re.compile(r"~(?![01])")
++
++
++def parse_pointer(text):
++    """Return the decoded tokens of ``text``; ``""`` is the whole document."""
++    if text == "":
++        return []
++    if not text.startswith("/"):
++        raise PointerError(f"pointer must start with '/': {text!r}")
++    if _BAD_ESCAPE.search(text):
++        raise PointerError(f"bad escape in pointer: {text!r}")
++    return [t.replace("~1", "/").replace("~0", "~") for t in text[1:].split("/")]
++
++
++def format_pointer(tokens):
++    """Return the pointer text of a token list."""
++    return "".join("/" + t.replace("~", "~0").replace("/", "~1") for t in tokens)
++
++
++def array_index(token, pointer, length, allow_end):
++    """Return the list position a token names on an array of ``length`` items.
++
++    ``allow_end`` (add) accepts ``-`` and an index equal to the length; both
++    mean "append" and give ``length``.
++    """
++    if token == "-":
++        if allow_end:
++            return length
++        raise PointerError(f"index '-' out of range in {pointer!r}")
++    if not _INDEX.fullmatch(token):
++        raise PointerError(f"invalid array index {token!r} in {pointer!r}")
++    index = int(token)
++    if index > length or (index == length and not allow_end):
++        raise PointerError(f"index {token!r} out of range in {pointer!r}")
++    return index
++
++
++def step(cur, token, pointer):
++    """Move one token down from ``cur``; raises PointerError when it cannot."""
++    if isinstance(cur, dict):
++        if token not in cur:
++            raise PointerError(f"path {pointer!r} does not exist")
++        return cur[token]
++    if isinstance(cur, list):
++        return cur[array_index(token, pointer, len(cur), False)]
++    raise PointerError(f"path {pointer!r} does not exist")
++
++
++def walk(doc, tokens, pointer):
++    cur = doc
++    for token in tokens:
++        cur = step(cur, token, pointer)
++    return cur
++
++
++def resolve(doc, pointer):
++    """Return the value ``pointer`` names inside ``doc`` (not a copy)."""
++    return walk(doc, parse_pointer(pointer), pointer)
+diff -ruN a/src/docstore/storage.py b/src/docstore/storage.py
+--- a/src/docstore/storage.py
++++ b/src/docstore/storage.py
+@@ -3,6 +3,8 @@
+ A back end stores records ``{"rev": int, "doc": dict}`` by id. FileStorage keeps
+ one ``<id>.json`` file per document under ``<root>/docs`` and replaces files
+ atomically; MemoryStorage keeps them in a dict. Both hand out deep copies.
++Both also keep the document of every revision (FileStorage under
++``<root>/versions/<id>/<rev>.json``).
+ """
+ import copy
+ import json
+@@ -15,6 +17,7 @@
+ class MemoryStorage:
+     def __init__(self):
+         self._records = {}
++        self._versions = {}
+ 
+     def read(self, doc_id):
+         record = self._records.get(doc_id)
+@@ -29,6 +32,15 @@
+     def ids(self):
+         return sorted(self._records)
+ 
++    def write_version(self, doc_id, rev, doc):
++        self._versions.setdefault(doc_id, {})[rev] = copy.deepcopy(doc)
++
++    def read_version(self, doc_id, rev):
++        return copy.deepcopy(self._versions.get(doc_id, {}).get(rev))
++
++    def forget_versions(self, doc_id):
++        self._versions.pop(doc_id, None)
++
+ 
+ class FileStorage:
+     def __init__(self, root):
+@@ -66,3 +78,26 @@
+     def ids(self):
+         names = [n[:-5] for n in os.listdir(self.docs) if n.endswith(".json") and not n.startswith(".")]
+         return sorted(names)
++
++    def _version_path(self, doc_id, rev):
++        return os.path.join(self.root, "versions", doc_id, f"{rev}.json")
++
++    def write_version(self, doc_id, rev, doc):
++        path = self._version_path(doc_id, rev)
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as fh:
++            fh.write(canonical(doc) + "\n")
++
++    def read_version(self, doc_id, rev):
++        try:
++            with open(self._version_path(doc_id, rev), encoding="utf-8") as fh:
++                return json.load(fh)
++        except FileNotFoundError:
++            return None
++
++    def forget_versions(self, doc_id):
++        folder = os.path.join(self.root, "versions", doc_id)
++        if os.path.isdir(folder):
++            for name in os.listdir(folder):
++                os.unlink(os.path.join(folder, name))
++            os.rmdir(folder)
+diff -ruN a/src/docstore/store.py b/src/docstore/store.py
+--- a/src/docstore/store.py
++++ b/src/docstore/store.py
+@@ -9,9 +9,12 @@
+ 
+ from .canon import digest
+ from .config import Config
+-from .errors import Conflict, NotFound
++from .errors import Conflict, NotFound, PatchError, ValidationError
+ from .history import History
+ from .ids import check_id
++from .delta import diff
++from .patch import PatchResult, apply_patch
++from .pointer import resolve
+ from .storage import MemoryStorage
+ from .validate import validate_document
+ 
+@@ -26,6 +29,10 @@
+     def _validate(self, doc):
+         validate_document(doc, self.config.max_depth, self.config.max_bytes)
+ 
++    def _save(self, doc_id, rev, doc):
++        self.storage.write(doc_id, {"rev": rev, "doc": copy.deepcopy(doc)})
++        self.storage.write_version(doc_id, rev, doc)
++
+     def _record(self, doc_id):
+         record = self.storage.read(doc_id)
+         if record is None:
+@@ -44,10 +51,13 @@
+         check_id(doc_id)
+         return self.storage.read(doc_id) is not None
+ 
+-    def get(self, doc_id):
+-        """Return a deep copy of the document; NotFound when absent."""
++    def get(self, doc_id, pointer=None):
++        """Return a deep copy of the document, or of the value a pointer names."""
+         check_id(doc_id)
+-        return copy.deepcopy(self._record(doc_id)["doc"])
++        doc = self._record(doc_id)["doc"]
++        if pointer is not None:
++            doc = resolve(doc, pointer)
++        return copy.deepcopy(doc)
+ 
+     def revision(self, doc_id):
+         check_id(doc_id)
+@@ -63,7 +73,7 @@
+         if self.storage.read(doc_id) is not None:
+             raise Conflict(f"document {doc_id!r} already exists")
+         self._validate(doc)
+-        self.storage.write(doc_id, {"rev": 1, "doc": copy.deepcopy(doc)})
++        self._save(doc_id, 1, doc)
+         self.history.append(doc_id, "create", 1, digest(doc))
+         return 1
+ 
+@@ -74,20 +84,66 @@
+         self._check_rev(doc_id, record, expected_rev)
+         self._validate(doc)
+         rev = record["rev"] + 1
+-        self.storage.write(doc_id, {"rev": rev, "doc": copy.deepcopy(doc)})
++        self._save(doc_id, rev, doc)
+         self.history.append(doc_id, "put", rev, digest(doc))
+         return rev
+ 
++    def patch(self, doc_id, ops, expected_rev=None, dry_run=False):
++        """Apply a JSON Patch; returns PatchResult(revision, document)."""
++        check_id(doc_id)
++        record = self._record(doc_id)
++        self._check_rev(doc_id, record, expected_rev)
++        doc = apply_patch(record["doc"], ops, self.config.max_ops)
++        try:
++            self._validate(doc)
++        except ValidationError as exc:
++            raise PatchError(f"result invalid: {exc}") from None
++        rev = record["rev"] + 1
++        if not dry_run:
++            self._save(doc_id, rev, doc)
++            self.history.append(doc_id, "patch", rev, digest(doc), f"ops={len(ops)}")
++        return PatchResult(rev, copy.deepcopy(doc))
++
++    def at(self, doc_id, rev):
++        """Return a deep copy of the document as it was at revision ``rev``."""
++        check_id(doc_id)
++        self._record(doc_id)
++        doc = None
++        if isinstance(rev, int) and not isinstance(rev, bool):
++            doc = self.storage.read_version(doc_id, rev)
++        if doc is None:
++            raise NotFound(f"no revision {rev!r} of {doc_id!r}")
++        return doc
++
++    def revert(self, doc_id, rev, expected_rev=None):
++        """Store, as a new revision, the document of revision ``rev``."""
++        check_id(doc_id)
++        record = self._record(doc_id)
++        self._check_rev(doc_id, record, expected_rev)
++        target = self.at(doc_id, rev)
++        ops = diff(record["doc"], target)
++        doc = apply_patch(record["doc"], ops, max(len(ops), 1))
++        try:
++            self._validate(doc)
++        except ValidationError as exc:
++            raise PatchError(f"result invalid: {exc}") from None
++        new_rev = record["rev"] + 1
++        self._save(doc_id, new_rev, doc)
++        self.history.append(doc_id, "revert", new_rev, digest(doc), f"to={rev} ops={len(ops)}")
++        return PatchResult(new_rev, copy.deepcopy(doc))
++
+     def delete(self, doc_id, expected_rev=None):
+         check_id(doc_id)
+         record = self._record(doc_id)
+         self._check_rev(doc_id, record, expected_rev)
+         self.storage.remove(doc_id)
++        self.storage.forget_versions(doc_id)
+         self.history.append(doc_id, "delete", record["rev"], "-")
+ 
+     def load(self, doc_id, rev, doc, detail):
+         """Store a document at a given revision (used by bundle import)."""
+         check_id(doc_id)
+         self._validate(doc)
+-        self.storage.write(doc_id, {"rev": rev, "doc": copy.deepcopy(doc)})
++        self.storage.forget_versions(doc_id)
++        self._save(doc_id, rev, doc)
+         self.history.append(doc_id, "import", rev, digest(doc), detail)

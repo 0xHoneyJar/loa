@@ -174,7 +174,27 @@ run_integrity_checks() {
 
         # Simple check: compare file count (full SHA verification would be more thorough)
         EXPECTED_COUNT=$(jq -r '.files | length' "${PROJECT_ROOT}/.claude/checksums.json" 2>/dev/null || echo "0")
-        ACTUAL_COUNT=$(find "${PROJECT_ROOT}/.claude" -type f ! -path "*/.git/*" ! -path "*/overrides/*" ! -path "*/checksums.json" | wc -l)
+        # cycle-130 FR-1 (#1267): the manifest is generated from the TRACKED
+        # .claude/ tree (tools/gen-checksums.sh), so count with the same rule:
+        # git ls-files -- .claude minus overrides/ and the manifest. In a
+        # submodule mount .claude/checksums.json links into the submodule; the
+        # count is taken in the tree that owns the manifest.
+        MANIFEST_TREE="${PROJECT_ROOT}"
+        if [[ -L "${PROJECT_ROOT}/.claude/checksums.json" ]]; then
+            MANIFEST_LINK=$(readlink "${PROJECT_ROOT}/.claude/checksums.json")
+            [[ "${MANIFEST_LINK}" == /* ]] || MANIFEST_LINK="${PROJECT_ROOT}/.claude/${MANIFEST_LINK}"
+            MANIFEST_TREE=$(cd "$(dirname "${MANIFEST_LINK}")/.." 2>/dev/null && pwd -P) || MANIFEST_TREE="${PROJECT_ROOT}"
+        fi
+        ACTUAL_COUNT=0
+        if git -C "${MANIFEST_TREE}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            ACTUAL_COUNT=$(git -C "${MANIFEST_TREE}" ls-files -- .claude \
+                | awk '!/^\.claude\/overrides\// && $0 != ".claude/checksums.json"' | wc -l | tr -d ' ')
+        fi
+        # No tracked .claude/ in that tree (outside git, or a standard-mode
+        # downstream that does not commit .claude/): keep the legacy count.
+        if [[ "${ACTUAL_COUNT}" -eq 0 ]]; then
+            ACTUAL_COUNT=$(find "${PROJECT_ROOT}/.claude" -type f ! -path "*/.git/*" ! -path "*/overrides/*" ! -path "*/checksums.json" | wc -l | tr -d ' ')
+        fi
 
         if [[ "${EXPECTED_COUNT}" != "${ACTUAL_COUNT}" ]]; then
             echo "⚠️  System Zone integrity check: file count mismatch" >&2

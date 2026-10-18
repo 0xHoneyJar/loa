@@ -1,0 +1,16 @@
+id: refactor-v2-06
+schema_version: 1
+type: refactor
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 F3 swap round 1: a tangled five-field cron package (one long field parser, string-tagged day items L/LW/L-n/nW/dL/d#n, dict settings, an lru_cache, back-imports from cli and cache) rebuilt on a stated ten-layer layout under 24 stated structural rules, with behaviour pinned by a flattened reference over generated expressions, days and moments", churn: {files: 21, insertions: 643, deletions: 454}}
+post_cutoff: true
+fixture: tasks/refactor-v2-06/fixture
+criterion: "the cron package is rebuilt into the stated modules and layers with the stated data model, signatures and error classes, every structural rule of the brief holds across the whole package, and every exported function, the command line and the new layer functions behave exactly as the package does today for every input"
+success_criterion: "hidden/structural/cron_layout_test.py (overlaid at tests/structure/cron_layout_test.py with its helper hidden/structural/_oracle_cron.py at tests/structure/_oracle_cron.py) passes 40 of 40 under python3 -m pytest -q tests/structure (35 rule cases, 5 conformance cases over seeded generated inputs), red at base (39 failed, 1 passed: the exported-behaviour conformance case, which the base satisfies by construction), green with hidden/reference.patch; test_command (the fixture suite, 39 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cli.py, tests/test_fire.py, tests/test_parse.py]
+structural_check: hidden/structural/cron_layout_test.py
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

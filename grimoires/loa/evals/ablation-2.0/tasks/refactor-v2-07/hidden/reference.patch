@@ -1,0 +1,1179 @@
+diff --git a/src/patchwork/__init__.py b/src/patchwork/__init__.py
+index 1e27f33..1893623 100644
+--- a/src/patchwork/__init__.py
++++ b/src/patchwork/__init__.py
+@@ -1,13 +1,17 @@
+ """RFC 6901 JSON pointers and RFC 6902 JSON patches."""
+-from .exceptions import PatchError, PointerError, PathError, OperationError, TestFailed
+-from .jsonpointer import parse_pointer as _parse_pointer, format_pointer, resolve
+-from .patch import apply_patch
+-from .diff import diff
+-from .patch import explain
+-from .util import json_equal
+-from .inspect import list_pointers, type_counts
+ 
++from patchwork.errors import OperationError, PatchError, PathError, PointerError
++from patchwork.errors import TestFailedError as TestFailed
++from patchwork.facade import apply as apply_patch
++from patchwork.facade import diff_documents as diff
++from patchwork.facade import explain, resolve
++from patchwork.facade import pointer_list as list_pointers
++from patchwork.facade import format_tokens as format_pointer
++from patchwork.facade import pointer_tokens as parse_pointer
++from patchwork.facade import same_json as json_equal
++from patchwork.facade import value_types as type_counts
+ 
+-def parse_pointer(text):
+-    """Split a pointer into its unescaped tokens."""
+-    return list(_parse_pointer(text))
++__all__ = [
++    "OperationError", "PatchError", "PathError", "PointerError", "TestFailed", "apply_patch",
++    "diff", "explain", "format_pointer", "json_equal", "list_pointers", "parse_pointer", "resolve", "type_counts",
++]
+diff --git b/src/patchwork/apply.py b/src/patchwork/apply.py
+new file mode 100644
+index 0000000..bb3e827
+--- /dev/null
++++ b/src/patchwork/apply.py
+@@ -0,0 +1,66 @@
++"""Applying validated operations."""
++
++import copy
++
++from patchwork.equality import json_equal
++from patchwork.errors import OperationError, TestFailedError
++from patchwork.model import OpKind, Operation, Target
++from patchwork.mutate import add_at, remove_at, replace_at
++from patchwork.navigate import get_at, where
++from patchwork.pointer import parse_pointer
++
++__all__ = ["apply_operation", "apply_patch", "target_of"]
++
++
++def target_of(pointer: str, index: int) -> Target:
++    """Parse a pointer of an operation into a target."""
++    return Target(parse_pointer(pointer), pointer, index)
++
++
++def _move(document: object, op: Operation) -> object:
++    source, target = target_of(op.source, op.index), target_of(op.path, op.index)
++    if op.source == op.path:
++        get_at(document, source.tokens, source)
++        return document
++    if op.path.startswith(op.source + "/"):
++        raise OperationError(f"{where(target)}cannot move a value into itself")
++    document, value = remove_at(document, source)
++    return add_at(document, target, value)
++
++
++def _copy(document: object, op: Operation) -> object:
++    source = target_of(op.source, op.index)
++    value = copy.deepcopy(get_at(document, source.tokens, source))
++    return add_at(document, target_of(op.path, op.index), value)
++
++
++def _test(document: object, op: Operation) -> object:
++    target = target_of(op.path, op.index)
++    if not json_equal(get_at(document, target.tokens, target), op.value):
++        raise TestFailedError(f"{where(target)}test failed at {op.path!r}")
++    return document
++
++
++def apply_operation(document: object, op: Operation) -> object:
++    """Apply one operation and return the new root."""
++    match op.kind:
++        case OpKind.ADD:
++            return add_at(document, target_of(op.path, op.index), op.value)
++        case OpKind.REMOVE:
++            return remove_at(document, target_of(op.path, op.index))[0]
++        case OpKind.REPLACE:
++            return replace_at(document, target_of(op.path, op.index), op.value)
++        case OpKind.MOVE:
++            return _move(document, op)
++        case OpKind.COPY:
++            return _copy(document, op)
++        case OpKind.TEST:
++            return _test(document, op)
++
++
++def apply_patch(document: object, operations: tuple[Operation, ...]) -> object:
++    """Apply operations to a copy of a document; the input is never changed."""
++    result = copy.deepcopy(document)
++    for op in operations:
++        result = apply_operation(result, op)
++    return result
+diff --git a/src/patchwork/cli.py b/src/patchwork/cli.py
+index 14eae6f..8876c28 100644
+--- a/src/patchwork/cli.py
++++ b/src/patchwork/cli.py
+@@ -1,61 +1,74 @@
+ """The command line entry point main()."""
++
+ import argparse
+ import json
+ import sys
+ 
+-import patchwork
+-from .exceptions import InputError
++from patchwork.errors import InputError, PatchError
++from patchwork.facade import apply, diff_documents, explain, pointer_list, resolve, value_types
++
++__all__ = ["build_parser", "load", "main", "run"]
+ 
+ 
+-def _load(path):
+-    try:
+-        with open(path, encoding="utf-8") as fh:
+-            text = fh.read()
+-    except OSError:
+-        raise InputError("cannot read %r" % (path,))
+-    try:
+-        return json.loads(text)
+-    except ValueError:
+-        raise InputError("bad json in %r" % (path,))
+-
+-
+-def main(argv=None):
+-    """Run the command line and return the exit code."""
+-    p = argparse.ArgumentParser(prog="patchwork")
+-    sub = p.add_subparsers(dest="command", required=True)
+-    a = sub.add_parser("apply")
+-    a.add_argument("document")
+-    a.add_argument("patch")
+-    g = sub.add_parser("get")
+-    g.add_argument("document")
+-    g.add_argument("pointer")
+-    d = sub.add_parser("diff")
+-    d.add_argument("before")
+-    d.add_argument("after")
++def build_parser() -> argparse.ArgumentParser:
++    """Build the argument parser with one subcommand per action."""
++    parser = argparse.ArgumentParser(prog="patchwork")
++    sub = parser.add_subparsers(dest="command", required=True)
++    applying = sub.add_parser("apply")
++    applying.add_argument("document")
++    applying.add_argument("patch")
++    getting = sub.add_parser("get")
++    getting.add_argument("document")
++    getting.add_argument("pointer")
++    diffing = sub.add_parser("diff")
++    diffing.add_argument("before")
++    diffing.add_argument("after")
+     sub.add_parser("explain").add_argument("patch")
+     sub.add_parser("paths").add_argument("document")
+     sub.add_parser("types").add_argument("document")
+-    args = p.parse_args(argv)
++    return parser
++
++
++def load(path: str) -> object:
++    """Read and decode one JSON file."""
+     try:
+-        if args.command == "apply":
+-            out = json.dumps(patchwork.apply_patch(_load(args.document), _load(args.patch)), sort_keys=True, indent=2)
+-        elif args.command == "get":
+-            out = json.dumps(patchwork.resolve(_load(args.document), args.pointer), sort_keys=True)
+-        elif args.command == "diff":
+-            out = json.dumps(patchwork.diff(_load(args.before), _load(args.after)), indent=2)
+-        elif args.command == "paths":
+-            out = "\n".join(p or "(root)" for p in patchwork.list_pointers(_load(args.document)))
+-        elif args.command == "types":
+-            counts = patchwork.type_counts(_load(args.document))
+-            out = "\n".join("%s %d" % (k, v) for k, v in counts.items() if v)
+-        else:
+-            out = patchwork.explain(_load(args.patch))
+-    except patchwork.PatchError as e:
+-        print("error: %s" % e, file=sys.stderr)
++        with open(path, encoding="utf-8") as handle:
++            text = handle.read()
++    except OSError:
++        raise InputError(f"cannot read {path!r}") from None
++    try:
++        return json.loads(text)
++    except json.JSONDecodeError:
++        raise InputError(f"bad json in {path!r}") from None
++
++
++def _survey(args: argparse.Namespace) -> str:
++    document = load(args.document)
++    if args.command == "paths":
++        return "\n".join(p or "(root)" for p in pointer_list(document))
++    counts = value_types(document)
++    return "\n".join(f"{name} {n}" for name, n in counts.items() if n)
++
++
++def run(args: argparse.Namespace) -> str:
++    """Run one parsed command and return its output."""
++    if args.command == "apply":
++        return json.dumps(apply(load(args.document), load(args.patch)), sort_keys=True, indent=2)
++    if args.command == "get":
++        return json.dumps(resolve(load(args.document), args.pointer), sort_keys=True)
++    if args.command == "diff":
++        return json.dumps(diff_documents(load(args.before), load(args.after)), indent=2)
++    if args.command in ("paths", "types"):
++        return _survey(args)
++    return explain(load(args.patch))
++
++
++def main(argv: list[str] | None = None) -> int:
++    """Run the command line and return the exit code."""
++    args = build_parser().parse_args(argv)
++    try:
++        print(run(args))
++    except PatchError as exc:
++        print(f"error: {exc}", file=sys.stderr)
+         return 2
+-    print(out)
+     return 0
+-
+-
+-if __name__ == "__main__":
+-    sys.exit(main())
+diff --git a/src/patchwork/diff.py a/src/patchwork/diff.py
+deleted file mode 100644
+index 26604b6..0000000
+--- a/src/patchwork/diff.py
++++ /dev/null
+@@ -1,29 +0,0 @@
+-"""Computing a patch that turns one document into another."""
+-from .jsonpointer import format_pointer
+-from .util import json_equal
+-from typing import List, Optional
+-
+-
+-def diff(a, b, tokens: Optional[List[str]] = None):
+-    """Return raw operations that turn a into b."""
+-    if tokens is None:
+-        tokens = []
+-    if json_equal(a, b):
+-        return []
+-    ops = []
+-    if isinstance(a, dict) and isinstance(b, dict):
+-        for k in sorted(a):
+-            if k not in b:
+-                ops.append({"op": "remove", "path": format_pointer(tokens + [k])})
+-        for k in sorted(a):
+-            if k in b:
+-                ops.extend(diff(a[k], b[k], tokens + [k]))
+-        for k in sorted(b):
+-            if k not in a:
+-                ops.append({"op": "add", "path": format_pointer(tokens + [k]), "value": b[k]})
+-        return ops
+-    if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+-        for i in range(len(a)):
+-            ops.extend(diff(a[i], b[i], tokens + [str(i)]))
+-        return ops
+-    return [{"op": "replace", "path": format_pointer(tokens), "value": b}]
+diff --git b/src/patchwork/diffing.py b/src/patchwork/diffing.py
+new file mode 100644
+index 0000000..8b0c7d0
+--- /dev/null
++++ b/src/patchwork/diffing.py
+@@ -0,0 +1,43 @@
++"""Computing a patch that turns one document into another."""
++
++from patchwork.equality import json_equal
++from patchwork.pointer import format_pointer
++
++__all__ = ["diff"]
++
++
++def _op(kind: str, tokens: tuple[str, ...], value: object = None) -> dict[str, object]:
++    out: dict[str, object] = {"op": kind, "path": format_pointer(tokens)}
++    if kind != "remove":
++        out["value"] = value
++    return out
++
++
++def _only_in(a: dict[str, object], b: dict[str, object]) -> list[str]:
++    return sorted(k for k in a if k not in b)
++
++
++def _diff_dicts(a: dict[str, object], b: dict[str, object], tokens: tuple[str, ...]) -> list[dict[str, object]]:
++    ops = [_op("remove", tokens + (k,)) for k in _only_in(a, b)]
++    for key in sorted(k for k in a if k in b):
++        ops.extend(diff(a[key], b[key], tokens + (key,)))
++    ops.extend(_op("add", tokens + (k,), b[k]) for k in _only_in(b, a))
++    return ops
++
++
++def _diff_lists(a: list[object], b: list[object], tokens: tuple[str, ...]) -> list[dict[str, object]]:
++    ops: list[dict[str, object]] = []
++    for index, (x, y) in enumerate(zip(a, b)):
++        ops.extend(diff(x, y, tokens + (str(index),)))
++    return ops
++
++
++def diff(a: object, b: object, tokens: tuple[str, ...] = ()) -> list[dict[str, object]]:
++    """Return raw operations that turn a into b."""
++    if json_equal(a, b):
++        return []
++    if isinstance(a, dict) and isinstance(b, dict):
++        return _diff_dicts(a, b, tokens)
++    if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
++        return _diff_lists(a, b, tokens)
++    return [_op("replace", tokens, b)]
+diff --git b/src/patchwork/equality.py b/src/patchwork/equality.py
+new file mode 100644
+index 0000000..9c48a6d
+--- /dev/null
++++ b/src/patchwork/equality.py
+@@ -0,0 +1,28 @@
++"""JSON value equality."""
++
++__all__ = ["json_equal"]
++
++
++def _is_number(value: object) -> bool:
++    return isinstance(value, (int, float)) and not isinstance(value, bool)
++
++
++def _same_list(a: list[object], b: list[object]) -> bool:
++    return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
++
++
++def _same_dict(a: dict[str, object], b: dict[str, object]) -> bool:
++    return a.keys() == b.keys() and all(json_equal(a[k], b[k]) for k in a)
++
++
++def json_equal(a: object, b: object) -> bool:
++    """Compare two JSON values; 1 equals 1.0, true never equals 1."""
++    if _is_number(a) and _is_number(b):
++        return a == b
++    if type(a) is not type(b):
++        return False
++    if isinstance(a, list):
++        return _same_list(a, b)
++    if isinstance(a, dict):
++        return _same_dict(a, b)
++    return a == b
+diff --git b/src/patchwork/errors.py b/src/patchwork/errors.py
+new file mode 100644
+index 0000000..ebc14e4
+--- /dev/null
++++ b/src/patchwork/errors.py
+@@ -0,0 +1,27 @@
++"""The errors the package raises."""
++
++__all__ = ["InputError", "OperationError", "PatchError", "PathError", "PointerError", "TestFailedError"]
++
++
++class PatchError(ValueError):
++    """Base class of every error the package raises."""
++
++
++class PointerError(PatchError):
++    """A pointer string does not follow RFC 6901."""
++
++
++class PathError(PatchError):
++    """A pointer does not lead to a usable location in the document."""
++
++
++class OperationError(PatchError):
++    """A patch or one of its operations is malformed or cannot apply."""
++
++
++class TestFailedError(PatchError):
++    """A test operation found a different value."""
++
++
++class InputError(PatchError):
++    """A command-line input file cannot be read or decoded."""
+diff --git a/src/patchwork/exceptions.py a/src/patchwork/exceptions.py
+deleted file mode 100644
+index b0a6e3a..0000000
+--- a/src/patchwork/exceptions.py
++++ /dev/null
+@@ -1,22 +0,0 @@
+-class PatchError(ValueError):
+-    """Base class of every error the package raises."""
+-
+-
+-class PointerError(PatchError):
+-    pass
+-
+-
+-class PathError(PatchError):
+-    pass
+-
+-
+-class OperationError(PatchError):
+-    pass
+-
+-
+-class TestFailed(PatchError):
+-    pass
+-
+-
+-class InputError(PatchError):
+-    pass
+diff --git b/src/patchwork/explain.py b/src/patchwork/explain.py
+new file mode 100644
+index 0000000..5e8ffc3
+--- /dev/null
++++ b/src/patchwork/explain.py
+@@ -0,0 +1,36 @@
++"""One line of text per operation of a patch."""
++
++import json
++
++from patchwork.model import OpKind, Operation
++from patchwork.operations import parse_patch
++
++__all__ = ["explain_operation", "explain_patch"]
++
++
++def _shown(pointer: str) -> str:
++    return pointer if pointer else "(root)"
++
++
++def _value(value: object) -> str:
++    return " = " + json.dumps(value, sort_keys=True, separators=(",", ":"))
++
++
++def explain_operation(op: Operation) -> str:
++    """Describe one operation in a single line."""
++    head = f"{op.index + 1}. {op.kind.value} {_shown(op.path)}"
++    match op.kind:
++        case OpKind.ADD | OpKind.REPLACE | OpKind.TEST:
++            return head + _value(op.value)
++        case OpKind.MOVE | OpKind.COPY:
++            return head + " from " + _shown(op.source)
++        case OpKind.REMOVE:
++            return head
++
++
++def explain_patch(raw: object) -> str:
++    """Describe a raw patch, one line per operation."""
++    operations = parse_patch(raw)
++    if not operations:
++        return "(empty patch)"
++    return "\n".join(explain_operation(op) for op in operations)
+diff --git b/src/patchwork/facade.py b/src/patchwork/facade.py
+new file mode 100644
+index 0000000..b2de197
+--- /dev/null
++++ b/src/patchwork/facade.py
+@@ -0,0 +1,60 @@
++"""The functions the package exports, on raw JSON values."""
++
++from patchwork.apply import apply_patch, target_of
++from patchwork.diffing import diff
++from patchwork.equality import json_equal
++from patchwork.explain import explain_patch
++from patchwork.navigate import get_at
++from patchwork.operations import parse_patch
++from patchwork.pointer import format_pointer, parse_pointer
++from patchwork.survey import list_pointers, type_counts
++
++__all__ = [
++    "apply", "diff_documents", "explain", "format_tokens", "pointer_list", "pointer_tokens", "resolve", "same_json", "value_types",
++]
++
++
++def apply(document: object, patch: object) -> object:
++    """Validate a raw patch, then apply it to a copy of a document."""
++    return apply_patch(document, parse_patch(patch))
++
++
++def resolve(document: object, pointer: str) -> object:
++    """Return the value a pointer refers to."""
++    target = target_of(pointer, -1)
++    return get_at(document, target.tokens, target)
++
++
++def diff_documents(a: object, b: object) -> list[dict[str, object]]:
++    """Return raw operations that turn a into b."""
++    return diff(a, b)
++
++
++def explain(patch: object) -> str:
++    """Describe a raw patch, one line per operation."""
++    return explain_patch(patch)
++
++
++def same_json(a: object, b: object) -> bool:
++    """Compare two JSON values."""
++    return json_equal(a, b)
++
++
++def pointer_tokens(text: str) -> list[str]:
++    """Split a pointer into its unescaped tokens."""
++    return list(parse_pointer(text))
++
++
++def format_tokens(tokens: list[str]) -> str:
++    """Join tokens into an escaped pointer."""
++    return format_pointer(tuple(tokens))
++
++
++def pointer_list(document: object) -> list[str]:
++    """List the pointer of every value of a document."""
++    return list_pointers(document)
++
++
++def value_types(document: object) -> dict[str, int]:
++    """Count the values of each JSON type in a document."""
++    return type_counts(document)
+diff --git a/src/patchwork/inspect.py a/src/patchwork/inspect.py
+deleted file mode 100644
+index 2f5e4f2..0000000
+--- a/src/patchwork/inspect.py
++++ /dev/null
+@@ -1,50 +0,0 @@
+-"""Looking around a document."""
+-from .util import jsonTypes
+-
+-
+-def _walk(doc, tokens, out):
+-    from .jsonpointer import format_pointer
+-    out.append(format_pointer(tokens))
+-    if isinstance(doc, dict):
+-        for k in doc:
+-            _walk(doc[k], tokens + [k], out)
+-    elif isinstance(doc, list):
+-        for i in range(len(doc)):
+-            _walk(doc[i], tokens + [str(i)], out)
+-
+-
+-def list_pointers(doc):
+-    """List the pointer of every value, the root first, in document order."""
+-    out = []
+-    _walk(doc, [], out)
+-    return out
+-
+-
+-def type_of(value):
+-    if isinstance(value, dict):
+-        return "object"
+-    elif isinstance(value, list):
+-        return "array"
+-    elif isinstance(value, str):
+-        return "string"
+-    elif isinstance(value, bool):
+-        return "boolean"
+-    elif isinstance(value, (int, float)):
+-        return "number"
+-    elif value is None:
+-        return "null"
+-    raise ValueError("not a JSON value: %r" % (value,))
+-
+-
+-def type_counts(doc):
+-    """Count the values of each JSON type, the root included."""
+-    counts = dict((name, 0) for name in jsonTypes.NAMES)
+-    stack = [doc]
+-    while stack:
+-        v = stack.pop()
+-        counts[type_of(v)] += 1
+-        if isinstance(v, dict):
+-            stack.extend(v.values())
+-        elif isinstance(v, list):
+-            stack.extend(v)
+-    return counts
+diff --git a/src/patchwork/jsonpointer.py a/src/patchwork/jsonpointer.py
+deleted file mode 100644
+index 25018af..0000000
+--- a/src/patchwork/jsonpointer.py
++++ /dev/null
+@@ -1,69 +0,0 @@
+-"""RFC 6901 pointers."""
+-import re
+-
+-from .exceptions import PointerError, PathError
+-
+-_bad_escape = re.compile(r"~(?![01])")
+-_index_re = re.compile(r"0|[1-9][0-9]*")
+-
+-
+-def parse_pointer(text):
+-    """Split a pointer into its unescaped reference tokens."""
+-    if not isinstance(text, str):
+-        raise PointerError("pointer must be a string: %r" % (text,))
+-    if text == "":
+-        return []
+-    if text[0] != "/":
+-        raise PointerError("invalid pointer: %r" % (text,))
+-    out = []
+-    for tok in text[1:].split("/"):
+-        if _bad_escape.search(tok):
+-            raise PointerError("invalid escape in pointer: %r" % (text,))
+-        out.append(tok.replace("~1", "/").replace("~0", "~"))
+-    return out
+-
+-
+-def format_pointer(tokens):
+-    """Join reference tokens into an escaped pointer."""
+-    return "".join("/" + t.replace("~", "~0").replace("/", "~1") for t in tokens)
+-
+-
+-def _prefix(opindex):
+-    if opindex is None:
+-        return ""
+-    return "operation %d: " % opindex
+-
+-
+-def index_of(tok, arr, pointer, opindex, forAdd=False):
+-    if tok == "-":
+-        if forAdd:
+-            return len(arr)
+-        raise PathError("%sindex '-' is past the end: %r" % (_prefix(opindex), pointer))
+-    if not _index_re.fullmatch(tok):
+-        raise PathError("%sinvalid array index %r in %r" % (_prefix(opindex), tok, pointer))
+-    try:
+-        i = int(tok)
+-    except:  # noqa: E722
+-        raise PathError("%sinvalid array index %r in %r" % (_prefix(opindex), tok, pointer))
+-    if (forAdd and i > len(arr)) or (not forAdd and i >= len(arr)):
+-        raise PathError("%sindex %d out of range in %r" % (_prefix(opindex), i, pointer))
+-    return i
+-
+-
+-def walk(doc, tokens, pointer, opindex=None):
+-    cur = doc
+-    for tok in tokens:
+-        if isinstance(cur, dict):
+-            if tok not in cur:
+-                raise PathError("%spath not found: %r" % (_prefix(opindex), pointer))
+-            cur = cur[tok]
+-        elif isinstance(cur, list):
+-            cur = cur[index_of(tok, cur, pointer, opindex)]
+-        else:
+-            raise PathError("%scannot descend into a scalar at %r" % (_prefix(opindex), pointer))
+-    return cur
+-
+-
+-def resolve(doc, pointer):
+-    """Return the value a pointer refers to."""
+-    return walk(doc, parse_pointer(pointer), pointer)
+diff --git b/src/patchwork/model.py b/src/patchwork/model.py
+new file mode 100644
+index 0000000..61baee3
+--- /dev/null
++++ b/src/patchwork/model.py
+@@ -0,0 +1,48 @@
++"""Plain data: operations, targets and the operation kinds."""
++
++import enum
++from dataclasses import dataclass
++
++__all__ = ["JsonType", "OpKind", "Operation", "Target"]
++
++
++class OpKind(enum.Enum):
++    """The six operations of RFC 6902."""
++
++    ADD = "add"
++    REMOVE = "remove"
++    REPLACE = "replace"
++    MOVE = "move"
++    COPY = "copy"
++    TEST = "test"
++
++
++class JsonType(enum.Enum):
++    """The six JSON value types, in report order."""
++
++    OBJECT = "object"
++    ARRAY = "array"
++    STRING = "string"
++    NUMBER = "number"
++    BOOLEAN = "boolean"
++    NULL = "null"
++
++
++@dataclass(frozen=True, slots=True)
++class Operation:
++    """One validated operation; source is the from pointer of move and copy."""
++
++    kind: OpKind
++    path: str
++    value: object = None
++    source: str = ""
++    index: int = 0
++
++
++@dataclass(frozen=True, slots=True)
++class Target:
++    """A parsed pointer with its text and the operation it belongs to."""
++
++    tokens: tuple[str, ...]
++    pointer: str
++    index: int = -1
+diff --git b/src/patchwork/mutate.py b/src/patchwork/mutate.py
+new file mode 100644
+index 0000000..61a7f18
+--- /dev/null
++++ b/src/patchwork/mutate.py
+@@ -0,0 +1,55 @@
++"""Adding, removing and replacing values in a document."""
++
++import copy
++
++from patchwork.errors import PathError
++from patchwork.model import Target
++from patchwork.navigate import array_index, get_at, insert_index, where
++
++__all__ = ["add_at", "remove_at", "replace_at"]
++
++
++def add_at(document: object, target: Target, value: object) -> object:
++    """Add a value at a target and return the new root."""
++    if not target.tokens:
++        return copy.deepcopy(value)
++    parent = get_at(document, target.tokens[:-1], target)
++    last = target.tokens[-1]
++    if isinstance(parent, dict):
++        parent[last] = copy.deepcopy(value)
++    elif isinstance(parent, list):
++        parent.insert(insert_index(last, len(parent), target), copy.deepcopy(value))
++    else:
++        raise PathError(f"{where(target)}cannot add to a scalar at {target.pointer!r}")
++    return document
++
++
++def _container(document: object, target: Target) -> dict[str, object] | list[object]:
++    parent = get_at(document, target.tokens[:-1], target)
++    if not isinstance(parent, (dict, list)):
++        raise PathError(f"{where(target)}cannot descend into a scalar at {target.pointer!r}")
++    if isinstance(parent, dict) and target.tokens[-1] not in parent:
++        raise PathError(f"{where(target)}path not found: {target.pointer!r}")
++    return parent
++
++
++def _slot(parent: dict[str, object] | list[object], target: Target) -> str | int:
++    last = target.tokens[-1]
++    return last if isinstance(parent, dict) else array_index(last, len(parent), target)
++
++
++def remove_at(document: object, target: Target) -> tuple[object, object]:
++    """Remove the value at a target; return the new root and the value."""
++    if not target.tokens:
++        raise PathError(f"{where(target)}cannot remove the root")
++    parent = _container(document, target)
++    return document, parent.pop(_slot(parent, target))
++
++
++def replace_at(document: object, target: Target, value: object) -> object:
++    """Replace the value at a target and return the new root."""
++    if not target.tokens:
++        return copy.deepcopy(value)
++    parent = _container(document, target)
++    parent[_slot(parent, target)] = copy.deepcopy(value)
++    return document
+diff --git b/src/patchwork/navigate.py b/src/patchwork/navigate.py
+new file mode 100644
+index 0000000..5f5ca79
+--- /dev/null
++++ b/src/patchwork/navigate.py
+@@ -0,0 +1,57 @@
++"""Walking a document along a parsed pointer."""
++
++import re
++
++from patchwork.errors import PathError
++from patchwork.model import Target
++
++__all__ = ["array_index", "get_at", "insert_index", "where"]
++
++
++def where(target: Target) -> str:
++    """Return the message prefix naming the operation, if any."""
++    return f"operation {target.index}: " if target.index >= 0 else ""
++
++
++def _number(token: str, target: Target) -> int:
++    if not re.fullmatch(r"0|[1-9][0-9]*", token):
++        raise PathError(f"{where(target)}invalid array index {token!r} in {target.pointer!r}")
++    return int(token)
++
++
++def array_index(token: str, length: int, target: Target) -> int:
++    """Read an index of an existing array element."""
++    if token == "-":
++        raise PathError(f"{where(target)}index '-' is past the end: {target.pointer!r}")
++    index = _number(token, target)
++    if index >= length:
++        raise PathError(f"{where(target)}index {index} out of range in {target.pointer!r}")
++    return index
++
++
++def insert_index(token: str, length: int, target: Target) -> int:
++    """Read an index where an add may insert; '-' and the length append."""
++    if token == "-":
++        return length
++    index = _number(token, target)
++    if index > length:
++        raise PathError(f"{where(target)}index {index} out of range in {target.pointer!r}")
++    return index
++
++
++def _step(current: object, token: str, target: Target) -> object:
++    if isinstance(current, dict):
++        if token not in current:
++            raise PathError(f"{where(target)}path not found: {target.pointer!r}")
++        return current[token]
++    if isinstance(current, list):
++        return current[array_index(token, len(current), target)]
++    raise PathError(f"{where(target)}cannot descend into a scalar at {target.pointer!r}")
++
++
++def get_at(document: object, tokens: tuple[str, ...], target: Target) -> object:
++    """Return the value at the given tokens of a target's pointer."""
++    current = document
++    for token in tokens:
++        current = _step(current, token, target)
++    return current
+diff --git b/src/patchwork/operations.py b/src/patchwork/operations.py
+new file mode 100644
+index 0000000..c07c1a2
+--- /dev/null
++++ b/src/patchwork/operations.py
+@@ -0,0 +1,56 @@
++"""Validating raw patch operations."""
++
++from patchwork.errors import OperationError
++from patchwork.model import OpKind, Operation
++from patchwork.pointer import parse_pointer
++
++__all__ = ["parse_operation", "parse_patch", "required_members"]
++
++
++def required_members(kind: OpKind) -> tuple[str, ...]:
++    """Return the members an operation of this kind needs besides op and path."""
++    match kind:
++        case OpKind.ADD | OpKind.REPLACE | OpKind.TEST:
++            return ("value",)
++        case OpKind.MOVE | OpKind.COPY:
++            return ("from",)
++        case OpKind.REMOVE:
++            return ()
++
++
++def _kind(raw: dict[str, object], index: int) -> OpKind:
++    if "op" not in raw:
++        raise OperationError(f"operation {index}: missing 'op'")
++    names = [k.value for k in OpKind]
++    if not isinstance(raw["op"], str) or raw["op"] not in names:
++        raise OperationError(f"operation {index}: unknown op {raw['op']!r}")
++    return OpKind(raw["op"])
++
++
++def _pointer_member(raw: dict[str, object], name: str, index: int) -> str:
++    if name not in raw:
++        raise OperationError(f"operation {index}: missing {name!r}")
++    if not isinstance(raw[name], str):
++        raise OperationError(f"operation {index}: {name!r} must be a string")
++    parse_pointer(raw[name])
++    return raw[name]
++
++
++def parse_operation(raw: object, index: int) -> Operation:
++    """Validate one raw operation object."""
++    if not isinstance(raw, dict):
++        raise OperationError(f"operation {index}: not an object")
++    kind = _kind(raw, index)
++    path = _pointer_member(raw, "path", index)
++    needs = required_members(kind)
++    if "value" in needs and "value" not in raw:
++        raise OperationError(f"operation {index}: missing 'value'")
++    source = _pointer_member(raw, "from", index) if "from" in needs else ""
++    return Operation(kind, path, raw.get("value"), source, index)
++
++
++def parse_patch(raw: object) -> tuple[Operation, ...]:
++    """Validate a whole patch before anything is applied."""
++    if not isinstance(raw, list):
++        raise OperationError("patch must be a list")
++    return tuple(parse_operation(item, index) for index, item in enumerate(raw))
+diff --git a/src/patchwork/patch.py a/src/patchwork/patch.py
+deleted file mode 100644
+index 576d705..0000000
+--- a/src/patchwork/patch.py
++++ /dev/null
+@@ -1,124 +0,0 @@
+-"""RFC 6902 patches."""
+-import json
+-
+-from . import registry
+-from .exceptions import OperationError, PathError, TestFailed
+-from .jsonpointer import parse_pointer, walk, index_of, _prefix
+-from .util import clone, json_equal
+-
+-
+-def _validate(patch):
+-    if not isinstance(patch, list):
+-        raise OperationError("patch must be a list")
+-    ops = []
+-    for i, raw in enumerate(patch):
+-        if not isinstance(raw, dict):
+-            raise OperationError("operation %d: not an object" % i)
+-        if "op" not in raw:
+-            raise OperationError("operation %d: missing 'op'" % i)
+-        if not isinstance(raw["op"], str) or raw["op"] not in registry.OP_NAMES:
+-            raise OperationError("operation %d: unknown op %r" % (i, raw["op"]))
+-        for name in ["path"] + registry.REQUIRED[raw["op"]]:
+-            if name not in raw:
+-                raise OperationError("operation %d: missing %r" % (i, name))
+-            if name != "value":
+-                if not isinstance(raw[name], str):
+-                    raise OperationError("operation %d: %r must be a string" % (i, name))
+-                parse_pointer(raw[name])
+-        ops.append(raw)
+-    return ops
+-
+-
+-def apply_patch(doc, patch):
+-    """Validate a raw patch, then apply it to a copy of a document."""
+-    ops = _validate(patch)
+-    doc = clone(doc)
+-    for i, op in enumerate(ops):
+-        kind = op["op"]
+-        path = op["path"]
+-        tokens = parse_pointer(path)
+-        if kind == "add" or kind == "copy":
+-            if kind == "copy":
+-                value = clone(walk(doc, parse_pointer(op["from"]), op["from"], i))
+-            else:
+-                value = op["value"]
+-            if not tokens:
+-                doc = clone(value)
+-                continue
+-            parent = walk(doc, tokens[:-1], path, i)
+-            if isinstance(parent, dict):
+-                parent[tokens[-1]] = clone(value)
+-            elif isinstance(parent, list):
+-                parent.insert(index_of(tokens[-1], parent, path, i, forAdd=True), clone(value))
+-            else:
+-                raise PathError("%scannot add to a scalar at %r" % (_prefix(i), path))
+-        elif kind == "remove" or kind == "replace":
+-            if not tokens:
+-                if kind == "remove":
+-                    raise PathError("%scannot remove the root" % _prefix(i))
+-                doc = clone(op["value"])
+-                continue
+-            parent = walk(doc, tokens[:-1], path, i)
+-            if not isinstance(parent, (dict, list)):
+-                raise PathError("%scannot descend into a scalar at %r" % (_prefix(i), path))
+-            if isinstance(parent, dict):
+-                if tokens[-1] not in parent:
+-                    raise PathError("%spath not found: %r" % (_prefix(i), path))
+-                key = tokens[-1]
+-            else:
+-                key = index_of(tokens[-1], parent, path, i)
+-            if kind == "remove":
+-                parent.pop(key)
+-            else:
+-                parent[key] = clone(op["value"])
+-        elif kind == "move":
+-            src = op["from"]
+-            if src == path:
+-                walk(doc, parse_pointer(src), src, i)
+-                continue
+-            if path.startswith(src + "/"):
+-                raise OperationError("%scannot move a value into itself" % _prefix(i))
+-            stoks = parse_pointer(src)
+-            if not stoks:
+-                raise PathError("%scannot remove the root" % _prefix(i))
+-            sparent = walk(doc, stoks[:-1], src, i)
+-            if not isinstance(sparent, (dict, list)):
+-                raise PathError("%scannot descend into a scalar at %r" % (_prefix(i), src))
+-            if isinstance(sparent, dict):
+-                if stoks[-1] not in sparent:
+-                    raise PathError("%spath not found: %r" % (_prefix(i), src))
+-                value = sparent.pop(stoks[-1])
+-            else:
+-                value = sparent.pop(index_of(stoks[-1], sparent, src, i))
+-            if not tokens:
+-                doc = clone(value)
+-                continue
+-            parent = walk(doc, tokens[:-1], path, i)
+-            if isinstance(parent, dict):
+-                parent[tokens[-1]] = clone(value)
+-            elif isinstance(parent, list):
+-                parent.insert(index_of(tokens[-1], parent, path, i, forAdd=True), clone(value))
+-            else:
+-                raise PathError("%scannot add to a scalar at %r" % (_prefix(i), path))
+-        else:
+-            actual = walk(doc, tokens, path, i)
+-            if not json_equal(actual, op["value"]):
+-                raise TestFailed("%stest failed at %r" % (_prefix(i), path))
+-    return doc
+-
+-
+-def explain(patch):
+-    """Describe a raw patch, one line per operation."""
+-    ops = _validate(patch)
+-    if len(ops) == 0:
+-        return "(empty patch)"
+-    lines = []
+-    for i, op in enumerate(ops):
+-        path = op["path"] or "(root)"
+-        line = "%d. %s %s" % (i + 1, op["op"], path)
+-        if op["op"] in ("add", "replace", "test"):
+-            line += " = " + json.dumps(op["value"], sort_keys=True, separators=(",", ":"))
+-        elif op["op"] in ("move", "copy"):
+-            line += " from " + (op["from"] or "(root)")
+-        lines.append(line)
+-    return "\n".join(lines)
+diff --git b/src/patchwork/pointer.py b/src/patchwork/pointer.py
+new file mode 100644
+index 0000000..ea818e0
+--- /dev/null
++++ b/src/patchwork/pointer.py
+@@ -0,0 +1,29 @@
++"""RFC 6901 pointers: parsing and formatting."""
++
++import re
++
++from patchwork.errors import PointerError
++
++__all__ = ["format_pointer", "parse_pointer"]
++
++
++def _unescape(token: str, text: str) -> str:
++    if re.search(r"~(?![01])", token):
++        raise PointerError(f"invalid escape in pointer: {text!r}")
++    return token.replace("~1", "/").replace("~0", "~")
++
++
++def parse_pointer(text: str) -> tuple[str, ...]:
++    """Split a pointer into its unescaped reference tokens."""
++    if not isinstance(text, str):
++        raise PointerError(f"pointer must be a string: {text!r}")
++    if text == "":
++        return ()
++    if not text.startswith("/"):
++        raise PointerError(f"invalid pointer: {text!r}")
++    return tuple(_unescape(token, text) for token in text[1:].split("/"))
++
++
++def format_pointer(tokens: tuple[str, ...]) -> str:
++    """Join reference tokens into an escaped pointer."""
++    return "".join("/" + t.replace("~", "~0").replace("/", "~1") for t in tokens)
+diff --git a/src/patchwork/registry.py a/src/patchwork/registry.py
+deleted file mode 100644
+index 5c1843b..0000000
+--- a/src/patchwork/registry.py
++++ /dev/null
+@@ -1,12 +0,0 @@
+-"""Which members each operation needs."""
+-
+-REQUIRED = {
+-    "add": ["value"],
+-    "remove": [],
+-    "replace": ["value"],
+-    "move": ["from"],
+-    "copy": ["from"],
+-    "test": ["value"],
+-}
+-
+-OP_NAMES = list(REQUIRED)
+diff --git b/src/patchwork/survey.py b/src/patchwork/survey.py
+new file mode 100644
+index 0000000..78a9693
+--- /dev/null
++++ b/src/patchwork/survey.py
+@@ -0,0 +1,52 @@
++"""Looking around a document: its pointers and its value types."""
++
++from patchwork.errors import PathError
++from patchwork.model import JsonType
++from patchwork.pointer import format_pointer
++
++__all__ = ["json_type", "list_pointers", "type_counts"]
++
++
++def _children(value: object) -> list[tuple[str, object]]:
++    if isinstance(value, dict):
++        return list(value.items())
++    if isinstance(value, list):
++        return [(str(i), v) for i, v in enumerate(value)]
++    return []
++
++
++def _collect(value: object, tokens: tuple[str, ...], out: list[str]) -> None:
++    out.append(format_pointer(tokens))
++    for token, child in _children(value):
++        _collect(child, tokens + (token,), out)
++
++
++def list_pointers(document: object) -> list[str]:
++    """List the pointer of every value, the root first, in document order."""
++    out: list[str] = []
++    _collect(document, (), out)
++    return out
++
++
++def json_type(value: object) -> JsonType:
++    """Return the JSON type of a value."""
++    checks = ((dict, JsonType.OBJECT), (list, JsonType.ARRAY), (str, JsonType.STRING), (bool, JsonType.BOOLEAN))
++    for cls, kind in checks:
++        if isinstance(value, cls):
++            return kind
++    if isinstance(value, (int, float)):
++        return JsonType.NUMBER
++    if value is None:
++        return JsonType.NULL
++    raise PathError(f"not a JSON value: {value!r}")
++
++
++def type_counts(document: object) -> dict[str, int]:
++    """Count the values of each JSON type, the root included."""
++    counts = {kind.value: 0 for kind in JsonType}
++    stack = [document]
++    while stack:
++        value = stack.pop()
++        counts[json_type(value).value] += 1
++        stack.extend(child for _, child in _children(value))
++    return counts
+diff --git a/src/patchwork/util.py a/src/patchwork/util.py
+deleted file mode 100644
+index 1eea516..0000000
+--- a/src/patchwork/util.py
++++ /dev/null
+@@ -1,43 +0,0 @@
+-import copy
+-
+-_copies = 0
+-DEBUG = False
+-
+-
+-def clone(value):
+-    global _copies
+-    _copies += 1
+-    if DEBUG:
+-        print("clone #%d" % _copies)
+-    return copy.deepcopy(value)
+-
+-
+-class jsonTypes:
+-    NAMES = ["object", "array", "string", "number", "boolean", "null"]
+-
+-
+-def _is_number(v):
+-    return isinstance(v, (int, float)) and not isinstance(v, bool)
+-
+-
+-def json_equal(a, b):
+-    """Compare two JSON values; 1 equals 1.0, true never equals 1."""
+-    if _is_number(a) and _is_number(b):
+-        return a == b
+-    if type(a) is not type(b):
+-        return False
+-    if isinstance(a, list):
+-        if len(a) != len(b):
+-            return False
+-        for x, y in zip(a, b):
+-            if not json_equal(x, y):
+-                return False
+-        return True
+-    if isinstance(a, dict):
+-        if a.keys() != b.keys():
+-            return False
+-        for k in a:
+-            if not json_equal(a[k], b[k]):
+-                return False
+-        return True
+-    return a == b

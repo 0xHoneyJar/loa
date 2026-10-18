@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "run_id": "abl-fixture-a7_effort_medium-bf-01-t1",
+  "arm": "a7_effort_medium",
+  "task_id": "bf-01",
+  "task_type": "bug-fix",
+  "trial": 1,
+  "source_commit": "e93ad7020096c9abc673975cf4df0c7f0c541d86",
+  "suite_version": 1,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 12,
+  "spent_usd": 2,
+  "arm_toggles": {
+    "effort": "medium"
+  },
+  "effort_flag": "medium",
+  "arm_evidence": {
+    "base_commit": "bd96e2c1be4c1ca71114de708fd8ae3f514fb602",
+    "mount": "whole_tree",
+    "effort": "medium",
+    "effort_stripped": "4",
+    "beads": "opt-out",
+    "manifest_files": "5",
+    "manifest_sha256": "0564a0cb75af166fef1e15d3f0df749c66ec070930e673668bbc31eb2420c29c"
+  },
+  "executor_mode": "host",
+  "image_digest": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "sandbox_fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {
+    "implement": "1d03752a4a62577a219c9906aa071a78b66b43c7"
+  },
+  "phases": [
+    {
+      "name": "PLAN",
+      "label": "PLAN",
+      "skipped": false,
+      "session_id": "sess-PLAN-31385-22276",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 200
+      },
+      "effort_requested": "medium",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 132,
+      "num_turns": 2,
+      "max_turns": 30,
+      "timeout_s": 900,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.00408,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:22Z",
+      "finished": "2026-10-14T22:42:22Z"
+    },
+    {
+      "name": "IMPLEMENT",
+      "label": "IMPLEMENT",
+      "skipped": false,
+      "session_id": "sess-IMPLEMENT-31580-2435",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 200
+      },
+      "effort_requested": "medium",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 121,
+      "num_turns": 2,
+      "max_turns": 60,
+      "timeout_s": 1500,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": "1d03752a4a62577a219c9906aa071a78b66b43c7",
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.00408,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:22Z",
+      "finished": "2026-10-14T22:42:22Z"
+    },
+    {
+      "name": "REVIEW",
+      "label": "REVIEW",
+      "skipped": false,
+      "session_id": "sess-REVIEW-31733-26658",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 200
+      },
+      "effort_requested": "medium",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 135,
+      "num_turns": 2,
+      "max_turns": 40,
+      "timeout_s": 1200,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": "APPROVED",
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.0102,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:22Z",
+      "finished": "2026-10-14T22:42:23Z"
+    },
+    {
+      "name": "FIX",
+      "label": "FIX1",
+      "skipped": true,
+      "reason": "preceding gate verdict APPROVED",
+      "session_id": null,
+      "exit": null,
+      "cost_usd": 0
+    },
+    {
+      "name": "AUDIT",
+      "label": "AUDIT",
+      "skipped": false,
+      "session_id": "sess-AUDIT-31879-28012",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 200
+      },
+      "effort_requested": "medium",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 134,
+      "num_turns": 2,
+      "max_turns": 40,
+      "timeout_s": 1200,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": "APPROVED",
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.0102,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:23Z",
+      "finished": "2026-10-14T22:42:23Z"
+    },
+    {
+      "name": "FIX",
+      "label": "FIX2",
+      "skipped": true,
+      "reason": "preceding gate verdict APPROVED",
+      "session_id": null,
+      "exit": null,
+      "cost_usd": 0
+    }
+  ],
+  "started": "2026-10-14T22:42:21Z",
+  "finished": "2026-10-14T22:42:23Z"
+}

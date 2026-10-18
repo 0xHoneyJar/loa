@@ -1,0 +1,3 @@
+{"ts":"2026-10-14T13:00:00Z","model":"gpt-5.5","cost_micro_usd":1000000}
+{"ts":"2026-10-14T14:00:00.123Z","model":"global.anthropic.claude-fable-5-1","cost_micro_usd":2500000}
+{"ts":"2026-10-15T01:00:00Z","model":"global.anthropic.claude-opus-5-5","cost_micro_usd":500000}

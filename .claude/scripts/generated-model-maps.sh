@@ -13,6 +13,7 @@ declare -A MODEL_PROVIDERS=(
     ["gpt-5.2"]="openai"
     ["gpt-5.3-codex"]="openai"
     ["gpt-5.5"]="openai"
+    ["gpt-6.1-sol"]="openai"
     ["gpt-5.5-pro"]="openai"
     ["codex-headless"]="openai"
     ["gemini-2.0-flash"]="google"
@@ -95,6 +96,7 @@ declare -A MODEL_IDS=(
     ["gpt-5.2"]="gpt-5.2"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["gpt-5.5"]="gpt-5.5"
+    ["gpt-6.1-sol"]="gpt-6.1-sol"
     ["gpt-5.5-pro"]="gpt-5.5-pro"
     ["codex-headless"]="codex-headless"
     ["gemini-2.0-flash"]="gemini-2.0-flash"
@@ -181,6 +183,7 @@ declare -A MODEL_AUTH_TYPE=(
     ["gpt-5.2"]="http_api"
     ["gpt-5.3-codex"]="http_api"
     ["gpt-5.5"]="http_api"
+    ["gpt-6.1-sol"]="http_api"
     ["gpt-5.5-pro"]="http_api"
     ["codex-headless"]="headless"
     ["gemini-2.0-flash"]="http_api"
@@ -216,6 +219,7 @@ declare -A MODEL_DISPATCH_GROUP=(
     ["gpt-5.2"]="openai-gpt"
     ["gpt-5.3-codex"]="openai-gpt"
     ["gpt-5.5"]="openai-gpt"
+    ["gpt-6.1-sol"]="openai-gpt"
     ["gpt-5.5-pro"]="openai-gpt"
     ["codex-headless"]="openai-gpt"
     ["gemini-2.0-flash"]="google-gemini"
@@ -256,6 +260,7 @@ declare -A MODEL_MAX_OUTPUT=(
     ["gpt-5.2"]="16000"
     ["gpt-5.3-codex"]="32000"
     ["gpt-5.5"]="32000"
+    ["gpt-6.1-sol"]="32000"
     ["gpt-5.5-pro"]="32000"
     ["gemini-2.5-pro"]="16000"
     ["gemini-3.1-pro-preview"]="32000"
@@ -325,6 +330,7 @@ declare -a VALID_FLATLINE_MODELS=(
     gpt-5.3-codex
     gpt-5.5
     gpt-5.5-pro
+    gpt-6.1-sol
     grok-build
     grok-composer
     grok-composer-2.5-fast

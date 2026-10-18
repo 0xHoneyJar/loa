@@ -1,0 +1,16 @@
+id: feature-v2-05
+schema_version: 1
+type: feature-build
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 E3 swap round 1 (hardened): a canonical structural diff defined declaratively (objects in sorted key order, type-strict equality, arrays by the longest common subsequence whose index tuples into the old and then the new array are lexicographically smallest, removes descending then adds ascending) with stored revisions, revert and a diff command, on top of a fully specified JSON Pointer (RFC 6901) / JSON Patch (RFC 6902) variant in a revisioned JSON document store"}
+post_cutoff: true
+fixture: tasks/feature-v2-05/fixture
+criterion: "the document store gains JSON Pointer and JSON Patch exactly as the brief specifies (messages and their order, index rules, move and copy semantics, JSON equality, atomic store patches with history, validation, dry run, an operation limit and commands), plus type-strict equality and the canonical diff the brief defines, including its tie rule for arrays, every stored revision, revert to a revision as a new revision with its history entry, and diff and revert commands"
+success_criterion: "hidden/tests/test_zq_jpatch_accept.py and hidden/tests/test_zq_jdiff_accept.py (overlaid at tests/acceptance/ with the grader-side reference modules _oracle_zq_jpatch.py and _oracle_zq_jdiff.py) pass 12 of 12 and 24 of 24 under python3 -m pytest -q tests (56 of 56 with the fixture suite); red at base (36 failed, 20 passed), green with hidden/reference.patch; regression_command (the fixture suite, 20 cases) green at both"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+regression_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/acceptance"]
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cli.py, tests/test_store.py]
+structural_check: null
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

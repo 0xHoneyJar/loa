@@ -1,0 +1,16 @@
+id: refactor-v2-05
+schema_version: 1
+type: refactor
+source: {kind: synthetic, date: "2026-10-17", origin: "cycle-130 F3 swap round 1: a tangled semver 2.0.0 + npm-range package (god module, import cycle, string-typed operators, module caches) rebuilt on a stated ten-layer layout under 24 stated structural rules, with behaviour pinned by a flattened reference over generated versions and ranges", churn: {files: 17, insertions: 737, deletions: 586}}
+post_cutoff: true
+fixture: tasks/refactor-v2-05/fixture
+criterion: "the semver package is rebuilt into the stated modules and layers with the stated data model, signatures, error classes and exports, every structural rule of the brief holds across the whole package, and every exported function, the command line and the new layer functions behave exactly as the package does today for every input"
+success_criterion: "hidden/structural/semver_layout_test.py (overlaid at tests/structure/semver_layout_test.py with its helper hidden/structural/_oracle_semver.py at tests/structure/_oracle_semver.py) passes 40 of 40 under python3 -m pytest -q tests/structure (35 rule cases, 5 conformance cases over seeded generated inputs), red at base (40 failed), green with hidden/reference.patch; test_command (the fixture suite, 64 cases) green at base and reference"
+test_command: ["python3", "-m", "pytest", "-q", "tests", "--ignore=tests/structure"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [tests/conftest.py, tests/test_cli.py, tests/test_ranges.py, tests/test_versions.py]
+structural_check: hidden/structural/semver_layout_test.py
+bounds: {max_turns: {IMPLEMENT: 80, BARE: 190}, timeout_min: {IMPLEMENT: 35, BARE: 80}}
+review_catch: null
+suite_version: 2

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-129-earned-guards",
+  "active_cycle": "cycle-130-ablation-2.0",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2468,10 +2468,10 @@
     {
       "id": "cycle-129-earned-guards",
       "label": "Earned guards and open voices — guard register with origin and yield, pre-registered gate-off control arms, task kinds, prose diet, inert controls retired or repaired, file-authoritative run position, fence heredoc false positives, profile knob, advisory open-weight voices, local_voices posture",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-13T21:27:39Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-14T13:55:49Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/cycle-129-earned-guards",
       "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
       "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
       "sprints": [
@@ -2535,6 +2535,115 @@
             "bd-0luav",
             "bd-5h8t9",
             "bd-wl4gd"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cycle-130-ablation-2.0",
+      "label": "Loa 2.0 component ablation — frozen 16-task suite with hidden tests, nine pre-registered arms (bare Claude Code, full Loa at v2.0.0-rc.5, seven single-component removals), mechanical grader, paired-bootstrap decision rules, prune-to-opt-in and re-verification before the 2.0.0 promotion",
+      "status": "active",
+      "created": "2026-10-14T13:59:25Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 258,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-14T13:59:25Z",
+          "completed": "2026-10-15T03:23:28Z",
+          "theme": "Mount integrity and harness plumbing",
+          "epic": "bd-g1cg2",
+          "beads": [
+            "bd-20fle",
+            "bd-iniru",
+            "bd-z4mj5",
+            "bd-hprvr",
+            "bd-d2tkl",
+            "bd-tqv4l",
+            "bd-jx6mx",
+            "bd-rpr5a",
+            "bd-91wxm",
+            "bd-dm6x0",
+            "bd-yk5uf",
+            "bd-u89yk",
+            "bd-0dks4"
+          ]
+        },
+        {
+          "global_id": 259,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-14T13:59:26Z",
+          "completed": "2026-10-15T07:08:46Z",
+          "theme": "Task suite and grader",
+          "epic": "bd-b9hy5",
+          "beads": [
+            "bd-xmlfg",
+            "bd-bo1na",
+            "bd-6civd",
+            "bd-swzw3",
+            "bd-b727a",
+            "bd-tnd3q",
+            "bd-lwtwi",
+            "bd-bhl22",
+            "bd-r941l",
+            "bd-tqaen"
+          ]
+        },
+        {
+          "global_id": 260,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-14T13:59:26Z",
+          "completed": "2026-10-16T23:24:47Z",
+          "theme": "Runs",
+          "epic": "bd-uhgrg",
+          "beads": [
+            "bd-27jw2",
+            "bd-nnt3a",
+            "bd-37emj",
+            "bd-m8a1q",
+            "bd-kjfku",
+            "bd-rjeq1",
+            "bd-2riyg",
+            "bd-khz4a"
+          ]
+        },
+        {
+          "global_id": 261,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-10-14T13:59:27Z",
+          "completed": "2026-10-18T10:36:51Z",
+          "theme": "Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads",
+          "epic": "bd-ykvu4",
+          "beads": [
+            "bd-sigxm",
+            "bd-xlvu2",
+            "bd-nn4yn",
+            "bd-80ewp"
+          ]
+        },
+        {
+          "global_id": 262,
+          "local_label": "sprint-5",
+          "status": "completed",
+          "created": "2026-10-14T13:59:27Z",
+          "completed": "2026-10-18T12:29:50Z",
+          "theme": "Analysis, report, documentation, rc.6",
+          "epic": "bd-u3ns5",
+          "beads": [
+            "bd-4b6dr",
+            "bd-eraro",
+            "bd-r3cui",
+            "bd-9psha",
+            "bd-26vid",
+            "bd-sveja",
+            "bd-0qmri"
           ]
         }
       ]
@@ -2938,6 +3047,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 258,
-  "last_updated": "2026-10-14T10:32:34Z"
+  "next_sprint_number": 263,
+  "last_updated": "2026-10-18T12:29:50Z"
 }

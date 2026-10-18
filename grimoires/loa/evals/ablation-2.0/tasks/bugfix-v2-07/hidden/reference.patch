@@ -1,0 +1,405 @@
+diff -ruN a/src/mdblocks/continuation.py b/src/mdblocks/continuation.py
+--- a/src/mdblocks/continuation.py
++++ b/src/mdblocks/continuation.py
+@@ -32,9 +32,11 @@
+ def _item(parser, cur, node):
+     data = node.list_data
+     if cur.blank:
++        if not node.children:
++            return UNMATCHED      # a blank line after an empty item ends it
+         cur.advance_to_next_nonspace()
+-    elif cur.indent >= data.padding:
+-        cur.offset += data.padding
++    elif cur.indent >= data.marker_offset + data.padding:
++        cur.offset += data.marker_offset + data.padding
+     else:
+         return UNMATCHED
+     return MATCHED
+@@ -45,7 +47,7 @@
+         m = None
+         if cur.indent <= 3 and cur.peek(cur.next_nonspace) == node.fence_char:
+             m = CLOSING_FENCE.match(cur.rest(cur.next_nonspace))
+-        if m:
++        if m and len(m.group(0)) >= node.fence_length:
+             parser.finalize(node, parser.line_number)
+             return CONSUMED
+         skip = node.fence_offset
+diff -ruN a/src/mdblocks/finalize.py b/src/mdblocks/finalize.py
+--- a/src/mdblocks/finalize.py
++++ b/src/mdblocks/finalize.py
+@@ -2,15 +2,9 @@
+ 
+ 
+ def _ends_with_blank_line(node):
+-    """True when the last line of ``node`` (or of its last descendant item) was blank."""
+-    while node is not None:
+-        if node.last_line_blank:
+-            return True
+-        if node.kind in ("list", "item") and node.children:
+-            node = node.children[-1]
+-        else:
+-            return False
+-    return False
++    """True when a blank line separates ``node`` from the block after it."""
++    nxt = node.next_sibling
++    return nxt is not None and node.end_line != nxt.start_line - 1
+ 
+ 
+ def _code_block(node):
+@@ -23,6 +17,7 @@
+         while lines and lines[-1].strip(" ") == "":
+             lines.pop()
+         node.literal = "\n".join(lines) + "\n"
++        node.end_line = node.start_line + len(lines) - 1   # trailing blank lines are not part of it
+     node.content = ""
+ 
+ 
+@@ -35,10 +30,15 @@
+ 
+ def _list(node):
+     data = node.list_data
++    node.end_line = node.children[-1].end_line
+     for item in node.children:
+         if item.next_sibling is not None and _ends_with_blank_line(item):
+             data.tight = False
+             return
++        for sub in item.children:
++            if sub.next_sibling is not None and _ends_with_blank_line(sub):
++                data.tight = False
++                return
+ 
+ 
+ def _nothing(node):
+diff -ruN a/src/mdblocks/markers.py b/src/mdblocks/markers.py
+--- a/src/mdblocks/markers.py
++++ b/src/mdblocks/markers.py
+@@ -9,13 +9,14 @@
+ CODE_FENCE = re.compile(r"^`{3,}(?!.*`)|^~{3,}")
+ CLOSING_FENCE = re.compile(r"^(?:`{3,}|~{3,})(?=[ ]*$)")
+ SETEXT_LINE = re.compile(r"^(?:=+|-+)[ ]*$")
+-LIST_MARKER = re.compile(r"([*+-]|(\d+)([.)]))(?= |$)( *)")
++BULLET = re.compile(r"^[*+-]")
++ORDERED = re.compile(r"^(\d{1,9})([.)])")
+ 
+ 
+ def heading_text(rest):
+     """The content of an ATX heading line after its opening sequence."""
+     rest = re.sub(r"^[ ]*#+[ ]*$", "", rest)
+-    return re.sub(r"[ ]*#+[ ]*$", "", rest)
++    return re.sub(r"[ ]+#+[ ]*$", "", rest)
+ 
+ 
+ def parse_list_marker(cur, container_kind):
+@@ -26,26 +27,37 @@
+     """
+     if cur.indent >= 4:
+         return None
+-    m = LIST_MARKER.match(cur.line, cur.next_nonspace)
+-    if not m:
+-        return None
+-    marker, number, delimiter, spaces = m.group(1), m.group(2), m.group(3), m.group(4)
+-    if number is None:
++    rest = cur.rest(cur.next_nonspace)
++    m = BULLET.match(rest)
++    if m:
+         data = ListData("bullet", cur.indent)
+-        data.bullet_char = marker
++        data.bullet_char = m.group(0)
+     else:
++        m = ORDERED.match(rest)
++        if not m or (container_kind == "paragraph" and int(m.group(1)) != 1):
++            return None
+         data = ListData("ordered", cur.indent)
+-        data.start = int(number)
+-        data.delimiter = delimiter
+-    rest_blank = cur.line[m.end():].strip(" ") == ""
+-    if container_kind == "paragraph" and rest_blank:
++        data.start = int(m.group(1))
++        data.delimiter = m.group(2)
++    marker = m.group(0)
++    after = cur.next_nonspace + len(marker)
++    nextc = cur.peek(after)
++    if nextc not in ("", " "):
++        return None
++    if container_kind == "paragraph" and cur.line[after:].strip(" ") == "":
+         return None
+-    cur.offset = cur.next_nonspace + len(marker)
+-    if not spaces or rest_blank:
++    cur.advance_to_next_nonspace()
++    cur.offset += len(marker)
++    spaces_start = cur.offset
++    spaces = 0
++    while spaces < 5 and cur.peek(spaces_start + spaces) == " ":
++        spaces += 1
++    blank_item = spaces_start + spaces >= len(cur.line)
++    if spaces >= 5 or spaces < 1 or blank_item:
+         data.padding = len(marker) + 1
+         if cur.peek() == " ":
+             cur.offset += 1
+     else:
+-        data.padding = len(marker) + len(spaces)
+-        cur.offset += len(spaces)
++        data.padding = len(marker) + spaces
++        cur.offset += spaces
+     return data
+diff -ruN a/src/mdblocks/node.py b/src/mdblocks/node.py
+--- a/src/mdblocks/node.py
++++ b/src/mdblocks/node.py
+@@ -27,7 +27,6 @@
+         self.info = ""
+         self.literal = ""
+         self.list_data = None
+-        self.last_line_blank = False   # the last line this block saw was blank
+ 
+     @property
+     def last_child(self):
+@@ -76,4 +75,5 @@
+ 
+     def matches(self, other):
+         """True when an item with ``other`` continues a list with this data."""
+-        return self.kind == other.kind and self.delimiter == other.delimiter
++        return (self.kind == other.kind and self.delimiter == other.delimiter
++                and self.bullet_char == other.bullet_char)
+diff -ruN a/src/mdblocks/parser.py b/src/mdblocks/parser.py
+--- a/src/mdblocks/parser.py
++++ b/src/mdblocks/parser.py
+@@ -88,8 +88,6 @@
+                 cur.advance_to_next_nonspace()
+                 break
+ 
+-        if cur.blank and container.last_child is not None:
+-            container.last_child.last_line_blank = True
+         if not self.all_closed and not cur.blank and self.tip.kind == "paragraph":
+             self.add_line()          # lazy paragraph continuation
+             return
+diff -ruN a/src/mdblocks/render.py b/src/mdblocks/render.py
+--- a/src/mdblocks/render.py
++++ b/src/mdblocks/render.py
+@@ -1,65 +1,58 @@
+-"""Rendering the block tree to HTML, in markdown-it's layout."""
++"""Rendering tokens to HTML, newline for newline as markdown-it does."""
+ 
+ from .escape import escape_html
+-from .text import heading_text, paragraph_text
++from .tokens import to_tokens
+ 
+ 
+-def _code(node):
+-    cls = f' class="language-{escape_html(node.info)}"' if node.fenced and node.info else ""
+-    return f"<pre><code{cls}>" + escape_html(node.literal) + "</code></pre>\n"
+-
+-
+-def _item(item, tight, out):
+-    if not item.children:
+-        out.append("<li></li>\n")
+-        return
+-    first = item.children[0]
+-    out.append("<li>" if tight and first.kind == "paragraph" else "<li>\n")
+-    for i, child in enumerate(item.children):
+-        if tight and child.kind == "paragraph":
+-            # a tight paragraph is written without tags; the next block starts on a new line
+-            out.append(escape_html(paragraph_text(child.content)))
+-            if i + 1 < len(item.children):
+-                out.append("\n")
+-        else:
+-            _block(child, out)
+-    out.append("</li>\n")
++def _attrs(token):
++    return "".join(f' {name}="{escape_html(value)}"' for name, value in token.attrs)
+ 
+ 
+-def _list(node, out):
+-    data = node.list_data
+-    if data.kind == "bullet":
+-        out.append("<ul>\n")
+-    else:
+-        out.append(f'<ol start="{data.start}">\n' if data.start > 1 else "<ol>\n")
+-    for item in node.children:
+-        _item(item, data.tight, out)
+-    out.append("</ul>\n" if data.kind == "bullet" else "</ol>\n")
+-
+-
+-def _block(node, out):
+-    kind = node.kind
+-    if kind == "paragraph":
+-        out.append("<p>" + escape_html(paragraph_text(node.content)) + "</p>\n")
+-    elif kind == "heading":
+-        out.append(f"<h{node.level}>" + escape_html(heading_text(node.content)) + f"</h{node.level}>\n")
+-    elif kind == "thematic_break":
+-        out.append("<hr>\n")
+-    elif kind == "code_block":
+-        out.append(_code(node))
+-    elif kind == "block_quote":
+-        out.append("<blockquote>\n")
+-        for child in node.children:
+-            _block(child, out)
+-        out.append("</blockquote>\n")
+-    elif kind == "list":
+-        _list(node, out)
+-    else:
+-        raise ValueError(f"unknown block kind: {kind}")
++def _code_block(tokens, i):
++    return "<pre><code>" + escape_html(tokens[i].content) + "</code></pre>\n"
+ 
+ 
+-def render_tree(doc):
++def _fence(tokens, i):
++    token = tokens[i]
++    info = token.info.strip()
++    lang = info.split()[0] if info else ""
++    cls = f' class="language-{escape_html(lang)}"' if lang else ""
++    return f"<pre><code{cls}>" + escape_html(token.content) + "</code></pre>\n"
++
++
++RULES = {"code_block": _code_block, "fence": _fence}
++
++
++def render_token(tokens, i):
++    token = tokens[i]
++    if token.hidden:
++        return ""
++    out = ""
++    if token.block and token.nesting != -1 and i and tokens[i - 1].hidden:
++        out += "\n"
++    out += ("</" if token.nesting == -1 else "<") + token.tag + _attrs(token)
++    need_lf = token.block
++    if token.block and token.nesting == 1 and i + 1 < len(tokens):
++        nxt = tokens[i + 1]
++        if nxt.type == "inline" or nxt.hidden:
++            need_lf = False
++        elif nxt.nesting == -1 and nxt.tag == token.tag:
++            need_lf = False
++    return out + (">\n" if need_lf else ">")
++
++
++def render_tokens(tokens):
+     out = []
+-    for child in doc.children:
+-        _block(child, out)
++    for i, token in enumerate(tokens):
++        if token.type == "inline":
++            out.append(escape_html(token.content))
++        elif token.type in RULES:
++            out.append(RULES[token.type](tokens, i))
++        else:
++            out.append(render_token(tokens, i))
+     return "".join(out)
++
++
++def render_tree(doc):
++    """The HTML of a block tree."""
++    return render_tokens(to_tokens(doc))
+diff -ruN a/src/mdblocks/starts.py b/src/mdblocks/starts.py
+--- a/src/mdblocks/starts.py
++++ b/src/mdblocks/starts.py
+@@ -59,17 +59,16 @@
+ 
+ 
+ def setext_heading(parser, cur, container):
+-    para = parser.tip
+-    if cur.indented or para.kind != "paragraph":
++    if cur.indented or container.kind != "paragraph":
+         return NO_START
+     m = SETEXT_LINE.match(cur.rest(cur.next_nonspace))
+     if not m:
+         return NO_START
+     parser.close_unmatched()
+-    heading = Node("heading", para.start_line)
++    heading = Node("heading", container.start_line)
+     heading.level = 1 if m.group(0)[0] == "=" else 2
+-    heading.content = para.content
+-    para.replace_with(heading)
++    heading.content = container.content
++    container.replace_with(heading)
+     parser.tip = heading
+     cur.offset = len(cur.line)
+     return LEAF_START
+@@ -100,7 +99,7 @@
+ 
+ 
+ def indented_code(parser, cur, container):
+-    if cur.indented and container.kind != "paragraph" and not cur.blank:
++    if cur.indented and parser.tip.kind != "paragraph" and not cur.blank:
+         cur.offset += CODE_INDENT
+         parser.close_unmatched()
+         parser.add_child("code_block")
+@@ -108,7 +107,7 @@
+     return NO_START
+ 
+ 
+-STARTS = (block_quote, atx_heading, fenced_code, setext_heading, list_item,
+-          thematic_break, indented_code)
++STARTS = (block_quote, atx_heading, fenced_code, setext_heading, thematic_break,
++          list_item, indented_code)
+ 
+ MAYBE_SPECIAL = set("#`~*+_=<>0123456789-")
+diff -ruN a/src/mdblocks/tokens.py b/src/mdblocks/tokens.py
+--- a/src/mdblocks/tokens.py
++++ b/src/mdblocks/tokens.py
+@@ -0,0 +1,66 @@
++"""The block tree as a flat token stream (the shape markdown-it renders)."""
++
++from dataclasses import dataclass, field
++from typing import List, Tuple
++
++from .text import heading_text, paragraph_text
++
++
++@dataclass
++class Token:
++    type: str                      # e.g. "paragraph_open", "inline", "fence"
++    tag: str
++    nesting: int                   # 1 opening, -1 closing, 0 self-contained
++    block: bool = True
++    hidden: bool = False
++    content: str = ""
++    info: str = ""
++    attrs: List[Tuple[str, str]] = field(default_factory=list)
++
++
++def _emit(node, out, tight):
++    kind = node.kind
++    if kind == "paragraph":
++        out.append(Token("paragraph_open", "p", 1, hidden=tight))
++        out.append(Token("inline", "", 0, block=False, content=paragraph_text(node.content)))
++        out.append(Token("paragraph_close", "p", -1, hidden=tight))
++    elif kind == "heading":
++        tag = f"h{node.level}"
++        out.append(Token("heading_open", tag, 1))
++        out.append(Token("inline", "", 0, block=False, content=heading_text(node.content)))
++        out.append(Token("heading_close", tag, -1))
++    elif kind == "thematic_break":
++        out.append(Token("hr", "hr", 0))
++    elif kind == "code_block":
++        if node.fenced:
++            out.append(Token("fence", "code", 0, content=node.literal, info=node.info))
++        else:
++            out.append(Token("code_block", "code", 0, content=node.literal))
++    elif kind == "block_quote":
++        out.append(Token("blockquote_open", "blockquote", 1))
++        for child in node.children:
++            _emit(child, out, False)
++        out.append(Token("blockquote_close", "blockquote", -1))
++    elif kind == "list":
++        data = node.list_data
++        if data.kind == "bullet":
++            out.append(Token("bullet_list_open", "ul", 1))
++        else:
++            attrs = [] if data.start == 1 else [("start", str(data.start))]
++            out.append(Token("ordered_list_open", "ol", 1, attrs=attrs))
++        for item in node.children:
++            out.append(Token("list_item_open", "li", 1))
++            for child in item.children:
++                _emit(child, out, data.tight)
++            out.append(Token("list_item_close", "li", -1))
++        out.append(Token("bullet_list_close" if data.kind == "bullet" else "ordered_list_close",
++                         "ul" if data.kind == "bullet" else "ol", -1))
++    else:
++        raise ValueError(f"unknown block kind: {kind}")
++
++
++def to_tokens(doc):
++    out = []
++    for child in doc.children:
++        _emit(child, out, False)
++    return out

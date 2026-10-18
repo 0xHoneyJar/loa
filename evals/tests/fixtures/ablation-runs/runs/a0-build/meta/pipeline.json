@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "run_id": "abl-fixture-a0_bare-bf-01-t1",
+  "arm": "a0_bare",
+  "task_id": "bf-01",
+  "task_type": "bug-fix",
+  "trial": 1,
+  "source_commit": "e93ad7020096c9abc673975cf4df0c7f0c541d86",
+  "suite_version": 1,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 12,
+  "spent_usd": 0.5,
+  "arm_toggles": {
+    "loa_mount": false
+  },
+  "effort_flag": "high",
+  "arm_evidence": {
+    "base_commit": "2abcf7a78884c7a6aaa7f1348118f8628b4161a6",
+    "loa_mount": "none"
+  },
+  "executor_mode": "host",
+  "image_digest": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "sandbox_fingerprint": "fp:cb00aff4f434dbdb1ceabb4c134fdc878c11913c2466bc533b4037adadd3c327",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {},
+  "phases": [
+    {
+      "name": "BARE",
+      "label": "BARE",
+      "skipped": false,
+      "session_id": "sess-BARE-26663-14600",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 200
+      },
+      "effort_requested": "high",
+      "tokens_in": 20,
+      "tokens_out": 200,
+      "cache_read_tokens": 3,
+      "cache_creation_tokens": 4,
+      "cost_usd": 0.5,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 1000,
+      "wall_ms": 129,
+      "num_turns": 2,
+      "max_turns": 170,
+      "timeout_s": 4200,
+      "exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.00408,
+        "turns_seen": 2,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-14T22:42:13Z",
+      "finished": "2026-10-14T22:42:13Z"
+    }
+  ],
+  "started": "2026-10-14T22:42:13Z",
+  "finished": "2026-10-14T22:42:14Z"
+}
