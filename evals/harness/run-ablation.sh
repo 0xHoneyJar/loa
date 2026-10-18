@@ -112,17 +112,23 @@
 #      toggles set loa_mount: false; a0_bare never runs the dissent): the exp claim of the JWT
 #      tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json (the file
 #      pipeline-run.sh copies with a placeholder refresh token; payload decoded with base64url, no
-#      signature check) must be later than required_until = now + 2 x (sum of watchdog_s over
-#      the trials this invocation launches) / concurrency: every plan entry on a fresh batch or
-#      a dry run; on --resume only the entries without a row of this batch, plus the --rerun ids
-#      and the rows a --rerun-status names (never a --rerow id; a paused arm's trials still
-#      count). $LOA_ABLATION_CODEX_HORIZON_S (positive whole seconds, an operator knob) replaces
+#      signature check) must be later than required_until = now + 2 x max(S / concurrency, W),
+#      S the sum and W the largest of watchdog_s over the trials this invocation counts (the
+#      lower bound W: one trial takes its whole watchdog whatever the concurrency, DISS-C-001):
+#      every plan entry on a fresh batch or a dry run; on --resume only the entries without a row
+#      of this batch, plus the --rerun ids, the rows a --rerun-status names and the run_ids of
+#      STATUS.json rerun_pending (never a --rerow id; a paused arm's trials still count). The
+#      count is a superset of what the launcher runs: a rerun_pending id that is not flagged
+#      again (--rerun / --rerun-status) keeps its old row and is not relaunched, so it lengthens
+#      the horizon only (the safe direction); a run_id with two rows is read last-row-wins here,
+#      where the launcher refuses the resume on the duplicate after this check (DISS-C-003).
+#      $LOA_ABLATION_CODEX_HORIZON_S (positive whole seconds, an operator knob) replaces
 #      the computed horizon: required_until = now + that. Refused: exp <= required_until (`codex
-#      access token expires <ISO>, before the batch's required horizon <ISO> (now + 2 x summed
-#      watchdog of <n> trial(s) / concurrency | now + LOA_ABLATION_CODEX_HORIZON_S; KF-048) — run
-#      codex login on the host`), a present file that is not a JSON object, an access token not
-#      a three-part JWT or without a numeric exp, and a file with neither a tokens.access_token
-#      nor a non-empty OPENAI_API_KEY (`… — run codex login on the host, or set OPENAI_API_KEY
+#      access token expires <ISO>, before the batch's required horizon <ISO> (now + 2 x
+#      max(summed watchdog of <n> trial(s) / concurrency, longest watchdog) | now +
+#      LOA_ABLATION_CODEX_HORIZON_S; KF-048) — run codex login on the host`), a present file
+#      that is not a JSON object, an access token not a three-part JWT or without a numeric
+#      exp, and a file with neither a tokens.access_token nor a non-empty OPENAI_API_KEY (`… — run codex login on the host, or set OPENAI_API_KEY
 #      in auth.json`). API-key mode (no usable tokens.access_token, a non-empty OPENAI_API_KEY;
 #      pipeline-run.sh copies the file unchanged) passes without reading an exp, with one
 #      `run-ablation: codex auth.json is in API-key mode; no token horizon applies (KF-048
@@ -241,7 +247,7 @@
 #   read or not classified), trials_counted (the trials the horizon covers, or null),
 #   horizon_source ("plan" | "override" | null when no horizon was computed)} (pre-flight 6;
 #   --resume keeps the start's record; STATUS.json codex_preflight holds the latest
-#   invocation's), environment.
+#   invocation's; both writers take it from a shell variable, never a scratch file), environment.
 #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
 #   state: running|complete|partial|failed, per_arm: {<arm>: {trials_planned, launched,
 #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
@@ -254,7 +260,8 @@
 #   (--rerun, --rerun-status), rerun_pending: [run_id…] (flagged, no replacement yet), outage:
 #   null | {at, consecutive, last_run_id, message} (the breaker), outage_history: [the
 #   outages a later --resume cleared], codex_preflight (this invocation's pre-flight 6 record,
-#   the MANIFEST shape; on --resume trials_counted is the remaining trials), extra_models: {<raw id>: {runs,
+#   the MANIFEST shape, null if STATUS.json is written before pre-flight 6 ran; on --resume
+#   trials_counted is the remaining trials, rerun_pending included), extra_models: {<raw id>: {runs,
 #   output_tokens}} ({} when none; derived from extra_models_by_run: {<run_id>: {<raw id>:
 #   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
 #   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
@@ -329,6 +336,7 @@ OUTAGE_BREAKER="${LOA_ABLATION_OUTAGE_BREAKER:-3}"
 GRADE_TIMEOUT_S="${LOA_ABLATION_GRADE_TIMEOUT_S:-1800}"
 TOOK_TIMEOUT_S="${LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S:-300}"
 CODEX_HORIZON_OVERRIDE="${LOA_ABLATION_CODEX_HORIZON_S:-}"
+CODEX_PF_JSON=null   # the pre-flight 6 record (JSON); null until pre-flight 6 sets it (DISS-C-002)
 
 usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-ablation: $*" >&2; exit 2; }
@@ -805,12 +813,14 @@ PLAN_N="$(jq 'length' "$WORK/plan-only.json")"
 CODEX_AUTH="${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json"
 CODEX_SKIP=false; [[ "$SMOKE" == true ]] && CODEX_SKIP=true
 # the trials this invocation launches: every plan entry on a fresh batch (and a dry run); on --resume the
-# entries without a row of this batch, plus the --rerun ids and the --rerun-status rows (never a --rerow id)
+# entries without a row of this batch, plus the --rerun ids, the --rerun-status rows and STATUS.json
+# rerun_pending (never a --rerow id)
 jq -n --argjson resume "$RESUME" --arg rows "$ROWS" --arg batch "$BATCH" \
   --argjson ids "$(json_array ${RERUN_IDS[@]+"${RERUN_IDS[@]}"})" \
   --argjson sts "$(json_array ${RERUN_STATUSES[@]+"${RERUN_STATUSES[@]}"})" \
   --argjson rerow "$(json_array ${REROW_IDS[@]+"${REROW_IDS[@]}"})" \
-  '{resume: $resume, rows: $rows, batch: $batch, rerun_ids: $ids, rerun_statuses: $sts, rerow_ids: $rerow}' > "$WORK/codex-scope.json"
+  --arg status "$BATCH_DIR/STATUS.json" \
+  '{resume: $resume, rows: $rows, batch: $batch, rerun_ids: $ids, rerun_statuses: $sts, rerow_ids: $rerow, status: $status}' > "$WORK/codex-scope.json"
 CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" \
   "$WORK/codex-scope.json" "$CODEX_HORIZON_OVERRIDE" <<'PY'
 import base64, json, math, os, sys, time
@@ -833,7 +843,13 @@ if skip or not arms:
 if not present:
     out["warn"] = "run-ablation: WARN no codex auth.json under %s; codex-using arms will run without the OpenAI voice" % os.path.dirname(auth)
     done()
-def remaining():   # the plan entries this invocation will launch
+def pending():   # STATUS.json rerun_pending: flagged by an earlier invocation, no replacement row yet
+    try:
+        v = json.load(open(scope["status"], "rb")).get("rerun_pending")
+    except Exception:
+        return set()
+    return {x for x in v if isinstance(x, str) and x} if isinstance(v, list) else set()
+def remaining():   # the plan entries this invocation will launch (a superset on rerun_pending; see the header)
     if not scope["resume"] or not os.path.isfile(scope["rows"]):
         return plan
     st = {}
@@ -845,7 +861,8 @@ def remaining():   # the plan entries this invocation will launch
         if isinstance(r, dict) and r.get("batch") == scope["batch"] and isinstance(r.get("run_id"), str):
             st[r["run_id"]] = r.get("status")
     ids, sts, rerow = ({x for x in scope[k] if x} for k in ("rerun_ids", "rerun_statuses", "rerow_ids"))   # json_array of none is [""]
-    return [e for e in plan if e["run_id"] not in st or e["run_id"] in ids
+    pend = pending() - rerow
+    return [e for e in plan if e["run_id"] not in st or e["run_id"] in ids or e["run_id"] in pend
             or (st[e["run_id"]] in sts and e["run_id"] not in rerow)]
 now = time.time()
 todo = remaining()
@@ -853,7 +870,9 @@ pf["trials_counted"] = len(todo)
 if override is not None:
     required = int(math.ceil(now + override)); pf["horizon_source"] = "override"
 else:
-    required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in todo) / max(conc, 1)))
+    # DISS-C-001: never below one trial's own deadline (one trial at concurrency 3 still takes its whole watchdog)
+    wds = [float(e.get("watchdog_s") or 0) for e in todo]
+    required = int(math.ceil(now + 2 * max(sum(wds) / max(conc, 1), max(wds or [0]))))
     pf["horizon_source"] = "plan"
 pf["required_until"] = iso(required)
 REMEDY = "run codex login on the host, or set OPENAI_API_KEY in auth.json"
@@ -891,13 +910,14 @@ exp = int(exp)
 pf["checked"] = True; pf["token_exp"] = iso(exp)
 if exp <= required:
     how = ("now + LOA_ABLATION_CODEX_HORIZON_S" if override is not None
-           else "now + 2 x summed watchdog of %d trial(s) / concurrency" % len(todo))
+           else "now + 2 x max(summed watchdog of %d trial(s) / concurrency, longest watchdog)" % len(todo))
     out["refuse"] = ("codex access token expires %s, before the batch's required horizon %s "
                      "(%s; KF-048) — run codex login on the host") % (iso(exp), iso(required), how)
 done()
 PY
 )" || die "the codex token pre-flight failed"
-printf '%s' "$CODEX_PF" | jq -c '.preflight' > "$WORK/codex-preflight.json"
+# DISS-C-002: held in a variable, not a $WORK file (write_status may run after cleanup removed $WORK)
+CODEX_PF_JSON="$(jq -c '.preflight' <<<"$CODEX_PF")"
 CODEX_WARN="$(jq -r '.warn // ""' <<<"$CODEX_PF")"
 [[ -z "$CODEX_WARN" ]] || echo "$CODEX_WARN" >&2
 CODEX_NOTE="$(jq -r '.note // ""' <<<"$CODEX_PF")"
@@ -927,7 +947,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
   printf '%s' "$GATE_JSON" > "$WORK/gate.json"
   jq -n \
     --slurpfile plan_f "$WORK/plan.json" --slurpfile suite_f "$WORK/suite.json" --slurpfile tasks_f "$WORK/tasks.json" \
-    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" --slurpfile cpf_f "$WORK/codex-preflight.json" \
+    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" --argjson cpf "$CODEX_PF_JSON" \
     --arg batch "$BATCH" --argjson dry "$dry" --argjson smoke "$SMOKE" --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg src "$SRC_FULL" --arg tree "$TREE" --arg hc "$harness_commit" --argjson hd "$harness_dirty" \
     --arg suite_file "${SUITE_FILE#"$REPO_ROOT"/}" --arg suite_file_path "$SUITE_FILE" --arg suite_root "$SUITE_ROOT" \
@@ -965,7 +985,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        pre_registration_ref: (if $prr == "" then null else $prr end),
        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
        agy_opt_in: ($s.agy_opt_in // false),
-       codex_token_exp: $cpf_f[0].token_exp, codex_preflight: $cpf_f[0],
+       codex_token_exp: ($cpf // {}).token_exp, codex_preflight: $cpf,
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
 }
@@ -1138,14 +1158,14 @@ write_status() {
     --arg src "$SRC_FULL" --arg rows "$ROWS" --argjson planned "$PLAN_N" --argjson signalled "$SIGNALLED" \
     --argjson ebr "$EXTRA_RUNS_JSON" --argjson cleared "$DRIFT_CLEARED_JSON" --argjson rerowed "$REROWED_JSON" \
     --argjson rerun "$RERUN_JSON" --argjson pending "$(printf '%s' "$RERUN_LIST" | sed '/^$/d' | jq -R . | jq -sc .)" \
-    --argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" --slurpfile cpf_f "$WORK/codex-preflight.json" \
+    --argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" --argjson cpf "$CODEX_PF_JSON" \
     '{schema_version: 1, suite: "ablation-2.0", batch: $batch, smoke: $smoke, state: $state, per_arm: $per,
       retries: $retries, cuts: $cuts, paused_arms: $paused,
       spend: {rows_usd: ($rows_usd | tonumber), ledger_usd: ($ledger | tonumber), spent_usd: ($spent | tonumber),
               max_usd: (if $max == "" then null else ($max | tonumber) end), assumed_cap_trials: $assumed},
       trials_planned: $planned, resume_cursor: $cursor, drift: $drift, drift_cleared: $cleared, rerowed: $rerowed,
       rerun: $rerun, rerun_pending: $pending, outage: $outage, outage_history: $ohist,
-      codex_preflight: $cpf_f[0],
+      codex_preflight: $cpf,
       extra_models: ([$ebr | to_entries[] | .value | to_entries[]] | group_by(.key)
                      | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
       extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,

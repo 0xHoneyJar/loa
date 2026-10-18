@@ -883,7 +883,7 @@ PY
   codex_auth -60 >/dev/null
   ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf1 --max-usd 100
   [ "$status" -eq 2 ]
-  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog of 1 trial(s) / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
+  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x max(summed watchdog of 1 trial(s) / concurrency, longest watchdog); KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
   [ ! -e "$RES/kf1/MANIFEST.json" ]
   [ ! -e "$T/stub.log" ]
   # no token material in the refusal
@@ -910,13 +910,14 @@ PY
   [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '["a1_full"]' ]
   [ "$(jq -r '.codex_preflight.token_exp' "$M")" = "$exp" ]
   [ "$(jq -r '.codex_preflight.auth_mode, .codex_preflight.trials_counted, .codex_preflight.horizon_source' "$M" | tr '\n' ' ')" = "chatgpt 2 plan " ]
-  # required_until = now + 2 x (9600 + 16800) / 3 s, about 4.9 h ahead
+  # required_until = now + 2 x max((9600 + 16800) / 3, 16800) s = now + 33600 s (DISS-C-001: the longest
+  # watchdog bounds the horizon from below; the summed share alone, 17600 s, was shorter than one trial)
   jq -e '.codex_preflight.required_until | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$M"
   local ru; ru="$(jq -r '.codex_preflight.required_until' "$M")"
   python3 -I -c '
 import calendar, sys, time
 ru = calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")); d = ru - time.time()
-sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"
+sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$ru"
   ! grep -q 'WARN no codex auth.json' <<<"$output" || false
 }
 
@@ -1052,4 +1053,70 @@ sys.exit(0 if 0 < d < 62 else 1)' "$ru"
     grep -q 'LOA_ABLATION_CODEX_HORIZON_S must be positive whole seconds' <<<"$output"
     [ ! -e "$RES/kf17" ]
   done
+}
+
+@test "RAB-39 KF-048 pre-flight (DISS-C-001): the horizon is never below one trial's own watchdog; one trial (16,800 s) at concurrency 3 with a token between 2 x w / 3 and 2 x w is refused, one past 2 x w passes" {
+  codex_auth 22400 >/dev/null   # 2 x 16800 / 3 = 11200 < 22400 < 33600 = 2 x 16800
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kh1 --concurrency 3 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q '(now + 2 x max(summed watchdog of 1 trial(s) / concurrency, longest watchdog); KF-048) — run codex login on the host' "$RES/kh1/REFUSED.txt"
+  [ ! -e "$RES/kh1/MANIFEST.json" ]
+  codex_auth 34200 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kh2 --concurrency 3 --dry-run
+  [ "$status" -eq 0 ]
+  M="$RES/kh2/MANIFEST.json"
+  [ "$(jq -r '.plan[0].watchdog_s, .codex_preflight.trials_counted, .codex_preflight.checked' "$M" | tr '\n' ' ')" = "16800 1 true " ]
+  python3 -I -c '
+import calendar, sys, time
+d = calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")) - time.time()
+sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.required_until' "$M")"
+}
+
+@test "RAB-40 KF-048 pre-flight (DISS-C-002): STATUS.json is written without the scratch dir: a driver signalled after its \$WORK is gone still records state partial with the pre-flight record (valid JSON, codex_preflight equal to MANIFEST's)" {
+  codex_auth 864000 >/dev/null
+  export STUB_HANG=1 TMPDIR="$T/tmp"; mkdir -p "$TMPDIR"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch ks1 --detach
+  [ "$status" -eq 0 ]
+  pid="$(sed -n 's/.* pid \([0-9]*\).*/\1/p' <<<"$output")"
+  [ -n "$pid" ]
+  for _ in $(seq 1 100); do ls "$RES/ks1/.jobs/"*.pgid >/dev/null 2>&1 && break; sleep 0.2; done
+  ls "$RES/ks1/.jobs/"*.pgid >/dev/null
+  [ "$(jq -r '.state' "$RES/ks1/STATUS.json")" = running ]
+  # the scratch dir disappears under the driver (a tmp reaper, or cleanup ahead of a late write_status)
+  ls -d "$TMPDIR"/run-ablation.* >/dev/null
+  find "$TMPDIR" -mindepth 1 -delete
+  kill -TERM "$pid"
+  for _ in $(seq 1 100); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+  ! kill -0 "$pid" 2>/dev/null || false
+  unset STUB_HANG TMPDIR
+  jq -e . "$RES/ks1/STATUS.json" >/dev/null
+  [ "$(jq -r '.state, .signalled' "$RES/ks1/STATUS.json" | tr '\n' ' ')" = "partial true " ]
+  [ "$(jq -c '.codex_preflight' "$RES/ks1/STATUS.json")" = "$(jq -c '.codex_preflight' "$RES/ks1/MANIFEST.json")" ]
+  [ "$(jq -r '.codex_preflight.checked' "$RES/ks1/STATUS.json")" = true ]
+  [ ! -e "$RES/ks1/STATUS.json.tmp" ]
+}
+
+@test "RAB-41 KF-048 pre-flight (DISS-C-003): --resume counts STATUS.json rerun_pending (a flagged trial with its old row, no replacement yet); a --rerow of that id takes it out again" {
+  codex_auth 864000 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch kp1 --concurrency 1
+  [ "$status" -eq 0 ]
+  B="$RES/kp1"
+  r0="$(jq -r '.plan[0].run_id' "$B/MANIFEST.json")"
+  plant() { jq --arg r "$r0" '.state = "running" | .finished = null | .rerun_pending = [$r]' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"; }
+  plant
+  ra --batch kp1 --resume --concurrency 1
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 1 ]
+  # the planted id is not flagged again on this invocation, so the launcher keeps its row (the documented superset)
+  [ "$(jq -c '.rerun_pending' "$B/STATUS.json")" = '[]' ]
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 2 ]
+  plant
+  ra --batch kp1 --resume --concurrency 1 --rerow "$r0"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 0 ]
+  # a malformed rerun_pending is ignored, not fatal
+  jq '.state = "running" | .finished = null | .rerun_pending = {"x": 1}' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
+  ra --batch kp1 --resume --concurrency 1
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 0 ]
 }
