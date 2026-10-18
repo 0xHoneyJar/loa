@@ -19132,3 +19132,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0598"
+    created_at: "2026-10-18T09:28:17Z"
+    updated_at: "2026-10-18T09:28:17Z"
+    phase: "implementation"
+    category: "technical"
+    summary: "Grader 1.2.12: collision removal narrowed to pytest-collectable basenames in package-less dirs; directory overlays covered; no row affected (L397)"
+    decision: "Grader 1.2.12 (625999a6) replaces 1.2.11's basename-collision removal: the reserved set holds only pytest-collectable basenames (test_*.py, *_test.py — never __init__.py, conftest.py or helper modules) drawn from hidden overlay file dests, the files inside directory overlays (walked, links not followed) and the fixture's tests/ and test/ trees; an agent-added file is removed only when its basename is reserved, its path is neither an overlay dest nor inside a directory overlay nor present in the fixture, and its own directory has no __init__.py (package-less under pytest's default import mode). colliding_tests_removed and the sidecar keep their shape. The official image self-check reads 36/36 under 1.2.12 and the blind re-grade of the 33 suite v2 run directories is identical to the inline grades on every scoring key; no real grade.json ever had colliding_tests_removed > 0, so no row changes."
+    rationale: "1.2.11 reserved every .py basename under those trees (helpers, oracles, __init__.py) and swept the whole tree, so a feature-build or refactor agent that added src/pkg/helpers.py while the fixture had tests/helpers.py would lose its production module and a correct solution would grade as failing; pytest's import-file-mismatch abort only concerns collected test modules in package-less directories (dissent DISS-001/C-001, DISS-002/C-002; review r1 HIGH-1, MEDIUM-1)"
+    alternatives_considered:
+      - option: "keep 1.2.11 and document the hazard"
+        rejected_because: "the grader is the measurement instrument; a latent path that zeroes a correct solution is a fairness defect even when no row has hit it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "43ab4768"
+    source: "grimoires/loa/NOTES.md#sprint-261-review-r1-grader-1212 (L397)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T09:28:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprint-261-review-r1-grader-1212 (L397)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
