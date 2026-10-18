@@ -19164,3 +19164,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0599"
+    created_at: "2026-10-18T10:20:19Z"
+    updated_at: "2026-10-18T10:20:19Z"
+    phase: "implementation"
+    category: "technical"
+    summary: "Grader 1.2.13: collisions by pytest import name, helper shadowing with its test modules, fixture python_files read; re-grade identical (L407)"
+    decision: "Grader 1.2.13 (631d628f) compares protected collectable modules (hidden overlay dests, directory-overlay files, fixture tests/ and test/ files) with agent-added candidates by pytest import name under prepend mode (dotted path from the first ancestor without __init__.py; package-less modules keep stem = name), removes a package-less agent helper whose stem equals a protected sibling module's together with the unowned collectable modules of its directory only when that directory holds a collectable test module, and reads python_files from -o/-c in test_command or the fixture's pytest config files (pytest's order, tomllib for pyproject) with the defaults otherwise, recorded in grade.json collision_rule. The pre-flight (2036083f) bounds the horizon below by the longest remaining trial, feeds the STATUS/MANIFEST writers from a shell variable, and counts rerun_pending. Self-check 36/36 under 1.2.13; the blind re-grade of 165 run directories is identical to the inline grades on every key (colliding_tests_removed 0 everywhere)."
+    rationale: "dissent run 2's DISS-001 showed 1.2.12's directory-level __init__.py exemption misses same-import-name collisions across package roots; C-005 showed sys.path shadowing of protected sibling imports by package-less agent helpers; C-004 that a fixture python_files override would make other modules collectable; C-001/C-002/C-003 the horizon, writer and counting gaps — all accepted (review r2); the rules are now pytest's own"
+    alternatives_considered:
+      - option: "keep 1.2.12 and document the packaged-collision gap"
+        rejected_because: "the frozen suite has no packaged hidden dest, but the grader is the shared instrument for the next model bump and the import-name rule is the exact one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "631d628f"
+    source: "grimoires/loa/NOTES.md#sprint-261-round-3-grader-1213 (L407)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T10:20:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprint-261-round-3-grader-1213 (L407)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
