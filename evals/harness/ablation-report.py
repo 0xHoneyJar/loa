@@ -7,7 +7,8 @@
 # arms[], trials, cut_ladder, priority and the pre-registered `rules` block, D-A5),
 # applies the pre-registered rules to every component arm (A2 … A7) against the
 # control a1_full, checks H1 (a1_full vs a0_bare) and the A4 sensitivity rule, and
-# writes report.md (and a --json twin with the same numbers).
+# writes report.md (and a --json twin with the same numbers). Reads, never writes, each batch's
+# STATUS.json and its run directories' grade.json (the batch record).
 #
 # Usage:
 #   ablation-report.py --runs F [--runs F ...] --manifests DIR [--manifests DIR ...]
@@ -122,6 +123,33 @@
 #   not testable on suite_version N — no admissible build task | not yet decidable (no pair).
 #   JSON h1/a4 carry state and suite_version; each comparison carries read and read_text.
 #
+# Presentation items (Sprint 262 R3, report 1.2.0; none of them changes a decision, an H1/A4 state or
+# an existing number):
+#   sensitivity H1/A4  the sensitivity figure prints the H1 and A4 lines, read the same way as the main
+#                   lines on a third Analysis with cap failures excluded and degraded rows included,
+#                   prefixed "sensitivity (decides nothing): "; per suite version. JSON sensitivity.h1 /
+#                   sensitivity.a4 (the shape of the top-level h1 / a4) and sensitivity.treatment; also
+#                   by_suite_version[N].sensitivity.
+#   ## Batch record one table row per manifest's batch, grouped by suite version, from STATUS.json beside
+#                   MANIFEST.json (read-only; absent → "no STATUS.json"; a symlink is not read): state,
+#                   trials planned / rowed, spend (rows_usd, ledger_usd, spent_usd, max_usd), extra_models,
+#                   rerowed[] and rerun[] counts with from→to tallies, drift_cleared[] and outage_history[]
+#                   counts, cuts[], paused_arms, and the grade.json grader_version tally of the rows' run
+#                   directories <batch dir>/<arm>/<task>-t<n>[-r<k>] ("n/a" without grade.json; a missing
+#                   directory is counted, never fatal). JSON batches[].
+#   precision       per-arm detail of review-catch arms: precision = Σ defects_caught ÷ (Σ defects_caught +
+#                   Σ false_positives) over the arm's valid review-catch rows with a numeric defects_caught
+#                   (cap_failure counts 0 caught; a null false_positives counts 0), null when 0; cost per
+#                   true defect = Σ cost_usd ÷ Σ defects_caught, null when 0 caught. JSON arms.<arm>.
+#                   {precision, usd_per_true_defect, true_defects, flagged_regions, precision_rows}.
+#   budget-matched  per suite version, per review-catch task: the union of a0_bare's valid trials' caught
+#                   defects (ids d1 … dN from defects_missed, as defect_vector reads them; a task whose a0
+#                   rows carry none → max over trials of the rate, "rate fallback") against a1_full's mean
+#                   per-trial catch rate, with the summed a0 cost and the mean a1 cost; "not available" when
+#                   the version has no valid a0_bare or a1_full review-catch rows. JSON budget_matched
+#                   {suite_version, available, tasks[], a0_union_mean, a1_mean, diff_mean, note} (primary
+#                   version; by_suite_version[N].budget_matched for each).
+#
 # Exit codes:
 #   0  report written
 #   1  --partial and no decidable comparison in the primary version (the report is still
@@ -143,7 +171,7 @@ import statistics
 import subprocess
 import sys
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 REPORT_SCHEMA = 1
 ROW_SCHEMA_MAJOR = 1
 MANIFEST_SCHEMA_MAJOR = 1
@@ -163,6 +191,10 @@ DISPLAY = {"investigate": "Investigate", "keep": "Keep", "inconclusive": "Inconc
            "no_rows": "no rows"}
 PARTIAL_LINE = "PARTIAL — rows so far, no decision is final"
 SENS_LABEL = "sensitivity (cap failures excluded) — no decision uses this"
+SENS_PREFIX = "sensitivity (decides nothing): "
+SENS_H_TREATMENT = "cap failures excluded, degraded rows included"
+BUDGET_LABEL = "informational, decides nothing"
+GRADE_DIR = re.compile(r"(.+)-t(\d+)(?:-r(\d+))?")
 
 
 class Fail(Exception):
@@ -410,9 +442,11 @@ def usable(p):
 
 
 class Analysis:
-    def __init__(self, suite, rows, mans, args, cap_excluded):
+    def __init__(self, suite, rows, mans, args, cap_excluded, include_degraded=False):
         self.suite, self.rules, self.args = suite, suite["rules"], args
         self.cap_excluded = cap_excluded
+        # include_degraded (Sprint 262 R3): the sensitivity H1/A4 lines read degraded rows as scored
+        self.exclude_degraded = bool(args.exclude_degraded) and not include_degraded
         self.arms = {a["id"]: a for a in suite["arms"] if isinstance(a, dict) and a.get("id")}
         ex = self.rules.get("exclusion") or {}
         self.ex_statuses = set(ex.get("statuses") or []) | set(DEC0417_EXCLUDED)
@@ -480,7 +514,7 @@ class Analysis:
         reason = None
         if st in self.ex_statuses:
             reason = st
-        elif self.args.exclude_degraded and row.get("degraded") is True:
+        elif self.exclude_degraded and row.get("degraded") is True:
             reason = "degraded: " + str(row.get("degraded_reason") or "no reason recorded")
         elif st not in SCORING:
             reason = "status " + st
@@ -724,7 +758,31 @@ class Analysis:
                   if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
             return mean(vs)
 
+        # precision and cost per true defect (Sprint 262 R3, informational): the arm's valid review-catch
+        # rows with a numeric defects_caught (a cap_failure counts 0 caught); false_positives null → 0
+        prec = {"precision": None, "usd_per_true_defect": None, "true_defects": None, "flagged_regions": None,
+                "precision_rows": 0}
+        if rc:
+            caught = fp = usd = 0.0
+            nrows = 0
+            for rs in rc.values():
+                for r in rs:
+                    c = r.get("defects_caught")
+                    if r["status"] == "cap_failure":
+                        c = 0
+                    if isinstance(c, bool) or not isinstance(c, (int, float)):
+                        continue
+                    f = r.get("false_positives")
+                    f = f if isinstance(f, (int, float)) and not isinstance(f, bool) else 0
+                    caught, fp, nrows = caught + c, fp + f, nrows + 1
+                    usd += float(r.get("cost_usd") or 0)
+            prec = {"precision": caught / (caught + fp) if caught + fp > 0 else None,
+                    "usd_per_true_defect": usd / caught if caught > 0 else None,
+                    "true_defects": int(caught) if float(caught).is_integer() else caught,
+                    "flagged_regions": int(caught + fp) if float(caught + fp).is_integer() else caught + fp,
+                    "precision_rows": nrows}
         return {
+            **prec,
             "rows": len(rows), "by_status": dict(sorted(status.items())),
             "degraded_rows": sum(1 for r in rows if r.get("degraded") is True),
             "valid_cells": len(valid),
@@ -837,14 +895,9 @@ H1_DECIDED = ("established", "not_established", "inconclusive_by_degradation")
 A4_DECIDED = ("holds", "fails", "inconclusive_by_degradation")
 
 
-def analyse(suite, vrows, mans, args, cuts, components, v):
-    """Every figure of one suite_version (the rows of no other version enter)."""
-    seed = args.seed
-    main = Analysis(suite, vrows, mans, args, cap_excluded=False)
-    sens = Analysis(suite, vrows, mans, args, cap_excluded=True)
-    decisions = [main.arm_report(a, cuts, seed) for a in components]
-    sens_rows = [sens.arm_report(a, {}, seed) for a in components]
-
+def h1a4(main, v, seed):
+    """The H1 and A4 reads of one Analysis (the main one, or the sensitivity one with cap failures
+    excluded and degraded rows included, Sprint 262 R3)."""
     h1_comps = [main.compare(CONTROL, BARE, m, seed) for m in main.primaries(CONTROL)]
     h1_reads = [assess(main, CONTROL, BARE, p) for p in h1_comps]
     states = [s for s, _ in h1_reads]
@@ -876,6 +929,266 @@ def analyse(suite, vrows, mans, args, cuts, components, v):
             a4_state, a4_line = "fails", "A4 sensitivity: fails — harden tasks before acting on other arms"
     else:
         a4_state, a4_line = "no_arm", "A4 sensitivity: fails — harden tasks before acting on other arms"
+    return {"version": v, "h1_comps": h1_comps, "h1_reads": h1_reads, "h1_state": h1_state, "h1_line": h1_line,
+            "h1_ok": h1_state == "established", "a4": a4, "a4_read": a4_read, "a4_state": a4_state,
+            "a4_line": a4_line, "a4_ok": a4_state == "holds"}
+
+
+def budget_matched(an, v):
+    """The budget-matched baseline (Sprint 262 R3, informational, decides nothing): per review-catch task,
+    the union of a0_bare's valid trials' caught defects against a1_full's mean per-trial catch rate."""
+    out = {"suite_version": v, "available": False, "tasks": [], "a0_union_mean": None, "a1_mean": None,
+           "diff_mean": None, "note": None, "label": BUDGET_LABEL}
+
+    def valid(arm, task):
+        return [c["valid"] for _, c in sorted(an.cells.get((arm, task), {}).items()) if c["valid"] is not None]
+
+    tasks = sorted({t for (a, t) in an.cells if a in (BARE, CONTROL) and an.task_type.get(t) == REVIEW})
+    have = {a: any(valid(a, t) for t in tasks) for a in (BARE, CONTROL)}
+    if not (have[BARE] and have[CONTROL]):
+        missing = " and ".join(a for a in (BARE, CONTROL) if not have[a])
+        out["note"] = f"not available on suite_version {v} — no valid {missing} review-catch rows"
+        return out
+    out["available"] = True
+    for t in tasks:
+        a0, a1 = valid(BARE, t), valid(CONTROL, t)
+        e = {"task_id": t, "a0_trials": len(a0), "a1_trials": len(a1), "a0_union": None, "a0_cost_sum": None,
+             "a1_mean": None, "a1_cost_mean": None, "diff": None, "method": None, "reason": None}
+        if a0:
+            vecs = [an.defect_vector(r) for r in a0]
+            if all(vv is not None and how in ("ids", "cap") for vv, how in vecs):
+                e["a0_union"] = mean([max(vv[k] for vv, _ in vecs) for k in range(len(vecs[0][0]))])
+                e["method"] = "defect union"
+            else:
+                e["a0_union"] = max(an.catch_task_score(r) for r in a0)
+                e["method"] = "rate fallback"
+            e["a0_cost_sum"] = sum(float(r.get("cost_usd") or 0) for r in a0)
+        if a1:
+            e["a1_mean"] = mean([an.catch_task_score(r) for r in a1])
+            e["a1_cost_mean"] = mean([float(r.get("cost_usd") or 0) for r in a1])
+        if a0 and a1:
+            e["diff"] = e["a1_mean"] - e["a0_union"]
+        else:
+            e["reason"] = "; ".join(f"no valid {a} trial" for a, rs in ((BARE, a0), (CONTROL, a1)) if not rs)
+        out["tasks"].append(e)
+    both = [e for e in out["tasks"] if e["diff"] is not None]
+    if not both:
+        out["available"] = False
+        out["note"] = f"not available on suite_version {v} — no review-catch task has valid trials in both arms"
+        return out
+    out["a0_union_mean"] = mean([e["a0_union"] for e in both])
+    out["a1_mean"] = mean([e["a1_mean"] for e in both])
+    out["diff_mean"] = out["a1_mean"] - out["a0_union_mean"]
+    k = sorted({e["a0_trials"] for e in both})
+    kk = str(k[0]) if len(k) == 1 else "the"
+    x = mean([e["a0_cost_sum"] for e in both])
+    y = mean([e["a1_cost_mean"] for e in both])
+    out["a0_cost_sum_mean"], out["a1_cost_mean"] = x, y
+    out["note"] = (f"{kk} a0_bare trials cost USD {x:.2f} vs one a1_full trial USD {y:.2f} "
+                   f"(task means over {len(both)} task{'' if len(both) == 1 else 's'})")
+    return out
+
+
+def batch_record(mans, rows):
+    """Each batch's STATUS.json (beside its MANIFEST.json, read-only) and the grader versions of its rows'
+    run directories (Sprint 262 R3); a missing file or directory is reported, never fatal."""
+    out = []
+    for b, m in sorted(mans.items()):
+        d = os.path.dirname(m["_path"])
+        brows = [r for r in rows if r["batch"] == b]
+        vks = sorted({k for k in (version_key(r.get("suite_version")) for r in brows) if k is not None},
+                     key=version_order)
+        sv = version_key(m.get("suite_version")) or (", ".join(vks) if vks else "n/a")
+        e = {"batch": b, "suite_version": sv, "smoke": m.get("smoke") is True, "status_file": None,
+             "status_note": None, "state": None, "trials_planned": None, "trials_rowed": len(brows),
+             "spend": None, "extra_models": {}, "rerowed": 0, "rerowed_tally": {}, "rerun": 0,
+             "rerun_tally": {}, "drift_cleared": 0, "outage_history": 0, "cuts": [], "paused_arms": [],
+             "grader_versions": {}, "run_dirs_missing": 0}
+        sp = os.path.join(d, "STATUS.json")
+        st = None
+        if os.path.islink(sp):
+            e["status_note"] = "STATUS.json is a symlink (not read)"
+        elif not os.path.isfile(sp):
+            e["status_note"] = "no STATUS.json"
+        else:
+            try:
+                with open(sp, encoding="utf-8") as fh:
+                    st = json.load(fh)
+            except (OSError, ValueError):
+                st = None
+            if not isinstance(st, dict):
+                st, e["status_note"] = None, "STATUS.json unreadable"
+        if st is not None:
+            e["status_file"] = sp
+
+            def lst(k):
+                x = st.get(k)
+                return x if isinstance(x, list) else []
+
+            def tally(k):
+                t = {}
+                for x in lst(k):
+                    if isinstance(x, dict):
+                        key = f"{x.get('from', '?')}→{x.get('to', '?')}"
+                        t[key] = t.get(key, 0) + 1
+                return dict(sorted(t.items()))
+
+            sd = st.get("spend") if isinstance(st.get("spend"), dict) else {}
+            e.update(state=st.get("state"), trials_planned=st.get("trials_planned"),
+                     spend={k: sd.get(k) for k in ("rows_usd", "ledger_usd", "spent_usd", "max_usd")},
+                     rerowed=len(lst("rerowed")), rerowed_tally=tally("rerowed"),
+                     rerun=len(lst("rerun")), rerun_tally=tally("rerun"),
+                     drift_cleared=len(lst("drift_cleared")), outage_history=len(lst("outage_history")),
+                     cuts=[{k: c.get(k) for k in ("reason", "at_trial", "spent", "max") if k in c}
+                           for c in lst("cuts") if isinstance(c, dict)])
+            em = st.get("extra_models")
+            if isinstance(em, dict):
+                e["extra_models"] = {str(k): {"runs": (x or {}).get("runs"), "output_tokens": (x or {}).get("output_tokens")}
+                                     for k, x in sorted(em.items()) if isinstance(x, dict) or x is None}
+            pa = st.get("paused_arms")
+            e["paused_arms"] = sorted(str(x) for x in (pa if isinstance(pa, (dict, list)) else []))
+        # grader versions: <batch dir>/<arm>/<task>-t<n>[-r<k>]/grade.json
+        listing = {}
+        gv = {}
+        for r in brows:
+            ad = os.path.join(d, r["arm"])
+            if ad not in listing:
+                try:
+                    listing[ad] = sorted(x for x in os.listdir(ad) if not os.path.islink(os.path.join(ad, x))
+                                         and os.path.isdir(os.path.join(ad, x))) \
+                        if os.path.isdir(ad) and not os.path.islink(ad) else []
+                except OSError:
+                    listing[ad] = []
+            dirs = []
+            for x in listing[ad]:
+                mm = GRADE_DIR.fullmatch(x)
+                if mm and mm.group(1) == r["task_id"] and int(mm.group(2)) == r["trial"]:
+                    dirs.append(x)
+            if not dirs:
+                e["run_dirs_missing"] += 1
+            for x in dirs:
+                gp = os.path.join(ad, x, "grade.json")
+                ver = "n/a"
+                if os.path.isfile(gp) and not os.path.islink(gp):
+                    try:
+                        with open(gp, encoding="utf-8") as fh:
+                            g = json.load(fh)
+                        if isinstance(g, dict) and g.get("grader_version") not in (None, ""):
+                            ver = str(g["grader_version"])
+                    except (OSError, ValueError):
+                        pass
+                gv[ver] = gv.get(ver, 0) + 1
+        e["grader_versions"] = dict(sorted(gv.items(), key=lambda kv: (
+            kv[0] == "n/a", [int(p) if p.isdigit() else p for p in re.split(r"[.]", kv[0])])))
+        out.append(e)
+    return out
+
+
+def render_budget(L, B, h):
+    L(f"{h} Budget-matched baseline (suite_version {B['suite_version']}; {BUDGET_LABEL})")
+    L("")
+    if not B["available"]:
+        L(f"- {B['note']}")
+        L("")
+        return
+    L("Per review-catch task: the union of the defects any valid a0_bare trial caught (a defect counts once "
+      "caught by any trial; \"rate fallback\" is the best trial's rate where the rows carry no per-defect ids), "
+      "against a1_full's mean per-trial catch rate. Nothing here feeds a decision.")
+    L("")
+    L("| task | a0_bare trials | a0_bare union catch rate | a0_bare summed cost USD | a1_full trials | "
+      "a1_full mean per-trial catch rate | a1_full mean cost USD | a1 − a0 union | method |")
+    L("|---|---|---|---|---|---|---|---|---|")
+
+    def usd(x):
+        return "n/a" if x is None else f"{x:.2f}"
+
+    for e in B["tasks"]:
+        L(f"| {e['task_id']} | {e['a0_trials']} | {u3(e['a0_union'])} | {usd(e['a0_cost_sum'])} | {e['a1_trials']} | "
+          f"{u3(e['a1_mean'])} | {usd(e['a1_cost_mean'])} | {f3(e['diff'])} | "
+          f"{md_cell(e['method'] or 'n/a')}{'; ' + md_cell(e['reason']) if e['reason'] else ''} |")
+    L("")
+    L(f"- task mean (tasks with both arms): a0_bare union {u3(B['a0_union_mean'])}, a1_full per-trial "
+      f"{u3(B['a1_mean'])}, a1 − a0 union {f3(B['diff_mean'])}")
+    L(f"- matched cost: {B['note']}")
+    L("")
+
+
+def budget_json(B):
+    return {k: (j6(x) if isinstance(x, float) else
+                [{kk: (j6(y) if isinstance(y, float) else y) for kk, y in t.items()} for t in x] if k == "tasks" else x)
+            for k, x in B.items()}
+
+
+def render_batches(L, recs):
+    L("## Batch record")
+    L("")
+    L("From each batch's STATUS.json beside its MANIFEST.json (read-only) and the `grade.json` grader_version "
+      "of its rows' run directories (`<batch>/<arm>/<task>-t<n>[-r<k>]`); a tally is `from→to ×n`.")
+    L("")
+
+    def usd(x):
+        return "n/a" if not isinstance(x, (int, float)) or isinstance(x, bool) else f"{x:.2f}"
+
+    def tl(t):
+        return ", ".join(f"{k} ×{n}" for k, n in t.items())
+
+    for v in sorted({e["suite_version"] for e in recs}, key=lambda k: version_order(k) if k else (2, 0, "")):
+        L(f"### suite_version {v}")
+        L("")
+        L("| batch | state | trials planned / rowed | spend USD rows / ledger / spent / max | extra models | rerowed | "
+          "rerun | drift cleared | outages | cuts | paused arms | grader versions |")
+        L("|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for e in [x for x in recs if x["suite_version"] == v]:
+            name = f"`{e['batch']}`" + (" (smoke)" if e["smoke"] else "")
+            gv = ", ".join(f"{k} ×{n}" for k, n in e["grader_versions"].items()) or "n/a"
+            if e["run_dirs_missing"]:
+                gv += f"; no run dir ×{e['run_dirs_missing']}"
+            if e["status_note"]:
+                L(f"| {name} | {md_cell(e['status_note'])} | — / {e['trials_rowed']} | — | — | — | — | — | — | — | — | "
+                  f"{md_cell(gv)} |")
+                continue
+            sp = e["spend"] or {}
+            em = ", ".join(f"{k}: runs {x.get('runs')}, output tokens {x.get('output_tokens')}"
+                           for k, x in e["extra_models"].items()) or "none"
+            cuts = "; ".join(", ".join(f"{k} {c[k]}" for k in c) for c in e["cuts"]) or "none"
+            rr = f"{e['rerowed']}" + (f" ({tl(e['rerowed_tally'])})" if e["rerowed"] else "")
+            rn = f"{e['rerun']}" + (f" ({tl(e['rerun_tally'])})" if e["rerun"] else "")
+            L(f"| {name} | {md_cell(e['state'] or 'n/a')} | {e['trials_planned'] if e['trials_planned'] is not None else 'n/a'}"
+              f" / {e['trials_rowed']} | {usd(sp.get('rows_usd'))} / {usd(sp.get('ledger_usd'))} / "
+              f"{usd(sp.get('spent_usd'))} / {usd(sp.get('max_usd'))} | {md_cell(em)} | {md_cell(rr)} | {md_cell(rn)} | "
+              f"{e['drift_cleared']} | {e['outage_history']} | {md_cell(cuts)} | "
+              f"{md_cell(', '.join(e['paused_arms']) or 'none')} | {md_cell(gv)} |")
+        L("")
+
+
+def render_sens(L, V, rules, h):
+    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
+      "wall-clock Δ % | excluded share | predicate outcome (not used) |")
+    L("|---|---|---|---|---|---|---|---|---|")
+    for d in V["sens_rows"]:
+        cp = {p["metric"]: p for p in d["comparisons"]}
+        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
+        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
+        share = "n/a" if d["excluded_share"] is None else f"{d['excluded_share']:.3f}"
+        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
+          f"{pct(d['w'])} | {share} | {d['predicate_label']} |")
+    L("")
+    L(f"{h} H1 and A4 lines, sensitivity ({SENS_H_TREATMENT}; decides nothing)")
+    L("")
+    render_h1a4(L, V["sens_h"], rules, prefix=SENS_PREFIX, suffix=f" ({SENS_H_TREATMENT})")
+
+
+def analyse(suite, vrows, mans, args, cuts, components, v):
+    """Every figure of one suite_version (the rows of no other version enter)."""
+    seed = args.seed
+    main = Analysis(suite, vrows, mans, args, cap_excluded=False)
+    sens = Analysis(suite, vrows, mans, args, cap_excluded=True)
+    decisions = [main.arm_report(a, cuts, seed) for a in components]
+    sens_rows = [sens.arm_report(a, {}, seed) for a in components]
+
+    H = h1a4(main, v, seed)
+    h1_state, a4_state = H["h1_state"], H["a4_state"]
+    sens_h = h1a4(Analysis(suite, vrows, mans, args, cap_excluded=True, include_degraded=True), v, seed)
     decidable = any(d["decidable"] for d in decisions) or h1_state in H1_DECIDED or a4_state in A4_DECIDED
     caps = [c["valid"] for (_, _), trials in sorted(main.cells.items()) for _, c in sorted(trials.items())
             if c["valid"] is not None and c["valid"]["status"] == "cap_failure"]
@@ -883,11 +1196,9 @@ def analyse(suite, vrows, mans, args, cuts, components, v):
     shas = sorted({str(mans[b].get("suite_manifest_sha256")) for b in batches
                    if b in mans and mans[b].get("suite_manifest_sha256") not in (None, "")}
                   | {str(r.get("suite_manifest_sha256")) for r in vrows if r.get("suite_manifest_sha256") not in (None, "")})
-    return {"version": v, "rows": vrows, "main": main, "sens": sens, "decisions": decisions, "sens_rows": sens_rows,
-            "h1_comps": h1_comps, "h1_reads": h1_reads, "h1_state": h1_state, "h1_line": h1_line,
-            "h1_ok": h1_state == "established", "a4": a4, "a4_read": a4_read, "a4_state": a4_state,
-            "a4_line": a4_line, "a4_ok": a4_state == "holds", "decidable": decidable, "caps": caps,
-            "batches": batches, "shas": shas}
+    return dict(H, rows=vrows, main=main, sens=sens, decisions=decisions, sens_rows=sens_rows,
+                decidable=decidable, caps=caps, batches=batches, shas=shas, sens_h=sens_h,
+                budget=budget_matched(main, v))
 
 
 def render_decisions(L, V, absent, rules):
@@ -909,17 +1220,22 @@ def render_decisions(L, V, absent, rules):
         L(f"| {a.get('label', a['id'])} | `{a['id']}` | — | — | — | — | — | — | **component-absent** | "
           f"{md_cell(a.get('evidence', 'absent: true'))} | 0 |")
     L("")
-    h1p = ", ".join(read_text(p, s, why, V["version"]) for p, (s, why) in zip(V["h1_comps"], V["h1_reads"]))
-    L(f"**{V['h1_line']}** — a1_full − a0_bare: {h1p}. Rule (rules.h1): \"{rules.get('h1', '')}\"")
+    render_h1a4(L, V, rules)
+
+
+def render_h1a4(L, H, rules, prefix="", suffix=""):
+    """The H1 and A4 lines of one h1a4() read; the sensitivity lines carry SENS_PREFIX."""
+    h1p = ", ".join(read_text(p, s, why, H["version"]) for p, (s, why) in zip(H["h1_comps"], H["h1_reads"]))
+    L(f"**{prefix}{H['h1_line']}** — a1_full − a0_bare: {h1p}{suffix}. Rule (rules.h1): \"{rules.get('h1', '')}\"")
     L("")
-    a4 = V["a4"]
+    a4 = H["a4"]
     if a4 is None:
         a4p = "no arm a4_no_gates"
-    elif V["a4_state"] in ("not_testable", "inconclusive_by_degradation"):
-        a4p = read_text(a4, V["a4_read"][0], V["a4_read"][1], V["version"])
+    elif H["a4_state"] in ("not_testable", "inconclusive_by_degradation"):
+        a4p = read_text(a4, H["a4_read"][0], H["a4_read"][1], H["version"])
     else:
         a4p = f"{PASS} {interval(a4)} (n = {a4['n']} {a4['unit']})"
-    L(f"**{V['a4_line']}** — a4_no_gates − a1_full: {a4p}. Rule (rules.a4_sensitivity): "
+    L(f"**{prefix}{H['a4_line']}** — a4_no_gates − a1_full: {a4p}{suffix}. Rule (rules.a4_sensitivity): "
       f"\"{rules.get('a4_sensitivity', '')}\"")
     L("")
 
@@ -972,6 +1288,10 @@ def render_per_arm(L, V, detail_arms, h):
         if m["false_positives_per_task"]:
             L("- false positives per review-catch task: " + ", ".join(
                 f"{t} {u3(v)}" for t, v in m["false_positives_per_task"].items()))
+            usd = m["usd_per_true_defect"]
+            L(f"- precision ({BUDGET_LABEL}): {u3(m['precision'])} = true defects {m['true_defects']} / flagged "
+              f"regions {m['flagged_regions']} (defects caught + false positives over {m['precision_rows']} valid "
+              f"review-catch rows); cost per true defect caught: {'n/a' if usd is None else f'USD {usd:.2f}'}")
         wall, tin, tout = m["wall_clock_ms_per_run"], m["tokens_in_per_run"], m["tokens_out_per_run"]
         wall_s = "n/a" if wall is None else f"{wall / 60000.0:.1f} min"
         tin_s = "n/a" if tin is None else f"{tin:.0f}"
@@ -1176,17 +1496,9 @@ def build(args):
 
     L(f"## Sensitivity figure: {SENS_LABEL}")
     L("")
-    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
-      "wall-clock Δ % | excluded share | predicate outcome (not used) |")
-    L("|---|---|---|---|---|---|---|---|---|")
-    for d in sens_rows:
-        cp = {p["metric"]: p for p in d["comparisons"]}
-        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
-        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
-        share = "n/a" if d["excluded_share"] is None else f"{d['excluded_share']:.3f}"
-        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
-          f"{pct(d['w'])} | {share} | {d['predicate_label']} |")
-    L("")
+    render_sens(L, P, rules, "###")
+
+    render_budget(L, P["budget"], "##")
 
     L("## Rows per cell")
     L("")
@@ -1232,6 +1544,13 @@ def build(args):
         L("")
         other_metrics[v] = render_per_arm(L, V, detail_arms, "####")
         render_exclusions(L, V, [], "###", "####")
+        L(f"### Sensitivity figure (suite_version {v}): {SENS_LABEL}")
+        L("")
+        render_sens(L, V, rules, "####")
+        render_budget(L, V["budget"], "###")
+
+    recs = batch_record(mans, rows)
+    render_batches(L, recs)
 
     L("## Method")
     L("")
@@ -1274,7 +1593,16 @@ def build(args):
                 "suite_manifest_sha256": V["shas"], "decidable": V["decidable"],
                 "h1": h1_json(V, rules), "a4": a4_json(V, rules), "decisions": decisions_json(V["decisions"]),
                 "arms": arms_json(ms), "exclusions": exclusions_json(V), "listed": listed_json(V),
-                "cap_failures": [r["run_id"] for r in V["caps"]]}
+                "cap_failures": [r["run_id"] for r in V["caps"]],
+                "sensitivity": sens_json(V), "budget_matched": budget_json(V["budget"])}
+
+    def sens_json(V):
+        return {"treatment": SENS_H_TREATMENT,
+                "h1": dict(h1_json(V["sens_h"], rules), line=SENS_PREFIX + V["sens_h"]["h1_line"]),
+                "a4": dict(a4_json(V["sens_h"], rules), line=SENS_PREFIX + V["sens_h"]["a4_line"]),
+                "rows": [{"arm": d["arm"], "predicate_state": d["predicate_state"], "c": j6(d["c"]),
+                          "w": j6(d["w"]), "excluded_share": j6(d["excluded_share"]),
+                          "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in V["sens_rows"]]}
 
     other_metrics[primary] = metrics
     data = {
@@ -1302,10 +1630,9 @@ def build(args):
         "duplicates": dups,
         "cap_failures": [r["run_id"] for r in P["caps"]],
         "cuts": [dict(arm=a, **cuts[a]) for a in sorted(cuts)],
-        "sensitivity": {"label": SENS_LABEL,
-                        "rows": [{"arm": d["arm"], "predicate_state": d["predicate_state"], "c": j6(d["c"]),
-                                  "w": j6(d["w"]), "excluded_share": j6(d["excluded_share"]),
-                                  "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in sens_rows]},
+        "sensitivity": dict(sens_json(P), label=SENS_LABEL),
+        "budget_matched": budget_json(P["budget"]),
+        "batches": recs,
     }
     return "\n".join(lines) + "\n", data, P["decidable"]
 

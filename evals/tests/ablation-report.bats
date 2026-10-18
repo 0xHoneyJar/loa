@@ -8,7 +8,9 @@
 # number) into the file tmpdir; setup_file builds the full reports once against the
 # real suite file evals/suites/ablation-2.0.yaml. AR-23 … AR-30 (Sprint 262): the suite_version
 # partition, the not-testable / not-yet-decidable states (bd-wqbz3), the degradation guard on
-# the H1 and A4 lines, and the degenerate single-task rate-fallback pair.
+# the H1 and A4 lines, and the degenerate single-task rate-fallback pair. AR-31 … AR-35 (Sprint 262
+# R3, presentation only): the sensitivity H1/A4 lines, the batch record, precision and cost per true
+# defect, the budget-matched baseline.
 # =============================================================================
 
 setup_file() {
@@ -20,7 +22,7 @@ setup_file() {
   export FX="$BATS_FILE_TMPDIR/fx"
   mkdir -p "$FX"
   python3 -I "$TESTS_DIR/fixtures/ablation-report/gen-fixtures.py" "$FX"
-  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids; do
+  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present; do
     python3 -I "$REPORT" --runs "$FX/$s/runs.jsonl" --manifests "$FX/$s/manifests" --suite "$SUITE" \
       --out "$FX/$s/report.md" --json "$FX/$s/report.json" >/dev/null
   done
@@ -385,7 +387,7 @@ PY
   [ "$(jq -r .h1.established "$J")" = "false" ]
   [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$J")" = "inconclusive_by_degradation" ]
   grep -qF 'defect_catch_rate inconclusive by degradation (a1_full excluded share 0.750 > 0.25)' "$FX/degraded/report.md"
-  ! grep -qF 'H1: established' "$FX/degraded/report.md" || false
+  ! grep -qF '**H1: established**' "$FX/degraded/report.md" || false
   report degraded "$T/nd" --exclude-degraded false
   [ "$status" -eq 0 ]
   [ "$(jq -r .h1.line "$T/nd.json")" = "H1: established" ]
@@ -434,4 +436,90 @@ PY
   [ "$(jq -r '.decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
   [ "$(jq -r .a4.line "$T/c.json")" = "A4 sensitivity: not testable on suite_version 2 — no admissible build task" ]
   [ "$(jq -r '.by_suite_version["1"].decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
+}
+
+@test "AR-31 the sensitivity figure prints the H1 and A4 lines per suite version, prefixed and labelled as deciding nothing" {
+  J="$FX/versions/report.json"; M="$FX/versions/report.md"
+  [ "$(jq -r .sensitivity.h1.state "$J")" = "established" ]
+  [ "$(jq -r .sensitivity.h1.line "$J")" = "sensitivity (decides nothing): H1: established" ]
+  [ "$(jq -r .sensitivity.a4.state "$J")" = "not_testable" ]
+  [ "$(jq -r .sensitivity.treatment "$J")" = "cap failures excluded, degraded rows included" ]
+  [ "$(jq -r '.sensitivity.h1 | keys | join(",")' "$J")" = "$(jq -r '.h1 | keys | join(",")' "$J")" ]
+  [ "$(jq -r '.by_suite_version["1"].sensitivity.a4.state' "$J")" = "holds" ]
+  awk '/^## Sensitivity figure/{f=1} /^## Budget-matched/{f=0} f' "$M" | grep -qF '**sensitivity (decides nothing): H1: established** — a1_full − a0_bare: hidden_test_pass_rate: not testable on suite_version 2'
+  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**sensitivity (decides nothing): A4 sensitivity: holds** — a4_no_gates − a1_full: hidden_test_pass_rate -0.100 [-0.100, -0.100] (n = 12 tasks) (cap failures excluded, degraded rows included)'
+  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '#### H1 and A4 lines, sensitivity (cap failures excluded, degraded rows included; decides nothing)'
+  # degraded rows included: the main H1 is inconclusive by degradation, the sensitivity H1 is established
+  [ "$(jq -r .h1.state "$FX/degraded/report.json")" = "inconclusive_by_degradation" ]
+  [ "$(jq -r .sensitivity.h1.state "$FX/degraded/report.json")" = "established" ]
+  [ "$(jq -r '.sensitivity.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degraded/report.json")" = "tested" ]
+}
+
+@test "AR-32 the batch record reads STATUS.json beside MANIFEST.json and grade.json grader versions; a batch without STATUS.json and missing run dirs are tolerated" {
+  J="$FX/present/report.json"; M="$FX/present/report.md"
+  b() { jq -r --arg b "$1" ".batches[] | select(.batch == \$b) | $2" "$J"; }
+  [ "$(b pr-2 .state)" = "complete" ]
+  [ "$(b pr-2 .trials_planned)" = "20" ]
+  [ "$(b pr-2 .trials_rowed)" = "18" ]
+  [ "$(b pr-2 .spend.spent_usd)" = "70.5" ]
+  [ "$(b pr-2 .rerowed)" = "3" ]
+  [ "$(b pr-2 '.rerowed_tally["contaminated→cap_failure"]')" = "1" ]
+  [ "$(b pr-2 '.rerun_tally["transport_error→completed"]')" = "1" ]
+  [ "$(b pr-2 .outage_history)" = "2" ]
+  [ "$(b pr-2 .drift_cleared)" = "1" ]
+  [ "$(b pr-2 '.paused_arms | join(",")')" = "a3_one_voice" ]
+  [ "$(b pr-2 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=1" ]
+  [ "$(b pr-2 .run_dirs_missing)" = "15" ]
+  [ "$(b pr-1 .status_note)" = "no STATUS.json" ]
+  [ "$(b pr-1 .suite_version)" = "1" ]
+  grep -qF '## Batch record' "$M"
+  grep -qF '| `pr-2` | complete | 20 / 18 | 69.00 / 1.50 / 70.50 / 100.00 | global.anthropic.claude-haiku-4-5-20251001-v1:0: runs 2, output tokens 900 | 3 (completed→completed ×2, contaminated→cap_failure ×1) | 1 (transport_error→completed ×1) | 1 | 2 |' "$M"
+  grep -qF '| a3_one_voice | 1.2.5 ×1, 1.2.11 ×1, n/a ×1; no run dir ×15 |' "$M"
+  grep -qF '| `pr-1` | no STATUS.json | — / 72 |' "$M"
+  awk '/^## Batch record/{f=1} /^## Method/{f=0} f' "$M" | grep -qF '### suite_version 1'
+  # the report reads, never writes, beside the manifests
+  [ ! -e "$FX/present/manifests/pr-1/STATUS.json" ]
+}
+
+@test "AR-33 precision and cost per true defect per review-catch arm (informational): false positives, none, and zero caught → null" {
+  J="$FX/present/report.json"
+  [ "$(jq -r '.arms.a0_bare | "\(.precision) \(.usd_per_true_defect) \(.true_defects) \(.flagged_regions)"' "$J")" = "0.647059 0.545455 11 17" ]
+  [ "$(jq -r '.arms.a1_full | "\(.precision) \(.usd_per_true_defect) \(.true_defects) \(.flagged_regions)"' "$J")" = "1.0 2.222222 27 27" ]
+  [ "$(jq -r '.arms.a3_one_voice | "\(.precision) \(.usd_per_true_defect) \(.true_defects)"' "$J")" = "null null 0" ]
+  [ "$(jq -r '.arms.a2_no_sprint_plan.precision' "$J")" = "null" ]
+  grep -qF -- '- precision (informational, decides nothing): 0.647 = true defects 11 / flagged regions 17 (defects caught + false positives over 6 valid review-catch rows); cost per true defect caught: USD 0.55' "$FX/present/report.md"
+  grep -qF 'cost per true defect caught: n/a' "$FX/present/report.md"
+}
+
+@test "AR-34 budget-matched baseline: the a0 union beats every single a0 trial; rate fallback without ids; a version without review rows reads not available" {
+  J="$FX/present/report.json"; M="$FX/present/report.md"
+  t() { jq -r --arg t "$1" ".budget_matched.tasks[] | select(.task_id == \$t) | $2" "$J"; }
+  [ "$(jq -r .budget_matched.suite_version "$J")" = "2" ]
+  [ "$(t rc-01 '"\(.a0_union) \(.a0_cost_sum) \(.a1_mean) \(.a1_cost_mean) \(.diff) \(.method)"')" = "1.0 3.0 0.875 10.0 -0.125 defect union" ]
+  # no single a0 trial of rc-01 caught more than half
+  [ "$(jq -r '[.[] | select(.arm == "a0_bare" and .task_id == "rc-01") | .defect_catch_rate] | max' <(jq -s . "$FX/present/runs.jsonl"))" = "0.5" ]
+  [ "$(t rc-02 .method)" = "rate fallback" ]
+  [ "$(t rc-02 .a0_union)" = "0.5" ]
+  [ "$(jq -r '"\(.budget_matched.a0_union_mean) \(.budget_matched.a1_mean)"' "$J")" = "0.75 0.9375" ]
+  [ "$(jq -r .budget_matched.note "$J")" = "3 a0_bare trials cost USD 3.00 vs one a1_full trial USD 10.00 (task means over 2 tasks)" ]
+  grep -qF '## Budget-matched baseline (suite_version 2; informational, decides nothing)' "$M"
+  grep -qF '| rc-01 | 3 | 1.000 | 3.00 | 3 | 0.875 | 10.00 | -0.125 | defect union |' "$M"
+  grep -qF '| rc-02 | 3 | 0.500 | 3.00 | 3 | 1.000 | 10.00 | +0.500 | rate fallback |' "$M"
+  [ "$(jq -r '.by_suite_version["1"].budget_matched.available' "$J")" = "false" ]
+  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF -- '- not available on suite_version 1 — no valid a0_bare and a1_full review-catch rows'
+}
+
+@test "AR-35 the presentation items change no decision, H1/A4 state or existing number" {
+  for s in main boundary exclusions versions degraded; do
+    python3 -I - "$FX/$s/report.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for k in ("budget_matched", "batches"):
+    assert k in d, k
+assert d["sensitivity"]["h1"]["state"] and d["sensitivity"]["a4"]["state"]
+PY
+  done
+  # the main H1 line ignores the sensitivity read: degraded stays inconclusive by degradation
+  [ "$(jq -r .h1.line "$FX/degraded/report.json")" = "H1: inconclusive by degradation — not established" ]
+  [ "$(jq -r '.decisions[] | select(.arm == "a3_one_voice") | .state' "$FX/present/report.json")" = "keep" ]
 }
