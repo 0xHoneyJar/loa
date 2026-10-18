@@ -19196,3 +19196,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0600"
+    created_at: "2026-10-18T10:39:17Z"
+    updated_at: "2026-10-18T10:39:17Z"
+    phase: "implementation"
+    category: "process"
+    summary: "No pruning made in cycle-130: no component arm has an admissible pair on suite v2 and v1 saturated; defaults unchanged; G-5 reads 'no pruning made' (L424)"
+    decision: "Cycle-130 prunes nothing: the pre-registered rules allow Remove or Simplify only from a valid paired comparison with an interval excluding zero on a primary; on suite v2 the A4 sensitivity is not testable (no build task met the hardness bar, DEC-0590) and A2, A3, A5, A6, A7 are Not run (cut) (DEC-0543, DEC-0558, DEC-0559); on suite v1 every arm saturated at 1.000. No component moves to opt-in, no config default changes, no addendum and no re-verification run; Task 5.4 records 'no pruning made' and AC-5.8 does not apply. The review-PR lift of the full pipeline (defect_catch_rate +0.263 [+0.158, +0.386] at about 17 x the cost, half the precision) and the build saturation go to report.md and the rc.6 notes as the next cycle's input."
+    rationale: "the operator's pre-registered reading for H1 established with A4 not testable is 'no pruning of A4' and the cycle continues to the report (DEC-0559, DEC-0591); pruning on an informational figure would be a post-hoc decision"
+    alternatives_considered:
+      - option: "prune A4 (gates) on the v1 saturation or simplify the dissent on the v2 cost figures"
+        rejected_because: "v1 saturation is no evidence about gates, and the v2 cost and precision figures are labelled as deciding nothing"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/a11af7c7-9bee-4297-bae8-277a59b89304"
+    commit: "9e6ffa11"
+    source: "grimoires/loa/NOTES.md#sprint-262-task-54-no-pruning (L424)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T10:39:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#sprint-262-task-54-no-pruning (L424)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
