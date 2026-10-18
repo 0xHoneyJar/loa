@@ -18972,3 +18972,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0593"
+    created_at: "2026-10-18T04:46:49Z"
+    updated_at: "2026-10-18T04:46:49Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Operator chose option (a): Codex re-authenticated; fix the credential copy, rerun the nine degraded A1 cells, add a budget-matched figure (L83)"
+    decision: "Per the operator's in-session instruction (2026-10-18, 'you can try again as codex has been logged in'), the cycle continues under DEC-0592 option (a): the host Codex credential is fresh (last_refresh 2026-10-18T04:44:33Z, access token valid to 2026-10-28T04:44:32Z; host probe OK). Next session: (1) harness fix — pipeline-run.sh gives each container an access-token-only copy of ~/.codex/auth.json (tokens.refresh_token removed) so no container can consume the host's refresh token again, and run-ablation.sh's preflight refuses a batch whose codex access token expires before the batch's estimated end (KF-048); (2) row writer and report hardening before any new row (defects_missed, the suite_version partition, the 25 % guard on the H1/A4 lines, the degenerate-interval flag); (3) a pre-registration addendum, then a supplementary batch priority-v2-p1b re-running a1_full on review-01 … review-03 trials 1–3 (the nine degraded cells; rows supersede the degraded ones cell by cell), ~USD 100; (4) the pre-registered H1 read on twelve valid a1 cells; plus, as informational figures that decide nothing, a budget-matched baseline (the union of a0_bare's three trials per task) and precision / cost per true defect, which the lead offered in session and the operator's re-login accepted."
+    rationale: "the halt's cause was infrastructure and the operator removed it; the remaining USD ~449 covers the rerun with margin"
+    alternatives_considered:
+      - option: "options (b), (c) or (d) of reads-v2.md"
+        rejected_because: "the operator chose (a)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/5f6780bf-d96e-40e9-8d2d-e225e6824882"
+    commit: "1d8234a1"
+    source: "grimoires/loa/a2a/sprint-261/reads-v2.md#options-for-the-operator (L83)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-18T04:46:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-261/reads-v2.md#options-for-the-operator (L83)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
