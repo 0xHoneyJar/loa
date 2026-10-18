@@ -883,7 +883,7 @@ PY
   codex_auth -60 >/dev/null
   ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf1 --max-usd 100
   [ "$status" -eq 2 ]
-  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
+  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog of 1 trial(s) / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
   [ ! -e "$RES/kf1/MANIFEST.json" ]
   [ ! -e "$T/stub.log" ]
   # no token material in the refusal
@@ -904,11 +904,12 @@ PY
   [ "$status" -eq 0 ]
   M="$RES/kf3/MANIFEST.json"
   [ "$(jq -r '.codex_token_exp' "$M")" = "$exp" ]
-  [ "$(jq -c '.codex_preflight | keys' "$M")" = '["auth_file_present","checked","codex_arms","required_until","token_exp"]' ]
+  [ "$(jq -c '.codex_preflight | keys' "$M")" = '["auth_file_present","auth_mode","checked","codex_arms","horizon_source","required_until","token_exp","trials_counted"]' ]
   [ "$(jq -r '.codex_preflight.checked' "$M")" = true ]
   [ "$(jq -r '.codex_preflight.auth_file_present' "$M")" = true ]
   [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '["a1_full"]' ]
   [ "$(jq -r '.codex_preflight.token_exp' "$M")" = "$exp" ]
+  [ "$(jq -r '.codex_preflight.auth_mode, .codex_preflight.trials_counted, .codex_preflight.horizon_source' "$M" | tr '\n' ' ')" = "chatgpt 2 plan " ]
   # required_until = now + 2 x (9600 + 16800) / 3 s, about 4.9 h ahead
   jq -e '.codex_preflight.required_until | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$M"
   local ru; ru="$(jq -r '.codex_preflight.required_until' "$M")"
@@ -936,7 +937,7 @@ sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"
   [ "$(grep -c "^run-ablation: WARN no codex auth.json under $T/creds/.codex; codex-using arms will run without the OpenAI voice\$" <<<"$output")" -eq 1 ]
   M="$RES/kf5/MANIFEST.json"
   [ "$(jq -r '.codex_token_exp' "$M")" = null ]
-  [ "$(jq -c '.codex_preflight' "$M")" = '{"auth_file_present":false,"checked":false,"codex_arms":["a1_full"],"required_until":null,"token_exp":null}' ]
+  [ "$(jq -c '.codex_preflight' "$M")" = '{"auth_file_present":false,"auth_mode":null,"checked":false,"codex_arms":["a1_full"],"horizon_source":null,"required_until":null,"token_exp":null,"trials_counted":null}' ]
 }
 
 @test "RAB-33 KF-048 pre-flight: --smoke skips the check (an expired token is not refused)" {
@@ -965,4 +966,90 @@ sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"
   ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf10 --dry-run
   [ "$status" -eq 2 ]
   grep -q 'is not JSON (KF-048)' "$RES/kf10/REFUSED.txt"
+}
+
+@test "RAB-35 KF-048 pre-flight (DISS-C-003): an API-key auth.json is not refused; auth_mode apikey, checked false, one stderr note, the key never printed, MANIFEST.json written" {
+  echo '{"OPENAI_API_KEY": "sk-test-dummy", "auth_mode": "apikey"}' > "$T/creds/.codex/auth.json"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf11 --dry-run
+  [ "$status" -eq 0 ]
+  M="$RES/kf11/MANIFEST.json"
+  [ -f "$M" ]; [ ! -e "$RES/kf11/REFUSED.txt" ]
+  [ "$(grep -c '^run-ablation: codex auth.json is in API-key mode; no token horizon applies (KF-048 concerns the ChatGPT refresh token only)$' <<<"$output")" -eq 1 ]
+  [ "$(jq -r '.codex_preflight.auth_mode' "$M")" = apikey ]
+  [ "$(jq -r '.codex_preflight.checked' "$M")" = false ]
+  [ "$(jq -r '.codex_preflight.token_exp, .codex_token_exp' "$M" | tr '\n' ' ')" = "null null " ]
+  jq -e '.codex_preflight.required_until | test("^[0-9-]{10}T[0-9:]{8}Z$")' "$M"
+  ! grep -rq 'sk-test-dummy' "$RES" || false
+  ! grep -q 'sk-test-dummy' <<<"$output" || false
+  # tokens present but empty, the key set: still API-key mode
+  echo '{"OPENAI_API_KEY": "sk-test-dummy", "tokens": null}' > "$T/creds/.codex/auth.json"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf12 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.codex_preflight.auth_mode' "$RES/kf12/MANIFEST.json")" = apikey ]
+}
+
+@test "RAB-36 KF-048 pre-flight (DISS-C-003): an auth.json with neither a tokens.access_token nor an OPENAI_API_KEY is refused, and the reason names both remedies" {
+  echo '{"OPENAI_API_KEY": "", "tokens": {"refresh_token": "R"}}' > "$T/creds/.codex/auth.json"
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf13 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'has neither a tokens.access_token nor an OPENAI_API_KEY (KF-048) — run codex login on the host, or set OPENAI_API_KEY in auth.json' "$RES/kf13/REFUSED.txt"
+  [ ! -e "$RES/kf13/MANIFEST.json" ]
+  ! grep -q '"R"' "$RES/kf13/REFUSED.txt" || false
+}
+
+@test "RAB-37 KF-048 pre-flight (DISS-C-004): --resume counts only the trials without a row; a token that outlives one trial's horizon but not the whole plan's is not refused; trials_counted 1 in STATUS.json" {
+  codex_auth 864000 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07 --trials-build 1 --batch kr1 --concurrency 1
+  [ "$status" -eq 0 ]
+  B="$RES/kr1"
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/MANIFEST.json")" = 4 ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 4 ]
+  # one trial's horizon is 2 x its watchdog; the whole plan's is the sum of four
+  one="$(jq -r '.plan[3].watchdog_s' "$B/MANIFEST.json")"; all="$(jq -r '[.plan[].watchdog_s] | add' "$B/MANIFEST.json")"
+  off=$(( (2 * one + 2 * all) / 2 ))
+  [ "$off" -gt $(( 2 * one + 600 )) ]; [ "$off" -lt $(( 2 * all - 600 )) ]
+  head -3 "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  jq '.state = "running" | .finished = null | .resume_cursor = 3' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
+  # the same token is refused for a fresh batch of that plan (the whole plan counts)
+  codex_auth "$off" >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07 --trials-build 1 --batch kr2 --concurrency 1 --dry-run
+  [ "$status" -eq 2 ]; grep -q 'summed watchdog of 4 trial(s)' "$RES/kr2/REFUSED.txt"
+  : > "$T/stub.log"
+  ra --batch kr1 --resume --concurrency 1
+  [ "$status" -eq 0 ]
+  [ ! -e "$B/REFUSED.txt" ]
+  [ "$(wc -l < "$T/stub.log")" -eq 1 ]
+  [ "$(jq -r '.codex_preflight.trials_counted, .codex_preflight.horizon_source, .codex_preflight.checked' "$B/STATUS.json" | tr '\n' ' ')" = "1 plan true " ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/MANIFEST.json")" = 4 ]   # the start's record is kept
+  [ "$(jq -r '.state' "$B/STATUS.json")" = complete ]
+  # --rerun-status brings a rowed trial back into the count
+  jq -c 'if .run_id == "'"$(jq -r '.plan[0].run_id' "$B/MANIFEST.json")"'" then .status = "transport_error" else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  codex_auth 864000 >/dev/null
+  ra --batch kr1 --resume --concurrency 1 --rerun-status transport_error
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 1 ]
+}
+
+@test "RAB-38 KF-048 pre-flight (DISS-C-004): LOA_ABLATION_CODEX_HORIZON_S replaces the computed horizon (60 s against a token of 120 s, a plan of hours: not refused, horizon_source override); a non-numeric or zero value is a usage error" {
+  codex_auth 120 >/dev/null
+  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf14 --dry-run
+  [ "$status" -eq 2 ]   # the computed horizon (hours) refuses it
+  LOA_ABLATION_CODEX_HORIZON_S=60 ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf15 --dry-run
+  [ "$status" -eq 0 ]
+  M="$RES/kf15/MANIFEST.json"
+  [ "$(jq -r '.codex_preflight.horizon_source, .codex_preflight.checked, .codex_preflight.trials_counted' "$M" | tr '\n' ' ')" = "override true 1 " ]
+  local ru; ru="$(jq -r '.codex_preflight.required_until' "$M")"
+  python3 -I -c '
+import calendar, sys, time
+d = calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")) - time.time()
+sys.exit(0 if 0 < d < 62 else 1)' "$ru"
+  # an override that the token does not outlive is refused, and the reason names the override
+  LOA_ABLATION_CODEX_HORIZON_S=600 ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf16 --dry-run
+  [ "$status" -eq 2 ]; grep -q 'now + LOA_ABLATION_CODEX_HORIZON_S; KF-048' "$RES/kf16/REFUSED.txt"
+  for v in abc 0 -5 1.5; do
+    LOA_ABLATION_CODEX_HORIZON_S="$v" ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf17 --dry-run
+    [ "$status" -eq 2 ]
+    grep -q 'LOA_ABLATION_CODEX_HORIZON_S must be positive whole seconds' <<<"$output"
+    [ ! -e "$RES/kf17" ]
+  done
 }

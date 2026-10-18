@@ -112,13 +112,23 @@
 #      toggles set loa_mount: false; a0_bare never runs the dissent): the exp claim of the JWT
 #      tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json (the file
 #      pipeline-run.sh copies with a placeholder refresh token; payload decoded with base64url, no
-#      signature check) must be later than required_until = now + 2 x (sum of the plan's
-#      watchdog_s) / concurrency (on --resume the whole recorded plan counts). Refused: exp <=
-#      required_until (`codex access token expires <ISO>, before the batch's required horizon
-#      <ISO> (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host`),
-#      and a present file that is not JSON or whose access token is missing, not a three-part
-#      JWT or has no numeric exp. A missing auth.json is no refusal: one `run-ablation: WARN no
-#      codex auth.json under <dir>; codex-using arms will run without the OpenAI voice` line.
+#      signature check) must be later than required_until = now + 2 x (sum of watchdog_s over
+#      the trials this invocation launches) / concurrency: every plan entry on a fresh batch or
+#      a dry run; on --resume only the entries without a row of this batch, plus the --rerun ids
+#      and the rows a --rerun-status names (never a --rerow id; a paused arm's trials still
+#      count). $LOA_ABLATION_CODEX_HORIZON_S (positive whole seconds, an operator knob) replaces
+#      the computed horizon: required_until = now + that. Refused: exp <= required_until (`codex
+#      access token expires <ISO>, before the batch's required horizon <ISO> (now + 2 x summed
+#      watchdog of <n> trial(s) / concurrency | now + LOA_ABLATION_CODEX_HORIZON_S; KF-048) — run
+#      codex login on the host`), a present file that is not a JSON object, an access token not
+#      a three-part JWT or without a numeric exp, and a file with neither a tokens.access_token
+#      nor a non-empty OPENAI_API_KEY (`… — run codex login on the host, or set OPENAI_API_KEY
+#      in auth.json`). API-key mode (no usable tokens.access_token, a non-empty OPENAI_API_KEY;
+#      pipeline-run.sh copies the file unchanged) passes without reading an exp, with one
+#      `run-ablation: codex auth.json is in API-key mode; no token horizon applies (KF-048
+#      concerns the ChatGPT refresh token only)` line; the key is never printed. A missing
+#      auth.json is no refusal: one `run-ablation: WARN no codex auth.json under <dir>;
+#      codex-using arms will run without the OpenAI voice` line.
 #   --resume also refuses when the source commit, the suite manifest hash, the image digest
 #   or the CLI version differ from MANIFEST.json, or when STATUS.json records a drift
 #   (unless --clear-drift re-reads that run clean under the current rule).
@@ -227,7 +237,11 @@
 #   codex_token_exp (the access token's exp, ISO 8601 UTC, or null when not checked),
 #   codex_preflight {checked (true only when the token was read and its exp compared),
 #   auth_file_present, codex_arms (the planned arms that use codex, sorted), token_exp,
-#   required_until (ISO or null)} (pre-flight 6; --resume keeps the start's record), environment.
+#   required_until (ISO or null), auth_mode ("chatgpt" | "apikey" | null when the file was not
+#   read or not classified), trials_counted (the trials the horizon covers, or null),
+#   horizon_source ("plan" | "override" | null when no horizon was computed)} (pre-flight 6;
+#   --resume keeps the start's record; STATUS.json codex_preflight holds the latest
+#   invocation's), environment.
 #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
 #   state: running|complete|partial|failed, per_arm: {<arm>: {trials_planned, launched,
 #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
@@ -239,7 +253,8 @@
 #   rerowed: [{run_id, from, to, at}] (--rerow), rerun: [{run_id, from, to, old_cost_usd, at}]
 #   (--rerun, --rerun-status), rerun_pending: [run_id…] (flagged, no replacement yet), outage:
 #   null | {at, consecutive, last_run_id, message} (the breaker), outage_history: [the
-#   outages a later --resume cleared], extra_models: {<raw id>: {runs,
+#   outages a later --resume cleared], codex_preflight (this invocation's pre-flight 6 record,
+#   the MANIFEST shape; on --resume trials_counted is the remaining trials), extra_models: {<raw id>: {runs,
 #   output_tokens}} ({} when none; derived from extra_models_by_run: {<run_id>: {<raw id>:
 #   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
 #   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
@@ -269,7 +284,10 @@
 #   120 + 10 s over at most ten container commands per grade, plus the tree copies; the outage breaker counts
 #   transport_error rows only, never these infrastructure_error rows) and
 #   LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S (took-effect deadline, default 300), both whole seconds
-#   1 … 999999 (else exit 2), EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).
+#   1 … 999999 (else exit 2), LOA_ABLATION_CODEX_HORIZON_S (operator override of the codex
+#   token horizon of pre-flight 6, whole seconds 1 … 999999999, else exit 2; not a test gate),
+#   LOA_EVAL_CREDS_HOME (where .codex/auth.json is read; default $HOME), EVAL_DOCKER_BIN,
+#   EVAL_CLAUDE_BIN (host CLI).
 # Library: lib/arms-common.sh beside this script, sourced by a literal relative path.
 # Tested by evals/tests/run-ablation.bats (stub pipeline, grader and docker; no model call).
 # =============================================================================
@@ -310,6 +328,7 @@ POLL_S="${LOA_ABLATION_POLL_S:-1}"
 OUTAGE_BREAKER="${LOA_ABLATION_OUTAGE_BREAKER:-3}"
 GRADE_TIMEOUT_S="${LOA_ABLATION_GRADE_TIMEOUT_S:-1800}"
 TOOK_TIMEOUT_S="${LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S:-300}"
+CODEX_HORIZON_OVERRIDE="${LOA_ABLATION_CODEX_HORIZON_S:-}"
 
 usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "run-ablation: $*" >&2; exit 2; }
@@ -392,6 +411,8 @@ done
 [[ "$OUTAGE_BREAKER" =~ ^[0-9]{1,4}$ ]] || die "LOA_ABLATION_OUTAGE_BREAKER must be a whole number (0 disables)"
 [[ "$GRADE_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds (at most 999999)"
 [[ "$TOOK_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds (at most 999999)"
+[[ -z "$CODEX_HORIZON_OVERRIDE" || "$CODEX_HORIZON_OVERRIDE" =~ ^[1-9][0-9]{0,8}$ ]] \
+  || die "LOA_ABLATION_CODEX_HORIZON_S must be positive whole seconds (at most 999999999)"
 # the post-run deadlines (Sprint 260 LOW-4): unwrapped when timeout(1) is absent
 GRADE_TMO=() TOOK_TMO=() TMO_ON=false
 if command -v timeout >/dev/null 2>&1; then
@@ -783,9 +804,18 @@ PLAN_N="$(jq 'length' "$WORK/plan-only.json")"
 # JWT payload's exp claim is read (no signature check); no token value is printed.
 CODEX_AUTH="${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json"
 CODEX_SKIP=false; [[ "$SMOKE" == true ]] && CODEX_SKIP=true
-CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" <<'PY'
+# the trials this invocation launches: every plan entry on a fresh batch (and a dry run); on --resume the
+# entries without a row of this batch, plus the --rerun ids and the --rerun-status rows (never a --rerow id)
+jq -n --argjson resume "$RESUME" --arg rows "$ROWS" --arg batch "$BATCH" \
+  --argjson ids "$(json_array ${RERUN_IDS[@]+"${RERUN_IDS[@]}"})" \
+  --argjson sts "$(json_array ${RERUN_STATUSES[@]+"${RERUN_STATUSES[@]}"})" \
+  --argjson rerow "$(json_array ${REROW_IDS[@]+"${REROW_IDS[@]}"})" \
+  '{resume: $resume, rows: $rows, batch: $batch, rerun_ids: $ids, rerun_statuses: $sts, rerow_ids: $rerow}' > "$WORK/codex-scope.json"
+CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" \
+  "$WORK/codex-scope.json" "$CODEX_HORIZON_OVERRIDE" <<'PY'
 import base64, json, math, os, sys, time
 auth, plan_p, suite_p, conc, skip = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5] == "true"
+scope = json.load(open(sys.argv[6])); override = int(sys.argv[7]) if sys.argv[7] else None
 plan = json.load(open(plan_p)); suite = json.load(open(suite_p))
 defs = {a.get("id"): a for a in suite.get("arms") or []}
 iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
@@ -793,8 +823,9 @@ def uses_codex(a):   # a0_bare (loa_mount: false) never runs the dissent
     return ((defs.get(a) or {}).get("toggles") or {}).get("loa_mount") is not False
 arms = sorted({e["arm"] for e in plan if uses_codex(e["arm"])})
 present = os.path.isfile(auth)
-pf = {"checked": False, "auth_file_present": present, "codex_arms": arms, "token_exp": None, "required_until": None}
-out = {"preflight": pf, "refuse": None, "warn": None}
+pf = {"checked": False, "auth_file_present": present, "codex_arms": arms, "token_exp": None, "required_until": None,
+      "auth_mode": None, "trials_counted": None, "horizon_source": None}
+out = {"preflight": pf, "refuse": None, "warn": None, "note": None}
 def done():
     print(json.dumps(out, sort_keys=True)); sys.exit(0)
 if skip or not arms:
@@ -802,19 +833,49 @@ if skip or not arms:
 if not present:
     out["warn"] = "run-ablation: WARN no codex auth.json under %s; codex-using arms will run without the OpenAI voice" % os.path.dirname(auth)
     done()
+def remaining():   # the plan entries this invocation will launch
+    if not scope["resume"] or not os.path.isfile(scope["rows"]):
+        return plan
+    st = {}
+    for line in open(scope["rows"], "rb"):
+        try:
+            r = json.loads(line.decode("utf-8"))
+        except Exception:
+            continue
+        if isinstance(r, dict) and r.get("batch") == scope["batch"] and isinstance(r.get("run_id"), str):
+            st[r["run_id"]] = r.get("status")
+    ids, sts, rerow = ({x for x in scope[k] if x} for k in ("rerun_ids", "rerun_statuses", "rerow_ids"))   # json_array of none is [""]
+    return [e for e in plan if e["run_id"] not in st or e["run_id"] in ids
+            or (st[e["run_id"]] in sts and e["run_id"] not in rerow)]
 now = time.time()
-required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in plan) / max(conc, 1)))
+todo = remaining()
+pf["trials_counted"] = len(todo)
+if override is not None:
+    required = int(math.ceil(now + override)); pf["horizon_source"] = "override"
+else:
+    required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in todo) / max(conc, 1)))
+    pf["horizon_source"] = "plan"
 pf["required_until"] = iso(required)
-def bad(why):
-    out["refuse"] = "codex auth.json %s: %s (KF-048) — run codex login on the host" % (auth, why); done()
+REMEDY = "run codex login on the host, or set OPENAI_API_KEY in auth.json"
+def bad(why, remedy="run codex login on the host"):
+    out["refuse"] = "codex auth.json %s: %s (KF-048) — %s" % (auth, why, remedy); done()
 try:
     data = json.loads(open(auth, "rb").read().decode("utf-8"))
 except Exception:
-    bad("is not JSON")
-tok = (data.get("tokens") if isinstance(data, dict) else None) or {}
+    bad("is not JSON", REMEDY)
+if not isinstance(data, dict):
+    bad("is not a JSON object", REMEDY)
+tok = data.get("tokens") or {}
 at = tok.get("access_token") if isinstance(tok, dict) else None
 if not isinstance(at, str) or not at:
-    bad("has no tokens.access_token")
+    key = data.get("OPENAI_API_KEY")
+    if isinstance(key, str) and key.strip():   # API-key mode: no access token, no refresh, no horizon
+        pf["auth_mode"] = "apikey"
+        out["note"] = ("run-ablation: codex auth.json is in API-key mode; no token horizon applies "
+                       "(KF-048 concerns the ChatGPT refresh token only)")
+        done()
+    bad("has neither a tokens.access_token nor an OPENAI_API_KEY", REMEDY)
+pf["auth_mode"] = "chatgpt"
 parts = at.split(".")
 if len(parts) != 3:
     bad("tokens.access_token is not a three-part JWT")
@@ -829,14 +890,18 @@ if isinstance(exp, bool) or not isinstance(exp, (int, float)) or not math.isfini
 exp = int(exp)
 pf["checked"] = True; pf["token_exp"] = iso(exp)
 if exp <= required:
+    how = ("now + LOA_ABLATION_CODEX_HORIZON_S" if override is not None
+           else "now + 2 x summed watchdog of %d trial(s) / concurrency" % len(todo))
     out["refuse"] = ("codex access token expires %s, before the batch's required horizon %s "
-                     "(now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host") % (iso(exp), iso(required))
+                     "(%s; KF-048) — run codex login on the host") % (iso(exp), iso(required), how)
 done()
 PY
 )" || die "the codex token pre-flight failed"
 printf '%s' "$CODEX_PF" | jq -c '.preflight' > "$WORK/codex-preflight.json"
 CODEX_WARN="$(jq -r '.warn // ""' <<<"$CODEX_PF")"
 [[ -z "$CODEX_WARN" ]] || echo "$CODEX_WARN" >&2
+CODEX_NOTE="$(jq -r '.note // ""' <<<"$CODEX_PF")"
+[[ -z "$CODEX_NOTE" ]] || echo "$CODEX_NOTE" >&2
 CODEX_REFUSE="$(jq -r '.refuse // ""' <<<"$CODEX_PF")"
 [[ -z "$CODEX_REFUSE" ]] || refuse "$CODEX_REFUSE"
 PL_ARM=() PL_TASK=() PL_TYPE=() PL_KIND=() PL_TRIAL=() PL_RUN=() PL_YAML=() PL_WD=()
@@ -1073,13 +1138,14 @@ write_status() {
     --arg src "$SRC_FULL" --arg rows "$ROWS" --argjson planned "$PLAN_N" --argjson signalled "$SIGNALLED" \
     --argjson ebr "$EXTRA_RUNS_JSON" --argjson cleared "$DRIFT_CLEARED_JSON" --argjson rerowed "$REROWED_JSON" \
     --argjson rerun "$RERUN_JSON" --argjson pending "$(printf '%s' "$RERUN_LIST" | sed '/^$/d' | jq -R . | jq -sc .)" \
-    --argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" \
+    --argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" --slurpfile cpf_f "$WORK/codex-preflight.json" \
     '{schema_version: 1, suite: "ablation-2.0", batch: $batch, smoke: $smoke, state: $state, per_arm: $per,
       retries: $retries, cuts: $cuts, paused_arms: $paused,
       spend: {rows_usd: ($rows_usd | tonumber), ledger_usd: ($ledger | tonumber), spent_usd: ($spent | tonumber),
               max_usd: (if $max == "" then null else ($max | tonumber) end), assumed_cap_trials: $assumed},
       trials_planned: $planned, resume_cursor: $cursor, drift: $drift, drift_cleared: $cleared, rerowed: $rerowed,
       rerun: $rerun, rerun_pending: $pending, outage: $outage, outage_history: $ohist,
+      codex_preflight: $cpf_f[0],
       extra_models: ([$ebr | to_entries[] | .value | to_entries[]] | group_by(.key)
                      | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
       extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,
