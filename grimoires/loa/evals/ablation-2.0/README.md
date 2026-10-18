@@ -95,6 +95,29 @@ bash evals/harness/freeze.sh --check                  # MANIFEST.sha256 matches
 bash evals/harness/ablation-grade.sh --self-check …   # every task: base and reference behave as the table says
 ```
 
+### Regression check at the next model bump (PRD G-6)
+
+The frozen suite reruns against any Loa commit; the manifest hash, the tasks and the grader are tracked, so a later run is comparable with the rows in `grimoires/loa/reports/ablation-2.0/runs.jsonl` (`suite_version`, `suite_manifest_sha256`, `source_commit`, `image_digest`, `cli_version` per row and per batch MANIFEST).
+
+```
+# 1. pin the Loa commit the arms run (a worktree at that commit is created or verified under ~/.cache/loa/)
+#    and the grading image (loa-ablation:258 or a rebuilt one; the pre-flight records the digest)
+# 2. dry run: the DEC-0435 hard gate (MANIFEST.sha256 present and matching, the self-check log with 36 PASS,
+#    sixteen REVIEW.md), the per-type caps, the codex token horizon (KF-048) and the plan
+bash evals/harness/run-ablation.sh --source-commit <sha> --arms a0_bare,a1_full \
+  --trials-review 3 --trials-build 3 --concurrency 3 --max-usd <1500 - spend - 3 x 20> \
+  --batch <name> --self-check-log grimoires/loa/a2a/sprint-261/self-check-image-v2.log \
+  --pre-registration-ref "NOTES.md § <the pre-registration heading and timestamp>" --dry-run
+# 3. the same command with --detach; watch <batch>/STATUS.json; --resume after an outage
+#    (--rerun-status transport_error), --rerow <run_id> to re-row a finished run under a newer row writer
+# 4. the read
+python3 -I evals/harness/ablation-report.py --runs grimoires/loa/reports/ablation-2.0/runs.jsonl \
+  --manifests grimoires/loa/reports/ablation-2.0/batches --suite evals/suites/ablation-2.0.yaml \
+  --cuts grimoires/loa/reports/ablation-2.0/cuts.json --out report.md --json report.json
+```
+
+Rows of a new `suite_version` are never pooled with the old ones; a task found leaky or too easy is replaced under a new id and a new `suite_version`, never edited in place (the v2 freeze entry above records how v2 came about).
+
 ## Tools
 
 - `evals/harness/validate-suite.sh [--root DIR] [--smoke] [--allow-partial] [--suite-file F]` checks the schema, the counts, the allowlist, the manifests, the fixture path rule and leakage.
