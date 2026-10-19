@@ -108,6 +108,16 @@
           ],
           "description": "Type of anchor reference"
         },
+        "anchor_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "head-file line of the finding (cycle-131). Optional; kept by process_findings only as a whole number >= 1, else dropped. The symbol anchor stays the stable reference."
+        },
+        "anchor_line_end": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "head-file line of the finding (cycle-131): the last line of a range starting at anchor_line. Optional; kept only beside anchor_line and >= it."
+        },
         "anchor_stability": {
           "type": "string",
           "enum": [
@@ -234,6 +244,21 @@
         "error": {
           "type": "string",
           "description": "Error message when status is api_failure"
+        },
+        "budget_scale": {
+          "type": "string",
+          "enum": ["fixed", "diff"],
+          "description": "cycle-131 FR-4: the budget scaling the gate ran under; present only when flatline_protocol.<gate>.budget_scale is written"
+        },
+        "budget_cents_effective": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "cycle-131 FR-4: the budget the gate compared the estimate against (fixed: budget_cents; diff: min(max(budget_cents, ceil(estimate x 1.2)), budget_cents_max))"
+        },
+        "budget_cents_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "cycle-131 FR-4: the ceiling of the diff scaling (default 600)"
         },
         "status_note": {
           "type": "string",

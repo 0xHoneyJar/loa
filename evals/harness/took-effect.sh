@@ -39,11 +39,48 @@
 #   applicability_refused      a refusal record (meta/refused.json) names this arm and a task
 #                              type outside its task_types; a run that was not refused passes
 #                              when its task type is inside task_types (and fails otherwise)
+#   oracle_closed              (cycle-131 FR-1, D-1.2) the closed mount held for the whole run.
+#                              Inputs: the mode, the pre-run overlay_sha256 lines, base_commit and
+#                              copy_source from meta/arm-evidence.txt (never the sandbox); the PR
+#                              fixture from --task-yaml's review_catch.fixture resolved as the
+#                              grader does (task dir, suite root, repository root,
+#                              evals/fixtures/), else the evidence's overlay_fixture, never a path
+#                              inside the run dir; the pinned versions from git at
+#                              pipeline.json source_commit in --source-repo, else the evidence's
+#                              overlay_source_tree, else this repository. FAIL when copy_source is
+#                              not source_commit, else on the first violated clause and path:
+#                              (a) every answer-bearing path under the mount is the mode's fixture
+#                                  version (pr/head/ or pr/base/; `git show <head_commit>:X` for a
+#                                  fix-commit path outside the PR) or absent where the mode says so;
+#                              (b) no regular file in the sandbox outside pr/ and .git/ is byte-equal
+#                                  to a later-only pinned version (`git show <source_commit>:X`);
+#                              (c) each answer path's post-run state equals its pre-run
+#                                  overlay_sha256 (else mount_mutated=<path>);
+#                              (d) the sandbox .git holds exactly the base commit, no remote, no
+#                                  alternates, nothing unreachable (git fsck --unreachable
+#                                  --no-reflogs) and no later-only pinned blob.
+#                              The comparison is lib/sandbox-mount.sh's (_sm_oracle_py check), the
+#                              same one pipeline-run.sh's pre-launch check_mount_closed runs.
+#                              A build run (no PR fixture) and a loa_mount: false run with no
+#                              .claude/ pass with that evidence.
+#   oracle_open_recorded       arm_evidence has mount_overlay=none and oracle_open=true (the
+#                              eval-only open-mount arm; replaces oracle_closed there)
+#   bare_model_fable           the BARE record's models_used has exactly one key starting
+#                              global.anthropic.claude-fable and none starting
+#                              global.anthropic.claude-opus, and effort_requested is high
+#   review_only_phases         the phase records are exactly [REVIEW] and
+#                              sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md is absent
+#   no_review_dissent_envelope no review envelope (eval/adversarial-review.json, nor the sandbox
+#                              copy), the sandbox .loa.config.yaml has
+#                              flatline_protocol.code_review.enabled false, and the audit envelope
+#                              exists with verdict_quality.voices_succeeded >= 1
 # A refusal record is evaluated on applicability_refused alone.
 #
 # Usage:
-#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json]
-#   took-effect.sh --batch-dir D --suite-file F [--arm ID] [--json]
+#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json] [--task-yaml F] [--source-repo DIR]
+#   took-effect.sh --batch-dir D --suite-file F [--arm ID] [--json] [--source-repo DIR]
+#   --task-yaml F     the run's task (oracle_closed's fixture; run-ablation.sh passes it)
+#   --source-repo DIR a git repository holding the run's source_commit (oracle_closed)
 #
 # Output: `arm <id>: <rule> OK|FAIL <evidence>` per rule, then `arm <id>: OK` or
 # `arm <id>: FAIL (<n> of <m> rules)`; --batch-dir adds `took-effect: <runs> runs, <k> failed`.
@@ -55,7 +92,8 @@
 #   2  usage error (missing files, unknown arm)
 #
 # Tested by evals/tests/took-effect.bats (fixture runs under
-# evals/tests/fixtures/ablation-runs/).
+# evals/tests/fixtures/ablation-runs/, and cycle-131 runs built in the test with the real
+# mount library) and evals/tests/pipeline-run.bats (oracle_closed on a real-library run).
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -63,7 +101,9 @@ export LC_ALL=C
 # Hashing is Python hashlib: no harness script sources .claude/ code (eval.yml
 # "Validate grader trust boundary").
 
-RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false TASK_YAML_OPT="" SOURCE_REPO_OPT=""
 usage() { echo "took-effect.sh: $*" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -72,7 +112,9 @@ while [[ $# -gt 0 ]]; do
     --suite-file) SUITE_FILE="${2:-}"; shift 2 ;;
     --arm)        ARM_OPT="${2:-}"; shift 2 ;;
     --json)       JSON=true; shift ;;
-    -h|--help)    sed -n '2,57p' "$0"; exit 0 ;;
+    --task-yaml)  TASK_YAML_OPT="${2:-}"; shift 2 ;;
+    --source-repo) SOURCE_REPO_OPT="${2:-}"; shift 2 ;;
+    -h|--help)    sed -n "2,$(awk 'NR > 2 && /^# =====/ {print NR - 1; exit}' "$0")p" "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -80,6 +122,16 @@ done
 [[ -n "$RUN_DIR" || -n "$BATCH_DIR" ]] || usage "one of --run-dir or --batch-dir is required"
 [[ -z "$RUN_DIR" || -z "$BATCH_DIR" ]] || usage "--run-dir and --batch-dir are exclusive"
 SUITE_JSON="$(yq -o=json '.' "$SUITE_FILE")" || usage "suite file does not parse"
+[[ -z "$TASK_YAML_OPT" || -f "$TASK_YAML_OPT" ]] || usage "task yaml not found: $TASK_YAML_OPT"
+[[ -z "$TASK_YAML_OPT" || -z "$BATCH_DIR" ]] || usage "--task-yaml names one run's task (use it with --run-dir)"
+[[ -z "$SOURCE_REPO_OPT" || -d "$SOURCE_REPO_OPT" ]] || usage "source repo not found: $SOURCE_REPO_OPT"
+
+# the closed-mount comparison (oracle_closed) is the mount library's; a literal in-tree path
+# (eval.yml trust boundary: no variable on the source line, no .claude/ code)
+pushd "$SCRIPT_DIR" >/dev/null
+# shellcheck source=lib/sandbox-mount.sh
+source ./lib/sandbox-mount.sh
+popd >/dev/null
 
 # ---- rule helpers: each sets EVID and returns 0 (OK) / 1 (FAIL) --------------------
 EVID=""
@@ -288,6 +340,93 @@ rule_applicability_refused() {
     EVID="arm task_types $(jq -c '.task_types' <<<"$ARM_DEF") include $t, yet the run was refused"; return 1
   fi
   EVID="refused $t (task_types $(jq -c '.task_types // null' <<<"$ARM_DEF"))"
+}
+
+evidence_line() {  # evidence_line <key> → the first <key>= value in meta/arm-evidence.txt
+  sed -n "s/^$1=//p" "$R/meta/arm-evidence.txt" 2>/dev/null | sed -n '1p'
+}
+resolve_fixture() {  # the run's PR fixture (realpath), from --task-yaml or the evidence
+  local rel c cand="" ty="$TASK_YAML_OPT" td
+  if [[ -n "$ty" ]]; then
+    rel="$(yq -r '.review_catch.fixture // ""' "$ty" 2>/dev/null || true)"
+    [[ -n "$rel" && "$rel" != null ]] || return 1
+    td="$(cd "$(dirname "$ty")" && pwd)"
+    if [[ "$rel" == /* ]]; then cand="$rel"
+    else
+      for c in "$td/$rel" "$td/../../$rel" "$REPO_ROOT/$rel" "$REPO_ROOT/evals/fixtures/$rel"; do
+        [[ -d "$c" ]] && { cand="$c"; break; }
+      done
+    fi
+  else
+    cand="$(evidence_line overlay_fixture)"
+  fi
+  [[ -n "$cand" && -d "$cand" ]] || return 1
+  cand="$(cd "$cand" && pwd -P)"
+  case "$cand/" in "$(cd "$R" && pwd -P)"/*) return 1 ;; esac   # never the agent-writable pr/
+  printf '%s' "$cand"
+}
+rule_oracle_closed() {
+  local evf="$R/meta/arm-evidence.txt" fx sc cs repo c out rc=0
+  if [[ "$(jq -r '.task_type // ""' "$R/meta/pipeline.json")" != review-catch ]]; then
+    EVID="not a review-catch run (no PR fixture to close)"; return 0
+  fi
+  if [[ "$(jq -r '.arm_toggles.loa_mount' "$R/meta/pipeline.json")" == false ]]; then
+    [[ ! -e "$R/sandbox/.claude" ]] || { EVID="loa_mount: false but the sandbox has .claude/"; return 1; }
+    EVID="no mount (loa_mount: false)"; return 0
+  fi
+  [[ -f "$evf" ]] || { EVID="no meta/arm-evidence.txt"; return 1; }
+  [[ "$(evidence_line mount_overlay)" != none ]] || { EVID="mount_overlay=none (an open mount)"; return 1; }
+  fx="$(resolve_fixture)" || { EVID="the PR fixture does not resolve (--task-yaml or overlay_fixture evidence)"; return 1; }
+  sc="$(jq -r '.source_commit // ""' "$R/meta/pipeline.json")"
+  cs="$(evidence_line copy_source)"
+  [[ -n "$cs" && "$cs" == "$sc" ]] || { EVID="copy_source ${cs:-<none>} is not source_commit ${sc:-<none>}"; return 1; }
+  repo=""
+  for c in "$SOURCE_REPO_OPT" "$(evidence_line overlay_source_tree)" "$REPO_ROOT"; do
+    [[ -n "$c" && -d "$c" ]] || continue
+    if git -C "$c" cat-file -e "$sc^{commit}" 2>/dev/null; then repo="$c"; break; fi
+  done
+  [[ -n "$repo" ]] || { EVID="source_commit $sc is in no source repository (--source-repo)"; return 1; }
+  out="$(_sm_oracle_py check "$R/sandbox" "$fx" "$evf" "$repo" "$sc" 2>/dev/null)" || rc=$?
+  EVID="${out:-the check failed (exit $rc)}"
+  [[ $rc -eq 0 ]]
+}
+rule_oracle_open_recorded() {
+  local f="$R/meta/arm-evidence.txt"
+  grep -qx 'mount_overlay=none' "$f" 2>/dev/null || { EVID="no mount_overlay=none in arm_evidence (got $(evidence_line mount_overlay || true))"; return 1; }
+  grep -qx 'oracle_open=true' "$f" 2>/dev/null || { EVID="no oracle_open=true in arm_evidence"; return 1; }
+  EVID="mount_overlay=none, oracle_open=true"
+}
+rule_bare_model_fable() {
+  local rec n fable opus eff keys
+  rec="$(jq -c '[.phases // [] | .[] | select(.name == "BARE" and .skipped != true)]' "$R/meta/pipeline.json")"
+  n="$(jq 'length' <<<"$rec")"
+  [[ "$n" -eq 1 ]] || { EVID="$n BARE record(s)"; return 1; }
+  keys="$(jq -r '.[0].models_used // {} | keys | join(",")' <<<"$rec")"
+  fable="$(jq '[.[0].models_used // {} | keys[] | select(startswith("global.anthropic.claude-fable"))] | length' <<<"$rec")"
+  opus="$(jq '[.[0].models_used // {} | keys[] | select(startswith("global.anthropic.claude-opus"))] | length' <<<"$rec")"
+  eff="$(jq -r '.[0].effort_requested // "null"' <<<"$rec")"
+  [[ "$fable" -eq 1 && "$opus" -eq 0 ]] || { EVID="BARE models_used ${keys:-<none>} (want exactly one global.anthropic.claude-fable* and no opus)"; return 1; }
+  [[ "$eff" == high ]] || { EVID="BARE effort_requested $eff (want high)"; return 1; }
+  EVID="BARE models_used $keys, effort_requested high"
+}
+rule_review_only_phases() {
+  local got
+  got="$(jq -r '[.phases // [] | .[] | .label] | join(",")' "$R/meta/pipeline.json")"
+  [[ "$got" == REVIEW ]] || { EVID="phases ${got:-none}, want REVIEW"; return 1; }
+  [[ ! -e "$R/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md" ]] || { EVID="auditor-sprint-feedback.md exists"; return 1; }
+  EVID="phases REVIEW; no auditor-sprint-feedback.md"
+}
+rule_no_review_dissent_envelope() {
+  local f en vs
+  f="$(envelope review)"
+  [[ -z "$f" ]] || { EVID="a review envelope exists (${f#"$R"/})"; return 1; }
+  en="$(yq -r '.flatline_protocol.code_review.enabled' "$R/sandbox/.loa.config.yaml" 2>/dev/null || echo unreadable)"
+  [[ "$en" == false ]] || { EVID="sandbox flatline_protocol.code_review.enabled is $en"; return 1; }
+  f="$(envelope audit)"
+  [[ -n "$f" ]] || { EVID="no audit envelope (the audit dissent must still run)"; return 1; }
+  vs="$(jq -r '(.verdict_quality.voices_succeeded // .metadata.verdict_quality.voices_succeeded // 0) | tostring' "$f" 2>/dev/null || echo 0)"
+  [[ "$vs" =~ ^[0-9]+$ && "$vs" -ge 1 ]] || { EVID="audit envelope voices_succeeded $vs"; return 1; }
+  EVID="no review envelope; code_review.enabled false; audit voices_succeeded $vs"
 }
 
 # ---- one run ------------------------------------------------------------------------

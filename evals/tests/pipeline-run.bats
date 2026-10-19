@@ -1009,3 +1009,159 @@ JSON
   ! grep -q 'API-key mode' <<<"$output"
   jq -e '.OPENAI_API_KEY == null and .tokens.access_token == "x.y.z" and .tokens.id_token == "i.d.t" and .tokens.refresh_token == "loa-ablation-no-refresh-token"' "$T/snap/.codex/auth.json"
 }
+
+# --- cycle-131 Sprint 263 Task 1.1: closed-mount wiring, toggles, eval config variant ---------------
+
+# c131_arms — the fixture suite plus cycle-131-shaped arms (Sprint 2 declares the real ones)
+c131_arms() {
+  yq -i '.arms += [
+    {"id": "a1_full_openmount", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["oracle_open_recorded"]},
+    {"id": "a1_no_dissent", "task_types": ["review-catch"], "toggles": {"dissent": false}, "took_effect": ["all_phases_present"]},
+    {"id": "a0_bare_fable", "task_types": ["all"], "toggles": {"loa_mount": false, "bare_model": "fable"}, "phases": ["BARE"], "effort": "high", "took_effect": ["bare_model_fable"]}]' "$T/suite.yaml"
+}
+calls() { tr '\n' ' ' < "$T/calls" | sed 's/ $//'; }
+evline() { sed -n "s/^$1=//p" "$T/run/meta/arm-evidence.txt"; }
+fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -mindepth 1 -delete 2>/dev/null || true; }
+
+@test "closed mount wiring (stub library): review-catch A1 calls mount → overlay → toggles → eval config → grimoire → beads → manifest → check, all before the first phase" {
+  export STUB_MOUNT_CALLS="$T/calls"
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" = "resolve_arm_toggles mount_prompt_surface overlay_answer_paths apply_arm_toggles apply_eval_config_variant write_sandbox_grimoire init_sandbox_beads regen_sandbox_manifest check_mount_closed" ]
+  [ "$(evline mount_overlay)" = "head:0" ]
+  [ "$(evline copy_source)" = "$(git -C "$T/src" rev-parse HEAD)" ]
+  [ "$(evline config_variant)" = eval ]
+  [ "$(evline mount_closed)" = "pre-launch stub" ]
+  [ "$(evline overlay_fixture)" = "$T/prs/pr-x" ]
+  [ "$(jq -r '.arm_evidence.mount_overlay' "$T/run/meta/pipeline.json")" = "head:0" ]
+  [ "$(yq -r '.flatline_protocol.code_review.budget_scale' "$T/run/sandbox/.loa.config.yaml")" = diff ]
+}
+
+@test "closed mount wiring: task.yaml review_catch.overlay_mode base reaches the overlay; any other value is a usage error" {
+  yq -i '.review_catch.overlay_mode = "base"' "$REVIEWC"
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(evline mount_overlay)" = "base:0" ]
+  fresh_run
+  yq -i '.review_catch.overlay_mode = "later"' "$REVIEWC"
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  grep -q "overlay_mode must be head or base, got 'later'" <<<"$output"
+}
+
+@test "closed mount wiring: oracle_open: true skips the overlay and the check and records mount_overlay=none" {
+  c131_arms
+  export STUB_MOUNT_CALLS="$T/calls"
+  run_pr a1_full_openmount "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" = "resolve_arm_toggles mount_prompt_surface apply_arm_toggles apply_eval_config_variant write_sandbox_grimoire init_sandbox_beads regen_sandbox_manifest" ]
+  [ "$(evline mount_overlay)" = none ]
+  [ "$(evline oracle_open)" = true ]
+  [ "$(evline config_variant)" = eval ]
+}
+
+@test "closed mount wiring: a failed pre-launch check is infrastructure_error naming the clause, and no phase runs" {
+  export STUB_MOUNT_FAIL=check_mount_closed
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = infrastructure_error ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == *"check_mount_closed exited 2: check_mount_closed: FAIL (b) .claude/x"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+  [ "$(jq '.phases | length' "$T/run/meta/pipeline.json")" -eq 0 ]
+}
+
+@test "closed mount wiring: a copy_source other than source_commit refuses the trial (infrastructure_error, no phase)" {
+  export STUB_COPY_SOURCE=0123456789012345678901234567890123456789
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == *"copy_source 0123456789012345678901234567890123456789 differs from source_commit $(git -C "$T/src" rev-parse HEAD)"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+}
+
+@test "closed mount wiring: a build task gets the eval config but no overlay; review-catch A0 (no mount) gets neither" {
+  export STUB_MOUNT_CALLS="$T/calls"
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 0 ]
+  ! grep -q 'overlay_answer_paths\|check_mount_closed' "$T/calls" || false
+  grep -q apply_eval_config_variant "$T/calls"
+  [ -z "$(evline mount_overlay)" ]
+  fresh_run; : > "$T/calls"
+  run_pr a0_bare "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" = "resolve_arm_toggles apply_arm_toggles" ]
+  [ -z "$(evline config_variant)" ]
+}
+
+@test "dissent: false (stub library): the sandbox config disables the review gate's dissent only; evidence dissent=false" {
+  c131_arms
+  run_pr a1_no_dissent "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(evline dissent)" = false ]
+  [ "$(yq -r '.flatline_protocol.code_review.enabled' "$T/run/sandbox/.loa.config.yaml")" = false ]
+  [ "$(yq -r '.flatline_protocol.security_audit.enabled' "$T/run/sandbox/.loa.config.yaml")" = true ]
+}
+
+@test "bare_model: fable runs BARE on global.anthropic.claude-fable-5-1 (over the suite default and --phase-models), dry run included; A0 stays on Opus" {
+  c131_arms
+  run "$PR" --task-yaml "$REVIEWC" --arm a0_bare_fable --run-id r --trial 1 --source-tree "$T/src" --suite-file "$T/suite.yaml" --dry-run
+  [ "$status" -eq 0 ]
+  grep -q 'phase 1 BARE model=global.anthropic.claude-fable-5-1 ' <<<"$output"
+  run_pr a0_bare_fable "$REVIEWC" --phase-models '{"BARE":"global.anthropic.claude-opus-5-5"}'
+  [ "$status" -eq 0 ]
+  argv_of 1 | grep -qx 'global.anthropic.claude-fable-5-1'
+  [ "$(jq -r '.phases[0].model_requested' "$T/run/meta/pipeline.json")" = global.anthropic.claude-fable-5-1 ]
+  [ "$(evline bare_model)" = fable ]
+  fresh_run
+  run_pr a0_bare "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.phases[0].model_requested' "$T/run/meta/pipeline.json")" = global.anthropic.claude-opus-5-5 ]
+}
+
+@test "closed mount (real library): the overlaid gate script runs at the PR's version, the evidence is on disk before the first phase, and took-effect oracle_closed passes on the run" {
+  # the real mount library at the literal path; a source tree whose pinned gate script is LATER than the PR
+  cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
+  cp "$REPO_ROOT/evals/harness/took-effect.sh" "$H/"
+  mkdir -p "$T/src/.claude/scripts"
+  printf 'gate head\n' > "$T/src/.claude/scripts/gate.sh"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm head )
+  local hc; hc="$(git -C "$T/src" rev-parse HEAD)"
+  printf 'gate LATER fixed\n' > "$T/src/.claude/scripts/gate.sh"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm fix )
+  local p="$T/prs/pr-y" r="$T/suite/tasks/rc-02"
+  mkdir -p "$p/base/.claude/scripts" "$p/head/.claude/scripts" "$r"
+  printf 'gate base\n' > "$p/base/.claude/scripts/gate.sh"; printf 'gate head\n' > "$p/head/.claude/scripts/gate.sh"
+  printf 'diff --git a/.claude/scripts/gate.sh b/.claude/scripts/gate.sh\n--- a/.claude/scripts/gate.sh\n+++ b/.claude/scripts/gate.sh\n@@ -1 +1 @@\n-gate base\n+gate head\n' > "$p/head.diff"
+  printf '# PR\n' > "$p/PR.md"
+  printf 'name: pr-y\nhead_commit: "%s"\nfix_commit: "%s"\n' "$hc" "$(git -C "$T/src" rev-parse HEAD)" > "$p/fixture.yaml"
+  printf 'Review the pull request in pr/.\n' > "$r/TASK.md"
+  printf 'id: rc-02\nschema_version: 1\ntype: review-catch\ncriterion: "review the change"\nreview_catch: {fixture: "%s"}\n' "$p" > "$r/task.yaml"
+  # the CLI wrapper snapshots the evidence file and the gate script at the first phase launch
+  cat > "$T/claude-ev" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == -p ]]; then   # a phase launch (fingerprint.sh calls --version first)
+  [[ -e "$T/log/evidence-at-first-phase.txt" ]] || cp "$T/run/meta/arm-evidence.txt" "$T/log/evidence-at-first-phase.txt"
+  [[ -e "$T/log/gate-at-first-phase.txt" ]] || cp "$T/run/sandbox/.claude/scripts/gate.sh" "$T/log/gate-at-first-phase.txt"
+fi
+exec "$T/claude" "\$@"
+EOF
+  chmod +x "$T/claude-ev"
+  export LOA_EVAL_BR_BIN="$T/no-br"
+  run "$PR" --task-yaml "$r/task.yaml" --arm a1_full --run-dir "$T/run" --run-id r-rl --trial 1 \
+    --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude-ev"
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log"; false; }
+  [ "$(cat "$T/log/gate-at-first-phase.txt")" = "gate head" ]
+  local E="$T/log/evidence-at-first-phase.txt"
+  grep -qx 'mount_overlay=head:1' "$E"
+  grep -qx "overlay_sha256=.claude/scripts/gate.sh=$(printf 'gate head\n' | python3 -I -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')" "$E"
+  grep -qx 'gate_scripts_at_pr_version=.claude/scripts/gate.sh' "$E"
+  grep -qx "copy_source=$(git -C "$T/src" rev-parse HEAD)" "$E"
+  grep -qx 'config_variant=eval' "$E"
+  grep -q '^mount_closed=pre-launch head:1 answer paths (1 present), 1 later-only pinned versions' "$E"
+  # the manifest is written before the closed check: the checked surface is the launched one
+  [ "$(grep -n '^manifest_sha256=' "$E" | cut -d: -f1)" -lt "$(grep -n '^mount_closed=' "$E" | cut -d: -f1)" ]
+  cp "$T/suite.yaml" "$T/suite-oc.yaml"
+  yq -i '(.arms[] | select(.id == "a1_full") | .took_effect) += ["oracle_closed"]' "$T/suite-oc.yaml"
+  run "$H/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-oc.yaml" --task-yaml "$r/task.yaml"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'oracle_closed OK ok head:1 answer paths (1 present)' <<<"$output"
+}

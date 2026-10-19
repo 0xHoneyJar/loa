@@ -177,10 +177,11 @@ JSON
   done
 }
 
-@test "RG-17 grader_version is 1.2.0 (the bd-ewrc parser through review run 3, plus the cycle-129 refuted share); the manifest corpus checksum list matches the manifests" {
+@test "RG-17 grader_version is 1.3.0 (the bd-ewrc parser, the cycle-129 refuted share, the cycle-131 same-scope rule); the manifest corpus checksum list matches the manifests" {
   review 'a.sh:40'
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.2.0" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.0" ]
+  [ "$(echo "$output" | jq -r '.details.rule')" = "pm3_or_same_function" ]
   ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
 }
 
@@ -262,9 +263,11 @@ JSON
   review 'a.sh:40-... is open-ended'   # a dash before a non-digit still cites 40
   run "$GRADER" "$WS" pr-x
   [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
-  review 'a.sh:12-40 and a.sh:12–40 are ranges'   # RG-3 behaviour kept
+  review 'a.sh:12-40 and a.sh:12–40 are ranges'   # RG-3 behaviour kept by the 1.2.0 rule (_pm3)
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+  [ "$(echo "$output" | jq -r '.details.detected_pm3 | join(",")')" = "D1" ]
+  # 1.3.0: a 29-line range credits only its first line under recall
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
 }
 
 @test "RG-23 a quoted or bracketed head:N binds as in 1.1.0; a bare :N after a closing backtick credits nothing (sprint-250 review run 2, #14)" {
@@ -338,7 +341,7 @@ PY
   [ "$status" -eq 1 ]
   [ "$(echo "$output" | jq -r '.pass')" = "false" ]
   [ "$(echo "$output" | jq -r 'has("forged")')" = "false" ]
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.2.0" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.0" ]
 }
 
 @test "RG-28 refuted share (1.2.0): a finding touching neither a defect site nor a fix region is refuted; recall is unchanged" {
@@ -357,4 +360,198 @@ JSON
   review 'no citations at all'
   run "$GRADER" "$WS" pr-r
   [ "$(echo "$output" | jq -r '.details.refuted_share')" = "null" ]
+}
+
+# --- grader 1.3.0 (cycle-131 FR-2, SDD §5.2, D-2.1): validity, the same-scope clause, three results ---
+# make_scope: head/ files for fixture pr-s under $T/pr-s/head (the default head dir is the manifest
+# directory's ../<fixture>/head). s.sh: top-level 2-12, alpha 13-25, beta 26-38, outer 39-56 holding
+# inner1 40-47 and inner2 48-56, `function delta {` 57-66 (66 lines). big.sh: one 501-line function.
+# doc.md: # 1, ## B 5-14, ## C 15-20, ### C1 21-25. m.py: def f 2-9, def h 10-18. t.bats: setup 1-3,
+# @test one 4-13, @test two 14-21. x.yaml: 60 lines, no definition regex.
+make_scope() {
+  local h="$T/pr-s/head/.claude" i
+  mkdir -p "$h/scripts" "$h/docs" "$h/tests"
+  {
+    echo '#!/usr/bin/env bash'
+    for i in $(seq 2 12); do echo "echo t$i"; done
+    echo 'alpha() {'; for i in $(seq 14 24); do echo "  echo a$i"; done; echo '}'
+    echo 'beta() {'; for i in $(seq 27 37); do echo "  echo b$i"; done; echo '}'
+    echo 'outer() {'
+    echo '  inner1() {'; for i in $(seq 41 46); do echo "    echo i$i"; done; echo '  }'
+    echo '  inner2() {'; for i in $(seq 49 54); do echo "    echo j$i"; done; echo '  }'
+    echo '}'
+    echo 'function delta {'; for i in $(seq 58 65); do echo "  echo d$i"; done; echo '}'
+  } > "$h/scripts/s.sh"
+  { echo 'big() {'; for i in $(seq 2 500); do echo "  echo g$i"; done; echo '}'; } > "$h/scripts/big.sh"
+  {
+    echo '# Title'; for i in 2 3 4; do echo "text $i"; done
+    echo '## B'; for i in $(seq 6 14); do echo "text $i"; done
+    echo '## C'; for i in $(seq 16 20); do echo "text $i"; done
+    echo '### C1'; for i in $(seq 22 25); do echo "text $i"; done
+  } > "$h/docs/doc.md"
+  {
+    echo 'import os'; echo 'def f(a):'; for i in $(seq 3 9); do echo "    x$i = a"; done
+    echo 'def h():'; for i in $(seq 11 18); do echo "    y$i = 1"; done
+  } > "$h/scripts/m.py"
+  {
+    echo 'setup() {'; echo '  :'; echo '}'
+    echo '@test "one" {'; for i in $(seq 5 12); do echo "  run x$i"; done; echo '}'
+    echo '@test "two" {'; for i in $(seq 15 20); do echo "  run y$i"; done; echo '}'
+  } > "$h/tests/t.bats"
+  for i in $(seq 1 60); do echo "k$i: v"; done > "$h/x.yaml"
+}
+# man_s <defects-json>: the pr-s manifest with the given defects array
+man_s() { printf '{"fixture":"pr-s","defects":%s}\n' "$1" > "$T/manifests/pr-s.json"; }
+D() { echo "$output" | jq -r "$1"; }
+
+@test "RG-29 a citation 6 lines from the anchor inside the same function: detected by the scope clause only" {
+  make_scope
+  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"severity":"high"}]'
+  review 's.sh:22 the guard is gone'
+  run "$GRADER" "$WS" pr-s
+  [ "$status" -eq 0 ]
+  [ "$(D '.details.detected | join(",")')" = "S1" ]
+  [ "$(D '.details.detected_pm3 | length')" = "0" ]
+  [ "$(D '.details.missed_pm3 | join(",")')" = "S1" ]
+  [ "$(D '.details.credits_function_only | join(",")')" = "S1" ]
+  [ "$(D '.details.recall == 1 and .details.recall_pm3 == 0')" = "true" ]
+  [ "$(D '.pass')" = "true" ]
+  [ "$(D '.score')" = "100" ]
+}
+
+@test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {
+  make_scope
+  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":22,"severity":"high"},
+          {"id":"S2","file":".claude/scripts/s.sh","anchor_line":5,"severity":"low"}]'
+  review 's.sh:28 and s.sh:11'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  [ "$(D '.details.credits_function_only | length')" = "0" ]
+  [ "$(D '.details.recall == 0')" = "true" ]
+}
+
+@test "RG-31 nested bash functions resolve to the innermost; the outer header line is another scope" {
+  make_scope
+  man_s '[{"id":"N1","file":".claude/scripts/s.sh","anchor_line":43,"severity":"high"}]'
+  review 's.sh:49'            # inner2, 6 away
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  review 's.sh:39'            # outer's own header, 4 away
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  review 's.sh:47'            # inner1's closing brace, 4 away
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.credits_function_only | join(",")')" = "N1" ]
+  # `function NAME {` is a header too
+  man_s '[{"id":"N2","file":".claude/scripts/s.sh","anchor_line":58,"severity":"high"}]'
+  review 's.sh:64'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.credits_function_only | join(",")')" = "N2" ]
+}
+
+@test "RG-32 a definition longer than 400 lines falls back to ±20 around the site" {
+  make_scope
+  man_s '[{"id":"B1","file":".claude/scripts/big.sh","anchor_line":100,"severity":"high"}]'
+  review 'big.sh:115'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.credits_function_only | join(",")')" = "B1" ]
+  review 'big.sh:130'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+}
+
+@test "RG-33 a cited range wider than 25 lines credits only its first line under recall (both clauses); the 1.2.0 rule of _pm3/_pm3_v1 is unchanged; 25 lines still credit" {
+  make_scope
+  man_s '[{"id":"R1","file":".claude/scripts/s.sh","anchor_line":20,"severity":"high"}]'
+  review 's.sh:2-41 the whole block'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  [ "$(D '.details.detected_pm3 | join(",")')" = "R1" ]
+  [ "$(D '.details.detected_pm3_v1 | join(",")')" = "R1" ]
+  [ "$(D '.details.credits_function_only | length')" = "0" ]
+  review 's.sh:2-26'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | join(",")')" = "R1" ]
+}
+
+@test "RG-34 markdown: the nearest preceding heading's section; a deeper heading is the innermost scope" {
+  make_scope
+  man_s '[{"id":"M1","file":".claude/docs/doc.md","anchor_line":8,"severity":"medium"},
+          {"id":"M2","file":".claude/docs/doc.md","anchor_line":23,"severity":"medium"}]'
+  review 'doc.md:13 and doc.md:17'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | join(",")')" = "M1" ]
+  [ "$(D '.details.credits_function_only | join(",")')" = "M1" ]
+}
+
+@test "RG-35 multi-site anchors: a citation in the scope of any site credits the defect" {
+  make_scope
+  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"anchors":[16,60],"severity":"high"}]'
+  review 's.sh:65'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.credits_function_only | join(",")')" = "S1" ]
+}
+
+@test "RG-36 recall_pm3_v1 reads manifests/v1/<pr>.json; without it the current manifest with v1_manifest false" {
+  make_scope
+  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"anchors":[16,60],"severity":"high"}]'
+  mkdir -p "$T/manifests/v1"
+  printf '{"fixture":"pr-s","defects":[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"severity":"high"}]}\n' \
+    > "$T/manifests/v1/pr-s.json"
+  review 's.sh:61'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.v1_manifest')" = "true" ]
+  [ "$(D '.details.recall_pm3 == 1 and .details.recall_pm3_v1 == 0 and .details.recall == 1')" = "true" ]
+  [ "$(D '.details.missed_pm3_v1 | join(",")')" = "S1" ]
+  rm -r "$T/manifests/v1"
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.v1_manifest')" = "false" ]
+  [ "$(D '.details.recall_pm3_v1 == 1')" = "true" ]
+}
+
+@test "RG-37 python def and bats @test scopes; a yaml file has no regex and falls back to ±20" {
+  make_scope
+  man_s '[{"id":"P1","file":".claude/scripts/m.py","anchor_line":4,"severity":"high"},
+          {"id":"P2","file":".claude/scripts/m.py","anchor_line":16,"severity":"high"},
+          {"id":"T1","file":".claude/tests/t.bats","anchor_line":6,"severity":"high"},
+          {"id":"T2","file":".claude/tests/t.bats","anchor_line":18,"severity":"high"},
+          {"id":"Y1","file":".claude/x.yaml","anchor_line":10,"severity":"low"},
+          {"id":"Y2","file":".claude/x.yaml","anchor_line":50,"severity":"low"}]'
+  # m.py:9 is in f (P1, 5 away) and 7 lines from P2 in h; t.bats:12 is in one (T1, 6 away) and 6 from T2 in two;
+  # x.yaml:25 is 15 from Y1 (the ±20 fallback) and 25 from Y2
+  review 'm.py:9, t.bats:12 and x.yaml:25'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | join(",")')" = "P1,T1,Y1" ]
+  [ "$(D '.details.credits_function_only | join(",")')" = "P1,T1,Y1" ]
+}
+
+@test "RG-38 citation validity (recall): line 0 and a line past the head file's end credit nothing; a file absent from head/ keeps ±3; _pm3 keeps 1.2.0" {
+  make_scope
+  man_s '[{"id":"V1","file":".claude/scripts/s.sh","anchor_line":64,"severity":"high"},
+          {"id":"V2","file":".claude/scripts/s.sh","anchor_line":2,"severity":"high"},
+          {"id":"V3","file":".claude/scripts/gone.sh","anchor_line":900,"severity":"low"}]'
+  review 's.sh:67, s.sh:0 and gone.sh:902'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | join(",")')" = "V3" ]
+  [ "$(D '.details.detected_pm3 | join(",")')" = "V1,V2,V3" ]
+}
+
+@test "RG-39 end-of-definition detection: top-level code after a bash function's closing brace, after a one-line function and after a dedented python block has no scope" {
+  make_scope
+  local h="$T/pr-s/head/.claude/scripts"
+  # e.sh: last() 1-11 (closing brace at 11), one-line one() at 12, top-level 13-24
+  { echo 'last() {'; for i in $(seq 2 10); do echo "  echo l$i"; done; echo '}'
+    echo 'one() { echo x; }'; for i in $(seq 13 24); do echo "echo top$i"; done; } > "$h/e.sh"
+  # e.py: def f 1-9, a blank and a comment, top-level 12-22
+  { echo 'def f():'; for i in $(seq 2 9); do echo "    a$i = 1"; done; echo ''; echo '# trailer'
+    for i in $(seq 12 22); do echo "b$i = 2"; done; } > "$h/e.py"
+  man_s '[{"id":"E1","file":".claude/scripts/e.sh","anchor_line":4,"severity":"high"},
+          {"id":"E2","file":".claude/scripts/e.sh","anchor_line":20,"severity":"high"},
+          {"id":"E3","file":".claude/scripts/e.py","anchor_line":2,"severity":"high"}]'
+  review 'e.sh:14, e.sh:12 and e.py:13'     # top-level, the one-liner, top-level: no scope anywhere
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  review 'e.sh:11 and e.py:9'               # last()'s closing brace and f's last line are inside
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.credits_function_only | join(",")')" = "E1,E3" ]
 }

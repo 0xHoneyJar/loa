@@ -19996,3 +19996,483 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0625"
+    created_at: "2026-10-19T06:00:23Z"
+    updated_at: "2026-10-19T06:00:23Z"
+    phase: "implementation"
+    category: "process"
+    summary: "System Zone authorization extended to the two dissent wire schemas for optional anchor_line/anchor_line_end (SZ-1)"
+    decision: "Implementer C found that schema-enforced voices (claude-headless --json-schema) are held to the closed wire schemas .claude/schemas/wire/dissent-review.wire.json and dissent-audit.wire.json, so FR-4's numeric anchors would be rejected on the wire. The PRD's System Zone authorization list (adversarial-review.sh, adversarial-finding.schema.json, the two ADVERSARIAL-REVIEW.md resources, checksums regeneration) is extended to the two wire schemas for exactly two optional integer fields (anchor_line, anchor_line_end, minimum 1); additionalProperties, enums and required lists stay as they are; a test asserts both shapes validate and the enum-equality marker test stays green."
+    rationale: "without the wire change the field exists only for unenforced hops and the measured numeric-anchor share would be an artefact of enforcement, not of the voices"
+    alternatives_considered:
+      - option: "request the field only from unenforced hops"
+        rejected_because: "the companion voice is the one most often enforced; the metric would silently exclude it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/prd.md#technical-considerations (SZ-1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:00:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#technical-considerations (SZ-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0626"
+    created_at: "2026-10-19T06:52:00Z"
+    updated_at: "2026-10-19T06:52:00Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Task 1.5 curation rules accepted: review-cited lines mapped to head by content, HEAD-ABSENT skipped, cap 6, blinding held (D-T1.5)"
+    decision: "Implementer D's multi-site anchor curation (44 defects, 112 lines, pr-11 … pr-18; pr-01 … pr-10 unchanged, no label_source): a line is added when the human finding cites it, names the statement on it or quotes its code; when the review cites a later commit than the fixture head the line is mapped to head by content, never by number; a cited site absent from head is listed HEAD-ABSENT and not added; citations in a file other than defect.file are listed, not added; blank range endpoints skipped; at most 6 added lines per defect (pr-17 L14 carries 10 sites after dedup with the originals); the originals are kept byte-identical under manifests/v1/ and equal the ba11b860 pin; SHA256SUMS regenerated offline with --freeze (860 entries). The lead spot-checked pr-13 L02, pr-16 L03, pr-17 L06/L09/L14 and accepts the curation; approved_by carries the lead stamp with the curator named. Blinding held: no run directory, analysis file or record/cycle-130-analysis content was read (D's worktree holds none). Follow-up bd-y4pqj: labels/*.tsv in step with the anchors."
+    rationale: "the rule credits what the human finding actually said, mapped to the fixture's own lines, and nothing the arms produced"
+    alternatives_considered:
+      - option: "regenerate manifests from labels/*.tsv with --build-manifest"
+        rejected_because: "the TSV labels hold one row per anchor and were not extended; keeping them in step is the follow-up bead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/a2a/sprint-1/anchors-curation.md#blinding-statement (D-T1.5)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:52:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-1/anchors-curation.md#blinding-statement (D-T1.5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0627"
+    created_at: "2026-10-19T06:57:40Z"
+    updated_at: "2026-10-19T06:57:40Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Overlay refuses a dirty or non-git copy source (copy_source ends -dirty); oracle_closed passes with stated evidence on build and unmounted runs (A-T1.1/1.2)"
+    decision: "copy_source ends in -dirty when the source tree's .claude/ has uncommitted or untracked changes; a dirty or non-git copy source refuses the overlay before launch. The took-effect rule oracle_closed passes, stating that as its evidence, on build runs and on runs with no mount, because a1_full applies to every task type; it fails on an unmodified mount, a stray copy, a mutated path or a second commit, and sorts failures by clause a, b, c, d printing the first with a (+N more) count. A path whose pre-run hash was already wrong reports (a); one that was correct and then changed reports (c) mount_mutated. The overlay writes five extra evidence keys (overlay_removed, overlay_fix_commit, overlay_fixture, overlay_source_tree, mount_closed); took-effect falls back to overlay_fixture when given no --task-yaml and never accepts a fixture inside the run directory."
+    rationale: "a dirty source cannot be pinned to a commit, so its overlay is not reproducible; build and unmounted runs have no answer path to leak"
+    alternatives_considered:
+      - option: "skip oracle_closed on build tasks"
+        rejected_because: "the suite declares the rule per arm, not per task type; a per-type skip would need a second rule list"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0628"
+    created_at: "2026-10-19T06:57:43Z"
+    updated_at: "2026-10-19T06:57:43Z"
+    phase: "implementation"
+    category: "design"
+    summary: "bare_model: fable overrides --phase-models and suite phase_defaults for BARE; drift guard expects Fable; exactly one claude-fable key, no opus key (A-T1.1/1.2)"
+    decision: "With toggle bare_model: fable the BARE phase runs on global.anthropic.claude-fable-5-1, overriding --phase-models and the suite's phase_defaults for that run; run-ablation's drift guard expects Fable on BARE for those runs so a0_bare_fable rows do not count as drift. The took-effect rule bare_model_fable requires exactly one model key starting global.anthropic.claude-fable and no global.anthropic.claude-opus key; other models (the WebFetch summariser of DEC-0545) are allowed. no_review_dissent_envelope also fails when a review envelope exists in the sandbox, not only in eval/. Toggles that edit .claude/ content (effort, karpathy_block, rule_files, audit_delta_instruction) fail the pre-launch check on a review-catch PR whose answer set includes the edited file; no cycle-131 arm uses them."
+    rationale: "the control arm must differ from a0_bare in model only, and the harness must be able to tell that it did"
+    alternatives_considered:
+      - option: "declare the Fable control through --phase-models alone"
+        rejected_because: "the toggle lives in the arm declaration and leaves evidence in the run; a CLI flag leaves none"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0629"
+    created_at: "2026-10-19T06:57:47Z"
+    updated_at: "2026-10-19T06:57:47Z"
+    phase: "implementation"
+    category: "design"
+    summary: "--allow-partial recorded as MANIFEST.json.allow_partial; on --resume the manifest value wins and a conflicting flag is a usage error (A-T1.7)"
+    decision: "run-ablation.sh --allow-partial passes the flag to the freeze check and to every grader call and writes MANIFEST.json.allow_partial. On --resume the value comes from the batch manifest; a manifest without the key counts as false; passing the flag on a batch that started without it is a usage error; without the flag the run takes the manifest's value. Three existing stubs were edited in place without the c131- prefix because the old ones fail under the new code: mount-lib-stub.sh, ablation-pipeline-stub.sh and ablation-grade-stub.sh."
+    rationale: "a batch's partial-suite status is a property of the batch, fixed at its first launch, and must not change between resumes"
+    alternatives_considered:
+      - option: "accept the flag on every resume and re-check"
+        rejected_because: "a late flag would let a batch started as a full suite be graded as partial, silently changing what its rows mean"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0630"
+    created_at: "2026-10-19T06:58:15Z"
+    updated_at: "2026-10-19T06:58:15Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Closed-mount answer set: PR-touched + fix-commit .claude/ paths; checksums.json excluded; symlinks removed; fix-only paths at head_commit (A-T1.1)"
+    decision: "The answer set for the closed mount is every PR-touched path plus every fix-commit path under .claude/, except .claude/checksums.json (harness-owned, regenerated, holds hashes not content; the pr-12 and pr-18 fix commits touch it). A path that is a symlink in the fixture's head/ or base/, or has a symlink component, has no version: it is removed from the mount, expected absent and never written as a link (the corpus holds none). A fix-commit path outside the PR takes git show <head_commit>:X in both overlay modes; when head_commit is unknown the path is removed. Clause (b) compares later-only pinned versions only (non-empty, matching no expected version and no fixture file) so pure renames or reverts do not false-hit; the scan skips pr/ and .git/. Clause (d) also rejects an objects/info/alternates file and any later-only pinned blob in the sandbox object store; git runs with empty global and system config, core.fsmonitor=false, no pager and literal pathspecs."
+    rationale: "the answer-bearing content is what the fix commit changed; hashes, links and renames carry no answer, and the sandbox .git is untrusted"
+    alternatives_considered:
+      - option: "include checksums.json in the answer set"
+        rejected_because: "it is regenerated by the harness and would make every mount fail the pre-launch check on a hash line that carries no fix content"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:58:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0631"
+    created_at: "2026-10-19T07:04:25Z"
+    updated_at: "2026-10-19T07:04:25Z"
+    phase: "implementation"
+    category: "design"
+    summary: "pr-12 under the closed mount: mounted cheval cannot import (private_workspace_base skew); expected dissent absent on both gates, recorded, re-grade-only"
+    decision: "A lead probe of the closed mount on real fixtures (head and base modes) shows pr-12's overlay writes headless_cli.py at the PR's head_commit (2026-09-25) while three pinned headless adapters import private_workspace_base, added 2026-10-04 between pr-12's head and fix commits; the mounted cheval raises ImportError on pr-12 and every dissent voice will fail there. The expected-dissent table is amended before the smoke: review-03 is expected to complete both gates with dissent_absent_gates = review,audit and an infrastructure reason naming the import; pr-12 stays excluded from the numeric-anchor share and stays re-grade-only (DEC-0611); no cycle-131 batch runs on it. pr-13 and pr-18 import cleanly under the overlay. The import skew is a property of partial overlays (fix-commit paths outside the PR rewound to head_commit beside pinned importers), not a defect in the overlay rule; widening the answer set to the importers would reopen the oracle question."
+    rationale: "the smoke must be read against an expectation written before it runs; a dissent failure on pr-12 is now a predicted infrastructure effect, not an unexplained degradation"
+    alternatives_considered:
+      - option: "overlay the whole framework at head_commit for pr-12 (brief option b)"
+        rejected_because: "a design change outside Sprint 263 scope; pr-12 is re-grade-only so no measurement depends on it this cycle"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/NOTES.md#pre-smoke-expectation-amendment-pr-12 (lead probe, overlay-probe.sh)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:04:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#pre-smoke-expectation-amendment-pr-12 (lead probe, overlay-probe.sh)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0632"
+    created_at: "2026-10-19T07:06:20Z"
+    updated_at: "2026-10-19T07:06:20Z"
+    phase: "implementation"
+    category: "design"
+    summary: "FR-1 AC4 ruling: oracle_exposed_defects stays the diff+read union as specified; by-form split reported; diff-only is a labelled sensitivity (B-T1.3)"
+    decision: "Implementer B's detector, validated on the 36 cycle-130 runs, flags the diff form on review-04 t2 (d1-d4), r17 t1 (8 sites; the analysis's ninth, d10, was a later-side coincidence) and r18 t1 (d7), plus two genuine head-versus-later-copy diffs the analysis missed (r17-t2 REVIEW event 144 and r17-t3 REVIEW event 137, loop-variable diffs oracle_scan.py could not resolve); the read form adds incidental later-copy reads covering a planted site on seven more full-arm runs (review-04 t1/t2/t3 d5, review-01 t2/t3 d2, review-02 t2/t3 d3, review-03 t2 d1); no bare run is flagged. Ruling: oracle_exposed_defects remains the union of both forms exactly as the SDD specifies; oracle_exposed_by_form {diff, read} is written beside it; the Task 1.9 re-grade and the Sprint 3 reads report the FR-6 exclusion under the union as the main read and the diff-form-only exclusion as a labelled sensitivity. The PRD's AC4 wording (exactly three runs) is recorded PARTIAL: it was written against a weaker detector, and narrowing the detector after seeing which runs it flags would be the post-hoc ruler move this cycle exists to stop. Under the closed mount the detector never fires (a path byte-equal to the fixture's head or base is skipped), so Sprint 264 batches are unaffected."
+    rationale: "a reviewer who reads the fixed text at a planted site is exposed whether or not it used it; the pre-specified union is the conservative rule and the by-form split preserves the information"
+    alternatives_considered:
+      - option: "set oracle_exposed_defects = by_form[diff] so AC4 reads exactly three runs"
+        rejected_because: "changes the pre-specified exclusion after seeing its effect on the cells; the diff-only read is kept as a labelled sensitivity instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#findings (B-T1.3 detector validation; lead ruling on FR-1 AC4)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:06:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#findings (B-T1.3 detector validation; lead ruling on FR-1 AC4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0633"
+    created_at: "2026-10-19T07:12:10Z"
+    updated_at: "2026-10-19T07:12:10Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Dissent wire schemas take anchor_line/anchor_line_end as nullable-required integers; normaliser bounds 1..10,000,000, drops strings, end without start (C-T1.8)"
+    decision: "The two wire schemas .claude/schemas/wire/dissent-review.wire.json and dissent-audit.wire.json gain anchor_line and anchor_line_end in the nullable-required form (anyOf integer|null, listed in required) rather than the optional-minimum form, because schema-enforced voices (claude-headless --json-schema) are held to a closed required list; five kf004 fixtures gain the null keys (s1-c-fixtures.patch) and without them FR7-10 and the wire fixture pytest go red. The normaliser keeps integer anchors in 1..10,000,000, drops integer-valued strings and floats without repair, drops an end without a kept start, keeps end == start, and also runs on the schema-enforced branch (dropping the nulls strict voices emit) only when a finding carries the keys. A symbol-only envelope normalises byte-identical to the 1.x output (NRM-70). The audit prompt gets its own anchor shape line. This amends DEC-0625 with the exact schema form."
+    rationale: "strict voices cannot omit a key the closed schema lists, so the field must be required-nullable to reach the wire at all; the bounds keep a hallucinated line from indexing anything"
+    alternatives_considered:
+      - option: "optional integer with minimum 1 (the finding schema form)"
+        rejected_because: "an optional key is rejected by the closed wire schema when present and unlisted, and absent when the voice is strict; the nullable-required form is the only one both voices can satisfy"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:12:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0634"
+    created_at: "2026-10-19T07:12:33Z"
+    updated_at: "2026-10-19T07:12:33Z"
+    phase: "implementation"
+    category: "design"
+    summary: "budget_scale: envelope names the scaling only when the key is set; literal formula capped by budget_cents_max; malformed values fall back to fixed (C-T1.8)"
+    decision: "_adv_conf_budget_scale reads flatline_protocol.<gate>.budget_scale (fixed|diff, tag-checked, case-sensitive; Diff, yes, numbers, lists and maps are malformed) and budget_cents_max (default 600; a malformed max makes the whole scale fall back to fixed). _adv_budget_effective applies min(max(configured, ceil(estimate x 1.2)), budget_cents_max) literally, so under diff a configured budget above the max is held to the max; configured means the effective --budget CLI value when given, else the config's budget_cents. The envelope carries budget_scale, budget_cents_effective, budget_cents_max and reason: budget on a refusal only when the budget_scale key is written; an absent key gives an envelope byte-identical to before. The example config writes budget_scale: fixed and budget_cents_max: 600 uncommented in the style of its siblings; the shipped default stays fixed; the eval variant (budget_scale: diff) is applied by the harness (DEC-0618)."
+    rationale: "a copier of the example gets the documented default and an envelope that names its own scaling; a scaled budget must never exceed the stated ceiling"
+    alternatives_considered:
+      - option: "always write the scaling fields to the envelope"
+        rejected_because: "changes every existing envelope and the fixtures that pin them for a field that carries no information under fixed"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:12:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0635"
+    created_at: "2026-10-19T07:22:45Z"
+    updated_at: "2026-10-19T07:22:45Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Grader 1.3.0: _pm3/_pm3_v1 keep the 1.2.0 rule; validity and 25-line cap bind recall only; scope = enclosing definition <= 400 lines (B-T1.4)"
+    decision: "recall_pm3 and recall_pm3_v1 apply the 1.2.0 citation rule byte-for-byte (the regression recall_pm3_v1 == stored recall holds 36/36; with the 25-line cap applied to _pm3 two runs, p1b review-02 t1-r2 and replication a0 r17-t3, would fail it). Citation validity (positive, ordered, inside the head file) and the 25-line range cap bind the new recall only. Scope is the enclosing definition by header line for bash, bats, python and markdown, innermost on nesting; bash and bats end at the first closing brace at the header's indentation and a one-line function ends on its header; python ends before the first dedented line; a site outside every definition has no scope (±3 only) and a cited line inside a definition over 400 lines has no scope. The head directory is EVAL_HEAD_DIR, else <manifest dir>/../<pr>/head, else <ws>/pr/head: the immutable fixture head, never the sandbox pr/. flags, findings_cited, the refuted share and false positives keep reading raw citations unchanged. A numeric dissent anchor uses the anchor's path part when it has a file extension, else the finding's file; the end is used only when greater than the start."
+    rationale: "the regression statistic must be the old ruler unchanged, and the new ruler must credit same-function prose without crediting whole files"
+    alternatives_considered:
+      - option: "apply validity and the range cap to every result"
+        rejected_because: "two stored grades would no longer reproduce, so the versioned re-grade could not show the rule change alone"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0636"
+    created_at: "2026-10-19T07:22:47Z"
+    updated_at: "2026-10-19T07:22:47Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Oracle detector: head-side ranges by operand order; byte-equal paths skipped; later-only line >= 8 chars; corroboration rule; BARE scanned (B-T1.3)"
+    decision: "The detector reads ranges on the head side chosen from operand order (a pr/base operand reads both sides; either-side would give r18 t1 two defects). A path whose sandbox copy byte-equals the fixture's head or base is skipped, so a closed mount in either mode never fires. A later-only line must be in neither head nor base and at least 8 characters; multi-file reads credit only result lines that name the file; must_match needs at least 12 characters; text in a multi-target command that no header attributes needs corroboration (a range near the site plus the head file's own text near it, or must_match). A diff to /dev/null, piped to wc, grep -c/-q/-l or cmp, or with an is_error result never exposes. BARE transcripts are scanned too. oracle_exposed_defects is the diff and read union (DEC-0632), oracle_exposed_by_form keeps the split, unknown exposures are a separate list the report counts as exposed. KF-046 class 7: the unit is the backtick span holding the token, else its line, exempt when a substring of a fixture line (whole-line equality would clear neither replication row)."
+    rationale: "the detector must fire on a reviewer that saw fixed text at a planted site and stay silent on reads of the PR's own files or of unrelated later text"
+    alternatives_considered:
+      - option: "either-side ranges and whole-line class 7 equality"
+        rejected_because: "either-side over-flags r18 t1 by a coordinate coincidence and whole-line equality clears neither genuinely PR-quoted replication row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0637"
+    created_at: "2026-10-19T07:22:49Z"
+    updated_at: "2026-10-19T07:22:49Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Row 1.4 / report 1.3: legacy rows grader_rule pm3 with null new rates; dissent precedence; partitions version x pin x rule; min_valid_cells 4 (B-T1.6)"
+    decision: "A 1.2.x review row gets grader_rule pm3 and null new rates, nothing inferred; row_writer_version 1.4 gates the --validate requirement so legacy rows still validate. Dissent precedence is disabled > budget > preflight > error > none; disabled comes from the sandbox config or dissent=false evidence; a gate that did not run is null; dissent_absent_gates includes disabled. The report partitions by version x pin x rule (keys <v> · pin <12> · rule <r>, split only when a version holds more than one pin or rule; the primary is the highest version's largest partition), prints _pm3 and _pm3_v1 beside every catch read, keeps oracle-exposed cells in the main read by default and applies the FR-6 exclusion under --exclude-oracle-exposed true, which every Sprint 264 pre-registration must name for its main read; valid cells per task are the smaller of the two arms' valid trial counts with rules.min_valid_cells 4 (insufficient) checked after the degenerate check. corpus_sha256 hashes the SHA256SUMS above the key's manifests/ and is null for build tasks."
+    rationale: "rows written under the old grader must stay readable and distinguishable, and no read may pool across grader rules or pins"
+    alternatives_considered:
+      - option: "exclude oracle-exposed cells by default in the report"
+        rejected_because: "the default would silently change the shipped cycle-130 report; the pre-registration names the flag instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0638"
+    created_at: "2026-10-19T07:38:27Z"
+    updated_at: "2026-10-19T07:38:27Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Task 1.10 adjudication: same-scope rule NOT adopted (2 of 7 credits are the labelled defect, kappa 1.0); recall_pm3 is the decision statistic"
+    decision: "Two independent Opus 5.5 labelers judged 17 blind packets (all 7 same-scope-only credits under grader 1.3.0 with the curated manifests, and 10 of the 40 anchor-expansion-only credits, stratified by arm x PR, seed 20261015) and agreed on every packet (agreement 1.000, Cohen's kappa 1.000, floor 0.6 met, no third labeler). Group (a): 2 of 7 same-scope credits describe the labelled defect (share 0.286, Wilson 95 % [0.082, 0.641]), below the pre-registered 80 % bar, so the ±3-or-same-enclosing-definition rule is NOT adopted: recall_pm3 (the 1.2.0 ±3 rule on the current, curated manifests) is the decision statistic for every Sprint 264 pre-registration and every Sprint 265 read; recall (the new rule) and recall_pm3_v1 are reported beside it. Group (b): 6 of 10 anchor-expansion credits describe the labelled defect (0.600 [0.313, 0.832]); reported, decides nothing, and is carried into the Sprint 265 reads as a labelled caveat on the curated anchors. The grader keeps writing all three results; the recommendation R2 of the cycle-130 analysis (same-function rule) is withdrawn by this measurement."
+    rationale: "the pre-registered rule said what would count as evidence for widening the ruler and the evidence did not arrive; a rule that credits a different finding five times in seven is not a better ruler"
+    alternatives_considered:
+      - option: "adopt the rule anyway because the 7-packet sample is small"
+        rejected_because: "the adoption rule named the denominator (all (a) packets sampled) before sampling; the interval upper bound 0.641 is itself below 0.8"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/a2a/sprint-1/adjudication/result.md (Task 1.10; pre-registration NOTES 2026-10-19T06:08:48Z)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:38:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-1/adjudication/result.md (Task 1.10; pre-registration NOTES 2026-10-19T06:08:48Z)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0639"
+    created_at: "2026-10-19T07:40:02Z"
+    updated_at: "2026-10-19T07:40:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Re-grade rows ship under grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl (evals/results/* is gitignored); the PRD path stays the working copy"
+    decision: "The PRD named evals/results/ablation-2.0/regrade-c131/rows.jsonl for the versioned re-grade, but evals/results/* is gitignored (.gitignore:288) and only runs.jsonl's home under grimoires/loa/reports/ablation-2.0/ is tracked. The tracked copy grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl is canonical (validated with ablation-row.sh --validate, 36 rows); the evals/results path remains the working copy the driver writes. CHANGELOG, the suite README and the Task 1.9 record name the tracked path."
+    rationale: "a result the Sprint 265 reads depend on must be in the tree the PR ships, beside the rows it is compared with"
+    alternatives_considered:
+      - option: "git add -f the file under evals/results"
+        rejected_because: "breaks the ignore rule that keeps run outputs out of the tree and leaves a path nobody else can regenerate into"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "git check-ignore (.gitignore:288 evals/results/*); Task 1.9"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:40:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "git check-ignore (.gitignore:288 evals/results/*); Task 1.9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

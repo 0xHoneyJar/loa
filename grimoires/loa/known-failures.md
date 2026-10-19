@@ -96,7 +96,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-046](#kf-046-ablation-gradesh-contamination-scan-flags-ordinary-agent-text-and-shell-idioms-as-outside_path-or-git_history-slash-commands-git-log---all-heredoc-prose-sed-address-ranges-container-home) | active | evals/harness/ablation-grade.sh check_value / ABS_WORD (D-4.7 contamination scan) | 9 |
 | [KF-047](#kf-047-run-mode-circuit-breaker-trips-on-a-stale-timeout-clock-carried-over-from-the-previous-run) | Open (worked around) | run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json | 1 |
 | [KF-048](#kf-048-ablation-containers-consume-the-host-codex-refresh-token-every-later-container-and-the-host-lose-the-openai-voice) | Open (operator re-auth needed) | evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers | 2 |
-| [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 2 |
+| [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 4 |
+| [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 1 |
 
 ---
 
@@ -1850,7 +1851,7 @@ When a1_full rows read degraded 1 of N voices inside the ablation containers, op
 **Feature**: evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin)
 **Symptom**: an a1_full REVIEW transcript runs diff on pr/head/PATH against the workspace copy of PATH ('head vs later workspace'); the result shows the fix commit's hunks at the planted sites; the gate's findings cite those sites only after that event; the row reads completed and the defects count as caught
 **First observed**: 2026-10-19 cycle-130 deep analysis (a2a/analysis-2026-10/mechanism-pr-13.md): priority-v2-p1-a1_full-review-04-t2 REVIEW events 482 and 483 (d1-d4 exposed, all cited after; the audit inherited them via a memory note); static check: every planted site of pr-05/08/12/13/16/17/18 differs between pr/head and the ba11b860 copy (scripts/oracle_scan.py)
-**Recurrence count**: 2
+**Recurrence count**: 4
 **Current workaround**: read every a1 review-catch row with scripts/oracle_scan.py (a real diff/comm/sdiff between a pr/ operand and a workspace operand; planted sites inside the printed hunks; first citation after the event) and report H1 with the exposed cell excluded pairwise (+0.228 [+0.105, +0.351]) or zeroed (+0.175 [+0.035, +0.316]) beside the shipped +0.263; pre-register the scan for any new review-catch batch
 **Upstream issue**: none yet (harness design: mount the framework at the PR's base commit for review-catch tasks, or exclude the PR-touched paths from the mount; cycle-131 candidate bead)
 **Related visions / lore**: DEC-0597 (H1 on suite v2); a2a/analysis-2026-10 mechanism-pr-13.md, attribution.md, sensitivities.md; KF-046 (another grader-side reading rule)
@@ -1861,7 +1862,29 @@ When a1_full rows read degraded 1 of N voices inside the ablation containers, op
 |------|---------------|---------|----------|
 | 2026-10-19 | oracle_scan.py over the 12 valid a1 cells (24 gates): precise detector (diff/comm/sdiff with a pr/ operand and a workspace operand; not -q; the word head.diff excluded) | 1 of 12 runs used the oracle on planted sites (review-04 t2 REVIEW event 482: 4 of 5 defects; its 5th credit inherited the leak via the audit); one other content diff (review-04 t2 event 311, reference stubs, no planted site); every other diff-like command was a parity check | grimoires/loa/a2a/analysis-2026-10/data/oracle-scan.json; grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a1_full/review-04-t2/transcripts/events-REVIEW.jsonl lines 482-483; mechanism-pr-13.md section c |
 | 2026-10-19 | replication-01 (pr-17, pr-18; PRs no analysis had seen): oracle_scan.py over the six a1 runs after the batch | 2 of 6 runs diffed pr/head against the mounted later copy on planted sites: review-r17-t1 REVIEW events 314/316/365 (9 sites exposed, all 9 cited afterwards, 7 of them missed by bare in the same trial) and review-r18-t1 REVIEW event 226 (1 site); review-r18-t2 AUDIT event 108 diffed red-test-check.sh 'later fixes hint' with no planted site in the hunks; the lift survives zeroing the exposed catches (+0.333 [+0.190, +0.476]) but the channel is habitual, not a one-off | evals/results/ablation-2.0/replication-01/a1_full/review-r17-t1/transcripts/events-REVIEW.jsonl lines 314-316, 365; .../review-r18-t1/transcripts/events-REVIEW.jsonl line 226; grimoires/loa/a2a/analysis-2026-10/data/replication-read.json (oracle[]) |
+| 2026-10-19 | cycle-131 Task 1.3 detector (grader 1.3.0, implementer B) validated over the 36 cycle-130 review-catch runs, diff and read forms | two further genuine head-vs-later-copy diffs found that the analysis missed: replication r17-t2 (REVIEW event 144, loop diff <(cat pr/head/$f) $f) and r17-t3 (REVIEW event 137, diff -u pr/head/$f $f), both printing planted-site hunks; oracle_scan.py could not resolve $f. Read form adds incidental later-copy reads on seven more full-arm runs; no bare run flagged | ~/.cache/loa/cycle-131/reports/s1-b.md; DEC-0632; plan commit 7600bd7d |
 
 ### Reading guide
 
 A review-catch lift measured with the framework mounted is an upper bound. Before reading any a1 catch on a record PR, grep the REVIEW and AUDIT transcripts for a content diff (not cmp -s, md5sum or diff -q) between a pr/head or pr/base path and the workspace copy of a PR-touched file, and check whether its hunks cover a planted site before the first citation of that site; a hit taints the whole run (the audit reads the review's feedback and memory). The exposure is structural (every record fixture's fix commit precedes the pin), so fix the mount before the next review-catch batch rather than re-reading rows one by one.
+
+## KF-050: Closed-mount overlay import skew: mounted cheval ImportError when a fix-commit path outside the PR is rewound beside pinned importers (pr-12)
+
+**Status**: OPEN — design hazard; pr-12 re-grade-only, no batch runs on it
+**Feature**: evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount)
+**Symptom**: Under the closed mount (head or base mode) the sandbox's .claude/adapters cheval raises ImportError: cannot import name 'private_workspace_base' from 'loa_cheval.providers.headless_cli'; every dissent voice fails on that PR (dissent_absent_gates = review,audit, infrastructure reason)
+**First observed**: 2026-10-19 cycle-131 Sprint 263, lead probe overlay-probe.sh on pr-12 before the Task 1.11 smoke
+**Recurrence count**: 1
+**Current workaround**: None inside the overlay rule. Keep the affected PR out of closed-mount batches (pr-12 is re-grade-only, DEC-0611/DEC-0631); read its smoke row as a predicted infrastructure effect. Candidate: a pre-launch mount_cheval=ok|broken:<reason> evidence line (bead bd-56nn6)
+**Upstream issue**: bead bd-56nn6
+**Related visions / lore**: KF-049 (the oracle the closed mount closes), DEC-0622 (head-mode overlay), DEC-0630 (fix-commit paths at head_commit), DEC-0631
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-19 | overlay-probe.sh head and base on pr-12, pr-13, pr-18 against checkout 7600bd7d; python import of loa_cheval.providers from the overlaid tree | pr-12 ImportError in both modes; pr-13 and pr-18 import cleanly; symbol introduced 8d1a8cea (2026-10-04) between pr-12 head 6c887887 and fix 51d7a1ff | 7600bd7d; NOTES 2026-10-19T07:04:12Z; DEC-0631 |
+
+### Reading guide
+
+Mechanism: a fix-commit path OUTSIDE the PR is written at the PR's head_commit, but pinned files that changed between head_commit and the pin may import symbols that only the fixed version exports. Check: git log -S'<missing symbol>' -- .claude/adapters; if the introducing commit lies between the fixture's head_commit and fix_commit, the PR is skewed. Do NOT retry base mode (same failure, probed). Do NOT widen the answer set to the importers (reopens the oracle question). Decide per PR before the batch: exclude, or accept dissent-absent as pre-registered.

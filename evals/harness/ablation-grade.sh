@@ -42,7 +42,11 @@
 # <run-dir>/transcripts/events-*.jsonl, <run-dir>/eval/adversarial-{review,audit}.json,
 # the task's directory under the suite root (task.yaml, hidden/, fixture/), the suite's
 # MANIFEST.sha256 (through freeze.sh) and, for review-catch, the key manifest the task
-# names (review_catch.manifest) and its PR fixture (self-check only). It never reads
+# names (review_catch.manifest), its v1/ snapshot when present, the corpus SHA256SUMS above
+# it (hashed into corpus_sha256) and the task's PR fixture (head/ for the same-scope rule;
+# head.diff, head/ and base/ for the oracle detector and the KF-046 class 7 exemption; the
+# whole fixture for the self-check), never the agent-writable sandbox pr/; the oracle detector
+# also reads sandbox/<answer path> (bounded, symlink-refusing) as the later copy. It never reads
 # <run-dir>/meta/, the batch MANIFEST.json, or the sandbox copies of the dissent
 # envelopes (tamperable; the harness copies under eval/ are authoritative). It writes
 # only <run-dir>/grading/ and the --out file; nothing under sandbox/ is ever written.
@@ -141,8 +145,16 @@
 # and each finding's anchor (and file:line) in eval/adversarial-{review,audit}.json,
 # one normalised `path:line[-line]` line each (pr/head/ → head/, a/ b/ and /workspace/
 # prefixes dropped), duplicates dropped. recall-vs-defects.sh <grading-dir> <pr-NN>
-# gates-combined.md (EVAL_MANIFEST_DIR = the manifest's directory) gives recall;
-# flags = its findings_cited; missed = defect positions ("d2"), never defect ids.
+# gates-combined.md (EVAL_MANIFEST_DIR = the manifest's directory, EVAL_HEAD_DIR = the PR
+# fixture's head/) gives recall; flags = its findings_cited; missed = defect positions ("d2"),
+# never defect ids. Grader 1.3.0 (cycle-131 FR-2, recall-vs-defects.sh 1.3.0): recall /
+# defects_caught / missed follow the rule "pm3_or_same_function" (±3 of a site, or a valid
+# citation inside the site's enclosing definition); recall_pm3 / missed_pm3 keep the 1.2.0 ±3
+# rule on the current manifest and recall_pm3_v1 / missed_pm3_v1 the 1.2.0 rule on
+# manifests/v1/<pr>.json (v1_manifest false: the current manifest stood in);
+# credits_function_only lists the positions only the scope clause credited; rule names it. A
+# finding's numeric anchor (anchor_line, anchor_line_end: integers >= 1, end > start for a
+# range) is cited as <the anchor's path part, else the finding's file>:line[-end].
 # false_positives = citations within ±3 of no anchor, deduplicated by cited region
 # (same file, overlapping ±3 windows count once).
 #
@@ -214,7 +226,17 @@
 #    heredoc_interpreters (1.2.6: heredocs in Bash inputs whose operator line's command, the
 #    first word after the last ; & | ( or { before << and after NAME=value assignments, by
 #    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
-#    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
+#    first contamination hit, like history_probes; telemetry, not a row field), contaminated,
+#    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7),
+#    oracle_exposed_defects, oracle_exposed_unknown, oracle_exposed_events, oracle_exposed_by_form
+#    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
+#    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
+#    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.0 (cycle-131 Sprint 263 Tasks 1.3, 1.4; DEC-0615, DEC-0616, DEC-0617): three recall results
+# (the same-scope rule, recall-vs-defects.sh 1.3.0), numeric dissent anchors, corpus_sha256, the oracle
+# detector (diff and read forms, KF-049) and the KF-046 class 7 line-level exemption. recall_pm3_v1 equals
+# a 1.2.x grade's recall on the same run; recall may differ (more credits by scope, fewer through the
+# citation validity rules); contaminated may differ only by class 7 exemptions.
 # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
 # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
 # grader 1.2.13 (Sprint 261 dissent run 2 DISS-001, DISS-C-004, DISS-C-005): the removal compares pytest import
@@ -324,7 +346,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.2.13"
+GRADER_VERSION = "1.3.0"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1539,6 +1561,16 @@ def envelope_texts(path):
         ln = f.get("line") or f.get("line_start") or f.get("start_line")
         if isinstance(fp, str) and isinstance(ln, int):
             out.append(f"{fp}:{ln}")
+        # 1.3.0 (FR-4, D-4.1): a numeric anchor (anchor_line[, anchor_line_end], integers >= 1) is
+        # cited on the anchor's path part (`file` when the anchor names no path) as path:line[-end]
+        al, ae = f.get("anchor_line"), f.get("anchor_line_end")
+        if isinstance(al, int) and not isinstance(al, bool) and al >= 1:
+            anc = f.get("anchor") if isinstance(f.get("anchor"), str) else ""
+            ap = anc.split(":", 1)[0].strip() if ":" in anc else ""
+            ap = ap if re.search(r"\.[A-Za-z0-9]{1,6}$", ap) else (fp if isinstance(fp, str) else "")
+            if ap:
+                ok_end = isinstance(ae, int) and not isinstance(ae, bool) and ae > al
+                out.append(f"{ap}:{al}-{ae}" if ok_end else f"{ap}:{al}")
     return out
 
 
@@ -1593,6 +1625,14 @@ def grade_recall(t, run_dir, grading):
     with open(combined, "w", encoding="utf-8") as f:
         f.write("".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites))
     env = dict(os.environ, EVAL_MANIFEST_DIR=os.path.dirname(t.key_path), LC_ALL="C")
+    # 1.3.0: the same-scope clause reads the PR fixture's head/ tree (immutable; never the sandbox pr/)
+    env.pop("EVAL_HEAD_DIR", None)
+    try:
+        head = os.path.join(resolve_pr_fixture(t), "head")
+        if os.path.isdir(head):
+            env["EVAL_HEAD_DIR"] = head
+    except GradeError:
+        pass
     p = run(["bash", os.path.join(REPO_ROOT, "evals", "graders", "recall-vs-defects.sh"), grading, t.key_id,
              "gates-combined.md"], env=env)
     try:
@@ -1603,9 +1643,29 @@ def grade_recall(t, run_dir, grading):
         raise GradeError(f"recall-vs-defects.sh error: {det.get('error')}")
     defects = t.key.get("defects") or []
     pos = {d.get("id"): i for i, d in enumerate(defects, 1)}
+    # _pm3_v1 ids map through the current key's positions (the v1 snapshot keeps the ids and their
+    # order); an id the current key lacks takes its position in the v1 manifest
+    v1 = read_json(os.path.join(os.path.dirname(t.key_path), "v1", os.path.basename(t.key_path)))
+    pos_v1 = {d.get("id"): i for i, d in enumerate((v1 or {}).get("defects") or [], 1)} if isinstance(v1, dict) else {}
+
+    def positions(ids, table=pos, fallback=None):
+        out = []
+        for x in ids or []:
+            if x in table:
+                out.append(f"d{table[x]}")
+            elif fallback and x in fallback:
+                out.append(f"d{fallback[x]}")
+        return out
+
     recall = {"defects_seeded": det.get("planted", len(defects)), "defects_caught": len(det.get("detected") or []),
               "recall": det.get("recall"), "flags": det.get("findings_cited"),
-              "missed": [f"d{pos[x]}" for x in det.get("missed") or [] if x in pos]}
+              "missed": positions(det.get("missed")),
+              "recall_pm3": det.get("recall_pm3"), "missed_pm3": positions(det.get("missed_pm3")),
+              "recall_pm3_v1": det.get("recall_pm3_v1"),
+              "missed_pm3_v1": positions(det.get("missed_pm3_v1"), pos, pos_v1),
+              "v1_manifest": bool(det.get("v1_manifest")),
+              "credits_function_only": positions(det.get("credits_function_only")),
+              "rule": det.get("rule")}
     return recall, false_positives(cites, defects)
 
 
@@ -1746,7 +1806,10 @@ def check_value(tool, field, val, roots):
     if "grimoires/loa/evals/ablation-2.0" in val:
         return "suite_path"
     if "0xhoneyjar/loa" in low:
-        return "repo_name"
+        ex = repo_name_exempt(val)
+        if ex is None:
+            return "repo_name"
+        EXEMPT_BUF.extend(ex)   # KF-046 class 7: every occurrence is PR content; the scan goes on
     if tool == "Bash" and GIT_HIST.search(val):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
     if tool == "Bash":
@@ -1851,10 +1914,598 @@ def contamination(run_dir):
                 for field in FIELDS.get(tool, []):
                     val = inp.get(field)
                     if isinstance(val, str) and val:
+                        EXEMPT_BUF.clear()
                         hit = check_value(tool, field, val, roots)
+                        for src, text in EXEMPT_BUF:
+                            rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                   "fixture_line": src, "line": text}
+                            if rec not in CONTAM_EXEMPT:
+                                CONTAM_EXEMPT.append(rec)
+                        EXEMPT_BUF.clear()
                         if hit:
                             return {"phase": label, "pattern": hit, "excerpt_id": f"{label}:{i}"}
     return None
+
+
+# ------------------------------------------------------------------ KF-046 class 7 (1.3.0, D-3.2)
+# A review-catch PR may itself carry the repository's name (a workflow's `if: github.repository ==
+# '0xHoneyJar/loa'`); quoting that PR content is not a probe of the upstream repository. Each
+# occurrence's unit is the backtick span holding it (`…`), else its whole line, stripped; an
+# occurrence is exempt when its unit is a substring of one line of the task's PR fixture (head/**
+# files or head.diff, the diff's +/-/space prefix dropped). Every occurrence of a value must be exempt,
+# else the value is a repo_name hit as before. Exempt values are recorded in contamination_exempt[]
+# ({phase, excerpt_id, pattern, fixture_line: "head/<path>:<n>" | "head.diff:<n>", line: the fixture
+# line, 200 characters at most}); build tasks have no PR fixture and no exemption.
+FIXTURE_TASK = [None]
+FIXTURE_LINES = []     # [(source, text)] fixture lines holding the token, loaded on first use
+CONTAM_EXEMPT = []
+EXEMPT_BUF = []
+REPO_TOKEN = re.compile(r"0xhoneyjar/loa", re.I)
+
+
+def fixture_token_lines():
+    if FIXTURE_LINES:
+        return FIXTURE_LINES[0]
+    out = []
+    t = FIXTURE_TASK[0]
+    pr = None
+    if t is not None:
+        try:
+            pr = resolve_pr_fixture(t)
+        except GradeError:
+            pr = None
+    if pr:
+        files = []
+        hd = os.path.join(pr, "head.diff")
+        if os.path.isfile(hd) and not os.path.islink(hd):
+            files.append(("head.diff", hd, True))
+        head = os.path.join(pr, "head")
+        for r, ds, fs in os.walk(head):
+            ds.sort()
+            for n in sorted(fs):
+                q = os.path.join(r, n)
+                files.append(("head/" + os.path.relpath(q, head), q, False))
+        for src, q, is_diff in files:
+            text = read_regular(q, FILE_CAP, root=pr)
+            if text is None or not REPO_TOKEN.search(text):
+                continue
+            for k, line in enumerate(text.split("\n"), 1):
+                if REPO_TOKEN.search(line):
+                    body = line[1:] if is_diff and line[:1] in "+- " else line
+                    out.append((f"{src}:{k}", body.strip()))
+    FIXTURE_LINES.append(out)
+    return out
+
+
+def repo_name_exempt(val):
+    """→ [(fixture source, fixture line)] when every repo-name occurrence in val is PR content, else None"""
+    fl = fixture_token_lines()
+    if not fl:
+        return None
+    hits = []
+    for line in val.split("\n"):
+        for m in REPO_TOKEN.finditer(line):
+            unit = None
+            for span in re.finditer(r"`[^`\n]*`", line):
+                if span.start() < m.start() and m.end() < span.end():
+                    unit = span.group(0)[1:-1].strip()
+                    break
+            if unit is None:
+                unit = line.strip()
+            match = next(((src, text) for src, text in fl if unit and unit in text), None)
+            if match is None:
+                return None
+            hits.append((match[0], match[1][:200]))
+    return hits
+
+
+# ------------------------------------------------------------------ corpus digest (1.3.0)
+def corpus_sha256(t):
+    """sha256 of the review corpus's SHA256SUMS (the directory above the key's manifests/), null when absent"""
+    import hashlib
+    p = os.path.join(os.path.dirname(os.path.dirname(t.key_path)), "SHA256SUMS")
+    text = read_regular(p, READ_CAP, whole=True)
+    if text is None:
+        return None
+    with open(p, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+# ------------------------------------------------------------------ oracle detector (1.3.0, D-1.3, KF-049)
+# Did a session read a LATER copy of a file the PR touched? Answer-bearing paths: the paths under .claude/
+# named by the PR fixture's head.diff headers (`diff --git a/X b/Y` both names, quoted C-style names
+# unquoted, `--- a/X`, `+++ b/Y`, `rename from|to X`; /dev/null and unsafe paths dropped) or present under
+# its head/ or base/ tree. Over transcripts/events-{BARE,REVIEW,AUDIT}.jsonl each assistant tool_use is
+# correlated with its tool_result by id. Paths are resolved against the session's cwd (the system init
+# event's, default /workspace, which is also the workspace root), `cd DIR` segments, NAME=value
+# assignments (H=pr/head) and `for V in w…; do` lists; a path inside the workspace and outside pr/ is a
+# workspace operand, pr/head/X and pr/base/X are PR operands.
+#   diff form — a Bash segment (split on newline, ; && || | & outside quotes and parentheses; heredoc bodies
+#   removed first) whose executable is diff, sdiff or comm, or git with diff and --no-index, without -q
+#   (alone or in a short-flag cluster), --brief or --quiet, holding a PR operand and a workspace operand that
+#   names an answer path (or a directory above one); a head.diff operand is never a PR operand. Its result
+#   is split into per-file sections at `diff `, `--- ` and `*** ` header lines (text no header attributes
+#   goes to every target of the command); unified `@@ -a,b +c,d @@` and normal `NaM,b` / `N,Mc…` / `Nd…`
+#   ranges are read (head side, below); a planted site of that file within ±3 of a range, or its must_match
+#   text (stripped, first 50 characters, at least 12) in the section, marks the defect exposed (how diff);
+#   a non-empty section that is not only error lines and yields neither ranges nor must_match marks every
+#   other defect of that file exposed_unknown. Text no header attributes, in a command with several
+#   targets, exposes a defect only with corroboration: a range near the site AND a line of the fixture's
+#   head/X within ±3 of the site in that text, or must_match. A diff whose output is discarded or reduced
+#   (>/dev/null, | wc, | grep -c|-q|-l, | cmp) and a tool_result flagged is_error print no content.
+#   read form — a Bash segment whose executable is cat, sed, awk, grep, head, tail, less or python3, or a
+#   Read (file_path) / Grep (path) tool_use, naming a workspace answer path (a directory for grep or Grep
+#   covers the answer paths below it), whose result contains a LATER-ONLY line within ±3 of a planted site
+#   (when the tool_use reads several answer paths, on a result line that names the file's basename):
+#   a line of the sandbox copy (sandbox/<X>, read bounded and symlink-refusing) present in neither the
+#   fixture's head/X nor base/X, at least 8 characters stripped, mapped to head coordinates by difflib.
+# Either form is skipped for a path whose sandbox copy byte-equals the fixture's head/X or base/X (a closed
+# mount, in either overlay mode: a diff there prints the PR's own change, not a later one).
+# Ranges are read on the head side only: planted sites are head coordinates, so the side of the pr/head
+# operand (left when it precedes the workspace operand) is tested; a pr/base operand gives both sides.
+# grade.json: oracle_exposed_defects (positions d1 … of defects exposed by diff or read),
+# oracle_exposed_unknown (positions only exposed_unknown), oracle_exposed_events [{phase, event: the
+# tool_use's line number in its events file, how: diff|read|exposed_unknown, path}] and
+# oracle_exposed_by_form {diff: [positions], read: [positions]}; null for build tasks.
+# A LOWER BOUND, like the contamination scan: a paraphrase, a copy made by a program and read later, or a
+# path built at run time is not seen.
+ORACLE_PHASES = ("BARE", "REVIEW", "AUDIT")
+DIFF_EXE = {"diff", "sdiff", "comm"}
+READ_EXE = {"cat", "sed", "awk", "grep", "head", "tail", "less", "python3"}
+ANSWER_TOP = ".claude/"
+SEG_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "{", "(", "!", "time"}
+PATHISH = re.compile(r"[A-Za-z0-9_./@%+,:=~$-]*[A-Za-z0-9_./@%+:~$-]")
+HUNK_U = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
+HUNK_N = re.compile(r"^(\d+)(?:,(\d+))?([acd])(\d+)(?:,(\d+))?\s*$", re.M)
+ERR_LINE = re.compile(r"^(?:diff|sdiff|comm|git|cat|grep|sed|head|tail|awk|less):|^(?:fatal|error|warning):|"
+                      r"No such file|Is a directory|hook error|BLOCKED|^\s*$|^\s*(?:rc|exit)\s*=\s*\d+\s*$")
+DIFF_BODY = re.compile(r"^[<>+\- @\\0-9]|^---$")
+FILEISH = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,6}\b")
+# a diff whose stdout is counted, tested or discarded prints no content: | wc, | grep -c/-q/-l, >/dev/null
+SILENT_SINK = re.compile(r"^(?:wc|cmp|true|false|test)\b|^grep\s+(?:-[A-Za-z]*[cql][A-Za-z]*|--count|--quiet|--files-with-matches)\b")
+DEVNULL = re.compile(r"(?:^|[\s;])(?:1?>|&>|>&)\s*/dev/null")
+
+
+def unquote_c(q):
+    """a git C-quoted path body (between the quotes) → text"""
+    i, b = 0, bytearray()
+    while i < len(q):
+        ch = q[i]
+        if ch == "\\" and i + 1 < len(q):
+            n = q[i + 1]
+            if n in "01234567" and re.match(r"[0-7]{3}", q[i + 1:i + 4]):
+                b.append(int(q[i + 1:i + 4], 8))
+                i += 4
+                continue
+            b.extend({"n": b"\n", "t": b"\t", '"': b'"', "\\": b"\\"}.get(n, n.encode()))
+            i += 2
+            continue
+        b.extend(ch.encode())
+        i += 1
+    return b.decode("utf-8", "replace")
+
+
+def answer_paths(pr):
+    names = set()
+    text = read_regular(os.path.join(pr, "head.diff"), 64 * 1024 * 1024, root=pr) or ""
+    Q = r'"((?:[^"\\]|\\.)*)"'
+    for line in text.split("\n"):
+        if line.startswith("diff --git "):
+            rest = line[len("diff --git "):]
+            m = re.fullmatch(Q.replace("((", "a/((", 1) + " " + Q.replace("((", "b/((", 1), rest) or None
+            if m:
+                names.update(unquote_c(x) for x in m.groups())
+                continue
+            m = re.fullmatch(r"a/(\S+) b/(\S+)", rest)
+            if m:
+                names.update(m.groups())
+                continue
+            half = (len(rest) - 1) // 2   # unquoted names with spaces: "a/X b/X" with X twice
+            if rest[:2] == "a/" and rest[half + 1:half + 3] == "b/" and rest[2:half] == rest[half + 3:]:
+                names.add(rest[2:half])
+        elif line.startswith(("--- ", "+++ ")):
+            body = line[4:].split("\t", 1)[0]
+            if body.startswith('"') and body.endswith('"'):
+                body = unquote_c(body[1:-1])
+            if body.startswith(("a/", "b/")):
+                names.add(body[2:])
+        elif line.startswith(("rename from ", "rename to ", "copy from ", "copy to ")):
+            body = line.split(" ", 2)[2]
+            names.add(unquote_c(body[1:-1]) if body.startswith('"') and body.endswith('"') else body)
+    for side in ("head", "base"):
+        root = os.path.join(pr, side)
+        for r, ds, fs in os.walk(root):
+            for n in fs:
+                names.add(os.path.relpath(os.path.join(r, n), root).replace(os.sep, "/"))
+    out = set()
+    for n in names:
+        parts = safe_rel(n)
+        if parts and n != "/dev/null":
+            rel = "/".join(parts)
+            if rel.startswith(ANSWER_TOP):
+                out.add(rel)
+    return out
+
+
+def split_segments(cmd):
+    """[(segment, separator after it)]: split on newline ; & | (&& || included) outside quotes and
+    parentheses; the separator is "|" for a pipe into the next segment, else ";" """
+    segs, cur, q, depth, i = [], [], None, 0, 0
+    while i < len(cmd):
+        ch = cmd[i]
+        if q == "'":
+            cur.append(ch)
+            if ch == "'":
+                q = None
+        elif q == '"':
+            cur.append(ch)
+            if ch == "\\" and i + 1 < len(cmd):
+                cur.append(cmd[i + 1])
+                i += 1
+            elif ch == '"':
+                q = None
+        elif ch == "\\" and i + 1 < len(cmd):
+            cur.append(ch + cmd[i + 1])
+            i += 1
+        elif ch in "'\"":
+            q = ch
+            cur.append(ch)
+        elif ch == "(":
+            depth += 1
+            cur.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+        elif depth == 0 and ch in "\n;&|":
+            pipe = ch == "|" and cmd[i + 1:i + 2] != "|" and cmd[i - 1:i] != "|"
+            segs.append(("".join(cur), "|" if pipe else ";"))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    segs.append(("".join(cur), ";"))
+    return [(x.strip(), sep) for x, sep in segs if x.strip()]
+
+
+def seg_words(seg):
+    try:
+        w = shlex.split(seg, comments=False, posix=True)
+    except ValueError:
+        w = seg.split()
+    while w and (w[0] in SEG_KEYWORDS):
+        w = w[1:]
+    while w and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[0]) and len(w) > 1:
+        w = w[1:]
+    while w and w[0] in ("command", "env", "builtin", "exec", "nice"):
+        w = w[1:]
+    if w and w[0] == "timeout":
+        w = w[1:]
+        while w and (w[0].startswith("-") or re.match(r"^\d+[smhd]?$", w[0])):
+            w = w[1:]
+    return w
+
+
+def expand(tok, vars_):
+    """$NAME / ${NAME} expansion → list of strings (a loop variable expands to every word); an unknown
+    variable leaves the token unresolved (dropped)"""
+    outs = [tok]
+    for _ in range(4):
+        nxt, changed = [], False
+        for o in outs:
+            m = re.search(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)", o)
+            if not m:
+                nxt.append(o)
+                continue
+            name = m.group(1) or m.group(2)
+            if name not in vars_:
+                continue
+            changed = True
+            for v in vars_[name]:
+                nxt.append(o[:m.start()] + v + o[m.end():])
+        outs = nxt
+        if not changed:
+            break
+    return [o for o in outs if "$" not in o]
+
+
+def classify(tok, cwd, ws):
+    """→ ("pr", side, rel) | ("ws", rel) | None"""
+    tok = tok.strip("'\"")
+    if not tok or tok.startswith("-") or "://" in tok:
+        return None
+    if tok.startswith("~") or "*" in tok or "?" in tok:
+        return None
+    full = os.path.normpath(tok if tok.startswith("/") else os.path.join(cwd, tok))
+    if full != ws and not full.startswith(ws.rstrip("/") + "/"):
+        return None
+    rel = "" if full == ws else full[len(ws.rstrip("/")) + 1:]
+    if rel == "pr" or rel.startswith("pr/"):
+        rest = rel[3:]
+        for side in ("head", "base"):
+            if rest == side or rest.startswith(side + "/"):
+                return ("pr", side, rest[len(side) + 1:])
+        return ("pr", None, rest)
+    return ("ws", rel)
+
+
+def ws_targets(rel, answer, directory_ok):
+    if rel in answer:
+        return [rel]
+    if not directory_ok:
+        return []
+    pre = "" if rel in ("", ".") else rel.rstrip("/") + "/"
+    return sorted(a for a in answer if a.startswith(pre))
+
+
+def segment_tokens(seg, vars_, cwd, ws):
+    """every path-shaped token of a segment (inside process substitutions too), expanded and classified"""
+    out = []
+    for m in PATHISH.finditer(seg):
+        for v in expand(m.group(0), vars_):
+            c = classify(v, cwd, ws)
+            if c is not None:
+                out.append((v, c))
+    return out
+
+
+def result_text(blk):
+    c = blk.get("content")
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        return "\n".join(x.get("text", "") for x in c if isinstance(x, dict) and isinstance(x.get("text"), str))
+    return ""
+
+
+def ranges_of(text, sides=("left", "right")):
+    """the printed line ranges of a unified or normal diff on the given sides (left = first operand)"""
+    rs = []
+    for m in HUNK_U.finditer(text):
+        a, n = int(m.group(1)), int(m.group(2) or 1)
+        c, k = int(m.group(3)), int(m.group(4) or 1)
+        if "left" in sides:
+            rs.append((a, a + max(n, 1) - 1))
+        if "right" in sides:
+            rs.append((c, c + max(k, 1) - 1))
+    for m in HUNK_N.finditer(text):
+        a = int(m.group(1))
+        c = int(m.group(4))
+        if "left" in sides:
+            rs.append((a, int(m.group(2) or a)))
+        if "right" in sides:
+            rs.append((c, int(m.group(5) or c)))
+    return rs
+
+
+def sections(text, targets):
+    """{target: [section body]}: the result split at header lines — a diff header (diff, ---, +++, ***) or
+    a line that is not diff body and names a file (an `echo "=== $f"` marker); a header naming a target
+    (the longest one it holds) opens that target's section, any other header a dropped one; text before
+    the first header belongs to the sole target. Text no header attributes (several targets) is returned
+    as the loose list. Header lines are not part of a body. → (sections, loose)"""
+    out = {f: [] for f in targets}
+    loose = []
+    cur = targets[0] if len(targets) == 1 else None
+    buf = []
+
+    def flush():
+        if buf:
+            (out[cur] if cur is not None else loose).append("\n".join(buf))
+
+    for line in text.split("\n"):
+        diff_hdr = line.startswith(("diff ", "--- ", "*** ", "+++ "))
+        if diff_hdr or (not DIFF_BODY.match(line) and FILEISH.search(line)):
+            named = sorted((f for f in targets if f in line), key=len, reverse=True)
+            hit = named[0] if named else None
+            if line.startswith("+++ ") and hit == cur:
+                continue
+            if hit is not None or diff_hdr or len(targets) > 1:
+                flush()
+                buf = []
+                cur = hit
+                continue
+        buf.append(line)
+    flush()
+    return out, loose
+
+
+def oracle_scan(t, run_dir):
+    try:
+        pr = resolve_pr_fixture(t)
+    except GradeError:
+        return [], [], [], {"diff": [], "read": []}
+    answer = answer_paths(pr)
+    defects = t.key.get("defects") or []
+    by_file = {}
+    for i, d in enumerate(defects, 1):
+        f = d.get("file")
+        if isinstance(f, str) and f in answer:
+            sites = [s for s in (d.get("anchors") or [d.get("anchor_line")]) if isinstance(s, int) and not isinstance(s, bool)]
+            mm = (d.get("must_match") or "").strip()[:50] if isinstance(d.get("must_match"), str) else ""
+            by_file.setdefault(f, []).append((f"d{i}", sites, mm if len(mm) >= 12 else ""))
+    if not by_file:
+        return [], [], [], {"diff": [], "read": []}
+    sb = os.path.join(run_dir, "sandbox")
+    later, live, near_text = {}, {}, {}
+    for f in by_file:
+        cur = read_regular(os.path.join(sb, *f.split("/")), FILE_CAP, root=sb)
+        hd = read_regular(os.path.join(pr, "head", *f.split("/")), FILE_CAP, root=pr)
+        bs = read_regular(os.path.join(pr, "base", *f.split("/")), FILE_CAP, root=pr)
+        live[f] = cur is not None and cur != hd and cur != bs
+        later[f] = []
+        if not live[f] or hd is None:
+            continue
+        hl, cl = hd.split("\n"), cur.split("\n")
+        for pos, sites, _mm in by_file[f]:
+            near_text[(f, pos)] = [hl[L - 1].strip() for s_ in sites for L in range(s_ - 3, s_ + 4)
+                                   if 1 <= L <= len(hl) and len(hl[L - 1].strip()) >= 8]
+        known = set(x.strip() for x in hl) | (set(x.strip() for x in bs.split("\n")) if bs is not None else set())
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, hl, cl, autojunk=False).get_opcodes():
+            if tag == "equal":
+                continue
+            lo, hi = i1 + 1, max(i2, i1 + 1)
+            for j in range(j1, j2):
+                txt = cl[j].strip()
+                if len(txt) >= 8 and txt not in known:
+                    later[f].append((txt, lo, hi))
+    exposed, unknown, events, by_form = {}, {}, [], {"diff": set(), "read": set()}
+
+    def note(phase, ev, how, path, pos):
+        rec = {"phase": phase, "event": ev, "how": how, "path": path}
+        if rec not in events:
+            events.append(rec)
+        (exposed if how != "exposed_unknown" else unknown).setdefault(pos, True)
+        if how in by_form:
+            by_form[how].add(pos)
+
+    def near(sites, lo, hi):
+        return any(not (hi < s - 3 or lo > s + 3) for s in sites)
+
+    for label, path in transcripts(run_dir):
+        if label not in ORACLE_PHASES:
+            continue
+        ws, uses = "/workspace", {}
+        for i, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(ev, dict):
+                continue
+            if ev.get("type") == "system" and isinstance(ev.get("cwd"), str) and ev["cwd"].startswith("/"):
+                ws = os.path.normpath(ev["cwd"])
+                continue
+            content = (ev.get("message") or {}).get("content") if isinstance(ev.get("message"), dict) else None
+            if not isinstance(content, list):
+                continue
+            for blk in content:
+                if not isinstance(blk, dict):
+                    continue
+                if ev.get("type") == "assistant" and blk.get("type") == "tool_use" and isinstance(blk.get("input"), dict):
+                    plan = oracle_plan(blk.get("name") or "", blk["input"], ws, answer)
+                    if plan and isinstance(blk.get("id"), str):
+                        uses[blk["id"]] = (i, plan)
+                elif ev.get("type") == "user" and blk.get("type") == "tool_result" and blk.get("tool_use_id") in uses:
+                    i0, plan = uses.pop(blk["tool_use_id"])
+                    if blk.get("is_error") is True:
+                        continue          # the tool failed (a refused command, a hook block): nothing printed
+                    res = result_text(blk)
+                    dtargets = sorted({f for how, f in plan if how.startswith("diff") and live.get(f)})
+                    rtargets = sorted({f for how, f in plan if how == "read" and live.get(f)})
+                    if dtargets and res.strip():
+                        secs_by, loose = sections(res, dtargets)
+                        # loose text (several targets, no naming header): a range near the site counts only
+                        # with the head file's own text near that site in the same text, or must_match
+                        for sec in loose:
+                            for f in dtargets:
+                                rs = ranges_of(sec, plan_sides(plan, f))
+                                for pos, sites, mm in by_file.get(f, []):
+                                    ranged = any(near(sites, lo, hi) for lo, hi in rs)
+                                    own = any(x in sec for x in near_text.get((f, pos), []))
+                                    if (ranged and own) or (mm and mm in sec):
+                                        note(label, i0, "diff", f, pos)
+                        for f, secs in secs_by.items():
+                            for sec in secs:
+                                body = [l for l in sec.split("\n") if not ERR_LINE.search(l)]
+                                if not body:
+                                    continue
+                                rs = ranges_of(sec, plan_sides(plan, f))
+                                hit_any = False
+                                for pos, sites, mm in by_file.get(f, []):
+                                    if any(near(sites, lo, hi) for lo, hi in rs) or (mm and mm in sec):
+                                        note(label, i0, "diff", f, pos)
+                                        hit_any = True
+                                if not rs and not hit_any:
+                                    for pos, _s, _m in by_file.get(f, []):
+                                        note(label, i0, "exposed_unknown", f, pos)
+                    single = len({f for how, f in plan if how == "read"}) == 1
+                    for f in rtargets:
+                        base = f.rsplit("/", 1)[-1]
+                        lines = [l for l in res.split("\n") if single or base in l]
+                        for pos, sites, _mm in by_file.get(f, []):
+                            if any(near(sites, lo, hi) and any(txt in l for l in lines) for txt, lo, hi in later[f]):
+                                note(label, i0, "read", f, pos)
+    order = {f"d{i}": i for i in range(1, len(defects) + 1)}
+    ex = sorted(exposed, key=order.get)
+    unk = sorted((p for p in unknown if p not in exposed), key=order.get)
+    events.sort(key=lambda e: (ORACLE_PHASES.index(e["phase"]), e["event"], e["how"], e["path"]))
+    return ex, unk, events, {k: sorted(v, key=order.get) for k, v in by_form.items()}
+
+
+def oracle_plan(tool, inp, ws, answer):
+    """[(how, answer path)] a tool_use could expose: diff or read; [] when it names no answer path"""
+    out = []
+    if tool in ("Read", "Grep"):
+        v = inp.get("file_path") if tool == "Read" else inp.get("path")
+        if isinstance(v, str) and v:
+            c = classify(v, ws, ws)
+            if c and c[0] == "ws":
+                out += [("read", f) for f in ws_targets(c[1], answer, tool == "Grep")]
+        return out
+    if tool != "Bash" or not isinstance(inp.get("command"), str):
+        return out
+    cmd = strip_heredocs(inp["command"])
+    cwd, vars_ = ws, {}
+    segs = split_segments(cmd)
+    for k, (seg, sep) in enumerate(segs):
+        w = seg_words(seg)
+        raw = seg.split()
+        # bookkeeping: assignments, cd, for-lists
+        if raw and all(re.match(r"^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*=", x) or x == "export" for x in raw):
+            for x in raw:
+                m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", x)
+                if m:
+                    vals = expand(m.group(2).strip("'\""), vars_)
+                    if vals:
+                        vars_[m.group(1)] = vals[:1]
+            continue
+        m = re.match(r"^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.*)$", seg)
+        if m:
+            words = []
+            for x in m.group(2).split():
+                words += expand(x.strip("'\""), vars_)
+            vars_[m.group(1)] = words
+            continue
+        if not w:
+            continue
+        exe = w[0].rsplit("/", 1)[-1]
+        if exe == "cd" and len(w) >= 2:
+            vals = expand(w[1], vars_)
+            if vals:
+                cwd = os.path.normpath(vals[0] if vals[0].startswith("/") else os.path.join(cwd, vals[0]))
+            continue
+        is_diff = exe in DIFF_EXE or (exe == "git" and "diff" in w and "--no-index" in w)
+        if is_diff:
+            if any(re.fullmatch(r"-[A-Za-z]*q[A-Za-z]*", x) or x in ("--brief", "--quiet") for x in w[1:]):
+                continue
+            nxt = seg_words(segs[k + 1][0]) if sep == "|" and k + 1 < len(segs) else []
+            if DEVNULL.search(seg) or (nxt and SILENT_SINK.match(" ".join(nxt))):
+                continue
+            toks = segment_tokens(seg, vars_, cwd, ws)
+            pr_ops = [k_ for k_, (v, c) in enumerate(toks) if c[0] == "pr" and c[1] in ("head", "base")
+                      and not v.endswith("head.diff")]
+            ws_ops = [k_ for k_, (v, c) in enumerate(toks) if c[0] == "ws" and not v.endswith("head.diff")
+                      and ws_targets(c[1], answer, True)]
+            targets = [f for k_ in ws_ops for f in ws_targets(toks[k_][1][1], answer, True)]
+            if pr_ops and targets:
+                # planted sites are head coordinates: the head side is the pr/head operand's (left when it
+                # comes first); a pr/base operand gives no head coordinates, so both sides are read
+                heads = [k_ for k_ in pr_ops if toks[k_][1][1] == "head"]
+                side = ("left" if heads[0] < ws_ops[0] else "right") if heads else "both"
+                out += [("diff:" + side, f) for f in targets]
+        elif exe in READ_EXE:
+            for v, c in segment_tokens(seg, vars_, cwd, ws):
+                if c[0] == "ws":
+                    out += [("read", f) for f in ws_targets(c[1], answer, exe == "grep")]
+    return sorted(set(out))
+
+
+def plan_sides(plan, f):
+    sides = set()
+    for how, g in plan:
+        if g == f and how.startswith("diff:"):
+            sides |= {"left", "right"} if how == "diff:both" else {how[5:]}
+    return tuple(sorted(sides))
 
 
 # ------------------------------------------------------------------ the grade
@@ -1891,7 +2542,9 @@ def grade(t, run_dir, frozen):
          "verdicts": {"review": v_review, "audit": v_audit},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "harness_files_removed": 0,
-         "oversized_files_skipped": 0, "history_probes": 0, "heredoc_interpreters": 0, "contaminated": None}
+         "oversized_files_skipped": 0, "history_probes": 0, "heredoc_interpreters": 0, "contaminated": None,
+         "contamination_exempt": [], "oracle_exposed_defects": None, "oracle_exposed_unknown": None,
+         "oracle_exposed_events": None, "oracle_exposed_by_form": None, "corpus_sha256": None}
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
     OVERSIZED[0] = 0
@@ -1970,6 +2623,9 @@ def grade(t, run_dir, frozen):
         if os.path.isdir(os.path.join(sb, "pr")) and not os.path.islink(os.path.join(sb, "pr")):
             g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
         g["recall"], g["false_positives"] = grade_recall(t, run_dir, grading)
+        g["corpus_sha256"] = corpus_sha256(t)
+        (g["oracle_exposed_defects"], g["oracle_exposed_unknown"], g["oracle_exposed_events"],
+         g["oracle_exposed_by_form"]) = oracle_scan(t, run_dir)
         key_cr = any((d.get("severity") or "").lower() in ("high", "critical") for d in t.key.get("defects") or [])
         for gate, v in (("review", v_review), ("audit", v_audit)):
             if v is not None:
@@ -1979,7 +2635,11 @@ def grade(t, run_dir, frozen):
     g["collision_rule"] = collision_rule(t) if t.build else None
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
+    FIXTURE_TASK[0] = t if not t.build else None
+    FIXTURE_LINES.clear()
+    CONTAM_EXEMPT.clear()
     g["contaminated"] = contamination(run_dir)
+    g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]
     return g

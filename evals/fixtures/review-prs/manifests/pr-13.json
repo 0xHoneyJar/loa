@@ -1,7 +1,7 @@
 {
   "fixture": "pr-13",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "249",
     "record_ref": "origin/record/cycle-126-a2a",
@@ -15,7 +15,8 @@
       "anchor_line": 90,
       "anchors": [
         90,
-        92
+        92,
+        93
       ],
       "must_match": "if [[ \"${LOA_CONTEXT_CLASS:-}\" == \"standard\" ]]; then",
       "severity": "low",
@@ -30,8 +31,13 @@
       "file": ".claude/hooks/session-start/loa-context-class.sh",
       "anchor_line": 81,
       "anchors": [
+        47,
+        48,
+        49,
         78,
         81,
+        82,
+        85,
         89
       ],
       "must_match": "m=\"${m#anthropic:}\"; m=\"${m#openai:}\"; m=\"${m#google:}\"",
@@ -47,9 +53,11 @@
       "file": ".claude/hooks/session-start/loa-context-class.sh",
       "anchor_line": 82,
       "anchors": [
+        75,
         78,
         82,
         83,
+        85,
         89
       ],
       "must_match": "target=\"$(yq eval \".aliases.\\\"$m\\\"\"",
@@ -64,6 +72,10 @@
       "id": "L04-the-protocol-s-never-load-a-1-000-line-f",
       "file": ".claude/protocols/tool-result-clearing.md",
       "anchor_line": 39,
+      "anchors": [
+        17,
+        39
+      ],
       "must_match": "2. **Single large file** (>1000 lines): never load whole; `Read` with offset/limit, synthesize only the relevant \u226450 lines.",
       "severity": "low",
       "category": "logic",
@@ -79,7 +91,8 @@
       "anchors": [
         42,
         71,
-        136
+        136,
+        162
       ],
       "must_match": "parallel_threshold: 2000",
       "severity": "low",

@@ -105,6 +105,19 @@
 #                 OUTDIR/escape/outside/meta holding the row's run_id) plus a row with arm "../.." (trial
 #                 1 of rc-01) and one with task_id "../x"; OUTDIR/escape/rc-01-t1/grade.json (outside the
 #                 batch directory, the target of arm "../..") holds the canary grader 6.6.6-canary
+#
+# cycle-131 Sprint 263 (report 1.3: pin/rule partitions, the decision statistic with _pm3/_pm3_v1 beside, the
+# oracle-exposed and dissent-absent sensitivities, the 4-cell minimum, finding volume):
+#   c131          batch c131-b (suite_version 3, source_commit 2222…, every row a row writer 1.4 row under grader
+#                 rule pm3_or_same_function): a1_full misses nothing (defect_catch_rate 1.0) and misses d1 under
+#                 the _pm3 rule; a0_bare misses d1, d2 (d = 8/18 = +0.444) and d1, d2, d3 under _pm3 (rc-02: d1,
+#                 d2) → beside d = 7/18 = +0.389 on both _pm3 and _pm3_v1. a1_full rc-01 t1 is oracle-exposed
+#                 (d1), rc-02 t2 has the review dissent absent for budget, rc-03 t3 disabled (planned, never
+#                 excluded); a3_one_voice (oracle_open true, misses nothing) has rc-01 t1 exposed (d2: reported,
+#                 not excluded); a7_effort_medium (misses nothing) has rc-04 t2 exposed_unknown (d3: excluded).
+#   c131-mixed    suite_version 2 holding the versions scenario's ver-v2 rows (source_commit 1111…, no
+#                 grader_rule: rule pm3) and the c131 rows re-versioned to 2 (2222…, pm3_or_same_function) →
+#                 two partitions, never pooled; --pin 1111111 reads the ver-v2 rows only
 # =============================================================================
 import json
 import os
@@ -458,6 +471,64 @@ def escape_scenario():
     return rows, {b: manifest(b, **V2)}, extras, links
 
 
+SRC2 = "2222222222222222222222222222222222222222"
+RULE13 = "pm3_or_same_function"
+
+
+def c131_row(r, pm3, oracle=(), unknown=(), dar=None, oracle_open=False):
+    """the row writer 1.4 fields on a planted review-catch row (pm3: the _pm3 / _pm3_v1 missed list)"""
+    n = r["defects_seeded"]
+    dar = dar or {"review": "none", "audit": "none"}
+    r.update(source_commit=SRC2, grader_rule=RULE13, grader_version="1.3.0", row_writer_version="1.4",
+             corpus_sha256="c0" * 32, defect_catch_rate_pm3=(n - len(pm3)) / n, defects_missed_pm3=list(pm3),
+             defect_catch_rate_pm3_v1=(n - len(pm3)) / n, defects_missed_pm3_v1=list(pm3),
+             credits_function_only=[x for x in pm3 if x not in (r.get("defects_missed") or [])],
+             oracle_exposed_defects=list(oracle), oracle_exposed_unknown=list(unknown),
+             dissent_absent_reason=dar, dissent_absent_gates=[g for g in ("review", "audit") if dar.get(g) not in (None, "none")],
+             config_variant="eval", overlay_mode="none" if oracle_open else "head", oracle_open=oracle_open,
+             gate_scripts_at_pr_version=[])
+    return r
+
+
+def c131_scenario(sv=3, batch="c131-b"):
+    V = {"sv": sv, "sha": SHA}
+    rows = []
+    for arm, missed, pm3_of, cost in (("a1_full", NONE, lambda n: ["d1"], 10.0),
+                                      ("a0_bare", A0_MISS_D12, lambda n: ["d1", "d2"] + (["d3"] if n >= 4 else []), 1.0),
+                                      ("a3_one_voice", NONE, lambda n: ["d1"], 9.0),
+                                      ("a7_effort_medium", NONE, lambda n: ["d1"], 8.0)):
+        for r in rc_rows(batch, arm, missed, cost=cost, **V):
+            t, k, n = r["task_id"], r["trial"], r["defects_seeded"]
+            kw = {}
+            if arm == "a1_full" and (t, k) == ("rc-01", 1):
+                kw["oracle"] = ["d1"]
+            if arm == "a1_full" and (t, k) == ("rc-02", 2):
+                kw["dar"] = {"review": "budget", "audit": "none"}
+            if arm == "a1_full" and (t, k) == ("rc-03", 3):
+                kw["dar"] = {"review": "disabled", "audit": "none"}
+            if arm == "a3_one_voice":
+                kw["oracle_open"] = True
+                if (t, k) == ("rc-01", 1):
+                    kw["oracle"] = ["d2"]
+            if arm == "a7_effort_medium" and (t, k) == ("rc-04", 2):
+                kw["unknown"] = ["d3"]
+            rows.append(c131_row(r, pm3_of(n), **kw))
+    m = manifest(batch, **V)
+    m["source_commit"] = SRC2
+    return rows, {batch: m}
+
+
+def c131_mixed_scenario():
+    rows, mans = versions_scenario()
+    rows = [r for r in rows if r["batch"] == "ver-v2"]
+    mans = {"ver-v2": mans["ver-v2"]}
+    r2, m2 = c131_scenario(sv=2, batch="c131-m")
+    for r in r2:
+        r["suite_manifest_sha256"] = SHA2
+    m2["c131-m"]["suite_manifest_sha256"] = SHA2
+    return rows + r2, dict(mans, **m2)
+
+
 def write(out, name, rows, mans, extras=None, links=None):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
@@ -502,7 +573,7 @@ def main(argv):
                      ("legacy-match", legacy_arm_map_scenario("a1_full")),
                      ("batch-broken", batch_broken_scenario), ("rundirs", rundirs_scenario),
                      ("ids-bad", ids_bad_scenario), ("costs-bad", costs_bad_scenario),
-                     ("escape", escape_scenario)):
+                     ("escape", escape_scenario), ("c131", c131_scenario), ("c131-mixed", c131_mixed_scenario)):
         write(argv[0], name, *fn())
     return 0
 

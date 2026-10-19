@@ -19,6 +19,16 @@
 # took_effect: rule ids took-effect.sh evaluates per trial (DEC-0418); a miss is
 #   infrastructure_error and pauses the arm. `applicability_refused` is the
 #   smoke's evidence line that the planner refused the arm on a review-catch task.
+# toggles (the vocabulary apply_arm_toggles and pipeline-run.sh accept; every value is
+#   `false` except where named): companion_voice, karpathy_block, rule_files,
+#   audit_delta_instruction, loa_mount, gates, flatline, sprint_plan, context_resets,
+#   effort: low|medium|high|xhigh|max, and from cycle-131 (FR-5, DEC-0619)
+#   bare_model: fable (BARE on Fable 5.1), dissent: false (the review gate's
+#   adversarial dissent off in the sandbox config; the audit gate unchanged),
+#   oracle_open: true (eval-only: the closed-mount overlay skipped, mount_overlay=none).
+#   Every mounted review-catch arm runs the closed mount (lib/sandbox-mount.sh
+#   overlay_answer_paths, head mode unless the task sets review_catch.overlay_mode: base)
+#   and every mounted arm the eval config variant (config_variant=eval).
 # =============================================================================
 name: ablation-2.0
 version: 1
@@ -64,7 +74,7 @@ phase_sets:   # D-4.1: A1's phases per task type; FIX runs only after a CHANGES_
 arms:
   - {id: a0_bare, label: A0, task_types: [all], toggles: {loa_mount: false}, phases: [BARE], effort: high,
      took_effect: [no_dot_claude, no_system_prompt, no_audit_rows, integrity_clean]}
-  - {id: a1_full, label: A1, task_types: [all], toggles: {}, took_effect: [all_phases_present, integrity_clean]}
+  - {id: a1_full, label: A1, task_types: [all], toggles: {}, took_effect: [all_phases_present, oracle_closed, integrity_clean]}   # oracle_closed: cycle-131 FR-1 (DEC-0615); review-catch runs only, a build run passes it vacuously
   - {id: a2_no_sprint_plan, label: A2, task_types: [build], toggles: {sprint_plan: false},
      phases: [IMPLEMENT, REVIEW, FIX, AUDIT, FIX],
      took_effect: [no_plan_phase, applicability_refused, integrity_clean]}

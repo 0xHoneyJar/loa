@@ -29,7 +29,7 @@ setup_file() {
   export FX="$BATS_FILE_TMPDIR/fx"
   mkdir -p "$FX"
   python3 -I "$TESTS_DIR/fixtures/ablation-report/gen-fixtures.py" "$FX"
-  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present ids-bad; do
+  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present ids-bad c131 c131-mixed; do
     python3 -I "$REPORT" --runs "$FX/$s/runs.jsonl" --manifests "$FX/$s/manifests" --suite "$SUITE" \
       --out "$FX/$s/report.md" --json "$FX/$s/report.json" >/dev/null
   done
@@ -426,12 +426,13 @@ PY
   grep -qF '  - degenerate (read as no valid pair): valid pairs on one task (rc-04)' "$FX/degenerate-1/report.md"
 }
 
-@test "AR-29 not degenerate with pairs on two tasks, or with per-defect ids on one task" {
+@test "AR-29 not degenerate with pairs on two tasks, or with per-defect ids on one task (report 1.3: three valid cells read insufficient)" {
   [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-2/report.json")" = "false" ]
   [ "$(jq -r .h1.line "$FX/degenerate-2/report.json")" = "H1: established" ]
   [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-ids/report.json")" = "false" ]
-  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degenerate-ids/report.json")" = "tested" ]
-  [ "$(jq -r .h1.line "$FX/degenerate-ids/report.json")" = "H1: not established — halt before promotion" ]
+  # report 1.3 (FR-6): one task × 3 trials is 3 valid cells < 4 — insufficient (1.2.x read it tested)
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degenerate-ids/report.json")" = "insufficient" ]
+  [ "$(jq -r .h1.line "$FX/degenerate-ids/report.json")" = "H1: insufficient — fewer than 4 valid cells" ]
   ! grep -qF '(degenerate)' "$FX/degenerate-2/report.md" || false
   # a build primary is never degenerate (one task, one value per task)
   [ "$(jq '[.. | objects | select(.metric == "hidden_test_pass_rate") | select(.degenerate == true)] | length' "$FX/main/report.json")" -eq 0 ]
@@ -755,4 +756,79 @@ PY
   grep -qF 'grader tally incomplete (ValueError while tallying the grader versions of pr-2)' "$T/s.md"
   ! grep -q 'invalid literal' "$T/s.md" "$T/s.json" || false
   ! grep -qF "$T" "$T/s.md" || false
+}
+
+# --- report 1.3 (cycle-131 Sprint 263 Task 1.6): the decision statistic and its beside figures, the labelled
+# sensitivities, pin/rule partitions, the 4-cell minimum, finding volume ----------------------------------------
+
+@test "AR-48 the decision statistic is defect_catch_rate with defect_catch_rate_pm3 and _pm3_v1 printed beside every catch read (H1 and components), deciding nothing" {
+  J="$FX/c131/report.json" M="$FX/c131/report.md"
+  [ "$(jq -r '.decision_statistic + " " + (.beside | join(","))' "$J")" = "defect_catch_rate defect_catch_rate_pm3,defect_catch_rate_pm3_v1" ]
+  [ "$(jq -r .h1.line "$J")" = "H1: established" ]
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | "\(.d) \(.beside.defect_catch_rate_pm3.d) \(.beside.defect_catch_rate_pm3_v1.d)"' "$J")" = "0.444444 0.388889 0.388889" ]
+  [ "$(jq -r '.decisions[] | select(.arm == "a3_one_voice") | .comparisons[] | select(.metric == "defect_catch_rate") | .beside.defect_catch_rate_pm3.n' "$J")" = 18 ]
+  grep -qF -- '- decision statistic: defect_catch_rate (grader rule pm3_or_same_function); defect_catch_rate_pm3 and defect_catch_rate_pm3_v1 are printed beside it and decide nothing' "$M"
+  grep -qF 'Beside the decision statistic (decides nothing): defect_catch_rate_pm3 +0.389 [' "$M"
+  grep -qF -- '- A3 `a3_one_voice`: defect_catch_rate_pm3 0.000 [0.000, 0.000] (n = 18 defects)' "$M"
+  # rows without the beside fields (a 1.2.x grade) print n/a, never a figure
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .beside.defect_catch_rate_pm3' "$FX/versions/report.json")" = null ]
+  grep -qF 'defect_catch_rate_pm3 n/a (rows without the field)' "$FX/versions/report.md"
+}
+
+@test "AR-49 sensitivities: oracle-exposed cells excluded (exposed_unknown counts; an oracle_open arm is reported, not excluded) and dissent-absent gates excluded (budget yes, disabled never), with the counts per arm beside each read" {
+  J="$FX/c131/report.json" M="$FX/c131/report.md"
+  [ "$(jq -c '.sensitivities.oracle_exposed_excluded | [.excluded_rows_per_arm, .reported_open_rows_per_arm]' "$J")" = '[{"a1_full":1,"a7_effort_medium":1},{"a3_one_voice":1}]' ]
+  [ "$(jq -c '.sensitivities.dissent_absent_excluded.excluded_rows_per_arm' "$J")" = '{"a1_full":1}' ]
+  # the oracle rule drops a1_full rc-01 t1 pairwise from H1: a0_bare's rc-01 t1 leaves too
+  [ "$(jq -r '.sensitivities.oracle_exposed_excluded.h1.comparisons[] | select(.metric == "defect_catch_rate") | .dropped | map("\(.arm) \(.task_id) t\(.trial)") | join(",")' "$J")" = "a0_bare rc-01 t1" ]
+  [ "$(jq -r '.sensitivities.dissent_absent_excluded.h1.comparisons[] | select(.metric == "defect_catch_rate") | .dropped | map("\(.task_id) t\(.trial)") | join(",")' "$J")" = "rc-02 t2" ]
+  # the main reads keep every cell (the labelled sensitivities decide nothing)
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .dropped | length' "$J")" = 0 ]
+  [ "$(jq -r .oracle_exposed_in_main "$J")" = included ]
+  grep -qF '## Sensitivity: oracle-exposed cells excluded — decides nothing' "$M"
+  grep -qF '## Sensitivity: dissent-absent gates excluded — decides nothing' "$M"
+  grep -qF -- '- rows this rule excluded, per arm: `a1_full` 1, `a7_effort_medium` 1' "$M"
+  grep -qF -- '- oracle-exposed rows of an oracle_open arm (reported, not excluded): `a3_one_voice` 1' "$M"
+  grep -qF '**sensitivity (dissent-absent gates excluded; decides nothing): H1: established**' "$M"
+  # --exclude-oracle-exposed true moves the oracle rule into the main reads (a pre-registration that names it)
+  report c131 "$T/x" --exclude-oracle-exposed true
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .oracle_exposed_in_main "$T/x.json")" = excluded ]
+  [ "$(jq -r '[.exclusions[] | select(.reason | startswith("oracle-exposed"))] | map(.run_id) | join(",")' "$T/x.json")" = "c131-b-a1_full-rc-01-t1,c131-b-a7_effort_medium-rc-04-t2" ]
+}
+
+@test "AR-50 rows of different source_commit or grader_rule are never pooled: two partitions in one suite_version; --pin selects one; a bad or unmatched --pin exits 2" {
+  J="$FX/c131-mixed/report.json"
+  [ "$(jq -r '.by_suite_version | keys | join(" | ")' "$J")" = "2 · pin 111111111111 · rule pm3 | 2 · pin 222222222222 · rule pm3_or_same_function" ]
+  [ "$(jq -r .primary_suite_version "$J")" = "2 · pin 222222222222 · rule pm3_or_same_function" ]
+  [ "$(jq -r '.by_suite_version["2 · pin 111111111111 · rule pm3"].rows' "$J")" = 24 ]
+  grep -qF '## Suite version 2 · pin 111111111111 · rule pm3 (batches: ver-v2) — reported separately, never pooled' "$FX/c131-mixed/report.md"
+  report c131-mixed "$T/p" --pin 1111111
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.primary_suite_version) \(.pin_dropped_rows) \(.by_suite_version | keys | length)"' "$T/p.json")" = "2 48 1" ]
+  grep -qF -- '--pin 1111111: 48 row(s) of other source commits not read' "$T/p.md"
+  report c131-mixed "$T/q" --pin XYZ
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--pin XYZ: want 4 to 40 lowercase hex characters"* ]]
+  report c131-mixed "$T/q" --pin 9999999
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no row has a source_commit starting with it"* ]]
+}
+
+@test "AR-51 a contrast with fewer than 4 valid cells reads insufficient: H1, the component decision and the interval text say so" {
+  J="$FX/degenerate-ids/report.json"
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | "\(.valid_cells) \(.insufficient)"' "$J")" = "3 true" ]
+  [ "$(dec degenerate-ids a3_one_voice .rule)" = "inconclusive: no valid pair (hidden_test_pass_rate, defect_catch_rate: insufficient, 3 valid cells < 4)" ]
+  grep -qF '(insufficient: 3 valid cells)' "$FX/degenerate-ids/report.md"
+  # twelve valid cells (four tasks × three trials) are enough
+  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | "\(.valid_cells) \(.insufficient)"' "$FX/c131/report.json")" = "12 false" ]
+}
+
+@test "AR-52 finding volume and precision as planted ÷ flagged per review-catch arm (informational); the c131 rows validate as row writer 1.4 rows" {
+  J="$FX/c131/report.json"
+  [ "$(jq -r '.arms.a0_bare | .finding_volume_per_run == 3 and .precision_planted_per_flag == 0.833333 and .flag_rows == 12' "$J")" = true ]
+  [ "$(jq -r '.arms.a1_full | .finding_volume_per_run == 3 and .precision_planted_per_flag == 1.5' "$J")" = true ]
+  grep -qF 'finding volume (informational, decides nothing): 3.000 flagged findings per run; precision as planted ÷ flagged: 0.833' "$FX/c131/report.md"
+  run "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$FX/c131/runs.jsonl"
+  [ "$status" -eq 0 ]
 }

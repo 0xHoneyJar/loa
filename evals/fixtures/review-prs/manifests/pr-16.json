@@ -1,7 +1,7 @@
 {
   "fixture": "pr-16",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "252",
     "record_ref": "origin/record/cycle-128-a2a",
@@ -13,6 +13,12 @@
       "id": "L01-treats-any-as-a-fixture-so-reaches-the-w",
       "file": ".claude/scripts/lib/dec-write-lib.sh",
       "anchor_line": 249,
+      "anchors": [
+        249,
+        250,
+        251,
+        261
+      ],
       "must_match": "resolve_target(){ # mode: write|read",
       "severity": "medium",
       "category": "test",
@@ -27,6 +33,7 @@
       "anchor_line": 74,
       "anchors": [
         61,
+        65,
         74
       ],
       "must_match": "grep -viE \"$exempt\"",
@@ -43,7 +50,8 @@
       "anchor_line": 65,
       "anchors": [
         65,
-        71
+        71,
+        72
       ],
       "must_match": "rounds_json=\"[]\"",
       "severity": "low",
@@ -59,7 +67,10 @@
       "anchor_line": 177,
       "anchors": [
         177,
-        186
+        186,
+        189,
+        191,
+        192
       ],
       "must_match": "emit_decisions()",
       "severity": "low",

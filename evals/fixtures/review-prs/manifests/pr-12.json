@@ -1,7 +1,7 @@
 {
   "fixture": "pr-12",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "248",
     "record_ref": "origin/record/cycle-126-a2a",
@@ -13,6 +13,10 @@
       "id": "L01-the-check-only-proves-the-heading-exists",
       "file": ".claude/scripts/verdict-derive.sh",
       "anchor_line": 131,
+      "anchors": [
+        131,
+        137
+      ],
       "must_match": "rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise",
       "severity": "high",
       "category": "logic",
@@ -39,7 +43,9 @@
       "anchor_line": 1898,
       "anchors": [
         1898,
-        1906
+        1906,
+        1907,
+        1914
       ],
       "must_match": "_fold_companion() {  # <result json> <workdir> <family> <chain csv> <primary final model> \u2192 result json; sets COMPANION_VQ_FILES",
       "severity": "high",
@@ -53,6 +59,10 @@
       "id": "L04-the-companion-is-forked-before-the-prima",
       "file": ".claude/scripts/adversarial-review.sh",
       "anchor_line": 2140,
+      "anchors": [
+        2140,
+        2182
+      ],
       "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
       "severity": "medium",
       "category": "logic",
@@ -67,6 +77,8 @@
       "anchor_line": 1835,
       "anchors": [
         1835,
+        1837,
+        1838,
         1851
       ],
       "must_match": "_companion_chain() {  # <family> \u2192 space-separated chain, credential presence deciding the start",
@@ -83,6 +95,7 @@
       "anchor_line": 2140,
       "anchors": [
         1868,
+        1918,
         2140
       ],
       "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
@@ -97,6 +110,11 @@
       "id": "L07-the-pipeline-materialises-the-secret-in",
       "file": ".claude/scripts/adversarial-review.sh",
       "anchor_line": 487,
+      "anchors": [
+        487,
+        502,
+        503
+      ],
       "must_match": "_adv_cred_present() {",
       "severity": "low",
       "category": "security",
@@ -111,7 +129,10 @@
       "anchor_line": 26,
       "anchors": [
         26,
-        63
+        63,
+        72,
+        79,
+        85
       ],
       "must_match": "eval \"$(sed 's/^main \"\\$@\"/# main disabled for testing/' \"$ADVERSARIAL_REVIEW\")\"",
       "severity": "low",
