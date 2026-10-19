@@ -19484,3 +19484,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0609"
+    created_at: "2026-10-19T04:38:24Z"
+    updated_at: "2026-10-19T04:38:24Z"
+    phase: "implementation"
+    category: "process"
+    summary: "R4 (cycle-131 candidate): dissent cites file:line with a diff-scaled budget, or is dropped from review-catch gates; 0 credited citations in 36 runs (L4)"
+    decision: "Recommended change 4: the dissent voices anchor findings with file:line (or ranges) and the 200 c budget gate scales with the diff, or the dissent is dropped from review-catch gates. Because: none of the envelopes in 36 runs carries a numeric anchor (0 credited citations under the grader's rule), its causal contribution on pr-12 is ≈ 2 of 24 defect-trials, it costs 17 % of a full run where it runs, and budget_exceeded refused every review gate on pr-13, pr-17 and pr-18. Testable by a3_one_voice and a no-dissent arm on pr-12 × 3 (≈ USD 45) and by counting numeric anchors after the format change; wrong if the no-dissent arm loses more than 0.08 catch on pr-12."
+    rationale: "the dissent as shipped is either refused by its own budget or uncreditable by the grader; either fix makes it measurable"
+    alternatives_considered:
+      - option: "raise budget_cents to 400 and change nothing else"
+        rejected_because: "the voices would run but still cite functions, so the catch would not move under the grader"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "6d565b70"
+    source: "grimoires/loa/reports/ablation-2.0/analysis.md#9-loa-changes-ranked-by-expected-catch-rate-per-dollar (L4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:38:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/reports/ablation-2.0/analysis.md#9-loa-changes-ranked-by-expected-catch-rate-per-dollar (L4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
