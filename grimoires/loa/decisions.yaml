@@ -19516,3 +19516,483 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0610"
+    created_at: "2026-10-19T04:59:48Z"
+    updated_at: "2026-10-19T04:59:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 planning unattended on the templates: interview answered from the brief and the tree, no /ride (reality from May; harness-internal cycle) (D1)"
+    decision: "The operator's instruction is 'proceed as you suggest' on the deep analysis; the lead authors prd.md, sdd.md and sprint.md on the three templates following the planning skills' instructions, answers every interview phase from grimoires/loa/context/cycle-131-brief.md, analysis.md and the tree, tags each operator-level choice [ASSUMPTION decision] with a DEC row, validates with validate-artifact.sh, runs Flatline on each document and integrates HIGH_CONSENSUS items. /ride is not re-run: the reality files date from May and the cycle changes the eval harness, whose grounding is the cycle-130 run directories and scripts read in the analysis."
+    rationale: "DEC-0369 precedent (cycle-130): an interview-shaped skill in an unattended session adds prompts it cannot answer; the brief already settles scope, rules and budget"
+    alternatives_considered:
+      - option: "run /ride --enriched first"
+        rejected_because: "20 minutes for a tree the analysis just read file by file; the harness scripts, not the framework surface, are what this cycle changes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0611"
+    created_at: "2026-10-19T04:59:50Z"
+    updated_at: "2026-10-19T04:59:50Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 budget assumption: cycle cap USD 500, experiments (Sprint 2 batches) <= USD 250, review-catch run cap 20; halt only above the cap (D2)"
+    decision: "No cap was named with 'proceed as you suggest'. The cycle assumes a cap of USD 500 with the Sprint 2 batches limited to USD 250 (R1 A/B ≈ 85, R5 ≈ 30, R3 ≈ 70, R4 ≈ 45 at the cycle-130 actuals; re-grades cost nothing), per-run cap USD 20 for review-catch, concurrency 3; spend is posted in NOTES after every batch; the run halts only for spend above the cap. The operator may raise or lower the cap at any time; the batches run in the priority order R1 A/B, R5, R3, R4 so a lower cap cuts the tail."
+    rationale: "the cycle-130 headroom was 219 and the operator's last explicit allowance 300; 500 covers the planned batches plus the gates' own cost with a margin"
+    alternatives_considered:
+      - option: "reuse the cycle-130 headroom (USD 219) as the whole cap"
+        rejected_because: "the implement/review/audit gates of three sprints alone cost more than that in cycle-130"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0612"
+    created_at: "2026-10-19T04:59:52Z"
+    updated_at: "2026-10-19T04:59:52Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 arms pin the Sprint 2 completion commit (closed mount, grader rule, dissent anchors landed); cycle-130 rows are re-graded, never pooled (D3)"
+    decision: "Every cycle-131 arm runs the framework at the commit that completes Sprint 2 (the closed mount, the grader rule and the dissent anchor/budget change all landed), recorded in the batch MANIFEST; the cycle-130 rows are re-graded under the new grader rule for comparison but never pooled with cycle-131 rows (different pin, different mount). a0_bare, a1_full, a0_bare_fable, a1_review_only and the no-dissent review gate are all run under the same pin."
+    rationale: "the closed mount is itself a harness change, so the old pin cannot be compared like for like anyway; one pin for all arms keeps every within-cycle comparison attributable"
+    alternatives_considered:
+      - option: "keep ba11b860 as the pin and overlay the harness changes"
+        rejected_because: "the dissent anchor change is a framework change; two pins in one cycle would make the arms non-comparable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D3)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0613"
+    created_at: "2026-10-19T05:13:19Z"
+    updated_at: "2026-10-19T05:13:19Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-1.1: review-catch sandboxes overlay the PR's pr/base copy of every PR-touched framework path (added paths removed); head mode is the recorded fallback (D-1.1)"
+    decision: "overlay_pr_touched <ws> base runs after mount_prompt_surface for review-catch tasks: every path in head.diff's headers that exists under the sandbox framework copy, CLAUDE.md or .loa.config.yaml is replaced by pr/base/X (absent in base → removed); arm_evidence records mount_overlay=<mode>:<n> and a sha per path; the Sprint 1 smoke on all seven corpus PRs decides whether any PR class needs head mode, recorded as a DEC"
+    rationale: "base mode reveals nothing beyond head.diff and keeps a working pipeline where the PR only adds behaviour; head mode is the fallback that still holds no later-than-head copy"
+    alternatives_considered:
+      - option: "mount the framework at the PR base commit"
+        rejected_because: "changes the pipeline version under test per PR; the arms would no longer share one pin"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:13:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0614"
+    created_at: "2026-10-19T05:13:23Z"
+    updated_at: "2026-10-19T05:13:23Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-7.1: the Sprint 1 smoke (seven corpus PRs under the closed mount, ≈ USD 90) counts against the USD 500 cap, not the ≤ 250 batch allowance (D-7.1)"
+    decision: "The closed-mount smoke (one a1_full trial per corpus PR, plus one trial per new arm on pr-12) is Sprint 1's exit check and is budgeted inside the cycle cap but outside the batch allowance of DEC-0611; smoke rows decide nothing (DEC-0428)"
+    rationale: "the smoke proves the mount before any pre-registered row; charging it to the batch allowance would starve the prices"
+    alternatives_considered:
+      - option: "skip the smoke"
+        rejected_because: "a mode that breaks a gate on one PR class would surface only inside a pre-registered batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-7.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:13:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-7.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0615"
+    created_at: "2026-10-19T05:14:24Z"
+    updated_at: "2026-10-19T05:14:24Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-1.2/1.3: oracle_closed is a took-effect rule; the grader scans transcripts for a head-vs-workspace diff covering a planted site (D-1.2)"
+    decision: "took-effect.sh gains oracle_closed (every PR-touched path under the mount byte-equals its pr/base or pr/head version per the recorded mode, absent counts as closed) on every mounted arm; ablation-grade.sh scans REVIEW/AUDIT transcripts for a content diff (diff/sdiff/comm/git diff --no-index, not -q, not the word head.diff, not heredoc bodies) between a pr/ operand and a workspace operand of a PR-touched file whose printed ranges cover a planted site, writing oracle_exposed_defects and oracle_exposed_events; synthetic-transcript bats cases"
+    rationale: "a leaked sandbox must stop the batch, not just mark a row; the detector is the one the analysis validated on 36 runs"
+    alternatives_considered:
+      - option: "grader-only check"
+        rejected_because: "a batch would keep spending on a leaked mount"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0616"
+    created_at: "2026-10-19T05:14:26Z"
+    updated_at: "2026-10-19T05:14:26Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-2.1-2.3: grader rule ±3 OR same enclosing function (400-line cap, ±20 fallback); multi-site anchors; both rules reported; report partitions by pin (D-2.1)"
+    decision: "recall-vs-defects.sh 1.3.0 detects a defect when a citation is within ±3 of a site OR any cited line shares the site's enclosing symbol (bash function, python def, bats @test, markdown heading section), searching ≤ 400 lines back (longer → ±20); details carry rule, detected_pm3, missed_pm3, recall_pm3; manifests gain every head line the human finding named, re-approved; grade/row/report carry both rules and the primary defect_catch_rate uses the rule the batch pre-registration names; ablation-report.py partitions by source_commit"
+    rationale: "the function is the semantically defensible unit; a cap prevents a 2,000-line main from crediting everything; the old rule stays visible so nothing shipped is rewritten"
+    alternatives_considered:
+      - option: "widen the window to ±20 everywhere"
+        rejected_because: "credits unrelated findings; the gap shrank monotonically with the window in the analysis, which is leniency, not truth"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-2.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-2.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0617"
+    created_at: "2026-10-19T05:14:28Z"
+    updated_at: "2026-10-19T05:14:28Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-3.1-3.3: run-ablation --allow-partial in MANIFEST; KF-046 class 7 exempts a repo-name token present in the PR fixture; dissent_absent_gates row field (D-3.1)"
+    decision: "--allow-partial is a runner flag appended to the freeze check and every grader argv and recorded in MANIFEST.json (resume keeps it); the contamination scan treats a repo_name match as PR content when the token occurs in the fixture's head tree or head.diff; ablation-row.sh 1.4 records dissent_absent_gates (envelope status budget_exceeded/failed/record-fallback per gate) and ablation-report.py prints a labelled sensitivity excluding those rows; degraded keeps its definition"
+    rationale: "each is the minimal change that unblocks the replication root, the two contaminated replication rows and bd-ocovl"
+    alternatives_considered:
+      - option: "make partial suites the default"
+        rejected_because: "the four-per-type count is the suite freeze contract; partial must be explicit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-3.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-3.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0618"
+    created_at: "2026-10-19T05:15:09Z"
+    updated_at: "2026-10-19T05:15:09Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-4.1/4.2: dissent gets optional numeric anchors (symbol anchor stays); budget_scale fixed|diff, max 600 c, diff only in the eval config (D-4.1)"
+    decision: "adversarial-review.sh asks each voice for anchor_line (and anchor_line_end) beside anchor/anchor_type; the normaliser keeps integers only; the schema adds the two optional integers; the grader's envelope reduction reads anchor_line with the anchor's path as path:line[-end]; flatline_protocol.<gate>.budget_scale: fixed|diff (default fixed) with budget_cents = max(configured, estimate × 1.1) capped by budget_cents_max (600); the eval config for mounted arms sets diff; the shipped .loa.config.yaml is untouched"
+    rationale: "the component cannot be priced while the grader cannot see it and its own gate refuses to run it on real diffs; additive fields keep every consumer working"
+    alternatives_considered:
+      - option: "replace the symbol anchor with a line anchor"
+        rejected_because: "anchor_stability and the hallucination filter key on the symbol; the companion contract (cycle-126) would change"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-4.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:15:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-4.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0619"
+    created_at: "2026-10-19T05:15:11Z"
+    updated_at: "2026-10-19T05:15:11Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-5.1-5.4: arms a0_bare_fable, a1_review_only, a1_no_dissent with one took-effect rule per toggle (D-5.1)"
+    decision: "Three review-catch-only arms: a0_bare_fable = a0_bare with toggle bare_model: fable (pipeline-run maps BARE to global.anthropic.claude-fable-5-1; effort high) and took-effect bare_model_fable; a1_review_only = a1_full with phases [REVIEW] and took-effect review_only_phases; a1_no_dissent = a1_full with toggle dissent: false (sandbox config flatline_protocol.code_review.enabled: false, audit unchanged) and took-effect no_review_dissent_envelope; a1_full gains oracle_closed"
+    rationale: "the model-only comparison needs the same effort as a0_bare; the audit price needs the review gate alone; the dissent price needs the review gate without its dissent, audit intact"
+    alternatives_considered:
+      - option: "price the dissent with a3_one_voice"
+        rejected_because: "one voice still produces an uncreditable envelope; the question is the gate with no dissent at all"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-5.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:15:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-5.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0620"
+    created_at: "2026-10-19T05:17:48Z"
+    updated_at: "2026-10-19T05:17:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Batch allowance raised to USD 275 of the 500 cap (amends DEC-0611): the within-pin oracle A/B needs an open-mount arm on pr-17 (≈ 105) beside B2 (≈ 155) (F2)"
+    decision: "DEC-0611's ≤ 250 batch allowance becomes ≤ 275: B1 = a1_full_openmount and a1_full on pr-17 × 3 each (≈ USD 105), B2 unchanged (≈ 155; a1_review_only on pr-13 is the first cut if B1 overruns); the cycle cap stays USD 500; the Sprint 1 smoke (≈ 90, DEC-0614) and the gates' own cost fill the rest."
+    rationale: "a within-pin A/B is the only reading of the oracle that is not confounded by the pin's other changes; its cost is the open-mount arm"
+    alternatives_considered:
+      - option: "keep 250 and drop the open-mount arm"
+        rejected_because: "B1 would then compare across pins and could not attribute a difference to the oracle"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-f-flatline-integration (F2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:17:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0621"
+    created_at: "2026-10-19T05:23:16Z"
+    updated_at: "2026-10-19T05:23:16Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Flatline PRD blockers integrated by judgment (KF-041 shape): within-pin oracle A/B, fix-commit paths, read detector, 3-way re-grade, interval rules (F1)"
+    decision: "Blocker themes from the two-voice PRD review integrated into prd.md/sdd.md before any row: (1) the oracle A/B compares a1_full_openmount (eval-only arm, overlay off) with a1_full at the same pin on pr-17 — never against cycle-130 cells; (2) the overlay covers PR-touched paths plus every path the fixture's fix commit touched; oracle_closed also fails on a stray later copy anywhere outside pr/; (3) overlay evidence (sha per path) is written before the first phase and compared after (mount_mutated); (4) the grader's exposure detector also flags reads of a PR-touched workspace path whose output holds a later-than-head line at a planted site, and is validated on the 36 cycle-130 run dirs (must flag exactly review-04 t2, review-r17 t1, review-r18 t1); (5) three-way re-grade into a separate rows file (old rule + old anchors must equal stored; old rule + new anchors; new rule + new anchors), originals untouched; (6) interval-based, mutually exclusive pricing rules with the unit defined (defect-level paired bootstrap, trials averaged per defect), the decision statistic pre-committed as the new rule with ±3 beside, 2-PR cluster bootstrap descriptive; (7) sandbox manifest regenerated after the overlay; (8) per-row disclosure of the overlay mode and of any gate script run at the PR's version; (9) batches B1/B2 use pr-17 and pr-18 only — pr-12 and pr-13 touch the gate machinery itself, so they stay in the re-grade. Declined: adjudicating every function-rule credit (the 20-packet blind sample with a kappa floor of 0.6 stands)."
+    rationale: "each blocker names a way the measurement could be wrong again; integrating before the first row is cheaper than another deep analysis"
+    alternatives_considered:
+      - option: "re-run Flatline to chase consensus scoring"
+        rejected_because: "KF-041: the review content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-f-flatline-integration (F1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:23:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0622"
+    created_at: "2026-10-19T05:25:06Z"
+    updated_at: "2026-10-19T05:25:06Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Overlay default is head mode (mounted copy = pr/head for answer paths), scoped to .claude/; base is the fallback — amends DEC-0613 after the SDD review (E1)"
+    decision: "The review-catch overlay replaces every answer-bearing path under the sandbox framework directory with its pr/head version (added paths present, deleted paths removed; a fix-commit path outside the PR takes its content at the fixture's head_commit via git show, or is removed when absent there), so the agent's reads of the mounted copy keep head line coordinates and the grader's head/<path>:<line> credit stays consistent; CLAUDE.md and .loa.config.yaml are harness-owned and outside the answer set (the toggles rewrite them after the overlay). base mode is the recorded per-task fallback (task.yaml review_catch.overlay_mode) when a head-version gate script breaks a gate on the Sprint 1 smoke. Disclosure per row: the gates run the PR's version of any touched gate script or skill."
+    rationale: "base mode moves every line number of a touched file and removes added lines, so a reviewer reading the mounted copy would mis-cite; head mode is the PR itself, which is what the reviewer is meant to read"
+    alternatives_considered:
+      - option: "keep base mode (DEC-0613)"
+        rejected_because: "coordinate mismatch with the grader and added-line defects absent from the mounted copy"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:25:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0623"
+    created_at: "2026-10-19T05:29:16Z"
+    updated_at: "2026-10-19T05:29:16Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Flatline SDD blockers integrated (KF-041): immutable verifier source, pristine pinned copy, dissent_absent_reason, no pooling across rules (E2)"
+    decision: "oracle_closed compares the sandbox against the immutable fixture under evals/fixtures/review-prs (SHA256SUMS-checked), never the agent-writable pr/; pipeline-run.sh runs the closed-mount check before the container starts and refuses to launch on a failure; the framework is copied only from the runner's pristine detached worktree at the pin (copy_source must equal source_commit); diff headers are parsed with quoted paths, renames, /dev/null and binary hunks handled and paths normalised; the sandbox .git must hold exactly the base commit; the detector also reads non-Bash Read/Grep tool_use events and records unparseable diff results as exposed_unknown; rows carry grader_rule, grader_version, corpus_sha256, config_variant (eval) and dissent_absent_reason per gate; ablation-report.py refuses to pool rows whose grader_rule or source_commit differ; a harness fix between B1 and B2 means B1 is re-run at the new pin or B2 runs without the fix; adjudication < 80 % → recall_pm3 becomes the decision statistic (DEC). Declined: resolving symbol-only dissent anchors to line ranges in the grader."
+    rationale: "each blocker names a way a row could be wrong or unreproducible; all are cheap before the first row"
+    alternatives_considered:
+      - option: "re-run Flatline to chase consensus"
+        rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:29:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0624"
+    created_at: "2026-10-19T05:47:24Z"
+    updated_at: "2026-10-19T05:47:24Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Flatline sprint blockers integrated (KF-041): E2E before PR, record secret scan, fsck closure, exposed_unknown excluded, adjudication fallbacks (D1)"
+    decision: "Sprint-plan review integrated by judgment: Task 3.E2E precedes the PR (3.3 ⇐ 3.E2E) with a post-publication check appended; a secret scan runs over the record tree before it is pushed; check_mount_closed runs after toggles, config writes and manifest regeneration; oracle_closed clause d adds git fsck --unreachable and packfile checks; exposed_unknown rows are excluded pairwise and reported; the detector validation is a floor (the three known runs flagged, no bare run; extra hits read by hand); the pin is the commit after Tasks 2.1 and 2.2 and any later harness/grader/framework fix re-pins and re-runs the affected batch; the adjudication protocol gains fallbacks (fewer eligible → all; empty stratum → redistribute; kappa < 0.6 after a third labeler → not adopted), a sample of anchor-expansion credits and a Wilson interval; exclusion counts per arm and an all-rows sensitivity accompany every read; a cycle spend ledger precedes Sprint 2; G-6 is an allowlisted default check with the additive schema fields listed; the smoke PR list is the explicit seven (pr-05, 08, 12, 13, 16, 17, 18); dependencies 1.3 → 1.6/1.9 and 1.4/1.6 → 1.11; manifests/v1 verified against ba11b860; dissent runs before the batches (KF-037); the eval-only refusal exempts smoke batches."
+    rationale: "each blocker names an ordering, accounting or coverage gap that would surface mid-sprint; all are cheaper before the first commit"
+    alternatives_considered:
+      - option: "re-run Flatline for consensus scoring"
+        rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sprint.md#d-flatline-integration-sprint-run-2026-10-19 (D1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:47:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-integration-sprint-run-2026-10-19 (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
