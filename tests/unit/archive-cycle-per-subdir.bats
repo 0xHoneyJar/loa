@@ -64,7 +64,7 @@ setup() {
     cat > grimoires/loa/ledger.json <<'EOF'
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-104-multi-model-stabilization",
   "cycles": [
     {
       "id": "cycle-097-legacy",
@@ -173,4 +173,65 @@ teardown() {
     rm -rf grimoires/loa/cycles/cycle-104-multi-model-stabilization/flatline
     run "$SCRIPT" --cycle 104 --dry-run
     [ "$status" -eq 0 ]
+}
+
+# -------- #1263: live ledger.json must be updated on archive --------
+# .claude/commands/archive-cycle.md documents that archiving clears
+# ledger.active_cycle and marks the archived cycle status:"archived" with
+# archived/archive_path fields. create_archive() only ever COPIES ledger.json
+# into the archive dir -- the live file at GRIMOIRE_DIR/ledger.json was never
+# mutated.
+
+@test "#1263: archiving cycle-104 clears active_cycle in the LIVE ledger" {
+    run "$SCRIPT" --cycle 104 --retention 0
+    [ "$status" -eq 0 ]
+
+    local live_cycle
+    live_cycle=$(jq -r '.active_cycle' grimoires/loa/ledger.json)
+    [ "$live_cycle" = "null" ]
+}
+
+@test "#1263: archiving cycle-104 marks that cycle archived in the LIVE ledger" {
+    run "$SCRIPT" --cycle 104 --retention 0
+    [ "$status" -eq 0 ]
+
+    local status_field archived_field archive_path_field
+    status_field=$(jq -r '.cycles[] | select(.id == "cycle-104-multi-model-stabilization") | .status' grimoires/loa/ledger.json)
+    archived_field=$(jq -r '.cycles[] | select(.id == "cycle-104-multi-model-stabilization") | .archived // empty' grimoires/loa/ledger.json)
+    archive_path_field=$(jq -r '.cycles[] | select(.id == "cycle-104-multi-model-stabilization") | .archive_path // empty' grimoires/loa/ledger.json)
+
+    [ "$status_field" = "archived" ]
+    [ -n "$archived_field" ]
+    [[ "$archive_path_field" == *"cycle-104-multi-model-stabilization"* ]]
+}
+
+@test "#1263: unrelated active_cycle is left untouched when archiving a different cycle" {
+    # cycle-104 is active in the fixture ledger; simulate a DIFFERENT cycle
+    # being the live active one so the fix must not blindly null active_cycle.
+    jq '.active_cycle = "cycle-999-unrelated"' grimoires/loa/ledger.json > ledger.tmp && mv ledger.tmp grimoires/loa/ledger.json
+
+    run "$SCRIPT" --cycle 104 --retention 0
+    [ "$status" -eq 0 ]
+
+    local live_cycle
+    live_cycle=$(jq -r '.active_cycle' grimoires/loa/ledger.json)
+    [ "$live_cycle" = "cycle-999-unrelated" ]
+}
+
+@test "#1263: dry-run never mutates the live ledger" {
+    local before after
+    before=$(cat grimoires/loa/ledger.json)
+    run "$SCRIPT" --cycle 104 --dry-run
+    [ "$status" -eq 0 ]
+    after=$(cat grimoires/loa/ledger.json)
+    [ "$before" = "$after" ]
+}
+
+@test "#1263: legacy cycle-097 (no per-cycle ledger entry linkage issue) still archives without error and its own ledger entry updates" {
+    run "$SCRIPT" --cycle 97 --retention 0
+    [ "$status" -eq 0 ]
+
+    local status_field
+    status_field=$(jq -r '.cycles[] | select(.id == "cycle-097-legacy") | .status' grimoires/loa/ledger.json)
+    [ "$status_field" = "archived" ]
 }
