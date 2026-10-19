@@ -1,0 +1,2065 @@
+{
+ "defects": [
+  {
+   "category": "logic",
+   "file": ".claude/scripts/verdict-derive.sh",
+   "id": "L01-the-check-only-proves-the-heading-exists",
+   "label_source": "review",
+   "must_match": "rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise",
+   "pos": "d1",
+   "severity": "high",
+   "sites": [
+    131
+   ]
+  },
+  {
+   "category": "error-handling",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L02-is-unguarded",
+   "label_source": "review",
+   "must_match": "result=$(_fold_companion",
+   "pos": "d2",
+   "severity": "high",
+   "sites": [
+    2183
+   ]
+  },
+  {
+   "category": "logic",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L03-when-the-primary-ends-and-the-companion",
+   "label_source": "review",
+   "must_match": "_fold_companion() {  # <result json> <workdir> <family> <chain csv> <primary final model> \u2192 result json; sets COMPANION_VQ_FILES",
+   "pos": "d3",
+   "severity": "high",
+   "sites": [
+    1898,
+    1906
+   ]
+  },
+  {
+   "category": "logic",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L04-the-companion-is-forked-before-the-prima",
+   "label_source": "review",
+   "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
+   "pos": "d4",
+   "severity": "medium",
+   "sites": [
+    2140
+   ]
+  },
+  {
+   "category": "logic",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L05-the-cli-hop-is-always-planned-so-a-singl",
+   "label_source": "review",
+   "must_match": "_companion_chain() {  # <family> \u2192 space-separated chain, credential presence deciding the start",
+   "pos": "d5",
+   "severity": "medium",
+   "sites": [
+    1835,
+    1851
+   ]
+  },
+  {
+   "category": "logic",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L06-the-companion-runs",
+   "label_source": "review",
+   "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
+   "pos": "d6",
+   "severity": "medium",
+   "sites": [
+    1868,
+    2140
+   ]
+  },
+  {
+   "category": "security",
+   "file": ".claude/scripts/adversarial-review.sh",
+   "id": "L07-the-pipeline-materialises-the-secret-in",
+   "label_source": "review",
+   "must_match": "_adv_cred_present() {",
+   "pos": "d7",
+   "severity": "low",
+   "sites": [
+    487
+   ]
+  },
+  {
+   "category": "logic",
+   "file": "tests/unit/adversarial-review-companion.bats",
+   "id": "L08-the-stub-spoke-the-review-vocabulary-to",
+   "label_source": "review",
+   "must_match": "eval \"$(sed 's/^main \"\\$@\"/# main disabled for testing/' \"$ADVERSARIAL_REVIEW\")\"",
+   "pos": "d8",
+   "severity": "low",
+   "sites": [
+    26,
+    63
+   ]
+  }
+ ],
+ "fixture_dir": "evals/fixtures/review-prs/pr-12",
+ "manifest": "evals/fixtures/review-prs/manifests/pr-12.json",
+ "pr": "pr-12",
+ "runs": [
+  {
+   "arm": "a0_bare",
+   "cost_usd": 1.354901,
+   "envelopes": {},
+   "events": {
+    "BARE": {
+     "dissent_arrival_event": null,
+     "dissent_launch_event": null,
+     "n_events": 240,
+     "n_exec_probes": 1,
+     "n_test_runs": 3,
+     "n_tool_calls": 22,
+     "num_turns": 23,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 163,
+       "kind": "tool:Bash",
+       "target": "s/engineer-feedback.md"
+      },
+      {
+       "event": 234,
+       "kind": "tool:Write",
+       "target": "/workspace/review.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 0,
+    "false_positives": 14,
+    "flags": 16,
+    "missed": [
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7",
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": null,
+    "verdicts": {
+     "audit": null,
+     "review": null
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": false,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 39
+     },
+     "sources": []
+    },
+    "d2": {
+     "caught": false,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 47
+     },
+     "sources": []
+    },
+    "d3": {
+     "caught": false,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d4": {
+     "caught": false,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 47
+     },
+     "sources": []
+    },
+    "d5": {
+     "caught": false,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d6": {
+     "caught": false,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 47
+     },
+     "sources": []
+    },
+    "d7": {
+     "caught": false,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 229
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1",
+   "transcripts": {
+    "BARE": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t1/transcripts/events-BARE.jsonl"
+   },
+   "trial": 1
+  },
+  {
+   "arm": "a1_full",
+   "cost_usd": 16.028374,
+   "envelopes": {
+    "audit": {
+     "findings": [
+      {
+       "anchor": null,
+       "description": "When rejected_summary contains rejected security findings, an otherwise valid APPROVED feedback file passes this check merely by adding an empty `## Rejected dissent payloads` heading. No entries or dispositions are requ",
+       "id": "DISS-001",
+       "severity": "MEDIUM",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": "_companion_chain",
+       "description": "The companion voice defaults to on (`CONF_COMPANION_VOICE=\"true\"` in load_adversarial_config, and the yq parse only turns it off for an explicit false/no/off/0). `_companion_chain` always yields a non-empty chain for eve",
+       "id": "DISS-C-001",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "rejected_summary_check",
+       "description": "The new rejected-payload contract in verdict-derive.sh is enforced solely by `grep -qE '^## Rejected dissent payloads'` on the feedback file. The documented contract (ADVERSARIAL-REVIEW.md, SKILL.md) says the section MUS",
+       "id": "DISS-C-002",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_walk_companion_chain",
+       "description": "The companion chain now runs concurrently with the primary chain inside the same `_ADVERSARIAL_WORKDIR`, calling the same `invoke_dissenter` and `process_findings` functions. Only the verdict-quality sidecar path is uniq",
+       "id": "DISS-C-003",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_adv_cred_present",
+       "description": "The function header and the docs (ADVERSARIAL-REVIEW.md, config example) repeatedly state the credential 'value is never read out', but the implementation pipes the dotenv line through sed and stores the stripped secret ",
+       "id": "DISS-C-004",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_fold_companion",
+       "description": "`_fold_companion` derives `cost_cents` from the companion envelope with `jq -r` and then passes it back with `--argjson cost \"$cost_cents\"`. If `metadata.cost_usd` is not numeric (a string from an adapter stub, `null` is",
+       "id": "DISS-C-005",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      }
+     ],
+     "status": "reviewed",
+     "voices": [
+      "codex-headless",
+      "claude-headless"
+     ]
+    },
+    "review": {
+     "findings": [],
+     "status": "failed",
+     "voices": null
+    }
+   },
+   "events": {
+    "AUDIT": {
+     "dissent_arrival_event": 242,
+     "dissent_launch_event": 238,
+     "n_events": 614,
+     "n_exec_probes": 8,
+     "n_test_runs": 9,
+     "n_tool_calls": 42,
+     "num_turns": 43,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 596,
+       "kind": "tool:Write",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md"
+      },
+      {
+       "event": 598,
+       "kind": "tool:Write",
+       "target": "(engineer-feedback.md"
+      },
+      {
+       "event": 600,
+       "kind": "tool:Write",
+       "target": "feedback"
+      }
+     ]
+    },
+    "REVIEW": {
+     "dissent_arrival_event": 730,
+     "dissent_launch_event": 516,
+     "n_events": 825,
+     "n_exec_probes": 8,
+     "n_test_runs": 18,
+     "n_tool_calls": 55,
+     "num_turns": 56,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 515,
+       "kind": "tool:Bash",
+       "target": "grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+      },
+      {
+       "event": 714,
+       "kind": "tool:Bash",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
+      },
+      {
+       "event": 822,
+       "kind": "tool:Bash",
+       "target": "review.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 5,
+    "false_positives": 47,
+    "flags": 75,
+    "missed": [
+     "d3",
+     "d7",
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": true,
+    "verdicts": {
+     "audit": "CHANGES_REQUIRED",
+     "review": "CHANGES_REQUIRED"
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": true,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 596,
+      "kind": "tool:Write",
+      "phase": "AUDIT",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 41,
+      "REVIEW": null
+     },
+     "sources": [
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d2": {
+     "caught": true,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 714,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 138,
+      "REVIEW": 164
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d3": {
+     "caught": false,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": []
+    },
+    "d4": {
+     "caught": true,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 714,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 138,
+      "REVIEW": 164
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d5": {
+     "caught": true,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 714,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d6": {
+     "caught": true,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 714,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 138,
+      "REVIEW": 164
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d7": {
+     "caught": false,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": []
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "AUDIT": 67,
+      "REVIEW": 37
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": 391,
+      "REVIEW": null
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2",
+   "transcripts": {
+    "AUDIT": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/transcripts/events-AUDIT.jsonl",
+    "REVIEW": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t1-r2/transcripts/events-REVIEW.jsonl"
+   },
+   "trial": 1
+  },
+  {
+   "arm": "a0_bare",
+   "cost_usd": 1.15346,
+   "envelopes": {},
+   "events": {
+    "BARE": {
+     "dissent_arrival_event": null,
+     "dissent_launch_event": null,
+     "n_events": 186,
+     "n_exec_probes": 0,
+     "n_test_runs": 0,
+     "n_tool_calls": 22,
+     "num_turns": 23,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 178,
+       "kind": "tool:Write",
+       "target": "/workspace/review.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 3,
+    "false_positives": 15,
+    "flags": 19,
+    "missed": [
+     "d1",
+     "d3",
+     "d5",
+     "d7",
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": null,
+    "verdicts": {
+     "audit": null,
+     "review": null
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": false,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "BARE": 48
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 55
+     },
+     "sources": []
+    },
+    "d2": {
+     "caught": true,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 178,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 27
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d3": {
+     "caught": false,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d4": {
+     "caught": true,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 178,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 27
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d5": {
+     "caught": false,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d6": {
+     "caught": true,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 178,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 27
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d7": {
+     "caught": false,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "BARE": 9
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "BARE": null
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2",
+   "transcripts": {
+    "BARE": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t2/transcripts/events-BARE.jsonl"
+   },
+   "trial": 2
+  },
+  {
+   "arm": "a1_full",
+   "cost_usd": 17.124778,
+   "envelopes": {
+    "audit": {
+     "findings": [
+      {
+       "anchor": null,
+       "description": "An envelope containing rejected HIGH or CRITICAL findings passes this check when approved feedback contains only `## Rejected dissent payloads`, with no entries or dispositions. The grep also accepts that heading inside ",
+       "id": "DISS-001",
+       "severity": "MEDIUM",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": "_companion_chain",
+       "description": "CONF_COMPANION_VOICE defaults to \"true\" in load_adversarial_config, so every existing deployment silently starts sending the prepared system/user prompts (which carry the code diff and escalated file context) to a SECOND",
+       "id": "DISS-C-001",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_walk_companion_chain",
+       "description": "_walk_companion_chain truncates companion.attempts and companion.vq at start but never removes a pre-existing companion.result.json; it only writes that file on success. _fold_companion then treats any non-empty, parseab",
+       "id": "DISS-C-002",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "rejected_summary_check",
+       "description": "The FR-2.3 contract (documented in both ADVERSARIAL-REVIEW.md files and both SKILL.md files as 'one line per entry', 'rejected_summary or sidecar rows, whichever is more') is enforced only as `grep -qE '^## Rejected diss",
+       "id": "DISS-C-003",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_adv_cred_present",
+       "description": "The function and its three documentation blocks assert the credential 'value is never read out', but the implementation does `val=$(grep ... | sed ...)` which loads the full secret into a shell variable before the non-em",
+       "id": "DISS-C-004",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_walk_companion_chain",
+       "description": "The companion walk is backgrounded with all stdout/stderr discarded (`>/dev/null 2>&1`) and joined only by an unbounded `wait`. Consequences: (a) if main exits or is killed between the fork and the wait (set -e error, SI",
+       "id": "DISS-C-005",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_fold_companion",
+       "description": "cost_cents is computed with `jq -r '((.metadata.cost_usd // 0) * 10000 | round) / 100'` and then passed through `--argjson cost \"$cost_cents\"`. If the adapter emits cost_usd as a string or the jq fails, cost_cents is emp",
+       "id": "DISS-C-006",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      }
+     ],
+     "status": "reviewed",
+     "voices": [
+      "codex-headless",
+      "claude-headless"
+     ]
+    },
+    "review": {
+     "findings": [
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_walk_companion_chain",
+       "description": "Each companion verdict-quality sidecar is retained before process_findings determines whether the response is usable. If opus returns malformed content with a successful adapter sidecar and claude-headless subsequently s",
+       "id": "DISS-001",
+       "severity": "BLOCKING",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": ".claude/scripts/verdict-derive.sh:rejected_summary_check",
+       "description": "The rejected-payload contract is satisfied by any line matching the heading prefix. An otherwise approved feedback file containing only '## Rejected dissent payloads' passes even when the envelope contains multiple untri",
+       "id": "DISS-002",
+       "severity": "BLOCKING",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_companion_chain",
+       "description": "The companion chain is derived only from the family of the configured primary model (`_adv_family_of \"$model\"`), never from the primary's `fallback_chain` or the hop the primary actually lands on. The primary fallback ch",
+       "id": "DISS-C-001",
+       "severity": "BLOCKING",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+       "description": "`_fold_companion` merges the companion's findings and rejected_summary into the primary result but never reconciles `metadata.status`, `metadata.degraded` or any locality/degraded marker. Two asymmetric cases are left un",
+       "id": "DISS-C-002",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:main",
+       "description": "The companion is started with `( _walk_companion_chain ... ) &` and only reaped by an unconditional `wait \"$companion_pid\"` after the primary loop. There is no `trap` on EXIT/INT/TERM to kill it, and any early exit from ",
+       "id": "DISS-C-003",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_adv_cred_present",
+       "description": "The comments, docs and config example all state the credential value is 'never read', but the function pipes the dotenv line through grep/sed into the shell variable `val` (the full secret). Also, dotenv override semanti",
+       "id": "DISS-C-004",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+       "description": "The `rejected_summary` entry is built with `jq --argjson f \"$candidate\"` and `|| echo \"$rejected_summary\"`. If `candidate` is empty or not valid JSON (the normaliser's jq errors on a non-object finding, e.g. a string ele",
+       "id": "DISS-C-005",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/verdict-derive.sh:rejected_summary_check",
+       "description": "The check only greps for the `## Rejected dissent payloads` heading; the documented contract ('one line per entry') is not verified, so an empty section satisfies it. The call site is inside the trailer-present branch af",
+       "id": "DISS-C-006",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_derive_failure_mode",
+       "description": "A missing `id` is filled positionally as `DISS-<index+1>` without checking the other findings in the same payload. Models commonly emit ids on some findings and omit them on others, so a derived `DISS-002` can equal a mo",
+       "id": "DISS-C-007",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+       "description": "Observability of the second voice is incomplete: the companion subshell runs with `>/dev/null 2>&1`, so its `log` lines and the CLI hop's stderr are lost; `metadata.cost_usd`, `tokens_input`, `tokens_output` and `latency",
+       "id": "DISS-C-008",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "tests/unit/adversarial-review-companion.bats:setup",
+       "description": "The stubbed `invoke_dissenter` ignores its prompt-file, schema and timeout arguments, so the companion tests never verify that `$_ADVERSARIAL_WORKDIR/system-prompt.txt` and `user-prompt.txt` exist at the moment the compa",
+       "id": "DISS-C-009",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      }
+     ],
+     "status": "reviewed",
+     "voices": [
+      "codex-headless",
+      "claude-headless"
+     ]
+    }
+   },
+   "events": {
+    "AUDIT": {
+     "dissent_arrival_event": 273,
+     "dissent_launch_event": 121,
+     "n_events": 456,
+     "n_exec_probes": 3,
+     "n_test_runs": 10,
+     "n_tool_calls": 45,
+     "num_turns": 46,
+     "truncated_results": 2,
+     "writes": [
+      {
+       "event": 437,
+       "kind": "tool:Write",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md"
+      }
+     ]
+    },
+    "REVIEW": {
+     "dissent_arrival_event": 651,
+     "dissent_launch_event": 521,
+     "n_events": 715,
+     "n_exec_probes": 8,
+     "n_test_runs": 18,
+     "n_tool_calls": 56,
+     "num_turns": 57,
+     "truncated_results": 2,
+     "writes": [
+      {
+       "event": 521,
+       "kind": "tool:Bash",
+       "target": "grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+      },
+      {
+       "event": 604,
+       "kind": "tool:Write",
+       "target": "/tmp/loa-review/feedback-draft.md"
+      },
+      {
+       "event": 712,
+       "kind": "tool:Bash",
+       "target": "review.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 7,
+    "false_positives": 44,
+    "flags": 85,
+    "missed": [
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": true,
+    "verdicts": {
+     "audit": "CHANGES_REQUIRED",
+     "review": "CHANGES_REQUIRED"
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": true,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-002",
+        "how": "function",
+        "voice": "codex-headless"
+       },
+       {
+        "finding_id": "DISS-C-006",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 604,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 89,
+      "REVIEW": 180
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d2": {
+     "caught": true,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-003",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 604,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 87,
+      "REVIEW": 178
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d3": {
+     "caught": true,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-002",
+        "how": "function",
+        "voice": "claude-headless"
+       },
+       {
+        "finding_id": "DISS-C-008",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 604,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 85,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d4": {
+     "caught": true,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-003",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 597,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 87,
+      "REVIEW": 178
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d5": {
+     "caught": true,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-001",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 597,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 85,
+      "REVIEW": null
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d6": {
+     "caught": true,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-001",
+        "how": "function",
+        "voice": "codex-headless"
+       },
+       {
+        "finding_id": "DISS-C-003",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 597,
+      "kind": "tool:Bash",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 85,
+      "REVIEW": 178
+     },
+     "sources": [
+      "review.md",
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d7": {
+     "caught": true,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-004",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 604,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 81,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "AUDIT": 50,
+      "REVIEW": 33
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-009",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2",
+   "transcripts": {
+    "AUDIT": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/transcripts/events-AUDIT.jsonl",
+    "REVIEW": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t2/transcripts/events-REVIEW.jsonl"
+   },
+   "trial": 2
+  },
+  {
+   "arm": "a0_bare",
+   "cost_usd": 1.28301,
+   "envelopes": {},
+   "events": {
+    "BARE": {
+     "dissent_arrival_event": null,
+     "dissent_launch_event": null,
+     "n_events": 193,
+     "n_exec_probes": 0,
+     "n_test_runs": 0,
+     "n_tool_calls": 24,
+     "num_turns": 25,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 184,
+       "kind": "tool:Write",
+       "target": "/workspace/review.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 3,
+    "false_positives": 15,
+    "flags": 18,
+    "missed": [
+     "d1",
+     "d3",
+     "d5",
+     "d7",
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": null,
+    "verdicts": {
+     "audit": null,
+     "review": null
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": false,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": 48
+     },
+     "sources": []
+    },
+    "d2": {
+     "caught": true,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 184,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 13
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d3": {
+     "caught": false,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d4": {
+     "caught": true,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 184,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 13
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d5": {
+     "caught": false,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d6": {
+     "caught": true,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": {
+      "event": 184,
+      "kind": "tool:Write",
+      "phase": "BARE",
+      "when": "pre_dissent"
+     },
+     "region_read_event": {
+      "BARE": 13
+     },
+     "sources": [
+      "review.md"
+     ]
+    },
+    "d7": {
+     "caught": false,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "BARE": 10
+     },
+     "dissent_symbol_hits": {},
+     "first_citation": null,
+     "region_read_event": {
+      "BARE": null
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3",
+   "transcripts": {
+    "BARE": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1/a0_bare/review-03-t3/transcripts/events-BARE.jsonl"
+   },
+   "trial": 3
+  },
+  {
+   "arm": "a1_full",
+   "cost_usd": 17.986698,
+   "envelopes": {
+    "audit": {
+     "findings": [
+      {
+       "anchor": null,
+       "description": "For a finding missing failure_mode whose description has no sentence-ending punctuation, jq capture() emits no result; `// .` does not provide a fallback for an empty stream. The normalizer therefore returns an empty can",
+       "id": "DISS-001",
+       "severity": "MEDIUM",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": null,
+       "description": "A feedback file containing only `## Rejected dissent payloads` passes this check even when the envelope contains multiple rejected HIGH findings. No entry, disposition, or explanation is required, so unexamined security ",
+       "id": "DISS-002",
+       "severity": "MEDIUM",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": "load_adversarial_config",
+       "description": "The companion voice defaults to enabled both in the hardcoded defaults and in the config parser (`case \"$_cv\" in false|no|off|0) ... *) CONF_COMPANION_VOICE=\"true\"`). A config that never mentions `companion_voice` now se",
+       "id": "DISS-C-001",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "rejected_summary_check",
+       "description": "The contract in ADVERSARIAL-REVIEW.md says the feedback MUST contain one triage line per `rejected_summary` entry, but `verdict-derive.sh` only checks that a heading matching `^## Rejected dissent payloads` exists. An em",
+       "id": "DISS-C-002",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "rejected_summary=$(echo \"$rejected_summary\" | jq --argjson f \"$candidate\"",
+       "description": "The `rejected_summary` append uses `--argjson f \"$candidate\"` and falls back to the previous array on any jq failure. When `_normalize_finding_for_validation` fails (its jq pipeline is `2>/dev/null`, so a non-object or o",
+       "id": "DISS-C-003",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/skills/auditing-security/SKILL.md",
+       "description": "The pre-execution guardrail in both touched skills is fail-open: a missing script, a non-zero exit, or unparseable output all result in 'Continue'. Any input that makes `guardrails-orchestrator.sh` error (malformed UTF-8",
+       "id": "DISS-C-004",
+       "severity": "MEDIUM",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_companion_chain",
+       "description": "`budget_cents` is documented as 'each voice \u2264 this', but the companion chain walks up to three billable hops in sequence, each individually bounded, and it runs in a background subshell concurrently with the primary chai",
+       "id": "DISS-C-005",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_fold_companion",
+       "description": "`_fold_companion` passes the entire primary envelope and the entire companion envelope as `--argjson` command-line arguments and assigns the jq output straight back to `result`. If jq fails (an argument over `MAX_ARG_STR",
+       "id": "DISS-C-006",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": "_adv_cred_present",
+       "description": "The function is documented as 'presence only, value never read', but it extracts the credential value from `.env.local`/`.env` into the shell variable `val` via grep/sed. The value is never printed, but it now exists in ",
+       "id": "DISS-C-007",
+       "severity": "LOW",
+       "voice": "claude-headless"
+      }
+     ],
+     "status": "reviewed",
+     "voices": [
+      "codex-headless",
+      "claude-headless"
+     ]
+    },
+    "review": {
+     "findings": [
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+       "description": "When the primary chain fails but the companion completes, the fold appends the companion's findings while preserving the primary's api_failure or malformed_response status.",
+       "id": "DISS-001",
+       "severity": "BLOCKING",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": ".claude/scripts/verdict-derive.sh:rejected_summary_check",
+       "description": "The rejected-payload check accepts an empty heading as complete triage. It only searches for the heading and never verifies entries against rejected_summary.",
+       "id": "DISS-002",
+       "severity": "BLOCKING",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+       "description": "The new rejection-summary append assumes candidate is a valid JSON object. For an unenforced scalar finding, normalization can emit no JSON; --argjson then fails and the fallback silently preserves the old summary.",
+       "id": "DISS-003",
+       "severity": "BLOCKING",
+       "voice": "codex-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:main",
+       "description": "The companion walk is launched with `( _walk_companion_chain ... ) &` and only reaped by an unconditional `wait \"$companion_pid\"` on the happy path after the primary loop. No trap kills `$companion_pid` on EXIT/INT/TERM.",
+       "id": "DISS-C-001",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_walk_companion_chain",
+       "description": "`_walk_companion_chain` truncates only `companion.attempts` and `companion.vq` at start; it never removes a pre-existing `companion.result.json`, `companion.final`, `companion.rc` or `companion.status`. `_fold_companion`",
+       "id": "DISS-C-002",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+       "description": "The companion's success predicate is negative: `_walk_companion_chain` stops and persists the envelope whenever `status` is anything other than `malformed_response` or `api_failure`, and `_fold_companion` reports `status",
+       "id": "DISS-C-003",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_walk_companion_chain",
+       "description": "Every hop's verdict-quality sidecar is appended to `companion.vq` regardless of outcome (`[[ -s \"$vq\" ]] && echo \"$vq\" >> companion.vq`), and when the companion eventually completes, `main` feeds all of them to the aggre",
+       "id": "DISS-C-004",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/verdict-derive.sh:rejected_summary_check",
+       "description": "The default envelope path is `$(dirname \"$FILE\")/adversarial-${GATE}.json`, which only matches the sprint-review and sprint-audit layouts. The audit skill also writes deployment audits to `grimoires/loa/a2a/deployment-fe",
+       "id": "DISS-C-005",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      },
+      {
+       "anchor": ".claude/scripts/adversarial-review.sh:_repair_model",
+       "description": "The docs added in this PR state the repair round-trip goes \"no longer to the voice that produced the malformed finding\". `_repair_model` ignores the producing model entirely: on a keyless host it returns `claude-headless",
+       "id": "DISS-C-006",
+       "severity": "ADVISORY",
+       "voice": "claude-headless"
+      }
+     ],
+     "status": "reviewed",
+     "voices": [
+      "codex-headless",
+      "claude-headless"
+     ]
+    }
+   },
+   "events": {
+    "AUDIT": {
+     "dissent_arrival_event": 280,
+     "dissent_launch_event": 164,
+     "n_events": 595,
+     "n_exec_probes": 3,
+     "n_test_runs": 10,
+     "n_tool_calls": 47,
+     "num_turns": 48,
+     "truncated_results": 2,
+     "writes": [
+      {
+       "event": 578,
+       "kind": "tool:Write",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md"
+      },
+      {
+       "event": 582,
+       "kind": "tool:Write",
+       "target": "{\"type\":\"summary\",\"sprint_id\":\"sprint-1\",\"date\":\"2026-10-18\",\"verdict\":\"CHANGES_REQUIRED\",\"counts\":{\"critical\":0,\"high\":5,\"medium\":9,\"low\":9},\"excluded\":0,\"excluded_confirmed\":0,\"dissent\":{\"envelope\":\"grimoires/loa/a2a/sprint-1/adversarial-audit.json\",\"voices\":[\"codex-headless\",\"claude-headless\"],\"findings\":9,\"rejected\":0,\"degraded\":false},\"report\":\"grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md\"}"
+      }
+     ]
+    },
+    "REVIEW": {
+     "dissent_arrival_event": 533,
+     "dissent_launch_event": 440,
+     "n_events": 703,
+     "n_exec_probes": 5,
+     "n_test_runs": 18,
+     "n_tool_calls": 69,
+     "num_turns": 70,
+     "truncated_results": 1,
+     "writes": [
+      {
+       "event": 229,
+       "kind": "tool:Bash",
+       "target": "$d/engineer-feedback.md"
+      },
+      {
+       "event": 408,
+       "kind": "tool:Write",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+      },
+      {
+       "event": 667,
+       "kind": "tool:Write",
+       "target": "/workspace/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
+      }
+     ]
+    }
+   },
+   "files": {
+    "audit_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/eval/adversarial-audit.json",
+    "auditor_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md",
+    "engineer_feedback": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/engineer-feedback.md",
+    "review_envelope": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/eval/adversarial-review.json",
+    "review_md": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/sandbox/review.md",
+    "reviewer_concerns": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/sandbox/grimoires/loa/a2a/sprint-1/reviewer-concerns.md"
+   },
+   "grade": {
+    "caught": 6,
+    "false_positives": 36,
+    "flags": 65,
+    "missed": [
+     "d7",
+     "d8"
+    ],
+    "seeded": 8,
+    "verdict_accuracy": true,
+    "verdicts": {
+     "audit": "CHANGES_REQUIRED",
+     "review": "CHANGES_REQUIRED"
+    }
+   },
+   "per_defect": {
+    "d1": {
+     "caught": true,
+     "diff_line": [
+      393
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-002",
+        "how": "function",
+        "voice": "codex-headless"
+       },
+       {
+        "finding_id": "DISS-C-005",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": 216,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d2": {
+     "caught": true,
+     "diff_line": [
+      331
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-001",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d3": {
+     "caught": true,
+     "diff_line": [
+      266,
+      274
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-001",
+        "how": "function",
+        "voice": "codex-headless"
+       },
+       {
+        "finding_id": "DISS-C-003",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d4": {
+     "caught": true,
+     "diff_line": [
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-001",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d5": {
+     "caught": true,
+     "diff_line": [
+      203,
+      219
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d6": {
+     "caught": true,
+     "diff_line": [
+      236,
+      317
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": [
+       {
+        "finding_id": "DISS-C-001",
+        "how": "function",
+        "voice": "claude-headless"
+       },
+       {
+        "finding_id": "DISS-C-002",
+        "how": "function",
+        "voice": "claude-headless"
+       },
+       {
+        "finding_id": "DISS-C-004",
+        "how": "function",
+        "voice": "claude-headless"
+       }
+      ]
+     },
+     "first_citation": {
+      "event": 667,
+      "kind": "tool:Write",
+      "phase": "REVIEW",
+      "when": "post_dissent"
+     },
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": [
+      "engineer-feedback.md",
+      "auditor-sprint-feedback.md"
+     ]
+    },
+    "d7": {
+     "caught": false,
+     "diff_line": [
+      69
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "sources": []
+    },
+    "d8": {
+     "caught": false,
+     "diff_line": [
+      709,
+      746
+     ],
+     "diff_seen_event": {
+      "AUDIT": null,
+      "REVIEW": null
+     },
+     "dissent_symbol_hits": {
+      "audit": [],
+      "review": []
+     },
+     "first_citation": null,
+     "region_read_event": {
+      "AUDIT": 216,
+      "REVIEW": null
+     },
+     "sources": []
+    }
+   },
+   "run_dir": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3",
+   "transcripts": {
+    "AUDIT": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/transcripts/events-AUDIT.jsonl",
+    "REVIEW": "grimoires/loa/reports/ablation-2.0/batches/priority-v2-p1b/a1_full/review-03-t3/transcripts/events-REVIEW.jsonl"
+   },
+   "trial": 3
+  }
+ ],
+ "task": "review-03"
+}

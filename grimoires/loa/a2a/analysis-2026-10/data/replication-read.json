@@ -1,0 +1,915 @@
+{
+ "batch": "replication-01",
+ "runs": [
+  {
+   "run_id": "replication-01-a0_bare-review-r17-t1",
+   "arm": "a0_bare",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 1,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 1.315191,
+   "wall_ms": 256449,
+   "caught": 3,
+   "seeded": 20,
+   "missed": [
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7",
+    "d8",
+    "d9",
+    "d10",
+    "d12",
+    "d13",
+    "d14",
+    "d15",
+    "d16",
+    "d17",
+    "d18"
+   ],
+   "flags": 19,
+   "false_positives": 16,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t1",
+   "arm": "a1_full",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 1,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 17.017743,
+   "wall_ms": 2397740,
+   "caught": 15,
+   "seeded": 20,
+   "missed": [
+    "d3",
+    "d5",
+    "d7",
+    "d18",
+    "d19"
+   ],
+   "flags": 133,
+   "false_positives": 70,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a0_bare-review-r17-t2",
+   "arm": "a0_bare",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 2,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 2.155139,
+   "wall_ms": 471744,
+   "caught": 5,
+   "seeded": 20,
+   "missed": [
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7",
+    "d8",
+    "d10",
+    "d11",
+    "d12",
+    "d13",
+    "d16",
+    "d17",
+    "d18",
+    "d19"
+   ],
+   "flags": 25,
+   "false_positives": 20,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t2",
+   "arm": "a1_full",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 2,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 17.472783,
+   "wall_ms": 2579515,
+   "caught": 17,
+   "seeded": 20,
+   "missed": [
+    "d3",
+    "d5",
+    "d19"
+   ],
+   "flags": 90,
+   "false_positives": 44,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a0_bare-review-r17-t3",
+   "arm": "a0_bare",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 3,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 1.542521,
+   "wall_ms": 326565,
+   "caught": 5,
+   "seeded": 20,
+   "missed": [
+    "d1",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7",
+    "d8",
+    "d9",
+    "d10",
+    "d12",
+    "d13",
+    "d16",
+    "d17",
+    "d18",
+    "d19"
+   ],
+   "flags": 26,
+   "false_positives": 22,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t3",
+   "arm": "a1_full",
+   "task": "review-r17",
+   "pr": "pr-17",
+   "trial": 3,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 14.728297,
+   "wall_ms": 2171934,
+   "caught": 13,
+   "seeded": 20,
+   "missed": [
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d9",
+    "d17"
+   ],
+   "flags": 89,
+   "false_positives": 55,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a0_bare-review-r18-t1",
+   "arm": "a0_bare",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 1,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 1.173643,
+   "wall_ms": 317894,
+   "caught": 0,
+   "seeded": 8,
+   "missed": [
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7",
+    "d8"
+   ],
+   "flags": 8,
+   "false_positives": 8,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t1",
+   "arm": "a1_full",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 1,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 10.653686,
+   "wall_ms": 1740251,
+   "caught": 4,
+   "seeded": 8,
+   "missed": [
+    "d1",
+    "d2",
+    "d3",
+    "d8"
+   ],
+   "flags": 54,
+   "false_positives": 36,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a0_bare-review-r18-t2",
+   "arm": "a0_bare",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 2,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 1.136282,
+   "wall_ms": 320930,
+   "caught": 4,
+   "seeded": 8,
+   "missed": [
+    "d3",
+    "d5",
+    "d6",
+    "d8"
+   ],
+   "flags": 15,
+   "false_positives": 9,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t2",
+   "arm": "a1_full",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 2,
+   "row_status": "contaminated",
+   "row_degraded": false,
+   "cost_usd": 10.660102,
+   "wall_ms": 1781842,
+   "caught": 4,
+   "seeded": 8,
+   "missed": [
+    "d1",
+    "d2",
+    "d4",
+    "d8"
+   ],
+   "flags": 69,
+   "false_positives": 42,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a0_bare-review-r18-t3",
+   "arm": "a0_bare",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 3,
+   "row_status": "completed",
+   "row_degraded": false,
+   "cost_usd": 1.278996,
+   "wall_ms": 337092,
+   "caught": 3,
+   "seeded": 8,
+   "missed": [
+    "d3",
+    "d5",
+    "d6",
+    "d7",
+    "d8"
+   ],
+   "flags": 18,
+   "false_positives": 15,
+   "verdicts": {
+    "review": null,
+    "audit": null
+   },
+   "crosscheck_ok": true
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t3",
+   "arm": "a1_full",
+   "task": "review-r18",
+   "pr": "pr-18",
+   "trial": 3,
+   "row_status": "contaminated",
+   "row_degraded": false,
+   "cost_usd": 9.6729,
+   "wall_ms": 1670953,
+   "caught": 5,
+   "seeded": 8,
+   "missed": [
+    "d1",
+    "d2",
+    "d3"
+   ],
+   "flags": 79,
+   "false_positives": 53,
+   "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+   },
+   "crosscheck_ok": true
+  }
+ ],
+ "valid_cells": [
+  "review-r17-t1",
+  "review-r17-t2",
+  "review-r17-t3",
+  "review-r18-t1"
+ ],
+ "excluded_cells_per_arm": {
+  "a0_bare": 0,
+  "a1_full": 2
+ },
+ "excluded_share": {
+  "a0_bare": 0.0,
+  "a1_full": 0.3333333333333333
+ },
+ "read": {
+  "label": "pre-registered (valid cells)",
+  "n_defects": 28,
+  "point": 0.5238095238095238,
+  "ci90": [
+   0.39285714285714285,
+   0.6428571428571429
+  ],
+  "degenerate": false,
+  "cluster2_ci90": [
+   0.5,
+   0.5333333333333333
+  ],
+  "per_task": {
+   "review-r17": {
+    "bare": 13,
+    "full": 45,
+    "n": 60,
+    "defects": 20
+   },
+   "review-r18": {
+    "bare": 0,
+    "full": 4,
+    "n": 8,
+    "defects": 8
+   }
+  },
+  "established": true
+ },
+ "read_sensitivity_contaminated_included": {
+  "label": "sensitivity: repo_name-contaminated rows hand-read as scan false positives and included",
+  "n_defects": 28,
+  "point": 0.4523809523809524,
+  "ci90": [
+   0.3095238095238095,
+   0.5952380952380952
+  ],
+  "degenerate": false,
+  "cluster2_ci90": [
+   0.25,
+   0.5333333333333333
+  ],
+  "per_task": {
+   "review-r17": {
+    "bare": 13,
+    "full": 45,
+    "n": 60,
+    "defects": 20
+   },
+   "review-r18": {
+    "bare": 7,
+    "full": 13,
+    "n": 24,
+    "defects": 8
+   }
+  },
+  "established": true
+ },
+ "sensitivity_cells": [
+  "review-r17-t1",
+  "review-r17-t2",
+  "review-r17-t3",
+  "review-r18-t1",
+  "review-r18-t2",
+  "review-r18-t3"
+ ],
+ "oracle": [
+  {
+   "run_id": "replication-01-a1_full-review-r17-t1",
+   "gate": "REVIEW",
+   "n_diff_cmds": 3,
+   "n_ws_reads": 8,
+   "exposed": [
+    "L01-finding",
+    "L02-with-skips-the-context-check-by-design-t",
+    "L08-the-verdict-is-a-porcelain-diff-of-the-m",
+    "L10-is-an-arbitrary-execution-path-with-a-bo",
+    "L11-the-hand-off-snapshot-inlines-the-map-do",
+    "L13-interprets-backslash-escapes-in-the-line",
+    "L14-the-write-subcommands-never-consult-the",
+    "L17-in-strips-c0-and-del-only",
+    "L20-dispatch-markers-the-pending-file-glob-a"
+   ],
+   "exposed_detail": [
+    {
+     "defect": "d2",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d11",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 399,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "AUDIT"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": true
+    },
+    {
+     "defect": "d13",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d14",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d17",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 399,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "AUDIT"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d20",
+     "exposed_at": 315,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": true
+    },
+    {
+     "defect": "d1",
+     "exposed_at": 317,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d8",
+     "exposed_at": 317,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    },
+    {
+     "defect": "d10",
+     "exposed_at": 317,
+     "caught": true,
+     "first_citation": {
+      "event": 731,
+      "kind": "tool:Write",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    }
+   ],
+   "n_exposed_cited_after": 9,
+   "n_exposed_cited_after_bare_missed": 7,
+   "diffs": [
+    {
+     "event": 314,
+     "cmd": "cd /workspace; echo \"=== chart-ticket.sh head -> later\"; diff pr/head/.claude/scripts/chart-ticket.sh .claude/scripts/chart-ticket.sh | head -150",
+     "planted": [
+      "L02-with-skips-the-context-check-by-design-t",
+      "L11-the-hand-off-snapshot-inlines-the-map-do",
+      "L13-interprets-backslash-escapes-in-the-line",
+      "L14-the-write-subcommands-never-consult-the",
+      "L17-in-strips-c0-and-del-only",
+      "L20-dispatch-markers-the-pending-file-glob-a"
+     ]
+    },
+    {
+     "event": 316,
+     "cmd": "cd /workspace; echo \"=== probe\"; diff pr/head/.claude/scripts/chart-unblock-probe.sh .claude/scripts/chart-unblock-probe.sh | head -80; echo \"=== SKILL\"; diff p",
+     "planted": [
+      "L01-finding",
+      "L08-the-verdict-is-a-porcelain-diff-of-the-m",
+      "L10-is-an-arbitrary-execution-path-with-a-bo"
+     ]
+    },
+    {
+     "event": 365,
+     "cmd": "cd /workspace; diff pr/head/.claude/scripts/chart-ticket.sh .claude/scripts/chart-ticket.sh | sed -n 150,400p",
+     "planted": [
+      "L02-with-skips-the-context-check-by-design-t",
+      "L11-the-hand-off-snapshot-inlines-the-map-do",
+      "L14-the-write-subcommands-never-consult-the",
+      "L20-dispatch-markers-the-pending-file-glob-a"
+     ]
+    }
+   ]
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t1",
+   "gate": "AUDIT",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 1,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t2",
+   "gate": "REVIEW",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 7,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t2",
+   "gate": "AUDIT",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 7,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t3",
+   "gate": "REVIEW",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 24,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r17-t3",
+   "gate": "AUDIT",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 2,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t1",
+   "gate": "REVIEW",
+   "n_diff_cmds": 1,
+   "n_ws_reads": 6,
+   "exposed": [
+    "L08-the-seams-rule-s-fence-tracking-and-date"
+   ],
+   "exposed_detail": [
+    {
+     "defect": "d7",
+     "exposed_at": 227,
+     "caught": true,
+     "first_citation": {
+      "event": 579,
+      "kind": "tool:Bash",
+      "when": "post_dissent",
+      "phase": "REVIEW"
+     },
+     "cited_after_exposure": true,
+     "bare_caught_same_trial": false
+    }
+   ],
+   "n_exposed_cited_after": 1,
+   "n_exposed_cited_after_bare_missed": 1,
+   "diffs": [
+    {
+     "event": 226,
+     "cmd": "diff -u pr/head/.claude/scripts/validate-artifact.sh .claude/scripts/validate-artifact.sh | head -300; echo ======; diff -u pr/head/.claude/skills/reviewing-cod",
+     "planted": [
+      "L08-the-seams-rule-s-fence-tracking-and-date"
+     ]
+    }
+   ]
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t1",
+   "gate": "AUDIT",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 5,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t2",
+   "gate": "REVIEW",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 7,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t2",
+   "gate": "AUDIT",
+   "n_diff_cmds": 1,
+   "n_ws_reads": 3,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": [
+    {
+     "event": 108,
+     "cmd": "cd /workspace; echo \"### ws red-test-check.sh vs head (later fixes hint)\"; diff pr/head/.claude/scripts/red-test-check.sh .claude/scripts/red-test-check.sh | he",
+     "planted": []
+    }
+   ]
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t3",
+   "gate": "REVIEW",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 14,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  },
+  {
+   "run_id": "replication-01-a1_full-review-r18-t3",
+   "gate": "AUDIT",
+   "n_diff_cmds": 0,
+   "n_ws_reads": 2,
+   "exposed": [],
+   "exposed_detail": [],
+   "n_exposed_cited_after": 0,
+   "n_exposed_cited_after_bare_missed": 0,
+   "diffs": []
+  }
+ ],
+ "oracle_exposed_cells": [
+  "review-r17-t1",
+  "review-r18-t1"
+ ],
+ "read_oracle_clean": {
+  "label": "oracle-exposed cells excluded (from the sensitivity cell set)",
+  "n_defects": 28,
+  "point": 0.39285714285714285,
+  "ci90": [
+   0.21428571428571427,
+   0.5714285714285714
+  ],
+  "degenerate": false,
+  "cluster2_ci90": [
+   0.125,
+   0.5
+  ],
+  "per_task": {
+   "review-r17": {
+    "bare": 10,
+    "full": 30,
+    "n": 40,
+    "defects": 20
+   },
+   "review-r18": {
+    "bare": 7,
+    "full": 9,
+    "n": 16,
+    "defects": 8
+   }
+  },
+  "established": true
+ },
+ "read_oracle_zeroed": {
+  "label": "oracle-exposed-and-cited-after defect-trials set to not caught",
+  "n_defects": 28,
+  "point": 0.3333333333333333,
+  "ci90": [
+   0.19047619047619047,
+   0.47619047619047616
+  ],
+  "degenerate": false,
+  "cluster2_ci90": [
+   0.20833333333333334,
+   0.3833333333333333
+  ],
+  "per_task": {
+   "review-r17": {
+    "bare": 13,
+    "full": 36,
+    "n": 60,
+    "defects": 20
+   },
+   "review-r18": {
+    "bare": 7,
+    "full": 12,
+    "n": 24,
+    "defects": 8
+   }
+  },
+  "established": true
+ },
+ "same_function_window": {
+  "bare": 33,
+  "full": 60,
+  "n": 84,
+  "gap": 0.32142857142857145
+ },
+ "dissent_gates": {
+  "replication-01-a1_full-review-r17-t1": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "reviewed",
+    2
+   ]
+  },
+  "replication-01-a1_full-review-r17-t2": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "reviewed",
+    2
+   ]
+  },
+  "replication-01-a1_full-review-r17-t3": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "budget_exceeded",
+    null
+   ]
+  },
+  "replication-01-a1_full-review-r18-t1": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "budget_exceeded",
+    null
+   ]
+  },
+  "replication-01-a1_full-review-r18-t2": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "budget_exceeded",
+    null
+   ]
+  },
+  "replication-01-a1_full-review-r18-t3": {
+   "review": [
+    "budget_exceeded",
+    null
+   ],
+   "audit": [
+    "budget_exceeded",
+    null
+   ]
+  }
+ },
+ "cost_per_run": {
+  "a0_bare": 1.4336286666666667,
+  "a1_full": 13.367585166666666
+ },
+ "wall_min_per_run": {
+  "a0_bare": 5.640761111111112,
+  "a1_full": 34.28398611111111
+ },
+ "precision": {
+  "a0_bare": {
+   "caught": 20,
+   "flags": 111,
+   "fp": 90,
+   "precision": 0.18018018018018017
+  },
+  "a1_full": {
+   "caught": 58,
+   "flags": 514,
+   "fp": 300,
+   "precision": 0.11284046692607004
+  }
+ }
+}

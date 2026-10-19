@@ -1,9 +1,0 @@
-{
-  "provider": "openai",
-  "auth_type": "http_api",
-  "state": "CLOSED",
-  "failure_count": 0,
-  "last_failure_ts": 1792141925.1741,
-  "opened_at": null,
-  "half_open_probes": 0
-}

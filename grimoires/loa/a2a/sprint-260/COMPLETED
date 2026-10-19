@@ -1,7 +1,0 @@
-sprint: sprint-260 (local sprint-3)
-completed_at: 2026-10-16T23:24:47Z
-commit: 53600ea3
-review: engineer-feedback.md APPROVED (round 2)
-audit: auditor-sprint-feedback.md APPROVED (round 2, direct verification)
-batch: priority-p1 132 rows (suite v1, MANIFEST.sha256 30e1f2ad…); reads: H1 not established, A4 not worse → HALT (DEC-0558); operator option 1 (DEC-0559)
-grader: 1.2.9 (1.2.1 … 1.2.9 inside the sprint; inline P1 grades 1.2.2 … 1.2.5; re-scan under 1.2.9 changes no contaminated field)

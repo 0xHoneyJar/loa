@@ -1,0 +1,5 @@
+base_commit=acff89deb895792759ac3188437efaff69eece28
+loa_mount=none
+loa_mount=none
+claude_md_sha256=absent
+loa_config_sha256=absent

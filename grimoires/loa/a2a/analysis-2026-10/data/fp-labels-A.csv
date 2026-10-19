@@ -1,0 +1,62 @@
+packet_id,label,confidence,note
+P01,not-a-finding,high,Line 390 is listed only as a consumer of the get_completed_sprints overcount at 83-89; the defect lives elsewhere.
+P02,not-a-finding,high,Finding is about get_completed_sprints at :83; line 243 is named only as where the inflated progress surfaces.
+P03,not-a-finding,high,Doc line cited as the stated contract; the asserted defect is the heading-only check in verdict-derive.sh:137.
+P04,style,medium,Companion sidecar path not recorded in companion_voice; rejected entries are still summarised in the envelope. Discoverability nicety.
+P05,not-a-finding,high,Config comment at .loa.config.yaml:113 is quoted as supporting evidence for a finding at adversarial-review.sh:1835.
+P06,style,medium,"Accurate that val briefly holds the secret, contradicting the comment; presence-only grep is a hardening/wording point, no failure."
+P07,not-a-finding,high,Finding is about get_completed_sprints at :83; line 148 is named only as where the wrong complete state surfaces.
+P08,not-a-finding,high,loa-status.sh:869 is cited only as a caller relying on --show; defect is in loa-context-class.sh:66.
+P09,style,medium,echo vs printf on JSON content: content starts with { so option parsing and trailing newline do not change jq result.
+P10,not-a-finding,high,PARALLEL-REVIEW.md:3-4 is cited as where the pointer lives; finding concerns SKILL.md Phase -1 wording.
+P11,style,medium,Unbounded title/anchor in rejected_summary is a hardening suggestion with no demonstrated failure; id collision cites 1316 only as pointer.
+P12,style,medium,Doc wording: Phase -1 lost line-count bands but still points to REFERENCE.md; no concrete failure.
+P13,not-a-finding,medium,constraints.json lines listed as the strings involved; the asserted defect is the unregenerated block in CLAUDE.loa.md and budget gate.
+P14,style,medium,"Complaint that reviewer.md/PR.md lacks AC section, tests and CHANGELOG is process/documentation, not a defect at this line."
+P15,style,medium,echo on JSON object content is harmless here; empty jq output is already caught. The null-stamp point belongs to the 156 guard finding.
+P16,style,medium,"Bare filename pointer and dropped Decision Log routing are documentation regressions in an include, no functional failure."
+P17,style,medium,"Accurate: docs say payload is normalised but sidecar gets raw finding. A duplicated documentation inaccuracy, not a code defect."
+P18,not-a-finding,high,Line 401 is listed as a consumer of the overcount bug at 83-89; not itself the defect.
+P19,not-a-finding,high,"Lines 205/213 refer to the test file importing the removed helper, not adapter.py; misattributed cross-reference."
+P20,style,high,Header detection list not mentioning heredocs is documentation polish.
+P21,not-a-finding,high,git-branch-prune.sh:76 is cited as the existing guard pattern to copy; defect is in loa-context-class.sh:70.
+P22,style,medium,Test-coverage gap observation; stub ignoring prompt args is not a demonstrated failure in shipped code.
+P23,real,high,"Positional DISS-NNN fill ignores model-stated ids; code confirms [DISS-002, no-id] yields duplicate ids used for triage."
+P24,style,medium,"Accurate: stubs claim anchors stay stable yet have no headings. Documentation claim inaccuracy, minor."
+P25,real,medium,"Snippet shows head takes BASH_REMATCH[3] as root after removing single-root count; multi-root find bypass is real, cited a few lines off."
+P26,real,medium,"Marker rule dropped _start_heredoc; a suppressed heredoc opener's body and terminator are scanned as code, causing false positives."
+P27,real,high,_fold_companion appends companion findings without updating metadata.status or cost totals; code shown confirms the api_failure envelope stays.
+P28,real,high,Non-streaming path now maps billing-class 4xx to terminal InvalidInputError; diff confirms removal of chain-walkable classification.
+P29,not-a-finding,high,test_dcg.sh:367-382 is cited as the only existing fixture; the finding is about the hook comment and missing fixtures.
+P30,real,high,Same billing-class regression on non-streaming path confirmed by diff; fallback chain-walk lost for out-of-credit errors.
+P31,style,medium,"17 B headroom under the lowered LOA_LIMIT is a slack/target preference; current file passes, no present failure."
+P32,real,medium,"Opt-out case matches only lowercase false|no|off|0; yq echoes YAML False/FALSE verbatim so companion stays on. Accurate, minor."
+P33,style,medium,Accurate: doc says sidecar payload is normalised while raw finding is written. Documentation inaccuracy without functional impact.
+P34,style,medium,"Table label says long is >=1M while hook classes everything >200K as long; documentation precision, design preference on 400K models."
+P35,not-a-finding,high,loa-prime.sh lines cited as example sites the head scanner misses; the defect is in check-no-swallowed-jq.sh heredoc handling.
+P36,not-a-finding,high,context-class.bats:78 cited as evidence tests anticipate macOS; defect is the bare timeout in the hook.
+P37,not-a-finding,high,Secret-scanning lines cited to say redaction still runs; supporting pointer for a finding about companion egress defaults.
+P38,not-a-finding,high,run-preflight.sh:83 is cited as a triggering input example; defect is the heredoc detection regression in the scanner.
+P39,style,medium,"Companion sidecar path not on envelope and empty file left; summaries are still merged with voice tags, so a discoverability nicety."
+P40,real,medium,"_adv_family_of sources maps in-shell and indexes MODEL_PROVIDERS unvalidated, bypassing documented injection hardening and alias resolution."
+P41,real,medium,"Marker line no longer opens heredoc state, so fixture bodies are flagged as violations; matches diff."
+P42,not-a-finding,high,cheval.py walker lines are cited to explain consequence; the defect is the removed ValueError handler in agy_headless_adapter.py.
+P43,not-a-finding,high,get_total_sprints is cited as the correct denominator; the defect is get_completed_sprints at 83-89.
+P44,not-a-finding,high,Test-coverage pointer to untouched test_dcg.sh; the defect itself is the multi-root bypass in the hook.
+P45,style,high,Process complaint: new --envelope flag lacks CHANGELOG/test evidence; the flag parsing itself is correct.
+P46,not-a-finding,high,Acceptance-criteria summary table row citing settings.json wiring as evidence; not an asserted defect here.
+P47,real,high,"Marker rule dropped _start_heredoc, so suppressed fixture heredoc bodies are now flagged; reproduced, matches diff."
+P48,not-a-finding,medium,"Line 2206 belongs to adversarial-review.sh (swallowed aggregator error), mis-resolved onto .loa.config.yaml; supporting pointer only."
+P49,style,medium,Complaint about the Step 1 comment wording and missing tests; the substantive hole is the separate in_heredoc finding.
+P50,style,high,"Flattening the reference table and dropping the NOTES pointer is a documentation/navigation preference, no failure."
+P51,real,medium,"Check greps only the heading, so an empty or partial triage section passes despite N rejected entries; contract unenforced."
+P52,not-a-finding,medium,SKILL.md:124 is named as one propagated copy; the finding is about the include source context_discipline.md:2.
+P53,style,medium,Dropping the Decision Log routing clause is guidance wording loss; no demonstrable failure in this PR.
+P54,real,high,"Marker rule no longer calls _start_heredoc; suppressed fixture heredoc bodies are flagged, breaking documented convention. Matches diff."
+P55,not-a-finding,high,_build_command argv lines are cited as context for the NUL-byte finding at line 157; not a defect here.
+P56,style,medium,Stale 'Loaded by' cell in a summary table is documentation drift with no functional consequence.
+P57,style,medium,Test fragility on yq-less runners and catalog changes is a robustness preference; repo tooling assumes yq.
+P58,style,high,"Missing AC walkthrough, test evidence and CHANGELOG in reviewer.md is a process/documentation complaint, not a code defect."
+P59,real,high,"Explicitly cited: non-streaming path drops billing-class mapping, so out-of-credit 4xx become terminal and the fallback chain stops."
+P60,real,high,"Removed except ValueError: NUL-byte argv raises ValueError not OSError, crashing instead of walking the chain."
+P61,not-a-finding,medium,CC-9 at line 111 is cited as the reproduction of a ROOT-resolution issue at loa-context-class.sh:26; evidence pointer.

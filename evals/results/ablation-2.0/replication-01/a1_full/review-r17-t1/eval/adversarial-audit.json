@@ -1,0 +1,221 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Compare file contents when checking probe isolation",
+      "body": "The before/after Git status comparison cannot detect changes to an already modified file. For example, if `app/config.js` is already marked ` M`, a probe can overwrite it through the main checkout's absolute path and leave the same status entry, causing this helper to exit 0. Ignored directory contents can similarly change without changing their status entry. A detached worktree does not restrict filesystem access, so this bypasses the promised check that probes leave the main tree unchanged. Enforce write isolation or compare content snapshots, including existing dirty and ignored files.",
+      "description": "The before/after Git status comparison cannot detect changes to an already modified file. For example, if `app/config.js` is already marked ` M`, a probe can overwrite it through the main checkout's absolute path and leave the same status entry, causing this helper to exit 0. Ignored directory contents can similarly change without changing their status entry. A detached worktree does not restrict filesystem access, so this bypasses the promised check that probes leave the main tree unchanged. Enforce write isolation or compare content snapshots, including existing dirty and ignored files.",
+      "category": "other",
+      "severity": "MEDIUM",
+      "priority": 2,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-tdj8z0h9/.claude/scripts/chart-unblock-probe.sh",
+        "line_range": {
+          "start": 69,
+          "end": 70
+        }
+      },
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The before/after Git status comparison cannot detect changes to an already modified file.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "injection",
+      "anchor": "tools: [Read, Grep, Glob, WebFetch, Write]",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/agents/chart-researcher.md",
+      "cross_file_justification": ".claude/data/agent-types.yaml marks chart-researcher write_capable: true, and .claude/scripts/chart-ticket.sh op_research_end is the only control that bounds what the subagent wrote. The escalated full-file copy of chart-researcher.md shows no Write tool, so the diff and the on-disk file disagree about the capability set.",
+      "description": "The diff gives the chart-researcher subagent both WebFetch (untrusted web content) and Write, with the restriction to a single report path enforced only by prompt text ('Write exactly one file'). A fetched page containing injected instructions can make the agent write any path in the repo (e.g. .claude/hooks/*, .claude/settings*.json, grimoires/loa/decisions.yaml). The post-hoc scope check in chart-ticket.sh research-end compares a git-status snapshot stored at grimoires/loa/research/.chart-<slug>-<ticket>.dispatch against the current status and whitelists every path under grimoires/loa/research/. The marker therefore lives inside the zone the subagent is allowed to write: an injected agent can Read the marker and Write it back with added '?? <path>' lines for the files it created, and the comm -13 diff reports nothing. The subagent can also overwrite other tickets' reports in the same directory. agent-types.yaml additionally records the agent as write_capable, which other guards may consult.",
+      "failure_mode": "Prompt injection through WebFetch results in arbitrary file writes in the repository (including hook scripts and the decision ledger) that survive the research-end scope check, and the poisoned report is later inlined into a priority-1 'settled decisions' context file read by /plan-and-analyze.",
+      "suggested_fix": "Drop Write from the researcher's tool list (as the full-file version already does) and have the charting session save the final message; keep agent-types.yaml write_capable: false. If a Write path is kept, store the dispatch marker outside the allowed write zone (e.g. .run/ or a mktemp dir recorded in a non-writable location), make it read-only, and compare content hashes rather than git-status lines.",
+      "anchor_status": "cross_file",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "op_close",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh",
+      "cross_file_justification": null,
+      "description": "/chart is documented as interactive-only, with the single unattended exception 'close <slug> --consumed-by <cycle> on a handed-off map' (chart.md, chart-guard.sh --close-consumed). op_close enforces the interactive-context check only on the --reason branch. The --consumed-by branch never reads the map's **Status** (op_handoff does, op_close does not), never verifies that the cycle id exists, and never calls chart-guard. An unattended run can therefore pass --consumed-by <any-id> against a map still in 'charting' and the script rejects every open ledger row (dw reject ... --recorded-by chart), closes every question bead and the epic, appends '## Closed' and sets Status closed.",
+      "failure_mode": "An autonomous or prompt-injected session silently destroys an in-progress decision map, converting operator-pending decisions into rejected rows and closed beads, under the one code path that is deliberately exempt from the interactive guard.",
+      "suggested_fix": "In op_close, when --consumed-by is given require doc_field Status == handed-off (die otherwise), validate that the cycle id resolves (e.g. exists in grimoires/loa/ledger.json or the cycle registry), and have chart-guard.sh --close-consumed perform the same Status check so both layers agree with the documented rule.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "op_research_end",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh",
+      "cross_file_justification": ".claude/scripts/chart-unblock-probe.sh uses the identical before/after 'git status --porcelain --untracked-files=all --ignored=matching' string comparison as its sole integrity verdict.",
+      "description": "Both scope checks compare git-status output lines, not file contents. A file that is already modified before the snapshot (' M path') produces the same status line after further edits, so changes to it are invisible. Ignored directories appear as a single '!! dir/' entry, so new or changed files inside an existing ignored directory (e.g. node_modules/, .claude/*.local.json patterns, .env if present) go unreported. Nothing under .git/ ever appears in git status. research-end only spot-checks .run and .beads with find -newer and truncates to 20 entries.",
+      "failure_mode": "A research subagent or unblock probe can alter pre-dirty tracked files, ignored secrets/config files, or repository metadata while the check reports the tree unchanged, defeating the 'never writes outside its zone' invariant the tickets rely on.",
+      "suggested_fix": "Snapshot content hashes (e.g. git stash-free: 'git ls-files -z | xargs sha256sum' plus hashes of untracked/ignored files) rather than status lines; include .git/hooks, .git/config and .git/info in the baseline; fail when any hash differs outside the allowed path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "if ! git -C \"$MAIN\" worktree add --detach \"${SCRATCH}/wt\" HEAD",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-unblock-probe.sh",
+      "cross_file_justification": null,
+      "description": "The throwaway worktree shares the main repository's common .git directory. A probe running inside it can write to $(git rev-parse --git-common-dir)/hooks/*, .git/config (core.hooksPath, core.fsmonitor, aliases) or .git/info/exclude of the MAIN repo. These paths persist after 'git worktree remove', are never shown by git status, and are executed by the operator's next git invocation and by the safety hook itself (block-destructive-bash.sh calls git rev-parse / git branch). The probe argv is agent-chosen and runs with the user's full privileges and network; the helper's only promise is main-tree integrity, which this breaks.",
+      "failure_mode": "An unblock probe plants a persistent hook or fsmonitor command in the main repo's .git, achieving code execution on subsequent git operations while chart-unblock-probe.sh exits 0 and reports the tree unchanged.",
+      "suggested_fix": "Clone to the scratch dir instead of adding a worktree (git clone --shared or --local into mktemp, with core.hooksPath pointed at an empty dir), or run the probe with GIT_DIR/GIT_COMMON_DIR unset and set -c core.hooksPath=/dev/null; add .git/hooks and .git/config to the before/after integrity baseline.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "_fr11_spike_decided",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/safety/block-destructive-bash.sh",
+      "cross_file_justification": null,
+      "description": "The new FR-1.1 exception lets 'git branch -D spike/<slug>' through when grimoires/loa/decisions.yaml contains a row with status decided, a '→ decided' transition whose 'by' starts with 'operator:', and the matching source. That ledger is a plain tracked YAML file the agent can edit with its Write/Edit tools (which this Bash hook never sees), and chart-ticket.sh passes an unvalidated --recorded-by string to dec-write-lib.sh, so the 'operator:' prefix is a free-text claim. The safety hook therefore trusts a trust anchor that the party it guards against can author.",
+      "failure_mode": "An agent (or injected instruction) adds or edits a decided row with by: operator:anything, then force-deletes an unmerged spike branch; if the branch was never pushed the prototype work is lost without the hook objecting.",
+      "suggested_fix": "Require the branch to exist on a remote (git rev-parse --verify refs/remotes/origin/spike/<slug>) in addition to the ledger row, or verify the ledger row via git history (the commit that added the decided transition is authored by a human and is on origin/main), rather than trusting file contents alone.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "READY=$(printf '%s' \"$READY\" | jq -c 'if type == \"array\" then map(select((.issue_type // \"\") != \"question\")) else [] end' 2>/dev/null || echo \"[]\")",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/beads/get-ready-work.sh",
+      "cross_file_justification": ".claude/scripts/chart-frontier.sh reads the type as (.issue_type // .type // \"\"), and .claude/scripts/beads/create-sprint-task.sh documents that br's JSON schema differs across releases (labels as strings vs {name} objects). The build path's exclusion relies on a single field name.",
+      "description": "The header promises that question beads are 'never build work, whatever labels they carry', and /implement and implementing-tasks SKILL.md are rewired to depend on this script for that guarantee. The filter only inspects .issue_type. A br release that emits .type (the alias chart-frontier.sh already tolerates) makes the filter fail open: every decision ticket re-enters the ready set and an autonomous /run can claim and 'implement' a decision that was meant to be decided by the operator.",
+      "failure_mode": "Schema drift in br output silently reintroduces question beads into build work, undoing the sprint/decision separation that D-4.7 and the /chart feature are built on.",
+      "suggested_fix": "Filter on (.issue_type // .type // \"\") as chart-frontier.sh does, and fail closed (exit non-zero or drop the item) when neither field is present rather than letting an untyped bead through.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "section_append",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh",
+      "cross_file_justification": null,
+      "description": "section_append passes operator/agent text to awk via -v line=..., and awk interprets backslash escapes in -v assignments. san1 strips control characters but not backslashes, so a value like 'x\\n## Closed\\n- ...' or 'x\\n**Status**: closed' survives sanitization and expands into extra lines, injecting new sections or metadata-looking lines into the tracked map doc that doc_field/section_bullets later parse. Similarly, br create \"$q\" places an unprefixed, agent-supplied question first, so a question beginning with '-' may be parsed by br as a flag.",
+      "failure_mode": "Crafted --line/--why/--name values rewrite map-doc structure (sections, Closed markers) that downstream scripts treat as state; a leading-dash question can alter br create semantics.",
+      "suggested_fix": "Strip or escape backslashes in san1 (or pass the line via ENVIRON/stdin instead of -v), and prefix or use '--' / '--title' when passing agent text to br create.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-19T03:19:40Z",
+    "tokens_input": 124455,
+    "tokens_output": 12625,
+    "cost_usd": 0,
+    "latency_ms": 33919,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 18,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7fe80b24a6c7951e9ed52e74b4b2964c344a59e4de1b049a1bc7a64c2743d690",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

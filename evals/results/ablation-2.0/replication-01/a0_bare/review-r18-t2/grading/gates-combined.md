@@ -1,0 +1,15 @@
+head/.claude/scripts/red-test-check.sh:160
+head/.claude/skills/bug-triaging/resources/templates/micro-sprint.md:43
+red-test-check.sh:160
+head/.claude/skills/reviewing-code/SKILL.md:219
+micro-sprint.md:43
+head/.claude/skills/reviewing-code/SKILL.md:6
+head/.claude/scripts/validate-artifact.sh:883
+head/.claude/scripts/validate-artifact.sh:885
+head/.claude/scripts/validate-artifact.sh:871
+sprint-template.md:4
+head/.claude/scripts/validate-artifact.sh:1263
+check-glossary-terms.sh:127-129
+head/.claude/scripts/validate-artifact.sh:1297
+head/tools/check-glossary-terms.sh:128
+head/.claude/skills/reviewing-code/SKILL.md:204

@@ -1,0 +1,6 @@
+packet_id,label,confidence,note
+P04,real,medium,"lead: the envelope's documented triage path (find a rejected payload from the envelope) is broken for the companion's rows; the full arm's auditor reproduced the same gap as MEDIUM; a contract defect, not a nicety"
+P12,wrong,medium,"lead: head line 223 reads 'resources/REFERENCE.md §Parallel Implementation Guidelines' and the auditing-security Phase -1 also points at the parallel_execution block; the claim 'SKILL.md no longer tells the reader to look there' is refuted by the shown lines"
+P17,real,low,"lead: the PR's own documentation states the sidecar payload is the normalised finding while the code writes the raw finding; a factual contradiction in the PR's text that misleads a triager (low severity, still a defect under the codebook)"
+P33,real,low,"lead: same contradiction as P17 restated in the second skill's copy of the document"
+P39,not-a-finding,high,"lead: the finding's asserted location is :1911-1915 (the fold); :1872 is listed as a supporting pointer for the sidecar tag"

@@ -1,0 +1,1130 @@
+{
+ "pin": "ba11b860e4b3d2112bf010c8f056d7e7bb521dde",
+ "static": {
+  "pr-05": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "D13-find-exec-multi-root",
+     "file": ".claude/hooks/safety/block-destructive-bash.sh",
+     "sites": [
+      776,
+      807
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "D14-billing-400-terminal",
+     "file": ".claude/adapters/loa_cheval/providers/anthropic_adapter.py",
+     "sites": [
+      140
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "D15-completed-sprints-unscoped",
+     "file": ".claude/scripts/workflow-state.sh",
+     "sites": [
+      83
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    ".claude/adapters/loa_cheval/providers/anthropic_adapter.py": 52,
+    ".claude/scripts/workflow-state.sh": 10,
+    ".claude/hooks/safety/block-destructive-bash.sh": 103
+   }
+  },
+  "pr-08": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "D22-ledger-shape-unpinned",
+     "file": ".claude/scripts/ledger-lib.sh",
+     "sites": [
+      157
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "D23-heredoc-body-fail-open",
+     "file": "tools/check-no-swallowed-jq.sh",
+     "sites": [
+      139
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "D24-embedded-nul-valueerror",
+     "file": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py",
+     "sites": [
+      164
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    ".claude/scripts/ledger-lib.sh": 90,
+    "tools/check-no-swallowed-jq.sh": 28,
+    ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py": 85
+   }
+  },
+  "pr-12": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "L01-the-check-only-proves-the-heading-exists",
+     "file": ".claude/scripts/verdict-derive.sh",
+     "sites": [
+      131
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "L02-is-unguarded",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      2183
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "L03-when-the-primary-ends-and-the-companion",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      1898,
+      1906
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d4",
+     "id": "L04-the-companion-is-forked-before-the-prima",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      2140
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d5",
+     "id": "L05-the-cli-hop-is-always-planned-so-a-singl",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      1835,
+      1851
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d6",
+     "id": "L06-the-companion-runs",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      1868,
+      2140
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d7",
+     "id": "L07-the-pipeline-materialises-the-secret-in",
+     "file": ".claude/scripts/adversarial-review.sh",
+     "sites": [
+      487
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d8",
+     "id": "L08-the-stub-spoke-the-review-vocabulary-to",
+     "file": "tests/unit/adversarial-review-companion.bats",
+     "sites": [
+      26,
+      63
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    "tests/fixtures/dissent-rejected/02-cleanup-continues.json": 0,
+    ".claude/skills/reviewing-code/SKILL.md": 64,
+    ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md": 27,
+    ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md": 18,
+    "tests/fixtures/dissent-rejected/03-message-redacted.json": 0,
+    "tests/unit/verdict-derive.bats": 20,
+    "tests/unit/adversarial-review-companion.bats": 38,
+    ".claude/scripts/verdict-derive.sh": 48,
+    "tests/fixtures/dissent-rejected/README.md": 1,
+    "tests/fixtures/dissent-rejected/01-guardrails-fail-open.json": 0,
+    "tests/fixtures/structured-outputs/kf004/neg-missing-id.json": 2,
+    ".loa.config.yaml.example": 56,
+    "tests/unit/adversarial-review-normalise.bats": 21,
+    ".claude/scripts/adversarial-review.sh": 230,
+    ".claude/skills/auditing-security/SKILL.md": 42
+   }
+  },
+  "pr-13": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "L01-is-discarded-silently",
+     "file": ".claude/hooks/session-start/loa-context-class.sh",
+     "sites": [
+      90,
+      92
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "L02-the-model-id-shape-this-host-s-harness-e",
+     "file": ".claude/hooks/session-start/loa-context-class.sh",
+     "sites": [
+      78,
+      81,
+      89
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "L03-the-alias-target-is-interpolated-into-th",
+     "file": ".claude/hooks/session-start/loa-context-class.sh",
+     "sites": [
+      78,
+      82,
+      83,
+      89
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d4",
+     "id": "L04-the-protocol-s-never-load-a-1-000-line-f",
+     "file": ".claude/protocols/tool-result-clearing.md",
+     "sites": [
+      39
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d5",
+     "id": "L05-the-parallelism-sentence-cites-a-number",
+     "file": ".claude/skills/auditing-security/SKILL.md",
+     "sites": [
+      42,
+      71,
+      136
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    "tools/check-prompt-budget.sh": 3,
+    "tests/unit/prompt-budget.bats": 8,
+    ".claude/protocols/reference/trajectory-evaluation.md": 1,
+    ".claude/commands/ride.md": 2,
+    ".claude/protocols/continuous-learning.md": 0,
+    ".claude/skills/implementing-tasks/SKILL.md": 17,
+    ".claude/skills/reviewing-code/resources/PARALLEL-REVIEW.md": 0,
+    ".claude/protocols/tool-result-clearing.md": 1,
+    ".claude/data/constraints.json": 112,
+    ".claude/loa/reference/scripts-reference.md": 1,
+    ".claude/hooks/README.md": 1,
+    ".claude/protocols/recommended-hooks.md": 1,
+    ".claude/protocols/constructs-integration.md": 1,
+    ".claude/loa/reference/hooks-reference.md": 47,
+    ".claude/protocols/trajectory-evaluation.md": 1,
+    ".claude/skills/reviewing-code/SKILL.md": 44,
+    ".claude/skills/reviewing-code/impact-analysis.md": 0,
+    ".claude/protocols/synthesis-checkpoint.md": 0,
+    ".claude/skills/deploying-infrastructure/SKILL.md": 7,
+    ".claude/protocols/reference/session-continuity.md": 2,
+    ".claude/scripts/validate-ck-integration.sh": 0,
+    ".claude/templates/NOTES.md.template": 0,
+    ".claude/protocols/citations.md": 0,
+    "PROCESS.md": 0,
+    ".claude/data/skill-includes/context_discipline.md": 1,
+    ".claude/loa/reference/protocols-summary.md": 1,
+    ".claude/skills/implementing-tasks/context-retrieval.md": 1,
+    ".claude/protocols/reference/helper-scripts.md": 0,
+    "tests/fixtures/golden-always-table.md": 3,
+    ".claude/skills/translating-for-executives/resources/BIBLIOGRAPHY.md": 0,
+    ".claude/protocols/session-continuity.md": 2,
+    ".claude/skills/autonomous-agent/SKILL.md": 8,
+    ".claude/skills/planning-sprints/SKILL.md": 36,
+    ".claude/settings.json": 1,
+    ".claude/skills/auditing-security/resources/PARALLEL-SPLIT.md": 0,
+    ".claude/protocols/structured-memory.md": 0,
+    ".claude/protocols/reference/recommended-hooks.md": 2,
+    ".claude/skills/riding-codebase/SKILL.md": 8,
+    "tests/unit/context-class.bats": 7,
+    ".claude/loa/CLAUDE.loa.md": 26,
+    ".claude/protocols/ride-translation.md": 0,
+    ".claude/protocols/helper-scripts.md": 1,
+    ".claude/scripts/loa-status.sh": 23,
+    "tests/unit/skill-includes.bats": 3,
+    "tests/fixtures/golden-never-table.md": 4,
+    ".claude/protocols/reference/constructs-integration.md": 0,
+    ".claude/hooks/session-start/loa-context-class.sh": 19,
+    ".claude/hooks/settings.hooks.json": 0,
+    ".claude/skills/designing-architecture/SKILL.md": 3,
+    ".claude/protocols/grounding-enforcement.md": 0,
+    ".claude/skills/translating-for-executives/SKILL.md": 2,
+    ".claude/skills/discovering-requirements/SKILL.md": 45,
+    ".claude/skills/auditing-security/SKILL.md": 21,
+    ".claude/loa/reference/context-engineering.md": 0
+   }
+  },
+  "pr-16": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "L01-treats-any-as-a-fixture-so-reaches-the-w",
+     "file": ".claude/scripts/lib/dec-write-lib.sh",
+     "sites": [
+      249
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "L02-discards-any-line-containing-user-operat",
+     "file": "tests/unit/user-invoked-commands.bats",
+     "sites": [
+      61,
+      74
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "L03-the-shape-check-runs-over-a-json-stream",
+     "file": "tools/check-round-independence.sh",
+     "sites": [
+      65,
+      71
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d4",
+     "id": "L04-index-decisions-family-emitted-ledger-te",
+     "file": ".claude/scripts/grimoire-index.sh",
+     "sites": [
+      177,
+      186
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    ".claude/commands/decisions.md": 0,
+    "tests/unit/user-invoked-commands.bats": 10,
+    ".claude/commands/contribute.md": 0,
+    ".claude/scripts/validate-artifact.sh": 48,
+    ".claude/commands/loa-eject.md": 0,
+    "AGENTS.md.checksum": 1,
+    ".claude/commands/toggle-gpt-review.md": 0,
+    "tests/fixtures/rounds/independent.md": 0,
+    "tests/unit/user-invoked-harness.bats": 0,
+    ".claude/commands/loa-setup.md": 0,
+    "tests/fixtures/rounds/same-round-dependency.md": 0,
+    ".claude/scripts/grimoire-index.sh": 3,
+    "tests/unit/loa-decisions-surface.bats": 1,
+    "tests/unit/agents-md-gen.bats": 4,
+    "tests/unit/dec-write-lib.bats": 3,
+    ".claude/skills/discovering-requirements/resources/REFERENCE.md": 1,
+    "AGENTS.md": 2,
+    ".claude/hooks/session-start/loa-decisions-surface.sh": 12,
+    "tests/unit/check-round-independence.bats": 1,
+    ".claude/commands/run-halt.md": 0,
+    ".claude/skills/autonomous-agent/SKILL.md": 5,
+    ".claude/skills/discovering-requirements/resources/templates/prd-template.md": 0,
+    ".claude/skills/planning-sprints/SKILL.md": 21,
+    ".claude/settings.json": 0,
+    ".loa.config.yaml.example": 32,
+    ".claude/protocols/karpathy-principles.md": 0,
+    "tools/check-round-independence.sh": 15,
+    ".claude/skills/run-mode/resources/render-templates.md": 0,
+    ".claude/data/user-invoked-commands.txt": 0,
+    ".gitignore": 2,
+    "tests/unit/grimoire-index.bats": 1,
+    ".claude/commands/permission-audit.md": 0,
+    ".claude/scripts/validate-gitignore-state.sh": 0,
+    ".claude/skills/designing-architecture/SKILL.md": 1,
+    "tests/unit/validate-artifact.bats": 1,
+    "README.md": 3,
+    ".claude/skills/discovering-requirements/SKILL.md": 2,
+    ".claude/skills/designing-architecture/resources/templates/sdd-template.md": 0,
+    ".claude/scripts/lib/dec-write-lib.sh": 21
+   }
+  },
+  "pr-17": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "L01-finding",
+     "file": ".claude/agents/chart-researcher.md",
+     "sites": [
+      3,
+      5,
+      11,
+      38
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "L02-with-skips-the-context-check-by-design-t",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      369,
+      373,
+      414
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "L03-simulates-no-br-and-also-drops-jq-and-yq",
+     "file": "tests/unit/charting-lint.bats",
+     "sites": [
+      399,
+      403
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d4",
+     "id": "L04-as-failure-injection-is-a-no-op-under-ui",
+     "file": "tests/unit/charting-decisions.bats",
+     "sites": [
+      222,
+      224
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d5",
+     "id": "L05-the-create-parser-s-swallows-unknown-fla",
+     "file": "tests/fixtures/charting/br-stub.sh",
+     "sites": [
+      13,
+      28
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d6",
+     "id": "L06-unlocks-from-a-row-in-the-tracked-ledger",
+     "file": ".claude/hooks/safety/block-destructive-bash.sh",
+     "sites": [
+      637
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d7",
+     "id": "L07-the-new-path-runs-a-real-on-a-spike-head",
+     "file": ".claude/scripts/run-mode-ice.sh",
+     "sites": [
+      257,
+      274
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d8",
+     "id": "L08-the-verdict-is-a-porcelain-diff-of-the-m",
+     "file": ".claude/scripts/chart-unblock-probe.sh",
+     "sites": [
+      42,
+      57,
+      62
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d9",
+     "id": "L09-the-merge-rebase-pull-cherry-pick-rule-r",
+     "file": ".claude/hooks/safety/block-destructive-bash.sh",
+     "sites": [
+      821,
+      841,
+      846
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d10",
+     "id": "L10-is-an-arbitrary-execution-path-with-a-bo",
+     "file": ".claude/scripts/chart-unblock-probe.sh",
+     "sites": [
+      66
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d11",
+     "id": "L11-the-hand-off-snapshot-inlines-the-map-do",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      360,
+      369,
+      387
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d12",
+     "id": "L12-the-d-5-9-unlock-never-checks-that-the-s",
+     "file": ".claude/hooks/safety/block-destructive-bash.sh",
+     "sites": [
+      642
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d13",
+     "id": "L13-interprets-backslash-escapes-in-the-line",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      125,
+      127,
+      137
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d14",
+     "id": "L14-the-write-subcommands-never-consult-the",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      398,
+      408,
+      414,
+      437
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d15",
+     "id": "L15-filters-on-only-fail-open",
+     "file": ".claude/scripts/beads/get-ready-work.sh",
+     "sites": [
+      72
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d16",
+     "id": "L16-fails-open",
+     "file": ".claude/scripts/golden-path.sh",
+     "sites": [
+      88
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d17",
+     "id": "L17-in-strips-c0-and-del-only",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      51
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d18",
+     "id": "L18-map-epic-check-misses-the-reply-shape",
+     "file": ".claude/scripts/beads/create-sprint-task.sh",
+     "sites": [
+      117
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d19",
+     "id": "L19-declarative-globs-load-every-snapshot-an",
+     "file": ".claude/commands/plan-and-analyze.md",
+     "sites": [
+      21,
+      44
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d20",
+     "id": "L20-dispatch-markers-the-pending-file-glob-a",
+     "file": ".claude/scripts/chart-ticket.sh",
+     "sites": [
+      144,
+      438
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    ".claude/scripts/beads/create-sprint-task.sh": 4,
+    ".claude/data/agent-types.yaml": 1,
+    ".claude/scripts/chart-frontier.sh": 0,
+    ".claude/scripts/beads/get-ready-work.sh": 1,
+    ".claude/skills/charting-decisions/resources/templates/map.md": 0,
+    ".claude/commands/plan.md": 0,
+    ".claude/skills/implementing-tasks/SKILL.md": 14,
+    ".claude/scripts/validate-artifact.sh": 52,
+    "tests/unit/unattended-prototype.bats": 0,
+    "AGENTS.md.checksum": 0,
+    ".claude/scripts/run-mode-ice.sh": 2,
+    ".claude/skills/planning-sprints/resources/REFERENCE.md": 0,
+    "tests/unit/charting-lint.bats": 14,
+    "tests/unit/skill-capabilities.bats": 6,
+    "tests/unit/agents-md-gen.bats": 0,
+    "tests/fixtures/charting/br-stub.sh": 10,
+    ".claude/agents/chart-researcher.md": 11,
+    ".claude/commands/implement.md": 0,
+    ".claude/commands/chart.md": 4,
+    "AGENTS.md": 0,
+    "tests/fixtures/fence-corpus/corpus.jsonl": 1,
+    ".claude/hooks/safety/block-destructive-bash.sh": 85,
+    ".claude/scripts/chart-guard.sh": 0,
+    ".claude/skills/charting-decisions/SKILL.md": 12,
+    ".claude/skills/planning-sprints/SKILL.md": 12,
+    ".loa.config.yaml.example": 29,
+    ".claude/commands/plan-and-analyze.md": 9,
+    ".claude/scripts/chart-unblock-probe.sh": 21,
+    "tests/unit/chart-frontier.bats": 2,
+    "tests/unit/run-mode-ice.bats": 1,
+    "tests/unit/spike-validator.bats": 1,
+    ".claude/scripts/golden-path.sh": 8,
+    ".gitignore": 1,
+    "tests/unit/charting-decisions.bats": 27,
+    ".claude/skills/charting-decisions/resources/REFERENCE.md": 14,
+    ".claude/scripts/chart-ticket.sh": 77,
+    ".claude/skills/designing-architecture/SKILL.md": 1,
+    "tests/unit/validate-artifact.bats": 1,
+    "tests/unit/golden-path-charting.bats": 5,
+    "README.md": 1,
+    ".claude/skills/discovering-requirements/SKILL.md": 1
+   }
+  },
+  "pr-18": {
+   "defects": [
+    {
+     "pos": "d1",
+     "id": "L01-validate-artifact-shvalidate-glossary-al",
+     "file": "tools/check-glossary-terms.sh",
+     "sites": [
+      131,
+      148
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d2",
+     "id": "L02-glossary-pass-an-line-before-any-is-stor",
+     "file": "tools/check-glossary-terms.sh",
+     "sites": [
+      131,
+      148,
+      183
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d3",
+     "id": "L03-rtc-9-the-no-shim-symlinks-and",
+     "file": "tests/unit/red-test-check.bats",
+     "sites": [
+      143
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d4",
+     "id": "L05-a-red-run-with-no-output-prints-an-empty",
+     "file": ".claude/scripts/red-test-check.sh",
+     "sites": [
+      133,
+      160
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d5",
+     "id": "L06-is-an-unbounded-credentialed-execution-p",
+     "file": ".claude/scripts/red-test-check.sh",
+     "sites": [
+      237,
+      248,
+      250
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d6",
+     "id": "L07-the-temporary-worktrees-share-with-the-l",
+     "file": ".claude/scripts/red-test-check.sh",
+     "sites": [
+      214,
+      216
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d7",
+     "id": "L08-the-seams-rule-s-fence-tracking-and-date",
+     "file": ".claude/scripts/validate-artifact.sh",
+     "sites": [
+      869
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    },
+    {
+     "pos": "d8",
+     "id": "L09-manifest-coverage-of-the-new-framework-f",
+     "file": ".claude/scripts/lib/symlink-manifest.sh",
+     "sites": [
+      79
+     ],
+     "pinned_copy_exists": true,
+     "site_changed_in_pinned_copy": true
+    }
+   ],
+   "changed_lines_per_file": {
+    ".github/workflows/check-glossary-terms.yml": 0,
+    ".claude/data/glossary-allowlist.txt": 0,
+    "tools/check-glossary-terms.sh": 32,
+    "tests/unit/glossary-terms.bats": 4,
+    ".claude/skills/planning-sprints/SKILL.md": 7,
+    ".claude/scripts/validate-artifact.sh": 63,
+    "GLOSSARY.md": 0,
+    "tests/fixtures/glossary/ok/allowlist.txt": 0,
+    ".claude/scripts/mount-loa.sh": 0,
+    "tests/unit/sprint-seams.bats": 2,
+    ".claude/skills/riding-codebase/SKILL.md": 5,
+    ".claude/skills/reviewing-code/resources/REFERENCE.md": 1,
+    ".claude/scripts/red-test-check.sh": 78,
+    "tests/fixtures/glossary/miss/GLOSSARY.md": 0,
+    ".claude/skills/reviewing-code/SKILL.md": 37,
+    "tests/fixtures/sprint-seams/cycle-127-sprint.md": 0,
+    ".claude/scripts/lib/symlink-manifest.sh": 2,
+    ".claude/scripts/mount-submodule.sh": 0,
+    ".claude/skills/bug-triaging/resources/templates/micro-sprint.md": 0,
+    ".claude/loa/GLOSSARY.md": 5,
+    "tests/fixtures/glossary/miss/kernel.md": 0,
+    ".claude/skills/planning-sprints/resources/templates/sprint-template.md": 6,
+    "tests/fixtures/glossary/ok/kernel.md": 0,
+    "tests/fixtures/glossary/miss/allowlist.txt": 0,
+    ".claude/skills/designing-architecture/SKILL.md": 0,
+    "tests/unit/glossary-validator.bats": 1,
+    ".claude/skills/discovering-requirements/SKILL.md": 0,
+    "tests/unit/red-test-check.bats": 69,
+    "tests/fixtures/glossary/ok/GLOSSARY.md": 1
+   }
+  }
+ },
+ "runs": [
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-01-t1",
+   "task": "review-01",
+   "trial": 1,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 2,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 4,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-01-t2",
+   "task": "review-01",
+   "trial": 2,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 1,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 1,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-01-t3",
+   "task": "review-01",
+   "trial": 3,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 2,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 1,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-02-t1",
+   "task": "review-02",
+   "trial": 1,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 0,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 1,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-02-t2",
+   "task": "review-02",
+   "trial": 2,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 3,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 4,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-02-t3",
+   "task": "review-02",
+   "trial": 3,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 0,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 0,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-03-t1",
+   "task": "review-03",
+   "trial": 1,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 10,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 2,
+     "n_ws_reads": 4,
+     "diffs": [
+      {
+       "event": 52,
+       "result_event": 53,
+       "files": [
+        ".claude/scripts/adversarial-review.sh",
+        ".claude/scripts/verdict-derive.sh"
+       ],
+       "cmd": "cat > /tmp/audit-prompt.txt <<'EOF'\n/audit-sprint sprint-1 \u2014 task review-03. Audit the pull request in pr/ (pr/head.diff; companion dissent voice, tolerant findings schema, rejected-payload contract, repair model). Write grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md with LOA-VERDICT trailer.",
+       "result_chars": 356,
+       "truncated": false,
+       "ranges": 0,
+       "planted_in_diff": []
+      },
+      {
+       "event": 58,
+       "result_event": 59,
+       "files": [
+        ".claude/scripts/adversarial-review.sh",
+        ".claude/scripts/verdict-derive.sh"
+       ],
+       "cmd": ".claude/scripts/guardrails-orchestrator.sh --skill auditing-security --mode ${LOA_RUN_MODE:-interactive} --file /tmp/audit-prompt.txt 2>/dev/null | jq -r '.action'; echo \"== template\"; cat .claude/skills/auditing-security/resources/templates/sprint-audit-feedback.md; echo \"== stray run file\"; head -",
+       "result_chars": 3004,
+       "truncated": false,
+       "ranges": 0,
+       "planted_in_diff": []
+      }
+     ],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-03-t2",
+   "task": "review-03",
+   "trial": 2,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 10,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 7,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1b-a1_full-review-03-t3",
+   "task": "review-03",
+   "trial": 3,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 11,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 5,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1-a1_full-review-04-t1",
+   "task": "review-04",
+   "trial": 1,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 7,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 6,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1-a1_full-review-04-t2",
+   "task": "review-04",
+   "trial": 2,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 2,
+     "n_ws_reads": 11,
+     "diffs": [
+      {
+       "event": 311,
+       "result_event": 313,
+       "files": [
+        ".claude/protocols/reference/recommended-hooks.md"
+       ],
+       "cmd": "cd /workspace; for f in helper-scripts recommended-hooks constructs-integration; do echo \"===== /workspace/.claude stub vs pr/head stub: $f =====\"; diff .claude/protocols/$f.md pr/head/.claude/protocols/$f.md; done; echo \"===== /workspace/.claude reference/recommended-hooks.md vs pr/head =====\"; dif",
+       "result_chars": 1096,
+       "truncated": false,
+       "ranges": 10,
+       "planted_in_diff": []
+      },
+      {
+       "event": 482,
+       "result_event": 483,
+       "files": [
+        ".claude/data/constraints.json",
+        ".claude/data/skill-includes/context_discipline.md",
+        ".claude/hooks/README.md",
+        ".claude/hooks/session-start/loa-context-class.sh",
+        ".claude/loa/CLAUDE.loa.md",
+        ".claude/loa/reference/hooks-reference.md",
+        ".claude/protocols/tool-result-clearing.md",
+        ".claude/scripts/loa-status.sh",
+        ".claude/settings.json"
+       ],
+       "cmd": "cd /workspace; H=pr/head\necho \"===== hook script: head vs later workspace\"; diff $H/.claude/hooks/session-start/loa-context-class.sh .claude/hooks/session-start/loa-context-class.sh\necho \"===== loa-status display_context_line\"; diff <(sed -n '/^display_context_line() {/,/^}/p' $H/.claude/scripts/loa",
+       "result_chars": 17166,
+       "truncated": false,
+       "ranges": 86,
+       "planted_in_diff": [
+        "L01-is-discarded-silently",
+        "L02-the-model-id-shape-this-host-s-harness-e",
+        "L03-the-alias-target-is-interpolated-into-th",
+        "L04-the-protocol-s-never-load-a-1-000-line-f"
+       ]
+      }
+     ],
+     "exposed_defects": [
+      {
+       "defect": "d1",
+       "exposed_at": 483,
+       "caught": true,
+       "first_citation": {
+        "event": 633,
+        "kind": "tool:Bash",
+        "phase": "REVIEW",
+        "when": "post_dissent"
+       },
+       "cited_after_exposure": true
+      },
+      {
+       "defect": "d2",
+       "exposed_at": 483,
+       "caught": true,
+       "first_citation": {
+        "event": 633,
+        "kind": "tool:Bash",
+        "phase": "REVIEW",
+        "when": "post_dissent"
+       },
+       "cited_after_exposure": true
+      },
+      {
+       "defect": "d3",
+       "exposed_at": 483,
+       "caught": true,
+       "first_citation": {
+        "event": 633,
+        "kind": "tool:Bash",
+        "phase": "REVIEW",
+        "when": "post_dissent"
+       },
+       "cited_after_exposure": true
+      },
+      {
+       "defect": "d4",
+       "exposed_at": 483,
+       "caught": true,
+       "first_citation": {
+        "event": 633,
+        "kind": "tool:Bash",
+        "phase": "REVIEW",
+        "when": "post_dissent"
+       },
+       "cited_after_exposure": true
+      }
+     ]
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 5,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  },
+  {
+   "run_id": "priority-v2-p1-a1_full-review-04-t3",
+   "task": "review-04",
+   "trial": 3,
+   "gates": {
+    "REVIEW": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 6,
+     "diffs": [],
+     "exposed_defects": []
+    },
+    "AUDIT": {
+     "n_diff_cmds": 0,
+     "n_ws_reads": 3,
+     "diffs": [],
+     "exposed_defects": []
+    }
+   }
+  }
+ ]
+}

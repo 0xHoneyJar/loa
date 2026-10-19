@@ -1,0 +1,20 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-19T03:11:45Z",
+    "status": "budget_exceeded",
+    "reason": "status budget_exceeded: estimated 214c over 2 planned voices (primary gpt-5.5-pro 162c, companion claude-headless 52c) exceeds flatline_protocol.security_audit.budget_cents 200; no run lock taken, no envelope written",
+    "recorded_by": "record-fallback",
+    "displaced": null,
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": null,
+      "run_tag": null
+    },
+    "rejected_summary": [],
+    "rejected_sidecars": []
+  }
+}
