@@ -20732,3 +20732,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0648"
+    created_at: "2026-10-20T04:02:27Z"
+    updated_at: "2026-10-20T04:02:27Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 264 pre-registration: B1/B2a/B2b cells, pin 798d88cf, recall_pm3 decision statistic, interval reads R1/R5/R3/R4, exclusions incl. refusal fallbacks"
+    decision: "Before any batch row, the Sprint 264 pre-registration is written to NOTES under the heading 'Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z' (section text sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb, the same text carried into each batch MANIFEST pre_registration_ref): pin 798d88cfc920a95ce896a527145b21ca72d0ab18 (the audit-round r2b commit; any later harness, grader or framework fix re-pins and re-runs the affected batch); suite root ablation-2.0-c131 with bounds REVIEW 50 / AUDIT 40, --allow-partial, --run-cap 30, eval config variant, grader 1.3.0 with the Sprint 263 review/audit fixes, row writer 1.4, curated manifests; three runner batches in order — B1 c131-b1-oracle-ab (a1_full_openmount × r17 × 3, cap 70), B2a c131-b2-control-prices-a (a0_bare, a0_bare_fable, a1_full × r17, r18 × 3, cap 160), B2b c131-b2-control-prices-b (a1_review_only, a1_no_dissent × r17 × 3, cap 80), allowance 300, cut order a1_no_dissent → a1_review_only → pr-18 a0_bare_fable, cut cells reported never back-filled; decision statistic defect_catch_rate_pm3 with recall and recall_pm3_v1 beside it; validity: completed, took-effect true, contaminated null, oracle_exposed_defects empty except the open-mount arm (union main read, diff-only sensitivity); degraded and dissent-absent rows kept in the main read and reported in a labelled sensitivity (dissent_absent_gates ∪ zero-completed-voice gates); refusal-fallback rows excluded from R5 and degraded elsewhere; pairwise exclusion; min_valid_cells 4; the 25 % guard; reads R1 (±0.05 inflation interval), R5 (±0.05 model), R3 (±0.05 and cost ratio ≤ 0.6 / below −0.10), R4 (±0.08) with defect-level paired bootstrap 10,000 at 90 %, cluster bootstrap by PR descriptive, catch per USD as the frontier."
+    rationale: "the reads are fixed before the rows exist so that no number can move the ruler afterwards; the hash makes a later edit of the text visible"
+    alternatives_considered:
+      - option: "pre-register after B1 to tune the reads on its rows"
+        rejected_because: "that is the post-hoc move the cycle exists to stop"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "798d88cf"
+    source: "grimoires/loa/NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z (section sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T04:02:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z (section sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
