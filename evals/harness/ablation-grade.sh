@@ -1626,7 +1626,8 @@ def grade_recall(t, run_dir, grading):
         f.write("".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites))
     env = dict(os.environ, EVAL_MANIFEST_DIR=os.path.dirname(t.key_path), LC_ALL="C")
     # 1.3.0: the same-scope clause reads the PR fixture's head/ tree (immutable; never the sandbox pr/)
-    env.pop("EVAL_HEAD_DIR", None)
+    # the sentinel keeps recall-vs-defects.sh off its $workspace/pr/head fallback (the sandbox copy; review r1 DISS-C-003)
+    env["EVAL_HEAD_DIR"] = os.path.join(grading, ".no-head")
     try:
         head = os.path.join(resolve_pr_fixture(t), "head")
         if os.path.isdir(head):
@@ -1932,7 +1933,8 @@ def contamination(run_dir):
 # '0xHoneyJar/loa'`); quoting that PR content is not a probe of the upstream repository. Each
 # occurrence's unit is the backtick span holding it (`…`), else its whole line, stripped; an
 # occurrence is exempt when its unit is a substring of one line of the task's PR fixture (head/**
-# files or head.diff, the diff's +/-/space prefix dropped). Every occurrence of a value must be exempt,
+# files or head.diff, the diff's +/-/space prefix dropped); a backslash-continued command is one logical line, and a
+# bare token standing as the whole line (a for-list word, a list entry) exempts nothing (review r1 DISS-C-002). Every occurrence of a value must be exempt,
 # else the value is a repo_name hit as before. Exempt values are recorded in contamination_exempt[]
 # ({phase, excerpt_id, pattern, fixture_line: "head/<path>:<n>" | "head.diff:<n>", line: the fixture
 # line, 200 characters at most}); build tasks have no PR fixture and no exemption.
@@ -1983,7 +1985,7 @@ def repo_name_exempt(val):
     if not fl:
         return None
     hits = []
-    for line in val.split("\n"):
+    for line in val.replace("\\\n", " ").split("\n"):   # a backslash-continued command is one logical line
         for m in REPO_TOKEN.finditer(line):
             unit = None
             for span in re.finditer(r"`[^`\n]*`", line):
@@ -1992,6 +1994,9 @@ def repo_name_exempt(val):
                     break
             if unit is None:
                 unit = line.strip()
+                if len(unit) < len(m.group(0)) + 4:
+                    return None       # a bare token as a whole (logical) line is a command word, not a quotation: it is a
+                                      # substring of every fixture token line and exempts nothing (review r1 DISS-C-002)
             match = next(((src, text) for src, text in fl if unit and unit in text), None)
             if match is None:
                 return None
@@ -2032,7 +2037,8 @@ def corpus_sha256(t):
 #   other defect of that file exposed_unknown. Text no header attributes, in a command with several
 #   targets, exposes a defect only with corroboration: a range near the site AND a line of the fixture's
 #   head/X within ±3 of the site in that text, or must_match. A diff whose output is discarded or reduced
-#   (>/dev/null, | wc, | grep -c|-q|-l, | cmp) and a tool_result flagged is_error print no content.
+#   (>/dev/null, &>/dev/null, | wc, | grep with -c|-q|-l anywhere, | cmp; a stat-only git diff) and a tool_result
+#   flagged is_error print no content; `2>&1`, `>&2`, `<&0` and `&>` are redirections, never separators.
 #   read form — a Bash segment whose executable is cat, sed, awk, grep, head, tail, less or python3, or a
 #   Read (file_path) / Grep (path) tool_use, naming a workspace answer path (a directory for grep or Grep
 #   covers the answer paths below it), whose result contains a LATER-ONLY line within ±3 of a planted site
@@ -2062,8 +2068,22 @@ ERR_LINE = re.compile(r"^(?:diff|sdiff|comm|git|cat|grep|sed|head|tail|awk|less)
 DIFF_BODY = re.compile(r"^[<>+\- @\\0-9]|^---$")
 FILEISH = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,6}\b")
 # a diff whose stdout is counted, tested or discarded prints no content: | wc, | grep -c/-q/-l, >/dev/null
-SILENT_SINK = re.compile(r"^(?:wc|cmp|true|false|test)\b|^grep\s+(?:-[A-Za-z]*[cql][A-Za-z]*|--count|--quiet|--files-with-matches)\b")
 DEVNULL = re.compile(r"(?:^|[\s;])(?:1?>|&>|>&)\s*/dev/null")
+DIFF_STAT_FLAGS = {"--stat", "--numstat", "--shortstat", "--name-only", "--name-status", "--compact-summary"}
+
+
+def silent_sink(w):
+    """the piped-into command prints no diff content: wc, cmp, true/false/test, or grep with a counting /
+    quiet / files-only flag anywhere among its words (review r1 DISS-C-001: `grep -i -c` counts too)"""
+    if not w:
+        return False
+    exe = w[0].rsplit("/", 1)[-1]
+    if exe in ("wc", "cmp", "true", "false", "test"):
+        return True
+    if exe == "grep":
+        return any(re.fullmatch(r"-[A-Za-z]*[cql][A-Za-z]*", x) or x in ("--count", "--quiet", "--silent", "--files-with-matches")
+                   for x in w[1:])
+    return False
 
 
 def unquote_c(q):
@@ -2156,6 +2176,8 @@ def split_segments(cmd):
         elif ch == ")":
             depth = max(0, depth - 1)
             cur.append(ch)
+        elif depth == 0 and ch == "&" and (cmd[i - 1:i] in (">", "<") or cmd[i + 1:i + 2] == ">"):
+            cur.append(ch)          # a redirection (2>&1, >&2, <&0, &>f), not a separator (review r1 DISS-001/C-001)
         elif depth == 0 and ch in "\n;&|":
             pipe = ch == "|" and cmd[i + 1:i + 2] != "|" and cmd[i - 1:i] != "|"
             segs.append(("".join(cur), "|" if pipe else ";"))
@@ -2479,8 +2501,10 @@ def oracle_plan(tool, inp, ws, answer):
             if any(re.fullmatch(r"-[A-Za-z]*q[A-Za-z]*", x) or x in ("--brief", "--quiet") for x in w[1:]):
                 continue
             nxt = seg_words(segs[k + 1][0]) if sep == "|" and k + 1 < len(segs) else []
-            if DEVNULL.search(seg) or (nxt and SILENT_SINK.match(" ".join(nxt))):
+            if DEVNULL.search(seg) or (nxt and silent_sink(nxt)):
                 continue
+            if exe == "git" and any(x in DIFF_STAT_FLAGS for x in w):
+                continue              # a stat-only git diff prints names and counts, not content
             toks = segment_tokens(seg, vars_, cwd, ws)
             pr_ops = [k_ for k_, (v, c) in enumerate(toks) if c[0] == "pr" and c[1] in ("head", "base")
                       and not v.endswith("head.diff")]

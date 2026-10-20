@@ -419,6 +419,49 @@ D() { echo "$output" | jq -r "$1"; }
   [ "$(D '.score')" = "100" ]
 }
 
+@test "RG-40 (review r1 DISS-C-006) a tab-indented nested function closes at its own brace: a top-level line after it is not in its scope" {
+  make_scope
+  printf '#!/usr/bin/env bash\nouter() {\n\tinner() {\n\t\techo i4\n\t\techo i5\n\t\techo i6\n\t}\n\techo o8\n}\n' > "$T/pr-s/head/.claude/scripts/tabs.sh"
+  for i in $(seq 10 20); do echo "echo t$i"; done >> "$T/pr-s/head/.claude/scripts/tabs.sh"
+  man_s '[{"id":"S1","file":".claude/scripts/tabs.sh","anchor_line":5,"severity":"high"}]'
+  review 'tabs.sh:15 the top-level line'
+  run "$GRADER" "$WS" pr-s
+  [ "$status" -eq 1 ]
+  [ "$(D '.details.detected | length')" = "0" ]
+  review 'tabs.sh:9 the brace closing outer: inside outer, not inner (and 4 lines from the site)'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+}
+
+@test "RG-41 (review r1 DISS-C-004) a # line inside a fenced code block is not a markdown heading: the section keeps its scope across the fence" {
+  make_scope
+  { echo '## Section A'; echo 'text 2'; echo 'text 3'; echo 'text 4'; echo '```bash'; echo 'echo hi'; echo '# not a heading'; echo 'echo bye'; echo '```'
+    echo 'text 10'; echo 'text 11'; echo 'text 12'; echo '## Section B'; echo 'text 14'; } > "$T/pr-s/head/.claude/docs/fence.md"
+  man_s '[{"id":"S1","file":".claude/docs/fence.md","anchor_line":3,"severity":"low"}]'
+  review 'fence.md:11 after the code block, same section'
+  run "$GRADER" "$WS" pr-s
+  [ "$status" -eq 0 ]
+  [ "$(D '.details.detected | join(",")')" = "S1" ]
+  [ "$(D '.details.credits_function_only | join(",")')" = "S1" ]
+  review 'fence.md:14 the next section'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+}
+
+@test "RG-42 (review r1 DISS-C-005) a python def with a multi-line signature keeps its body in scope" {
+  make_scope
+  { echo 'import os'; echo 'def f('; echo '    a,'; echo '    b,'; echo '):'; echo '    x = a'; echo '    y = b'; echo '    z = x + y'
+    echo '    w = z'; echo '    v = w'; echo '    u = v'; echo '    return u'; echo 'def g():'; echo '    return 1'; } > "$T/pr-s/head/.claude/scripts/sig.py"
+  man_s '[{"id":"S1","file":".claude/scripts/sig.py","anchor_line":6,"severity":"medium"}]'
+  review 'sig.py:12 the return'
+  run "$GRADER" "$WS" pr-s
+  [ "$status" -eq 0 ]
+  [ "$(D '.details.detected | join(",")')" = "S1" ]
+  review 'sig.py:14 the next def'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+}
+
 @test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {
   make_scope
   man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":22,"severity":"high"},

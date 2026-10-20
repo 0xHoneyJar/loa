@@ -20476,3 +20476,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0640"
+    created_at: "2026-10-19T08:29:49Z"
+    updated_at: "2026-10-19T08:29:49Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Smoke fallback: review-catch REVIEW timeout 50 min / AUDIT 40 min on pr-17 and pr-18 (task bounds, pre-registered); pr-17 re-smoked once before Sprint 264"
+    decision: "The closed-mount smoke's pr-17 trial hit the 30-minute REVIEW cap (1800 s, 24 turns, USD 8.71) after launching the dissent in the background and waiting: under budget_scale: diff the 218 KB diff's dissent runs (cycle-130 refused it at 200 c, and its three REVIEW phases on pr-17 took 21-23 min). The per-task fallback is a task bound, not a ruler change: bounds.timeout_min.REVIEW 50 and AUDIT 40 on review-r17 and review-r18 in the Sprint 264 suite root (and on the smoke root's review-r17, re-frozen), declared before any batch; one more smoke trial on pr-17 under the bound (~USD 10) before Sprint 264 launches. If it completes, the cells keep the bound; if it times out again, pr-17 is replaced by pr-16 + pr-18 as the batch PRs and the cost frontier carries that caveat. The dissent-absence sensitivity for Sprint 264 is defined as dissent_absent_gates union gates with voices_run.<gate>.completed == 0 (the pr-12 row shows the failed-voices case lands in degraded, not dissent_absent)."
+    rationale: "a priced-in dissent costs wall time on large diffs; measuring it needs a cap it can finish under, set before the measurement rather than after a cell is lost"
+    alternatives_considered:
+      - option: "raise the suite-wide REVIEW default to 50 min"
+        rejected_because: "changes every arm and task; the two large PRs are the only ones that need it and a task bound is read in the row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/NOTES.md#smoke-reading-partial (smoke-c131-20261019T075011Z, review-r17-t1 agent_error)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T08:29:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#smoke-reading-partial (smoke-c131-20261019T075011Z, review-r17-t1 agent_error)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0641"
+    created_at: "2026-10-19T09:18:12Z"
+    updated_at: "2026-10-19T09:18:12Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Closed-mount smoke read: oracle_closed OK 7/7, both voices under budget_scale diff on 5 PRs, anchor_line share 0.94; pr-12 KF-050, pr-17 timed out (DEC-0640)"
+    decision: "The seven-PR closed-mount smoke (USD 91.45) is read against the 06:08:48Z expected-dissent table and its 07:04Z amendment: the closed mount held on every run (pre-launch and took-effect oracle_closed OK, no oracle exposure, no contamination); the scaled dissent ran both voices on both gates on pr-05, pr-08, pr-13, pr-16 and pr-18 (effective 200-440 c, nothing refused) and 62 of 66 dissent findings carry anchor_line (0.94; pr-13's review gate 0.67 is the one gate under the 0.80 expectation, recorded); pr-12 lost every voice to the KF-050 import skew exactly as amended; pr-17 lost its REVIEW phase to the 30-minute cap, handled by DEC-0640. Sprint 264 proceeds with the closed mount as built, the eval config variant (budget_scale diff), the per-task bounds of DEC-0640, and the dissent-absence sensitivity defined over dissent_absent_gates union zero-completed-voice gates. The priced-in dissent's cost (about USD 4-6 per run on the large PRs, runs of USD 10-19) enters the Sprint 264 budget plan: B1 and B2 estimates are re-derived from these per-run costs before launch."
+    rationale: "the smoke did what it was for: it confirmed the mount closes, showed the dissent now runs and cites lines, and surfaced the two per-task failures before any decision cell was bought"
+    alternatives_considered:
+      - option: "treat pr-13 review gate anchor share 0.67 as a failed expectation and re-prompt the voices"
+        rejected_because: "the expectation was aggregate per gate type and the aggregate is 0.94; a prompt change after the smoke would be an unmeasured intervention before the batches"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/NOTES.md#smoke-complete (smoke-c131-20261019T075011Z); a2a/sprint-1/reviewer.md § Smoke"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T09:18:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#smoke-complete (smoke-c131-20261019T075011Z); a2a/sprint-1/reviewer.md § Smoke"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0642"
+    created_at: "2026-10-20T01:10:50Z"
+    updated_at: "2026-10-20T01:10:50Z"
+    phase: "review"
+    category: "design"
+    summary: "Review round r1a: detector keeps redirections in their segment, scans grep flags, stat-only git diff silent; class 7 bare-line tokens never exempt"
+    decision: "The Sprint 263 review dissent (gpt-5.5-pro + claude-headless, 9 findings, 2 BLOCKING) found that split_segments treated the ampersand of 2>&1 / >&2 / <&0 / &> as a command separator, so a diff reduced through 2>&1 | wc -l or discarded with &>/dev/null was planned as a content-printing diff and could mark every defect of the file exposed_unknown. Round r1a, test-first (AG-52, AG-53, RG-40 … RG-42): redirection ampersands stay in their segment; the silent-sink test scans every grep flag (grep -i -c) and the long forms; a stat-only git diff (--stat, --numstat, --shortstat, --name-only, --name-status, --compact-summary) prints no content; the KF-046 class 7 exemption joins backslash continuations into one logical line and never exempts a bare token standing as the whole line, while a backticked quotation of the name in prose stays PR content (AG-51 unchanged); grade_recall passes a non-existent EVAL_HEAD_DIR sentinel when the fixture head is unavailable so recall-vs-defects.sh never falls back to the sandbox pr/head; the bash/bats closing-brace test measures indentation with expandtabs(8) like headers(); markdown fences hide their # lines from heading detection; a python def with a multi-line signature keeps its body in scope. DISS-C-007 (dissent disabled read from the agent-writable sandbox config, bead bd-jszcp) and DISS-C-008 (false_positives stays ±3 beside the new rule, bead bd-9zmfn) are observations. The 36-run re-grade re-run on the fixed grader changed no row (0 of 36); AG-50's detector pins are unchanged."
+    rationale: "a detector that mis-parses the most common shell idiom would exclude cells for exposures that never happened; the fix is small, tested, and re-validated against the 36 runs before any batch"
+    alternatives_considered:
+      - option: "accept the findings as advisories and fix after Sprint 264"
+        rejected_because: "the exclusion set the Sprint 264 reads depend on would be computed by a known-wrong detector"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 1); round r1a"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T01:10:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 1); round r1a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

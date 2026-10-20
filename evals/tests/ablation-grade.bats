@@ -1537,6 +1537,41 @@ CASES
   [ "$(G '.oracle_exposed_defects, .oracle_exposed_events, .corpus_sha256' | tr '\n' ' ')" = "null null null " ]
 }
 
+@test "AG-52 oracle redirections (review r1 DISS-001/C-001): 2>&1 | wc -l, &>/dev/null, 2>&1 | grep -i -c, git diff --stat print nothing; 2>&1 | head still exposes" {
+  make_oracle
+  local i=0 cmd res want
+  while IFS=$'\t' read -r cmd res want; do
+    i=$((i + 1)); RD="$T/x$i"; make_orun "$RD"; sysinit "$RD" REVIEW
+    tu "$RD" REVIEW "x$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" false
+    grade "$RD" rc-o
+    [ "$status" -eq 0 ]
+    [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
+  done <<'CASES'
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | wc -l	4	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh &>/dev/null; echo rc=$?	rc=1	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | grep -i -c planted	1	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>/dev/null | grep --count '^>'	2	diff= read= unknown= exposed=
+git diff --no-index --stat pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	 .claude/scripts/g.sh | 2 +-\n 1 file changed	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | head -40	20c20\n<   if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\n---\n> later	diff=d1 read= unknown= exposed=d1
+CASES
+}
+
+@test "AG-53 KF-046 class 7 (review r1 DISS-C-002): a bare repo-name token as a whole line (a for-list continuation, a list entry) is never exempt" {
+  RD="$T/k3"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  RTASK=review-r18 RROOT=ablation-2.0-replication
+  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'for r in \\\\\n  0xHoneyJar/loa\ndo gh api repos/$r/contents; done')")"
+  rgrade "$RD"
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  RD="$T/k4"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'cat > repos.txt <<'"'"'EOF'"'"'\n0xHoneyJar/loa\nEOF\nxargs -a repos.txt -I{} gh api repos/{}/pulls')")"
+  rgrade "$RD"
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  # a backticked quotation of the name in prose stays PR content (AG-51's second line)
+}
+
 # real_run <fixture name> <run-dir>: a run directory from a trimmed cycle-130 transcript (fixtures/c131-oracle/,
 # made by its trim.py from the read-only run directories): its events, and the later sandbox copy of each path
 # an event names; the task is the real corpus task in the repository's frozen suite roots

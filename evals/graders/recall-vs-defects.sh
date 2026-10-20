@@ -266,9 +266,20 @@ def lang(rel, lines):
 def headers(kind, lines):
     """[(line, level)]: each definition header's 1-based line and its indentation (markdown: level)"""
     out = []
+    fence = None
     for i, l in enumerate(lines, 1):
         m = None
         if kind == "markdown":
+            fm = re.match(r"^\s{0,3}(`{3,}|~{3,})", l)   # a fenced block's `#` lines are code, not headings (review r1 DISS-C-004)
+            if fm:
+                tok = fm.group(1)[0]
+                if fence is None:
+                    fence = tok
+                elif fence == tok:
+                    fence = None
+                continue
+            if fence is not None:
+                continue
             m = MD_HDR.match(l)
             if m:
                 out.append((i, len(m.group(1))))
@@ -295,13 +306,22 @@ def close_line(kind, lines, h, lv, end):
         if CLOSE_ONE.search(lines[h - 1]) and "{" in lines[h - 1]:
             return h
         for L in range(h + 1, end + 1):
-            t = lines[L - 1]
+            t = lines[L - 1].expandtabs(8)     # the same width headers() measured (review r1 DISS-C-006)
             if t.strip().startswith("}") and len(t) - len(t.lstrip()) == lv:
                 return L
         return end
     if kind == "python":
-        last = h
-        for L in range(h + 1, end + 1):
+        # skip a multi-line signature: the header ends on the line that closes its parentheses and ends with
+        # a colon (review r1 DISS-C-005); the indentation rule then binds the body
+        j, depth = h, 0
+        while j <= end:
+            t = re.sub(r"#.*$", "", lines[j - 1])
+            depth += t.count("(") - t.count(")")
+            if depth <= 0 and t.rstrip().endswith(":"):
+                break
+            j += 1
+        last = j
+        for L in range(j + 1, end + 1):
             t = lines[L - 1]
             if not t.strip() or t.lstrip().startswith("#"):
                 continue
