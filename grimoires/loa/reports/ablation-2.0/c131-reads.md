@@ -1,4 +1,4 @@
-# cycle-131 Sprint 265 reads — formal run 2026-10-20T09:51:22Z (script r3a after the Sprint 265 review dissent)
+# cycle-131 Sprint 265 reads — formal run 2026-10-20T09:57:03Z (script r3b after the Sprint 265 review and audit dissents)
 
 Pin `798d88cf`; rows `grimoires/loa/reports/ablation-2.0/c131-rows.jsonl` (27); pre-registration DEC-0648 (NOTES 2026-10-20T04:02:26Z, sha256 2ed2bfee…); decision statistic `defect_catch_rate_pm3` (DEC-0638); DEC-0650 (min_valid_cells 4 vs 3 planned trials → trial-level sensitivity beside the main read); S3 declared NOTES 2026-10-20T05:41:08Z. Script `reads-c131.py` (seed 20261015; 10,000 defect-level paired bootstrap resamples; 90 %; cluster bootstrap by PR descriptive).
 
@@ -71,4 +71,5 @@ R5 outcome: **between (both intervals reported)** (R5a bare-Fable vs full: outsi
 | a1_no_dissent | review-r17 | 3 | 2 | 2 | 0 | 0 | 0 | 0 | 48.63 |
 | a1_review_only | review-r17 | 3 | 3 | 3 | 0 | 0 | 0 | 0 | 34.25 |
 
-Grades loaded: 27 of 27 rows; load notes: 0 (none)
+Grades loaded: 27 of 27 rows; load notes: 1
+- S3 re-included c131-b2-control-prices-a-a1_full-review-r18-t1 (pattern outside_path at AUDIT:303; scratch shape '$(mktemp')
