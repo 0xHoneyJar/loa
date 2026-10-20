@@ -186,7 +186,7 @@ report() {  # report <scenario> <out-prefix> [extra args]
 }
 
 @test "AR-12 the expected-false-positive sentence and the Method section quoting the suite rules block verbatim" {
-  grep -qF 'Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"
+  grep -qF 'Expected false positives at level 0.90 over 9 components: 9 × (1 − 0.90) / 2 = 0.45 one-sided per direction (0.90 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"   # 9 = a2 … a7 + the three cycle-131 control arms; a1_full_openmount is eval_only and not a component
   python3 -I - "$SUITE" "$FX/main/report.md" <<'PY'
 import re, sys
 suite = open(sys.argv[1], encoding="utf-8").read().splitlines()
@@ -339,7 +339,7 @@ PY
   [ "$(jq -r '.by_suite_version["1"].h1.line' "$J")" = "H1: established" ]
   [ "$(jq -r '.by_suite_version["1"].a4.line' "$J")" = "A4 sensitivity: holds" ]
   [ "$(jq -r '.by_suite_version["2"].h1.line' "$J")" = "$(jq -r .h1.line "$J")" ]
-  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 6 ]
+  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 9 ]   # the nine components (cycle-131 arms included; eval_only excluded)
   grep -qF 'hidden_test_pass_rate: not testable on suite_version 2 — no admissible task' "$M"
   grep -qxF '## Suite version 1 (batches: ver-v1) — reported separately, never pooled' "$M"
   grep -qF -- '  - suite_version 2 (primary: the main sections): 24 rows; batches ver-v2; suite manifest sha256 ddd200b3' "$M"

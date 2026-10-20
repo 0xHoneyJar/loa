@@ -7,6 +7,8 @@
 # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
 #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
 #   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
+#   STUB_ENV_LOG   append "<run_id> LOA_ABLATION_BATCH_CONTEXT=<value|<unset>>" per invocation
+#                  (cycle-131 Sprint 264: the batch context run-ablation.sh exports to a trial)
 #   STUB_COST      USD per run (default 2.5), on the first phase record
 #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
 #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
@@ -50,6 +52,7 @@ done
 TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
 [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
 [[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
+[[ -n "${STUB_ENV_LOG:-}" ]] && printf '%s LOA_ABLATION_BATCH_CONTEXT=%s\n' "$RUN_ID" "${LOA_ABLATION_BATCH_CONTEXT-<unset>}" >> "$STUB_ENV_LOG"
 
 MODE=ok
 if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then

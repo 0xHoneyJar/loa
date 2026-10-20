@@ -43,7 +43,12 @@
 #   --docker-bin D      docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --phase-models JSON {"PLAN": "<model id>", …} override ($LOA_EVAL_PHASE_MODELS)
 #   --phase-timeouts JSON {"IMPLEMENT": <seconds>, …} override
-#   --dry-run           print the phase plan and exit 0; nothing is created
+#   --dry-run           print the phase plan and exit 0; nothing is created. Lines:
+#                       `plan: task … arm … phases <labels>`, one `phase <n> <label> model=…
+#                       max_turns=… timeout_s=… effort=… session=…` per phase, `sandbox:
+#                       mount=loa|none overlay=head|base|none(<why>) config_variant=eval|none
+#                       config_edits=<key=value,…>|-` (the arm's sandbox .loa.config.yaml edits),
+#                       and `eval_only: true (…)` for an eval_only arm
 #
 # Run directory layout (DEC-0413 — the grader never reads meta/):
 #   sandbox/     the agent's tree (its own .git initialised at `base`)
@@ -133,9 +138,16 @@
 # when the run stopped before materialisation). `.claude/` itself is covered by
 # took-effect.sh integrity_clean.
 #
+# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is
+# refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
+# run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
+# LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
+# (batch and smoke); --dry-run honours the same variable, so the operator dry-runs the
+# open-mount arm with `LOA_ABLATION_BATCH_CONTEXT=1 pipeline-run.sh … --dry-run`.
+#
 # Env: EVAL_CLAUDE_BIN, EVAL_DOCKER_BIN, LOA_EVAL_PHASE_MODELS, LOA_EVAL_PRICING_JSON,
 # LOA_EVAL_WATCHDOG_POLL_S, LOA_EVAL_CREDS_HOME (where ~/.codex is read; default $HOME),
-# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR.
+# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR, LOA_ABLATION_BATCH_CONTEXT.
 #
 # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
 # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
@@ -178,7 +190,7 @@ while [[ $# -gt 0 ]]; do
     --phase-models)   PHASE_MODELS_JSON="${2:-}"; shift 2 ;;
     --phase-timeouts) PHASE_TIMEOUTS_JSON="${2:-}"; shift 2 ;;
     --dry-run)        DRY_RUN=true; shift ;;
-    -h|--help)        sed -n '2,144p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,156p' "$0"; exit 0 ;;
     *) die_usage "unknown argument: $1" ;;
   esac
 done
@@ -241,6 +253,13 @@ elif ! jq -e --arg k "$KIND" --arg t "$TASK_TYPE" \
 fi
 [[ -n "$ARM_DEF" ]] || ARM_DEF='{}'
 SUITE_TOGGLES="$(jq -c '.toggles // {}' <<<"$ARM_DEF")"
+# eval_only (cycle-131 FR-5): refused before anything is created, dry run included, unless the
+# runner marks the batch context; no pipeline.json, so no infrastructure_error row is possible
+EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
+  echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
+  exit 2
+fi
 
 # plan_phases <toggles-json> → JSON array of {name,label}
 plan_phases() {
@@ -310,6 +329,23 @@ if [[ "$DRY_RUN" == true ]]; then
       "$(phase_model "$name")" "$(phase_cap "$name" max_turns)" "$(phase_timeout_s "$name")" \
       "${EFFORT_FLAG:--}" "$sess" "$cond"
   done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$plan")
+  # the sandbox plan: the mount, the closed-mount overlay, the eval config variant and the
+  # arm's config edits (the keys apply_arm_toggles sets in the sandbox .loa.config.yaml)
+  if [[ "$(jq -r '.loa_mount' <<<"$SUITE_TOGGLES")" == false ]]; then
+    sb_mount=none sb_overlay="none(no mount)" sb_variant=none sb_edits=-
+  else
+    sb_mount=loa sb_variant=eval
+    if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
+    elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
+    else sb_overlay="$OVERLAY_MODE"; fi
+    sb_edits="$(jq -r '[ (if .companion_voice == false then "flatline_protocol.code_review.companion_voice=false", "flatline_protocol.security_audit.companion_voice=false" else empty end),
+                         (if .gates == false then "flatline_protocol.code_review.enabled=false", "flatline_protocol.security_audit.enabled=false" else empty end),
+                         (if .dissent == false and .gates != false then "flatline_protocol.code_review.enabled=false" else empty end),
+                         (if .flatline == false then "flatline_protocol.enabled=false" else empty end) ]
+                       | if length == 0 then "-" else join(",") end' <<<"$SUITE_TOGGLES")"
+  fi
+  printf 'sandbox: mount=%s overlay=%s config_variant=%s config_edits=%s\n' "$sb_mount" "$sb_overlay" "$sb_variant" "$sb_edits"
+  [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)"
   exit 0
 fi
 

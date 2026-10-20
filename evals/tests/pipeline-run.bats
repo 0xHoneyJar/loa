@@ -1012,12 +1012,12 @@ JSON
 
 # --- cycle-131 Sprint 263 Task 1.1: closed-mount wiring, toggles, eval config variant ---------------
 
-# c131_arms — the fixture suite plus cycle-131-shaped arms (Sprint 2 declares the real ones)
+# c131_arms — the fixture suite plus the four cycle-131 arms exactly as evals/suites/ablation-2.0.yaml
+# declares them (Sprint 264 Task 2.1): a0_bare_fable, a1_review_only, a1_no_dissent, a1_full_openmount
 c131_arms() {
-  yq -i '.arms += [
-    {"id": "a1_full_openmount", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["oracle_open_recorded"]},
-    {"id": "a1_no_dissent", "task_types": ["review-catch"], "toggles": {"dissent": false}, "took_effect": ["all_phases_present"]},
-    {"id": "a0_bare_fable", "task_types": ["all"], "toggles": {"loa_mount": false, "bare_model": "fable"}, "phases": ["BARE"], "effort": "high", "took_effect": ["bare_model_fable"]}]' "$T/suite.yaml"
+  SUITE_SRC="$REPO_ROOT/evals/suites/ablation-2.0.yaml" yq -i '.arms += [load(strenv(SUITE_SRC)).arms[]
+    | select(.id == "a0_bare_fable" or .id == "a1_review_only" or .id == "a1_no_dissent" or .id == "a1_full_openmount")]' "$T/suite.yaml"
+  [ "$(yq -r '[.arms[] | select(.id | test("^(a0_bare_fable|a1_review_only|a1_no_dissent|a1_full_openmount)$"))] | length' "$T/suite.yaml")" -eq 4 ]
 }
 calls() { tr '\n' ' ' < "$T/calls" | sed 's/ $//'; }
 evline() { sed -n "s/^$1=//p" "$T/run/meta/arm-evidence.txt"; }
@@ -1051,7 +1051,7 @@ fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -m
 
 @test "closed mount wiring: oracle_open: true skips the overlay and the check and records mount_overlay=none" {
   c131_arms
-  export STUB_MOUNT_CALLS="$T/calls"
+  export STUB_MOUNT_CALLS="$T/calls" LOA_ABLATION_BATCH_CONTEXT=1   # eval_only: the batch context run-ablation.sh sets
   run_pr a1_full_openmount "$REVIEWC"
   [ "$status" -eq 0 ]
   [ "$(calls)" = "resolve_arm_toggles mount_prompt_surface apply_arm_toggles apply_eval_config_variant write_sandbox_grimoire init_sandbox_beads regen_sandbox_manifest" ]
@@ -1164,4 +1164,100 @@ EOF
   run "$H/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-oc.yaml" --task-yaml "$r/task.yaml"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   grep -q 'oracle_closed OK ok head:1 answer paths (1 present)' <<<"$output"
+}
+
+# --- cycle-131 Sprint 264 Task 2.1: the four arms' dry-run plans, the eval_only refusal ------------
+
+dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
+  run "$PR" --task-yaml "$REVIEWC" --arm "$1" --run-id r --trial 1 --source-tree "$T/src" --suite-file "$T/suite.yaml" --dry-run
+}
+
+@test "dry-run (c131): a0_bare_fable is one BARE phase on global.anthropic.claude-fable-5-1, effort high, no mount" {
+  c131_arms
+  dryrun_rc a0_bare_fable
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'arm a0_bare_fable .* phases BARE$' <<<"$output"
+  grep -q '^phase 1 BARE model=global.anthropic.claude-fable-5-1 max_turns=170 timeout_s=4200 effort=high session=new$' <<<"$output"
+  [ "$(grep -c '^phase ' <<<"$output")" -eq 1 ]
+  grep -q '^sandbox: mount=none overlay=none(no mount) config_variant=none config_edits=-$' <<<"$output"
+}
+
+@test "dry-run (c131): a1_review_only runs exactly [REVIEW] under the closed mount" {
+  c131_arms
+  dryrun_rc a1_review_only
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'arm a1_review_only .* phases REVIEW$' <<<"$output"
+  [ "$(grep -c '^phase ' <<<"$output")" -eq 1 ]
+  grep -q '^phase 1 REVIEW model=global.anthropic.claude-fable-5-1 ' <<<"$output"
+  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=-$' <<<"$output"
+}
+
+@test "dry-run (c131): a1_no_dissent plans REVIEW,AUDIT with flatline_protocol.code_review.enabled false in the sandbox config" {
+  c131_arms
+  dryrun_rc a1_no_dissent
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'arm a1_no_dissent .* phases REVIEW,AUDIT$' <<<"$output"
+  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=flatline_protocol.code_review.enabled=false$' <<<"$output"
+  # the audit gate keeps its dissent: security_audit is not edited
+  ! grep -q 'security_audit' <<<"$output" || false
+}
+
+@test "dry-run (c131): a1_full_openmount (eval_only) plans REVIEW,AUDIT with no overlay inside the batch context; a1_full keeps the overlay" {
+  c131_arms
+  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'arm a1_full_openmount .* phases REVIEW,AUDIT$' <<<"$output"
+  grep -q '^sandbox: mount=loa overlay=none(oracle_open) config_variant=eval config_edits=-$' <<<"$output"
+  grep -q '^eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)$' <<<"$output"
+  dryrun_rc a1_full
+  [ "$status" -eq 0 ]
+  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=-$' <<<"$output"
+  ! grep -q '^eval_only' <<<"$output" || false
+  # a build task: mounted, no overlay; the dry run of a build arm with config toggles lists its edits
+  run_pr a1_full "$BUILD" --dry-run
+  grep -q '^sandbox: mount=loa overlay=none(build) config_variant=eval config_edits=-$' <<<"$output"
+  run_pr a4_no_gates "$BUILD" --dry-run
+  grep -q '^sandbox: mount=loa overlay=none(build) config_variant=eval config_edits=flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false$' <<<"$output"
+}
+
+@test "eval_only: outside the batch context the open-mount arm is refused (exit 2, reason named, no run dir, no pipeline.json), dry run included" {
+  c131_arms
+  unset LOA_ABLATION_BATCH_CONTEXT
+  dryrun_rc a1_full_openmount
+  [ "$status" -eq 2 ]
+  grep -q "refused: arm 'a1_full_openmount': eval_only arm outside an evaluation batch" <<<"$output"
+  ! grep -q '^plan:' <<<"$output" || false
+  run_pr a1_full_openmount "$REVIEWC"
+  [ "$status" -eq 2 ]
+  grep -q "eval_only arm outside an evaluation batch" <<<"$output"
+  [ ! -e "$T/run" ]
+  [ ! -e "$T/log/call-1.argv" ]
+  # only the exact value 1 marks the context
+  for v in 0 yes true ""; do
+    LOA_ABLATION_BATCH_CONTEXT="$v" run_pr a1_full_openmount "$REVIEWC"
+    [ "$status" -eq 2 ]
+    [ ! -e "$T/run" ]
+  done
+  # an arm without eval_only is never refused for it
+  run_pr a1_no_dissent "$REVIEWC"
+  [ "$status" -eq 0 ]
+}
+
+@test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {
+  c131_arms
+  LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full_openmount "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+  [ "$(labels)" = "REVIEW,AUDIT" ]
+  [ "$(evline mount_overlay)" = none ]
+  [ "$(evline oracle_open)" = true ]
+}
+
+@test "a1_review_only (c131): a run records exactly one REVIEW phase and never launches AUDIT" {
+  c131_arms
+  run_pr a1_review_only "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(labels)" = REVIEW ]
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+  [ "$(grep -lx AUDIT "$T"/log/call-*.phase 2>/dev/null | wc -l | tr -d ' ')" -eq 0 ]
 }

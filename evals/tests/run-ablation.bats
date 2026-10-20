@@ -28,7 +28,7 @@ setup() {
   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
-  unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+  unset STUB_ENV_LOG LOA_ABLATION_BATCH_CONTEXT STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
   # hermetic codex credentials (KF-048 pre-flight): an empty directory unless a case writes one
   mkdir -p "$T/creds/.codex"; export LOA_EVAL_CREDS_HOME="$T/creds"
@@ -1182,4 +1182,28 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
   [ "$status" -eq 3 ]
   [ "$(jq -r '.drift.field' "$RES/bf2/STATUS.json")" = models_used.BARE ]
   [ "$(jq -r '.drift.expected' "$RES/bf2/STATUS.json")" = claude-fable-5-1 ]
+}
+
+# --- cycle-131 Sprint 264 Task 2.1: the eval_only batch context ---------------------------------
+
+@test "RAB-c131-5 every trial a batch or a smoke launches gets LOA_ABLATION_BATCH_CONTEXT=1 (the eval_only arms' context); the runner's own environment is unchanged" {
+  export STUB_ENV_LOG="$T/env.log"
+  [ -z "${LOA_ABLATION_BATCH_CONTEXT+x}" ]
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch bc1 --concurrency 2
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(wc -l < "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
+  : > "$T/env.log"
+  run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --suite-root "$S" \
+    --pipeline-bin "$FX/ablation-pipeline-stub.sh" --grade-bin "$FX/ablation-grade-stub.sh" --docker-bin "$T/bin/docker" \
+    --smoke --arms a1_full --batch smoke-bc2 --max-usd 100
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(wc -l < "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  # the stub reports an absent variable as <unset> (the assertion above is not vacuous)
+  : > "$T/env.log"
+  "$FX/ablation-pipeline-stub.sh" --task-yaml "$S/tasks/review-01/task.yaml" --arm a1_full --run-dir "$T/manual" \
+    --run-id manual-1 --trial 1 --source-tree "$T/src" --suite-file "$REPO_ROOT/evals/suites/ablation-2.0.yaml" >/dev/null 2>&1 || true
+  grep -qx 'manual-1 LOA_ABLATION_BATCH_CONTEXT=<unset>' "$T/env.log"
 }

@@ -160,7 +160,10 @@
 #
 # Per trial, in order: pipeline-run.sh --task-yaml … --arm … --run-dir … --run-id … --trial …
 #   --source-tree <pinned> --suite-file … --executor … --image … --docker-bin …
-#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log; then
+#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log, with
+#   LOA_ABLATION_BATCH_CONTEXT=1 in its environment (batch and smoke alike; the variable is set
+#   on the trial's command only, never exported to this shell): pipeline-run.sh refuses an arm
+#   declaring eval_only: true without it (cycle-131 FR-5); then
 #   1. status from meta/pipeline.json (missing or `running` → interrupted; a missing record
 #      is written as a minimal pipeline.json with synthesized_by: run-ablation.sh)
 #   2. transport: agent_error plus a provider signature in the failing phase's
@@ -1292,9 +1295,10 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     local -a cmd=("$PIPELINE_BIN" --task-yaml "$tyaml" --arm "$arm" --run-dir "$rd" --run-id "$rid" --trial "$trial"
                   --source-tree "$TREE" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE"
                   --docker-bin "$DOCKER_BIN" --max-run-usd "$(cap_for "$kind")")
-    # its own process group, so the watchdog can signal the pipeline and everything under it
-    if command -v setsid >/dev/null 2>&1; then setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
-    else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+    # its own process group, so the watchdog can signal the pipeline and everything under it;
+    # LOA_ABLATION_BATCH_CONTEXT=1 marks the batch context the eval_only arms need (cycle-131 FR-5)
+    if command -v setsid >/dev/null 2>&1; then LOA_ABLATION_BATCH_CONTEXT=1 setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+    else LOA_ABLATION_BATCH_CONTEXT=1 "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
     printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"

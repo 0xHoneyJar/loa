@@ -252,9 +252,11 @@ integrity_in() {
   ( cd "$1" && bash -c 'source "$1" && { check_integrity || true; } && echo "FAILURES=$FAILURES"' _ "$REPO_ROOT/.claude/scripts/check-loa.sh" )
 }
 
-@test "AT-13 ablation-2.0 declares the nine canonical arms, task_types per arm, A8 absent with its evidence, integrity_clean on every runnable arm (AC-1.10)" {
+@test "AT-13 ablation-2.0 declares the nine canonical arms plus the four cycle-131 review-catch arms, task_types per arm, A8 absent with its evidence, integrity_clean on every runnable arm (AC-1.10; cycle-131 FR-5)" {
   S="$REPO_ROOT/$ABL_SUITE_REL"
-  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies" ]
+  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount,a8_no_ceremonies" ]   # the absent arm stays last
+  [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "review-catch") | .id] | join(",")' "$S")" = "a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount" ]
+  [ "$(yq -r '[.arms[] | select(.eval_only == true) | .id] | join(",")' "$S")" = "a1_full_openmount" ]
   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "build") | .id] | join(",")' "$S")" = "a2_no_sprint_plan,a4_no_gates,a5_no_flatline,a6_one_window" ]
   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "all") | .id] | join(",")' "$S")" = "a0_bare,a1_full,a3_one_voice,a7_effort_medium" ]
   [ "$(yq -r '.arms[] | select(.id == "a8_no_ceremonies") | .absent' "$S")" = "true" ]

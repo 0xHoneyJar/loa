@@ -1908,7 +1908,9 @@ def build(args):
         if need not in arm_ids:
             raise Fail(f"suite has no arm {need}")
 
-    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent")]
+    # components: every runnable arm but the two baselines; an eval_only arm (cycle-131 FR-5: the open-mount
+    # oracle A/B) is an evaluation control, never a shipped-default decision, so it is not a component here
+    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and a.get("eval_only") is not True]
     absent = [a for a in arms if a.get("absent")]
     seed = args.seed
     groups, primary, unversioned = partition(rows, args.suite_version, mans,
@@ -1925,8 +1927,8 @@ def build(args):
     k = len(components)
     efp = k * (1.0 - args.level) / 2.0
     efp_line = (f"Expected false positives at level {args.level:.2f} over {k} components: "
-                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.1f} one-sided per direction "
-                f"({2 * efp:.1f} in either direction); no multiple-comparison correction is applied "
+                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.2f} one-sided per direction "
+                f"({2 * efp:.2f} in either direction); no multiple-comparison correction is applied "
                 f"(multiple_comparisons: {rules.get('multiple_comparisons', 'none')}).")
 
     # provenance
