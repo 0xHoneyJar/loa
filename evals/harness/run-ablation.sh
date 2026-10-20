@@ -15,7 +15,7 @@
 #                   [--concurrency 3] [--batch NAME] [--results-root DIR] [--rows F]
 #                   [--suite-root DIR] [--suite-file F] [--image IMG] [--executor container|host]
 #                   [--pre-registration-ref TEXT] [--seed N] [--self-check-log F]
-#                   [--smoke] [--dry-run] [--resume] [--detach] [--clear-arm ID]...
+#                   [--smoke] [--dry-run] [--resume] [--detach] [--allow-partial] [--clear-arm ID]...
 #                   [--clear-drift] [--rerow RUN_ID]... [--rerun RUN_ID]... [--rerun-status S]...
 #                   [--pipeline-bin P] [--grade-bin G] [--row-bin R] [--took-effect-bin T]
 #                   [--docker-bin D]
@@ -59,6 +59,13 @@
 #   --dry-run            run the pre-flight, print the plan, write MANIFEST.json only
 #                        (MANIFEST.dry-run.json when the batch already has a STATUS.json)
 #   --resume             continue --batch NAME from its MANIFEST.json, STATUS.json and rows
+#   --allow-partial      (cycle-131 FR-3 a, DEC-0617) the suite root may hold fewer than four
+#                        tasks per type: passed to the freeze check (freeze.sh → validate-suite.sh
+#                        --allow-partial relaxes exactly that count; schema, leakage and hash
+#                        checks stand) and to every grader call (ablation-grade.sh … --allow-partial);
+#                        recorded as MANIFEST.json allow_partial true|false. --resume takes the
+#                        batch's value from its MANIFEST (absent = false); --allow-partial on a
+#                        resume of a batch that started without it is a usage error (exit 2)
 #   --detach             re-exec under setsid nohup (log <batch>/driver.log), print the batch
 #                        directory and the pid, exit 0
 #   --clear-arm ID       with --resume: remove ID from STATUS.json paused_arms (repeatable)
@@ -99,7 +106,8 @@
 #      <suite-root>/tasks/<id>/; their sha256 go to MANIFEST.json gate
 #   2. freeze.sh --check --root <suite-root> --suite-file <suite-file> (it runs
 #      validate-suite.sh), with --smoke when MANIFEST.sha256 lists a smoke/ path or the batch
-#      is a smoke batch (the manifest is checked as it was frozen)
+#      is a smoke batch (the manifest is checked as it was frozen), and --allow-partial with
+#      --allow-partial
 #   3. seed-corpus-from-record.sh --check (the review-catch corpus SHA256SUMS)
 #   4. container: the docker CLI and the image (`docker image inspect`)
 #   5. the pinned source tree: $LOA_ABLATION_SOURCE_TREE when set (tests; must be a git tree
@@ -152,7 +160,10 @@
 #
 # Per trial, in order: pipeline-run.sh --task-yaml … --arm … --run-dir … --run-id … --trial …
 #   --source-tree <pinned> --suite-file … --executor … --image … --docker-bin …
-#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log; then
+#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log, with
+#   LOA_ABLATION_BATCH_CONTEXT=1 in its environment (batch and smoke alike; the variable is set
+#   on the trial's command only, never exported to this shell): pipeline-run.sh refuses an arm
+#   declaring eval_only: true without it (cycle-131 FR-5); then
 #   1. status from meta/pipeline.json (missing or `running` → interrupted; a missing record
 #      is written as a minimal pipeline.json with synthesized_by: run-ablation.sh)
 #   2. transport: agent_error plus a provider signature in the failing phase's
@@ -161,7 +172,8 @@
 #      (default 120) into a fresh run dir: attempts 2, retry_reason; the first attempt writes
 #      no row and its spent_usd counts in spend; a second transport failure is rowed
 #      transport_error. agent_error without the signature is never retried (DEC-0417)
-#   3. took-effect.sh --run-dir D --suite-file F (completed, agent_error and cap_failure runs):
+#   3. took-effect.sh --run-dir D --suite-file F --task-yaml <task.yaml> (completed, agent_error and
+#      cap_failure runs; --task-yaml gives oracle_closed the PR fixture):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
 #      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418).
 #      It runs under timeout -s TERM -k 30 $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S
@@ -181,7 +193,7 @@
 #      version, pipeline.json image_digest must equal MANIFEST image_digest). A mismatch rows
 #      the trial infrastructure_error, records STATUS.json drift, launches nothing more and
 #      fails the batch once the running trials end
-#   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] --executor … --image …
+#   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] [--allow-partial] --executor … --image …
 #      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)
 #      under timeout -s TERM -k 30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
 #      1800; unwrapped when timeout is absent): exit 124 or 137 → row infrastructure_error,
@@ -240,7 +252,7 @@
 #   run_usd_by_type {build, review-catch} (the effective per-kind caps after the chain)},
 #   cost_hint, concurrency, retry,
 #   watchdog {multiplier, override_s, grace_s, grade_timeout_s, took_effect_timeout_s},
-#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in,
+#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, allow_partial (--allow-partial),
 #   codex_token_exp (the access token's exp, ISO 8601 UTC, or null when not checked),
 #   codex_preflight {checked (true only when the token was read and its exp compared),
 #   auth_file_present, codex_arms (the planned arms that use codex, sorted), token_exp,
@@ -322,7 +334,7 @@ SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
-SMOKE=false DRY_RUN=false RESUME=false DETACH=false
+SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false
 CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false RERUN_IDS=() RERUN_STATUSES=()
 PIPELINE_BIN="$SCRIPT_DIR/pipeline-run.sh" GRADE_BIN="$SCRIPT_DIR/ablation-grade.sh"
 ROW_BIN="$SCRIPT_DIR/ablation-row.sh" TOOK_BIN="$SCRIPT_DIR/took-effect.sh"
@@ -367,6 +379,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --resume) RESUME=true; shift ;;
     --detach) DETACH=true; shift ;;
+    --allow-partial) ALLOW_PARTIAL=true; shift ;;
     --clear-arm) CLEAR_ARMS+=("${2:-}"); shift 2 ;;
     --clear-drift) CLEAR_DRIFT=true; shift ;;
     --rerow) REROW_IDS+=("${2:-}"); shift 2 ;;
@@ -483,6 +496,11 @@ if [[ "$RESUME" == true ]]; then
   ROWS="$(jq -r '.rows_file' "$MAN_PATH")"
   [[ -n "$MAX_USD" ]] || MAX_USD="$(jq -r '.caps.max_usd // empty' "$MAN_PATH")"
   PRE_REG_REF="$(jq -r '.pre_registration_ref // ""' "$MAN_PATH")"
+  man_ap="$(jq -r '.allow_partial // false' "$MAN_PATH")"
+  if [[ "$ALLOW_PARTIAL" == true && "$man_ap" != true ]]; then
+    die "--allow-partial conflicts with batch $BATCH's MANIFEST.json allow_partial $man_ap (a batch keeps the value it started with)"
+  fi
+  [[ "$man_ap" == true ]] && ALLOW_PARTIAL=true
 fi
 
 # --- --detach: re-exec in a new session, then return ---------------------------------
@@ -609,7 +627,8 @@ semver_of() { grep -oE '[0-9]+\.[0-9]+\.[0-9]+' <<<"$1" | head -1 || true; }
 # drift_check <run-dir> <run_id> → two lines: the drift {run_id, field, expected, got} or null,
 # then the extra models {<raw id>: {phases: [<label>…], output_tokens: N}} ({} when none).
 # Read-only on the run dir. A phase drifts on model grounds only when its model_requested
-# differs from MANIFEST phase_models[name], or when the requested model (else the manifest's)
+# differs from MANIFEST phase_models[name] (BARE: global.anthropic.claude-fable-5-1 when the
+# run's arm_toggles set bare_model: fable, cycle-131), or when the requested model (else the manifest's)
 # is absent from a non-empty models_used; any other models_used key is an extra model (a
 # WebFetch summariser or a built-in subagent: telemetry, DEC-0545)
 drift_check() {
@@ -619,7 +638,10 @@ rd, man, rid = sys.argv[1:4]
 m = json.load(open(man)); p = json.load(open(os.path.join(rd, "meta", "pipeline.json")))
 def norm(x):   # ablation-row.sh norm_model
     x = re.sub(r"^([a-z]+\.)?anthropic\.", "", str(x)); return re.sub(r"-v[0-9]+(:[0-9]+)?$", "", x)
-pm = m.get("phase_models") or {}
+pm = dict(m.get("phase_models") or {})
+# cycle-131 D-5.1: an arm whose toggles set bare_model: fable runs BARE on Fable 5.1 (pipeline-run.sh)
+if (p.get("arm_toggles") or {}).get("bare_model") == "fable":
+    pm["BARE"] = "global.anthropic.claude-fable-5-1"
 extra, first = {}, None
 def hit(field, exp, got):
     global first
@@ -695,6 +717,7 @@ PY
 fi
 FREEZE_ARGS=(--check --root "$SUITE_ROOT" --suite-file "$SUITE_FILE")
 if [[ "$SMOKE" == true ]] || grep -q '  smoke/' "$SUITE_ROOT/MANIFEST.sha256" 2>/dev/null; then FREEZE_ARGS+=(--smoke); fi
+[[ "$ALLOW_PARTIAL" == true ]] && FREEZE_ARGS+=(--allow-partial)
 frc=0; fout="$("$FREEZE_BIN" "${FREEZE_ARGS[@]}" 2>&1)" || frc=$?
 [[ $frc -eq 0 ]] || refuse "freeze.sh ${FREEZE_ARGS[*]} failed (exit $frc): $(printf '%s' "$fout" | tail -5 | tr '\n' ' ')"
 SUITE_MANIFEST_SHA="$(sha_file "$SUITE_ROOT/MANIFEST.sha256")"
@@ -958,7 +981,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" --arg cap_b "$CAP_BUILD" --arg cap_r "$CAP_REVIEW" \
     --arg hb "$HINT_BUILD" --arg hr "$HINT_REVIEW" --argjson conc "$CONCURRENCY" --argjson rw "$RETRY_WAIT" \
     --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --argjson tmo "$TMO_ON" --arg prr "$PRE_REG_REF" \
-    --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" \
+    --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" --argjson allow_partial "$ALLOW_PARTIAL" \
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" '
     $plan_f[0] as $p | $suite_f[0] as $s | $gate_f[0] as $g
@@ -985,7 +1008,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
                  grade_timeout_s: (if $tmo then ($gto | tonumber) else null end), took_effect_timeout_s: (if $tmo then ($tto | tonumber) else null end)},
        pre_registration_ref: (if $prr == "" then null else $prr end),
        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
-       agy_opt_in: ($s.agy_opt_in // false),
+       agy_opt_in: ($s.agy_opt_in // false), allow_partial: $allow_partial,
        codex_token_exp: ($cpf // {}).token_exp, codex_preflight: $cpf,
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
@@ -1217,7 +1240,7 @@ post_run() {
     case "$st" in
       completed|agent_error|cap_failure)
         local trc=0 tout dout id
-        tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?
+        tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" --task-yaml "$tyaml" 2>&1)" || trc=$?
         printf '%s\n' "$tout" >> "$plog"
         if [[ $trc -eq 0 ]]; then PR_TE=ok
         elif [[ ${#TOOK_TMO[@]} -gt 0 && ( $trc -eq 124 || $trc -eq 137 ) ]]; then
@@ -1241,6 +1264,7 @@ post_run() {
         if [[ -z "$PR_OVERRIDE" ]]; then
           local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
           [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
+          [[ "$ALLOW_PARTIAL" == true ]] && g+=(--allow-partial)
           PR_GRC=0; ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
           if [[ ${#GRADE_TMO[@]} -gt 0 && ( $PR_GRC -eq 124 || $PR_GRC -eq 137 ) ]]; then
             PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade timed out after %ss\n' "$GRADE_TIMEOUT_S" >> "$plog"
@@ -1271,9 +1295,10 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     local -a cmd=("$PIPELINE_BIN" --task-yaml "$tyaml" --arm "$arm" --run-dir "$rd" --run-id "$rid" --trial "$trial"
                   --source-tree "$TREE" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE"
                   --docker-bin "$DOCKER_BIN" --max-run-usd "$(cap_for "$kind")")
-    # its own process group, so the watchdog can signal the pipeline and everything under it
-    if command -v setsid >/dev/null 2>&1; then setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
-    else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+    # its own process group, so the watchdog can signal the pipeline and everything under it;
+    # LOA_ABLATION_BATCH_CONTEXT=1 marks the batch context the eval_only arms need (cycle-131 FR-5)
+    if command -v setsid >/dev/null 2>&1; then LOA_ABLATION_BATCH_CONTEXT=1 setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+    else LOA_ABLATION_BATCH_CONTEXT=1 "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
     printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"

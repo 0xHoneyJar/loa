@@ -1359,6 +1359,9 @@ api_exit_code _pf_rc mc _cd _r _e""".split())   # (mc: _companion_ledger_message
 # validated alias, provider word, error cut to 200 characters, exit code and index; _ADV_LOC_DEGRADED_SENTENCE: a constant)
 SMALL |= set("""_bv_role _bv_hop _bv_src _bv_cents _bv_in _bv_out _ADV_BUDGET_VOICES _av_alias _av_alias_r _av_prov_r _av_err
 _av_rc _av_n _ADV_LOC_DEGRADED_SENTENCE""".split())
+# (cycle-131 FR-4: the budget scaling's validated word fixed|diff, its whole-number cents (≤ 15 digits) and the three-key object
+# built from them)
+SMALL |= set("""CONF_BUDGET_SCALE CONF_BUDGET_CENTS_MAX budget_effective _budget_meta""".split())
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
 # (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's
@@ -1987,4 +1990,229 @@ PY
     [ "$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="$one"; _adv_run_tag 2>/dev/null )" = "$a" ]
     # a tag within 100 bytes keeps its plain hex
     [ "$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag 2>/dev/null )" = "h632e31" ]
+}
+
+# --- cycle-131 Sprint 1 Task 1.8 (PRD FR-4, SDD D-4.1): numeric anchors beside the symbol anchor --------------------------
+
+_na_finding() {  # <extra jq object> → one valid review finding on x.sh with a symbol anchor, plus the extra fields
+    jq -nc --argjson x "$1" '{id: "DISS-001", severity: "ADVISORY", category: "error-handling", anchor: "x.sh:do_thing",
+        anchor_type: "function", description: "It fails. More.", failure_mode: "stated"} + $x'
+}
+
+@test "NRM-68 a numeric anchor is kept: integer anchor_line / anchor_line_end reach the envelope beside the symbol anchor, which alone still decides anchor_status and anchor_stability" {
+    local f g twin
+    f=$(_na_finding '{"anchor_line": 12, "anchor_line_end": 15}')
+    g=$(_na_finding '{"id": "DISS-002", "severity": "BLOCKING", "anchor_line": 40}')
+    doc=$(jq -nc --argjson f "$f" --argjson g "$g" '{findings: [$f, $g]}')
+    result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq -c '[.findings[] | [.anchor, .anchor_line, .anchor_line_end, .anchor_status]]' <<<"$result")" \
+      = '[["x.sh:do_thing",12,15,"valid"],["x.sh:do_thing",40,null,"valid"]]' ] || { jq -c '.findings' <<<"$result"; return 1; }
+    [ "$(jq '.findings[1] | has("anchor_line_end")' <<<"$result")" = "false" ]
+    [ "$(jq -r '.findings[1].anchor_stability' <<<"$result")" = "symbol" ] || { jq -c '.findings' <<<"$result"; return 1; }   # (a BLOCKING finding: the symbol anchor's stability, never line_number)
+    # the symbol-only twin is the same envelope minus the line keys: the numeric anchor changes nothing the anchor decides
+    twin=$(jq -nc --argjson f "$f" --argjson g "$g" '{findings: [$f, $g] | map(del(.anchor_line, .anchor_line_end))}')
+    twin=$(process_findings "$(_env "$twin")" "review" "m" "$SPRINT" "0" "x.sh")
+    [ "$(jq -c '.findings' <<<"$twin")" = "$(jq -c '.findings | map(del(.anchor_line, .anchor_line_end))' <<<"$result")" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
+    [ ! -e "$REPAIR_CANARY" ]
+}
+
+@test "NRM-69 a numeric anchor that is not a whole line number is dropped silently: no rejection, no repair hop, the finding and its symbol anchor kept" {
+    local x
+    for x in '{"anchor_line": "12"}' '{"anchor_line": 12.5}' '{"anchor_line": 0}' '{"anchor_line": -3}' '{"anchor_line": true}' \
+             '{"anchor_line": null}' '{"anchor_line": [12]}' '{"anchor_line": 1e300}' '{"anchor_line": 10000001}'; do
+        doc=$(jq -nc --argjson f "$(_na_finding "$x")" '{findings: [$f]}')
+        result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+        [ "$(jq '.findings | length' <<<"$result")" = "1" ] || { echo "$x: finding lost"; return 1; }
+        [ "$(jq '.findings[0] | has("anchor_line") or has("anchor_line_end")' <<<"$result")" = "false" ] || { echo "$x: kept"; return 1; }
+        [ "$(jq -r '.findings[0].anchor' <<<"$result")" = "x.sh:do_thing" ]
+        [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
+    done
+    # the end: kept only beside a kept start and at least it — an end below the start, an end with no start or with a dropped
+    # start, and a non-integer end are dropped; the start stays
+    for x in '{"anchor_line": 20, "anchor_line_end": 19}' '{"anchor_line": 20, "anchor_line_end": "25"}' '{"anchor_line": 20, "anchor_line_end": 25.5}'; do
+        doc=$(jq -nc --argjson f "$(_na_finding "$x")" '{findings: [$f]}')
+        result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+        [ "$(jq -c '.findings[0] | [.anchor_line, has("anchor_line_end")]' <<<"$result")" = '[20,false]' ] || { echo "$x"; return 1; }
+    done
+    for x in '{"anchor_line_end": 25}' '{"anchor_line": "a", "anchor_line_end": 25}'; do
+        doc=$(jq -nc --argjson f "$(_na_finding "$x")" '{findings: [$f]}')
+        result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+        [ "$(jq '.findings[0] | has("anchor_line") or has("anchor_line_end")' <<<"$result")" = "false" ] || { echo "$x"; return 1; }
+    done
+    # a one-line range (end == start) and the upper bound are kept
+    doc=$(jq -nc --argjson f "$(_na_finding '{"anchor_line": 10000000, "anchor_line_end": 10000000}')" '{findings: [$f]}')
+    result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+    [ "$(jq -c '.findings[0] | [.anchor_line, .anchor_line_end]' <<<"$result")" = '[10000000,10000000]' ]
+    [ ! -e "$REPAIR_CANARY" ]
+}
+
+@test "NRM-70 a symbol-only finding is unchanged: the normaliser's output is byte-identical to the pre-cycle-131 normaliser's, and process_findings adds no line key" {
+    local f new old
+    f=$(_na_finding '{}')
+    new=$(_normalize_finding_for_validation "$f" 0)
+    # the same function with the numeric-anchor filter as the identity — the normaliser as it was before the change
+    old=$(_ADV_NUMERIC_ANCHOR_JQ='.' _normalize_finding_for_validation "$f" 0)
+    [ -n "$new" ]
+    [ "$new" = "$old" ]
+    # an audit finding with no anchor at all, too
+    f='{"severity":"MEDIUM","category":"config","description":"Something is off. More.","failure_mode":"x"}'
+    [ "$(_normalize_finding_for_validation "$f" 0)" = "$(_ADV_NUMERIC_ANCHOR_JQ='.' _normalize_finding_for_validation "$f" 0)" ]
+    doc=$(jq -nc --argjson f "$(_na_finding '{}')" '{findings: [$f]}')
+    result=$(process_findings "$(_env "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+    [ "$(jq '.findings[0] | has("anchor_line") or has("anchor_line_end")' <<<"$result")" = "false" ]
+    [ "$(jq -r '.findings[0].anchor_status' <<<"$result")" = "valid" ] || { jq -c '.findings' <<<"$result"; return 1; }
+}
+
+@test "NRM-71 the schema-enforced branch holds the numeric anchor to the same rule: a valid one kept, a null one dropped, a finding without one passed through as it was" {
+    local enf
+    enf() { jq -n --arg c "$1" '{content: $c, tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: true}'; }
+    doc=$(jq -nc --argjson f "$(_na_finding '{"anchor_line": 7, "anchor_line_end": 9}')" --argjson g "$(_na_finding '{"id": "DISS-002", "anchor_line": null, "anchor_line_end": null}')" \
+        --argjson h "$(_na_finding '{"id": "DISS-003"}')" '{findings: [$f, $g, $h]}')
+    result=$(process_findings "$(enf "$doc")" "review" "m" "$SPRINT" "0" "x.sh")
+    [ "$(jq -r '.metadata.parse_path' <<<"$result")" = "schema_enforced" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
+    [ "$(jq -c '.findings[0] | [.anchor_line, .anchor_line_end]' <<<"$result")" = '[7,9]' ]
+    [ "$(jq '.findings[1] | has("anchor_line") or has("anchor_line_end")' <<<"$result")" = "false" ]
+    [ "$(jq '.findings[2] | has("anchor_line") or has("anchor_line_end")' <<<"$result")" = "false" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
+}
+
+@test "NRM-72 adversarial-finding.schema.json documents anchor_line / anchor_line_end as optional integers (minimum 1) and validates a finding with and without them" {
+    local schema="$PROJECT_ROOT/.claude/schemas/adversarial-finding.schema.json"
+    [ "$(jq -c '."$defs".finding.properties.anchor_line | {type, minimum}' "$schema")" = '{"type":"integer","minimum":1}' ]
+    [ "$(jq -c '."$defs".finding.properties.anchor_line_end | {type, minimum}' "$schema")" = '{"type":"integer","minimum":1}' ]
+    jq -e '."$defs".finding.properties.anchor_line.description | startswith("head-file line of the finding (cycle-131)")' "$schema" >/dev/null
+    jq -e '."$defs".finding.required | index("anchor_line") == null and index("anchor_line_end") == null' "$schema" >/dev/null
+    # a stdlib check of the subset the finding definition uses (required, type, enum, minimum, minLength, pattern,
+    # additionalProperties: false) — the schema is a documentation contract, so no third-party validator is assumed
+    run python3 -I - "$schema" <<'PY'
+import json, re, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))["$defs"]["finding"]
+def ok(f):
+    if any(k not in f for k in d["required"]): return "missing required"
+    if d.get("additionalProperties") is False and any(k not in d["properties"] for k in f): return "extra key"
+    for k, v in f.items():
+        p = d["properties"][k]
+        t = p.get("type")
+        if t == "integer" and not (isinstance(v, int) and not isinstance(v, bool)): return k + ": not an integer"
+        if t == "string" and not isinstance(v, str): return k + ": not a string"
+        if "minimum" in p and v < p["minimum"]: return k + ": below minimum"
+        if "enum" in p and v not in p["enum"]: return k + ": not in enum"
+        if "minLength" in p and len(v) < p["minLength"]: return k + ": too short"
+        if "pattern" in p and not re.search(p["pattern"], v): return k + ": pattern"
+        if "oneOf" in p and not any(v in o.get("enum", []) for o in p["oneOf"]): return k + ": oneOf"
+    return ""
+base = {"id": "DISS-001", "severity": "BLOCKING", "category": "error-handling", "description": "d", "failure_mode": "f",
+        "anchor": "x.sh:fn", "anchor_type": "function"}
+cases = [(base, ""), (dict(base, anchor_line=12), ""), (dict(base, anchor_line=12, anchor_line_end=15), ""),
+         (dict(base, anchor_line=0), "anchor_line: below minimum"), (dict(base, anchor_line="12"), "anchor_line: not an integer"),
+         (dict(base, anchor_line=1.5), "anchor_line: not an integer"), (dict(base, anchor_line_end=True), "anchor_line_end: not an integer")]
+bad = [(c, ok(c), want) for c, want in cases if ok(c) != want]
+print("\n".join(f"{c} -> {got!r}, want {want!r}" for c, got, want in bad) or "all ok")
+sys.exit(1 if bad else 0)
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    # and the full validator, where the host has one (it is not a dependency of the suite)
+    if python3 -c 'import jsonschema' 2>/dev/null; then
+        run python3 - "$schema" <<'PY'
+import json, sys, jsonschema
+s = json.load(open(sys.argv[1], encoding='utf-8'))
+f = {"id": "DISS-001", "severity": "BLOCKING", "category": "error-handling", "description": "d", "failure_mode": "f", "anchor": "x.sh:fn"}
+env = lambda x: {"findings": [x], "metadata": {"type": "review", "status": "reviewed"}}
+v = jsonschema.Draft202012Validator(s)
+assert not list(v.iter_errors(env(f))), "symbol-only rejected"
+assert not list(v.iter_errors(env(dict(f, anchor_line=3, anchor_line_end=4)))), "numeric anchors rejected"
+assert list(v.iter_errors(env(dict(f, anchor_line=0)))), "anchor_line 0 accepted"
+assert list(v.iter_errors(env(dict(f, anchor_line="3")))), "string anchor_line accepted"
+assert not list(v.iter_errors({"findings": [], "metadata": {"type": "review", "status": "reviewed", "budget_scale": "diff", "budget_cents_effective": 257, "budget_cents_max": 600}})), "budget metadata rejected"
+print("ok")
+PY
+        [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    fi
+}
+
+@test "NRM-73 both dissent prompts ask for the numeric anchor beside the symbol anchor, in one sentence, and keep the stable-anchor rule for high-severity findings" {
+    local d="$TEST_DIR/na.diff" kind sp
+    printf 'diff --git a/x.sh b/x.sh\n--- a/x.sh\n+++ b/x.sh\n@@ -1 +1 @@\n-a\n+b\n' > "$d"
+    for kind in review audit; do
+        sp=$(assemble_dissent_context "$d" "$kind" "" 24000 | jq -r '.system_prompt')
+        grep -qF '"anchor_line": <int, the head line the finding sits on>, "anchor_line_end": <int, optional, for a range>' <<<"$sp" || { echo "$kind: no anchor_line in the shape"; return 1; }
+        grep -qF '"anchor": "file:symbol", "anchor_type": "function|hunk|line",' <<<"$sp" || { echo "$kind: symbol anchor shape lost"; return 1; }
+        [ "$(grep -cF 'Give `anchor_line` whenever the finding sits on a specific line; keep `anchor` as `file:symbol`.' <<<"$sp")" = "1" ] || { echo "$kind: the sentence is not there once"; return 1; }
+    done
+    sp=$(assemble_dissent_context "$d" review "" 24000 | jq -r '.system_prompt')
+    grep -qF 'Every BLOCKING finding MUST include a stable anchor' <<<"$sp"
+    sp=$(assemble_dissent_context "$d" audit "" 24000 | jq -r '.system_prompt')
+    grep -qF 'Every CRITICAL/HIGH finding MUST include a stable anchor' <<<"$sp"
+}
+
+@test "NRM-74 both dissent wire schemas carry anchor_line / anchor_line_end as nullable integers inside the strict subset: a finding with integer lines validates, one with null lines validates, one without the keys does not (strict mode lists every property as required), and nothing else in the finding object changed" {
+    local k w
+    for k in review audit; do
+        w="$PROJECT_ROOT/.claude/schemas/wire/dissent-$k.wire.json"
+        # the two fields: integer or null (the API-safe optional — W2 needs required == properties, W3 forbids minimum)
+        [ "$(jq -c '.properties.findings.items.properties.anchor_line' "$w")" = '{"anyOf":[{"type":"integer"},{"type":"null"}]}' ] || { echo "$k: anchor_line"; return 1; }
+        [ "$(jq -c '.properties.findings.items.properties.anchor_line_end' "$w")" = '{"anyOf":[{"type":"integer"},{"type":"null"}]}' ] || { echo "$k: anchor_line_end"; return 1; }
+        jq -e '.properties.findings.items | (.required | index("anchor_line") != null and index("anchor_line_end") != null) and .additionalProperties == false' "$w" >/dev/null || { echo "$k: not required or not closed"; return 1; }
+        # the rest of the finding object is the cycle-130 shape: the same eleven other properties, all required
+        [ "$(jq -c '.properties.findings.items | [(.properties | keys - ["anchor_line", "anchor_line_end"]), (.required - ["anchor_line", "anchor_line_end"] | sort)]' "$w")" \
+          = '[["anchor","anchor_type","category","cross_file_justification","description","failure_mode","id","scope","severity","suggested_fix","trigger_anchor"],["anchor","anchor_type","category","cross_file_justification","description","failure_mode","id","scope","severity","suggested_fix","trigger_anchor"]]' ] \
+          || { echo "$k: another property or required entry changed"; return 1; }
+    done
+    # validation of enforced-shape findings against each wire schema — a stdlib check of the subset the wire schemas use (type,
+    # enum, anyOf, required, additionalProperties: false), then the full validator where the host has one
+    run python3 -I - "$PROJECT_ROOT/.claude/schemas/wire" <<'PY'
+import json, os, sys
+def check(node, v):
+    if "anyOf" in node:
+        return any(check(o, v) for o in node["anyOf"])
+    t = node.get("type")
+    tm = {"object": dict, "array": list, "string": str, "null": type(None)}
+    if t == "integer":
+        if not (isinstance(v, int) and not isinstance(v, bool)): return False
+    elif t is not None and not isinstance(v, tm[t]): return False
+    if "enum" in node and v not in node["enum"]: return False
+    if t == "object":
+        props = node.get("properties", {})
+        if any(r not in v for r in node.get("required", [])): return False
+        if node.get("additionalProperties") is False and any(x not in props for x in v): return False
+        return all(check(props[x], y) for x, y in v.items() if x in props)
+    if t == "array":
+        return all(check(node.get("items", {}), y) for y in v)
+    return True
+bad = []
+for k, sev, cat in (("review", "BLOCKING", "injection"), ("audit", "HIGH", "injection")):
+    s = json.load(open(os.path.join(sys.argv[1], f"dissent-{k}.wire.json"), encoding="utf-8"))
+    base = {"id": "DISS-001", "severity": sev, "category": cat, "anchor": "x.sh:fn", "anchor_type": "function",
+            "scope": "diff", "trigger_anchor": None, "cross_file_justification": None, "description": "d",
+            "failure_mode": "f", "suggested_fix": "s"}
+    cases = [(dict(base, anchor_line=12, anchor_line_end=15), True), (dict(base, anchor_line=12, anchor_line_end=None), True),
+             (dict(base, anchor_line=None, anchor_line_end=None), True), (base, False),
+             (dict(base, anchor_line="12", anchor_line_end=None), False), (dict(base, anchor_line=1.5, anchor_line_end=None), False),
+             (dict(base, anchor_line=True, anchor_line_end=None), False), (dict(base, anchor_line=1, anchor_line_end=None, extra=1), False)]
+    for f, want in cases:
+        if check(s, {"findings": [f]}) != want:
+            bad.append(f"{k}: {f} -> {not want}, want {want}")
+print("\n".join(bad) or "all ok")
+sys.exit(1 if bad else 0)
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    if python3 -c 'import jsonschema' 2>/dev/null; then
+        run python3 - "$PROJECT_ROOT/.claude/schemas/wire" <<'PY'
+import json, os, sys, jsonschema
+for k, sev in (("review", "BLOCKING"), ("audit", "HIGH")):
+    v = jsonschema.Draft202012Validator(json.load(open(os.path.join(sys.argv[1], f"dissent-{k}.wire.json"), encoding="utf-8")))
+    base = {"id": "DISS-001", "severity": sev, "category": "injection", "anchor": "x.sh:fn", "anchor_type": "function", "scope": "diff",
+            "trigger_anchor": None, "cross_file_justification": None, "description": "d", "failure_mode": "f", "suggested_fix": "s"}
+    ok = lambda f: not list(v.iter_errors({"findings": [f]}))
+    assert ok(dict(base, anchor_line=12, anchor_line_end=15)), k + ": integer lines rejected"
+    assert ok(dict(base, anchor_line=None, anchor_line_end=None)), k + ": null lines rejected"
+    assert not ok(base), k + ": a finding without the keys accepted"
+    assert not ok(dict(base, anchor_line="12", anchor_line_end=None)), k + ": a string line accepted"
+print("ok")
+PY
+        [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    fi
 }

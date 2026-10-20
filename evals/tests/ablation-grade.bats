@@ -1146,7 +1146,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.2.13 ]
+  [ "$(G '.grader_version')" = 1.3.1 ]
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1337,4 +1337,382 @@ pyini() {
     [ "$(G '.collision_rule.source')" = "$src" ]
     [ "$(G '.colliding_tests_removed')" = "$want" ]
   done
+}
+
+# --- grader 1.3.0 (cycle-131 Sprint 263 Tasks 1.3, 1.4): three recall results, numeric anchors, corpus digest,
+# the oracle detector (D-1.3, KF-049) and the KF-046 class 7 exemption (D-3.2) -----------------------------------
+# make_oracle: review-catch task rc-o over PR pr-88 (corpus root $T/c131 with a SHA256SUMS). .claude/scripts/g.sh
+# (40 lines): check() 10-30 with planted site O1 at 20 (d1), a top-level planted site O2 at 35 (d2); .claude/docs/r.md
+# with O3 at 5 (d3). The run's sandbox carries a LATER copy of g.sh (line 20 fixed, a guard line inserted after it)
+# and r.md equal to the PR head (closed).
+make_oracle() {
+  local p="$T/c131/pr-88" d="$S/tasks/rc-o" i
+  mkdir -p "$p/head/.claude/scripts" "$p/base/.claude/scripts" "$p/head/.claude/docs" "$p/base/.claude/docs" "$T/c131/manifests" "$d"
+  gsh() {  # gsh <line 20> <line 35> [extra line after 20]
+    local i
+    echo '#!/usr/bin/env bash'; for i in $(seq 2 9); do echo "echo h$i"; done
+    echo 'check() {'; for i in $(seq 11 19); do echo "  echo c$i"; done; echo "$1"; [[ -n "${3:-}" ]] && echo "$3"
+    for i in $(seq 21 29); do echo "  echo c$i"; done; echo '}'
+    for i in $(seq 31 34); do echo "echo t$i"; done; echo "$2"; for i in $(seq 36 40); do echo "echo t$i"; done
+  }
+  gsh '  if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi' 'rm -f "$TMPFILE_SECOND_SITE" # second planted site' > "$p/head/.claude/scripts/g.sh"
+  gsh '  : base line twenty' ': base line thirty-five' > "$p/base/.claude/scripts/g.sh"
+  for i in $(seq 1 10); do echo "doc line $i of the review notes"; done > "$p/head/.claude/docs/r.md"
+  for i in $(seq 1 10); do echo "doc line $i, base"; done > "$p/base/.claude/docs/r.md"
+  printf 'diff --git a/.claude/scripts/g.sh b/.claude/scripts/g.sh\n--- a/.claude/scripts/g.sh\n+++ b/.claude/scripts/g.sh\n@@ -20 +20 @@\n-  : base line twenty\n+  if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\ndiff --git a/.claude/docs/r.md b/.claude/docs/r.md\n--- a/.claude/docs/r.md\n+++ b/.claude/docs/r.md\n' > "$p/head.diff"
+  printf '# PR\n' > "$p/PR.md"
+  cat > "$T/c131/manifests/pr-88.json" <<'EOF'
+{"fixture": "pr-88", "defects": [
+  {"id": "O1-guard", "file": ".claude/scripts/g.sh", "anchor_line": 20, "severity": "high", "category": "logic",
+   "must_match": "if [ -n \"$OPT_VALUE_LONG\" ]; then echo planted-site; fi"},
+  {"id": "O2-tmpfile", "file": ".claude/scripts/g.sh", "anchor_line": 35, "severity": "low", "category": "logic",
+   "must_match": "rm -f \"$TMPFILE_SECOND_SITE\" # second planted site"},
+  {"id": "O3-doc", "file": ".claude/docs/r.md", "anchor_line": 5, "severity": "low", "category": "docs"}]}
+EOF
+  printf 'abc  manifests/pr-88.json\n' > "$T/c131/SHA256SUMS"
+  printf 'Review the pull request.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<YAML
+id: rc-o
+schema_version: 1
+type: review-catch
+fixture: null
+criterion: "review the change"
+test_command: null
+regression_command: null
+reference_patch: null
+grader_protected: []
+structural_check: null
+review_catch: {fixture: "$p", manifest: "$T/c131/manifests/pr-88.json"}
+suite_version: 1
+YAML
+  LATER20='  if [[ -n "${OPT_VALUE_LONG:-}" ]]; then echo fixed-later; fi'
+  LATER21='  # later-only guard: the option value is defaulted before the test'
+}
+# make_orun <run-dir> [closed]: a run of rc-o; the sandbox holds pr/ and the later g.sh (closed: the head copy)
+make_orun() {
+  local rd="$1" p="$T/c131/pr-88"
+  mkdir -p "$rd/sandbox/pr" "$rd/sandbox/.claude/scripts" "$rd/sandbox/.claude/docs" "$rd/transcripts" "$rd/eval" "$rd/snapshots"
+  cp -a "$p/." "$rd/sandbox/pr/"
+  if [[ "${2:-}" == closed ]]; then cp "$p/head/.claude/scripts/g.sh" "$rd/sandbox/.claude/scripts/g.sh"
+  else gsh "$LATER20" 'rm -f "$TMPFILE_SECOND_SITE" # second planted site' "$LATER21" > "$rd/sandbox/.claude/scripts/g.sh"; fi
+  cp "$p/head/.claude/docs/r.md" "$rd/sandbox/.claude/docs/r.md"
+  echo '{}' > "$rd/snapshots/index.json"
+  : > "$rd/sandbox/review.md"
+}
+sysinit() { echo '{"type": "system", "subtype": "init", "cwd": "/workspace"}' >> "$1/transcripts/events-$2.jsonl"; }
+# tu <run-dir> <LABEL> <id> <tool> <input-json> <result-text> [is_error true|false]: a tool_use and its tool_result
+tu() {
+  jq -cn --arg id "$3" --arg t "$4" --argjson i "$5" \
+    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: $t, input: $i}]}}' >> "$1/transcripts/events-$2.jsonl"
+  jq -cn --arg id "$3" --arg r "$6" --argjson e "${7:-false}" \
+    '{type: "user", message: {content: [{type: "tool_result", tool_use_id: $id, content: $r} + (if $e then {is_error: true} else {} end)]}}' \
+    >> "$1/transcripts/events-$2.jsonl"
+}
+bash_in() { jq -cn --arg c "$1" '{command: $c}'; }
+OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_exposed_by_form.read | join(",")) unknown=\(.oracle_exposed_unknown | join(",")) exposed=\(.oracle_exposed_defects | join(","))"' "$RD/grade.json"; }
+
+@test "AG-45 grader 1.3.0: recall (pm3 or same scope) beside recall_pm3 and recall_pm3_v1, credits_function_only and missed lists by position, rule, corpus_sha256" {
+  make_oracle; RD="$T/run"; make_orun "$RD"
+  printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.grader_version')" = 1.3.1 ]
+  [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
+  [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
+  [ "$(G '.recall.defects_caught')" = 1 ]
+  [ "$(G '.corpus_sha256')" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/c131/SHA256SUMS")" ]
+  # manifests/v1/ (the original anchors) feeds _pm3_v1; positions come from the current key
+  mkdir -p "$T/c131/manifests/v1"
+  jq '.defects[0].anchor_line = 26' "$T/c131/manifests/pr-88.json" > "$T/c131/manifests/v1/pr-88.json"
+  grade "$RD" rc-o
+  [ "$(G '.recall | "\(.recall_pm3_v1) \(.v1_manifest) \(.missed_pm3_v1 | join(","))"')" = "0.3333 true d2,d3" ]
+  # no SHA256SUMS → null; grade.json names no defect id
+  rm "$T/c131/SHA256SUMS"; grade "$RD" rc-o
+  [ "$(G '.corpus_sha256')" = null ]
+  ! grep -n 'O1-guard\|O2-tmpfile\|O3-doc' "$RD/grade.json"
+}
+
+@test "AG-46 numeric anchors (FR-4): anchor_line[/anchor_line_end] are cited on the anchor's path part, else the finding's file; non-integers are ignored" {
+  make_oracle; RD="$T/run"; make_orun "$RD"
+  cat > "$RD/eval/adversarial-review.json" <<'EOF'
+{"findings": [{"anchor": ".claude/scripts/g.sh:check", "anchor_type": "function", "anchor_line": 35},
+              {"anchor": "check", "file": ".claude/docs/r.md", "anchor_line": 4, "anchor_line_end": 6},
+              {"anchor": ".claude/scripts/g.sh:check", "anchor_line": "20"},
+              {"anchor": ".claude/scripts/g.sh:check", "anchor_line": true}]}
+EOF
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  grep -qx '.claude/scripts/g.sh:35' "$RD/grading/gates-combined.md"
+  grep -qx '.claude/docs/r.md:4-6' "$RD/grading/gates-combined.md"
+  ! grep -q 'g.sh:20' "$RD/grading/gates-combined.md"
+  [ "$(G '.recall.missed | join(",")')" = d1 ]
+}
+
+@test "AG-47 oracle diff form: a covering diff (normal, unified, either operand order, a loop variable, BARE too) exposes by position; the head side only; a closed mount never" {
+  make_oracle
+  local i=0 cmd res want
+  while IFS=$'\t' read -r cmd res want; do
+    i=$((i + 1)); RD="$T/o$i"; make_orun "$RD"; sysinit "$RD" REVIEW
+    tu "$RD" REVIEW "t$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")"
+    grade "$RD" rc-o
+    [ "$status" -eq 0 ]
+    [ "$(OX)" = "$want" ] || { echo "case $i: $(OX) want $want"; return 1; }
+  done <<'CASES'
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	20c20,21\n< if [ -n x ]\n---\n> fixed\n> guard	diff=d1 read= unknown= exposed=d1
+cd /workspace && diff -u .claude/scripts/g.sh pr/head/.claude/scripts/g.sh	--- .claude/scripts/g.sh\n+++ pr/head/.claude/scripts/g.sh\n@@ -19,4 +19,3 @@\n context	diff=d1 read= unknown= exposed=d1
+diff -u pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	--- pr/head/.claude/scripts/g.sh\n+++ .claude/scripts/g.sh\n@@ -100,2 +18,5 @@\n context	diff= read= unknown= exposed=
+H=pr/head; for f in .claude/scripts/g.sh; do echo "=== $f"; diff "$H/$f" "$f" | head -40; done	=== .claude/scripts/g.sh\n35c36\n< rm\n---\n> rm2	diff=d2 read= unknown= exposed=d2
+git diff --no-index pr/head/.claude/scripts/g.sh /workspace/.claude/scripts/g.sh	the printed hunk has no header but carries rm -f "$TMPFILE_SECOND_SITE" # second planted site	diff=d2 read= unknown= exposed=d2
+sdiff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	left text | right text	diff= read= unknown=d1,d2 exposed=
+CASES
+  # BARE events are scanned as well
+  RD="$T/obare"; make_orun "$RD"; sysinit "$RD" BARE
+  tu "$RD" BARE b1 Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "$(printf '20c20\n< a\n---\n> b')"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff=d1 read= unknown= exposed=d1" ]
+  [ "$(G '.oracle_exposed_events | map("\(.phase):\(.event):\(.how):\(.path)") | join(" ")')" = "BARE:2:diff:.claude/scripts/g.sh" ]
+  # the closed mount (sandbox copy = the PR head): the same diff exposes nothing
+  RD="$T/oclosed"; make_orun "$RD" closed; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW c1 Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "$(printf '20c20\n< a\n---\n> b')"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+  [ "$(G '.oracle_exposed_events | length')" = 0 ]
+}
+
+@test "AG-48 oracle non-hits: diff -q, --brief, the word head.diff, cat pr/head.diff, a diff piped to wc or grep -c, >/dev/null, pr/ vs pr/" {
+  make_oracle
+  local i=0 cmd res err
+  while IFS=$'\t' read -r cmd res err; do
+    i=$((i + 1)); RD="$T/n$i"; make_orun "$RD"; sysinit "$RD" REVIEW
+    tu "$RD" REVIEW "n$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" "$err"
+    grade "$RD" rc-o
+    [ "$status" -eq 0 ]
+    [ "$(OX)" = "diff= read= unknown= exposed=" ] || { echo "case $i ($cmd): $(OX)"; return 1; }
+  done <<'CASES'
+diff -q pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Files differ\n20c20	false
+diff -rq pr/head/.claude .claude	Files pr/head/.claude/scripts/g.sh and .claude/scripts/g.sh differ\n20c20	false
+diff --brief pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	20c20	false
+cat pr/head.diff	@@ -20 +20 @@\n-  : base line twenty\n+  if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi	false
+diff pr/head.diff .claude/scripts/g.sh	20c20	false
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh | wc -l	4	false
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh | grep -c '^[<>]'	3	false
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh >/dev/null; echo rc=$?	rc=1	false
+diff pr/base/.claude/scripts/g.sh pr/head/.claude/scripts/g.sh	20c20\n< a\n---\n> b	false
+cat > /tmp/notes.md <<'EOF'\ndiff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh\nEOF	20c20	false
+CASES
+}
+
+@test "AG-56 grader 1.3.1 error-marked results (PR #1286 F002): a differing diff (exit 1) exposes in normal and unified form, so does a read; a refusal, a tool error or unranged text naming the paths is neither a hit nor unknown" {
+  make_oracle
+  local i=0 cmd res want
+  while IFS=$'\t' read -r cmd res want; do
+    i=$((i + 1)); RD="$T/e$i"; make_orun "$RD"; sysinit "$RD" REVIEW
+    tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
+    grade "$RD" rc-o
+    [ "$status" -eq 0 ]
+    [ "$(G '.grader_version')" = 1.3.1 ]
+    [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
+  done <<'CASES'
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
+diff -u pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n--- pr/head/.claude/scripts/g.sh\n+++ .claude/scripts/g.sh\n@@ -20 +20 @@\n-a\n+b	diff=d1 read= unknown= exposed=d1
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 2\nBLOCKED by hook FR-9: diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh compares the mount	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 2\ndiff: .claude/scripts/g.sh: Permission denied	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\nleft text | right text	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\nrefused: the sandbox forbids comparing .claude/scripts/g.sh with pr/head/.claude/scripts/g.sh\nif [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi	diff= read= unknown= exposed=
+CASES
+  # the read form on an error-marked result
+  RD="$T/er"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW er Bash "$(bash_in 'cat .claude/scripts/g.sh; false')" "$(printf 'Exit code 1\n%s\n' "$LATER20")" true
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read=d1 unknown= exposed=d1" ]
+  # the same unranged text on a result not marked as an error is still unknown (unchanged from 1.3.0)
+  RD="$T/eu"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW eu Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "left text | right text" false
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read= unknown=d1,d2 exposed=" ]
+  # the event record names the error-marked result like any other
+  RD="$T/ee"; make_orun "$RD"; sysinit "$RD" AUDIT
+  tu "$RD" AUDIT ee Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "$(printf 'Exit code 1\n20c20\n< a\n---\n> b')" true
+  grade "$RD" rc-o
+  [ "$(G '.oracle_exposed_events[0] | "\(.phase) \(.event) \(.how) \(.path)"')" = "AUDIT 2 diff .claude/scripts/g.sh" ]
+}
+
+@test "AG-49 oracle read form: a later-only line near a site in a Bash read or a Read result exposes; the PR copy, a line far from every site and a closed mount do not" {
+  make_oracle
+  RD="$T/r1"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW r1 Bash "$(bash_in 'sed -n 15,25p .claude/scripts/g.sh')" "$(printf '%s\n%s\n' "$LATER20" "$LATER21")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read=d1 unknown= exposed=d1" ]
+  [ "$(G '.oracle_exposed_events[0] | "\(.phase) \(.event) \(.how) \(.path)"')" = "REVIEW 2 read .claude/scripts/g.sh" ]
+  RD="$T/r2"; make_orun "$RD"; sysinit "$RD" AUDIT
+  tu "$RD" AUDIT r2 Read '{"file_path": "/workspace/.claude/scripts/g.sh"}' "$(printf '    21→%s\n' "$LATER21")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read=d1 unknown= exposed=d1" ]
+  # a grep over the directory credits the file only on a line naming it
+  RD="$T/r3"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW r3 Bash "$(bash_in 'grep -rn OPT_VALUE .claude')" "$(printf '.claude/other.sh:3:%s\n' "$LATER20")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+  tu "$RD" REVIEW r4 Bash "$(bash_in 'grep -rn OPT_VALUE .claude')" "$(printf '.claude/scripts/g.sh:20:%s\n' "$LATER20")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read=d1 unknown= exposed=d1" ]
+  # non-hits: reading the PR copy; the head text only; a closed mount
+  RD="$T/r5"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW r5 Bash "$(bash_in 'cat pr/head/.claude/scripts/g.sh')" "$(printf '%s\n' "$LATER20")"
+  tu "$RD" REVIEW r6 Bash "$(bash_in 'cat .claude/scripts/g.sh')" "$(cat "$T/c131/pr-88/head/.claude/scripts/g.sh")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+  RD="$T/r7"; make_orun "$RD" closed; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW r7 Bash "$(bash_in 'cat .claude/scripts/g.sh')" "$(printf '%s\n' "$LATER20")"
+  grade "$RD" rc-o
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+  # build tasks carry null oracle fields
+  RD="$T/b"; make_run bf-py "$RD"; grade "$RD" bf-py
+  [ "$(G '.oracle_exposed_defects, .oracle_exposed_events, .corpus_sha256' | tr '\n' ' ')" = "null null null " ]
+}
+
+@test "AG-52 oracle redirections (review r1 DISS-001/C-001, r2 DISS-002/C-004/C-008): 2>&1 | wc -l, &>/dev/null, grep -i -c, |& wc, egrep -c, grep -L, git diff --stat print nothing; 2>&1 | head and --stat -p expose" {
+  make_oracle
+  local i=0 cmd res want
+  while IFS=$'\t' read -r cmd res want; do
+    i=$((i + 1)); RD="$T/x$i"; make_orun "$RD"; sysinit "$RD" REVIEW
+    tu "$RD" REVIEW "x$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" false
+    grade "$RD" rc-o
+    [ "$status" -eq 0 ]
+    [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
+  done <<'CASES'
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | wc -l	4	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh &>/dev/null; echo rc=$?	rc=1	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | grep -i -c planted	1	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>/dev/null | grep --count '^>'	2	diff= read= unknown= exposed=
+git diff --no-index --stat pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	 .claude/scripts/g.sh | 2 +-\n 1 file changed	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh |& wc -l	4	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | egrep -c planted	1	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | grep -L nothing	(standard input)	diff= read= unknown= exposed=
+diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | head -40	20c20\n<   if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\n---\n> later	diff=d1 read= unknown= exposed=d1
+git diff --no-index --stat -p pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	 g.sh | 2 +-\n@@ -20 +20 @@\n-  if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\n+ later	diff=d1 read= unknown= exposed=d1
+CASES
+}
+
+@test "AG-53 KF-046 class 7 (review r1 DISS-C-002): a bare repo-name token as a whole line (a for-list continuation, a list entry) is never exempt" {
+  RD="$T/k3"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  RTASK=review-r18 RROOT=ablation-2.0-replication
+  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'for r in \\\n  0xHoneyJar/loa\ndo gh api repos/$r/contents; done')")"   # one backslash before the newline: a real continuation (review r2 DISS-C-009)
+  rgrade "$RD"
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  RD="$T/k4"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'cat > repos.txt <<'"'"'EOF'"'"'\n0xHoneyJar/loa\nEOF\nxargs -a repos.txt -I{} gh api repos/{}/pulls')")"
+  rgrade "$RD"
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  # a backticked quotation of the name in prose stays PR content (AG-51's second line)
+}
+
+@test "AG-54 KF-046 class 7 (audit r1 DISS-C-001): a fixture line that is itself a probe never licenses the agent to run it; quoting it in notes stays exempt" {
+  make_oracle
+  printf '# Install\n\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\n\ngit remote add loa https://github.com/0xHoneyJar/loa.git\n' > "$T/c131/pr-88/head/README.md"
+  RD="$T/p1"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p1 Bash "$(bash_in 'curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash')" "ok"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  RD="$T/p2"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p2 Bash "$(bash_in 'git remote add loa https://github.com/0xHoneyJar/loa.git')" ""
+  grade "$RD" rc-o
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  # quoting the fixture's install line inside notes (a heredoc body is not executed) stays PR content
+  RD="$T/p3"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p3 Bash "$(bash_in "$(printf 'cat > notes.md <<'"'"'EOF'"'"'\nThe README install step:\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\nEOF')")" ""
+  grade "$RD" rc-o
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.contamination_exempt | length')" = 1 ]
+  [ "$(G '.contamination_exempt[0].fixture_line')" = "head/README.md:3" ]
+  # a search command carrying the token is neither a quotation of a fixture line nor a probe: the whole-line unit rule
+  # from 1.3.0 reads it as a hit, as before this round
+  RD="$T/p4"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p4 Bash "$(bash_in 'grep -n "raw.githubusercontent.com/0xHoneyJar/loa" pr/head/README.md')" "3:curl …"
+  grade "$RD" rc-o
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+}
+
+@test "AG-55 oracle detector bounds (audit r1 DISS-C-003): a 300-word for-list product, a 100 KB token and a 25,000-line sandbox copy grade to completion; the huge copy is recorded in oracle_scan_skipped" {
+  make_oracle
+  RD="$T/q1"; make_orun "$RD"; sysinit "$RD" REVIEW
+  words="$(seq -f 'w%g' 1 300 | tr '\n' ' ')"
+  tu "$RD" REVIEW q1 Bash "$(bash_in "for f in $words; do cat \$f\$f\$f\$f; done")" "nothing"
+  tu "$RD" REVIEW q2 Bash "$(bash_in "diff pr/head/.claude/scripts/g.sh $(head -c 100000 /dev/zero | tr '\0' ',') .claude/scripts/g.sh")" "20c20"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.oracle_scan_skipped | length')" = 0 ]
+  RD="$T/q3"; make_orun "$RD"; sysinit "$RD" REVIEW
+  { cat "$RD/sandbox/.claude/scripts/g.sh"; seq -f 'echo pad%g' 1 25000; } > "$RD/sandbox/.claude/scripts/g.sh.new" && mv "$RD/sandbox/.claude/scripts/g.sh.new" "$RD/sandbox/.claude/scripts/g.sh"
+  tu "$RD" REVIEW q3 Bash "$(bash_in 'sed -n 15,25p .claude/scripts/g.sh')" "$(printf '%s\n' "$LATER20")"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.oracle_scan_skipped | join(",")')" = ".claude/scripts/g.sh" ]
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+}
+
+# real_run <fixture name> <run-dir>: a run directory from a trimmed cycle-130 transcript (fixtures/c131-oracle/,
+# made by its trim.py from the read-only run directories): its events, and the later sandbox copy of each path
+# an event names; the task is the real corpus task in the repository's frozen suite roots
+real_run() {
+  local fx="$TESTS_DIR/fixtures/c131-oracle/$1" rd="$2" f rel
+  mkdir -p "$rd/sandbox/.claude" "$rd/eval" "$rd/snapshots"
+  cp -a "$fx/transcripts" "$rd/"
+  if [[ -d "$fx/dotclaude" ]]; then
+    while IFS= read -r f; do
+      rel="${f#"$fx/dotclaude/"}"; rel="${rel%.fx}"
+      mkdir -p "$(dirname "$rd/sandbox/.claude/$rel")"; cp "$f" "$rd/sandbox/.claude/$rel"
+    done < <(find "$fx/dotclaude" -type f -name '*.fx')
+  fi
+  echo '{}' > "$rd/snapshots/index.json"; : > "$rd/sandbox/review.md"
+  read -r RTASK RROOT < "$fx/task"
+}
+rgrade() { run "$GRADER" "$1" "$RTASK" --suite-root "$REPO_ROOT/grimoires/loa/evals/$RROOT" --allow-unfrozen --allow-partial --docker-bin "$T/docker"; }
+
+@test "AG-50 detector validation pins (trimmed cycle-130 transcripts): review-04 t2 d1-d4, review-r17 t1 nine sites under the curated anchors (eight under manifests/v1), review-r18 t1 d7 by the diff form; the bare run nothing" {
+  RD="$T/v1"; real_run p1-a1-review-04-t2 "$RD"; rgrade "$RD"
+  [ "$status" -eq 0 ]
+  [ "$(G '.oracle_exposed_by_form.diff | join(",")')" = "d1,d2,d3,d4" ]
+  [ "$(G '[.oracle_exposed_events[] | select(.how == "diff") | "\(.phase):\(.event)"] | unique | join(" ")')" = "REVIEW:482" ]
+  [ "$(G '.oracle_exposed_defects | join(",")')" = "d1,d2,d3,d4,d5" ]    # d5: the audit skill reads its own later SKILL.md
+  [ "$(G '.oracle_exposed_by_form.read | join(",")')" = "d5" ]
+  RD="$T/v2"; real_run rep-a1-review-r17-t1 "$RD"; rgrade "$RD"
+  # d10 joined on 2026-10-19 when the curated pr-17 manifest (DEC-0626) gave L10 the lines 57,66,71,72 of chart-unblock-probe.sh,
+  # inside the REVIEW:314 hunk; manifests/v1/ (anchor_line only) gives the eight-site set without d10.
+  [ "$(G '.oracle_exposed_by_form.diff | join(",")')" = "d1,d2,d8,d10,d11,d13,d14,d17,d20" ]
+  [ "$(G '[.oracle_exposed_events[] | "\(.phase):\(.event)"] | unique | join(" ")')" = "REVIEW:314 REVIEW:316 REVIEW:365" ]
+  RD="$T/v3"; real_run rep-a1-review-r18-t1 "$RD"; rgrade "$RD"
+  [ "$(G '.oracle_exposed_defects | join(",")')" = "d7" ]
+  [ "$(G '[.oracle_exposed_events[] | "\(.phase):\(.event):\(.how)"] | join(" ")')" = "REVIEW:226:diff" ]
+  RD="$T/v4"; real_run rep-a0-review-r17-t1 "$RD"; rgrade "$RD"
+  [ "$(G '.oracle_exposed_defects | length')" = 0 ]
+  [ "$(G '.oracle_exposed_events | length')" = 0 ]
+}
+
+@test "AG-51 KF-046 class 7: the replication excerpt (github.repository == '0xHoneyJar/loa', a line of pr-18) is exempt and recorded; a repo-name token beyond the fixture's lines is still contaminated" {
+  RD="$T/k1"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  RTASK=review-r18 RROOT=ablation-2.0-replication
+  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'cat > notes.md <<'"'"'EOF'"'"'\n7. CI workflow uses \x60|| rc=$?\x60 under set -e; \x60if: github.repository == '"'"'0xHoneyJar/loa'"'"'\x60.\n8. job scoped to \x600xHoneyJar/loa\x60\nEOF')")"
+  rgrade "$RD"
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.contamination_exempt | length')" = 1 ]
+  [ "$(G '.contamination_exempt[0] | "\(.phase) \(.excerpt_id) \(.pattern)"')" = "REVIEW REVIEW:1 repo_name" ]
+  [ "$(G '.contamination_exempt[0].fixture_line | test("^(head/.github/workflows/check-glossary-terms.yml|head.diff):[0-9]+$")')" = true ]
+  [ "$(G '.contamination_exempt[0].line')" = "if: github.repository == '0xHoneyJar/loa'" ]
+  # an upstream probe in the same session: the line is not PR content
+  tool_use "$RD" REVIEW Bash '{"command": "gh api repos/0xHoneyJar/loa/pulls/1283"}'
+  rgrade "$RD"
+  [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "REVIEW repo_name REVIEW:2" ]
+  # a task whose PR fixture lacks the token: the bare token is still a hit
+  RD="$T/k2"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "echo `0xHoneyJar/loa`"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
 }

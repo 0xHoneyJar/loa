@@ -1,7 +1,7 @@
 {
   "fixture": "pr-18",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "254",
     "record_ref": "origin/record/cycle-128-a2a",
@@ -14,8 +14,13 @@
       "file": "tools/check-glossary-terms.sh",
       "anchor_line": 131,
       "anchors": [
+        100,
+        105,
+        130,
         131,
-        148
+        136,
+        148,
+        164
       ],
       "must_match": "FILENAME == ARGV[1] { if ($1 == \"term\") add(term, $2, $3); else add(alias, $2, $3); next }",
       "severity": "medium",
@@ -30,6 +35,9 @@
       "file": "tools/check-glossary-terms.sh",
       "anchor_line": 183,
       "anchors": [
+        100,
+        105,
+        124,
         131,
         148,
         183
@@ -46,6 +54,10 @@
       "id": "L03-rtc-9-the-no-shim-symlinks-and",
       "file": "tests/unit/red-test-check.bats",
       "anchor_line": 143,
+      "anchors": [
+        143,
+        146
+      ],
       "must_match": "/usr/local/bin",
       "severity": "low",
       "category": "security",
@@ -60,6 +72,8 @@
       "anchor_line": 133,
       "anchors": [
         133,
+        149,
+        152,
         160
       ],
       "must_match": "finish()",
@@ -75,9 +89,11 @@
       "file": ".claude/scripts/red-test-check.sh",
       "anchor_line": 250,
       "anchors": [
+        113,
         237,
         248,
-        250
+        250,
+        292
       ],
       "must_match": "exec \"$@\"",
       "severity": "high",
@@ -92,6 +108,7 @@
       "file": ".claude/scripts/red-test-check.sh",
       "anchor_line": 216,
       "anchors": [
+        34,
         214,
         216
       ],
@@ -107,6 +124,13 @@
       "id": "L08-the-seams-rule-s-fence-tracking-and-date",
       "file": ".claude/scripts/validate-artifact.sh",
       "anchor_line": 869,
+      "anchors": [
+        869,
+        871,
+        875,
+        890,
+        897
+      ],
       "must_match": "validate_sprint_seams() {",
       "severity": "low",
       "category": "security",

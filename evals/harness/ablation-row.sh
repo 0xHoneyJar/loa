@@ -70,9 +70,37 @@
 #   number of ids == defects_caught when both are numbers. --validate names the rule:
 #   "defects_missed [...] violates the rule: <rule>".
 #
-# Row writer version: 1.3 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
+# Row writer 1.4 fields (cycle-131 Sprint 263 Task 1.6, SDD §3.2; additive — schema_version stays 1):
+#   row_writer_version  "1.4"; --validate requires every 1.4 field on a row that carries it
+#   defect_catch_rate   unchanged expression: grade.json recall.recall, which grader 1.3 computes under
+#                       the rule grader_rule names ("pm3_or_same_function")
+#   defect_catch_rate_pm3 / defect_catch_rate_pm3_v1  recall.recall_pm3 / recall.recall_pm3_v1 (null
+#                       when the grade has none: a 1.2.x grade)
+#   defects_missed_pm3 / defects_missed_pm3_v1  recall.missed_pm3 / recall.missed_pm3_v1 (the id grammar,
+#                       unique, at most defects_seeded, within d1 … d<defects_seeded>; else null)
+#   credits_function_only  recall.credits_function_only (positions; null without it)
+#   oracle_exposed_defects / oracle_exposed_unknown  grade.json's (positions; null without them)
+#   grader_rule         recall.rule; "pm3" for a graded review-catch row whose grade names no rule (1.2.x);
+#                       null on build and ungraded rows
+#   grader_version, corpus_sha256  grade.json's (null when absent)
+#   dissent_absent_reason {review, audit}  per gate that ran (a non-skipped REVIEW / AUDIT phase; null for a
+#                       gate that did not run): disabled (the sandbox .loa.config.yaml sets
+#                       flatline_protocol.enabled, or the gate's code_review / security_audit .enabled,
+#                       false, or meta/arm-evidence.txt says dissent=false for the review gate) > budget
+#                       (envelope metadata.status budget_exceeded) > preflight (a status naming preflight, or
+#                       a record-fallback whose reason names it) > error (status failed, any other
+#                       record-fallback, or no envelope although the gate ran) > none (the dissent ran)
+#   dissent_absent_gates  the gates whose reason is disabled, budget, preflight or error (planned absence —
+#                       disabled — included; the report never excludes it)
+#   config_variant      meta/arm-evidence.txt config_variant= (default shipped)
+#   overlay_mode        the prefix of mount_overlay= (head | base | none; null when absent or another value)
+#   oracle_open         true when the evidence says oracle_open=true, else false
+#   gate_scripts_at_pr_version  the comma list of gate_scripts_at_pr_version= ([] when absent)
+#
+# Row writer version: 1.4 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
 # envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
-# regressions_final_green, Sprint 262; 1.3 the defects_missed id rules, Sprint 262 audit).
+# regressions_final_green, Sprint 262; 1.3 the defects_missed id rules, Sprint 262 audit;
+# 1.4 the cycle-131 fields above).
 #
 # Usage:
 #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
@@ -127,7 +155,7 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
-    -h|--help)        sed -n '2,108p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,/^# ====/p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -146,7 +174,8 @@ MISSED_RULES='
     elif ($s | type) == "number" and any(.[]; (.[1:] | tonumber) > $s) then "ids within d1 … d<defects_seeded>"
     elif ($s | type) == "number" and ($c | type) == "number" and ($s - length) != $c
       then "defects_seeded − ids == defects_caught"
-    else empty end;'
+    else empty end;
+  def positions_rule($s): missed_rule($s; null);'
 
 # --- validate ----------------------------------------------------------------------
 if [[ -n "$VALIDATE" ]]; then
@@ -193,6 +222,34 @@ if [[ -n "$VALIDATE" ]]; then
            else empty end)
       // (if has("regressions_final_green") and ((.regressions_final_green | type) as $ty | ["boolean","null"] | index($ty)) == null
            then "field regressions_final_green has type \(.regressions_final_green | type), want boolean|null" else empty end)
+      // (if (.row_writer_version // null) != null then
+            [ need("defect_catch_rate_pm3"; numn), need("defect_catch_rate_pm3_v1"; numn),
+              need("defects_missed_pm3"; ["array","null"]), need("defects_missed_pm3_v1"; ["array","null"]),
+              need("credits_function_only"; ["array","null"]), need("oracle_exposed_defects"; ["array","null"]),
+              need("oracle_exposed_unknown"; ["array","null"]), need("dissent_absent_gates"; ["array"]),
+              need("dissent_absent_reason"; ["object"]), need("grader_rule"; strn), need("grader_version"; strn),
+              need("corpus_sha256"; strn), need("config_variant"; str), need("overlay_mode"; strn),
+              need("oracle_open"; ["boolean"]), need("gate_scripts_at_pr_version"; ["array"]) ][0]
+          else empty end)
+      // ([("defects_missed_pm3", "defects_missed_pm3_v1", "credits_function_only", "oracle_exposed_defects",
+            "oracle_exposed_unknown") as $k | select(has($k) and (.[$k] | type) == "array")
+           | (.[$k] | positions_rule($row.defects_seeded)) as $why | "\($k) \($row[$k] | tojson) violates the rule: \($why)"][0])
+      // (if has("dissent_absent_reason") and (.dissent_absent_reason | type) == "object" then
+            ([.dissent_absent_reason | to_entries[] | .key as $k | .value as $v
+              | select((["review","audit"] | index($k)) == null
+                       or ($v != null and ((["disabled","budget","preflight","error","none"] | index($v)) == null)))
+              | "dissent_absent_reason.\($k) = \($v | tojson) is not one of disabled|budget|preflight|error|none|null"][0])
+          else empty end)
+      // (if has("dissent_absent_gates") and (.dissent_absent_gates | type) == "array"
+             and any(.dissent_absent_gates[]; (. == "review" or . == "audit") | not)
+           then "dissent_absent_gates \(.dissent_absent_gates | tojson) names a gate other than review|audit" else empty end)
+      // (if has("config_variant") and ((["shipped","eval"] | index($row.config_variant)) == null)
+           then "config_variant \(.config_variant | tojson) is not shipped|eval" else empty end)
+      // (if has("overlay_mode") and .overlay_mode != null and ((["head","base","none"] | index($row.overlay_mode)) == null)
+           then "overlay_mode \(.overlay_mode | tojson) is not head|base|none|null" else empty end)
+      // (if has("gate_scripts_at_pr_version") and (.gate_scripts_at_pr_version | type) == "array"
+             and any(.gate_scripts_at_pr_version[]; type != "string" or length == 0)
+           then "gate_scripts_at_pr_version must be a list of non-empty strings" else empty end)
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
@@ -328,12 +385,23 @@ if [[ ${#ev_files[@]} -gt 0 ]]; then
     done | jq -s -c '.' > "$WORK/bashref.json"
 fi
 
+# row writer 1.4: the arm evidence lines (meta/arm-evidence.txt, key=value) and the sandbox config's
+# flatline_protocol block (the gates' planned dissent)
+: > "$WORK/evidence.txt"
+[[ -f "$RUN_DIR/meta/arm-evidence.txt" ]] && cp "$RUN_DIR/meta/arm-evidence.txt" "$WORK/evidence.txt"
+echo null > "$WORK/flp.json"
+if [[ -f "$RUN_DIR/sandbox/.loa.config.yaml" && ! -L "$RUN_DIR/sandbox/.loa.config.yaml" ]]; then
+  yq -o=json '.flatline_protocol // null' "$RUN_DIR/sandbox/.loa.config.yaml" > "$WORK/flp.tmp" 2>/dev/null \
+    && jq -e '.' "$WORK/flp.tmp" >/dev/null 2>&1 && mv "$WORK/flp.tmp" "$WORK/flp.json" || true
+fi
+
 # Each --slurpfile binds an array of the file's values; [0] is the one value.
 ROW="$(jq -n -c \
   --slurpfile p_f "$WORK/pipe.json" --slurpfile task_f "$WORK/task.json" --slurpfile g_f "$WORK/grade.json" \
   --slurpfile m_f "$WORK/manifest.json" --slurpfile minv_f "$WORK/minv.json" \
   --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
   --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
+  --slurpfile flp_f "$WORK/flp.json" --rawfile ev_raw "$WORK/evidence.txt" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
   --arg retry_reason "$RETRY_REASON" "$MISSED_RULES"'
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
@@ -348,7 +416,12 @@ ROW="$(jq -n -c \
          completed: ($vq.voices_succeeded // e.voices_succeeded // null),
          quality: ($vq.status // e.status // null),
          companion_planned: first((e.metadata | objects | .companion_voice | objects | .planned), null)} end;
+  def evkv($k): [$ev_raw | split("\n")[] | select(startswith($k + "="))] | last
+                | if . == null then null else .[($k | length) + 1:] | sub("\\s+$"; "") end;
+  def poslist($v; $s): if ($v | type) == "array" and all($v[]; type == "string" and length > 0)
+                          and ([$v | positions_rule($s)] | length) == 0 then $v else null end;
   $p_f[0] as $p | $task_f[0] as $task | $g_f[0] as $g | $m_f[0] as $m | $minv_f[0] as $minv
+  | ($flp_f[0] | if type == "object" then . else {} end) as $flp
   | $er_f[0] as $er | $ea_f[0] as $ea | $dot_f[0] as $dot | $bash_f[0] as $bashref | $mm_f[0] as $mismatch
   | ($p.phases // [] | map(select(.skipped != true))) as $ran
   | [ $ran[] as $ph
@@ -388,6 +461,24 @@ ROW="$(jq -n -c \
   | (if $rc == null then null else ($rc.defects_seeded // $rc.seeded // $rc.total // null) end) as $seeded
   | (if $rc == null then null else ($rc.defects_caught // $rc.caught // null) end) as $caught
   | ms($p.started) as $t0 | ms($p.finished) as $t1
+  | ([$ran[] | .label // .name] ) as $labels
+  | def gate_off($k): (($flp[$k] // null) | if type == "object" then .enabled else null end) == false;
+    (($flp.enabled == false) or gate_off("code_review") or evkv("dissent") == "false") as $rev_off
+  | (($flp.enabled == false) or gate_off("security_audit")) as $aud_off
+  | def reason($e; $ranq; $off):
+      if ($ranq | not) then null
+      elif $off then "disabled"
+      elif $e == null then "error"
+      else (($e.metadata // {}) | if type == "object" then . else {} end) as $md
+        | (($md.status // $e.status // "") | tostring) as $st
+        | (($md.recorded_by // "") | tostring) as $rb
+        | if $st == "budget_exceeded" then "budget"
+          elif ($st | test("preflight"; "i")) or ($rb == "record-fallback" and (($md.reason // "") | tostring | test("preflight"; "i")))
+            then "preflight"
+          elif $st == "failed" or $rb == "record-fallback" then "error"
+          else "none" end end;
+    {review: reason($er; ($labels | index("REVIEW")) != null; $rev_off),
+     audit: reason($ea; ($labels | index("AUDIT")) != null; $aud_off)} as $dar
   | {
       schema_version: 1,
       run_id: ($p.run_id // ""),
@@ -438,6 +529,26 @@ ROW="$(jq -n -c \
                             and ([$ms | missed_rule($seeded; $caught)] | length) == 0 then $ms
                          else null end end),
       regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
+      row_writer_version: "1.4",
+      defect_catch_rate_pm3: (if $rc == null then null else ($rc.recall_pm3 // null) end),
+      defect_catch_rate_pm3_v1: (if $rc == null then null else ($rc.recall_pm3_v1 // null) end),
+      defects_missed_pm3: (if $rc == null then null else poslist($rc.missed_pm3; $seeded) end),
+      defects_missed_pm3_v1: (if $rc == null then null else poslist($rc.missed_pm3_v1; $seeded) end),
+      credits_function_only: (if $rc == null then null else poslist($rc.credits_function_only; $seeded) end),
+      oracle_exposed_defects: (if $g == null then null else poslist($g.oracle_exposed_defects; $seeded) end),
+      oracle_exposed_unknown: (if $g == null then null else poslist($g.oracle_exposed_unknown; $seeded) end),
+      grader_rule: (if ($task.type // $p.task_type // "") != "review-catch" or $rc == null then null
+                    else ($rc.rule // "pm3") end),
+      grader_version: (if $g == null then null else ($g.grader_version // null | if type == "string" then . else null end) end),
+      corpus_sha256: (if $g == null then null else ($g.corpus_sha256 // null | if type == "string" then . else null end) end),
+      dissent_absent_reason: $dar,
+      dissent_absent_gates: [ ("review", "audit") as $k | select(($dar[$k] // "none") != "none") | $k ],
+      config_variant: (evkv("config_variant") as $v | if $v == "eval" then "eval" else "shipped" end),
+      overlay_mode: (evkv("mount_overlay") as $v | if $v == null then null
+                     else ($v | capture("^(?<m>head|base|none)") // {m: null} | .m) end),
+      oracle_open: (evkv("oracle_open") == "true"),
+      gate_scripts_at_pr_version: (evkv("gate_scripts_at_pr_version") as $v
+                                   | if $v == null or $v == "" then [] else [$v | split(",")[] | select(length > 0)] end),
       diff_lines: ($g.diff_lines // null),
       files_changed: ($g.files_changed // null),
       cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),

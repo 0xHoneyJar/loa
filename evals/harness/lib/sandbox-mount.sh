@@ -45,6 +45,14 @@
 #         sprint_plan: false, context_resets: false
 #                                 phase-set edits owned by the pipeline executor; recorded as
 #                                 evidence here (the single-skill executor refuses them itself)
+#         bare_model: fable       evidence bare_model=fable; pipeline-run.sh runs the BARE phase on
+#                                 global.anthropic.claude-fable-5-1 (cycle-131 D-5.1)
+#         dissent: false          flatline_protocol.code_review.enabled=false (the review gate's
+#                                 dissent only; security_audit untouched, D-5.3); evidence dissent=false
+#         oracle_open: true       the only toggle whose value is true: the open mount (eval-only arm);
+#                                 the caller skips overlay_answer_paths and writes mount_overlay=none;
+#                                 refused when ARM_EVIDENCE_FILE already holds a head|base overlay;
+#                                 evidence oracle_open=true
 #   regen_sandbox_manifest <ws>
 #       writes <ws>/.claude/checksums.json {generated, algorithm: sha256, files} over
 #       every regular file under <ws>/.claude except overrides/ and the manifest
@@ -66,6 +74,34 @@
 #       toggles carry sprint_plan: false (resolved from $LOA_EVAL_SUITE_FILE, default
 #       evals/suites/ablation-2.0.yaml) gets NO sprint.md. Build tasks leave sprint.md
 #       to the PLAN phase. Nothing written names the arm.
+#   overlay_answer_paths <ws> <fixture-dir> <mode> [<source-tree> [<source-commit>]]
+#       cycle-131 FR-1 (closed mount): every answer-bearing path of the review-catch PR
+#       fixture (head.diff paths, pr/head/ and pr/base/ files, fixture.yaml fix_commit
+#       paths; only under .claude/, never .claude/checksums.json) gets the mode's version
+#       in the sandbox (head: the PR's pr/head/ copy, the default, DEC-0622; base: pr/base/;
+#       fix-commit paths outside the PR: `git show <head_commit>:X`); a path without that
+#       version is removed. <source-tree> (default $EVAL_PROMPT_TREE, else this repository)
+#       is the copy source and the git repository the fix and head commits are read from.
+#       Evidence: copy_source=<HEAD sha, "-dirty" suffix when .claude/ has changes>,
+#       mount_overlay=<mode>:<n>, overlay_sha256=<path>=<sha|absent> per path,
+#       overlay_removed=<n>, overlay_fix_commit=available|unavailable|none,
+#       gate_scripts_at_pr_version=<comma list of present answer paths under .claude/scripts/,
+#       .claude/hooks/ or .claude/skills/*/SKILL.md; empty when none>, overlay_fixture=<dir>,
+#       overlay_source_tree=<dir>. Exit 2: missing workspace or fixture (no head.diff), a mode
+#       other than head|base, a copy source that is not a clean git tree, a copy_source other
+#       than <source-commit> when given, a symlink or non-directory component on a sandbox path,
+#       a fixture.yaml fix_commit that is not in <source-tree> (nothing is written; the sandbox
+#       stays as it was).
+#   check_mount_closed <ws> <fixture-dir> [<source-tree>] [<evidence-file>]
+#       the pre-launch form of took-effect.sh oracle_closed: clauses (a)-(d) (see
+#       _sm_oracle_py) against the fixture, the evidence file (default $ARM_EVIDENCE_FILE:
+#       mount_overlay, overlay_sha256, base_commit, copy_source) and the copy source's
+#       pinned versions. Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
+#       first violated clause and path.
+#   apply_eval_config_variant <ws>
+#       the cycle-131 evaluation config in the sandbox .loa.config.yaml:
+#       flatline_protocol.{code_review,security_audit}.budget_scale = "diff" and
+#       .budget_cents_max = 600 (verified); evidence config_variant=eval.
 #   init_sandbox_beads <ws> <task_title>
 #       `br init --prefix bd --no-daemon` in <ws> plus one task bead with the title
 #       when br ($LOA_EVAL_BR_BIN, default br) is on PATH → beads=br; else the opt-out
@@ -81,8 +117,9 @@
 # else they go to the descriptor in SANDBOX_MOUNT_EVIDENCE_FD (default 1).
 # resolve_arm_toggles prints JSON on stdout and no evidence.
 #
-# Tested by evals/tests/arm-toggles.bats (directly and through execute-agent.sh)
-# and evals/tests/execute-agent.bats.
+# Tested by evals/tests/arm-toggles.bats (directly and through execute-agent.sh),
+# evals/tests/execute-agent.bats and evals/tests/sandbox-mount.bats (the closed mount,
+# the cycle-131 toggles and the eval config variant).
 # =============================================================================
 
 [[ "${_SANDBOX_MOUNT_LOADED:-}" == "true" ]] && return 0
@@ -264,6 +301,10 @@ apply_arm_toggles() {
     [[ -n "$key" ]] || continue
     if [[ "$key" == "effort" ]]; then
       case "$val" in low|medium|high|xhigh|max) ;; *) _sm_err "arm '$arm' toggle effort=$val (want low|medium|high|xhigh|max)"; return 2 ;; esac
+    elif [[ "$key" == "bare_model" ]]; then
+      [[ "$val" == "fable" ]] || { _sm_err "arm '$arm' toggle bare_model=$val (only fable is defined)"; return 2; }
+    elif [[ "$key" == "oracle_open" ]]; then
+      [[ "$val" == "true" ]] || { _sm_err "arm '$arm' toggle oracle_open=$val (only true is defined)"; return 2; }
     elif [[ "$val" != "false" ]]; then
       _sm_err "arm '$arm' toggle $key=$val (only false is defined)"; return 2
     fi
@@ -365,6 +406,25 @@ apply_arm_toggles() {
         ;;
       context_resets)
         _sm_evidence context_resets "implementer phases continue one session (pipeline executor)"
+        ;;
+      bare_model)
+        # the model is the executor's: pipeline-run.sh maps the BARE phase to Fable 5.1
+        _sm_evidence bare_model "fable"
+        ;;
+      dissent)
+        # the review gate's adversarial dissent only; the audit gate's stays as configured (D-5.3)
+        _sm_cfg_set_false "$ws/.loa.config.yaml" .flatline_protocol.code_review.enabled \
+          || { _sm_err "dissent toggle did not take effect"; return 2; }
+        _sm_evidence dissent "false"
+        ;;
+      oracle_open)
+        # the open mount (eval-only): the executor skips overlay_answer_paths; an overlay already
+        # applied means it did not take effect
+        if [[ -n "${ARM_EVIDENCE_FILE:-}" && -f "$ARM_EVIDENCE_FILE" ]] \
+           && grep -qE '^mount_overlay=(head|base):' "$ARM_EVIDENCE_FILE"; then
+          _sm_err "oracle_open toggle: the sandbox was overlaid (mount_overlay evidence present)"; return 2
+        fi
+        _sm_evidence oracle_open "true"
         ;;
       *) _sm_err "arm '$arm' declares unknown toggle '$key'"; return 2 ;;
     esac
@@ -516,5 +576,584 @@ init_sandbox_beads() {
     return 0
   fi
   _sm_evidence beads "none"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Closed mount for review-catch sandboxes (cycle-131 FR-1, SDD §5.2, D-1.1/D-1.2,
+# DEC-0613 as amended by DEC-0622, DEC-0615). One Python core serves the overlay,
+# the pre-launch check (check_mount_closed) and took-effect.sh's oracle_closed rule,
+# so the launched surface and the post-run verdict use the same comparison.
+#
+# _sm_oracle_py answer-set <fixture-dir> <source-repo>
+#     prints "<pr|fix>\t<path>" per answer-bearing path (sorted)
+# _sm_oracle_py overlay <ws> <fixture-dir> <mode> <source-repo>
+#     applies the overlay; prints the evidence key=value lines on stdout, notes on stderr
+# _sm_oracle_py check <ws> <fixture-dir> <evidence-file> <source-repo> <source-commit>
+#     clauses (a)-(d); exit 0 with "ok …", exit 1 with "FAIL (<clause>) <path>: <detail>"
+#
+# Answer-bearing set (computed from the IMMUTABLE fixture, never the sandbox pr/):
+#   (i) every path named by head.diff: `diff --git` headers (C-quoted paths unquoted,
+#       unquoted paths with spaces split at the symmetric " b/"), rename/copy from/to
+#       (both names), ---/+++ lines outside hunks (/dev/null skipped, a trailing tab
+#       stripped), "Binary files … differ" lines; CRLF tolerated; hunk bodies are
+#       skipped by their line counts so a removed "-- a/x" line is never a header;
+#   (ii) every file or symlink under <fixture>/head/ and <fixture>/base/;
+#   (iii) the fixture.yaml fix_commit's paths (git show --no-renames --name-only):
+#       an unknown fix commit logs fix_commit_unavailable and the overlay is REFUSED (exit 2;
+#       PR #1286 F001) — its paths could not be pinned, so the mount could not be closed.
+#   Normalised (no absolute, no "..", no empty or "." component, no backslash, no
+#   control character) and kept only under .claude/; .claude/checksums.json is
+#   harness-owned (regen_sandbox_manifest rewrites it) and excluded, as are CLAUDE.md
+#   and .loa.config.yaml (outside .claude/).
+# Expected version per mode: head → <fixture>/head/X; base → <fixture>/base/X; a
+#   fix-commit path outside the PR → `git show <head_commit>:X` in both modes. No
+#   regular file there (deleted, added in base mode, a symlink, a symlink component,
+#   unknown head commit) → the path is removed from the mount and expected absent.
+#   The file mode's executable bit is kept (fixture file mode / tree entry mode).
+# Sandbox writes never follow a symlink: an existing symlink at the path is unlinked,
+#   a symlink or non-directory ancestor refuses the overlay (exit 2).
+# Clauses (check): (a) every answer path is the mode's expected version or absent where
+#   expected absent, and mount_overlay=<mode>:<n> names this set's size; (b) no regular
+#   file in the sandbox outside pr/ and .git/ is byte-equal to a later-only pinned
+#   version (`git show <source-commit>:X` of an answer path, non-empty, equal to no
+#   expected version and to no fixture head/ or base/ file); (c) every answer path has
+#   its overlay_sha256 line and its current state equals it (else mount_mutated=<path>;
+#   a path whose recorded state was already wrong reports (a)); (d) the sandbox .git
+#   holds exactly the base commit (arm_evidence base_commit) over every ref, no remote,
+#   no objects/info/alternates, `git fsck --unreachable --no-reflogs` reports nothing
+#   and no later-only pinned blob is in its object store. git runs with
+#   GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1, core.fsmonitor=false, no pager.
+# ---------------------------------------------------------------------------
+_sm_oracle_py() {
+  python3 -I - "$@" <<'PY'
+import hashlib, os, re, shutil, stat, subprocess, sys
+
+def note(msg):
+    sys.stderr.write("sandbox-mount: " + msg + "\n")
+
+def die(msg, code=2):
+    note(msg)
+    sys.exit(code)
+
+def sha(b):
+    return hashlib.sha256(b).hexdigest()
+
+def git(repo, *args):
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": "/nonexistent", "LC_ALL": "C",
+           "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0",
+           "GIT_OPTIONAL_LOCKS": "0"}
+    cmd = ["git", "--no-pager", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "core.quotepath=off",
+           "-C", repo] + list(args)
+    try:
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           env=env, timeout=300)
+    except Exception:
+        return None
+    return p.stdout if p.returncode == 0 else None
+
+def has_commit(repo, c):
+    return bool(c) and git(repo, "cat-file", "-e", c + "^{commit}") is not None
+
+def norm(p):
+    if not p or p.startswith("/") or "\\" in p or any(ord(ch) < 32 or ord(ch) == 127 for ch in p):
+        return None
+    parts = p.split("/")
+    if any(x in ("", ".", "..") for x in parts):
+        return None
+    return "/".join(parts)
+
+ESC = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+def take_quoted(s):
+    """s starts with a double quote: returns (unquoted, rest) or (None, s)."""
+    out = bytearray(); i = 1
+    while i < len(s):
+        c = s[i]
+        if c == '"':
+            return out.decode("utf-8", "surrogateescape"), s[i + 1:]
+        if c == "\\" and i + 1 < len(s):
+            n = s[i + 1]
+            if n in ESC:
+                out.append(ESC[n]); i += 2; continue
+            if re.match(r"[0-7]{3}", s[i + 1:i + 4]):
+                out.append(int(s[i + 1:i + 4], 8) & 0xFF); i += 4; continue
+            out.extend(n.encode("utf-8", "surrogateescape")); i += 2; continue
+        out.extend(c.encode("utf-8", "surrogateescape")); i += 1
+    return None, s
+
+def one_name(s):
+    s = s.strip("\r")
+    if s.startswith('"'):
+        v, _ = take_quoted(s)
+        return v
+    return s
+
+def strip_prefix(p):
+    if p is None or p == "/dev/null":
+        return None
+    if p.startswith("a/") or p.startswith("b/"):
+        return p[2:]
+    return p
+
+def header_names(rest):
+    """the two names of `diff --git <rest>`"""
+    names = []
+    if rest.startswith('"'):
+        a, tail = take_quoted(rest)
+        if a is None:
+            return []
+        tail = tail.lstrip(" ")
+        b = one_name(tail)
+        return [a, b]
+    if ' "b/' in rest:
+        i = rest.index(' "b/')
+        return [rest[:i], one_name(rest[i + 1:])]
+    n = len(rest)
+    if n >= 5 and (n - 5) % 2 == 0:
+        L = (n - 5) // 2
+        if rest.startswith("a/") and rest[2 + L:5 + L] == " b/" and rest[2:2 + L] == rest[5 + L:]:
+            return ["a/" + rest[2:2 + L], "b/" + rest[5 + L:]]
+    if " b/" in rest:
+        i = rest.index(" b/")
+        return [rest[:i], rest[i + 1:]]
+    return names
+
+def diff_paths(diff_file):
+    raw = open(diff_file, "rb").read().decode("utf-8", "surrogateescape")
+    out = []
+    old_left = new_left = 0
+    for line in raw.split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        if old_left > 0 or new_left > 0:
+            if line.startswith("\\"):
+                continue
+            c = line[:1]
+            if c == " " or line == "":
+                old_left -= 1; new_left -= 1; continue
+            if c == "-":
+                old_left -= 1; continue
+            if c == "+":
+                new_left -= 1; continue
+            old_left = new_left = 0   # a short hunk: fall through to header parsing
+        m = re.match(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@", line)
+        if m:
+            old_left = int(m.group(1)) if m.group(1) is not None else 1
+            new_left = int(m.group(2)) if m.group(2) is not None else 1
+            continue
+        if line.startswith("diff --git "):
+            out.extend(strip_prefix(x) for x in header_names(line[len("diff --git "):]))
+            continue
+        for key in ("rename from ", "rename to ", "copy from ", "copy to "):
+            if line.startswith(key):
+                out.append(one_name(line[len(key):]))
+                break
+        else:
+            if line.startswith("--- ") or line.startswith("+++ "):
+                v = line[4:]
+                if not v.startswith('"'):
+                    v = v.split("\t", 1)[0]
+                out.append(strip_prefix(one_name(v)))
+                continue
+            m = re.match(r"^Binary files (.+) and (.+) differ$", line)
+            if m:
+                out.extend(strip_prefix(one_name(x)) for x in (m.group(1), m.group(2)))
+    return out
+
+def tree_paths(root):
+    out = set()
+    if not os.path.isdir(root) or os.path.islink(root):
+        return out
+    for d, dirs, files in os.walk(root, followlinks=False):
+        for n in dirs + files:
+            full = os.path.join(d, n)
+            if os.path.islink(full) or os.path.isfile(full):
+                out.add(os.path.relpath(full, root).replace(os.sep, "/"))
+    return out
+
+def fixture_meta(fixture):
+    meta = {}
+    f = os.path.join(fixture, "fixture.yaml")
+    if os.path.isfile(f):
+        for line in open(f, encoding="utf-8", errors="replace"):
+            m = re.match(r'^(head_commit|fix_commit|base_commit):\s*["\']?([0-9a-f]{7,64})["\']?\s*(#.*)?$', line.strip())
+            if m:
+                meta[m.group(1)] = m.group(2)
+    return meta
+
+def in_scope(p):
+    return p is not None and p.startswith(".claude/") and p != ".claude/checksums.json"
+
+def answer_set(fixture, repo):
+    """{path: "pr"|"fix"}, notes, meta"""
+    notes = []
+    if not os.path.isfile(os.path.join(fixture, "head.diff")):
+        die("fixture has no head.diff: " + fixture)
+    pr = set()
+    for raw in diff_paths(os.path.join(fixture, "head.diff")) + sorted(tree_paths(os.path.join(fixture, "head"))) \
+            + sorted(tree_paths(os.path.join(fixture, "base"))):
+        if raw is None:
+            continue
+        p = norm(raw)
+        if p is None:
+            notes.append("rejected path %r" % raw)
+            continue
+        pr.add(p)
+    meta = fixture_meta(fixture)
+    fix = set()
+    fc = meta.get("fix_commit")
+    meta["fix_available"] = "none"
+    if fc:
+        out = git(repo, "show", "--no-renames", "--name-only", "-z", "--format=", fc) if has_commit(repo, fc) else None
+        if out is None:
+            notes.append("fix_commit_unavailable " + fc)
+            meta["fix_available"] = "unavailable"
+        else:
+            meta["fix_available"] = "available"
+            for raw in out.decode("utf-8", "surrogateescape").split("\0"):
+                raw = raw.strip("\n")
+                if not raw:
+                    continue
+                p = norm(raw)
+                if p is None:
+                    notes.append("rejected fix path %r" % raw)
+                    continue
+                fix.add(p)
+    hc = meta.get("head_commit")
+    meta["head_available"] = bool(hc) and has_commit(repo, hc)
+    entries = {}
+    for p in sorted(pr | fix):
+        if in_scope(p):
+            entries[p] = "pr" if p in pr else "fix"
+    return entries, notes, meta
+
+def fixture_file(root, path):
+    """(bytes, exec) of a regular file at root/path with no symlink component, else None"""
+    cur = root
+    if os.path.islink(cur) or not os.path.isdir(cur):
+        return None
+    parts = path.split("/")
+    for c in parts:
+        cur = os.path.join(cur, c)
+        if os.path.islink(cur):
+            return None
+    try:
+        st = os.lstat(cur)
+    except OSError:
+        return None
+    if not stat.S_ISREG(st.st_mode):
+        return None
+    return open(cur, "rb").read(), bool(st.st_mode & 0o111)
+
+def tree_blob(repo, commit, path):
+    """(bytes, exec, blob_id) of a regular-file entry in commit, else None"""
+    out = git(repo, "ls-tree", "-z", commit, "--", path)
+    if not out:
+        return None
+    ent = out.split(b"\0")[0].decode("utf-8", "surrogateescape")
+    m = re.match(r"^(\d+) (\w+) ([0-9a-f]+)\t(.*)$", ent, re.S)
+    if not m or m.group(2) != "blob" or m.group(4) != path or m.group(1) not in ("100644", "100755"):
+        return None
+    data = git(repo, "cat-file", "blob", m.group(3))
+    if data is None:
+        return None
+    return data, m.group(1) == "100755", m.group(3)
+
+def expected(entries, mode, fixture, repo, meta):
+    """{path: (bytes, exec) | None}"""
+    exp = {}
+    for p, src in entries.items():
+        if src == "pr":
+            exp[p] = fixture_file(os.path.join(fixture, mode), p)
+        elif meta.get("head_available"):
+            tb = tree_blob(repo, meta["head_commit"], p)
+            exp[p] = (tb[0], tb[1]) if tb else None
+        else:
+            exp[p] = None
+    return exp
+
+def state(ws, path):
+    """sha256 of the sandbox file, 'absent', or a non-file marker (never followed)"""
+    cur = ws
+    for c in path.split("/")[:-1]:
+        cur = os.path.join(cur, c)
+        if os.path.islink(cur):
+            return "symlink-component"
+    full = os.path.join(ws, *path.split("/"))
+    if os.path.islink(full):
+        return "symlink"
+    if not os.path.lexists(full):
+        return "absent"
+    if not os.path.isfile(full):
+        return "not-a-file"
+    return sha(open(full, "rb").read())
+
+def safe_dst(ws, path):
+    cur = ws
+    for c in path.split("/")[:-1]:
+        cur = os.path.join(cur, c)
+        if os.path.islink(cur):
+            die("overlay refused: symlink component %s in the sandbox path of %s" % (os.path.relpath(cur, ws), path))
+        if os.path.lexists(cur) and not os.path.isdir(cur):
+            die("overlay refused: non-directory component %s in the sandbox path of %s" % (os.path.relpath(cur, ws), path))
+    return os.path.join(ws, *path.split("/"))
+
+def remove(dst):
+    if os.path.islink(dst) or (os.path.lexists(dst) and not os.path.isdir(dst)):
+        os.unlink(dst)
+    elif os.path.isdir(dst):
+        shutil.rmtree(dst)
+
+def gate_script(p):
+    return bool(re.match(r"^\.claude/(scripts|hooks)/", p) or re.match(r"^\.claude/skills/[^/]+/SKILL\.md$", p))
+
+def cmd_overlay(ws, fixture, mode, repo):
+    if mode not in ("head", "base"):
+        die("overlay mode must be head or base, got %r" % mode)
+    if not os.path.isdir(ws) or os.path.islink(ws):
+        die("workspace not found: " + ws)
+    entries, notes, meta = answer_set(fixture, repo)
+    for n in notes:
+        note("overlay: " + n)
+    if meta.get("fix_available") == "unavailable":
+        # PR #1286 Bridgebuilder F001: the fix commit's paths are part of the answer set; without the commit they
+        # cannot be pinned, the mount would stay open on exactly those paths, and the check would call it closed.
+        die("overlay: refused: fix_commit %s is not in %s; the fix paths outside the PR cannot be pinned, so the "
+            "mount cannot be closed (fetch the commit into the source tree, or drop fix_commit from fixture.yaml)"
+            % (meta.get("fix_commit"), repo))
+    exp = expected(entries, mode, fixture, repo, meta)
+    if entries and any(s == "fix" for s in entries.values()) and not meta.get("head_available"):
+        note("overlay: head_commit %s unavailable: fix-commit paths outside the PR are removed" % meta.get("head_commit"))
+    lines, gates, removed = [], [], 0
+    for p in sorted(entries):
+        dst = safe_dst(ws, p)
+        e = exp[p]
+        remove(dst)
+        if e is None:
+            removed += 1
+            note("overlay: removed %s (%s; no %s version)" % (p, entries[p], mode if entries[p] == "pr" else "head_commit"))
+        else:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o755 if e[1] else 0o644)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(e[0])
+            os.chmod(dst, 0o755 if e[1] else 0o644)
+            if gate_script(p):
+                gates.append(p)
+        lines.append("overlay_sha256=%s=%s" % (p, state(ws, p)))
+    print("mount_overlay=%s:%d" % (mode, len(entries)))
+    for l in lines:
+        print(l)
+    print("overlay_removed=%d" % removed)
+    print("overlay_fix_commit=%s" % meta["fix_available"])
+    print("gate_scripts_at_pr_version=" + ",".join(gates))
+
+def read_evidence(f):
+    ev = {"overlay_sha256": {}}
+    for line in open(f, encoding="utf-8", errors="surrogateescape"):
+        line = line.rstrip("\n")
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        if k == "overlay_sha256":
+            if "=" in v:
+                p, s = v.rsplit("=", 1)
+                ev["overlay_sha256"].setdefault(p, s)
+        elif k not in ev:
+            ev[k] = v
+    return ev
+
+def cmd_check(ws, fixture, evfile, repo, source_commit):
+    if not os.path.isfile(evfile):
+        print("FAIL (a) -: no arm evidence file"); sys.exit(1)
+    ev = read_evidence(evfile)
+    mo = ev.get("mount_overlay", "")
+    m = re.match(r"^(head|base):(\d+)$", mo)
+    if not m:
+        print("FAIL (a) -: mount_overlay=%s (want head|base:<n>)" % (mo or "<missing>")); sys.exit(1)
+    mode, n = m.group(1), int(m.group(2))
+    if ev.get("overlay_fix_commit") == "unavailable":
+        print("FAIL (a) -: overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"); sys.exit(1)
+    entries, _notes, meta = answer_set(fixture, repo)
+    exp = expected(entries, mode, fixture, repo, meta)
+    fails = []
+    if n != len(entries):
+        fails.append(("a", "-", "mount_overlay names %d paths, the fixture's answer set has %d" % (n, len(entries))))
+    rec = ev["overlay_sha256"]
+    present = 0
+    for p in sorted(entries):
+        want = sha(exp[p][0]) if exp[p] is not None else "absent"
+        got = state(ws, p)
+        if got != "absent":
+            present += 1
+        if p not in rec:
+            fails.append(("c", p, "no overlay_sha256 line"))
+            if got != want:
+                fails.append(("a", p, "state %s, want %s (%s)" % (got[:12], want[:12], mode)))
+            continue
+        if got != rec[p]:
+            if rec[p] == want:
+                fails.append(("c", p, "mount_mutated=%s (pre-run %s, now %s)" % (p, rec[p][:12], got[:12])))
+            else:
+                fails.append(("a", p, "pre-run %s, now %s, want %s (%s)" % (rec[p][:12], got[:12], want[:12], mode)))
+        elif got != want:
+            fails.append(("a", p, "state %s, want %s (%s)" % (got[:12], want[:12], mode)))
+    # (b) later-only pinned versions
+    if not has_commit(repo, source_commit):
+        fails.append(("b", "-", "source commit %s not in %s" % (source_commit or "<none>", repo)))
+        later = {}
+    else:
+        known = set(sha(e[0]) for e in exp.values() if e is not None)
+        for t in ("head", "base"):
+            for q in tree_paths(os.path.join(fixture, t)):
+                ff = fixture_file(os.path.join(fixture, t), q)
+                if ff is not None:
+                    known.add(sha(ff[0]))
+        later = {}
+        for p in sorted(entries):
+            tb = tree_blob(repo, source_commit, p)
+            if tb is None or len(tb[0]) == 0:
+                continue
+            h = sha(tb[0])
+            if h in known:
+                continue
+            later.setdefault(h, (p, len(tb[0]), tb[2]))
+        sizes = set(v[1] for v in later.values())
+        scanned = 0
+        if later:
+            for d, dirs, files in os.walk(ws, followlinks=False):
+                rel = os.path.relpath(d, ws)
+                if rel == ".":
+                    dirs[:] = [x for x in dirs if x not in ("pr", ".git")]
+                for nme in sorted(files):
+                    full = os.path.join(d, nme)
+                    try:
+                        st = os.lstat(full)
+                    except OSError:
+                        continue
+                    if not stat.S_ISREG(st.st_mode):
+                        continue
+                    scanned += 1
+                    if st.st_size not in sizes:
+                        continue
+                    h = sha(open(full, "rb").read())
+                    if h in later:
+                        fails.append(("b", os.path.relpath(full, ws), "byte-equal to the pinned %s at %s" % (later[h][0], source_commit[:12])))
+    # (d) the sandbox repository
+    base = ev.get("base_commit", "")
+    gd = os.path.join(ws, ".git")
+    if not os.path.isdir(gd) or os.path.islink(gd):
+        fails.append(("d", ".git", "the sandbox has no .git directory"))
+    else:
+        revs = git(ws, "rev-list", "--all")
+        revs = sorted(set(revs.decode().split())) if revs is not None else None
+        if revs != [base]:
+            fails.append(("d", ".git", "commits %s, want exactly the base commit %s" % (",".join(r[:12] for r in (revs or [])) or "<unreadable>", base[:12] or "<none>")))
+        rem = git(ws, "remote")
+        if rem is None or rem.strip():
+            fails.append(("d", ".git", "remote(s): %s" % ((rem or b"<unreadable>").decode(errors="replace").split() or "")))
+        if os.path.lexists(os.path.join(gd, "objects", "info", "alternates")):
+            fails.append(("d", ".git/objects/info/alternates", "the sandbox object store borrows another repository's objects"))
+        unr = git(ws, "fsck", "--unreachable", "--no-reflogs", "--no-progress")
+        if unr is None or unr.strip():
+            fails.append(("d", ".git", "fsck --unreachable: %s" % ((unr or b"<failed>").decode(errors="replace").strip().split("\n")[0])))
+        for h, (p, _sz, blob) in sorted(later.items()):
+            if git(ws, "cat-file", "-e", blob) is not None:
+                fails.append(("d", p, "the pinned blob %s of %s is in the sandbox object store" % (blob[:12], p)))
+    if fails:
+        fails.sort(key=lambda f: f[0])
+        c, p, d = fails[0]
+        print("FAIL (%s) %s: %s%s" % (c, p, d, " (+%d more)" % (len(fails) - 1) if len(fails) > 1 else ""))
+        sys.exit(1)
+    print("ok %s:%d answer paths (%d present), %d later-only pinned versions, sandbox git = base commit only"
+          % (mode, len(entries), present, len(later)))
+
+cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+if cmd == "answer-set" and len(sys.argv) == 4:
+    entries, notes, _meta = answer_set(sys.argv[2], sys.argv[3])
+    for n in notes:
+        note("answer-set: " + n)
+    for p in sorted(entries):
+        print("%s\t%s" % (entries[p], p))
+elif cmd == "overlay" and len(sys.argv) == 6:
+    cmd_overlay(*sys.argv[2:6])
+elif cmd == "check" and len(sys.argv) == 7:
+    cmd_check(*sys.argv[2:7])
+else:
+    die("usage: overlay <ws> <fixture> <mode> <repo> | check <ws> <fixture> <evidence> <repo> <commit>")
+PY
+}
+
+# _sm_copy_source <source-tree> → the tree's HEAD (40 hex), "<sha>-dirty" when its .claude/
+# has uncommitted or untracked changes (the copy is then not the commit), else "unknown"
+_sm_copy_source() {
+  local tree="$1" head dirty
+  head="$(git -C "$tree" rev-parse --verify --quiet HEAD 2>/dev/null)" || { printf 'unknown'; return 0; }
+  [[ "$head" =~ ^[0-9a-f]{40}$ ]] || { printf 'unknown'; return 0; }
+  dirty="$(git -C "$tree" status --porcelain --untracked-files=all -- .claude 2>/dev/null | sed -n '1p')" || dirty="?"
+  if [[ -n "$dirty" ]]; then printf '%s-dirty' "$head"; else printf '%s' "$head"; fi
+}
+
+# ---------------------------------------------------------------------------
+overlay_answer_paths() {
+  local ws="$1" fixture="${2:-}" mode="${3:-head}" tree="${4:-${EVAL_PROMPT_TREE:-$_SM_REPO_ROOT}}" want="${5:-}"
+  [[ -d "$ws" ]] || { _sm_err "overlay_answer_paths: workspace not found: $ws"; return 2; }
+  [[ -n "$fixture" && -f "$fixture/head.diff" ]] || { _sm_err "overlay_answer_paths: fixture not found or has no head.diff: ${fixture:-<none>}"; return 2; }
+  case "$mode" in head|base) ;; *) _sm_err "overlay_answer_paths: mode must be head or base, got '$mode'"; return 2 ;; esac
+  [[ -d "$tree" ]] || { _sm_err "overlay_answer_paths: source tree not found: $tree"; return 2; }
+  local cs
+  cs="$(_sm_copy_source "$tree")"
+  _sm_evidence copy_source "$cs"
+  if [[ ! "$cs" =~ ^[0-9a-f]{40}$ ]]; then
+    _sm_err "overlay_answer_paths: copy source $tree is not a clean git tree (copy_source=$cs)"; return 2
+  fi
+  if [[ -n "$want" && "$cs" != "$want" ]]; then
+    _sm_err "overlay_answer_paths: copy_source $cs differs from source_commit $want"; return 2
+  fi
+  local out line rc=0
+  out="$(_sm_oracle_py overlay "$ws" "$fixture" "$mode" "$tree")" || rc=$?
+  [[ $rc -eq 0 ]] || { _sm_err "overlay_answer_paths: the overlay failed (exit $rc)"; return 2; }
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    _sm_evidence "${line%%=*}" "${line#*=}"
+  done <<<"$out"
+  _sm_evidence overlay_fixture "$fixture"
+  _sm_evidence overlay_source_tree "$tree"
+  return 0
+}
+
+# check_mount_closed <ws> <fixture-dir> [<source-tree>] [<evidence-file>]
+check_mount_closed() {
+  local ws="$1" fixture="${2:-}" tree="${3:-${EVAL_PROMPT_TREE:-$_SM_REPO_ROOT}}" evf="${4:-${ARM_EVIDENCE_FILE:-}}"
+  [[ -d "$ws" ]] || { _sm_err "check_mount_closed: workspace not found: $ws"; return 2; }
+  [[ -n "$fixture" && -f "$fixture/head.diff" ]] || { _sm_err "check_mount_closed: fixture not found or has no head.diff: ${fixture:-<none>}"; return 2; }
+  [[ -n "$evf" && -f "$evf" ]] || { _sm_err "check_mount_closed: no evidence file (ARM_EVIDENCE_FILE)"; return 2; }
+  local cs out rc=0
+  cs="$(sed -n 's/^copy_source=//p' "$evf" | sed -n '1p')"
+  [[ "$cs" =~ ^[0-9a-f]{40}$ ]] || { _sm_err "check_mount_closed: no clean copy_source in the evidence (got '${cs:-none}')"; return 2; }
+  out="$(_sm_oracle_py check "$ws" "$fixture" "$evf" "$tree" "$cs")" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    _sm_err "check_mount_closed: ${out:-the check failed (exit $rc)}"
+    return 2
+  fi
+  _sm_evidence mount_closed "pre-launch ${out#ok }"
+  return 0
+}
+
+# apply_eval_config_variant <ws> — the cycle-131 evaluation config (FR-4, DEC-0618): both
+# gates' budget scales with the diff up to USD 6.00. Evidence config_variant=eval.
+apply_eval_config_variant() {
+  local ws="$1" cfg="$1/.loa.config.yaml" g
+  [[ -d "$ws" ]] || { _sm_err "apply_eval_config_variant: workspace not found: $ws"; return 2; }
+  [[ -f "$cfg" ]] || : > "$cfg"
+  for g in code_review security_audit; do
+    G="$g" yq -i '.flatline_protocol[strenv(G)].budget_scale = "diff" | .flatline_protocol[strenv(G)].budget_cents_max = 600' "$cfg" 2>/dev/null \
+      || { _sm_err "apply_eval_config_variant: yq failed on $cfg"; return 2; }
+    [[ "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_scale' "$cfg" 2>/dev/null)" == diff \
+       && "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$cfg" 2>/dev/null)" == 600 ]] \
+      || { _sm_err "apply_eval_config_variant: $g budget keys did not take effect"; return 2; }
+  done
+  _sm_evidence config_variant "eval"
   return 0
 }

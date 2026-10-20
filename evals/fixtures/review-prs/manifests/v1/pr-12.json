@@ -1,0 +1,1254 @@
+{
+  "fixture": "pr-12",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "248",
+    "record_ref": "origin/record/cycle-126-a2a",
+    "head_commit": "6c88788768c92b05c6001d675c29467fb2334eb3",
+    "fix_commit": "51d7a1ff3beb01d10b3359aed58db26cde9216bf"
+  },
+  "defects": [
+    {
+      "id": "L01-the-check-only-proves-the-heading-exists",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "anchor_line": 131,
+      "must_match": "rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L22",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L02-is-unguarded",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 2183,
+      "must_match": "result=$(_fold_companion",
+      "severity": "high",
+      "category": "error-handling",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L30",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L03-when-the-primary-ends-and-the-companion",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 1898,
+      "anchors": [
+        1898,
+        1906
+      ],
+      "must_match": "_fold_companion() {  # <result json> <workdir> <family> <chain csv> <primary final model> \u2192 result json; sets COMPANION_VQ_FILES",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L38",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L04-the-companion-is-forked-before-the-prima",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 2140,
+      "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L46",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L05-the-cli-hop-is-always-planned-so-a-singl",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 1835,
+      "anchors": [
+        1835,
+        1851
+      ],
+      "must_match": "_companion_chain() {  # <family> \u2192 space-separated chain, credential presence deciding the start",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L52",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L06-the-companion-runs",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 2140,
+      "anchors": [
+        1868,
+        2140
+      ],
+      "must_match": "$companion_chain_str >/dev/null 2>&1 ) &",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L54",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L07-the-pipeline-materialises-the-secret-in",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 487,
+      "must_match": "_adv_cred_present() {",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L63",
+      "source_commit": "6c887887",
+      "synthetic": false
+    },
+    {
+      "id": "L08-the-stub-spoke-the-review-vocabulary-to",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "anchor_line": 26,
+      "anchors": [
+        26,
+        63
+      ],
+      "must_match": "eval \"$(sed 's/^main \"\\$@\"/# main disabled for testing/' \"$ADVERSARIAL_REVIEW\")\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md#L67",
+      "source_commit": "6c887887",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 14,
+      "end": 14,
+      "source": "fix/51d7a1ff3beb:14-14"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 20,
+      "end": 20,
+      "source": "fix/51d7a1ff3beb:20-20"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 123,
+      "end": 123,
+      "source": "fix/51d7a1ff3beb:123-123"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 132,
+      "end": 132,
+      "source": "fix/51d7a1ff3beb:132-132"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 161,
+      "end": 166,
+      "source": "fix/51d7a1ff3beb:161-166"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 170,
+      "end": 170,
+      "source": "fix/51d7a1ff3beb:170-170"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 310,
+      "end": 314,
+      "source": "fix/51d7a1ff3beb:310-314"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 337,
+      "end": 339,
+      "source": "fix/51d7a1ff3beb:337-339"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 344,
+      "end": 344,
+      "source": "fix/51d7a1ff3beb:344-344"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 348,
+      "end": 351,
+      "source": "fix/51d7a1ff3beb:348-351"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 388,
+      "end": 389,
+      "source": "fix/51d7a1ff3beb:388-389"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 401,
+      "end": 401,
+      "source": "fix/51d7a1ff3beb:401-401"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 409,
+      "end": 409,
+      "source": "fix/51d7a1ff3beb:409-409"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 446,
+      "end": 448,
+      "source": "fix/51d7a1ff3beb:446-448"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 466,
+      "end": 468,
+      "source": "fix/51d7a1ff3beb:466-468"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 472,
+      "end": 478,
+      "source": "fix/51d7a1ff3beb:472-478"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 486,
+      "end": 503,
+      "source": "fix/51d7a1ff3beb:486-503"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 509,
+      "end": 511,
+      "source": "fix/51d7a1ff3beb:509-511"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 541,
+      "end": 543,
+      "source": "fix/51d7a1ff3beb:541-543"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 582,
+      "end": 583,
+      "source": "fix/51d7a1ff3beb:582-583"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 590,
+      "end": 590,
+      "source": "fix/51d7a1ff3beb:590-590"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 896,
+      "end": 896,
+      "source": "fix/51d7a1ff3beb:896-896"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1233,
+      "end": 1233,
+      "source": "fix/51d7a1ff3beb:1233-1233"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1237,
+      "end": 1237,
+      "source": "fix/51d7a1ff3beb:1237-1237"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1247,
+      "end": 1247,
+      "source": "fix/51d7a1ff3beb:1247-1247"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1258,
+      "end": 1259,
+      "source": "fix/51d7a1ff3beb:1258-1259"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1265,
+      "end": 1265,
+      "source": "fix/51d7a1ff3beb:1265-1265"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1274,
+      "end": 1275,
+      "source": "fix/51d7a1ff3beb:1274-1275"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1281,
+      "end": 1285,
+      "source": "fix/51d7a1ff3beb:1281-1285"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1307,
+      "end": 1307,
+      "source": "fix/51d7a1ff3beb:1307-1307"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1314,
+      "end": 1323,
+      "source": "fix/51d7a1ff3beb:1314-1323"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1353,
+      "end": 1357,
+      "source": "fix/51d7a1ff3beb:1353-1357"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1364,
+      "end": 1371,
+      "source": "fix/51d7a1ff3beb:1364-1371"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1493,
+      "end": 1493,
+      "source": "fix/51d7a1ff3beb:1493-1493"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1499,
+      "end": 1503,
+      "source": "fix/51d7a1ff3beb:1499-1503"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1555,
+      "end": 1555,
+      "source": "fix/51d7a1ff3beb:1555-1555"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1627,
+      "end": 1627,
+      "source": "fix/51d7a1ff3beb:1627-1627"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1655,
+      "end": 1658,
+      "source": "fix/51d7a1ff3beb:1655-1658"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1810,
+      "end": 1811,
+      "source": "fix/51d7a1ff3beb:1810-1811"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1816,
+      "end": 1821,
+      "source": "fix/51d7a1ff3beb:1816-1821"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1835,
+      "end": 1845,
+      "source": "fix/51d7a1ff3beb:1835-1845"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1851,
+      "end": 1851,
+      "source": "fix/51d7a1ff3beb:1851-1851"
+    },
+    {
+      "id": "F043",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1868,
+      "end": 1870,
+      "source": "fix/51d7a1ff3beb:1868-1870"
+    },
+    {
+      "id": "F044",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1876,
+      "end": 1881,
+      "source": "fix/51d7a1ff3beb:1876-1881"
+    },
+    {
+      "id": "F045",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1890,
+      "end": 1893,
+      "source": "fix/51d7a1ff3beb:1890-1893"
+    },
+    {
+      "id": "F046",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1898,
+      "end": 1901,
+      "source": "fix/51d7a1ff3beb:1898-1901"
+    },
+    {
+      "id": "F047",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1906,
+      "end": 1907,
+      "source": "fix/51d7a1ff3beb:1906-1907"
+    },
+    {
+      "id": "F048",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1911,
+      "end": 1927,
+      "source": "fix/51d7a1ff3beb:1911-1927"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1931,
+      "end": 1932,
+      "source": "fix/51d7a1ff3beb:1931-1932"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1939,
+      "end": 1939,
+      "source": "fix/51d7a1ff3beb:1939-1939"
+    },
+    {
+      "id": "F051",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1945,
+      "end": 1945,
+      "source": "fix/51d7a1ff3beb:1945-1945"
+    },
+    {
+      "id": "F052",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1955,
+      "end": 1955,
+      "source": "fix/51d7a1ff3beb:1955-1955"
+    },
+    {
+      "id": "F053",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1964,
+      "end": 1965,
+      "source": "fix/51d7a1ff3beb:1964-1965"
+    },
+    {
+      "id": "F054",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 1998,
+      "end": 2001,
+      "source": "fix/51d7a1ff3beb:1998-2001"
+    },
+    {
+      "id": "F055",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2029,
+      "end": 2029,
+      "source": "fix/51d7a1ff3beb:2029-2029"
+    },
+    {
+      "id": "F056",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2130,
+      "end": 2131,
+      "source": "fix/51d7a1ff3beb:2130-2131"
+    },
+    {
+      "id": "F057",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2135,
+      "end": 2145,
+      "source": "fix/51d7a1ff3beb:2135-2145"
+    },
+    {
+      "id": "F058",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2150,
+      "end": 2150,
+      "source": "fix/51d7a1ff3beb:2150-2150"
+    },
+    {
+      "id": "F059",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2156,
+      "end": 2158,
+      "source": "fix/51d7a1ff3beb:2156-2158"
+    },
+    {
+      "id": "F060",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2169,
+      "end": 2171,
+      "source": "fix/51d7a1ff3beb:2169-2171"
+    },
+    {
+      "id": "F061",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2182,
+      "end": 2195,
+      "source": "fix/51d7a1ff3beb:2182-2195"
+    },
+    {
+      "id": "F062",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2203,
+      "end": 2206,
+      "source": "fix/51d7a1ff3beb:2203-2206"
+    },
+    {
+      "id": "F063",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2212,
+      "end": 2212,
+      "source": "fix/51d7a1ff3beb:2212-2212"
+    },
+    {
+      "id": "F064",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2226,
+      "end": 2226,
+      "source": "fix/51d7a1ff3beb:2226-2226"
+    },
+    {
+      "id": "F065",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 39,
+      "end": 39,
+      "source": "fix/51d7a1ff3beb:39-39"
+    },
+    {
+      "id": "F066",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 54,
+      "end": 54,
+      "source": "fix/51d7a1ff3beb:54-54"
+    },
+    {
+      "id": "F067",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 81,
+      "end": 91,
+      "source": "fix/51d7a1ff3beb:81-91"
+    },
+    {
+      "id": "F068",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 96,
+      "end": 120,
+      "source": "fix/51d7a1ff3beb:96-120"
+    },
+    {
+      "id": "F069",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 130,
+      "end": 142,
+      "source": "fix/51d7a1ff3beb:130-142"
+    },
+    {
+      "id": "F070",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 156,
+      "end": 162,
+      "source": "fix/51d7a1ff3beb:156-162"
+    },
+    {
+      "id": "F071",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 202,
+      "end": 202,
+      "source": "fix/51d7a1ff3beb:202-202"
+    },
+    {
+      "id": "F072",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 206,
+      "end": 206,
+      "source": "fix/51d7a1ff3beb:206-206"
+    },
+    {
+      "id": "F073",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 225,
+      "end": 231,
+      "source": "fix/51d7a1ff3beb:225-231"
+    },
+    {
+      "id": "F074",
+      "file": ".claude/scripts/verdict-derive.sh",
+      "start": 300,
+      "end": 300,
+      "source": "fix/51d7a1ff3beb:300-300"
+    },
+    {
+      "id": "F075",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 6,
+      "end": 7,
+      "source": "fix/51d7a1ff3beb:6-7"
+    },
+    {
+      "id": "F076",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 18,
+      "end": 18,
+      "source": "fix/51d7a1ff3beb:18-18"
+    },
+    {
+      "id": "F077",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 48,
+      "end": 51,
+      "source": "fix/51d7a1ff3beb:48-51"
+    },
+    {
+      "id": "F078",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 60,
+      "end": 61,
+      "source": "fix/51d7a1ff3beb:60-61"
+    },
+    {
+      "id": "F079",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 78,
+      "end": 78,
+      "source": "fix/51d7a1ff3beb:78-78"
+    },
+    {
+      "id": "F080",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 82,
+      "end": 82,
+      "source": "fix/51d7a1ff3beb:82-82"
+    },
+    {
+      "id": "F081",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 87,
+      "end": 87,
+      "source": "fix/51d7a1ff3beb:87-87"
+    },
+    {
+      "id": "F082",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 146,
+      "end": 146,
+      "source": "fix/51d7a1ff3beb:146-146"
+    },
+    {
+      "id": "F083",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 150,
+      "end": 150,
+      "source": "fix/51d7a1ff3beb:150-150"
+    },
+    {
+      "id": "F084",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 158,
+      "end": 158,
+      "source": "fix/51d7a1ff3beb:158-158"
+    },
+    {
+      "id": "F085",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 162,
+      "end": 162,
+      "source": "fix/51d7a1ff3beb:162-162"
+    },
+    {
+      "id": "F086",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 166,
+      "end": 168,
+      "source": "fix/51d7a1ff3beb:166-168"
+    },
+    {
+      "id": "F087",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 176,
+      "end": 176,
+      "source": "fix/51d7a1ff3beb:176-176"
+    },
+    {
+      "id": "F088",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 236,
+      "end": 236,
+      "source": "fix/51d7a1ff3beb:236-236"
+    },
+    {
+      "id": "F089",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 248,
+      "end": 248,
+      "source": "fix/51d7a1ff3beb:248-248"
+    },
+    {
+      "id": "F090",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 258,
+      "end": 258,
+      "source": "fix/51d7a1ff3beb:258-258"
+    },
+    {
+      "id": "F091",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 266,
+      "end": 268,
+      "source": "fix/51d7a1ff3beb:266-268"
+    },
+    {
+      "id": "F092",
+      "file": ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md",
+      "start": 21,
+      "end": 30,
+      "source": "fix/51d7a1ff3beb:21-30"
+    },
+    {
+      "id": "F093",
+      "file": ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md",
+      "start": 34,
+      "end": 44,
+      "source": "fix/51d7a1ff3beb:34-44"
+    },
+    {
+      "id": "F094",
+      "file": ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md",
+      "start": 51,
+      "end": 51,
+      "source": "fix/51d7a1ff3beb:51-51"
+    },
+    {
+      "id": "F095",
+      "file": ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md",
+      "start": 61,
+      "end": 64,
+      "source": "fix/51d7a1ff3beb:61-64"
+    },
+    {
+      "id": "F096",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 6,
+      "end": 7,
+      "source": "fix/51d7a1ff3beb:6-7"
+    },
+    {
+      "id": "F097",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 22,
+      "end": 22,
+      "source": "fix/51d7a1ff3beb:22-22"
+    },
+    {
+      "id": "F098",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 50,
+      "end": 53,
+      "source": "fix/51d7a1ff3beb:50-53"
+    },
+    {
+      "id": "F099",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 62,
+      "end": 63,
+      "source": "fix/51d7a1ff3beb:62-63"
+    },
+    {
+      "id": "F100",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 124,
+      "end": 124,
+      "source": "fix/51d7a1ff3beb:124-124"
+    },
+    {
+      "id": "F101",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 129,
+      "end": 129,
+      "source": "fix/51d7a1ff3beb:129-129"
+    },
+    {
+      "id": "F102",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 182,
+      "end": 182,
+      "source": "fix/51d7a1ff3beb:182-182"
+    },
+    {
+      "id": "F103",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 188,
+      "end": 188,
+      "source": "fix/51d7a1ff3beb:188-188"
+    },
+    {
+      "id": "F104",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 192,
+      "end": 192,
+      "source": "fix/51d7a1ff3beb:192-192"
+    },
+    {
+      "id": "F105",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 197,
+      "end": 197,
+      "source": "fix/51d7a1ff3beb:197-197"
+    },
+    {
+      "id": "F106",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 201,
+      "end": 201,
+      "source": "fix/51d7a1ff3beb:201-201"
+    },
+    {
+      "id": "F107",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 205,
+      "end": 205,
+      "source": "fix/51d7a1ff3beb:205-205"
+    },
+    {
+      "id": "F108",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 211,
+      "end": 213,
+      "source": "fix/51d7a1ff3beb:211-213"
+    },
+    {
+      "id": "F109",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 221,
+      "end": 221,
+      "source": "fix/51d7a1ff3beb:221-221"
+    },
+    {
+      "id": "F110",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 249,
+      "end": 250,
+      "source": "fix/51d7a1ff3beb:249-250"
+    },
+    {
+      "id": "F111",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 256,
+      "end": 256,
+      "source": "fix/51d7a1ff3beb:256-256"
+    },
+    {
+      "id": "F112",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 262,
+      "end": 262,
+      "source": "fix/51d7a1ff3beb:262-262"
+    },
+    {
+      "id": "F113",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 266,
+      "end": 266,
+      "source": "fix/51d7a1ff3beb:266-266"
+    },
+    {
+      "id": "F114",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 272,
+      "end": 272,
+      "source": "fix/51d7a1ff3beb:272-272"
+    },
+    {
+      "id": "F115",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 276,
+      "end": 282,
+      "source": "fix/51d7a1ff3beb:276-282"
+    },
+    {
+      "id": "F116",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 9,
+      "end": 25,
+      "source": "fix/51d7a1ff3beb:9-25"
+    },
+    {
+      "id": "F117",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 31,
+      "end": 32,
+      "source": "fix/51d7a1ff3beb:31-32"
+    },
+    {
+      "id": "F118",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 39,
+      "end": 39,
+      "source": "fix/51d7a1ff3beb:39-39"
+    },
+    {
+      "id": "F119",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 44,
+      "end": 54,
+      "source": "fix/51d7a1ff3beb:44-54"
+    },
+    {
+      "id": "F120",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 61,
+      "end": 61,
+      "source": "fix/51d7a1ff3beb:61-61"
+    },
+    {
+      "id": "F121",
+      "file": ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md",
+      "start": 71,
+      "end": 74,
+      "source": "fix/51d7a1ff3beb:71-74"
+    },
+    {
+      "id": "F122",
+      "file": ".loa.config.yaml.example",
+      "start": 829,
+      "end": 834,
+      "source": "fix/51d7a1ff3beb:829-834"
+    },
+    {
+      "id": "F123",
+      "file": ".loa.config.yaml.example",
+      "start": 846,
+      "end": 846,
+      "source": "fix/51d7a1ff3beb:846-846"
+    },
+    {
+      "id": "F124",
+      "file": ".loa.config.yaml.example",
+      "start": 1394,
+      "end": 1407,
+      "source": "fix/51d7a1ff3beb:1394-1407"
+    },
+    {
+      "id": "F125",
+      "file": ".loa.config.yaml.example",
+      "start": 1422,
+      "end": 1423,
+      "source": "fix/51d7a1ff3beb:1422-1423"
+    },
+    {
+      "id": "F126",
+      "file": "tests/fixtures/dissent-rejected/README.md",
+      "start": 6,
+      "end": 6,
+      "source": "fix/51d7a1ff3beb:6-6"
+    },
+    {
+      "id": "F127",
+      "file": "tests/fixtures/structured-outputs/kf004/neg-missing-id.json",
+      "start": 2,
+      "end": 2,
+      "source": "fix/51d7a1ff3beb:2-2"
+    },
+    {
+      "id": "F128",
+      "file": "tests/fixtures/structured-outputs/kf004/neg-missing-id.json",
+      "start": 10,
+      "end": 10,
+      "source": "fix/51d7a1ff3beb:10-10"
+    },
+    {
+      "id": "F129",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 14,
+      "end": 22,
+      "source": "fix/51d7a1ff3beb:14-22"
+    },
+    {
+      "id": "F130",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 26,
+      "end": 33,
+      "source": "fix/51d7a1ff3beb:26-33"
+    },
+    {
+      "id": "F131",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 63,
+      "end": 63,
+      "source": "fix/51d7a1ff3beb:63-63"
+    },
+    {
+      "id": "F132",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 73,
+      "end": 73,
+      "source": "fix/51d7a1ff3beb:73-73"
+    },
+    {
+      "id": "F133",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 79,
+      "end": 79,
+      "source": "fix/51d7a1ff3beb:79-79"
+    },
+    {
+      "id": "F134",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 85,
+      "end": 85,
+      "source": "fix/51d7a1ff3beb:85-85"
+    },
+    {
+      "id": "F135",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 90,
+      "end": 90,
+      "source": "fix/51d7a1ff3beb:90-90"
+    },
+    {
+      "id": "F136",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 94,
+      "end": 94,
+      "source": "fix/51d7a1ff3beb:94-94"
+    },
+    {
+      "id": "F137",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 98,
+      "end": 106,
+      "source": "fix/51d7a1ff3beb:98-106"
+    },
+    {
+      "id": "F138",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 119,
+      "end": 119,
+      "source": "fix/51d7a1ff3beb:119-119"
+    },
+    {
+      "id": "F139",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 140,
+      "end": 140,
+      "source": "fix/51d7a1ff3beb:140-140"
+    },
+    {
+      "id": "F140",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 149,
+      "end": 149,
+      "source": "fix/51d7a1ff3beb:149-149"
+    },
+    {
+      "id": "F141",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 153,
+      "end": 153,
+      "source": "fix/51d7a1ff3beb:153-153"
+    },
+    {
+      "id": "F142",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 158,
+      "end": 163,
+      "source": "fix/51d7a1ff3beb:158-163"
+    },
+    {
+      "id": "F143",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 167,
+      "end": 168,
+      "source": "fix/51d7a1ff3beb:167-168"
+    },
+    {
+      "id": "F144",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 172,
+      "end": 172,
+      "source": "fix/51d7a1ff3beb:172-172"
+    },
+    {
+      "id": "F145",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 176,
+      "end": 177,
+      "source": "fix/51d7a1ff3beb:176-177"
+    },
+    {
+      "id": "F146",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 186,
+      "end": 186,
+      "source": "fix/51d7a1ff3beb:186-186"
+    },
+    {
+      "id": "F147",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 12,
+      "end": 21,
+      "source": "fix/51d7a1ff3beb:12-21"
+    },
+    {
+      "id": "F148",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 25,
+      "end": 25,
+      "source": "fix/51d7a1ff3beb:25-25"
+    },
+    {
+      "id": "F149",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 32,
+      "end": 43,
+      "source": "fix/51d7a1ff3beb:32-43"
+    },
+    {
+      "id": "F150",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 65,
+      "end": 65,
+      "source": "fix/51d7a1ff3beb:65-65"
+    },
+    {
+      "id": "F151",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 91,
+      "end": 94,
+      "source": "fix/51d7a1ff3beb:91-94"
+    },
+    {
+      "id": "F152",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 117,
+      "end": 117,
+      "source": "fix/51d7a1ff3beb:117-117"
+    },
+    {
+      "id": "F153",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 122,
+      "end": 122,
+      "source": "fix/51d7a1ff3beb:122-122"
+    },
+    {
+      "id": "F154",
+      "file": "tests/unit/adversarial-review-normalise.bats",
+      "start": 130,
+      "end": 130,
+      "source": "fix/51d7a1ff3beb:130-130"
+    },
+    {
+      "id": "F155",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 21,
+      "end": 21,
+      "source": "fix/51d7a1ff3beb:21-21"
+    },
+    {
+      "id": "F156",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 27,
+      "end": 52,
+      "source": "fix/51d7a1ff3beb:27-52"
+    },
+    {
+      "id": "F157",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 66,
+      "end": 66,
+      "source": "fix/51d7a1ff3beb:66-66"
+    },
+    {
+      "id": "F158",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 268,
+      "end": 268,
+      "source": "fix/51d7a1ff3beb:268-268"
+    },
+    {
+      "id": "F159",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 280,
+      "end": 281,
+      "source": "fix/51d7a1ff3beb:280-281"
+    },
+    {
+      "id": "F160",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 317,
+      "end": 317,
+      "source": "fix/51d7a1ff3beb:317-317"
+    },
+    {
+      "id": "F161",
+      "file": "tests/unit/verdict-derive.bats",
+      "start": 325,
+      "end": 327,
+      "source": "fix/51d7a1ff3beb:325-327"
+    }
+  ]
+}

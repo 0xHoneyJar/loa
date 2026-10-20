@@ -7,7 +7,7 @@
     "unenforced_findings": 1,
     "enforced_findings": 0
   },
-  "content": "{\"findings\":[{\"severity\":\"BLOCKING\",\"category\":\"data-loss\",\"anchor\":\"a.sh:f\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"trigger_anchor\":null,\"cross_file_justification\":null,\"title\":\"Environment secret exposed\",\"description\":\"d\",\"failure_mode\":\"fm\",\"suggested_fix\":\"s\"}]}",
+  "content": "{\"findings\": [{\"severity\": \"BLOCKING\", \"category\": \"data-loss\", \"anchor\": \"a.sh:f\", \"anchor_type\": \"function\", \"anchor_line\": null, \"anchor_line_end\": null, \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"title\": \"Environment secret exposed\", \"description\": \"d\", \"failure_mode\": \"fm\", \"suggested_fix\": \"s\"}]}",
   "tokens_input": 10,
   "tokens_output": 5,
   "cost_usd": 0,

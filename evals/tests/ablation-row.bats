@@ -554,3 +554,111 @@ vrow() {  # vrow <missed json> <seeded> <caught> → $T/one.jsonl: the a3-review
   run "$ROW" --validate "$T/real.jsonl"
   [ "$status" -eq 0 ] && [[ "$output" == *"real.jsonl: 165 rows valid"* ]]
 }
+
+# --- row writer 1.4 (cycle-131 Sprint 263 Task 1.6, SDD §3.2) ---------------------------------------------------
+# g13 <run>: a grader 1.3.0 grade.json for the review-catch fixture run (3 seeded, 2 caught under the new rule)
+g13() {
+  jq '.grader_version = "1.3.0" | .corpus_sha256 = "c0ffee"
+      | .recall += {missed: ["d3"], recall_pm3: 0.3333, missed_pm3: ["d2", "d3"], recall_pm3_v1: 0.3333,
+                    missed_pm3_v1: ["d2", "d3"], v1_manifest: true, credits_function_only: ["d2"], rule: "pm3_or_same_function"}
+      | .oracle_exposed_defects = ["d1"] | .oracle_exposed_unknown = []' \
+    "$T/runs/$1/grade.json" > "$T/g.json" && mv "$T/g.json" "$T/runs/$1/grade.json"
+}
+envset() {  # envset <run> <gate> <jq filter on the envelope>
+  jq "$3" "$T/runs/$1/eval/adversarial-$2.json" > "$T/e.json" && mv "$T/e.json" "$T/runs/$1/eval/adversarial-$2.json"
+}
+
+@test "RW14-1 a grader 1.3 review-catch row carries the three rates, the missed lists, credits_function_only, the oracle lists, grader_rule/version and corpus_sha256; it validates" {
+  g13 a3-review
+  row a3-review "$REVIEW_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  local r; r="$(last)"
+  [ "$(jq -r '"\(.row_writer_version) \(.defect_catch_rate) \(.defect_catch_rate_pm3) \(.defect_catch_rate_pm3_v1)"' <<<"$r")" = "1.4 0.6667 0.3333 0.3333" ]
+  [ "$(jq -c '[.defects_missed, .defects_missed_pm3, .defects_missed_pm3_v1, .credits_function_only, .oracle_exposed_defects, .oracle_exposed_unknown]' <<<"$r")" = '[["d3"],["d2","d3"],["d2","d3"],["d2"],["d1"],[]]' ]
+  [ "$(jq -r '"\(.grader_rule) \(.grader_version) \(.corpus_sha256)"' <<<"$r")" = "pm3_or_same_function 1.3.0 c0ffee" ]
+  # a 1.2.x grade names no rule: grader_rule pm3, the new rates null
+  row a3-review "$REVIEW_TASK" --grade "$FX/runs/a3-review/grade.json"
+  r="$(last)"
+  [ "$(jq -r '"\(.grader_rule) \(.defect_catch_rate_pm3) \(.credits_function_only) \(.oracle_exposed_defects)"' <<<"$r")" = "pm3 null null null" ]
+  # a build row: rule null; a position list outside the id rules is written null
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.grader_rule' <<<"$(last)")" = null ]
+  jq '.recall.credits_function_only = ["d9"] | .oracle_exposed_defects = ["x1"]' "$T/runs/a3-review/grade.json" > "$T/bad.json"
+  row a3-review "$REVIEW_TASK" --grade "$T/bad.json"
+  [ "$(jq -c '[.credits_function_only, .oracle_exposed_defects, .defect_catch_rate]' <<<"$(last)")" = '[null,null,0.6667]' ]
+}
+
+@test "RW14-2 arm evidence: config_variant, overlay_mode, oracle_open and gate_scripts_at_pr_version; defaults shipped / null / false / []" {
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.config_variant, .overlay_mode, .oracle_open, .gate_scripts_at_pr_version]' <<<"$(last)")" = '["shipped",null,false,[]]' ]
+  printf 'config_variant=eval\nmount_overlay=head 7 paths\ngate_scripts_at_pr_version=\noverlay_sha256=.claude/x.sh=ab\ngate_scripts_at_pr_version=.claude/scripts/adversarial-review.sh,.claude/skills/reviewing-code/SKILL.md\n' \
+    >> "$T/runs/a3-review/meta/arm-evidence.txt"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.config_variant, .overlay_mode, .oracle_open, .gate_scripts_at_pr_version]' <<<"$(last)")" = '["eval","head",false,[".claude/scripts/adversarial-review.sh",".claude/skills/reviewing-code/SKILL.md"]]' ]
+  printf 'mount_overlay=none\noracle_open=true\nconfig_variant=bogus\n' >> "$T/runs/a3-review/meta/arm-evidence.txt"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.config_variant, .overlay_mode, .oracle_open]' <<<"$(last)")" = '["shipped","none",true]' ]
+}
+
+@test "RW14-3 dissent_absent_reason per gate: none, budget, error (failed, record-fallback, absent envelope), preflight, disabled (config or dissent=false); a gate that did not run is null" {
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"none","audit":"none"},[]]' ]
+  envset a3-review review '.metadata = {status: "budget_exceeded", recorded_by: "record-fallback", reason: "ERROR: Estimated cost (366c) exceeds budget (200c)"}'
+  envset a3-review audit '.metadata = {status: "failed", recorded_by: "record-fallback"}'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"budget","audit":"error"},["review","audit"]]' ]
+  envset a3-review review '.metadata = {status: "preflight_failed"}'
+  envset a3-review audit '.metadata = {status: "reviewed", recorded_by: "record-fallback", reason: "voice preflight: no credential"}'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.dissent_absent_reason' <<<"$(last)")" = '{"review":"preflight","audit":"preflight"}' ]
+  rm -f "$T/runs/a3-review/eval/adversarial-audit.json" "$T/runs/a3-review/sandbox/grimoires/loa/a2a/sprint-1/adversarial-audit.json"
+  printf 'flatline_protocol:\n  enabled: true\n  code_review:\n    enabled: false\n' > "$T/runs/a3-review/sandbox/.loa.config.yaml"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"disabled","audit":"error"},["review","audit"]]' ]
+  rm "$T/runs/a3-review/sandbox/.loa.config.yaml"; echo 'dissent=false' >> "$T/runs/a3-review/meta/arm-evidence.txt"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -r '.dissent_absent_reason.review' <<<"$(last)")" = disabled ]
+  edit_pipe a3-review '.phases |= map(if .label == "AUDIT" then .skipped = true else . end)'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"disabled","audit":null},["review"]]' ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "RW14-4 --validate: a 1.4 row needs every 1.4 field and the enums; a legacy row without them still validates" {
+  g13 a3-review
+  row a3-review "$REVIEW_TASK"
+  local good f; good="$(last)"
+  for f in defect_catch_rate_pm3 defect_catch_rate_pm3_v1 defects_missed_pm3 defects_missed_pm3_v1 credits_function_only \
+           oracle_exposed_defects oracle_exposed_unknown dissent_absent_gates dissent_absent_reason grader_rule grader_version \
+           corpus_sha256 config_variant overlay_mode oracle_open gate_scripts_at_pr_version; do
+    jq -c --arg f "$f" 'del(.[$f])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] || { echo "field $f: status $status"; return 1; }
+    [[ "$output" == *"missing field $f"* ]] || { echo "field $f: $output"; return 1; }
+  done
+  local bad want
+  while IFS=$'\t' read -r bad want; do
+    jq -c "$bad" <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] && [[ "$output" == *"$want"* ]] || { echo "$bad: $output"; return 1; }
+  done <<'CASES'
+.config_variant = "x"	config_variant "x" is not shipped|eval
+.overlay_mode = "both"	overlay_mode "both" is not head|base|none|null
+.dissent_absent_reason.review = "maybe"	dissent_absent_reason.review = "maybe" is not one of
+.dissent_absent_reason.gate3 = null	dissent_absent_reason.gate3 = null is not one of
+.dissent_absent_gates = ["fix"]	names a gate other than review|audit
+.credits_function_only = ["d7"]	credits_function_only ["d7"] violates the rule: ids within d1
+.oracle_exposed_defects = ["d1", "d1"]	oracle_exposed_defects ["d1","d1"] violates the rule: unique ids
+.gate_scripts_at_pr_version = [""]	gate_scripts_at_pr_version must be a list of non-empty strings
+.oracle_open = "true"	field oracle_open has type string
+CASES
+  # a legacy (1.3) row lacking every 1.4 field validates
+  jq -c 'del(.row_writer_version, .defect_catch_rate_pm3, .defect_catch_rate_pm3_v1, .defects_missed_pm3, .defects_missed_pm3_v1,
+             .credits_function_only, .oracle_exposed_defects, .oracle_exposed_unknown, .dissent_absent_gates, .dissent_absent_reason,
+             .grader_rule, .grader_version, .corpus_sha256, .config_variant, .overlay_mode, .oracle_open, .gate_scripts_at_pr_version)' \
+    <<<"$good" > "$T/legacy.jsonl"
+  run "$ROW" --validate "$T/legacy.jsonl"
+  [ "$status" -eq 0 ]
+}

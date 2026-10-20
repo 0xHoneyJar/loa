@@ -70,7 +70,95 @@ Catch per dollar on suite v2 (task-mean catch ÷ USD per PR): bare ×1 0.95; bar
 
 Not recommended yet: routing small PRs to two bare passes (bare saturates on the two ~130-line PRs and two passes reach 0.744 at 12 % of full's cost) — true in this data but on two PRs with three defects each; add two small corpus PRs before acting on it.
 
+## 10. cycle-131 addendum — honest review-catch measurement (2026-10-19/20)
+
+### ELI5
+
+In cycle-130 we said the full Loa review pipeline catches far more planted bugs than one bare model call, at about seventeen times the cost. Three things could have been fooling that number: the pipeline's sandbox contained the already-fixed code (a peek), the grader's ruler was loose in a way that favoured one side, and the full pipeline ran on a different model (Fable) than the bare arm (Opus). This cycle closed the peek, re-measured with a stricter ruler, and ran the bare arm on Fable too. Result: the peek was real but small on the PR where we could measure it (the open mount lifted the catch by roughly 0.07, within noise); the looser "same-function" ruler we had proposed turned out to credit the wrong finding five times out of seven, so we did not adopt it; and the model is not the explanation — a bare Fable session catches *fewer* planted bugs than a bare Opus session (0.23 vs 0.39), while the full pipeline on Fable catches 0.68. The pipeline's gates, not the model, carry the lift. We could not price the audit gate or the dissent at this sample: three trials on one PR leave both reads inconclusive or insufficient, and the pre-registered cell threshold we wrote was stricter than the design could meet — reported as written, with the intended threshold beside it. Spend: about USD 443 of the 500 cap.
+
+### 10.1 What changed since §9 (the five changes, built and gated)
+
+| Change (from §9) | Built as | Gate evidence |
+|---|---|---|
+| Close the peek (R1, KF-049) | the closed mount: every answer-bearing `.claude/` path overlaid with the PR's own version before any phase, pre-launch check, `oracle_closed` took-effect rule, grader oracle detector (diff + read forms) | smoke 7/7 `oracle_closed OK`; batches: `oracle_exposed_defects` empty on every closed-mount row; the open-mount control arm peeked in 3 of 3 B1 runs (7/15/3 defects exposed) |
+| Fix the ruler (R2) | grader 1.3.0 with three results (`recall_pm3_v1` on the frozen v1 labels, `recall_pm3` on curated multi-site labels, `recall` = ±3 or same enclosing definition); regression 36/36; blind two-labeler adjudication | the same-scope rule was **not adopted**: 2 of 7 same-scope credits were the labelled defect (kappa 1.0) → `recall_pm3` is the decision statistic (DEC-0638) |
+| Bare-Fable control (R5) | arm `a0_bare_fable` | 6 rows, see 10.3 |
+| Price the audit gate (R3) | arm `a1_review_only` | 3 rows, see 10.4 |
+| Price the dissent (R4) | `anchor_line` in every voice's findings + `budget_scale: diff` (eval config); arm `a1_no_dissent` | anchor share ≥ 0.94 everywhere; both voices ran on every dissent-enabled gate (nothing refused at the diff-scaled budget); 3 rows, see 10.4 |
+
+### 10.2 The re-grade (36 cycle-130 runs, three rules)
+
+36 cycle-130 review-catch runs re-graded under grader 1.3.0 (regression `recall_pm3_v1 == stored recall` on 36/36): the stored `recall` was the ±3 rule on the original labels; `recall_pm3` is ±3 on the curated multi-site labels; `recall` is ±3 or same enclosing definition (not adopted). Rows: `grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl`; detail per run in `a2a/sprint-1/regrade-c131.md`.
+
+| cells | `recall_pm3_v1` (stored ruler) | `recall_pm3` (curated labels) | `recall` (same-scope, not adopted) |
+|---|---|---|---|
+| p1/p1b a0_bare × review-01..04 (12) | mean 0.625 | mean 0.727 | mean 0.829 |
+| p1/p1b a1_full × review-01..04 (12) | mean 0.829 | mean 0.927 | mean 0.969 |
+| replication a0_bare × r17, r18 (6) | 0.263 | 0.371 | 0.400 |
+| replication a1_full × r17, r18 (6) | 0.646 | 0.771 | 0.796 |
+
+The curated labels raise both arms (they credit the human finding's cited lines); the same-scope rule raises them further but the adjudication showed those extra credits are mostly other findings in the same function. The detector flagged 3 oracle-exposed runs by the diff form (review-04 t2, r17 t1, r18 t1) and 2 more diffs the analysis had missed (r17 t2, t3), plus incidental later-copy reads on 7 runs; the union is the exclusion set (DEC-0632).
+
+### 10.3 The oracle A/B (R1) and the model control (R5)
+
+**R1 — did the open mount inflate the catch?** `a1_full_openmount` (the pin's framework copy mounted as in cycle-130) vs `a1_full` (closed mount) on pr-17, 3 trials each: open 0.750 vs closed 0.683, Δ = +0.067, 90 % [−0.017, +0.150]. The detector shows the open mount was used in every open run (7, 15 and 3 of 20 defects exposed). Pre-registered branch: under the written `min_valid_cells 4` → **insufficient**; at the trial level → **investigate** (not above +0.05, not inside ±0.05). The peek is real, bounded on this PR, and not the size of cycle-130's lift (DEC-0651).
+
+**R5 — does the model explain the lift?** `a0_bare_fable` (one Fable 5.1 session, the bare prompt, no mount) vs `a1_full` and vs `a0_bare` (Opus 5.5) on pr-17 and pr-18, 28 defects:
+
+| contrast | A | B | Δ | 90 % defect CI | cluster CI (PR) | USD/run A vs B |
+|---|---|---|---|---|---|---|
+| bare-Fable − full | 0.226 | 0.685 | −0.458 | [−0.601, −0.316] | [−0.563, −0.417] | 4.28 vs 19.94 |
+| bare-Fable − bare-Opus | 0.226 | 0.393 | −0.167 | [−0.310, −0.018] | [−0.250, −0.133] | 4.28 vs 1.40 |
+
+Pre-registered branch: **between (both intervals reported)** — neither contrast is within ±0.05. Reading: a bare Fable session catches fewer planted defects than a bare Opus session; the gated pipeline on Fable catches three times as many as bare Fable. The lift is the pipeline's, not the model's (DEC-0654). Same branch under every sensitivity.
+
+### 10.4 The two prices (R3 audit gate, R4 dissent)
+
+**R3 — what does the audit gate buy?** `a1_review_only` vs `a1_full` on pr-17: 0.650 vs 0.683, Δ = −0.033, 90 % [−0.133, +0.067]; cost USD 11.42 vs 21.50 per run (ratio 0.53). Branch: **insufficient** as written (3 cells); trial level **inconclusive** — the interval straddles the ±0.05 opt-in band and does not fall below −0.10. The audit gate costs 47 % of the run for a catch contribution this sample cannot resolve (DEC-0652). No shipped-default change is proposed.
+
+**R4 — what does the dissent buy?** `a1_no_dissent` vs `a1_full` on pr-17: only 2 of 3 no-dissent cells are valid (the third read `contaminated`: a reproduction under `/home/evaluser/audit-scratch`, a scratch directory outside the shapes S3 declared); **insufficient** under every read. Descriptively the two cells read 0.75 and 0.75 vs 0.683 (Δ +0.067 [−0.05, +0.19]). What this cycle did prove about the dissent: with `budget_scale: diff` it runs on the large PRs that cycle-130 refused at 200 c (effective 406 c on pr-17, 257 c on pr-18), both voices completed on every dissent-enabled gate in 27 of 27 rows, and ≥ 0.90 of its findings now carry a numeric `anchor_line` the grader can credit — the measurement is now possible; the price is not yet measured (DEC-0653).
+
+### 10.5 Adjudication (Task 1.10)
+
+Two independent Opus 5.5 labelers, 17 blind packets (all 7 same-scope-only credits + 10 of 40 anchor-expansion-only credits, stratified by arm × PR, seed 20261015), agreement 1.000 / Cohen's κ 1.000. Group (a): 2 of 7 same-scope credits describe the labelled defect (0.286, Wilson 95 % [0.082, 0.641]) — below the pre-registered 80 % bar → the rule is not adopted. Group (b): 6 of 10 anchor-expansion credits (0.600 [0.313, 0.832]) — reported, decides nothing; a caveat on the curated anchors. Record: `a2a/sprint-1/adjudication/result.md`.
+
+### 10.6 Spend
+
+| item | USD |
+|---|---|
+| Sprint 263 smoke (7 PRs) + pr-17 re-smoke | 91.45 + 22.46 |
+| Sprint 264 arm smoke (pr-05) | 21.77 |
+| B1 `c131-b1-oracle-ab` | 57.62 |
+| B2a `c131-b2-control-prices-a` | 152.03 |
+| B2b `c131-b2-control-prices-b` (incl. the resumed cell) | 82.87 |
+| dissent runs (5), Flatline planning runs, adjudication labelers | ≈ 15 |
+| **cycle-131 total** | **≈ 443 of the USD 500 cap** (batch allowance 300: spent 292.52) |
+
+Per-run cost of `a1_full` under the closed mount with the dissent actually running: USD 17–24 on pr-17/pr-18 (about double cycle-130's), because the diff-scaled dissent now runs where the fixed 200 c budget used to refuse it.
+
+### 10.7 Honest caveats
+
+- The pre-registration carried `min_valid_cells 4` while planning 3 trials per arm on one PR for R1, R3 and R4; under the rule as written those three main reads are "insufficient" by construction. The hashed text was not edited; the trial-level sensitivity (min 3) is reported beside each (DEC-0650). Which branch a reader takes is stated, not chosen for them.
+- Two B2a rows were `contaminated`: a bare run fetched the upstream `CLAUDE.loa.md` (a real probe; excluded everywhere) and a full-pipeline audit built a scratch repository under `$HOME/tmp` to reproduce a claim (re-included only in sensitivity S3, declared before the reads).
+- pr-12 cannot run under the closed mount (import skew, KF-050) and stays re-grade-only; pr-17 needed task bounds of 50/40 min and a USD 30 run cap once the dissent actually ran (DEC-0640); a Fable review session refused once and fell back to Opus (KF-051; such rows are excluded from the model read).
+- The priced-in dissent roughly doubled the cost of a full run (USD 10–22 per PR); the batch allowance was re-derived to USD 300 (DEC-0645) and B2b's last cell was resumed within it (DEC-0649).
+- All reads are on two PRs (pr-17: 20 defects; pr-18: 8) at 3 trials per cell; the intervals are wide, and this is a measurement of this corpus, not of Loa in general.
+
+### 10.8 Recommendations, re-ranked
+
+| # | change (as a testable Loa change) | status after this cycle |
+|---|---|---|
+| 1 | **Close the peek**: keep the closed mount as the default for every review-catch evaluation (built; `oracle_closed` true on 24/24 closed rows). | **done** — shipped as harness behaviour; the open mount survives only as the eval-only control arm |
+| 2 | **Fix the ruler**: adopt the ±3-or-same-function rule. | **withdrawn** — adjudication 2/7; `recall_pm3` on curated multi-site labels is the ruler; the curated labels themselves carry a 6/10 caveat |
+| 3 | **Bare-Fable control**: run it before attributing any lift to the pipeline. | **done, answered** — the model does not explain the lift (R5 between: bare-Fable below bare-Opus) |
+| 4 | **Price the audit gate** (opt-in on review-only PRs if catch within ±0.05 and cost ≤ 60 %). | **inconclusive at 3 trials** — Δ −0.033 [−0.133, +0.067], cost 0.53; needs ≥ 6 trials on ≥ 2 PRs (≈ USD 200) to resolve |
+| 5 | **Price the dissent** (anchors + diff-scaled budget; opt-in if within ±0.08). | **anchors and budget shipped as optional knobs** (defaults unchanged); the price read is insufficient (2 valid cells) — re-run with the S3 path shapes declared up front |
+
+No shipped default changed in this cycle (G-6): `budget_scale` ships `fixed`, `anchor_line` is an additive optional field; the suite's shipped arms are untouched (the four cycle-131 arms sit outside `priority`).
+
 ## Files
+
+- cycle-131: `grimoires/loa/reports/ablation-2.0/c131-rows.jsonl` (27 batch rows), `c131-reads.md` (the formal reads), `regrade-c131/rows.jsonl` (36 re-graded cycle-130 runs); record branch `record/cycle-131-honest-measurement` for `a2a/sprint-1…3/` (adjudication packets and labels, smoke and batch scans, dissent envelopes, NOTES).
 
 | deliverable | file (record branch, `grimoires/loa/a2a/analysis-2026-10/`) |
 |---|---|

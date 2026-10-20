@@ -1,7 +1,7 @@
 {
   "fixture": "pr-14",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "250",
     "record_ref": "origin/record/cycle-126-a2a",
@@ -15,8 +15,12 @@
       "anchor_line": 111,
       "anchors": [
         111,
+        122,
         123,
-        133
+        128,
+        129,
+        133,
+        137
       ],
       "must_match": "# Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)",
       "severity": "medium",
@@ -32,6 +36,11 @@
       "anchor_line": 35,
       "anchors": [
         35,
+        76,
+        77,
+        89,
+        107,
+        108,
         123,
         133
       ],

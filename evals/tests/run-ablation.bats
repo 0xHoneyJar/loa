@@ -28,7 +28,7 @@ setup() {
   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
-  unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+  unset STUB_ENV_LOG LOA_ABLATION_BATCH_CONTEXT STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
   RES="$T/res"
   # hermetic codex credentials (KF-048 pre-flight): an empty directory unless a case writes one
   mkdir -p "$T/creds/.codex"; export LOA_EVAL_CREDS_HOME="$T/creds"
@@ -1119,4 +1119,91 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
   ra --batch kp1 --resume --concurrency 1
   [ "$status" -eq 0 ]
   [ "$(jq -r '.codex_preflight.trials_counted' "$B/STATUS.json")" = 0 ]
+}
+
+# --- cycle-131 Sprint 263 Task 1.7: --allow-partial (PRD FR-3 AC 1; SDD D-3.1) -----------------
+
+@test "RAB-c131-1 --allow-partial: the two-task replication root passes the pre-flight with the flag and is refused without it; MANIFEST.json records allow_partial" {
+  local R="$REPO_ROOT/grimoires/loa/evals/ablation-2.0-replication"
+  ra --suite-root "$R" --arms a1_full --trials-review 1 --batch ap1 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'refused: freeze.sh --check --root .*ablation-2.0-replication .* failed' <<<"$output"
+  ra --suite-root "$R" --arms a1_full --trials-review 1 --batch ap2 --dry-run --allow-partial
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '^plan: 1 arms, 2 tasks, 2 trials' <<<"$output"
+  [ "$(jq -r '.allow_partial' "$RES/ap2/MANIFEST.json")" = true ]
+  [ "$(jq -r '[.tasks[].id] | join(",")' "$RES/ap2/MANIFEST.json")" = "review-r17,review-r18" ]
+  # the default (full) root without the flag records false
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch ap3 --dry-run
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.allow_partial' "$RES/ap3/MANIFEST.json")" = false ]
+}
+
+@test "RAB-c131-2 --allow-partial reaches every grader argv; --resume keeps the MANIFEST value and refuses a conflicting flag" {
+  local R="$REPO_ROOT/grimoires/loa/evals/ablation-2.0-replication"
+  ra --suite-root "$R" --arms a1_full --trials-review 1 --batch ap4 --concurrency 1 --allow-partial
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(wc -l < "$T/grade.log")" -eq 2 ]
+  [ "$(grep -c -- '--allow-partial' "$T/grade.log")" -eq 2 ]
+  [ "$(jq -r '.allow_partial' "$RES/ap4/MANIFEST.json")" = true ]
+  # a resume without the flag takes it from the manifest (the freeze check still passes)
+  ra --resume --batch ap4
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  # a batch started without the flag cannot gain it on resume
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch ap5 --concurrency 1
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  ! grep -q -- '--allow-partial' <(grep 'ap5-' "$T/grade.log") || false
+  ra --resume --batch ap5 --allow-partial
+  [ "$status" -eq 2 ]
+  grep -q "allow-partial conflicts with batch ap5's MANIFEST.json allow_partial false" <<<"$output"
+}
+
+@test "RAB-c131-3 oracle_closed on a1_full (cycle-131 FR-1): took-effect gets --task-yaml and passes on an overlaid review-catch run; a run without the overlay pauses the arm" {
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch oc1 --concurrency 1
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'arm a1_full: oracle_closed OK ok head:' "$RES/oc1/a1_full/review-01-t1.log"
+  rules 'oc2-a1_full-review-01-t1 bad_overlay'
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch oc2 --concurrency 1
+  [ "$status" -ne 0 ]
+  [ "$(row oc2-a1_full-review-01-t1 | jq -r '.status')" = infrastructure_error ]
+  jq -e '.paused_arms.a1_full | test("oracle_closed FAIL")' "$RES/oc2/STATUS.json" >/dev/null
+}
+
+@test "RAB-c131-4 bare_model: fable (cycle-131 D-5.1): a BARE phase on Fable 5.1 is not drift, and bare_model_fable passes; another model in that BARE record is drift" {
+  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/suite.yaml"
+  yq -i '.arms += [{"id": "a0_bare_fable", "label": "A0F", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_model": "fable"},
+                    "phases": ["BARE"], "effort": "high", "took_effect": ["no_dot_claude", "bare_model_fable"]}]' "$T/suite.yaml"
+  ra --suite-file "$T/suite.yaml" --arms a0_bare_fable --tasks review-01 --trials-review 1 --batch bf1 --concurrency 1
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$RES/bf1/a0_bare_fable/review-01-t1.log"; false; }
+  [ "$(jq -r '.drift' "$RES/bf1/STATUS.json")" = null ]
+  grep -q 'arm a0_bare_fable: bare_model_fable OK BARE models_used global.anthropic.claude-fable-5-1, effort_requested high' "$RES/bf1/a0_bare_fable/review-01-t1.log"
+  rules 'bf2-* drift_model'
+  ra --suite-file "$T/suite.yaml" --arms a0_bare_fable --tasks review-01 --trials-review 1 --batch bf2 --concurrency 1
+  [ "$status" -eq 3 ]
+  [ "$(jq -r '.drift.field' "$RES/bf2/STATUS.json")" = models_used.BARE ]
+  [ "$(jq -r '.drift.expected' "$RES/bf2/STATUS.json")" = claude-fable-5-1 ]
+}
+
+# --- cycle-131 Sprint 264 Task 2.1: the eval_only batch context ---------------------------------
+
+@test "RAB-c131-5 every trial a batch or a smoke launches gets LOA_ABLATION_BATCH_CONTEXT=1 (the eval_only arms' context); the runner's own environment is unchanged" {
+  export STUB_ENV_LOG="$T/env.log"
+  [ -z "${LOA_ABLATION_BATCH_CONTEXT+x}" ]
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch bc1 --concurrency 2
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(wc -l < "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
+  : > "$T/env.log"
+  run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --suite-root "$S" \
+    --pipeline-bin "$FX/ablation-pipeline-stub.sh" --grade-bin "$FX/ablation-grade-stub.sh" --docker-bin "$T/bin/docker" \
+    --smoke --arms a1_full --batch smoke-bc2 --max-usd 100
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(wc -l < "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  # the stub reports an absent variable as <unset> (the assertion above is not vacuous)
+  : > "$T/env.log"
+  "$FX/ablation-pipeline-stub.sh" --task-yaml "$S/tasks/review-01/task.yaml" --arm a1_full --run-dir "$T/manual" \
+    --run-id manual-1 --trial 1 --source-tree "$T/src" --suite-file "$REPO_ROOT/evals/suites/ablation-2.0.yaml" >/dev/null 2>&1 || true
+  grep -qx 'manual-1 LOA_ABLATION_BATCH_CONTEXT=<unset>' "$T/env.log"
 }

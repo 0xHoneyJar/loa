@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-08",
+  "defects": [
+    {
+      "id": "D22-ledger-shape-unpinned",
+      "file": ".claude/scripts/ledger-lib.sh",
+      "anchor_line": 157,
+      "must_match": "if [[ -z \"$content\" ]] || ! echo \"$content\" | jq empty 2>/dev/null; then",
+      "severity": "high",
+      "category": "input-validation",
+      "source_commit": "e2a274eb",
+      "synthetic": false
+    },
+    {
+      "id": "D23-heredoc-body-fail-open",
+      "file": "tools/check-no-swallowed-jq.sh",
+      "anchor_line": 139,
+      "must_match": "if ($0 == hd_term) { in_heredoc = 0; next }",
+      "severity": "medium",
+      "category": "logic",
+      "source_commit": "4406815a",
+      "synthetic": false
+    },
+    {
+      "id": "D24-embedded-nul-valueerror",
+      "file": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py",
+      "anchor_line": 164,
+      "must_match": "f\"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}\",",
+      "severity": "medium",
+      "category": "error-handling",
+      "source_commit": "381d065d",
+      "synthetic": false
+    }
+  ]
+}

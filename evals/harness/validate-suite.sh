@@ -43,6 +43,14 @@
 #      of the review manifest, a `D[0-9]{2}-` key, an arm id of the suite file
 #   7. suite file: every non-absent arm's task_types are known (all | build |
 #      review-catch | feature-build | bug-fix | refactor)
+#   8. suite file arms (cycle-131 FR-5): `toggles` is a mapping whose every key is in
+#      the vocabulary of lib/sandbox-mount.sh apply_arm_toggles with a value it defines
+#      (companion_voice, karpathy_block, rule_files, audit_delta_instruction, loa_mount,
+#      gates, flatline, sprint_plan, context_resets, dissent: false; effort:
+#      low|medium|high|xhigh|max; bare_model: fable; oracle_open: true); `took_effect`
+#      is a list whose every id is a rule took-effect.sh defines (its `rule_<id>()`
+#      functions, read from the script beside this one); `eval_only`, when present, is
+#      a boolean; an arm whose toggles set oracle_open: true carries eval_only: true
 #
 # Exit: 0 valid; 1 violations (every one listed); 2 usage / unreadable input.
 # Tested by evals/tests/validate-suite.bats.
@@ -57,7 +65,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 PROMPTS_DIR="${LOA_EVAL_PHASE_PROMPTS_DIR:-$SCRIPT_DIR/lib/phase-prompts}"
 SMOKE=false ALLOW_PARTIAL=false
 
-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,47p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,55p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "validate-suite: $*" >&2; exit 2; }
 
 while [[ $# -gt 0 ]]; do
@@ -74,6 +82,10 @@ done
 ROOT="$(cd "$ROOT" && pwd)"
 [[ -f "$SUITE_FILE" ]] || die "suite file not found: $SUITE_FILE"
 for tool in yq jq python3; do command -v "$tool" >/dev/null 2>&1 || die "missing tool: $tool"; done
+TOOK_EFFECT="$SCRIPT_DIR/took-effect.sh"
+[[ -f "$TOOK_EFFECT" ]] || die "took-effect.sh not found beside this script: $TOOK_EFFECT"
+RULE_IDS="$(sed -n 's/^rule_\([a-z_][a-z0-9_]*\)() *{.*$/\1/p' "$TOOK_EFFECT" | sort -u | tr '\n' ',' | sed 's/,$//')"
+[[ -n "$RULE_IDS" ]] || die "no rule_<id>() functions found in $TOOK_EFFECT"
 # eval.yml trust boundary: a literal in-tree path, no variable on the source line
 pushd "$SCRIPT_DIR" >/dev/null
 # shellcheck source=lib/sandbox-mount.sh
@@ -107,10 +119,11 @@ done
 
 # Python does the schema, counts, allowlist, manifest, leakage and suite checks;
 # it prints violations, and `FIXTURE\t<id>\t<dir>` lines for the path rule below.
-python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
+python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" "$RULE_IDS" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
 import json, os, re, sys
 
-tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir = sys.argv[1:7]
+tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir, rule_ids = sys.argv[1:8]
+RULE_IDS = set(r for r in rule_ids.split(",") if r)
 allow_partial = allow_partial == "true"
 suite = json.load(open(suite_json))
 out = []
@@ -120,6 +133,10 @@ TYPES = ["feature-build", "bug-fix", "refactor", "review-catch"]
 BUILD = {"feature-build", "bug-fix", "refactor"}
 ALLOW = {"python3", "pytest", "bats", "bash", "node", "npx"}
 KNOWN_TASK_TYPES = {"all", "build", "review-catch", "feature-build", "bug-fix", "refactor"}
+# lib/sandbox-mount.sh apply_arm_toggles: the toggle vocabulary and each toggle's defined values
+TOGGLE_VALUES = {k: [False] for k in ("companion_voice", "karpathy_block", "rule_files", "audit_delta_instruction",
+                                      "loa_mount", "gates", "flatline", "sprint_plan", "context_resets", "dissent")}
+TOGGLE_VALUES.update({"effort": ["low", "medium", "high", "xhigh", "max"], "bare_model": ["fable"], "oracle_open": [True]})
 MOUNT_OWNED = (".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run")
 REQUIRED = ["id", "schema_version", "type", "source", "post_cutoff", "fixture", "criterion",
             "success_criterion", "test_command", "regression_command", "reference_patch",
@@ -137,6 +154,30 @@ for a in arms:
     for t in tt:
         if t not in KNOWN_TASK_TYPES:
             bad("suite", f"arm {a.get('id')} task_types names unknown type '{t}'")
+for a in arms:
+    if a.get("absent") is True:
+        continue
+    aid = a.get("id")
+    tg = a.get("toggles", {})
+    if not isinstance(tg, dict):
+        bad("suite", f"arm {aid} toggles must be a mapping")
+        tg = {}
+    for k, v in tg.items():
+        if k not in TOGGLE_VALUES:
+            bad("suite", f"arm {aid} names unknown toggle '{k}'")
+        elif not any(type(v) is type(x) and v == x for x in TOGGLE_VALUES[k]):   # type-exact: 0 is not false
+            bad("suite", f"arm {aid} toggle {k}={json.dumps(v)} is not a defined value ({'|'.join(json.dumps(x) for x in TOGGLE_VALUES[k])})")
+    te = a.get("took_effect")
+    if not isinstance(te, list) or not all(isinstance(r, str) and r for r in te):
+        bad("suite", f"arm {aid} took_effect must be a list of rule ids")
+    else:
+        for r in te:
+            if r not in RULE_IDS:
+                bad("suite", f"arm {aid} took_effect names unknown rule id '{r}'")
+    if "eval_only" in a and not isinstance(a["eval_only"], bool):
+        bad("suite", f"arm {aid} eval_only must be a boolean (true|false)")
+    if tg.get("oracle_open") is True and a.get("eval_only") is not True:
+        bad("suite", f"arm {aid} sets oracle_open: true without eval_only: true (the open mount is evaluation-only)")
 suite_version = suite.get("suite_version")
 
 def rel_ok(p):

@@ -1,13 +1,12 @@
-# Product Requirements Document: Loa 2.0 Component Ablation (cycle-130)
+# Product Requirements Document: Honest review-catch measurement — close the peek, fix the ruler, price the gates (cycle-131)
 
 **Version:** 1.0
-**Date:** 2026-10-15
+**Date:** 2026-10-19
 **Author:** PRD Architect Agent (Claude Fable 5.1, unattended)
-**Status:** Draft — autonomous run (operator instruction 2026-10-15: deliver cycle-130 end to end with admin pre-approval; the interview phases were answered from the operator's brief and the tree, no operator questions; every decision taken on the operator's behalf is a `proposed` row in `grimoires/loa/decisions.yaml` (DEC-0355 … DEC-0378) and is listed in Appendix E with its `[ASSUMPTION decision]` tag; the PRD Flatline run's integration decisions are DEC-0391 … DEC-0410, Appendix G)
-**Brief:** `grimoires/loa/context/cycle-130-brief.md` (the operator's "Loa 2.0 component ablation plan", 2026-10-14, sha256 `85fd49ca…`; gitignored)
-**Continuation prompt:** `grimoires/loa/a2a/prompts/ablation-2.0-continue-2026-10-14.md`
-**Component under test:** Loa `v2.0.0-rc.5` (tag commit `4d69c3c4`, main `9e53d5d2`) plus the #1267 mount fix: the arms pin the Sprint 258 completion commit and the manifest records the `.claude/` delta against `4d69c3c4` [ASSUMPTION decision] (DEC-0392)
-**Branch:** `feature/cycle-130-ablation-2.0` from `main 9e53d5d2`
+**Status:** Draft — autonomous run (operator instruction 2026-10-19: "proceed as you suggest" on the cycle-130 deep analysis; the interview phases were answered from the operator's brief, the analysis and the tree; every operator-level choice is tagged `[ASSUMPTION decision]` with its DEC row)
+**Brief:** `grimoires/loa/context/cycle-131-brief.md` (lead, 2026-10-19, from the operator's instruction)
+**Analysis this cycle acts on:** `grimoires/loa/reports/ablation-2.0/analysis.md` (PR #1285, merged `e9a66e16`; working files on `record/cycle-130-analysis`)
+**Cycle:** `cycle-131-honest-measurement` (ledger); **branch:** `feature/cycle-131-honest-measurement` from `main e9a66e16`
 
 ---
 
@@ -33,11 +32,11 @@
 
 ## Executive Summary
 
-Every Loa component encodes an assumption about what the model cannot do alone. This cycle measures which components of `v2.0.0-rc.5` still add lift on the current model generation (Opus 5.5 at `high`, Fable 5.1 as reviewer) and removes from the default path the ones that do not, before 2.0.0 is promoted. The measurement is a frozen sixteen-task suite (four feature builds, four bug fixes, four refactors, four review-catch tasks) graded only by hidden tests and seeded-defect keys that the agent never sees; nine pre-registered arms (A0 bare Claude Code, A1 full Loa, A2–A8 one component removed each) run the suite under a whole-cycle cap of USD 1,500 and a per-run cap of USD 12, priority arms A0–A4 first; paired-bootstrap decision rules fixed before the first run turn each arm into a keep, remove, simplify, inconclusive or investigate decision for its component.
+Cycle-130 shipped a read that the full Loa review pipeline catches more planted defects than one bare Opus 5.5 session (+0.263 [+0.158, +0.386] on `defect_catch_rate`, DEC-0597). The deep analysis that followed (PR #1285) found that about half of that gap is the grader's ±3-line citation window interacting with the bare arm's one-line-per-finding output contract; that one of twelve full runs took its catches from a copy of the fixed code the sandbox should never have held (KF-049); that the cross-model dissent is credited with zero citations in 36 runs and never ran at a review gate on three of six PRs; and that the audit gate is half a run's cost for a twentieth of its catch. The replication on two fresh PRs reproduced the lift (+0.452 with two scanner-false-positive rows read in) and reproduced the peek (two of six runs).
 
-The cycle reuses cycle-129's instruments (the arm runner, the toggle mechanism, the review-recall corpus and its hidden manifests, the bootstrap report) and adds what the brief needs and cycle-129 did not have: a pipeline executor that runs the Loa phases as separate fresh-context sessions inside a sandbox repository, so that sprint decomposition, the review and audit gates, Flatline and context resets can actually be removed; a frozen task suite with hidden tests outside the agent tree; a `runs.jsonl` row per run with every brief metric; a mechanical grader that scores a known-good and a known-bad patch correctly on every task before any arm runs; the spend-cap mechanism (`--max-usd`, per-run abort) that makes the operator's two numbers mechanical; and the #1267 mount-integrity fix the brief lists as the first prerequisite. Five sprints (global 258–262) follow the brief's breakdown: mount integrity and plumbing, suite and grader, runs, analysis, prune and document. The floor — review, audit, verdict-derive and the one-way rule, the dissent artefact gate, the deny list, fence FR-1.2b, the System-Zone rules, the operator-only commands — is never pruned; A4 informs the suite's sensitivity check and the report only.
+This cycle makes the measurement honest and then prices the two expensive gates against a control that separates the model from the pipeline. Sprint 1 changes the eval harness: the review-catch sandbox stops carrying any later-than-head copy of a PR-touched file, the grader credits a citation inside the labelled function, the runner accepts a partial suite root, the contamination scan stops firing on the PR's own repository name, and the dissent voices are asked for line anchors with a budget that lets them run on real-sized diffs. Sprint 2 adds three arms (bare Fable, review-gate-only, no-dissent review gate) and runs four pre-registered batches under the closed mount. Sprint 3 reads them under rules written before the rows exist and writes the addendum. No default changes in this cycle: every outcome is a proposal for the operator.
 
-> Sources: cycle-130-brief.md §Objective and hypothesis, §Arms, §Decision rules, §Sprint breakdown; ablation-2.0-continue-2026-10-14.md §What already exists, §Known constraints; `evals/harness/run-arms.sh:1-50`; `evals/harness/execute-agent.sh:1-80`
+> Sources: cycle-131-brief.md §Objective, §The five changes, §Sprint breakdown; analysis.md §§2-9; sensitivities.md §1-2; replication.md §Reads
 
 ---
 
@@ -45,30 +44,29 @@ The cycle reuses cycle-129's instruments (the arm runner, the toggle mechanism, 
 
 ### The Problem
 
-Loa's harness grew component by component against earlier model generations. Cycle-129 began measuring it: the guard register recorded every guard's origin and yield, and four pre-registered gate-off arms (`no_karpathy`, `no_rule_files`, `no_companion`, `no_audit_delta`) found no recall loss on eight review fixtures. But those arms ran one skill per trial with Read, Grep, Glob and Write only, so the components that live *between* skills — sprint decomposition, the separate evaluator (review and audit), Flatline, the reset-and-handoff pattern, the effort default, planning ceremonies — have never been measured against bare Claude Code on the current model generation. Anthropic dropped sprint decomposition once Opus 4.6 could sustain long tasks natively; Loa has not tested the same question for its own scaffolding. Promoting 2.0.0 without that measurement would ship components whose cost is known (tokens per turn, wall-clock, dollars) and whose benefit is assumed.
+The number Loa uses to justify its review pipeline is measured by a harness that (i) lets the pipeline's reviewer read the fixed code, (ii) scores the two arms with a rule that favours the pipeline's output format, (iii) cannot credit the component it is supposed to price, and (iv) compares two different models while attributing the difference to the pipeline.
 
 ### User Pain Points
 
-- The maintainer cannot say which of the harness's components earn their cost on Opus 5.5 and Fable 5.1; the 2.0.0 promotion decision rests on assumptions written for Opus 4.x.
-- A downstream mount of `v2.0.0-rc.1` to `rc.5` fails `check-loa.sh` because `.claude/checksums.json` was generated from a dirty tree (1,308 manifest paths absent from the tag; 242 build and cache artefacts in the manifest); four downstream repositories have reported it (#1267). A broken mount contaminates every measurement downstream.
-- `run-arms.sh` has no spend ceiling: the cycle-129 DEC-0173 cost gate was read by hand (bd-j4lwr).
-- The record-fixture manifests count generated artefacts (`dist/*.js`, `.checksum`, `REPO-MAP.md`) as fix regions, lowering the refuted share a stray finding there would earn (bd-8o5rx).
-- Two kernel text deletions (bd-2txz1) wait for an ablation verdict that only a suite with build tasks can give.
+- The maintainer cannot tell how much of the shipped +0.263 is pipeline and how much is ruler, peek and model: "the two corrections together leave ≈ +0.115 pooled, all of it on pr-12" (sensitivities.md §3), and the replication's +0.452 falls to +0.333 with the peeked catches zeroed (replication.md §Reads).
+- The dissent — the component the pricing question is about — "contributes 0 credited citations in every run" because "none of the 24 dissent envelopes … carries a numeric line anchor" (attribution.md §The structural fact first), and its budget gate "refused every review gate on pr-13, pr-17 and pr-18" (analysis.md §9 item 4).
+- The replication could not run under the tracked runner: `freeze.sh --check` and the grader take no `--allow-partial`, so a two-task root fails the hard gate (DEC-0603); two of its rows read `contaminated` because the grader's `repo_name` scan fired on the PR's own `github.repository == '0xHoneyJar/loa'` clause (KF-046 recurrence 9).
+- Every review-catch arm mounts the pinned framework at `/workspace/.claude` by `cp -a "$tree/.claude/." "$ws/.claude/"` (evals/harness/lib/sandbox-mount.sh:131), a later copy than every corpus PR's head; the bare arm mounts nothing (pipeline-run.sh:535 `loa_mount: false but the sandbox has .claude/`), so the arms differ in oracle access.
 
 ### Current State
 
-- `evals/harness/run-arms.sh` runs the declared arms of `review-recall` or `audit-recall` on a detached worktree pinned at `--source-commit`, interleaved trials, one transport retry, `MANIFEST.json` and `STATUS.json`, Opus 5.5 executor by default (DEC-0172); `report.sh --arms` writes paired bootstrap 90 % intervals and pre-registered verdicts; eighteen review fixtures (`pr-01` … `pr-18`) carry hidden manifests and approved labels outside the agent tree.
-- `execute-agent.sh` applies four toggles to the sandbox copy only (`companion_voice`, `karpathy_block`, `rule_files`, `audit_delta_instruction`), verified absent afterwards; the executor is `claude -p --restricted --tools Read,Grep,Glob,Write`, so no sandbox trial runs a script, a gate or a second session.
-- Five implementation fixtures (`evals/fixtures/implement-tasks/01` … `05`, Python, pytest) carry hidden expectations and are graded by `implement-discipline.sh` (test-first, surgical, zone, tests pass).
-- MODELINV rows carry `effort`, `effort_effective`, `tokens_input/output`, `cost_micro_usd`, `locality_mode`, `destination`; `.run/cost-ledger.jsonl` carries model, provider, transport, tokens and cost; `executor.json` records `model_id`, `effort`, `total_cost_usd`, `usage`, `models_used`, `refusal_fallbacks`.
-- `check-loa.sh` exits 1 on this checkout (83 `Tampered` rows, all `__pycache__`); the manifest has 3,387 entries against 1,976 tracked `.claude/` files; `.loa-version.json` says `2.0.0-rc.3`.
-- `/meeting` geometries and a Sosyete panel, named by the brief's arm A8, do not exist at the pinned SHA (no command, skill or configuration key).
+- `evals/harness/pipeline-run.sh` materialises the sandbox: for review-catch tasks it copies `base head head.diff PR.md REVIEW-INSTRUCTIONS.md AUDIT-INSTRUCTIONS.md` into `pr/` (lines 503-505) and, when `loa_mount` is true, `mount_prompt_surface "$WS" "$SOURCE_TREE" -` copies the whole `.claude/` tree plus `CLAUDE.md` and `.loa.config.yaml` (lines 523-525; sandbox-mount.sh:125-136).
+- `evals/graders/recall-vs-defects.sh` (1.2.0) detects a defect when a `path:line` citation "falls within ±3 of the manifest anchor — `anchor_line`, or any line in `anchors[]`"; `ablation-grade.sh` (1.2.13) reduces review.md, the two feedback files and the envelopes' `anchor`/`file:line` fields to `grading/gates-combined.md` and calls it.
+- `evals/harness/took-effect.sh` evaluates per-trial rules (`no_dot_claude`, `all_phases_present`, `integrity_clean`, …); a miss pauses the arm (DEC-0418).
+- `.claude/scripts/adversarial-review.sh` asks each voice for `"anchor": "file:symbol", "anchor_type": "function|hunk|line"` (line 1157) and the schema says "file:symbol_name preferred" (`.claude/schemas/adversarial-finding.schema.json:97-99`); `budget_cents` defaults to 150 (200 in the eval config) and the estimate for a 239 KB diff is 366 c, for a 125 KB diff 214 c (replication.md).
+- `evals/harness/run-ablation.sh` pre-flight: `FREEZE_ARGS=(--check --root "$SUITE_ROOT" --suite-file "$SUITE_FILE")` (line 696) and the grader call at line 1242 carry no `--allow-partial`.
+- The 36 review-catch run directories of cycle-130 (24 v2 valid cells, 12 replication) and the analysis scripts (`record/cycle-130-analysis`, `grimoires/loa/a2a/analysis-2026-10/scripts/`) exist and re-derive every grade.json exactly.
 
 ### Desired State
 
-Every harness component has a measured keep, remove or simplify decision traceable to numbers in `grimoires/loa/reports/ablation-2.0/report.md`; the components with no measured lift are opt-in; the pruned default is re-verified within three points of the old full harness on both primary metrics; the suite stays runnable so the next model bump can repeat the ablation; a fresh submodule mount of the rc passes `check-loa.sh`; and the operator's spend caps are mechanical.
+A review-catch measurement in which (1) no arm can see a later copy of the code under review and a grader-side check proves it per run, (2) a correct finding is credited wherever in the labelled function it is cited, (3) the dissent can run on real diffs and can be credited, (4) a bare-Fable arm separates the model from the pipeline, and (5) the audit gate and the dissent have pre-registered prices — all reported as an addendum beside the shipped read, with proposals, not changed defaults.
 
-> Sources: cycle-130-brief.md §Objective and hypothesis, §Prerequisites; `grimoires/loa/a2a/sprint-257/arms-report-review-recall-2026-10-14.md`; `grimoires/loa/guards.md:1-12`; `evals/harness/execute-agent.sh:20-30,56-77`; `evals/graders/implement-discipline.sh:1-24`; `.claude/scripts/check-loa.sh:47-68`; issue #1267 and its downstream comment; `br show bd-j4lwr`, `bd-8o5rx`, `bd-2txz1`
+> Sources: analysis.md §§3, 5, 8, 9; sensitivities.md; attribution.md; replication.md; replication-driver-diff.md; KF-049, KF-046 (known-failures.md); evals/harness/pipeline-run.sh:503-545; evals/harness/lib/sandbox-mount.sh:125-136; evals/graders/recall-vs-defects.sh header; .claude/scripts/adversarial-review.sh:1157, :200; .claude/schemas/adversarial-finding.schema.json:97-110
 
 ---
 
@@ -76,428 +74,273 @@ Every harness component has a measured keep, remove or simplify decision traceab
 
 ### Primary Goals
 
-1. **G-1 Measured decisions.** Every component listed in §Arms has a keep / remove / simplify / inconclusive / investigate decision produced by the pre-registered rules from `runs.jsonl`, with the two primary metrics, their 90 % intervals and the cost delta next to it.
-2. **G-2 Honest measurement.** The grader is mechanical and blind to arm labels; hidden tests and defect keys never enter the agent tree; every run records the executor's model id, effort requested and effective, the voices actually run and a `degraded` flag; a silently degraded run is visible and excluded with its reason.
-3. **G-3 Clean mount.** #1267 is closed: the manifest is generated from the tracked tree, CI fails on a manifest path absent from the tree, and `check-loa.sh` is green on a fresh submodule mount with Aleph absent.
-4. **G-4 Caps are mechanical.** No run launches past the cycle cap; a run that reaches the per-run cap is recorded as a failure; the running spend is posted in NOTES after every batch.
-5. **G-5 Pruned default verified.** Components with a remove or simplify decision move to opt-in; the pruned default scores within three points of old A1 on both primary metrics on the re-verification set.
-6. **G-6 Repeatable.** `evals/harness/run-ablation.sh` reruns the frozen suite against any source commit; the manifest hash, the tasks and the grader are tracked.
+| ID | Goal | Measurement | Validation Method |
+|----|------|-------------|-------------------|
+| G-1 | Close the peek: no review-catch sandbox holds a later-than-head copy of any PR-touched file, and the grader proves it per run | took-effect rule `oracle_closed` passes on every trial; grader field `oracle_exposed_defects` is `[]` on every row of every cycle-131 batch | smoke of all seven corpus PRs under the closed mount + the R1 A/B batch rows |
+| G-2 | Fix the ruler: the grader credits a citation inside the labelled function; both rules reported side by side on every existing run | re-graded rows for the 36 cycle-130 runs carry `recall` (new) and `recall_pm3` (old); ≥ 80 % of the credits the new rule adds are adjudicated as the labelled defect by two labelers (kappa reported) | `ablation-grade.sh --rerow` over the run dirs; adjudication CSV |
+| G-3 | Make the dissent measurable: voices cite lines and run on real-sized diffs | ≥ 80 % of dissent findings carry a numeric anchor on the smoke; `budget_exceeded` on 0 review gates of the Sprint 2 batches' dissent-enabled arms on pr-17 and pr-18 | envelope scan over the batch run dirs |
+| G-4 | Separate the model from the pipeline | `a0_bare_fable` rows exist for pr-17 and pr-18 × 3 and the pre-registered reading rule is applied | batch B2 rows; reads in the addendum |
+| G-5 | Price the audit gate and the dissent under pre-registered rules | `a1_review_only` and `a1_no_dissent` rows exist; each pre-registered rule yields one of its named outcomes | batch rows; NOTES pre-registration precedes every row; addendum |
+| G-6 | Nothing shipped changes without the operator | no default value, cap or arm of the shipped pipeline is changed in this cycle (the dissent's additive `anchor_line` fields and the `budget_scale` knob with default `fixed` are listed schema extensions, not default changes); the addendum states proposals | allowlisted diff vs `main` of `.loa.config.yaml`, skill frontmatter, shipped suite arms and `adversarial-review.sh` defaults at the close |
 
 ### Key Performance Indicators (KPIs)
 
-| KPI | Target | Measured by |
-|---|---|---|
-| Components with a traceable decision | 6 of 6 measurable components (A2–A7) carry one of the five rule outcomes, or `Not run (cut)` / `Inconclusive-by-power` with the figure that stopped them; A8 recorded as component-absent; A4's own row reads Keep or Investigate (it is the sensitivity control) [ASSUMPTION decision] (DEC-0400) [ASSUMPTION decision] (DEC-0434) | report.md decision table |
-| Runs recorded or explicitly cut | 100 % of planned priority runs recorded; every cut carries a reason | `runs.jsonl`, NOTES |
-| Grader self-check | known-good passes and known-bad fails on 16 of 16 tasks | `ablation-grade.sh --self-check` |
-| Fresh-mount integrity | `check-loa.sh` exit 0, 0 Tampered, 0 Missing-should-link | `tools/fresh-mount-proof.sh` |
-| Spend | cycle total ≤ USD 1,500; no run above USD 12 counted as completed | `evals/harness/spend.sh` |
-| A4 sensitivity | A4 worse than A1 on at least one primary metric with the interval excluding zero | report.md |
-| Pruned default | within −0.03 of old A1 on each applicable primary, by the re-verification rule in FR-9 | report.md §Re-verification |
+| Metric | Current Baseline | Target | Timeline | Goal ID |
+|--------|------------------|--------|----------|---------|
+| Runs with a head-vs-workspace diff covering a planted site | 3 of 18 full runs (1/12 + 2/6) | 0 of all cycle-131 full runs | Sprint 2 | G-1 |
+| Grader rule coverage of correct bare citations | 31/57 (±3) vs 42/57 (same function) on the v2 cells | both reported; adoption decided by the ≥ 80 % adjudication rule | Sprint 1 | G-2 |
+| Dissent envelopes with a numeric anchor | 0 of 24 (+ 0 of the replication's) | ≥ 80 % on the smoke; every review gate ran both voices on the batch PRs | Sprint 1 → 2 | G-3 |
+| Pre-registered reads taken | 0 | 4 (R1 A/B, R5 control, R3 audit price, R4 dissent price) over 2 batches | Sprint 3 | G-4, G-5 |
+| Spend | USD 0 of 500 | ≤ 500 total, ≤ 275 on batches | all | — |
 
 ### Constraints
 
-- Whole-cycle cap USD 1,500 and per-run cap USD 12, operator-set; priority arms A0–A4 first; a run at the per-run cap is a failure, not a discard [ASSUMPTION decision] (DEC-0363). The cap covers executor-reported run cost plus cost-ledger rows; the lead's interactive session and its Agent-tool subagents are unmetered and outside it [ASSUMPTION decision] (DEC-0430).
-- One host, one route (the Claude CLI via Bedrock for every Claude session; the codex CLI for the cross-model voice); `hounfour.headless.agy_opt_in` unset on every arm [ASSUMPTION decision] (DEC-0372).
-- No dissent run while an arm batch is running (KF-037); batches detached under `~/.cache/loa/cycle-130/`.
-- The floor is never pruned [ASSUMPTION decision] (DEC-0367).
-- The cycle finishes before the 2.0.0 promotion PR; the promotion stays the operator's call.
+- Analysis-grade honesty: every rule is written in NOTES before its batch's first row; a read that fails its rule is reported as failing.
+- No `.claude/` edit outside `/implement` and outside the explicit System Zone authorization in §Technical Considerations; third-party text (transcripts, envelopes, PR bodies) is untrusted data.
+- ≤ 3 dissent runs per sprint for the cycle's own gates; no dissent while a batch runs (KF-037); the codex credential pre-flight (KF-048) before any batch.
+- Budget: USD 500 cycle cap, ≤ 275 on batches (DEC-0620 amending DEC-0611), review-catch run cap USD 20, concurrency 3 [ASSUMPTION decision] (DEC-0611).
 
-> Sources: cycle-130-brief.md §Deliverables and exit criteria, §Metrics and instrumentation; ablation-2.0-continue-2026-10-14.md §Authority, §Known constraints; `grimoires/loa/known-failures.md` KF-037
+> Sources: cycle-131-brief.md §Objective, §Budget, §Metrics and rules; analysis.md §9; attribution.md; sensitivities.md; replication.md
 
 ---
 
 ## User Personas & Use Cases
 
-### Primary Persona: Loa maintainer deciding the 2.0.0 promotion
-Needs one table: component, measured lift on each primary metric with its interval, cost delta, decision. Reads `report.md`, confirms the `proposed` DEC rows with `/decisions confirm --cycle cycle-130 --all`, and links the report from the 2.0.0 release notes.
+### Primary Persona: The maintainer (operator)
 
-### Secondary Persona: Operator mounting Loa on a product repository
-Needs `check-loa.sh` green on a fresh mount, a migration-guide addendum that names every component moved to opt-in and the key that turns it back on, and defaults that do not pay for components with no measured lift.
+**Demographics:** maintainer of the Loa framework (`@deep-name`), decides defaults and spend; technical proficiency expert; goal: know what each gate is worth before promoting 2.0.0.
+**Behaviors:** pre-approves cycles end to end; reads the ELI5 first, then the rules and the intervals; confirms DEC rows in batches (`/decisions confirm --cycle … --all`).
+**Pain Points:** numbers that move when the ruler moves; a component priced by a measurement that cannot see it; experiments that cannot be re-run because the harness refuses a partial suite.
 
-### Tertiary Persona: The next model bump
-Needs `run-ablation.sh --source-commit <sha>` to rerun the frozen suite and the same report to come out, so the ablation repeats cheaply.
+### Secondary Persona: The lead agent (Fable) and its Opus implementers
+
+Run the cycle unattended; need mechanical gates (validators, took-effect rules, grader self-checks) that fail loudly, and reading rules that leave nothing to taste at read time.
 
 ### Use Cases
 
-| UC | Actor | Flow |
-|---|---|---|
-| UC-1 Run the priority arms | lead | `run-ablation.sh --arms a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates --source-commit <sprint-258 commit> --max-usd <from batch-plan.md> --detach` → `runs.jsonl` rows, `STATUS.json`, spend posted |
-| UC-2 Smoke an arm | lead | `run-ablation.sh --smoke --arms A7` → one review-catch and one build run; the took-effect check prints `effort: medium` on every phase or fails |
-| UC-3 Decide a component | report | `ablation-report.py` reads `runs.jsonl`, applies the pre-registered rules, writes the decision row with its numbers |
-| UC-4 Prove the mount | CI, lead | `tools/check-manifest-paths.sh` in Shell Tests; `tools/fresh-mount-proof.sh` in a temp dir |
-| UC-5 Repeat after a model bump | maintainer | same command with a new `--source-commit`; the frozen manifest hash is checked first |
+#### UC-1: Re-grade the shipped runs under both rules
+**Actor:** lead · **Preconditions:** grader 1.3 landed; the 36 run directories present · **Flow:** run `ablation-grade.sh` over each run dir with `--suite-root` and `--allow-partial` where needed → rows carry `recall` and `recall_pm3` → report addendum table per PR and arm → 20-packet adjudication of added credits · **Postconditions:** the shipped read is untouched; the addendum shows both rules · **Acceptance:** every re-derived old-rule value equals the stored grade.json; the adjudication CSV and kappa are in the a2a folder.
 
-> Sources: cycle-130-brief.md §Run protocol, §Deliverables; ablation-2.0-continue-2026-10-14.md §Deliverables
+#### UC-2: Run a review-catch batch under the closed mount
+**Actor:** lead · **Preconditions:** Sprint 1 merged into the cycle branch; pin recorded; pre-registration in NOTES; KF-048 pre-flight green · **Flow:** `run-ablation.sh … --suite-root <root> --allow-partial` dry run → `--detach` → watch → read · **Postconditions:** every row has `oracle_exposed_defects: []`, `took_effect` all true · **Acceptance:** a row with any exposed defect fails the batch's pre-registered validity check and is excluded pairwise, and the cause is recorded.
+
+#### UC-3: Read a pre-registered price
+**Actor:** lead · **Preconditions:** the batch complete · **Flow:** `ablation-report.py --partial` on the batch rows with the arm pair → the rule's outcome is one of its named branches → DEC row + addendum section · **Acceptance:** the outcome text matches the pre-registration verbatim.
+
+> Sources: cycle-131-brief.md §The five changes; feedback_operator_collaboration_pattern (memory); analysis.md §9
 
 ---
 
 ## Functional Requirements
 
-### FR-1: Mount integrity (#1267) and version markers
-**Description:** `tools/gen-checksums.sh` writes `.claude/checksums.json` from the tracked `.claude/` tree (`git ls-files .claude`, excluding `overrides/` and the manifest itself) and `--check` compares the committed manifest to that generation; a Shell Tests step (`tools/check-manifest-paths.sh`) fails when a manifest path is untracked, absent from the tree, or under a build, cache or runtime class (`__pycache__`, `.pytest_cache`, `node_modules`, `.run/`, `*.pyc`, `*.lock`); `check-loa.sh` reports a manifest path that is absent from a submodule mount but present under `.loa/.claude/` as `not-mounted` (informational, counted) and fails only on `Tampered` or on a missing path the mount is supposed to link; `tools/fresh-mount-proof.sh` mounts this branch into a temporary directory as a submodule with Aleph absent and runs `check-loa.sh`; `.loa-version.json` and the `CLAUDE.loa.md` marker read `2.0.0-rc.5` [ASSUMPTION decision] (DEC-0368).
-**Acceptance criteria:**
-- AC-1.1 `gen-checksums.sh --check` exits 0 on the committed manifest; the manifest has no entry outside `git ls-files .claude`; entry count equals the tracked count minus `overrides/` and the manifest.
-- AC-1.2 `check-manifest-paths.sh` fails on a fixture manifest with one untracked path and on one with a `__pycache__` entry; passes on the committed one; the step runs in `bats-tests.yml` Shell Tests.
-- AC-1.3 `fresh-mount-proof.sh` exits 0 with Aleph absent: `check-loa.sh` prints `Integrity verified` or `not-mounted: N` with 0 Tampered and 0 Missing-should-link; the proof log is in the sprint report.
-- AC-1.4 `.loa-version.json:framework_version` and the `CLAUDE.loa.md` managed marker both read `2.0.0-rc.5`; `tools/check-prompt-budget.sh` is ok on the tag under test (recorded).
+### FR-1: Closed mount for review-catch sandboxes (R1, bead bd-mlg9s, KF-049)
+**Priority:** Must Have
+**Description:** When a review-catch task mounts the framework, the sandbox must hold no copy of any *answer-bearing path* that is later than `pr/head`. Answer-bearing paths are (i) every path in `pr/head.diff`'s `diff --git` headers or present under `pr/head/` or `pr/base/`, and (ii) for record fixtures every path the fixture's `fix_commit` touched (read from `fixture.yaml` through `git show --stat`), including paths the PR did not touch. One globally recorded overlay policy applies to every mounted arm: the sandbox copy of each such path under `.claude/`, `CLAUDE.md` or `.loa.config.yaml` is replaced by the PR's `pr/base/` version (a path absent from `pr/base/` is removed); the alternative `head` policy exists only as a recorded fallback if the base policy breaks a gate on a corpus PR (the Sprint 1 smoke decides, DEC-0613). Consequence, disclosed per row: on a PR that touches a gate's own script or skill, that gate runs the PR's version of it (pr-12: `adversarial-review.sh`, `verdict-derive.sh`; pr-13: the `reviewing-code` skill and the session-start hook; pr-18: one allowlist line of the `reviewing-code` skill). The Sprint 2 batches therefore use pr-17 and pr-18, whose touched gate surface is a fence hook and one skill line, and leave pr-12 and pr-13 to the re-grade (Appendix F).
+**Acceptance Criteria:**
+- [ ] `sandbox-mount.sh overlay_answer_paths <ws> <mode>` is called from `pipeline-run.sh` for review-catch tasks after `mount_prompt_surface`, before `apply_arm_toggles` and the eval-config writes, and before `regen_sandbox_manifest` (so `integrity_clean` holds on the overlaid tree); `arm_evidence` records `mount_overlay=<mode>:<n paths>` and one `overlay_sha256=<path>=<sha>` line per path **before the first phase starts**; added, deleted, renamed and symlinked paths are handled explicitly (a symlink is never followed; a rename counts both names).
+- [ ] `took-effect.sh` rule `oracle_closed`: (a) every answer-bearing path under the mount byte-equals its `pr/base/` (or `pr/head/`, per the recorded mode) version or is absent; (b) no regular file outside `pr/` is byte-equal to the pinned (later) version of an answer-bearing path (stray copies); (c) the post-run state of each overlaid path equals its pre-run `overlay_sha256` — a difference is reported as `mount_mutated=<path>` and fails the rule. The rule is on every mounted arm's `took_effect` list.
+- [ ] `ablation-grade.sh` oracle detector: over the REVIEW/AUDIT transcripts, (a) a content diff (`diff`, `sdiff`, `comm`, `git diff --no-index`; not `-q`/`--brief`; not the word `head.diff`; not heredoc bodies) between a `pr/` operand and a workspace operand of an answer-bearing path whose printed ranges cover a planted site (±3) or whose output holds the site's `must_match` text, and (b) a read (`cat`, `sed`, `awk`, `grep`, `head`, `tail`, `less`, `python3`, the Read tool) of a workspace copy of an answer-bearing path whose tool result contains a line present in the pinned copy but absent from `pr/head` within ±3 lines of a planted site — write `grade.json.oracle_exposed_defects` (positions) and `oracle_exposed_events` ({phase, event, how: diff|read, path}); `ablation-row.sh` copies the list; the report excludes such rows pairwise under a labelled rule.
+- [ ] Detector validation: run over the 36 cycle-130 review-catch run directories it flags exactly `priority-v2-p1-a1_full-review-04-t2`, `replication-01-a1_full-review-r17-t1` and `replication-01-a1_full-review-r18-t1` (the three runs the analysis found) and no bare run; a bats case pins this with trimmed transcript fixtures.
+- [ ] bats cases: overlay applied and evidenced (added/deleted/renamed/symlink paths); `oracle_closed` passes under the overlay, fails on an unmodified mount, on a stray copy and on a mutated path; the detector flags a synthetic covering `diff` and a synthetic read of a later line, and ignores `diff -q` and `cat pr/head.diff`.
+- [ ] A smoke run of `a1_full` on each of the seven corpus PRs under the closed mount completes both gates (`all_phases_present`) with `oracle_closed` true; the smoke records per PR which gate scripts ran at the PR's version.
 
-> Sources: issue #1267 body and downstream comment (242 build artefacts; 0 mismatches on anything mounted); `.claude/scripts/mount-loa.sh:1103-1127`; `.claude/scripts/check-loa.sh:47-68`; `.github/workflows/bats-tests.yml:86`; `git diff main v2.0.0-rc.5 -- .loa-version.json .claude/loa/CLAUDE.loa.md`
+### FR-2: Same-function citation rule and multi-site labels (R2, bead bd-5rmmf)
+**Priority:** Must Have
+**Description:** `recall-vs-defects.sh` 1.3 detects a defect when a citation (a) lies within ±3 lines of a site (unchanged) OR (b) any cited line lies inside the enclosing symbol of a site in the `head/` file — bash `name() {`/`function name`, python `def`, bats `@test`, markdown: the nearest preceding heading's section — with deterministic boundaries (the symbol runs from its definition line to the line before the next definition at the same or lower indentation; nested bash functions resolve to the innermost), a span cap (a symbol longer than 400 lines falls back to ±20 lines) and a range rule (a cited range wider than 25 lines credits only through its first line). Multi-site labels: the manifests gain every head line the human finding named, **derived blind from `label_source` and the record review text only**, never from any cycle-130 output, curated by the lead and re-approved; the original manifests are retained unchanged under `manifests/v1/`. Three results are computed on every grade: `recall_pm3_v1` (old rule, original anchors), `recall_pm3` (old rule, new anchors) and `recall` (new rule, new anchors), each with `detected`/`missed`, plus `credits_function_only` (defects credited by (b) and not by (a)). **The decision statistic for every cycle-131 read is `recall` (new rule, new anchors); `recall_pm3` and `recall_pm3_v1` are reported beside it.**
+**Acceptance Criteria:**
+- [ ] `recall-vs-defects.sh` 1.3.0 with the rule, the boundary semantics, the span cap and the range rule in its header; `details.rule`, `details.recall_pm3_v1`, `details.recall_pm3`, `details.detected_pm3*`, `details.missed_pm3*`, `details.credits_function_only`; `ablation-grade.sh` bumps `GRADER_VERSION` and writes the three; `ablation-row.sh` carries `defect_catch_rate`, `defect_catch_rate_pm3`, `defect_catch_rate_pm3_v1`, the three `defects_missed*` lists and `credits_function_only`; `ablation-report.py` reports all three with the decision statistic named.
+- [ ] `evals/tests/eval-recall-grader.bats` cases: a citation 6 lines from the anchor inside the same function detected under (b) only; a citation in the next function 6 lines away detected under neither; nested function → innermost; a 500-line function → ±20 fallback; a 40-line cited range credits only its first line; markdown section rule; multi-site anchors credit any site; `recall_pm3_v1` uses `manifests/v1/`.
+- [ ] The 36 cycle-130 review-catch run directories are re-graded under 1.3 into a **separate, versioned** rows file `evals/results/ablation-2.0/regrade-c131/rows.jsonl` (the shipped `runs.jsonl` and every stored `grade.json` are untouched); every `recall_pm3_v1` equals the stored `recall`; the addendum table shows the three per PR and arm with the finding volume and false-positive count beside recall.
+- [ ] Adjudication (pre-registered protocol): the credits in `credits_function_only` across the 36 runs are deduplicated by (run, defect); 20 are sampled stratified by arm and PR (seed 20261015) and labelled blind by two Opus 5.5 sessions under a codebook ("the labelled defect" / "a different finding" / "unclear"; prompts recorded; independent); kappa reported; kappa < 0.6 triggers a third labeler and reconciliation; the rule is proposed for adoption iff ≥ 80 % of the sample is "the labelled defect" (denominator: the 20).
 
-### FR-2: Spend caps as mechanism
-**Description:** `run-arms.sh` and the new `run-ablation.sh` take `--max-usd <ceiling>`: the driver sums the executor-reported `total_cost_usd` of completed and failed trials and stops launching new trials when the next trial would pass the ceiling, writes `cut_reason: max_usd` and the figure to `STATUS.json`, and exits 1 (partial); `--screen` runs a screening tier (one trial of the first N tasks per arm) and prints a per-arm cost table before a full batch (bd-j4lwr). `--max-usd` reserves the per-run cap for every in-flight trial, so completed plus reserved never passes the ceiling under concurrency. The pipeline executor aborts a run whose cumulative phase cost passes the per-run cap (`--max-run-usd`, default 12) and records `status: cap_failure` with the phase reached; a cap failure counts as a failed run (0 on each applicable primary) and is listed; it is never excluded [ASSUMPTION decision] (DEC-0393). `evals/harness/spend.sh` prints the cycle spend: `runs.jsonl` cost plus `.run/cost-ledger.jsonl` rows since the kickoff timestamp, and the remaining headroom [ASSUMPTION decision] (DEC-0363).
-**Acceptance criteria:**
-- AC-2.1 `run-arms.bats` pins: a stub executor whose rows cost USD 5 each under `--max-usd 12` launches two trials, cuts before the third, writes `cut_reason`, exits 1.
-- AC-2.2 `pipeline-run.bats` pins: a stub phase sequence whose third phase passes USD 12 aborts after that phase, writes `status: cap_failure` and `cap_phase`, and the grader scores the run 0 on hidden tests.
-- AC-2.3 `spend.sh --since <ts>` sums a fixture `runs.jsonl` and a fixture cost ledger and prints total, cap and headroom; `--json` carries the same fields.
-- AC-2.4 `--screen` prints the per-arm table from one trial of two tasks and writes nothing to the suite's `STATUS.json`.
+### FR-3: Harness follow-ups (beads bd-9lfns, bd-1ohfe, bd-ocovl)
+**Priority:** Must Have
+**Description:** (a) `run-ablation.sh --allow-partial` passes to the freeze check and to every grader call and is recorded in `MANIFEST.json`; (b) the contamination scan treats a repo-name token that occurs in `pr/head/**` or `head.diff` as PR content (KF-046 class 7); (c) `ablation-row.sh` records `dissent_absent_gates` (gates whose envelope `metadata.status` is `budget_exceeded`, `failed` or a record-fallback) and `ablation-report.py` prints a labelled sensitivity excluding those rows.
+**Acceptance Criteria:**
+- [ ] `run-ablation.sh --dry-run` on `grimoires/loa/evals/ablation-2.0-replication` passes the pre-flight with `--allow-partial` and refuses without it; MANIFEST records `allow_partial: true`.
+- [ ] The two `replication-01` rows (`a1_full-review-r18-t2`, `-t3`) re-grade clean under the exemption (line-level: the matched line exists in the fixture's head tree or `head.diff`) into the versioned re-grade rows (the shipped rows untouched); the replication's pre-registered read is re-taken on six valid cells under the old rule and original anchors, with the oracle-exposed cells (`review-r17-t1`, `review-r18-t1`) excluded pairwise as a second line, and recorded as a DEC row beside DEC-0604 (the original outcome stays on record).
+- [ ] bats cases for (a), (b), (c); `evals/tests/` green.
 
-> Sources: `evals/harness/run-arms.sh:120-135,330-420`; `br show bd-j4lwr`; ablation-2.0-continue-2026-10-14.md §Spend; `evals/harness/execute-agent.sh:430-470` (`total_cost_usd`)
+### FR-4: Dissent voices cite lines; the budget gate fits the diff (R4-i, bead bd-ba54i)
+**Priority:** Must Have
+**Description:** The adversarial review's finding contract asks each voice for a numeric anchor (`file:line` or `file:start-end`, `anchor_type: line`) beside the symbol anchor it gives today; `process_findings` records `anchor_line` / `anchor_line_end` when present and the envelope keeps `anchor_type`; the grader's envelope reduction already credits `file:line`. The budget gate gains a configurable scaling (`flatline_protocol.<gate>.budget_scale: fixed|diff`, default `fixed` — the shipped behaviour is unchanged): with `diff`, `budget_cents = min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max)` with `budget_cents_max` default 600, where `estimate` is the gate's own pre-dispatch estimate over the planned voices; a gate whose estimate exceeds `budget_cents_max` still refuses (`budget_exceeded`) and the row records it. In the evaluation config both voices run on the corpus diffs (66–239 KB; pr-13's 366 c and pr-18's 214 c fit under 600).
+**Acceptance Criteria:**
+- [ ] `.claude/scripts/adversarial-review.sh`: prompt and normaliser changes, `adversarial-finding.schema.json` gains `anchor_line`/`anchor_line_end` (optional integers); `verdict-derive.sh` unaffected; `tests/unit/adversarial-review-*.bats` cases for a numeric anchor parsed, a symbol-only anchor kept, and the scaled budget.
+- [ ] `.loa.config.yaml.example` documents `budget_scale`; the eval config used by `pipeline-run.sh` sets `budget_scale: diff` for `code_review` and `security_audit`; the shipped default stays `fixed` (G-6).
+- [ ] On the Sprint 2 smoke (pr-12, pr-13), the review-gate envelope shows `voices_succeeded: 2` and ≥ 80 % of findings carry a numeric anchor.
 
-### FR-3: Arm profiles and toggles
-**Description:** `evals/suites/ablation-2.0.yaml` declares the nine arms with canonical ids `a0_bare`, `a1_full`, `a2_no_sprint_plan`, `a3_one_voice`, `a4_no_gates`, `a5_no_flatline`, `a6_one_window`, `a7_effort_medium`, `a8_no_ceremonies` (declared `absent: true` with the grep evidence; never run), each with its toggles, its applicability (`task_types`: A2, A4, A5, A6 build tasks only — on a review-catch task the gates are the task, so A4 there is degenerate; A0, A1, A3, A7 all types) and the took-effect check the smoke pass runs [ASSUMPTION decision] (DEC-0400). `execute-agent.sh` gains toggles `loa_mount: false` (no `.claude/`, no `CLAUDE.md`, no appended skill prompt; the task prompt only), `effort: medium` (`--effort medium` on the CLI call, recorded), `gates: false` (`flatline_protocol.code_review.enabled` and `security_audit.enabled` false in the sandbox config and `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` in the sandbox environment), `flatline: false` (`flatline_protocol.enabled: false`); the pipeline executor reads `sprint_plan: false`, `context_resets: false` (A6: PLAN, IMPLEMENT and the FIX rounds continue one Opus 5.5 session with `--resume`; the gates stay separate Fable 5.1 sessions with dissent, exactly as A1, so only reset-and-handoff is removed [ASSUMPTION decision] (DEC-0391)) and `companion_voice: false`; every toggle is applied to the sandbox copy only, verified afterwards, and a toggle that cannot take effect fails the trial (exit 2). The cycle-129 toggles stay as they are [ASSUMPTION decision] (DEC-0358).
-**Acceptance criteria:**
-- AC-3.1 `arm-toggles.bats`: a sandbox prepared for `a0_bare` has no `.claude/` and no `CLAUDE.md` and the CLI stub receives no `--append-system-prompt-file`; `a7_effort_medium` passes `--effort medium`; `a4_no_gates` leaves both `enabled` keys `false` and the env var set; `a5_no_flatline` leaves `flatline_protocol.enabled: false`; the baseline (`a1_full`) takes no toggles.
-- AC-3.2 The suite file declares `task_types` per arm (A2, A4, A5, A6 build only; A8 absent); `run-ablation.sh` refuses to schedule an arm on a task type outside its declaration and `ablation-report.py` refuses such a row [ASSUMPTION decision] (DEC-0406).
-- AC-3.3 The smoke took-effect check reads the artefacts named in the suite and fails the batch on any arm whose evidence is missing.
+### FR-5: Three new arms
+**Priority:** Must Have
+**Description:** (a) `a0_bare_fable`: the bare arm's phases, prompt, tools, effort (`high`) and output contract with the BARE session on Fable 5.1 (`toggles: {loa_mount: false, bare_model: fable}`); (b) `a1_review_only`: `a1_full` with the review-catch phase set `[REVIEW]`; (c) `a1_no_dissent`: `a1_full` with the review gate's adversarial dissent disabled (`toggles: {dissent: false}` → `flatline_protocol.code_review.enabled: false` in the sandbox config) — the audit gate unchanged; (d) `a1_full_openmount` (eval-only, for B1): `a1_full` with the FR-1 overlay disabled (`toggles: {oracle_open: true}`), so the mount is the pinned later copy as in cycle-130. Models per phase, recorded in `pipeline.json` for every run: BARE = Opus 5.5 (`a0_bare`) or Fable 5.1 (`a0_bare_fable`); REVIEW and AUDIT = Fable 5.1; dissent primary = codex-headless, companion = claude-headless. Took-effect rules: `bare_model_fable`, `review_only_phases`, `no_review_dissent_envelope` (no `adversarial-review.json`, config shows the gate disabled), `oracle_open_recorded` (for (d): `arm_evidence` says `mount_overlay=none` and this rule replaces `oracle_closed`), plus `oracle_closed` (a–c) and `integrity_clean`.
+**Acceptance Criteria:**
+- [ ] Suite file `evals/suites/ablation-2.0.yaml` declares the four arms with `task_types: [review-catch]`, phases and took-effect rules; `validate-suite.sh` accepts it; `pipeline-run.sh` and `sandbox-mount.sh apply_arm_toggles` implement the toggles (`bare_model`, `dissent`, `oracle_open`); bats cases per toggle; `a1_full_openmount` is refused outside an evaluation batch (no production surface).
+- [ ] One smoke trial per new arm on pr-12 completes with every took-effect rule true.
 
-> Sources: `evals/harness/execute-agent.sh:56-77,161-200,240-295`; `evals/suites/review-recall.yaml:16-50`; `.claude/hooks/safety/adversarial-review-gate.sh:24,84`; `.loa.config.yaml` `flatline_protocol.{enabled,code_review.enabled,security_audit.enabled}`; `grep -rli sosyete .claude/ docs/` (no match)
+### FR-6: Pre-registered batches under the closed mount
+**Priority:** Must Have
+**Description:** Two batches, four reads. Every read is pre-registered in NOTES (a dated heading whose section text's sha256 goes into the DEC row and the batch MANIFEST) before the batch's first row. Common rules: all arms at one pin — the commit at which FR-1 … FR-5 are merged on the cycle branch, recorded in NOTES before B1's first row (DEC-0612); rows in `evals/results/ablation-2.0/<batch>/` (never pooled with cycle-130 rows); caps USD 20 per run, concurrency 3, the runner's seeded shuffle (20261015); the **unit** is the planted defect: for each defect the per-arm catch is its mean over the valid trials of that PR, the paired difference is taken per defect, and the 90 % interval is the percentile interval of 10,000 bootstrap resamples of the defects (the cycle-130 statistic); exclusion is per contrast and pairwise (a cell valid in both arms), a `degraded`, `contaminated`, `interrupted` or `oracle_exposed_defects ≠ []` row excludes its cell; the 25 % guard applies per arm per contrast (excluded cells ÷ planned cells); a contrast needs ≥ 4 valid cells or reads "insufficient"; the degenerate check stands; a 2-PR cluster bootstrap is printed as descriptive only. **Decision statistic: `recall` (new rule, new anchors); `recall_pm3` and `recall_pm3_v1` beside it.** Cost per run = the row's `cost_usd` (every phase's session cost plus every voice's ledger cost). Precision (planted ÷ flagged) and finding volume are reported for every arm.
+- **B1 — oracle A/B (R1), `c131-b1-oracle-ab`:** `a1_full_openmount` × review-r17 (pr-17) × 3 against `a1_full` × review-r17 × 3 (the B2 cells, same pin). Read: Δ = closed − open on `recall`, 90 % interval over the 20 defects. Outcomes: interval entirely below 0 → "the oracle inflated the catch on pr-17"; interval includes 0 → "no measurable inflation on pr-17"; entirely above 0 → "investigate (the closed mount scored higher)". Secondary (descriptive): the open-mount rows' `oracle_exposed_defects` count.
+- **B2 — control and prices, `c131-b2-control-prices`:** `a0_bare`, `a0_bare_fable`, `a1_full`, `a1_review_only`, `a1_no_dissent` × review-r17 (pr-17), review-r18 (pr-18) × 3. Reads, each on `recall` with its 90 % interval over the 28 defects, branches tested in order and the first true one taken:
+  - **R5 (control):** let Δ₁ = bare-Fable − `a1_full`, Δ₀ = bare-Fable − `a0_bare`. (i) interval(Δ₁) within [−0.05, +0.05] and interval(Δ₀) entirely above +0.05 → "the model explains the lift; the pipeline's measurable contribution is at most 0.05"; (ii) interval(Δ₀) within [−0.05, +0.05] and interval(Δ₁) entirely below −0.05 → "the gates earn their cost; the model does not explain the lift"; (iii) neither → "between: report Δ₁ and Δ₀ with intervals; no attribution".
+  - **R3 (audit gate price):** Δ = `a1_review_only` − `a1_full`; c = cost ratio (review-only ÷ full). (i) interval(Δ) entirely above −0.10 and c ≤ 0.60 → "propose: audit gate opt-in on review-only PRs"; (ii) interval(Δ) entirely below −0.05 → "keep the audit gate"; (iii) otherwise → "inconclusive".
+  - **R4 (dissent price):** Δ = `a1_no_dissent` − `a1_full`. (i) interval(Δ) entirely above +0.08 → "investigate (the dissent lowers the catch)"; (ii) interval(Δ) entirely above −0.08 → "propose: dissent opt-in on review-catch gates"; (iii) interval(Δ) entirely below −0.08 → "keep the dissent"; (iv) otherwise → "inconclusive". Beside it: the numeric-anchor share of the `a1_full` envelopes and `dissent_absent_gates` per row (`a1_no_dissent` is scoped out of the "both voices ran" criterion).
+**Acceptance Criteria:**
+- [ ] Each batch's MANIFEST `pre_registration_ref` names a NOTES heading dated before its first row and carries the heading section's sha256; each rule's outcome is quoted verbatim in the addendum and a DEC row.
+- [ ] Budget (DEC-0620): B1 ≈ USD 48 (3 open-mount runs at the pr-17 actual ≈ 16), B2 ≈ USD 220 (a0 6 × 1.4; a0F 6 × ≈ 3; a1_full 6 × ≈ 13; a1_review_only 6 × ≈ 7; a1_no_dissent 6 × ≈ 12); batch total ≤ USD 275; cycle total ≤ USD 500 (DEC-0611); spend posted in NOTES after each batch; the first cut if B1 overruns is `a1_review_only` on pr-18.
+- [ ] Every row: `oracle_exposed_defects: []` (except the open-mount arm, where it is reported), took-effect all true, `dissent_absent_gates` recorded, models per phase recorded.
 
-### FR-4: Pipeline executor for build tasks
-**Description:** `evals/harness/pipeline-run.sh` runs one build task under one arm: it materialises a sandbox repository from the task's pinned fixture tree plus the Loa mount from the pinned source worktree (`.claude/` copied, `CLAUDE.md`, `.loa.config.yaml` from the arm profile, `grimoires/loa/` with `ledger.json`, `NOTES.md` and the task brief, `.run/` with a zone-free state), then drives the phases as separate `claude -p` sessions with Bash, Read, Grep, Glob, Write and Edit inside the sandbox: PLAN (`sprint.md` from the brief; Flatline on it when on), IMPLEMENT (implementing-tasks, Opus 5.5), REVIEW (reviewing-code on Fable 5.1 with `adversarial-review.sh`), FIX (one round when CHANGES_REQUIRED), AUDIT (auditing-security on Fable 5.1 with its dissent), FIX (one round); each phase reads the a2a handoff files the previous one wrote; A2 skips PLAN, A4 stops after IMPLEMENT, A5 runs PLAN without Flatline, A6 keeps the implementer's session continuous across PLAN, IMPLEMENT and the FIX rounds while the gates run as in A1, A3 sets `companion_voice: false`, A7 passes `--effort medium`, A0 runs one bare session with the task text, the same tools and the same environment, `--effort high`, and a turn and time budget equal to the sum of A1's implementer-side caps [ASSUMPTION decision] (DEC-0403). Every phase runs inside the ablation container (per-run read-only copies of the CLI credential directories, the sandbox read-write, no other host path; the host sandbox is the recorded fallback when the Sprint 258 smoke cannot complete a run in the container) [ASSUMPTION decision] (DEC-0411), under `env -i` with an enumerated allowlist (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TERM`, a sandbox `TMPDIR`, `CLAUDE_CODE_USE_BEDROCK`, `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`, `CLAUDE_CODE_SUBAGENT_MODEL`, the two Loa ledger paths, the arm's own variables); no access key or API key is present; network and `HOME` cannot be isolated without breaking the CLI's own route, which the report states [ASSUMPTION decision] (DEC-0394). The sandbox tree is committed after IMPLEMENT and after each FIX so the grader can score each gate's verdict against the tree it reviewed [ASSUMPTION decision] (DEC-0402). A run killed mid-phase is `status: interrupted`: not graded, not counted, listed, rerun by `--resume` when budget allows [ASSUMPTION decision] (DEC-0406). Each phase records session id, model id, effort requested and effective, tokens, cost, duration and exit in `.eval/pipeline.json`; the sandbox MODELINV and cost ledger are redirected into `.eval/`; the run aborts at the per-run cap [ASSUMPTION decision] (DEC-0357) [ASSUMPTION decision] (DEC-0374).
-**Acceptance criteria:**
-- AC-4.1 `pipeline-run.bats` with a stub CLI: A1 runs six phases in order and writes `pipeline.json` with one record per phase; A2 has no PLAN record; A4 ends after IMPLEMENT; A6 has one session id; A0 has one phase and the sandbox has no `.claude/`.
-- AC-4.2 The sandbox never contains the hidden tests or defect keys (`grimoires/loa/evals/ablation-2.0/tasks/<id>/hidden/` is read by the grader only); `pipeline-run.bats` asserts their absence.
-- AC-4.3 Every phase's environment is exactly the allowlist (asserted on the stub's captured environment: no variable outside the list, no `AWS_ACCESS_KEY_ID`, `GH_TOKEN`, `GITHUB_TOKEN`, `OPENAI_API_KEY` or Google key); the codex voice uses the codex CLI's own auth under `HOME`.
-- AC-4.4 A live smoke run of A1 on one build task completes with `pipeline.json` carrying a MODELINV-derived `effort_effective` per phase, the dissent envelope's `voices` under REVIEW and AUDIT, the post-IMPLEMENT and post-FIX snapshot ids, and `check-loa.sh` integrity green inside the sandbox mount.
-- AC-4.5 `pipeline-run.bats`: A6 shows one session id across PLAN, IMPLEMENT and FIX records and distinct ids on REVIEW and AUDIT; A0's `--max-turns` and timeout equal the sums declared in the suite; a stub phase killed by SIGTERM yields `status: interrupted` and no `grade.json`.
+### FR-7: Addendum and records
+**Priority:** Must Have
+**Description:** `grimoires/loa/reports/ablation-2.0/analysis.md` gains §10 "cycle-131 addendum" (or a sibling `addendum-cycle-131.md` linked from it): the re-grade table (both rules, 36 runs), the oracle-closed A/B, the control-arm reading, the two prices, the adjudication result, spend; `report.md` is not rewritten. DEC rows per read; the seven `cycle-131-candidate` beads closed or re-labelled with their outcome; KF-049 and KF-046 attempts rows; release notes entry under `[Unreleased]` for the harness changes and the `budget_scale` knob.
+**Acceptance Criteria:**
+- [ ] `validate-artifact.sh` passes on every planning artifact; `evals/tests/` and `tests/unit/` green at the close; CHANGELOG `[Unreleased]` lists FR-1 … FR-5.
+- [ ] No shipped default changed (G-6): the diff of `.loa.config.yaml` defaults and skill frontmatter against `main` shows only the new optional knob with its `fixed` default.
 
-> Sources: `evals/harness/execute-agent.sh:340-380` (session decoupling, credential unset); `.claude/skills/run-mode/SKILL.md` (phase order); `.claude/scripts/adversarial-review.sh:1-60`; `.claude/scripts/verdict-derive.sh:1-30`; cycle-130-brief.md §Arms notes
-
-### FR-5: Frozen task suite with hidden tests
-**Description:** `grimoires/loa/evals/ablation-2.0/` holds `tasks/<id>/task.yaml` (type, source, pinned commit, fixture path, success criterion in one line, test command, time and turn bounds), `TASK.md` (the brief the agent sees), `hidden/` (tests and keys the grader applies after the run; never copied into a sandbox), `REVIEW.md` (the fairness review) and `MANIFEST.sha256` over everything; `freeze.sh` writes the manifest and `--check` refuses any drift. Sixteen tasks: four review-catch from the frozen corpus (two planted fixtures with three seeded defects, two record fixtures with approved labels), four bug-fix tasks seeded from Loa fix commits dated 2026-08 or later whose fix touched tests (base = parent; hidden tests = the fix's tests; verified red at base and green at the fix mechanically), four refactor tasks from Loa refactor commits with unchanged green tests (diff size and churn recorded), four feature-build tasks from open beads at rc.5 with hidden bats written for the suite. A build task's fixture tree, its tests and its reference patch never touch `.claude/`, `CLAUDE.md`, `.loa.config.yaml`, `grimoires/` or `.run/` (the mount owns those paths in the sandbox); Loa-history candidates come from `tools/`, `evals/` and `tests/`, the seeders refuse any other, and bd-yzzb9 (code under `.claude/adapters/`) is replaced as a feature-build source by an `evals/`- or `tools/`-scoped bead or a synthetic feature on the Python fixtures [ASSUMPTION decision] (DEC-0396). Each refactor task's hidden tests add a structural assertion the reference refactor satisfies (red at base, green at the reference) so the self-check has a failing state [ASSUMPTION decision] (DEC-0401). Each review-catch `TASK.md` carries an arm-neutral output contract (findings file path, one `path:line — description` per line, a verdict line) that A0 writes and whose shape the gates' files are reduced to for grading [ASSUMPTION decision] (DEC-0403). The suite freezes at the end of Sprint 259; any change after the Sprint 260 smoke (a cap-fit shrink, an insensitivity hardening) bumps `suite_version`, writes a new manifest, archives the smoke rows under the old version and runs the main batch on one version only [ASSUMPTION decision] (DEC-0405). At least half the tasks are from code written after 2026-07 (all sixteen are; feature-build tasks date from their bead's creation). Each task's hidden tests are reviewed by an Opus 5.5 subagent that did not write the task [ASSUMPTION decision] (DEC-0359) [ASSUMPTION decision] (DEC-0361).
-**Acceptance criteria:**
-- AC-5.1 `freeze.sh --check` exits 0 on the committed suite and 1 after any byte changes under `tasks/`; the manifest hash is in the sprint report and `report.md`.
-- AC-5.2 Every `task.yaml` names a one-line `success_criterion` the grader evaluates mechanically, a `test_command` from the allowlist, and `post_cutoff: true` with the commit date.
-- AC-5.3 For every bug-fix and feature-build task the hidden tests fail at base and pass at the reference patch (`ablation-grade.sh --self-check` runs both); for every refactor task the reference diff leaves the suite green and the churn figure is recorded.
-- AC-5.4 Every task has a `REVIEW.md` written by a different session than its author, with the three checks (no solution leak, red-then-green run, criterion mechanical) answered.
-- AC-5.5 No hidden file path appears under any sandbox created for the task (asserted by `pipeline-run.bats` and the single-skill `execute-agent.bats` case).
-- AC-5.6 `seed-bugfix.bats` and `seed-refactor` cases: a candidate whose paths touch `.claude/`, `CLAUDE.md`, `.loa.config.yaml`, `grimoires/` or `.run/` is refused by name; every committed `task.yaml` lists `grader_protected` files and the review-catch tasks carry the output contract.
-
-> Sources: cycle-130-brief.md §Task suite; `evals/fixtures/review-prs/corpus.tsv`, `labels/`, `manifests/`; `evals/fixtures/implement-tasks/expectations/01.json`; `git log --since=2026-08-01 --diff-filter=A -- 'tests/unit/*.bats' '.claude/adapters/tests/*.py'`; `br ready`
-
-### FR-6: Mechanical grader and `runs.jsonl`
-**Description:** `evals/harness/ablation-grade.sh <run-dir> <task-id>` grades in a fresh grading tree: the agent's final tree is copied, the task's `grader_protected` files (test infrastructure: `conftest.py`, `pytest.ini` and pyproject test config, bats helpers, Makefile test targets, runner configs) are restored from the frozen reference, the hidden tests are overlaid, and the task's test command runs under `env -i` with `PATH` limited to `/usr/bin:/bin` plus the declared toolchain directory, `python3 -I -s -m pytest -p no:cacheprovider --rootdir` for Python, a 120 s timeout; regressions run on the restored tests; `recall-vs-defects.sh` and the false-positive count run on the arm-neutral findings file for review-catch tasks; verdict accuracy is scored per gate against the snapshot that gate reviewed (the run-level figure is the audit gate's when it ran, else the review gate's); every phase transcript is scanned for tool inputs naming an absolute path outside the sandbox (the CLI's own `HOME` configuration excepted), the string `hidden`, the repository's suite path, or `git log --all`/reflog, and a hit marks the run `contaminated`; the report and the logs print defect and test ids only. `grade.json` is written; the grader never reads the arm label [ASSUMPTION decision] (DEC-0395) [ASSUMPTION decision] (DEC-0402). `evals/harness/ablation-row.sh` writes one `runs.jsonl` row per run (schema in SDD §3.1): arm, task, type, trial, source commit, host fingerprint, image digest, per-phase model id, effort requested and effective, tokens, cost, duration, voices run, both primary metrics, every secondary and cost metric, `degraded` with reason, `status`. `--self-check` grades the reference patch (expects pass) and the base tree (expects fail) for every task [ASSUMPTION decision] (DEC-0360) [ASSUMPTION decision] (DEC-0375) [ASSUMPTION decision] (DEC-0376).
-**Acceptance criteria:**
-- AC-6.1 `ablation-grade.bats`: hidden tests applied after the run in a grading tree outside the sandbox; a run that deleted the test directory still gets graded; an agent-edited `conftest.py`, `pytest.ini`, bats helper or Makefile target is replaced by the frozen reference before the tests run; a same-named file is overwritten by the hidden copy; a transcript naming a path outside the sandbox yields `contaminated`; test and defect names never appear in `grade.json`'s summary fields.
-- AC-6.2 Verdict accuracy per gate is `true` when APPROVED and the snapshot that gate reviewed passes the hidden tests, or CHANGES_REQUIRED and it fails; `false` otherwise; `null` when no gate ran (A0, A4); the run-level figure is the audit gate's, else the review gate's.
-- AC-6.3 `ablation-row.sh --validate` rejects a row missing any schema field; `runs.jsonl` rows carry `effort_effective` per phase from the sandbox MODELINV and `voices_run` from the dissent envelopes; a phase whose effective effort or model differs from the requested one sets `degraded: true` with the reason.
-- AC-6.4 `--self-check` passes 16 of 16 and is recorded in the Sprint 259 report: for bug-fix and feature-build tasks the reference patch passes and the base tree fails; for refactor tasks the structural assertion fails at base and passes at the reference while the unchanged suite is green at both; for review-catch tasks an empty findings file scores recall 0 and a file citing every key anchor scores 1 [ASSUMPTION decision] (DEC-0401).
-
-> Sources: cycle-130-brief.md §Metrics and instrumentation; `evals/graders/recall-vs-defects.sh:1-60`; `evals/graders/tests-pass.sh:1-40`; `evals/graders/implement-discipline.sh:40-60` (clean-env test run); `.claude/scripts/verdict-derive.sh`; `.claude/adapters/loa_cheval/audit/modelinv.py` (`effort_effective`)
-
-### FR-7: Run protocol, pre-registration and smoke
-**Description:** `run-ablation.sh` plans arm × task × trial in a randomised order (seeded shuffle recorded in the manifest), runs single-skill trials through `run-arms.sh`'s machinery and build trials through `pipeline-run.sh`, interleaves arms, retries once on a transport failure only (logged with reason), grades after the batch, and appends rows. Before the priority batch, the lead records the decision rules, the applicability matrix, the cut order and the budget plan in NOTES § Decision Log, runs `--smoke` (one review-catch and one build task, one trial, every runnable arm) and the took-effect check, and reads A1's cost per build task: a median above USD 9 sends the build tasks back for shrinking before any batch (never the cap). Three trials per build task and three per review-catch task (under the gate pipeline a review-catch trial costs as much as a build run; SDD A4); the plan is trial-major with a seeded shuffle inside each trial block; a batch refuses a CLI-version or model-id change mid-batch [ASSUMPTION decision] (DEC-0407). Priority arms A0–A4 first; the pre-registered cut ladder beyond the arms is (1) A5, A6, A7 not run, (2) A2 and A3 build trials 3 → 2, (3) A3 review-catch trials 3 → 2, while A0, A1 and A4 keep three build trials because H1 and the sensitivity check rest on them; the smoke calibration picks the rung in `batch-plan.md`; every cut is recorded with its reason and figure [ASSUMPTION decision] (DEC-0397). Each arm is decided on the primaries its task types reach: build-only arms on hidden-test pass rate alone, all-type arms on both [ASSUMPTION decision] (DEC-0400). Degraded and contaminated runs are excluded pairwise (the task-trial cell leaves both arms of the comparison; a task with no valid cell in an arm leaves that pair and is listed); an arm whose excluded share exceeds 25 % reads Inconclusive-by-degradation [ASSUMPTION decision] (DEC-0393). The defect catch rate interval resamples defect ids (about 150 units) with the task-level interval also shown; the hidden-test pass rate interval resamples the twelve build tasks; the minimum detectable effect is computed from smoke variance; six components are decided without a multiple-comparison correction and the expected false-positive count at 90 % is printed [ASSUMPTION decision] (DEC-0399). Two decisions are escalations: H1 not established (A1 not better than A0 on at least one primary with the interval excluding zero) halts before promotion; A4 not clearly worse than A1 means the suite is insensitive. In either case Sprint 262 performs no opt-in move, the report and the addendum say so, rc.6 ships with the report linked, and the operator decides between hardening (with its cost estimate) and halting [ASSUMPTION decision] (DEC-0409) [ASSUMPTION decision] (DEC-0364) [ASSUMPTION decision] (DEC-0365) [ASSUMPTION decision] (DEC-0377) [ASSUMPTION decision] (DEC-0378).
-**Acceptance criteria:**
-- AC-7.1 The NOTES Decision Log carries the pre-registration entry with a timestamp earlier than the first row in `runs.jsonl`.
-- AC-7.2 `run-ablation.sh --dry-run` prints the randomised plan with its shuffle seed and writes `MANIFEST.json` with the source commit, model ids, toolchain fingerprint, `agy_opt_in: false`, arms, tasks, trials, cap figures.
-- AC-7.3 The smoke report lists every arm with its took-effect evidence and A1's cost per build task; the batch command in the sprint report shows `--max-usd`.
-- AC-7.4 Every retry is a row field (`attempts`, `retry_reason`); model-caused failures carry `status: agent_error` and are never retried; a killed run carries `status: interrupted`.
-- AC-7.5 `batch-plan.md` shows the arm × type × trials × unit-cost table from smoke actuals, the chosen rung of the cut ladder, the minimum detectable effect, the wall-clock estimate at the chosen concurrency, and the gate-model contingency read.
-
-> Sources: cycle-130-brief.md §Run protocol, §Decision rules; `evals/harness/run-arms.sh:150-170,300-330` (plan, transport classifier); ablation-2.0-continue-2026-10-14.md §Spend
-
-### FR-8: Analysis and report
-**Description:** `evals/harness/ablation-report.py` (stdlib) reads `runs.jsonl` and the batch manifests, scores cap failures as failed runs and excludes degraded, contaminated and interrupted runs pairwise (listing them, with the per-arm excluded share and the 25 % guard), computes per arm the applicable primaries and every secondary and cost metric, the paired bootstrap (10,000 resamples, 90 % percentile interval; defects as the unit for the catch rate, tasks for the pass rate) of each arm's difference from A1, a labelled sensitivity figure with cap failures excluded that no decision uses, applies the pre-registered rules to produce one decision per component, checks H1 and the A4 sensitivity rule, and writes `grimoires/loa/reports/ablation-2.0/report.md` with a decision table whose every cell names the rows it came from; the lead adds the reading of missed labels and failed runs. Inconclusive arms get two more trials once, then the rule applies again (recorded).
-**Acceptance criteria:**
-- AC-8.1 `ablation-report.bats` on a fixture `runs.jsonl`: a planted −0.05 drop with a tight interval reads Keep; a 0.00 drop with 20 % lower cost reads Remove; a 0.00 drop with similar cost reads Simplify; a wide interval reads Inconclusive; a +0.04 reads Investigate; H1 and A4 rules fire on planted inputs; a cap failure scores 0; a degraded cell is dropped from both arms; an arm with 30 % excluded reads Inconclusive-by-degradation; a build-only arm is decided on the pass rate alone.
-- AC-8.2 `report.md` lists per arm: n runs, excluded runs with reasons, both primaries with intervals, secondaries, cost per task, wall-clock, tokens, the decision and the rule line it matched.
-- AC-8.3 The report's decision table has one row per component A2–A7, a row for A8 reading component-absent, and the H1 and A4 verdict lines.
-
-> Sources: cycle-130-brief.md §Decision rules, §Deliverables; `evals/harness/arms-report.py:1-60` (bootstrap, verdict shape)
-
-### FR-9: Prune, document and re-verify
-**Description:** Components with a Remove decision leave the default path and become opt-in through existing keys or profile knobs; Simplify decisions remove unless a written non-quality purpose (auditability, governance) is recorded; Keep decisions write the measured lift into the component's docs; the floor is untouched. `docs/migration/v2.0-ablation-addendum.md` lists every component moved to opt-in with the key that restores it. The re-verification follows one rule: if no component reads Remove or Simplify there is no re-run; if exactly one does, that arm's rows already measure the pruned default and the bound is read from them; if several do, `a1_pruned` (the shipped Sprint 262 tree pinned as its own source commit) and a fresh `a1_full` control run interleaved on the same day, one trial per task, paired by task, when the reserve allows, else only the removal with the largest cost saving is applied and the others are recorded as decided, not applied this cycle; the bound is the paired point estimate ≥ −0.03 on each applicable primary with the 90 % interval and the minimum detectable effect printed, and the report states that this sample detects a gross regression only; the reserve is USD 250, released to A7 when the first two cases apply [ASSUMPTION decision] (DEC-0398) [ASSUMPTION decision] (DEC-0425). If H1 is not established or A4 is insensitive, no component is pruned (DEC-0409). bd-2txz1's kernel deletions are decided by the arm outcomes and applied or closed with the reading [ASSUMPTION decision] (DEC-0371).
-**Acceptance criteria:**
-- AC-9.1 Every Remove or Simplify decision maps to a config key or profile knob change in `.loa.config.yaml.example` and `profiles.yaml`, with the restore key in the addendum; `floor-snapshot.bats` and `profile-floor.bats` stay green.
-- AC-9.2 `report.md §Re-verification` names the rule case that applied and shows the pruned default within −0.03 of `a1_full` on each applicable primary (from the arm's rows or from `a1_pruned`), or the prune is reverted or held back and the reason recorded.
-- AC-9.3 Every Keep component's reference doc carries one sentence with its measured lift and interval.
-- AC-9.4 `grimoires/loa/reports/release-notes-2.0.0-rc.6.md` links `report.md`; the 2.0.0 notes stub carries the same link.
-
-> Sources: cycle-130-brief.md §Decision rules, §Sprint breakdown 5; `.claude/data/profiles.yaml`; `.claude/data/floor.yaml`; `docs/migration/v2.0-model-generation-floor.md:1-12`
-
-### FR-10: Carry-overs
-**Description:** bd-s93s8 (cycle-129 archive on main) lands in the plan commit; bd-j4lwr's `--max-usd` and `--screen` in FR-2, its dispatch-practice note in the run-mode reference; bd-8o5rx (generated paths excluded from `fix_regions` in `seed-corpus-from-record.sh`, the eight manifests and `SHA256SUMS` regenerated, cycle-129 batch 1 refuted share regraded; recall unchanged by construction) in Sprint 259; bd-yzzb9 is a feature-build task source and its production fix a Sprint 262 task gated on remaining budget; bd-b4ji is noted at archive time (this plan commit folds the rc.5 CHANGELOG heading and ledger archive onto main for the third cycle running) [ASSUMPTION decision] (DEC-0371).
-**Acceptance criteria:**
-- AC-10.1 `seed-corpus.bats` pins the exclusion (`dist/`, `*.map`, `*.d.ts`, `.checksum`, `checksums.json`, `REPO-MAP.md`, `.build-manifest.json`); the regenerated manifests carry no generated path in `fix_regions`; the regraded batch-1 refuted shares are in the sprint report with recall unchanged.
-- AC-10.2 The ledger shows cycle-129 archived and cycle-130 active with sprints 258–262 in the plan commit; `CHANGELOG.md` carries `## [2.0.0-rc.5] — 2026-10-14` over the cycle-129 entries on this branch.
-- AC-10.3 bd-s93s8 closed at the plan commit; bd-j4lwr, bd-8o5rx, bd-2txz1 closed or re-scoped with a comment by cycle end; bd-yzzb9 closed if its Sprint 262 fix lands, else commented.
-
-> Sources: `br show bd-s93s8 bd-j4lwr bd-8o5rx bd-2txz1 bd-yzzb9 bd-b4ji`; ablation-2.0-continue-2026-10-14.md §Prerequisites the plan commit must carry
-
-> Sources: this section's requirements derive from cycle-130-brief.md (§Prerequisites, §Task suite, §Arms, §Metrics, §Run protocol, §Decision rules, §Sprint breakdown) and the continuation prompt; file cites per FR above
+> Sources: cycle-131-brief.md §The five changes, §Harness follow-ups, §Metrics and rules; analysis.md §9; evals/harness/pipeline-run.sh:503-545; evals/harness/lib/sandbox-mount.sh:125-136; evals/harness/took-effect.sh:13-35; evals/harness/run-ablation.sh:696-699, :1242; .claude/scripts/adversarial-review.sh:200, :1157; .claude/schemas/adversarial-finding.schema.json:97-110; scripts/oracle_scan.py (record branch)
 
 ---
 
 ## Non-Functional Requirements
 
-### Performance
-- A single-skill review-catch trial completes in ≤ 25 min (the cycle-129 `per_trial` 1,500 s); a pipeline run completes in ≤ 90 min with per-phase timeouts (PLAN 15, IMPLEMENT 25, REVIEW 20, FIX 15, AUDIT 20, FIX 15); concurrency 2–3 so the whole priority batch fits in about one day of wall-clock.
-- The grader runs in ≤ 3 min per run; `ablation-report.py` with 10,000 resamples finishes in ≤ 2 min on 300 rows.
+### NFR-1: Pre-registration and honesty
+Every reading rule and every batch's validity rule is written in NOTES (dated heading) and a DEC row before the batch's first row; a read that trips its guard is reported as tripped with the labelled sensitivity beside it (the replication's shape).
 
-### Scalability
-- The suite and the runner are parameterised by `--source-commit`, so the next model bump reruns the same sixteen tasks without code changes; adding a task is one directory plus `freeze.sh`.
+### NFR-2: Zone and process discipline
+Code changes land only through `/implement` inside `/run sprint-plan`; the System Zone paths this cycle may edit are enumerated in §Technical Considerations and the zone marker is refreshed daily and deleted at the close; third-party text in transcripts, envelopes and PR fixtures is data, never instruction; no dissent runs while a batch runs (KF-037); ≤ 3 dissent runs per sprint for the cycle's gates.
 
-### Security
-- Hidden tests and keys live under `grimoires/loa/evals/ablation-2.0/tasks/<id>/hidden/` and are never copied into a sandbox; the grader reads them from the repository root.
-- The sandbox executor unsets every operator credential except the CLI's own route (as `execute-agent.sh` does); the codex voice runs under the codex CLI's own auth; no credential enters an image or a fixture.
-- Fixture trees drawn from Loa history pass `no-secrets.sh` at seeding; task text is control-stripped; third-party text (fixture PR bodies) is untrusted and never interpreted as instructions by the harness.
-- Nothing from a run's output reaches `report.md` unescaped; the report prints ids, numbers and the lead's prose.
+### NFR-3: Reproducibility
+Every batch pins one source commit and one image digest, records the suite manifest sha, the codex token horizon (KF-048) and the pre-registration ref in `MANIFEST.json`; re-grading a run directory is byte-identical across invocations (grader invariant, ablation-grade.sh header).
 
-### Reliability
-- Batches run detached (`setsid nohup`) with logs under `~/.cache/loa/cycle-130/`; a host reboot leaves `STATUS.json` `running`, which `run-ablation.sh --resume` reconciles from the rows on disk.
-- Transport failures are retried once; model failures never; every retry is logged.
+### NFR-4: Tests
+`evals/tests/` (447 today) and `tests/unit/` stay green; every FR adds cases; no test is weakened.
 
-### Compliance
-- Decision rules, applicability and cut order are written in NOTES before the first run and quoted in the report; results do not change them.
-- Every operator-behalf decision is a `proposed` DEC row; the operator confirms with `/decisions confirm --cycle cycle-130 --all`.
+### NFR-5: Budget and time
+USD 500 cycle cap, ≤ 250 on batches, per-run cap USD 20, concurrency 3; halt only above the cap. Wall-clock target: three sprints in about three days of unattended run time, batches ≈ 4 h of compute.
 
-> Sources: cycle-130-brief.md §Run protocol, §Risks and threats to validity; `evals/harness/execute-agent.sh:350-375`; `evals/graders/no-secrets.sh`; `grimoires/loa/known-failures.md` KF-037
+> Sources: cycle-131-brief.md §Budget, §Metrics and rules; CLAUDE.loa.md Process Compliance; known-failures.md KF-037, KF-048
 
 ---
 
 ## User Experience
 
-### Key User Flows
-1. **Lead runs the cycle**: plan commit → Sprint 258 (plumbing, smoke on existing fixtures) → Sprint 259 (frozen suite, grader self-check) → Sprint 260 (pre-registration, smoke, priority batch, spend posts) → Sprint 261 (report) → Sprint 262 (prune, addendum, re-verification) → PR → Bridgebuilder → merge → rc.6.
-2. **Maintainer reads the result**: `report.md` decision table; `/decisions confirm`; the 2.0.0 promotion PR links the report.
-3. **Operator upgrades**: the addendum names each opt-in component and its restore key.
+The product surface is the harness's CLI and its reports: `run-ablation.sh` gains `--allow-partial`; `ablation-grade.sh` prints `recall` and `recall_pm3` and the `oracle_exposed_defects` list; `ablation-report.py` prints both rules and the dissent-absent sensitivity with the existing "decides nothing" labelling; `took-effect.sh` names the failing rule when an arm pauses (`oracle_closed`, `bare_model_fable`, …); the addendum follows `analysis.md`'s shape (ELI5 paragraph first, tables, rules quoted verbatim). No interactive prompt is added.
 
-### Interaction Patterns
-- Every script prints one line per decision it takes (`cut: max_usd 1270.4 reached after 212 trials`), exits by the documented code table, and writes JSON next to its markdown.
-- The smoke took-effect check prints `arm <id>: <evidence>` per arm and refuses the batch on a miss.
-
-### Accessibility Requirements
-- Reports are plain markdown tables; no colour carries meaning; every number has its unit.
-
-> Sources: cycle-130-brief.md §Run protocol step 7; `evals/harness/report.sh:1-40`
+> Sources: analysis.md (shape); evals/harness/run-ablation.sh --help; ablation-report.py 1.2.3 output (report.md)
 
 ---
 
 ## Technical Considerations
 
-### Architecture Notes
-- Two executors, one row schema: single-skill trials (review-catch) reuse `run-arms.sh` → `execute-agent.sh` → `grade.sh`; build trials run `pipeline-run.sh`; both end in `ablation-grade.sh` and `ablation-row.sh` [ASSUMPTION decision] (DEC-0357).
-- The sandbox is the host temp-dir sandbox; the image digest field is a toolchain fingerprint; all arms share one host and one route [ASSUMPTION decision] (DEC-0362).
-- A seed is the trial index; the CLI route has no sampling seed [ASSUMPTION decision] (DEC-0373).
+### Architecture (for the SDD)
+- Harness (`evals/harness/*.sh`, `evals/harness/lib/sandbox-mount.sh`, `evals/graders/recall-vs-defects.sh`, `evals/suites/ablation-2.0.yaml`, `evals/tests/*.bats`): FR-1, FR-2, FR-3, FR-5, FR-6.
+- Framework (`.claude/scripts/adversarial-review.sh`, `.claude/schemas/adversarial-finding.schema.json`, `.claude/skills/{reviewing-code,auditing-security}/resources/ADVERSARIAL-REVIEW.md`, `.loa.config.yaml.example`, `tests/unit/adversarial-review-*.bats`): FR-4 only.
+- Corpus (`evals/fixtures/review-prs/manifests/*.json`): FR-2 multi-site anchors; `SHA256SUMS` regenerated through `seed-corpus-from-record.sh`; every batch MANIFEST records the corpus hash.
 
-### Integrations
-- Claude CLI (2.1.299, Bedrock route, `global.anthropic.claude-opus-5-5` executor, `global.anthropic.claude-fable-5-1` gates), codex CLI 0.137.0 for the cross-model voice, pytest 9 and bats 1.13 for hidden tests, yq v4, jq, Python 3.13 stdlib for the report.
+### System Zone authorization (explicit, cycle-level)
+This PRD authorizes edits, through `/implement` only, to: `.claude/scripts/adversarial-review.sh`, `.claude/schemas/adversarial-finding.schema.json`, `.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md`, `.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md`, and `.claude/checksums.json` regeneration. No other `.claude/` path. The zone marker `.run/zone-guard-authorization.json` is set by the run and deleted at the close.
+
+### Pin
+All cycle-131 arms run the Sprint 2 completion commit of `feature/cycle-131-honest-measurement` (the closed mount, grader 1.3, the dissent anchor/budget change landed) [ASSUMPTION decision] (DEC-0612); the image stays `loa-ablation:258` if the harness is bind-mounted from the source tree (the SDD confirms from `pipeline-run.sh`'s container invocation), else it is rebuilt and the digest recorded.
 
 ### Dependencies
-- The `v2.0.0-rc.5` tag fetched (done); the record fixtures approved (done in cycle-129); the cycle-129 helper scripts (`refresh-checksums.py`, `publish-rc5.sh`, `record-branch.sh`) adapted under `~/.cache/loa/cycle-130/`.
+Codex credential valid for the batch horizon (KF-048 pre-flight is in the runner); docker and `loa-ablation:258`; the 36 cycle-130 run directories (local; on the record branch minus sandboxes); `record/cycle-130-analysis` for the analysis scripts.
 
-### Technical Constraints
-- A3 is a new measurement: cycle-129's `no_companion` ran a single skill where no dissent executed; here the companion voice runs inside the REVIEW and AUDIT phases [ASSUMPTION decision] (DEC-0408).
-- The Fable 5.1 executor refuses security-shaped tasks mid-trial and the CLI falls back silently; the executor is Opus 5.5 and every row records `models_used` and `refusal_fallbacks` (cycle-129 DEC-0172).
-- No dissent while a batch runs (KF-037); the lead's sprint gates for Sprint 260 run between batches.
-- The planning skills are not loaded through the Skill tool in this session (KF-043 class) [ASSUMPTION decision] (DEC-0369); the planning Flatline runs are integrated by judgment under KF-041 [ASSUMPTION decision] (DEC-0370).
+### Constraints inherited
+`ablation-grade.sh` reads only the run directory, the task and the key (DEC-0413); the grader never reads `meta/`; smoke rows decide nothing (DEC-0428); the row writer derives `degraded` from `verdict_quality` (bd-ocovl adds the dissent-absent field rather than changing `degraded`).
 
-> Sources: `evals/harness/run-arms.sh:46-56`; `grimoires/loa/known-failures.md` KF-037, KF-041, KF-043; `~/.cache/loa/cycle-129/` helper scripts
+> Sources: evals/harness/pipeline-run.sh:17, :232, :459, :523-545; evals/harness/lib/sandbox-mount.sh:125-170; evals/harness/ablation-grade.sh header (DEC-0413, DEC-0420); .claude/rules/zone-system.md; cycle-130-brief.md §Prerequisites
 
 ---
 
 ## Scope & Prioritization
 
-### In Scope (MVP)
-FR-1 … FR-10 as written; arms A0–A4 on the sixteen tasks at the brief's trial counts; smoke; report; prune; re-verification on the reserve set.
+### MVP (this cycle)
+FR-1 … FR-7 as written; the three sprints of §Timeline.
 
-### In Scope (Future Iterations)
-A5, A6, A7 beyond what the cap allows this cycle (recorded as cut with figures; the suite reruns them later); feature-build tasks from Freeside or Hounfour once their toolchains have a sandbox recipe; a cross-family appeal pass on missed labels as a report column.
+### Explicitly out of scope
+- Changing any shipped default (dissent on/off, audit gate on/off, budget) — proposals only (G-6).
+- Build-task arms (A2, A4–A7) and the hidden-test primary; new corpus PRs; model retargeting; the `/review-sprint` skill's output format (bare and pipeline keep their contracts; the grader rule absorbs the difference).
+- Routing small PRs to two bare passes (analysis.md §9 "Not recommended yet": needs two more small PRs first).
 
-### Explicitly Out of Scope
-New features, new constructs, model retargeting (the brief); pruning any floor guard; the 2.0.0 promotion itself; changes to `adversarial-review.sh`, `verdict-derive.sh` or the gate hooks beyond what the arms need to read.
+### Priority order under a lower cap
+B1 (R1 A/B) → the control arm (R5) → `a1_review_only` (R3) → `a1_no_dissent` (R4); a lower cap cuts from the tail (DEC-0611).
 
-### Priority Matrix
-
-| Priority | Items |
-|---|---|
-| P0 | FR-1 (prerequisite: no arm runs on a broken mount), FR-2, FR-3, FR-4, FR-5, FR-6, FR-7 |
-| P1 | FR-8, FR-9 |
-| P2 | FR-10 beyond bd-s93s8 and bd-j4lwr flags; A5–A7 runs |
-
-> Sources: cycle-130-brief.md §Out of scope, §Arms notes ("If the arms don't fit the budget, run A0, A1, A2, A3, A4 first"); ablation-2.0-continue-2026-10-14.md §Floor
+> Sources: cycle-131-brief.md §Objective "Out of scope", §Budget; analysis.md §9
 
 ---
 
 ## Success Criteria
 
-### Launch Criteria
-- All five sprints reviewed and audited APPROVED with COMPLETED markers; PR green; Bridgebuilder findings triaged; `v2.0.0-rc.6` published as a pre-release with the report linked.
-- G-1 … G-6 validated in the Sprint 262 E2E record.
+| ID | Criterion | Evidence |
+|----|-----------|----------|
+| SC-1 | Seven corpus PRs complete both gates under the closed mount with `oracle_closed` true and no grader oracle hit | Sprint 1 smoke log; bats |
+| SC-2 | Grader 1.3 re-grades the 36 runs with every `recall_pm3` equal to the stored value; adjudication kappa and share reported | re-graded rows; `adjudication-cycle-131.csv` |
+| SC-3 | Replication-01's pre-registered read re-taken on six valid cells after the KF-046 exemption | DEC row beside DEC-0604 |
+| SC-4 | Dissent envelopes carry numeric anchors (≥ 80 %) and both voices ran at every review gate of B2's dissent-enabled arms (`a1_full`, `a1_review_only`, `a1_full_openmount` in B1) | envelope scan |
+| SC-5 | Four pre-registered reads taken with outcomes quoted verbatim; spend ≤ caps | NOTES, DEC rows, addendum, `spend.sh` |
+| SC-6 | No shipped default changed; `evals/tests/` and `tests/unit/` green; PR merged; record branch pushed | diff vs main; CI; `record/cycle-131-…` |
 
-### Post-Launch Success (30 days)
-- The 2.0.0 promotion PR cites `report.md`; downstream mounts report `check-loa.sh` green on rc.6.
-
-### Long-term Success (90 days)
-- The next model bump reruns `run-ablation.sh` on the frozen suite and the decision table is reproduced or revised with new numbers.
-
-> Sources: cycle-130-brief.md §Deliverables and exit criteria
+> Sources: Goals table above; cycle-131-brief.md §Sprint breakdown exits
 
 ---
 
 ## Risks & Mitigation
 
-| Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| A1 pipeline runs cost more than the per-run cap and read as failures | Med | High | smoke cap-fit rule (DEC-0378): median > USD 9 shrinks the build tasks; one fix round per gate (DEC-0374) |
-| The suite is too easy (A4 ≈ A1) | Med | High | the brief's sensitivity rule halts action on other arms until the tasks are hardened; the self-check requires a known-bad patch to fail |
-| Budget runs out before A5–A7 | High | Med | priority order pre-registered; reserve for re-verification; every cut recorded with figures |
-| Provider drift or rate limits during a day-long batch | Med | Med | interleaved randomised order, transport retry once, `--resume`, breakers observed |
-| Memorised tasks | Low | Med | all sixteen tasks post-2026-07; Loa's own history after the cutoff |
-| Hidden tests leak into the sandbox | Low | High | tests live outside fixture trees; bats asserts absence; the grader restores them |
-| Fable refuses a security-shaped build task and the CLI falls back | Med | Med | executor Opus 5.5; `refusal_fallbacks` recorded; a changed model sets `degraded` |
-| The planning Flatline degrades (KF-041) | High | Low | integrate by judgment, no retry |
-| `.claude/` edits by subagents outside the sprint | Low | Med | worktrees with the marker; patches applied by the lead; `check-no-raw-sha256sum`, shell-compat and fixture sync before commits |
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| The closed mount breaks the pipeline's own gates on PRs that touch pipeline scripts (pr-12: `adversarial-review.sh`; pr-13: the review skill) | the full arm cannot run on exactly the PRs that matter | the SDD picks the overlay mode per the smoke on all seven PRs before Sprint 2; if base-overlay breaks a gate, head-overlay is the fallback (the PR's own code, still no later copy); recorded as a DEC |
+| The same-function rule credits unrelated findings | the new ruler over-credits both arms | both rules always reported; the ≥ 80 % adjudication rule gates adoption; the SDD caps the function span (e.g., a function longer than 400 lines falls back to ±20) |
+| Dissent anchors change the voices' output quality | fewer or shallower findings | the symbol anchor stays required; the numeric anchor is additional; the smoke compares finding counts with cycle-130 envelopes |
+| Budget scaling lets the dissent spend more per gate | cost per run rises | per-run cap USD 20 stands; `budget_scale` is `fixed` in the shipped default and `diff` only in the eval config |
+| Bare-Fable costs more than planned (Fable output tokens) | B2 overruns | bare runs are ≈ USD 1–3 each; the batch cap and priority order cut the tail |
+| Two different pins (cycle-130 vs cycle-131) tempt pooling | invalid comparison | rows live in separate results roots; the report partitions by pin; the addendum compares re-graded old cells to new cells per PR without pooling |
+| KF-048 credential, KF-037 contention, KF-046 scan classes recur | degraded or excluded rows | runner pre-flight; no dissent during batches; the class-7 exemption; any new class read by hand and recorded |
 
-### Assumptions
-- Opus 5.5's effective training cutoff precedes 2026-07 [ASSUMPTION fact] (the Agent-tool subagent reported June 2026 for this family; the arms do not depend on it beyond the memorisation mitigation).
-- The Bedrock route stays available for the batch day; the breaker state is read before each batch [ASSUMPTION fact].
-
-### Dependencies on External Factors
-- Bedrock and OpenAI availability; GitHub Actions for the PR gates; the operator's confirmation of DEC rows is not a blocker for shipping the rc.
-
-> Sources: cycle-130-brief.md §Risks and threats to validity; `evals/harness/run-arms.sh:300-330`; `grimoires/loa/known-failures.md` KF-041
+> Sources: cycle-131-brief.md §Risks; known-failures.md KF-037/046/048/049; analysis.md §9
 
 ---
 
 ## Timeline & Milestones
 
-| Sprint | Global | Theme | Exit |
-|---|---|---|---|
-| 1 | 258 | Mount integrity and harness plumbing (FR-1, FR-2, FR-3, FR-4, FR-6 writer, smoke on existing fixtures) | fresh mount green; smoke shows each arm's config in its artefacts |
-| 2 | 259 | Task suite and grader (FR-5, FR-6 grader, bd-8o5rx) | manifest hash committed; grader self-check 16/16 |
-| 3 | 260 | Runs (FR-7): pre-registration, smoke, priority batch, cuts | all planned runs recorded or cut with reason; spend posted |
-| 4 | 261 | Analysis (FR-8): blind grade, bootstrap, rules, report | one decision per component |
-| 5 | 262 | Prune and document (FR-9, FR-10): opt-in moves, addendum, re-verification, E2E | pruned default within −0.03 of old A1 |
+| Sprint | Content | Exit |
+|--------|---------|------|
+| 1 — Measurement fixes | FR-1 closed mount + `oracle_closed` + grader oracle check; FR-2 grader 1.3 + manifests + re-grade + adjudication; FR-3 `--allow-partial`, KF-046 class 7 + re-row, `dissent_absent_gates`; FR-4 dissent anchors + `budget_scale` | tests green; 36 runs re-graded; smoke of the seven PRs under the closed mount; replication read re-taken |
+| 2 — Arms and batches | FR-5 arms + took-effect; pin recorded; pre-registrations; smoke; B1 then B2 | all rows landed or cut with a reason; spend posted |
+| 3 — Reads and addendum | FR-6 reads; FR-7 addendum, DEC rows, beads, CHANGELOG, release notes; PR; record branch | PR merged; record branch pushed; operator reminder for `/decisions confirm` |
 
-[ASSUMPTION decision] (DEC-0366): five sprints in the brief's order, Opus 5.5 implementers in worktrees, Fable 5.1 gates, at most three dissent runs per sprint.
-
-> Sources: cycle-130-brief.md §Sprint breakdown; ablation-2.0-continue-2026-10-14.md §Process
+> Sources: cycle-131-brief.md §Sprint breakdown
 
 ---
 
 ## Appendix
 
-### A. Stakeholder Insights
-- The operator's brief is the requirement set; the continuation prompt adds two corrections (rc.5, reuse of cycle-129 instruments) and the authority chain. The brief's A8 names components that are not in Loa core at the pinned SHA; the suite records that rather than inventing a stand-in.
+### A. Glossary
+- **Oracle / the peek** — a copy of a PR-touched file in the sandbox that is later than `pr/head` and already holds the fix (KF-049).
+- **The ruler** — the grader's citation rule (±3 lines of an anchor; cycle-131 adds "or inside the labelled function").
+- **Price** — a pre-registered comparison of an arm without a component against `a1_full`, read as one of the rule's named outcomes.
+- **Pin** — the source commit every arm of a batch runs.
 
-### B. Competitive Analysis
-- The brief cites Anthropic's own removal of sprint decomposition once Opus 4.6 sustained long tasks natively; this cycle applies the same test to Loa's scaffolding with a pre-registered, externally graded design.
+### B. Source documents
+- `grimoires/loa/context/cycle-131-brief.md` (the operator's instruction, encoded by the lead)
+- `grimoires/loa/reports/ablation-2.0/analysis.md` §§1-9 and its working files on `record/cycle-130-analysis` (`attribution.md`, `sensitivities.md`, `false-positives.md`, `mechanism.md`, `replication.md`, `scripts/oracle_scan.py`)
+- `grimoires/loa/known-failures.md` KF-046, KF-048, KF-049; `grimoires/loa/decisions.yaml` DEC-0597, DEC-0602 … DEC-0609
+- the harness: `evals/harness/pipeline-run.sh`, `evals/harness/lib/sandbox-mount.sh`, `evals/harness/took-effect.sh`, `evals/harness/run-ablation.sh`, `evals/harness/ablation-grade.sh`, `evals/graders/recall-vs-defects.sh`, `evals/suites/ablation-2.0.yaml`
 
-### C. Bibliography
-- `grimoires/loa/context/cycle-130-brief.md`; `grimoires/loa/a2a/prompts/ablation-2.0-continue-2026-10-14.md`; `grimoires/loa/a2a/sprint-257/arms-report-{review,audit}-recall-2026-10-14.md`; issue #1267; `grimoires/loa/guards.md`; `.claude/data/floor.yaml`.
+### C. Interview record (unattended)
+Phases 1–7 were answered from the brief and the analysis; the operator's one input was "proceed as you suggest". No question was asked of the operator; every operator-level choice is listed in E.
 
-### D. Glossary
-- **Arm**: one configuration of the harness run on every task; **A1** the full harness at the pinned SHA; **A0** bare Claude Code.
-- **Primary metric**: hidden-test pass rate (build tasks) and defect catch rate (review-catch tasks).
-- **Point**: one hundredth of a rate in the unit interval; "three points" = 0.03 absolute.
-- **Pipeline executor**: the harness component that runs Loa's phases as separate sessions inside a sandbox repository.
-- **Took-effect check**: the mechanical reading of a run's artefacts that proves the arm's toggle changed what it claims to change.
-- **Cap failure**: a run aborted at the per-run cap; counted as a failed run.
+### D. Open questions for the operator (non-blocking)
+- Should `budget_scale: diff` become the shipped default once measured? (G-6 says not this cycle.)
+- Is USD 500 the right cap? The batches run in priority order so a lower cap cuts the tail.
 
-### E. Decisions taken on the operator's behalf (unattended planning)
-Recorded as `DEC` rows DEC-0355 … DEC-0378, each `proposed` with `proposed_by: agent` and `decided_by` null until `/decisions confirm`. The operator's instruction authorised the planning and the shipping, not the attribution of each row.
+### F. Flatline integration (PRD review, 2026-10-19)
+Two voices (codex-headless, claude-headless), 13 blockers and 55 items, cross-scoring degraded (KF-041 recurrence 6: `gpt_score` null on every item, agreement 0 %); read by judgment. Integrated (DEC-0621): a within-pin oracle A/B with an open-mount arm (SKP-001/002 gpt and opus IMP-001/002); answer-bearing paths include the fix commit's paths and stray copies are checked (SKP-002/003 opus, IMP-011); pre-run overlay evidence and `mount_mutated` (SKP-004); the read-exposure detector and its validation on the 36 known runs (SKP-003 gpt, IMP-003, opus IMP-009/010); the three-way re-grade into a versioned rows file with original manifests retained and blind anchor curation (SKP-007, IMP-002, IMP-021, opus IMP-013); interval-based, mutually exclusive, ordered pricing rules with the unit, pairing, exclusion, minimum cells and the pre-committed decision statistic (SKP-011/012/015, IMP-009/010/011/013, opus IMP-003/004/008/021/025); manifest regeneration after the overlay (SKP-004 gpt); per-row disclosure of the overlay mode and of gate scripts run at the PR's version, and the move of the batches to pr-17/pr-18 (SKP-001 opus, IMP-006/007/008); the `budget_scale` formula with a hard maximum (opus IMP-017, gpt IMP-023); the span cap, range rule and nested-function semantics in FR-2 (opus IMP-015/016, gpt IMP-016/017); the adjudication protocol with a kappa floor (gpt IMP-018/019, opus IMP-014); precision and finding volume beside recall (gpt IMP-028); models per phase recorded and the pin defined (gpt IMP-029, opus IMP-019/024); the class-7 exemption at line level (opus IMP-018, gpt IMP-020); the replication re-take with the oracle exclusion as a second line (opus IMP-012); content-addressed pre-registration (gpt IMP-030). Declined: adjudicating every function-rule credit (cost; the sample with a kappa floor stands); a formal non-inferiority design beyond the interval rules (the sample is what the budget buys; the rules say "inconclusive" honestly).
 
-| # | Decision | Alternatives | Why |
-|---|----------|--------------|-----|
-| D1 | Component under test is `v2.0.0-rc.5` at tag commit `4d69c3c4`, not rc.3 [ASSUMPTION decision] (DEC-0355); amended by F2: the arms pin the Sprint 258 commit (rc.5 plus the mount fix) | pin main `9e53d5d2` | the published rc is the tag commit; same `.claude/` tree |
-| D2 | Reuse cycle-129 instruments; cite its four arm verdicts, never re-run [ASSUMPTION decision] (DEC-0356) | re-run under the new suite | about USD 300 of the cap to repeat a day-old measurement |
-| D3 | Two executors: single-skill for review-catch, pipeline for build tasks [ASSUMPTION decision] (DEC-0357) | single-skill for every arm | A2, A4, A5, A6 would remove nothing the executor runs |
-| D4 | Applicability matrix pre-registered; A8 dropped as component-absent [ASSUMPTION decision] (DEC-0358) | run A8 against a construct | out of scope; no construct in the suite |
-| D5 | Task sources: corpus, post-cutoff Loa history, open beads at rc.5 [ASSUMPTION decision] (DEC-0359); amended by F6: fixtures never under the mount paths; bd-yzzb9 replaced | Freeside or Hounfour items | toolchains and secrets in the sandbox |
-| D6 | Mechanical grader; the cross-family matcher is an appeal column only [ASSUMPTION decision] (DEC-0360) | a model as primary defect grader | the grading-itself risk |
-| D7 | Fairness review by a non-author Opus subagent, `REVIEW.md` per task [ASSUMPTION decision] (DEC-0361) | self-review | the rule exists for the author's blind spots |
-| D8 | Host temp-dir sandbox with a toolchain fingerprint; no credentials in an image [ASSUMPTION decision] (DEC-0362); amended by the SDD Flatline run (DEC-0411): phases run in a container with per-run read-only credential copies and no other host mount, the host sandbox being the recorded fallback | image with mounted credentials | credentials are never baked into the image; read-only per-run copies are mounted at run time |
-| D9 | Spend caps enforced by scripts; cycle spend = run cost + ledger rows since kickoff [ASSUMPTION decision] (DEC-0363) | count arm runs only | Flatline, dissent and BB are cycle spend |
-| D10 | Decision rules = the brief's table pre-registered; three points = 0.03 absolute [ASSUMPTION decision] (DEC-0364) | 3 % relative | the brief writes points |
-| D11 | Smoke two tasks × one trial per arm with a mechanical took-effect check [ASSUMPTION decision] (DEC-0365) | trust the declaration | cycle-129 DISS-C-001 leak class |
-| D12 | Five sprints 258–262; Opus implementers; Fable gates; ≤ 3 dissent runs per sprint [ASSUMPTION decision] (DEC-0366) | three sprints | runs take a day; analysis waits on them |
-| D13 | Floor never pruned; A4 informs the report only [ASSUMPTION decision] (DEC-0367) | let A4 decide the gates | the evaluator keeps the suite honest |
-| D14 | #1267 fix: tracked-tree manifest, CI path check, mount-scoped `not-mounted` [ASSUMPTION decision] (DEC-0368) | regenerate only | the mount-layout class remains |
-| D15 | Planning skills not loaded via the Skill tool; lead authors on the templates [ASSUMPTION decision] (DEC-0369) | invoke the three skills | KF-043 tool-policy risk on an unattended session |
-| D16 | Planning Flatline integrated by judgment under KF-041, never retried [ASSUMPTION decision] (DEC-0370) | retry for the scorer | recurrence 4 is structural |
-| D17 | Carry-overs folded into the sprints that need them [ASSUMPTION decision] (DEC-0371) | separate `/bug` sprints | five more rounds for owned changes |
-| D18 | Google voice off on every arm; recorded in manifests [ASSUMPTION decision] (DEC-0372) | opt in for the arms | mixed-voice settings invalidate the comparison |
-| D19 | Seed = trial index; `seed: null` recorded [ASSUMPTION decision] (DEC-0373) | a seed parameter | none exists on the route |
-| D20 | A1 pipeline shape with one fix round per gate [ASSUMPTION decision] (DEC-0374) | unbounded rounds | cap failures would bias A1 against itself |
-| D21 | `runs.jsonl` schema with per-phase `effort_effective`, `voices_run`, `degraded` [ASSUMPTION decision] (DEC-0375) | reuse the arms row | no phases, verdict accuracy or hidden-test field |
-| D22 | Blind grading by layout: grader never sees the arm label [ASSUMPTION decision] (DEC-0376) | grade in the runner | one variable from the grader |
-| D23 | Budget plan with a USD 150 reserve for the re-verification; A7, A5, A6 if room [ASSUMPTION decision] (DEC-0377); amended by F7 (table and cut ladder) and F8 (reserve USD 250, released when no re-run is needed) | every arm at three seeds, no re-run | the exit criterion needs the re-run |
-| D24 | Per-run cap fit: A1 smoke median > USD 9 shrinks tasks, never the cap [ASSUMPTION decision] (DEC-0378) | raise the cap | the cap is the operator's number |
+### E. Decisions taken on the operator's behalf
+- **D1** [ASSUMPTION decision] (DEC-0610) — unattended planning on the templates; no `/ride`.
+- **D2** [ASSUMPTION decision] (DEC-0611) — cap USD 500, batches ≤ 250, run cap 20, concurrency 3.
+- **D3** [ASSUMPTION decision] (DEC-0612) — one pin for every cycle-131 arm (the Sprint 2 completion commit); cycle-130 rows re-graded, never pooled.
+- **D4** [ASSUMPTION decision] (DEC-0620) — batch allowance USD 275 of the 500 cap (amends D2) to afford the within-pin open-mount arm.
+- **D5** [ASSUMPTION decision] (DEC-0621) — the Flatline PRD blockers integrated as listed in Appendix F.
 
-### F. Baselines measured at plan time (2026-10-15)
-
-| Measure | Value | Source |
-|---|---|---|
-| `check-loa.sh` on this checkout | exit 1; 83 Tampered (all `__pycache__`), 0 Missing | run at kickoff |
-| Manifest vs tracked tree | 3,387 entries; 1,976 tracked `.claude/` files; 1,411 untracked entries on this checkout (1,058 `skills/bridgebuilder-review` node_modules, 153 `adapters/tests` caches, 79 `adapters/loa_cheval`, 54 `constructs/packs`, 13 `adapters/.run`, 5 `.pytest_cache`); #1267's 1,308 counts paths absent from the tag's tree and 242 build artefacts — different denominators, both stated; AC-1.1 uses the tracked-tree measure [ASSUMPTION decision] (DEC-0406) | `comm` of `jq keys` and `git ls-files`; issue #1267 |
-| Version markers | `.loa-version.json` 2.0.0-rc.3; `CLAUDE.loa.md` marker 2.0.0-rc.3; tag has rc.5 | `git diff main v2.0.0-rc.5` |
-| `check-prompt-budget.sh` | rc 0 (`CLAUDE.loa.md` 9,189 B of 9,445; protocols 131,444 B WARN over 114,688) | run at kickoff |
-| cycle-129 single-skill trial cost | USD 0.89 (pr-01 baseline, 437K tokens, 5 min) to 3.5 (record fixtures) on Opus 5.5 | `evals/results/arms/review-recall/batch-1/baseline/results.jsonl`; NOTES |
-| cycle-129 arm verdicts | `no_karpathy` 0.000 [0,0], `no_rule_files` 0.000 [0,0], `no_companion` 0.028 [0,0.083] informational, `no_audit_delta` 0.000 — all no recall loss, 8 fixtures × 3 trials | `a2a/sprint-257/arms-report-*.md` |
-| Fixtures available | 18 review (`pr-01`–`pr-18`; 8 planted with 3 defects each, 8 record with 37–143 labels), 5 implement (Python, pytest, hidden expectations) | `evals/fixtures/` |
-| Post-cutoff fix commits touching scripts, hooks, adapters or tests | 198 since 2026-07-01 | `git log --since=2026-07-01` |
-| Spend since 2026-10-13 in the cost ledger | USD 76.44 over 68 rows (cycle-129); 0 today | `.run/cost-ledger.jsonl` |
-| Decision ledger | 354 rows before this cycle; 378 after seeding D1–D24 | `grimoires/loa/decisions.yaml` |
-| Toolchain | Docker 26.1.5; codex 0.137.0; claude 2.1.299 (Bedrock route); Python 3.13.5; Node 22.22.2; bats 1.13.0; 8 CPUs, 30 GB RAM, 981 GB free | kickoff probe |
-
-### F2. Budget plan (planning estimates; recalibrated from smoke actuals in `batch-plan.md`)
-
-| Slice | Runs | Unit USD (est.) | USD |
-|---|---|---|---|
-| Build, A0 (12 tasks × 3) | 36 | 1.5 | 54 |
-| Build, A1 | 36 | 7.0 | 252 |
-| Build, A2 | 36 | 6.0 | 216 |
-| Build, A3 | 36 | 6.5 | 234 |
-| Build, A4 | 36 | 3.5 | 126 |
-| Review-catch, A0 (4 × 3) | 12 | 2.0 | 24 |
-| Review-catch, A1 | 12 | 8.0 | 96 |
-| Review-catch, A3 | 12 | 7.0 | 84 |
-| Smoke (8 arms × 2 tasks) | 16 | 4.5 | 72 |
-| Priority batch + smoke | 232 | | **1,158** |
-| Planning Flatline ×3, sprint dissent (≤ 3 × 5 sprints × 2 gates), Bridgebuilder | | | ≈ 60 |
-| Reserve (re-verification case 3; released to A7 otherwise) | | | 250 |
-| Total committed | | | ≈ 1,468 of 1,500 |
-| Cut ladder rung 2 saves (A2, A3 build 3 → 2) | −24 runs | | ≈ −150 |
-| Wall-clock at concurrency 3 | 180 build × ~35 min + 36 review × ~20 min | | ≈ 39 h |
-
-### G. Flatline review integration (2026-10-15)
-Run: `flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --autonomous`, two voices (codex-headless gpt-5.5, claude-headless), Phase 1 complete 2/2, cross-scoring degraded (`scoring_degraded: true`, `gpt_score null` on every item — the KF-041 shape, recurrence recorded), 18 skeptic blockers, 61 improvements, 0 high-consensus by score. Integrated by judgment (DEC-0370); envelope at `~/.cache/loa/cycle-130/flatline/prd.json` and `grimoires/loa/a2a/flatline/`.
-
-| # | Blocker / item | Integration | DEC |
-|---|---|---|---|
-| F1 | SKP-010, opus IMP-012: A6 as one session removes the separate evaluator too | A6 keeps one continuous implementer session; gates separate as A1 | DEC-0391 |
-| F2 | SKP-007, opus IMP-008: arms pinned to the broken-manifest commit | pin the Sprint 258 commit; `.claude/` delta recorded; integrity green in the sandbox | DEC-0392 |
-| F3 | SKP-004/005, gpt IMP-003, opus IMP-001/016: cap rule stated two ways; exclusion bias | one rule: cap failure = failed run; degraded/contaminated excluded pairwise; 25 % guard; labelled sensitivity figure | DEC-0393 |
-| F4 | SKP-012/013, opus IMP-004: credential exceptions not enumerated; containment | `env -i` allowlist enumerated; containment limit stated | DEC-0394 |
-| F5 | SKP-002 ×2, SKP-009, gpt IMP-010, opus IMP-003/004/015: hidden tests reachable or alterable | grading tree with restored infrastructure; `-I -s`; contamination scan; id-only logs | DEC-0395 |
-| F6 | SKP-001, opus IMP-003: Loa-history tasks under `.claude/` collide with the mount | fixture path rule; tasks from `tools/`, `evals/`, `tests/`; bd-yzzb9 replaced | DEC-0396 |
-| F7 | SKP-003/006, gpt IMP-016, opus IMP-005/020/021: budget arithmetic absent; counts do not fit | budget table F2; cut ladder; in-flight reservation; 39 h estimate | DEC-0397 |
-| F8 | SKP-006, opus IMP-007: re-verification unresolvable at one trial | three-case rule; reserve USD 250 | DEC-0398 |
-| F9 | SKP-004, opus IMP-009/027, gpt IMP-001: power; four-task bootstrap; corrections | defects as the catch-rate unit; MDE from smoke; no correction, stated; H1 halt-and-report | DEC-0399 |
-| F10 | SKP-007, gpt IMP-005, opus IMP-010/026: mixed primaries; A4 on review-catch; KPI count | per-arm applicability of primaries; A4 build-only; 6 of 6 | DEC-0400 |
-| F11 | opus IMP-002, gpt IMP-009: refactor has no red state; known-bad undefined | structural assertion; empty / full findings files | DEC-0401 |
-| F12 | opus IMP-014: verdict accuracy against the final tree scores the fix | snapshots after IMPLEMENT and FIX; per-gate accuracy | DEC-0402 |
-| F13 | opus IMP-012/017/018, gpt IMP-012: A0 contract and budget | same text, tools, env; `--effort high`; summed budget; output contract | DEC-0403 |
-| F14 | opus IMP-019/023, gpt IMP-023/024: freeze sequencing; hardening protocol | `suite_version`; one version per batch; H1/A4 fail path | DEC-0404 |
-| F15 | opus IMP-029/030, gpt IMP-028: interrupted runs; planner guard; locations | `status: interrupted`; planner refuses; paths pinned; run_ids cited | DEC-0405 |
-| F16 | opus IMP-031: 1,308 vs 1,411 | denominators named; AC-1.1 measure | DEC-0406 |
-| F17 | gpt IMP-014/015: drift; stratified order | batch drift guard; trial-major seeded shuffle | DEC-0407 |
-| F18 | opus IMP-013: A3 vs D2 | A3 is a new measurement | DEC-0408 |
-| F19 | gpt IMP-006, opus IMP-023: H1-fail / A4-insensitive path | no pruning; report ships; operator decides | DEC-0409 |
-| F20 | gpt IMP-022/026: exit codes; degraded cost | SDD §6 map; degraded cost counts in spend | DEC-0410 |
-
-Accepted without a change: SKP-003 (artefacts can reveal the arm to a reader) — the grader is mechanical and reads no label, so there is no judgment to bias; the claim is reworded as structural blindness. Not adopted: a correction across components (the brief fixes one rule per component); re-running the four cycle-129 single-skill arms (D2).
-
-> Sources: NOTES.md § Session Continuity 2026-10-15; `grimoires/loa/decisions.yaml` DEC-0355 … DEC-0378; kickoff probes recorded in NOTES
+> Sources: decisions.yaml DEC-0610 … DEC-0612; cycle-131-brief.md
