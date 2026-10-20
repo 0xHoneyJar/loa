@@ -200,17 +200,31 @@ content() { cat "$W/$1"; }
   [ "$(ev gate_scripts_at_pr_version)" = ".claude/scripts/deleted.sh,.claude/scripts/fixonly.sh,.claude/scripts/mod.sh,.claude/scripts/old name.sh" ]
 }
 
-@test "overlay: an unknown fix commit logs fix_commit_unavailable and continues with the PR paths" {
+@test "overlay: an unknown fix commit is refused before any write (PR #1286 F001); the check fails on overlay_fix_commit=unavailable" {
   sed -i "s/^fix_commit: .*/fix_commit: \"$(printf 'e%.0s' $(seq 1 40))\"/" "$FX/fixture.yaml"
+  local before; before="$(content .claude/scripts/mod.sh)"
+  lib overlay_answer_paths "$W" "$FX" head "$SRC"
+  [ "$status" -eq 2 ]
+  grep -q 'fix_commit_unavailable eeeeeeee' <<<"$output"
+  grep -q 'overlay: refused: fix_commit eeeeeeee' <<<"$output"
+  [ "$(content .claude/scripts/mod.sh)" = "$before" ]                    # nothing written
+  [ "$(content .claude/scripts/fixonly.sh)" = "fixonly LATER fixed" ]
+  [ -z "$(ev mount_overlay)" ]
+  [ -z "$(ev overlay_fix_commit)" ]
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]
+  grep -q 'mount_overlay=<missing>' <<<"$output"
+  # a recorded overlay whose evidence says unavailable never checks closed, whatever the sandbox holds
+  sed -i "s/^fix_commit: .*/fix_commit: \"$F\"/" "$FX/fixture.yaml"
   lib overlay_answer_paths "$W" "$FX" head "$SRC"
   [ "$status" -eq 0 ]
-  grep -q 'fix_commit_unavailable eeeeeeee' <<<"$output"
-  [ "$(ev mount_overlay)" = "head:8" ]
-  [ "$(ev overlay_fix_commit)" = unavailable ]
-  [ "$(content .claude/scripts/fixonly.sh)" = "fixonly LATER fixed" ]   # not an answer path without the fix commit
-  [ "$(content .claude/scripts/mod.sh)" = "mod head" ]
+  [ "$(ev overlay_fix_commit)" = available ]
   lib check_mount_closed "$W" "$FX" "$SRC"
   [ "$status" -eq 0 ]
+  sed -i 's/^overlay_fix_commit=.*/overlay_fix_commit=unavailable/' "$ARM_EVIDENCE_FILE"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]
+  grep -q 'FAIL (a) -: overlay_fix_commit=unavailable' <<<"$output"
 }
 
 @test "overlay refusals (exit 2): missing fixture, bad mode, copy_source other than source_commit, a dirty copy source, a symlink component in the sandbox" {

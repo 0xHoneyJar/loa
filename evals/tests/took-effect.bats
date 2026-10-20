@@ -341,7 +341,7 @@ make_closed_run() {
   [ "$status" -eq 0 ]
 }
 
-@test "oracle_closed: FAIL on an unmodified (later) mount, a stray later copy, a mutated path, a second sandbox commit, an open mount, a copy_source mismatch" {
+@test "oracle_closed: FAIL on an unmodified (later) mount, a stray later copy, a mutated path, a second sandbox commit, an unavailable fix commit, an open mount, a copy_source mismatch" {
   c131_suite; make_closed_run
   local W="$CRD/sandbox" ev="$CRD/meta/arm-evidence.txt"
   cp "$ev" "$T/ev.orig"
@@ -372,6 +372,11 @@ make_closed_run() {
   gg "$W" reset -q --hard HEAD~1; gg "$W" reflog expire --expire=now --all; gg "$W" gc -q --prune=now
   te131 "$CRD" --task-yaml "$CTY"
   [ "$status" -eq 0 ]
+  # a fix commit the overlay could not read (PR #1286 F001): its paths were never pinned
+  sed -i 's/^overlay_fix_commit=.*/overlay_fix_commit=unavailable/' "$ev"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)'
+  cp "$T/ev.orig" "$ev"
   # an open mount is never closed; a copy source other than source_commit fails first
   sed -i 's/^mount_overlay=.*/mount_overlay=none/' "$ev"
   te131 "$CRD" --task-yaml "$CTY"

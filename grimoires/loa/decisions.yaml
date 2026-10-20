@@ -20956,3 +20956,41 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0655"
+    created_at: "2026-10-20T10:43:12Z"
+    updated_at: "2026-10-20T10:43:12Z"
+    phase: "review"
+    category: "design"
+    summary: "PR #1286 BB round r4: overlay refuses an unavailable fix_commit (F001); grader 1.3.1 scans error-marked results (F002); 63/63 re-grades unchanged"
+    decision: "Both findings are accepted as real and fixed in the PR. F001: overlay_answer_paths exits 2 before any write when fixture.yaml's fix_commit is not in the source tree (1.3.0 logged fix_commit_unavailable, overlaid the PR paths only and check_mount_closed called the mount closed); check_mount_closed and took-effect rule oracle_closed fail on overlay_fix_commit=unavailable. No recorded run was affected (18 available, 4 none). F002: grader 1.3.1 strips Claude Code's 'Exit code N' preamble and scans error-marked tool results; the diff form needs ranges near a site (no must_match-only credit), the read form later-only text, never exposed_unknown. Re-graded under 1.3.1 (~/.cache/loa/cycle-131/regrade-131/compare.tsv), the 36 cycle-130 and 27 cycle-131 review-catch runs are identical on every oracle field, recall and contamination; the 26 error-marked results with diff ranges all compare pr/base with pr/head or read head.diff. The pinned 1.3.0 rows stay the main read (DEC-0648); the 1.3.1 grades are a labelled sensitivity. F003 acknowledged."
+    rationale: "F001 is a genuine falsely-closed-mount path: the answer set silently shrank to the PR paths, the overlay and the check used the same incomplete set, so a fixture whose fix commit was missing from the source tree would have passed the closure check with the fix-only paths still at the later copy. F002 is a genuine detector blind spot: diff exits 1 on differences and Claude Code marks that result is_error, so 1.3.0 never read a differing diff's hunks. Refusing (not warning) and scanning (not skipping) are the fail-closed readings; the re-grade shows the recorded measurement did not depend on either gap."
+    alternatives_considered:
+      - option: "Warn on an unavailable fix commit and overlay the PR paths only (the Sprint 263 behaviour)"
+        rejected_because: "leaves the fix-only paths at the later copy while the evidence and the check call the mount closed — exactly the KF-049 peek the closed mount exists to remove"
+      - option: "Read the fix-commit path list from an immutable manifest instead of the source tree"
+        rejected_because: "a second source of truth for the answer set; the fixture already pins fix_commit and the source tree is the pinned copy source, so refusing when the commit is absent is simpler and equally closed"
+      - option: "Scan error-marked results exactly like successful ones (unknown form included)"
+        rejected_because: "a refusal or hook-block message names the command's paths without printing a diff and would count as exposed_unknown on every refused probe; ranges near a site and later-only text are the evidence the forms were built on"
+      - option: "Re-run the batches under grader 1.3.1 and make it the main read"
+        rejected_because: "DEC-0648 pins the main read to the pre-registered 1.3.0 rows; the 63 re-grades are identical, so a labelled sensitivity records the check without moving the pin"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "a3289c2b"
+    source: "PR #1286 Bridgebuilder review comment 6288566518 (gpt-5.5-pro voice; claude-headless incomplete): F001 HIGH, F002 MEDIUM, F003 PRAISE; bead bd-cxdsm"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T10:43:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "PR #1286 Bridgebuilder review comment 6288566518 (gpt-5.5-pro voice; claude-headless incomplete): F001 HIGH, F002 MEDIUM, F003 PRAISE; bead bd-cxdsm"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

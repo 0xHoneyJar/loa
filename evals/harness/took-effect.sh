@@ -376,6 +376,8 @@ rule_oracle_closed() {
   fi
   [[ -f "$evf" ]] || { EVID="no meta/arm-evidence.txt"; return 1; }
   [[ "$(evidence_line mount_overlay)" != none ]] || { EVID="mount_overlay=none (an open mount)"; return 1; }
+  # PR #1286 F001: a fix commit the overlay could not read leaves its paths unpinned; never a closed mount
+  [[ "$(evidence_line overlay_fix_commit)" != unavailable ]] || { EVID="overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"; return 1; }
   fx="$(resolve_fixture)" || { EVID="the PR fixture does not resolve (--task-yaml or overlay_fixture evidence)"; return 1; }
   sc="$(jq -r '.source_commit // ""' "$R/meta/pipeline.json")"
   cs="$(evidence_line copy_source)"

@@ -109,6 +109,14 @@ if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != fa
    && [[ "$MODE" != bad_overlay ]]; then
   STUB_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   fx="$STUB_REPO/evals/fixtures/$(yq -r '.review_catch.fixture' "$TASK_YAML")"
+  # the throwaway source tree holds none of the corpus commits, so a fixture's fix_commit cannot be pinned from it and
+  # the real overlay refuses (PR #1286 F001); the stub overlays from a copy without that line, kept outside the run dir
+  # (took-effect.sh never resolves a fixture inside it); with --task-yaml the real fixture resolves to the same PR-only set
+  fc="$(sed -nE 's/^fix_commit: *"?([0-9a-f]+)"?.*/\1/p' "$fx/fixture.yaml" 2>/dev/null | head -1)"
+  if [[ -n "$fc" ]] && ! git -C "$SOURCE_TREE" cat-file -e "$fc^{commit}" 2>/dev/null; then
+    sfx="$(mktemp -d "${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/stub-fixture.XXXXXX")"
+    cp -a "$fx/." "$sfx/"; sed -i '/^fix_commit:/d' "$sfx/fixture.yaml"; fx="$sfx"
+  fi
   W="$RUN_DIR/sandbox"; mkdir -p "$W/pr"
   for p in base head head.diff PR.md; do [[ -e "$fx/$p" ]] && cp -a "$fx/$p" "$W/pr/"; done
   sg() { env -i PATH="$PATH" HOME="$RUN_DIR/meta" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$W" "$@"; }

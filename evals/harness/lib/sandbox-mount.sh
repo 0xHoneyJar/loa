@@ -89,7 +89,9 @@
 #       .claude/hooks/ or .claude/skills/*/SKILL.md; empty when none>, overlay_fixture=<dir>,
 #       overlay_source_tree=<dir>. Exit 2: missing workspace or fixture (no head.diff), a mode
 #       other than head|base, a copy source that is not a clean git tree, a copy_source other
-#       than <source-commit> when given, a symlink or non-directory component on a sandbox path.
+#       than <source-commit> when given, a symlink or non-directory component on a sandbox path,
+#       a fixture.yaml fix_commit that is not in <source-tree> (nothing is written; the sandbox
+#       stays as it was).
 #   check_mount_closed <ws> <fixture-dir> [<source-tree>] [<evidence-file>]
 #       the pre-launch form of took-effect.sh oracle_closed: clauses (a)-(d) (see
 #       _sm_oracle_py) against the fixture, the evidence file (default $ARM_EVIDENCE_FILE:
@@ -598,7 +600,8 @@ init_sandbox_beads() {
 #       skipped by their line counts so a removed "-- a/x" line is never a header;
 #   (ii) every file or symlink under <fixture>/head/ and <fixture>/base/;
 #   (iii) the fixture.yaml fix_commit's paths (git show --no-renames --name-only):
-#       an unknown fix commit logs fix_commit_unavailable and is skipped.
+#       an unknown fix commit logs fix_commit_unavailable and the overlay is REFUSED (exit 2;
+#       PR #1286 F001) — its paths could not be pinned, so the mount could not be closed.
 #   Normalised (no absolute, no "..", no empty or "." component, no backslash, no
 #   control character) and kept only under .claude/; .claude/checksums.json is
 #   harness-owned (regen_sandbox_manifest rewrites it) and excluded, as are CLAUDE.md
@@ -911,9 +914,15 @@ def cmd_overlay(ws, fixture, mode, repo):
     if not os.path.isdir(ws) or os.path.islink(ws):
         die("workspace not found: " + ws)
     entries, notes, meta = answer_set(fixture, repo)
-    exp = expected(entries, mode, fixture, repo, meta)
     for n in notes:
         note("overlay: " + n)
+    if meta.get("fix_available") == "unavailable":
+        # PR #1286 Bridgebuilder F001: the fix commit's paths are part of the answer set; without the commit they
+        # cannot be pinned, the mount would stay open on exactly those paths, and the check would call it closed.
+        die("overlay: refused: fix_commit %s is not in %s; the fix paths outside the PR cannot be pinned, so the "
+            "mount cannot be closed (fetch the commit into the source tree, or drop fix_commit from fixture.yaml)"
+            % (meta.get("fix_commit"), repo))
+    exp = expected(entries, mode, fixture, repo, meta)
     if entries and any(s == "fix" for s in entries.values()) and not meta.get("head_available"):
         note("overlay: head_commit %s unavailable: fix-commit paths outside the PR are removed" % meta.get("head_commit"))
     lines, gates, removed = [], [], 0
@@ -964,6 +973,8 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
     if not m:
         print("FAIL (a) -: mount_overlay=%s (want head|base:<n>)" % (mo or "<missing>")); sys.exit(1)
     mode, n = m.group(1), int(m.group(2))
+    if ev.get("overlay_fix_commit") == "unavailable":
+        print("FAIL (a) -: overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"); sys.exit(1)
     entries, _notes, meta = answer_set(fixture, repo)
     exp = expected(entries, mode, fixture, repo, meta)
     fails = []

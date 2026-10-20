@@ -232,6 +232,12 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
+# diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
+# line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
+# needs printed ranges near a site (must_match alone does not count there), the read form later-only text; an
+# error-marked section without ranges is never exposed_unknown (a refusal or a hook block names the command's
+# paths and prints no diff). Recall, contamination and every other field are unchanged from 1.3.0.
 # grader 1.3.0 (cycle-131 Sprint 263 Tasks 1.3, 1.4; DEC-0615, DEC-0616, DEC-0617): three recall results
 # (the same-scope rule, recall-vs-defects.sh 1.3.0), numeric dissent anchors, corpus_sha256, the oracle
 # detector (diff and read forms, KF-049) and the KF-046 class 7 line-level exemption. recall_pm3_v1 equals
@@ -346,7 +352,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.0"
+GRADER_VERSION = "1.3.1"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -2100,6 +2106,7 @@ SEG_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "{", "(", 
 PATHISH = re.compile(r"[A-Za-z0-9_./@%+,:=~$-]*[A-Za-z0-9_./@%+:~$-]")
 HUNK_U = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
 HUNK_N = re.compile(r"^(\d+)(?:,(\d+))?([acd])(\d+)(?:,(\d+))?\s*$", re.M)
+EXIT_CODE_LINE = re.compile(r"\AExit code \d+\n?")   # 1.3.1: Claude Code's preamble on a failed Bash tool result
 ERR_LINE = re.compile(r"^(?:diff|sdiff|comm|git|cat|grep|sed|head|tail|awk|less):|^(?:fatal|error|warning):|"
                       r"No such file|Is a directory|hook error|BLOCKED|^\s*$|^\s*(?:rc|exit)\s*=\s*\d+\s*$")
 DIFF_BODY = re.compile(r"^[<>+\- @\\0-9]|^---$")
@@ -2462,9 +2469,14 @@ def oracle_scan(t, run_dir):
                         uses[blk["id"]] = (i, plan)
                 elif ev.get("type") == "user" and blk.get("type") == "tool_result" and blk.get("tool_use_id") in uses:
                     i0, plan = uses.pop(blk["tool_use_id"])
-                    if blk.get("is_error") is True:
-                        continue          # the tool failed (a refused command, a hook block): nothing printed
-                    res = "\n".join(l[:LINE_CAP] for l in result_text(blk).split("\n")[:LINES_CAP])
+                    # 1.3.1 (PR #1286 F002): a failed tool (diff exits 1 on differences, a refusal, a hook block) still
+                    # carries its output after an "Exit code N" line; scan it, but no unknown and no must_match-only
+                    # credit from it — a refusal names the command's paths without printing a diff
+                    errored = blk.get("is_error") is True
+                    res = result_text(blk)
+                    if errored:
+                        res = EXIT_CODE_LINE.sub("", res, count=1)
+                    res = "\n".join(l[:LINE_CAP] for l in res.split("\n")[:LINES_CAP])
                     dtargets = sorted({f for how, f in plan if how.startswith("diff") and live.get(f)})
                     rtargets = sorted({f for how, f in plan if how == "read" and live.get(f)})
                     if dtargets and res.strip():
@@ -2477,7 +2489,7 @@ def oracle_scan(t, run_dir):
                                 for pos, sites, mm in by_file.get(f, []):
                                     ranged = any(near(sites, lo, hi) for lo, hi in rs)
                                     own = any(x in sec for x in near_text.get((f, pos), []))
-                                    if (ranged and own) or (mm and mm in sec):
+                                    if (ranged and own) or (not errored and mm and mm in sec):
                                         note(label, i0, "diff", f, pos)
                         for f, secs in secs_by.items():
                             for sec in secs:
@@ -2487,10 +2499,10 @@ def oracle_scan(t, run_dir):
                                 rs = ranges_of(sec, plan_sides(plan, f))
                                 hit_any = False
                                 for pos, sites, mm in by_file.get(f, []):
-                                    if any(near(sites, lo, hi) for lo, hi in rs) or (mm and mm in sec):
+                                    if any(near(sites, lo, hi) for lo, hi in rs) or (not errored and mm and mm in sec):
                                         note(label, i0, "diff", f, pos)
                                         hit_any = True
-                                if not rs and not hit_any:
+                                if not rs and not hit_any and not errored:
                                     for pos, _s, _m in by_file.get(f, []):
                                         note(label, i0, "exposed_unknown", f, pos)
                     single = len({f for how, f in plan if how == "read"}) == 1
