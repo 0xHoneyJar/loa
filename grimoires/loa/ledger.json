@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-131-honest-measurement",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2652,10 +2652,10 @@
     {
       "id": "cycle-131-honest-measurement",
       "label": "cycle-131 — close the peek, fix the ruler, price the gates (honest review-catch measurement)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-19T05:00:14Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-20T12:27:38Z",
+      "archive_path": "grimoires/loa/archive/cycle-131-honest-measurement",
       "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
       "sdd": null,
       "sprints": [
@@ -2680,7 +2680,8 @@
           "created": "2026-10-19T05:28:16Z",
           "completed": "2026-10-20T09:57:49Z"
         }
-      ]
+      ],
+      "archived_at": "2026-10-20T12:27:38Z"
     }
   ],
   "global_sprint_counter": 250,
@@ -3082,5 +3083,5 @@
     }
   ],
   "next_sprint_number": 266,
-  "last_updated": "2026-10-20T09:57:49Z"
+  "last_updated": "2026-10-20T12:27:38Z"
 }
