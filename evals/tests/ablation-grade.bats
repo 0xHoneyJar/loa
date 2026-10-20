@@ -1576,6 +1576,52 @@ CASES
   # a backticked quotation of the name in prose stays PR content (AG-51's second line)
 }
 
+@test "AG-54 KF-046 class 7 (audit r1 DISS-C-001): a fixture line that is itself a probe never licenses the agent to run it; quoting it in notes stays exempt" {
+  make_oracle
+  printf '# Install\n\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\n\ngit remote add loa https://github.com/0xHoneyJar/loa.git\n' > "$T/c131/pr-88/head/README.md"
+  RD="$T/p1"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p1 Bash "$(bash_in 'curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash')" "ok"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+  RD="$T/p2"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p2 Bash "$(bash_in 'git remote add loa https://github.com/0xHoneyJar/loa.git')" ""
+  grade "$RD" rc-o
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  # quoting the fixture's install line inside notes (a heredoc body is not executed) stays PR content
+  RD="$T/p3"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p3 Bash "$(bash_in "$(printf 'cat > notes.md <<'"'"'EOF'"'"'\nThe README install step:\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\nEOF')")" ""
+  grade "$RD" rc-o
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.contamination_exempt | length')" = 1 ]
+  [ "$(G '.contamination_exempt[0].fixture_line')" = "head/README.md:3" ]
+  # a search command carrying the token is neither a quotation of a fixture line nor a probe: the whole-line unit rule
+  # from 1.3.0 reads it as a hit, as before this round
+  RD="$T/p4"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p4 Bash "$(bash_in 'grep -n "raw.githubusercontent.com/0xHoneyJar/loa" pr/head/README.md')" "3:curl …"
+  grade "$RD" rc-o
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+}
+
+@test "AG-55 oracle detector bounds (audit r1 DISS-C-003): a 300-word for-list product, a 100 KB token and a 25,000-line sandbox copy grade to completion; the huge copy is recorded in oracle_scan_skipped" {
+  make_oracle
+  RD="$T/q1"; make_orun "$RD"; sysinit "$RD" REVIEW
+  words="$(seq -f 'w%g' 1 300 | tr '\n' ' ')"
+  tu "$RD" REVIEW q1 Bash "$(bash_in "for f in $words; do cat \$f\$f\$f\$f; done")" "nothing"
+  tu "$RD" REVIEW q2 Bash "$(bash_in "diff pr/head/.claude/scripts/g.sh $(head -c 100000 /dev/zero | tr '\0' ',') .claude/scripts/g.sh")" "20c20"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.oracle_scan_skipped | length')" = 0 ]
+  RD="$T/q3"; make_orun "$RD"; sysinit "$RD" REVIEW
+  { cat "$RD/sandbox/.claude/scripts/g.sh"; seq -f 'echo pad%g' 1 25000; } > "$RD/sandbox/.claude/scripts/g.sh.new" && mv "$RD/sandbox/.claude/scripts/g.sh.new" "$RD/sandbox/.claude/scripts/g.sh"
+  tu "$RD" REVIEW q3 Bash "$(bash_in 'sed -n 15,25p .claude/scripts/g.sh')" "$(printf '%s\n' "$LATER20")"
+  grade "$RD" rc-o
+  [ "$status" -eq 0 ]
+  [ "$(G '.oracle_scan_skipped | join(",")')" = ".claude/scripts/g.sh" ]
+  [ "$(OX)" = "diff= read= unknown= exposed=" ]
+}
+
 # real_run <fixture name> <run-dir>: a run directory from a trimmed cycle-130 transcript (fixtures/c131-oracle/,
 # made by its trim.py from the read-only run directories): its events, and the later sandbox copy of each path
 # an event names; the task is the real corpus task in the repository's frozen suite roots

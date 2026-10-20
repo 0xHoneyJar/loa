@@ -74,8 +74,9 @@
 #   regex (yaml, json, txt, tsv, …), falls back to ±20 lines around the site (and a
 #   cited line in such a definition has no scope); a site outside every definition
 #   (top-level code, text before the first heading) has no scope (±3 only).
-#   Head directory: $EVAL_HEAD_DIR, else <manifest dir>/../<fixture>/head, else
-#   <workspace>/pr/head; with none, or a file absent from it, (ii) never credits.
+#   Head directory: $EVAL_HEAD_DIR, else <manifest dir>/../<fixture>/head, else — only under
+#   EVAL_ALLOW_WORKSPACE_HEAD=1 — <workspace>/pr/head (the graded agent's own copy; details.head_dir_source
+#   says which was used); with none, or a file absent from it, (ii) never credits.
 #   Three results in details, each with detected[] / missed[] (defect ids):
 #     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (the
 #                    original anchors); the current manifest when v1/ has none
@@ -129,16 +130,17 @@ fi
 
 manifest_v1="$MANIFEST_DIR/v1/$fixture.json"
 [[ -f "$manifest_v1" && ! -L "$manifest_v1" ]] || manifest_v1=""
-head_dir="${EVAL_HEAD_DIR:-}"
+head_dir="${EVAL_HEAD_DIR:-}"; head_src="env"
 if [[ -z "$head_dir" ]]; then
-  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"
-  elif [[ -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"
-  fi
+  head_src="none"
+  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"; head_src="fixture"
+  elif [[ "${EVAL_ALLOW_WORKSPACE_HEAD:-}" == 1 && -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"; head_src="workspace"
+  fi   # the workspace copy is the graded agent's own writable tree: never the default (audit r1 DISS-C-002)
 fi
 
-python3 -I - "$manifest" "$review" "$executor" "$manifest_v1" "$head_dir" <<'PY'
+python3 -I - "$manifest" "$review" "$executor" "$manifest_v1" "$head_dir" "$head_src" <<'PY'
 import json, os, re, stat, sys
-manifest_path, review_path, executor_path, manifest_v1_path, head_dir = sys.argv[1:6]
+manifest_path, review_path, executor_path, manifest_v1_path, head_dir, head_src = sys.argv[1:7]
 man = json.load(open(manifest_path))
 man_v1 = json.load(open(manifest_v1_path)) if manifest_v1_path else man
 text = open(review_path, encoding="utf-8", errors="replace").read()
@@ -338,6 +340,7 @@ def close_line(kind, lines, h, lv, end):
 
 
 _scopes = {}
+HEADERS_CAP = 5000
 
 
 def scope_map(rel):
@@ -352,6 +355,9 @@ def scope_map(rel):
     if kind is not None:
         n = len(lines)
         hs = headers(kind, lines)
+        if len(hs) > HEADERS_CAP:
+            _scopes[rel] = (None, None)   # an unterminated 4 MB file gets the ±20 fallback, not a quadratic scan (audit r1 DISS-C-002)
+            return _scopes[rel]
         spans = []
         for k, (h, lv) in enumerate(hs):
             end = n
@@ -504,7 +510,7 @@ out = {
         "recall_pm3": rate(det_pm3, man), "detected_pm3": det_pm3, "missed_pm3": mis_pm3,
         "recall_pm3_v1": rate(det_v1, man_v1), "detected_pm3_v1": det_v1, "missed_pm3_v1": mis_v1,
         "planted_v1": len(man_v1.get("defects", [])), "v1_manifest": bool(manifest_v1_path),
-        "credits_function_only": function_only, "rule": "pm3_or_same_function",
+        "credits_function_only": function_only, "rule": "pm3_or_same_function", "head_dir_source": head_src,
         "false_positives": false_positives, "severity_counts": sev,
         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
         "findings_cited": len(findings), "findings_refuted": len(refuted),

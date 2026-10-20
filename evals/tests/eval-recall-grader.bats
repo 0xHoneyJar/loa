@@ -482,6 +482,25 @@ D() { echo "$output" | jq -r "$1"; }
   [ "$(D '.details.detected | join(",")')" = "S1" ]
 }
 
+@test "RG-44 (audit r1 DISS-C-002) without EVAL_HEAD_DIR or a fixture head the grader never reads the workspace's pr/head unless EVAL_ALLOW_WORKSPACE_HEAD=1; details name the source" {
+  mkdir -p "$WS/pr/head/.claude/scripts"
+  { echo '#!/usr/bin/env bash'; echo 'w() {'; for i in $(seq 3 19); do echo "  echo w$i"; done; echo '}'; } > "$WS/pr/head/.claude/scripts/w.sh"
+  printf '{"fixture":"pr-w","defects":[{"id":"S1","file":".claude/scripts/w.sh","anchor_line":5,"severity":"high"}]}\n' > "$T/manifests/pr-w.json"
+  review 'w.sh:12 six lines down, same function'
+  run "$GRADER" "$WS" pr-w
+  [ "$status" -eq 1 ]
+  [ "$(D '.details.detected | length')" = "0" ]
+  [ "$(D '.details.head_dir_source')" = "none" ]
+  EVAL_ALLOW_WORKSPACE_HEAD=1 run "$GRADER" "$WS" pr-w
+  [ "$(D '.details.detected | join(",")')" = "S1" ]
+  [ "$(D '.details.head_dir_source')" = "workspace" ]
+  make_scope
+  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"severity":"high"}]'
+  review 's.sh:22 the guard is gone'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.head_dir_source')" = "fixture" ]
+}
+
 @test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {
   make_scope
   man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":22,"severity":"high"},
