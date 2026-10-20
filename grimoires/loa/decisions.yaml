@@ -20572,3 +20572,35 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0643"
+    created_at: "2026-10-20T01:37:10Z"
+    updated_at: "2026-10-20T01:37:10Z"
+    phase: "review"
+    category: "design"
+    summary: "Review round r1b: python one-liner defs end on their line, fences close by length, stat-only git diff needs no patch flag, |& is a pipe, -L/egrep/rg silent"
+    decision: "Review dissent run 2 on the r1a diff returned 12 findings, 3 BLOCKING, all against the r1a fixes: a one-liner def never met the signature-termination test and swallowed the file below it; a stat flag alone did not make a git diff stat-only (--stat -p prints the patch); a four-backtick fence was closed by a three-backtick line. Round r1b, test-first (RG-42 extended with one-liner and string-default headers, RG-43 nested fences, AG-52 extended with |& wc, egrep -c, grep -L and --stat -p, AG-53 printf emitting one backslash): the python signature ends at the colon after its closing parenthesis and falls back to a one-line header when no terminator is found; a fence closes only on a same-character fence at least as long with nothing after it, and a backtick opener whose info string holds a backtick is not a fence; a stat-only git diff is one with a stat flag and none of -p, -u, --patch, --unified, -U<n>; |& is one pipe with no empty segment; silent sinks include -L, --files-without-match and the egrep/fgrep/rg family. Observations kept as notes: the EVAL_HEAD_DIR sentinel silently disables the scope clause when the fixture head is missing (the harness always resolves it); the class 7 fixture index stays by physical line; the dissent diff excludes smoke/ paths so the review-r17 task.yaml edit was invisible to it, not missing. Dissent runs used: 2 of 3; the third is the audit's."
+    rationale: "the first round's fixes were themselves reviewed and three were found wrong at the edges; the edges are now pinned by tests"
+    alternatives_considered:
+      - option: "a third review dissent run on r1b"
+        rejected_because: "the sprint cap is three runs and the audit gate needs one; the r1b edges are covered by tests and the lead read"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "596627f4"
+    source: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 2 on bb03e931..596627f4); round r1b"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T01:37:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 2 on bb03e931..596627f4); round r1b"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

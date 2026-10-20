@@ -270,13 +270,15 @@ def headers(kind, lines):
     for i, l in enumerate(lines, 1):
         m = None
         if kind == "markdown":
-            fm = re.match(r"^\s{0,3}(`{3,}|~{3,})", l)   # a fenced block's `#` lines are code, not headings (review r1 DISS-C-004)
+            fm = re.match(r"^\s{0,3}(`{3,}|~{3,})(.*)$", l)   # a fenced block's `#` lines are code, not headings (review r1 DISS-C-004)
             if fm:
-                tok = fm.group(1)[0]
+                tok, rest = fm.group(1), fm.group(2)
                 if fence is None:
-                    fence = tok
-                elif fence == tok:
-                    fence = None
+                    if not (tok[0] == "`" and "`" in rest):   # CommonMark: a backtick opener's info string holds no backtick
+                        fence = (tok[0], len(tok))
+                    continue
+                if tok[0] == fence[0] and len(tok) >= fence[1] and not rest.strip():
+                    fence = None      # the closer is at least as long as the opener, with nothing after it (review r2 DISS-003)
                 continue
             if fence is not None:
                 continue
@@ -317,9 +319,12 @@ def close_line(kind, lines, h, lv, end):
         while j <= end:
             t = re.sub(r"#.*$", "", lines[j - 1])
             depth += t.count("(") - t.count(")")
-            if depth <= 0 and t.rstrip().endswith(":"):
-                break
-            j += 1
+            rest = t[t.rfind(")") + 1:] if depth <= 0 and ")" in t else ""
+            if depth <= 0 and ":" in rest:
+                break                 # the colon after the closing parenthesis ends the header (a one-liner
+            j += 1                    # `def f(): return 1` ends on its own line; review r2 DISS-001)
+        if j > end:
+            j = h                     # no terminating colon found (a `(` or `#` inside a string default): one-line header
         last = j
         for L in range(j + 1, end + 1):
             t = lines[L - 1]

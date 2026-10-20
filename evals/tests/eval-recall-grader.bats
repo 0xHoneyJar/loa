@@ -460,6 +460,26 @@ D() { echo "$output" | jq -r "$1"; }
   review 'sig.py:14 the next def'
   run "$GRADER" "$WS" pr-s
   [ "$(D '.details.detected | length')" = "0" ]
+  # a one-liner def ends on its own line (review r2 DISS-001): the top-level lines after it are not its body
+  { echo 'def one(): return 1'; for i in $(seq 2 12); do echo "x$i = $i"; done; echo 'def two(s, comment="#"):'; echo '    return s'; echo 'y = 0'; } > "$T/pr-s/head/.claude/scripts/one.py"
+  man_s '[{"id":"S1","file":".claude/scripts/one.py","anchor_line":1,"severity":"medium"},{"id":"S2","file":".claude/scripts/one.py","anchor_line":14,"severity":"low"}]'
+  review 'one.py:9 top level, far from the one-liner'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | length')" = "0" ]
+  review 'one.py:15 the line after two(): top level, not the body'
+  run "$GRADER" "$WS" pr-s
+  [ "$(D '.details.detected | join(",")')" = "S2" ]     # ±3 of site 14 only; S1 untouched
+}
+
+@test "RG-43 (review r2 DISS-003) a four-backtick fence is not closed by a three-backtick line inside it" {
+  make_scope
+  { echo '## Section A'; echo 'text 2'; echo 'text 3'; echo '````md'; echo 'example:'; echo '```bash'; echo '# inner comment'; echo '```'; echo '# still inside the outer fence'; echo '````'
+    echo 'text 11'; echo 'text 12'; echo '## Section B'; echo 'text 14'; } > "$T/pr-s/head/.claude/docs/fence4.md"
+  man_s '[{"id":"S1","file":".claude/docs/fence4.md","anchor_line":3,"severity":"low"}]'
+  review 'fence4.md:12 after the nested fences, same section'
+  run "$GRADER" "$WS" pr-s
+  [ "$status" -eq 0 ]
+  [ "$(D '.details.detected | join(",")')" = "S1" ]
 }
 
 @test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {

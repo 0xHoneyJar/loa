@@ -2080,8 +2080,9 @@ def silent_sink(w):
     exe = w[0].rsplit("/", 1)[-1]
     if exe in ("wc", "cmp", "true", "false", "test"):
         return True
-    if exe == "grep":
-        return any(re.fullmatch(r"-[A-Za-z]*[cql][A-Za-z]*", x) or x in ("--count", "--quiet", "--silent", "--files-with-matches")
+    if exe in ("grep", "egrep", "fgrep", "rg"):
+        return any(re.fullmatch(r"-[A-Za-z]*[cqlL][A-Za-z]*", x)
+                   or x in ("--count", "--quiet", "--silent", "--files-with-matches", "--files-without-match")
                    for x in w[1:])
     return False
 
@@ -2180,6 +2181,9 @@ def split_segments(cmd):
             cur.append(ch)          # a redirection (2>&1, >&2, <&0, &>f), not a separator (review r1 DISS-001/C-001)
         elif depth == 0 and ch in "\n;&|":
             pipe = ch == "|" and cmd[i + 1:i + 2] != "|" and cmd[i - 1:i] != "|"
+            if ch == "|" and cmd[i + 1:i + 2] == "&":
+                pipe = True           # `|&` is bash's `2>&1 |`: one pipe, no empty segment (review r2 DISS-C-004)
+                i += 1
             segs.append(("".join(cur), "|" if pipe else ";"))
             cur = []
         else:
@@ -2503,8 +2507,8 @@ def oracle_plan(tool, inp, ws, answer):
             nxt = seg_words(segs[k + 1][0]) if sep == "|" and k + 1 < len(segs) else []
             if DEVNULL.search(seg) or (nxt and silent_sink(nxt)):
                 continue
-            if exe == "git" and any(x in DIFF_STAT_FLAGS for x in w):
-                continue              # a stat-only git diff prints names and counts, not content
+            if exe == "git" and any(x in DIFF_STAT_FLAGS for x in w) and not any(x in ("-p", "-u", "--patch", "--unified") or re.fullmatch(r"-U\d*|--unified=\d+", x) for x in w[1:]):
+                continue              # a stat-only git diff prints names and counts, not content (with -p/-u/--patch it prints both; review r2 DISS-002)
             toks = segment_tokens(seg, vars_, cwd, ws)
             pr_ops = [k_ for k_, (v, c) in enumerate(toks) if c[0] == "pr" and c[1] in ("head", "base")
                       and not v.endswith("head.diff")]
