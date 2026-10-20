@@ -1,0 +1,211 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/red-test-check.sh:NOT_A_RED_PATTERNS",
+      "anchor_type": "line",
+      "anchor_line": 332,
+      "anchor_line_end": 337,
+      "scope": "diff",
+      "description": "Common test setup failures are accepted as assertion failures. For example, pytest reporting a missing fixture emits \"ERROR at setup\" and \"fixture 'client' not found\", neither of which matches these patterns.",
+      "failure_mode": "If green adds the missing fixture and passes, the script returns VERIFIED even though red never executed the test assertion. The required bug reproduction gate therefore accepts a broken test setup as evidence of reproduction.",
+      "suggested_fix": "Distinguish runner errors from assertion failures using structured results where available. At minimum, reject pytest setup/teardown errors and unittest import failures, and add regression cases proving they return NOT_A_RED.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "anchor_type": "function",
+      "anchor_line": 274,
+      "anchor_line_end": 277,
+      "scope": "diff",
+      "description": "The fallback timeout watcher is killed as soon as the direct child exits, including when that exit was caused by the watcher's TERM signal. This cancels the watcher's pending KILL escalation.",
+      "failure_mode": "On systems without timeout/gtimeout, a test that spawns a child ignoring TERM leaves that child running when its parent terminates on TERM. The script reports TIMEOUT and removes the worktree while the surviving child can continue consuming resources or writing through linked dependency directories.",
+      "suggested_fix": "When the timeout flag is set, let the watcher complete its process-group KILL escalation and wait for it before clearing the run state or removing worktrees.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/red-test-check.sh:link_deps",
+      "anchor_type": "function",
+      "anchor_line": 222,
+      "anchor_line_end": 231,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Default-on dependency linking (node_modules, .venv, vendor, target, .tox) symlinks the live tree's dependency directories into the red and green worktrees. For the two most common setups these directories do not just hold third-party code; they redirect imports back to the live tree: a Python editable install (`pip install -e .`, PEP 660 .pth/finder) resolves `import pkg` to the absolute live-tree source path, and npm/pnpm/yarn workspace links under node_modules (`node_modules/@scope/pkg -> ../../packages/pkg`) resolve relative to the live node_modules, i.e. to live-tree packages. In both cases the test executed in the red worktree and in the green worktree imports the same live-tree code, so red_exit and green_exit reflect the working copy, not RED_SHA and GREEN_SHA. The header only warns that writes land in the live copy, not that the code under test can be the live tree.",
+      "failure_mode": "False VERIFIED when the live tree already contains the fix (the test passes at 'red' only if the fix is absent there, but imports resolve to the fixed live code; it reports DECOY), or more dangerously false VERIFIED/DECOY mixes whenever the live tree differs from either commit. The reviewer is told to cite this output as proof of 'Test fails with current code', so the gate can certify a red-before-green that never happened.",
+      "suggested_fix": "Do not link by default for directories that can carry back-references into the live tree: at minimum detect editable installs (.pth / __editable__ files in .venv site-packages) and workspace symlinks (any symlink inside node_modules pointing outside it) and refuse to link with a clear message, or make linking opt-in (--link-deps) and have the default worktree run install deps via --setup. Alternatively, after linking, verify that the resolved module path for the package under test lies inside the worktree and downgrade the verdict to INCONCLUSIVE otherwise.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`Bash(.claude/scripts/red-test-check.sh *)` is added to the review role's allowed tools. Everything after `--` is exec'd verbatim as an argv in two worktrees (and `--setup` is another arbitrary argv), so this single glob turns a role whose Bash surface was previously limited to `git diff`, `git log`, a few framework scripts and `br` into unrestricted command execution. The test command is chosen by the reviewer agent from `reviewer.md`, which the engineer agent writes, so engineer-side content can steer which binary the reviewer runs. With deps linked (DISS-001) the exec'd command also has write access to the live tree's node_modules/.venv/target.",
+      "failure_mode": "The review role's permission boundary (C-PROC-001 'State-Zone feedback/checkmarks only') is bypassable: any command can be run via `red-test-check.sh --red X -- <cmd>`; a crafted `reviewer.md` can induce the reviewer to run it.",
+      "suggested_fix": "Restrict the argv the script will exec: read the test command from a committed source (e.g. `.loa.config.yaml` test runner or the micro-sprint plan) and refuse ad-hoc argv, or allowlist runner binaries (bats, pytest, npm, cargo, go) by basename, or at least drop `--setup` from the reviewer-invoked path and document the widened permission explicitly in the skill's zone comment.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/validate-artifact.sh:validate_sprint_seams",
+      "anchor_type": "function",
+      "anchor_line": 870,
+      "anchor_line_end": 900,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The seams rule becomes a hard violation for any plan whose header date is on or after 2026-10-13, a week before the merge date. Two producers of `--type sprint` input in this same diff are not aligned with it: (a) `bug-triaging/resources/templates/micro-sprint.md` is edited in this PR but gains no `### Seams Under Test` block, while `planning-sprints/resources/templates/sprint-template.md` does; if `/bug` micro-sprints are validated as `--type sprint` (they carry `## Sprint`-style blocks and a date), every new micro-sprint fails validation out of the box. (b) In-flight sprint plans authored between 2026-10-13 and the framework update, which could not have known about the block, hard-fail after a submodule bump with no migration path other than editing the plan.",
+      "failure_mode": "`/implement`, run-mode preflight or any gate that runs `validate-artifact.sh --type sprint` rejects freshly generated /bug micro-sprints and recently authored plans with 'has no ### Seams Under Test table', blocking work until the plan is hand-edited.",
+      "suggested_fix": "Add the Seams block to the micro-sprint template (or exempt plans with a single `## Sprint` micro-block / a `bug_id` header) and set SEAMS_REQUIRED_FROM to the framework release date rather than a past cycle date, or gate on the plan's generating template version instead of a date.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/red-test-check.sh:cleanup",
+      "anchor_type": "function",
+      "anchor_line": 198,
+      "anchor_line_end": 208,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "On INT/TERM the cleanup sends a single SIGTERM to the run's process group and immediately proceeds to `git worktree remove --force`, `worktree prune` and `rm -rf $SCRATCH` without waiting or escalating to KILL (the header promises 'TERM, then KILL after 2 s', but only the no-`timeout` watcher does that, and only on timeout). A test runner that traps TERM or is mid-compile keeps running inside a directory being deleted. If `worktree remove` fails because the tree is busy, `prune` sees the directory still present and keeps the `.git/worktrees/<name>` entry, then `rm -rf` deletes the directory, leaving a stale worktree registration until gc.",
+      "failure_mode": "Orphaned test/compiler processes writing into removed directories (and into linked live-tree deps), plus a stale `.git/worktrees/red|green` entry that makes later `git worktree add` with the same scratch name fail with 'already registered' until a manual `git worktree prune`.",
+      "suggested_fix": "In cleanup, after TERM to the group, poll `kill -0` for up to 2 s, then `kill -KILL -- -$RUN_PID`, then `wait` the pid (ignoring status) before removing worktrees; run `worktree prune` after `rm -rf $SCRATCH` as well, so a failed `remove` is still pruned once the directory is gone.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/red-test-check.sh:add_wt",
+      "anchor_type": "function",
+      "anchor_line": 213,
+      "anchor_line_end": 220,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/bug-triaging/resources/templates/micro-sprint.md:Task 2",
+      "cross_file_justification": "The micro-sprint template (in diff) makes 'red-test-check.sh ... exits 0' an acceptance criterion for every /bug fix; /bug runs mostly in consumer projects where the framework is a `.loa` submodule and `.claude/scripts`, `.claude/protocols`, `.claude/data` are symlinks into it (symlink-manifest.sh in diff).",
+      "description": "`git worktree add --detach` does not initialise submodules, so in a consumer project the worktree has an empty `.loa/` and every manifest symlink (`.claude/scripts -> ../.loa/.claude/scripts`, `.claude/data`, `.claude/hooks` copy excepted) dangles. Any test that sources a framework script, calls a hook, or reads `.claude/data` fails identically at red and green with 'No such file or directory', which none of the NOT_A_RED patterns match. The script then reports GREEN_FAILS (exit 1) and the new mandatory AC can never be met for such fixes, with no hint about the cause.",
+      "failure_mode": "Consumer-project /bug fixes touching anything that exercises framework scripts are permanently blocked by a misleading 'the test still fails at green' verdict.",
+      "suggested_fix": "After `worktree add`, run `git -C \"$path\" submodule update --init --recursive` (or symlink the live `.loa` into the worktree the same way deps are linked, since the submodule is framework code rather than code under test), and add 'No such file or directory' for `.claude/` paths to the not-a-red heuristics or to the WARN output.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T05:03:19Z",
+    "tokens_input": 177084,
+    "tokens_output": 29998,
+    "cost_usd": 0,
+    "latency_ms": 84585,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 257,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

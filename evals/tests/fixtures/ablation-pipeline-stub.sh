@@ -7,6 +7,8 @@
 # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
 #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
 #   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
+#   STUB_ENV_LOG   append "<run_id> LOA_ABLATION_BATCH_CONTEXT=<value|<unset>>" per invocation
+#                  (cycle-131 Sprint 264: the batch context run-ablation.sh exports to a trial)
 #   STUB_COST      USD per run (default 2.5), on the first phase record
 #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
 #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
@@ -22,7 +24,11 @@
 #                  a WebFetch summariser, DEC-0545) | hang (pipeline.json `running`, then sleeps) |
 #                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0) |
 #                  agent_error_nocost (agent_error as above, reporting cost 0)
+#                  | bad_overlay (an oracle_closed arm's review-catch run gets no overlay:
+#                  took-effect.sh oracle_closed FAILs)
 #   STUB_HANG=1    every run hangs (mode hang)
+# A review-catch run of an arm whose took_effect lists oracle_closed (cycle-131) gets the real
+# lib/sandbox-mount.sh overlay over its corpus fixture and a one-commit sandbox repository.
 set -euo pipefail
 export LC_ALL=C
 TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE="" MAX_RUN_USD=none
@@ -46,6 +52,7 @@ done
 TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
 [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
 [[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
+[[ -n "${STUB_ENV_LOG:-}" ]] && printf '%s LOA_ABLATION_BATCH_CONTEXT=%s\n' "$RUN_ID" "${LOA_ABLATION_BATCH_CONTEXT-<unset>}" >> "$STUB_ENV_LOG"
 
 MODE=ok
 if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then
@@ -94,6 +101,32 @@ if [[ "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != false ]]; then
   mkdir -p "$RUN_DIR/sandbox/grimoires/loa"; echo "# sprint" > "$RUN_DIR/sandbox/grimoires/loa/sprint.md"
 fi
 printf 'mount=stub\n' > "$RUN_DIR/meta/arm-evidence.txt"
+# cycle-131 closed mount: a review-catch arm whose took_effect lists oracle_closed gets the real
+# overlay (lib/sandbox-mount.sh) over the corpus fixture and a one-commit sandbox repository, as
+# pipeline-run.sh materialises it, so took-effect.sh oracle_closed reads a genuine run
+if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != false ]] \
+   && jq -e '(.took_effect // []) | index("oracle_closed") != null' >/dev/null <<<"$DEF" \
+   && [[ "$MODE" != bad_overlay ]]; then
+  STUB_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  fx="$STUB_REPO/evals/fixtures/$(yq -r '.review_catch.fixture' "$TASK_YAML")"
+  # the throwaway source tree holds none of the corpus commits, so a fixture's fix_commit cannot be pinned from it and
+  # the real overlay refuses (PR #1286 F001); the stub overlays from a copy without that line, kept outside the run dir
+  # (took-effect.sh never resolves a fixture inside it); with --task-yaml the real fixture resolves to the same PR-only set
+  fc="$(sed -nE 's/^fix_commit: *"?([0-9a-f]+)"?.*/\1/p' "$fx/fixture.yaml" 2>/dev/null | head -1)"
+  if [[ -n "$fc" ]] && ! git -C "$SOURCE_TREE" cat-file -e "$fc^{commit}" 2>/dev/null; then
+    sfx="$(mktemp -d "${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/stub-fixture.XXXXXX")"
+    cp -a "$fx/." "$sfx/"; sed -i '/^fix_commit:/d' "$sfx/fixture.yaml"; fx="$sfx"
+  fi
+  W="$RUN_DIR/sandbox"; mkdir -p "$W/pr"
+  for p in base head head.diff PR.md; do [[ -e "$fx/$p" ]] && cp -a "$fx/$p" "$W/pr/"; done
+  sg() { env -i PATH="$PATH" HOME="$RUN_DIR/meta" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$W" "$@"; }
+  sg init -q; printf '%s\n' '/.claude/' '/grimoires/' >> "$W/.git/info/exclude"
+  sg add -A; sg -c user.name=s -c user.email=s@s -c commit.gpgsign=false commit -qm base
+  printf 'base_commit=%s\n' "$(sg rev-parse HEAD)" >> "$RUN_DIR/meta/arm-evidence.txt"
+  ARM_EVIDENCE_FILE="$RUN_DIR/meta/arm-evidence.txt" bash -c 'source "$1"; overlay_answer_paths "$2" "$3" head "$4" "$5"' _ \
+    "$STUB_REPO/evals/harness/lib/sandbox-mount.sh" "$W" "$fx" "$SOURCE_TREE" "$(git -C "$SOURCE_TREE" rev-parse HEAD)" 2>/dev/null \
+    || { echo "stub: overlay failed" >&2; exit 2; }
+fi
 DIGEST=""
 [[ "$EXECUTOR" == container ]] && DIGEST="$("$DOCKER_BIN" image inspect --format x "$IMAGE" 2>/dev/null || true)"
 
@@ -101,6 +134,11 @@ records='[]' i=0
 while IFS=$'\t' read -r name label; do
   i=$((i + 1))
   model="$(jq -r --arg n "$name" '.phase_defaults.models[$n]' <<<"$S")"
+  # cycle-131 D-5.1: bare_model: fable maps BARE to Fable 5.1, at the arm's effort (as pipeline-run.sh does)
+  EFF=null
+  if [[ "$name" == BARE && "$(jq -r '.toggles.bare_model // ""' <<<"$DEF")" == fable ]]; then
+    model=global.anthropic.claude-fable-5-1; EFF="$(jq -c '.effort // null' <<<"$DEF")"
+  fi
   PCOST=0; [[ $i -eq 1 ]] && PCOST="$COST"
   used="$model"; [[ "$MODE" == drift_model ]] && used="global.anthropic.claude-haiku-9-9"
   mu="$(jq -cn --arg u "$used" '{($u): 100}')"
@@ -119,9 +157,9 @@ while IFS=$'\t' read -r name label; do
   env='{}'; [[ "$(jq -r '.toggles.gates' <<<"$DEF")" == false ]] && env='{"LOA_ADVERSARIAL_REVIEW_ENFORCE":"false"}'
   jq -n --arg n "$name" --arg l "$label" --arg m "$model" --argjson env "$env" \
     '{name: $n, label: $l, argv: ["claude", "-p", "x", "--model", $m], env: $env, resume: null}' > "$RUN_DIR/meta/phase-$label.argv.json"
-  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --argjson mu "$mu" --argjson c "$PCOST" --argjson ex "$ex" \
+  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --argjson mu "$mu" --argjson c "$PCOST" --argjson ex "$ex" --argjson eff "$EFF" \
     '. + [{name: $n, label: $l, skipped: false, session_id: $sid, model_requested: $m, models_used: $mu,
-           effort_requested: null, tokens_in: 10, tokens_out: 100, cache_read_tokens: 0, cache_creation_tokens: 0,
+           effort_requested: $eff, tokens_in: 10, tokens_out: 100, cache_read_tokens: 0, cache_creation_tokens: 0,
            cost_usd: $c, ledger_cost_usd: 0, duration_ms: 1000, num_turns: 2, exit: $ex, timed_out: false,
            refusal_fallbacks: [], modelinv_lines: {from: 1, to: 0}}]' <<<"$records")"
 done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$PHASES")

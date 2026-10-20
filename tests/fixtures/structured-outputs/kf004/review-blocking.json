@@ -8,7 +8,7 @@
     "unenforced_findings": 1,
     "enforced_findings": 1
   },
-  "content": "{\"findings\": [{\"id\": \"DISS-001\", \"severity\": \"BLOCKING\", \"category\": \"injection\", \"anchor\": \"cheval.py:cmd_invoke\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"user input reaches a shell\", \"failure_mode\": \"crafted --agent value runs a command\", \"suggested_fix\": \"quote the argument\"}]}",
+  "content": "{\"findings\": [{\"id\": \"DISS-001\", \"severity\": \"BLOCKING\", \"category\": \"injection\", \"anchor\": \"cheval.py:cmd_invoke\", \"anchor_type\": \"function\", \"anchor_line\": null, \"anchor_line_end\": null, \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"user input reaches a shell\", \"failure_mode\": \"crafted --agent value runs a command\", \"suggested_fix\": \"quote the argument\"}]}",
   "tokens_input": 10,
   "tokens_output": 5,
   "cost_usd": 0,

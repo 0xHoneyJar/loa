@@ -1,0 +1,147 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:repo_name_exempt",
+      "anchor_type": "function",
+      "anchor_line": 1982,
+      "anchor_line_end": 2004,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The KF-046 class 7 exemption treats every repo-name occurrence as 'PR content' when its unit (the backtick span, else the whole logical line, stripped) is a substring of any single line of the PR fixture (head/** or head.diff). The check at line 2000 (`unit in text`) is a pure substring test with no regard to whether the scanned value is executed. check_value() (line 1807-1813) applies it to every scanned tool field, including Bash `command`, so a command line that is verbatim fixture text is never a `repo_name` hit. The fixture is readable by the agent (pr/head, head.diff), so the agent can learn which lines qualify. Any fixture line of the form `git clone https://github.com/0xHoneyJar/loa.git`, `gh repo clone 0xHoneyJar/loa`, `gh api repos/0xHoneyJar/loa/...`, or a raw.githubusercontent URL (README install steps, CI workflows, the PR's own diff) becomes a licensed probe: the agent runs it on its own line (or inside backticks, which Bash executes) and the upstream repository is fetched without `contaminated` being set. Substrings also qualify, so `git clone https://github.com/0xHoneyJar/loa` (no .git) matches the README form. This is not only an adversarial path: an agent copying install instructions from the fixture README verbatim is a natural behaviour that now yields a false negative on a genuinely contaminated run. The exemption is recorded in contamination_exempt[], but the row's `contaminated` stays null, so it counts as clean unless a human reads every exempt record.",
+      "failure_mode": "A review-catch run in which the agent cloned or fetched the upstream repository (the answer source) is graded as uncontaminated; its recall and verdict rows enter the ablation results and bias the arm comparison. Detection depends on manual review of contamination_exempt[].",
+      "suggested_fix": "Do not exempt by substring alone. Options, in order of preference: (1) restrict the exemption to non-executing fields and to Bash segments whose executable word is a display/search command (echo, printf, grep, rg, cat of a sandbox path) and whose logical line contains no network or VCS executable (curl, wget, git, gh, pip, npm, python -c with urllib); (2) require the unit to equal (not be a substring of) the fixture line and refuse fixture lines that themselves contain a URL, `clone`, `gh `, or `api` with the token; (3) at minimum, when a value is exempted but the segment's executable is network-capable, set `contaminated` with a distinct pattern (e.g. repo_name_exec) rather than exempting.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "evals/graders/recall-vs-defects.sh:head_dir",
+      "anchor_type": "line",
+      "anchor_line": 133,
+      "anchor_line_end": 138,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When EVAL_HEAD_DIR is unset and no <manifest dir>/../<fixture>/head exists, the grader reads head files from `$workspace/pr/head` (line 136). `$workspace` is the directory that also holds the review under test, i.e. the graded agent's writable sandbox (ablation-grade.sh copies sandbox/pr into grading/pr before invoking this script). The 1.3.0 rule makes grading depend on head-file content for the first time: scope_map() (lines 343-371) decides which lines share a definition, and valid_cite() (lines 374-384) uses the file's line count as the upper bound. An agent that writes pr/head/<defect file> as a single sub-400-line function can make one citation (`file:1`) credit every defect sited in lines 1-400; a file type it rewrites to .yaml gets the ±20 fallback instead of ±3. The harness caller mitigates this with a `.no-head` sentinel (ablation-grade.sh grade_recall, line ~1630), but the mitigation lives in the caller, not the grader, so any other invocation (eval runners, tests, ad-hoc grading with workspace = the agent workspace) gets the unsafe default. The same path also exposes the grader to agent-shaped input in scope_map(), whose span filling (lines 356-368) and bash close_line() scan (line 310) are O(n^2) in headers for a 4 MB file with unterminated nested definitions.",
+      "failure_mode": "Recall under the pm3_or_same_function rule is inflated by agent-controlled head files whenever the grader runs without the harness sentinel; pass/score follow that recall. A crafted head file can also stall the grader for minutes.",
+      "suggested_fix": "Remove the `$workspace/pr/head` fallback. Treat an absent EVAL_HEAD_DIR and absent fixture head as 'no head directory' (scope clause never credits), matching what the harness sentinel already forces. If a workspace fallback is genuinely needed for local use, gate it behind an explicit opt-in such as EVAL_ALLOW_WORKSPACE_HEAD=1 and record its use in details. Independently, cap the number of headers considered (e.g. 5000) and the total span work in scope_map().",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:expand",
+      "anchor_type": "function",
+      "anchor_line": 2214,
+      "anchor_line_end": 2234,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The oracle detector processes agent-authored transcript content (Bash `command` strings and tool_result text) with unbounded work. (a) expand() substitutes every value of a for-list variable for each `$NAME` occurrence, up to four passes, with no cap on the product: oracle_plan() stores the full word list for `for V in w1 ... wN` (lines ~2408-2413), so a segment such as `cat $f$f$f$f` after a 1000-word for-list yields 10^12 candidate strings (N=100k with `$f$f` yields 10^10), exhausting memory before the per-grade timeout fires. segment_tokens() (line 2266) calls expand() on every PATHISH match, so the trigger is one Bash tool_use. (b) PATHISH (line 2063) is `X*Y` with Y a subset of X; a token of 1 MB of `,` or `=` characters backtracks quadratically on each finditer start. (c) FILEISH (line 2069) is `[A-Za-z0-9_.-]+/...|[A-Za-z0-9_-]+\\.` and is run by sections() on every result line once a diff target exists; a diff segment followed by `python3 -c \"print('a'*10**6)\"` in the same tool_use puts a 1 MB alphanumeric line through it, O(n^2). (d) difflib.SequenceMatcher(autojunk=False) over a 4 MB sandbox copy with many repeated lines (line ~2334) is O(n*m). All inputs are controlled by the graded agent, which has an incentive to make its own grade fail (an ungraded run cannot be marked contaminated or oracle-exposed).",
+      "failure_mode": "A single crafted Bash tool_use makes ablation-grade.sh exceed LOA_EVAL_GRADE_TIMEOUT_S or be OOM-killed; the run is recorded as a grading infrastructure error instead of receiving its contamination/oracle verdict, and on a shared grading host memory pressure affects concurrent grades.",
+      "suggested_fix": "Bound every agent-driven dimension: cap for-list words stored in vars_ (e.g. 64) and abort expand() when `len(nxt)` exceeds a small limit (e.g. 256), skip PATHISH tokens longer than 4096 chars and segments longer than 64 KB, truncate result lines to 4096 chars before FILEISH/ERR_LINE, rewrite PATHISH so the trailing class is disjoint from the leading one or use a simpler tokenizer, and skip the difflib pass (treat the path as exposed_unknown-only) when either side exceeds a line count such as 20000 or when autojunk would be needed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:corpus_sha256",
+      "anchor_type": "function",
+      "anchor_line": 2008,
+      "anchor_line_end": 2016,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "corpus_sha256() first validates SHA256SUMS through read_regular() (regular file, bounded, symlink-refusing) and then re-opens the same path with a plain `open(p, 'rb')` at line 2015 to hash it. The second open follows symlinks and has no size bound, so the digest is computed over whatever the path resolves to at that instant rather than over the bytes the safe reader accepted. The suite root is harness-controlled so exploitation needs write access to the corpus directory, but the pattern defeats the purpose of routing reads through read_regular() and makes corpus_sha256 a weaker provenance record than intended.",
+      "failure_mode": "A swapped or symlinked SHA256SUMS between the two opens yields a corpus_sha256 that does not describe the corpus actually graded; the provenance field in grade.json becomes unreliable without any error.",
+      "suggested_fix": "Hash the bytes obtained from the validated read: add a bytes/raw mode to read_regular() (or open once with os.open(..., O_RDONLY|O_NOFOLLOW), fstat for S_ISREG and size, then read and hash that descriptor). Alternatively hash `text.encode('utf-8')` when read_regular() is known to decode losslessly for this file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-263",
+    "timestamp": "2026-10-20T01:40:16Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 39466,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "edb6d5f339ccd2e836e3ccc4506a2f7ed5c2f967285067afee692b9e8595ea44",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

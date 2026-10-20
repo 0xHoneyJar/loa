@@ -1,0 +1,13 @@
+head/.claude/scripts/validate-artifact.sh:1297
+head/tools/check-glossary-terms.sh:79
+head/.claude/scripts/red-test-check.sh:313
+head/.claude/scripts/red-test-check.sh:180
+head/.claude/scripts/red-test-check.sh:58
+head/.claude/scripts/validate-artifact.sh:871
+head/.claude/scripts/validate-artifact.sh:884
+head/.claude/scripts/validate-artifact.sh:1287
+head/tools/check-glossary-terms.sh:35
+head/.claude/loa/GLOSSARY.md:51
+head/.claude/skills/reviewing-code/SKILL.md:204
+head/.claude/skills/reviewing-code/SKILL.md:6
+head/tests/unit/glossary-terms.bats:33

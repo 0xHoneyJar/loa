@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-04",
+  "defects": [
+    {
+      "id": "D10-auth-mode-selectors-not-scrubbed",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "anchor_line": 477,
+      "must_match": "\"GOOGLE_APPLICATION_CREDENTIALS\",",
+      "severity": "critical",
+      "category": "secret-leak",
+      "source_commit": "c1c40631",
+      "synthetic": false
+    },
+    {
+      "id": "D11-mktemp-unchecked",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 2282,
+      "must_match": "arbiter_prompt_file=$(mktemp)",
+      "severity": "high",
+      "category": "error-handling",
+      "source_commit": "3da4bcb5",
+      "synthetic": false
+    },
+    {
+      "id": "D12-unknown-flag-silent",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 64,
+      "must_match": "ECONOMY_ARGS+=(\"$arg\")",
+      "severity": "low",
+      "category": "input-validation",
+      "source_commit": "266efb1a",
+      "synthetic": false
+    }
+  ]
+}

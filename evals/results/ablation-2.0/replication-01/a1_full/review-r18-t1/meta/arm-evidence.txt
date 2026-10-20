@@ -1,8 +1,0 @@
-base_commit=ac5fd9ad03be953867427361e72df29ffb98c19e
-mount=tree
-grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
-beads=br
-manifest_files=1973 (inline)
-manifest_sha256=2149dcc4bc6c2631fa9fd5c80f69444a3d0515c05ded3494db08bac32bc7ffb4
-claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
-loa_config_sha256=ad407370d741b66653ff332f4b85af17657080569da4ed026ce988b0cb9ed18f

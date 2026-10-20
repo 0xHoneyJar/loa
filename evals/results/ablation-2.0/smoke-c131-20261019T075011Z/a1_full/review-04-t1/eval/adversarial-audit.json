@@ -1,0 +1,113 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": ".claude/hooks/session-start/loa-context-class.sh:_context_window_of",
+      "anchor_type": "function",
+      "anchor_line": 83,
+      "anchor_line_end": 85,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The model id is sanitized to [A-Za-z0-9._:-] before the first yq lookup, but the alias target read back from the catalog (`target`, line 82) is stripped of its provider prefix and interpolated unsanitized into a second yq expression as `.\"$m\"` (line 85). A catalog alias value containing a double quote or yq syntax changes the query. The default catalog is the System Zone file `.claude/defaults/model-config.yaml`, but `--catalog FILE` accepts any path, and yq expressions can call `load()`/`load_str()` on arbitrary files. Impact is bounded because the result is validated as `^[0-9]+$` before use, so this is defense-in-depth rather than an exploitable path.",
+      "failure_mode": "A crafted alias value in a user-supplied or tampered catalog alters the yq query; at worst it misclassifies the session or causes an opaque yq error that silently falls back to `long`.",
+      "suggested_fix": "Re-apply the same character whitelist to `m` after the alias substitution, e.g. `m=\"${m//[^A-Za-z0-9._:-]/}\"` on line 83, or pass the key via `yq --arg`/`env()` instead of string interpolation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/hooks/session-start/loa-context-class.sh:CLASS",
+      "anchor_type": "hunk",
+      "anchor_line": 89,
+      "anchor_line_end": 100,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/skill-includes/context_discipline.md:1",
+      "cross_file_justification": "The hook's output drives the thresholds in `context_discipline.md`, which is included into ten SKILL.md files; those thresholds govern when tool results are synthesized to NOTES.md.",
+      "description": "The class defaults to `long` (thresholds 20K/50K/30K/150K, ten times the previous values) whenever the model cannot be resolved: no `.model` in the payload, jq or yq missing, an unknown model id, or a stdin read that times out. This is fail-open toward the most permissive setting. A ≤200K model running under an unrecognized id or a harness that omits `.model` inherits a 150K-token session budget before synthesis is required, which is close to its whole window and defeats the clearing protocol's purpose of preserving state before compaction.",
+      "failure_mode": "On a 200K-context model with an unresolvable id, the agent accumulates up to 150K tokens of tool results before extracting findings to NOTES.md; compaction or a context-limit error then discards unsynthesized state, which the lower `standard` thresholds were designed to prevent.",
+      "suggested_fix": "Either record `basis=default` with a visible warning line on SessionStart when the model could not be resolved, or make the unresolved case fall to `standard` unless the payload positively identifies a ≥1M model. At minimum, surface the fallback in `/loa` so operators know to set `LOA_CONTEXT_CLASS=standard`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-19T08:43:14Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 440,
+    "budget_cents_max": 600,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 5813,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ffe2f2d8d258cf254f28ec00eec5f30d3789d8720b64bd0db22350e54b1154df",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

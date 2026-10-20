@@ -1,0 +1,114 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Compare file contents when checking probe isolation",
+      "body": "The isolation check compares only Git status entries, which do not change when an already modified file is modified again. For example, if `app/src/config.js` is dirty before dispatch, a probe can overwrite that file through the main checkout's absolute path and this helper still exits 0 because both snapshots contain the same ` M app/src/config.js` entry. A detached worktree does not restrict filesystem access, so probe commands or dependency build scripts can silently alter existing work. Verify content hashes before and after execution, or enforce filesystem write isolation.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/chart-unblock-probe.sh:after",
+      "anchor_type": "line",
+      "anchor_line": 71,
+      "anchor_line_end": 72,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-zpgsfcjp/.claude/scripts/chart-unblock-probe.sh",
+        "line_range": {
+          "start": 71,
+          "end": 72
+        }
+      },
+      "id": "DISS-001",
+      "description": "The isolation check compares only Git status entries, which do not change when an already modified file is modified again. For example, if `app/src/config.js` is dirty before dispatch, a probe can overwrite that file through the main checkout's absolute path and this helper still exits 0 because both snapshots contain the same ` M app/src/config.js` entry. A detached worktree does not restrict filesystem access, so probe commands or dependency build scripts can silently alter existing work. Verify content hashes before and after execution, or enforce filesystem write isolation.",
+      "id_derived": true,
+      "failure_mode": "The isolation check compares only Git status entries, which do not change when an already modified file is modified again.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T04:33:08Z",
+    "tokens_input": 124970,
+    "tokens_output": 980,
+    "cost_usd": 0,
+    "latency_ms": 32008,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 13,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 406,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:clean"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7fe80b24a6c7951e9ed52e74b4b2964c344a59e4de1b049a1bc7a64c2743d690",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

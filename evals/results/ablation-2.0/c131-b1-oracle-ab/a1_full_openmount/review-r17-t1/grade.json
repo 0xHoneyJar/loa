@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "grader_version": "1.3.0",
+  "task_id": "review-r17",
+  "task_type": "review-catch",
+  "suite_frozen": true,
+  "executor_mode": "container",
+  "image": "loa-ablation:258",
+  "snapshots_graded": [],
+  "hidden_tests": null,
+  "structural": null,
+  "regressions": null,
+  "snapshot_tests": null,
+  "recall": {
+    "defects_seeded": 20,
+    "defects_caught": 16,
+    "recall": 0.8,
+    "flags": 157,
+    "missed": [
+      "d3",
+      "d5",
+      "d16",
+      "d17"
+    ],
+    "recall_pm3": 0.8,
+    "missed_pm3": [
+      "d3",
+      "d5",
+      "d16",
+      "d17"
+    ],
+    "recall_pm3_v1": 0.8,
+    "missed_pm3_v1": [
+      "d3",
+      "d5",
+      "d16",
+      "d17"
+    ],
+    "v1_manifest": true,
+    "credits_function_only": [],
+    "rule": "pm3_or_same_function"
+  },
+  "false_positives": 61,
+  "verdict": {
+    "source_file": "auditor-sprint-feedback.md",
+    "value": "CHANGES_REQUIRED"
+  },
+  "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": "CHANGES_REQUIRED"
+  },
+  "verdict_accuracy": true,
+  "verdict_accuracy_per_gate": {
+    "review": true,
+    "audit": true
+  },
+  "diff_lines": null,
+  "files_changed": null,
+  "symlinks_dropped": 0,
+  "harness_files_removed": 0,
+  "oversized_files_skipped": 0,
+  "history_probes": 0,
+  "heredoc_interpreters": 1,
+  "contaminated": null,
+  "contamination_exempt": [],
+  "oracle_exposed_defects": [
+    "d1",
+    "d6",
+    "d8",
+    "d10",
+    "d13",
+    "d17",
+    "d20"
+  ],
+  "oracle_exposed_unknown": [
+    "d7",
+    "d15",
+    "d18"
+  ],
+  "oracle_exposed_events": [
+    {
+      "phase": "REVIEW",
+      "event": 234,
+      "how": "diff",
+      "path": ".claude/agents/chart-researcher.md"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 234,
+      "how": "diff",
+      "path": ".claude/scripts/chart-ticket.sh"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 234,
+      "how": "diff",
+      "path": ".claude/scripts/chart-unblock-probe.sh"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 236,
+      "how": "diff",
+      "path": ".claude/hooks/safety/block-destructive-bash.sh"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 236,
+      "how": "exposed_unknown",
+      "path": ".claude/scripts/beads/create-sprint-task.sh"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 236,
+      "how": "exposed_unknown",
+      "path": ".claude/scripts/beads/get-ready-work.sh"
+    },
+    {
+      "phase": "REVIEW",
+      "event": 236,
+      "how": "exposed_unknown",
+      "path": ".claude/scripts/run-mode-ice.sh"
+    },
+    {
+      "phase": "AUDIT",
+      "event": 304,
+      "how": "read",
+      "path": ".claude/agents/chart-researcher.md"
+    }
+  ],
+  "oracle_exposed_by_form": {
+    "diff": [
+      "d1",
+      "d6",
+      "d8",
+      "d10",
+      "d13",
+      "d17",
+      "d20"
+    ],
+    "read": [
+      "d1"
+    ]
+  },
+  "oracle_scan_skipped": [],
+  "corpus_sha256": "e3c5f8d4f69640ce47408757c92e6683d05d0f3044f49920fdc7564660678ed6",
+  "colliding_tests_removed": 0,
+  "collision_rule": null
+}

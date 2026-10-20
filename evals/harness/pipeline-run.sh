@@ -43,7 +43,12 @@
 #   --docker-bin D      docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --phase-models JSON {"PLAN": "<model id>", …} override ($LOA_EVAL_PHASE_MODELS)
 #   --phase-timeouts JSON {"IMPLEMENT": <seconds>, …} override
-#   --dry-run           print the phase plan and exit 0; nothing is created
+#   --dry-run           print the phase plan and exit 0; nothing is created. Lines:
+#                       `plan: task … arm … phases <labels>`, one `phase <n> <label> model=…
+#                       max_turns=… timeout_s=… effort=… session=…` per phase, `sandbox:
+#                       mount=loa|none overlay=head|base|none(<why>) config_variant=eval|none
+#                       config_edits=<key=value,…>|-` (the arm's sandbox .loa.config.yaml edits),
+#                       and `eval_only: true (…)` for an eval_only arm
 #
 # Run directory layout (DEC-0413 — the grader never reads meta/):
 #   sandbox/     the agent's tree (its own .git initialised at `base`)
@@ -111,6 +116,21 @@
 # pipeline.json is written for every exit except usage errors and --dry-run; it is
 # rewritten with status `running` after each phase so a SIGKILLed driver leaves a
 # record (ablation-row.sh reads `running` as interrupted).
+# Closed mount (cycle-131 FR-1, SDD §5.2, DEC-0613/DEC-0622): for a review-catch task with
+# the Loa mount, every answer-bearing path of the PR fixture under .claude/ is overlaid with
+# the PR's own version (lib overlay_answer_paths; mode from task.yaml
+# review_catch.overlay_mode, head by default, base the per-task fallback) right after
+# mount_prompt_surface; copy_source (the source tree's HEAD) must equal source_commit, else
+# the trial is refused (infrastructure_error). Order: mount_prompt_surface → overlay_answer_paths
+# → apply_arm_toggles → apply_eval_config_variant → write_sandbox_grimoire → init_sandbox_beads
+# → regen_sandbox_manifest → check_mount_closed (clauses (a)-(d) of took-effect.sh
+# oracle_closed on the surface about to launch; a failure is infrastructure_error naming
+# the clause and path, and no phase runs). An arm whose toggles set oracle_open: true (the
+# eval-only open-mount arm) skips the overlay and the check and records mount_overlay=none.
+# Every mounted arm runs the cycle-131 eval config variant (both gates' budget_scale: diff,
+# budget_cents_max 600; evidence config_variant=eval). Toggle bare_model: fable runs the BARE
+# phase on global.anthropic.claude-fable-5-1 (it wins over --phase-models and the suite's
+# phase_defaults for BARE). All evidence reaches meta/arm-evidence.txt before the first phase.
 # Mount integrity (audit LOW-A2): after materialisation the sha256 of sandbox/CLAUDE.md
 # and sandbox/.loa.config.yaml go to arm_evidence (claude_md_sha256, loa_config_sha256 =
 # <hex>|absent); at finish both are recomputed into pipeline.json.mount_integrity =
@@ -118,9 +138,17 @@
 # when the run stopped before materialisation). `.claude/` itself is covered by
 # took-effect.sh integrity_clean.
 #
+# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount), or whose
+# toggles set `oracle_open: true`, is
+# refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
+# run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
+# LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
+# (batch and smoke); --dry-run honours the same variable, so the operator dry-runs the
+# open-mount arm with `LOA_ABLATION_BATCH_CONTEXT=1 pipeline-run.sh … --dry-run`.
+#
 # Env: EVAL_CLAUDE_BIN, EVAL_DOCKER_BIN, LOA_EVAL_PHASE_MODELS, LOA_EVAL_PRICING_JSON,
 # LOA_EVAL_WATCHDOG_POLL_S, LOA_EVAL_CREDS_HOME (where ~/.codex is read; default $HOME),
-# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR.
+# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR, LOA_ABLATION_BATCH_CONTEXT.
 #
 # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
 # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
@@ -163,7 +191,7 @@ while [[ $# -gt 0 ]]; do
     --phase-models)   PHASE_MODELS_JSON="${2:-}"; shift 2 ;;
     --phase-timeouts) PHASE_TIMEOUTS_JSON="${2:-}"; shift 2 ;;
     --dry-run)        DRY_RUN=true; shift ;;
-    -h|--help)        sed -n '2,116p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,156p' "$0"; exit 0 ;;
     *) die_usage "unknown argument: $1" ;;
   esac
 done
@@ -208,6 +236,9 @@ case "$TASK_TYPE" in
   *) die_usage "task type '$TASK_TYPE' is not one of feature-build|bug-fix|refactor|review-catch" ;;
 esac
 
+OVERLAY_MODE="$(jq -r '.review_catch.overlay_mode // "head"' <<<"$TASK_JSON")"
+case "$OVERLAY_MODE" in head|base) ;; *) die_usage "task review_catch.overlay_mode must be head or base, got '$OVERLAY_MODE'" ;; esac
+
 # --- arm and phase plan -------------------------------------------------------
 ARM_DEF="$(jq -c --arg a "$ARM" '[.arms // [] | .[] | select(.id == $a)][0] // empty' <<<"$SUITE_JSON")"
 ALL_ARM_IDS="$(jq -r '[.arms // [] | .[] | .id] | .[]' <<<"$SUITE_JSON")"
@@ -223,6 +254,27 @@ elif ! jq -e --arg k "$KIND" --arg t "$TASK_TYPE" \
 fi
 [[ -n "$ARM_DEF" ]] || ARM_DEF='{}'
 SUITE_TOGGLES="$(jq -c '.toggles // {}' <<<"$ARM_DEF")"
+# eval_only (cycle-131 FR-5): refused before anything is created, dry run included, unless the
+# runner marks the batch context; no pipeline.json, so no infrastructure_error row is possible
+# eval_only is derived from the property it protects as well as from the flag (review r1 DISS-C-002): an arm whose
+# toggles open the mount (oracle_open: true) is evaluation-only whatever the suite says; a present eval_only that is
+# not a JSON boolean is refused rather than read as false
+case "$(jq -r 'if has("eval_only") then (.eval_only | type) else "absent" end' <<<"$ARM_DEF")" in
+  absent|boolean) ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': eval_only must be a JSON boolean (true|false)" >&2; exit 2 ;;
+esac
+# the toggle that opens the mount is held to the same type rule, so the strict `== true` below and the mount
+# path's loose text read can never disagree on a quoted "true" (audit r1 DISS-C-001)
+case "$(jq -r 'if (.toggles // {}) | has("oracle_open") then (.toggles.oracle_open | type) else "absent" end' <<<"$ARM_DEF")" in
+  absent|boolean) ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': toggles.oracle_open must be a JSON boolean (true|false)" >&2; exit 2 ;;
+esac
+EVAL_ONLY=false
+[[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
+  echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
+  exit 2
+fi
 
 # plan_phases <toggles-json> → JSON array of {name,label}
 plan_phases() {
@@ -249,7 +301,10 @@ builtin_model() { case "$1" in REVIEW|AUDIT) echo global.anthropic.claude-fable-
 builtin_turns() { case "$1" in PLAN) echo 30 ;; IMPLEMENT) echo 60 ;; REVIEW|FIX|AUDIT) echo 40 ;; BARE) echo 170 ;; *) echo 40 ;; esac; }
 builtin_tmin()  { case "$1" in PLAN) echo 15 ;; IMPLEMENT) echo 25 ;; REVIEW|AUDIT) echo 20 ;; FIX) echo 15 ;; BARE) echo 70 ;; *) echo 20 ;; esac; }
 
-phase_model() {
+BARE_FABLE_MODEL="global.anthropic.claude-fable-5-1"
+BARE_MODEL_TOGGLE="$(jq -r '.bare_model // empty' <<<"$SUITE_TOGGLES")"   # re-read from the library's toggles below
+phase_model() {  # bare_model: fable (cycle-131 D-5.1) decides BARE over every other source
+  if [[ "$1" == BARE && "$BARE_MODEL_TOGGLE" == fable ]]; then printf '%s\n' "$BARE_FABLE_MODEL"; return 0; fi
   jq -r --arg n "$1" --arg d "$(builtin_model "$1")" --argjson o "$PHASE_MODELS_JSON" \
     '$o[$n] // .phase_defaults.models[$n] // $d' <<<"$SUITE_JSON"
 }
@@ -289,6 +344,23 @@ if [[ "$DRY_RUN" == true ]]; then
       "$(phase_model "$name")" "$(phase_cap "$name" max_turns)" "$(phase_timeout_s "$name")" \
       "${EFFORT_FLAG:--}" "$sess" "$cond"
   done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$plan")
+  # the sandbox plan: the mount, the closed-mount overlay, the eval config variant and the
+  # arm's config edits (the keys apply_arm_toggles sets in the sandbox .loa.config.yaml)
+  if [[ "$(jq -r '.loa_mount' <<<"$SUITE_TOGGLES")" == false ]]; then
+    sb_mount=none sb_overlay="none(no mount)" sb_variant=none sb_edits=-
+  else
+    sb_mount=loa sb_variant=eval
+    if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
+    elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
+    else sb_overlay="$OVERLAY_MODE"; fi
+    sb_edits="$(jq -r '[ (if .companion_voice == false then "flatline_protocol.code_review.companion_voice=false", "flatline_protocol.security_audit.companion_voice=false" else empty end),
+                         (if .gates == false then "flatline_protocol.code_review.enabled=false", "flatline_protocol.security_audit.enabled=false" else empty end),
+                         (if .dissent == false and .gates != false then "flatline_protocol.code_review.enabled=false" else empty end),
+                         (if .flatline == false then "flatline_protocol.enabled=false" else empty end) ]
+                       | if length == 0 then "-" else join(",") end' <<<"$SUITE_TOGGLES")"
+  fi
+  printf 'sandbox: mount=%s overlay=%s config_variant=%s config_edits=%s\n' "$sb_mount" "$sb_overlay" "$sb_variant" "$sb_edits"
+  [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)"
   exit 0
 fi
 
@@ -425,7 +497,8 @@ pushd "$SCRIPT_DIR" >/dev/null
 source ./lib/sandbox-mount.sh || { popd >/dev/null; infra "mount library failed to load"; }
 popd >/dev/null
 for fn in mount_prompt_surface resolve_arm_toggles apply_arm_toggles regen_sandbox_manifest \
-          check_fixture_path_rule write_sandbox_grimoire init_sandbox_beads; do
+          check_fixture_path_rule write_sandbox_grimoire init_sandbox_beads \
+          overlay_answer_paths check_mount_closed apply_eval_config_variant; do
   declare -F "$fn" >/dev/null || infra "mount library lacks $fn"
 done
 # the library may set its own shell options or traps; the driver's stay as declared
@@ -438,10 +511,13 @@ export ARM_ENV_FILE="$META/arm-env"; : > "$ARM_ENV_FILE"
 export LOA_EVAL_SUITE_FILE="$SUITE_FILE"
 
 lib_call() {  # lib_call <fn> <args…> — stdout appended to the evidence file; non-zero → infra
-  local fn="$1" out rc=0; shift
-  out="$("$fn" "$@" 2>>"$MOUNT_LOG")" || rc=$?
+  local fn="$1" out rc=0 errf="$META/.lib-stderr" last; shift
+  out="$("$fn" "$@" 2>"$errf")" || rc=$?
+  cat "$errf" >> "$MOUNT_LOG" 2>/dev/null || true
+  last="$(grep -v '^[[:space:]]*$' "$errf" 2>/dev/null | sed -n '$p' | cut -c1-300 || true)"
+  rm -f "$errf"
   [[ -n "$out" ]] && printf '%s\n' "$out" >> "$ARM_EVIDENCE_FILE"
-  [[ $rc -eq 0 ]] || infra "$fn exited $rc (see meta/mount.log)"
+  [[ $rc -eq 0 ]] || infra "$fn exited $rc${last:+: $last} (see meta/mount.log)"
   LIB_OUT="$out"
 }
 
@@ -460,6 +536,8 @@ LOA_MOUNT=true; [[ "$(jq -r '.loa_mount' <<<"$TOGGLES")" == false ]] && LOA_MOUN
 SINGLE_SESSION=false; [[ "$(jq -r '.context_resets' <<<"$TOGGLES")" == false ]] && SINGLE_SESSION=true
 GATES_OFF=false; [[ "$(jq -r '.gates' <<<"$TOGGLES")" == false ]] && GATES_OFF=true
 FLATLINE=on; [[ "$(jq -r '.flatline' <<<"$TOGGLES")" == false ]] && FLATLINE=off
+ORACLE_OPEN=false; [[ "$(jq -r '.oracle_open' <<<"$TOGGLES")" == true ]] && ORACLE_OPEN=true
+BARE_MODEL_TOGGLE="$(jq -r '.bare_model // empty' <<<"$TOGGLES")"
 
 # --- fingerprint / image ---------------------------------------------------------
 if [[ "$EXECUTOR" == host ]]; then
@@ -523,14 +601,32 @@ printf 'base_commit=%s\n' "$BASE_COMMIT" >> "$ARM_EVIDENCE_FILE"
 if [[ "$LOA_MOUNT" == true ]]; then
   lib_call mount_prompt_surface "$WS" "$SOURCE_TREE" -
 fi
+# closed mount (cycle-131 FR-1): the overlay before the toggles, the check after the manifest
+CLOSED_MOUNT=false
+if [[ "$KIND" == review-catch && "$LOA_MOUNT" == true ]]; then
+  if [[ "$ORACLE_OPEN" == true ]]; then
+    printf 'mount_overlay=none\n' >> "$ARM_EVIDENCE_FILE"
+  else
+    lib_call overlay_answer_paths "$WS" "$FIXTURE_DIR" "$OVERLAY_MODE" "$SOURCE_TREE" "$SOURCE_COMMIT"
+    copy_source="$(sed -n 's/^copy_source=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')"
+    [[ "$copy_source" == "$SOURCE_COMMIT" ]] || infra "copy_source ${copy_source:-<none>} differs from source_commit $SOURCE_COMMIT"
+    grep -qE '^mount_overlay=(head|base):[0-9]+$' "$ARM_EVIDENCE_FILE" || infra "overlay_answer_paths printed no mount_overlay"
+    CLOSED_MOUNT=true
+  fi
+fi
 lib_call apply_arm_toggles "$WS" "$TOGGLES" "$ARM"
 if [[ "$LOA_MOUNT" == true ]]; then
+  lib_call apply_eval_config_variant "$WS"
   lib_call write_sandbox_grimoire "$WS" "$TASK_YAML" "$ARM" "$SPRINT"
   lib_call init_sandbox_beads "$WS" "$(jq -r '.title // .id' <<<"$TASK_JSON")"
   mkdir -p "$WS/.run"
   [[ -e "$WS/.run/zone-guard-authorization.json" ]] && infra "sandbox carries .run/zone-guard-authorization.json"
   lib_call regen_sandbox_manifest "$WS"
   grep -q '^manifest_sha256=' "$ARM_EVIDENCE_FILE" || infra "regen_sandbox_manifest printed no manifest_sha256"
+  # the checked surface is the launched one: after the toggles, the config writes and the manifest
+  if [[ "$CLOSED_MOUNT" == true ]]; then
+    lib_call check_mount_closed "$WS" "$FIXTURE_DIR" "$SOURCE_TREE"
+  fi
 else
   [[ -e "$WS/.claude" || -e "$WS/CLAUDE.md" ]] && infra "loa_mount: false but the sandbox has .claude/ or CLAUDE.md"
   printf 'loa_mount=none\n' >> "$ARM_EVIDENCE_FILE"

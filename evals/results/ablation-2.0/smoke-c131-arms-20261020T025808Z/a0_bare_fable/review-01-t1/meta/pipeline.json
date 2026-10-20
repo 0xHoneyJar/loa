@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "run_id": "smoke-c131-arms-20261020T025808Z-a0_bare_fable-review-01-t1",
+  "arm": "a0_bare_fable",
+  "task_id": "review-01",
+  "task_type": "review-catch",
+  "trial": 1,
+  "source_commit": "0281ea57ad2bcc755f302dc2863f251fa3a9088e",
+  "suite_version": 2,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 30,
+  "spent_usd": 0.834571,
+  "arm_toggles": {
+    "loa_mount": false,
+    "bare_model": "fable"
+  },
+  "effort_flag": "high",
+  "arm_evidence": {
+    "base_commit": "072ee2e28d5102b0a90d9988e1e6c3466405f1bc",
+    "loa_mount": "none",
+    "bare_model": "fable",
+    "claude_md_sha256": "absent",
+    "loa_config_sha256": "absent"
+  },
+  "executor_mode": "container",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "fingerprint": "fp:38242a4e67887fdc0156ed2c2da5389318ad391247e5e24de6f5eb35257bc6fe",
+  "sandbox_fingerprint": "fp:38242a4e67887fdc0156ed2c2da5389318ad391247e5e24de6f5eb35257bc6fe",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {},
+  "phases": [
+    {
+      "name": "BARE",
+      "label": "BARE",
+      "skipped": false,
+      "session_id": "f8a7dc5c-ac74-4bff-a1aa-9a2cd9fb5913",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 8172
+      },
+      "effort_requested": "high",
+      "tokens_in": 226,
+      "tokens_out": 8172,
+      "cache_read_tokens": 170395,
+      "cache_creation_tokens": 30489,
+      "cost_usd": 0.83457125,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 156540,
+      "wall_ms": 159946,
+      "num_turns": 8,
+      "max_turns": 170,
+      "timeout_s": 4200,
+      "exit": 0,
+      "cli_exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "turn_cap_hit": false,
+      "gate_recovered": false,
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 0.557168,
+        "turns_seen": 8,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-20T03:14:19Z",
+      "finished": "2026-10-20T03:16:59Z"
+    }
+  ],
+  "mount_integrity": {
+    "claude_md": "absent",
+    "loa_config": "absent"
+  },
+  "started": "2026-10-20T03:14:18Z",
+  "finished": "2026-10-20T03:16:59Z"
+}

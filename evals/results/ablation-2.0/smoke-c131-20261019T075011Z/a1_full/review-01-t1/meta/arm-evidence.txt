@@ -1,0 +1,20 @@
+base_commit=c462bac8144541bd6fb9d26fe420edc3bc109454
+mount=tree
+copy_source=bb03e93192d981309d99bf2c87dfdce321a9c9c9
+mount_overlay=head:3
+overlay_sha256=.claude/adapters/loa_cheval/providers/anthropic_adapter.py=99be8c1416464bc83df0c2591a0aaf786987fdc6a728b1b0020c7936286e55fb
+overlay_sha256=.claude/hooks/safety/block-destructive-bash.sh=f5103c0da22e46e8c6306a044dfe4cd3a99d982c086e17cf8adf196b6ed275de
+overlay_sha256=.claude/scripts/workflow-state.sh=acbd296ad709a4f41e2246e7b6feb5e84e9063d9cc13255a1af6b889aa8d31be
+overlay_removed=0
+overlay_fix_commit=none
+gate_scripts_at_pr_version=.claude/hooks/safety/block-destructive-bash.sh,.claude/scripts/workflow-state.sh
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-05
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-bb03e93192d9
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=6bedb35ca52519b1a6ee503f0ead8a9cf956a4348487b40577e30fbb34e98962
+mount_closed=pre-launch head:3 answer paths (3 present), 3 later-only pinned versions, sandbox git = base commit only
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=4fa1d603747b6c7c03f33c5c3e2b260e8cdb651cab6935f417486b2d3e66c5c3

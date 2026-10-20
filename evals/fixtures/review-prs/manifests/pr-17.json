@@ -1,7 +1,7 @@
 {
   "fixture": "pr-17",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "253",
     "record_ref": "origin/record/cycle-128-a2a",
@@ -34,7 +34,11 @@
       "anchors": [
         369,
         373,
-        414
+        398,
+        402,
+        408,
+        414,
+        435
       ],
       "must_match": "**Status**: handed-off",
       "severity": "medium",
@@ -66,7 +70,8 @@
       "anchor_line": 224,
       "anchors": [
         222,
-        224
+        224,
+        226
       ],
       "must_match": "chmod a-w",
       "severity": "low",
@@ -96,6 +101,15 @@
       "id": "L06-unlocks-from-a-row-in-the-tracked-ledger",
       "file": ".claude/hooks/safety/block-destructive-bash.sh",
       "anchor_line": 637,
+      "anchors": [
+        637,
+        642,
+        651,
+        653,
+        655,
+        657,
+        691
+      ],
       "must_match": "# grimoires/loa/sdd.md D-5.9: a spike/<slug> branch also qualifies once its",
       "severity": "low",
       "category": "concurrency",
@@ -127,7 +141,10 @@
       "anchors": [
         42,
         57,
-        62
+        62,
+        71,
+        72,
+        76
       ],
       "must_match": "MAIN=\"$(git rev-parse --show-toplevel 2>/dev/null)\" || { echo \"chart-unblock-probe: not inside a git work tree\" >&2; exit 1; }",
       "severity": "low",
@@ -143,8 +160,12 @@
       "anchor_line": 821,
       "anchors": [
         821,
+        839,
         841,
-        846
+        846,
+        869,
+        870,
+        871
       ],
       "must_match": "# pushed, never merged, no PR. Blocked, on the carrier-scrubbed line model",
       "severity": "low",
@@ -158,6 +179,12 @@
       "id": "L10-is-an-arbitrary-execution-path-with-a-bo",
       "file": ".claude/scripts/chart-unblock-probe.sh",
       "anchor_line": 66,
+      "anchors": [
+        57,
+        66,
+        71,
+        72
+      ],
       "must_match": "(cd \"$WT\" && run_with_timeout \"$TIMEOUT\" \"$@\")",
       "severity": "high",
       "category": "security",
@@ -173,6 +200,8 @@
       "anchors": [
         360,
         369,
+        373,
+        377,
         387
       ],
       "must_match": "sanitize_for_session_start L6",
@@ -187,6 +216,11 @@
       "id": "L12-the-d-5-9-unlock-never-checks-that-the-s",
       "file": ".claude/hooks/safety/block-destructive-bash.sh",
       "anchor_line": 642,
+      "anchors": [
+        642,
+        651,
+        691
+      ],
       "must_match": "_fr11_spike_decided() {",
       "severity": "medium",
       "category": "concurrency",
@@ -202,7 +236,9 @@
       "anchors": [
         125,
         127,
-        137
+        137,
+        325,
+        347
       ],
       "must_match": "awk -v sec=\"## $1\" -v line=\"$2\" '",
       "severity": "medium",
@@ -218,9 +254,15 @@
       "anchor_line": 408,
       "anchors": [
         398,
+        407,
         408,
         414,
-        437
+        437,
+        474,
+        476,
+        478,
+        480,
+        482
       ],
       "must_match": "unattended",
       "severity": "medium",
@@ -246,6 +288,12 @@
       "id": "L16-fails-open",
       "file": ".claude/scripts/golden-path.sh",
       "anchor_line": 88,
+      "anchors": [
+        88,
+        91,
+        93,
+        94
+      ],
       "must_match": "_gp_is_unattended() {",
       "severity": "low",
       "category": "logic",
@@ -270,6 +318,10 @@
       "id": "L18-map-epic-check-misses-the-reply-shape",
       "file": ".claude/scripts/beads/create-sprint-task.sh",
       "anchor_line": 117,
+      "anchors": [
+        117,
+        118
+      ],
       "must_match": "# one-element array; labels are strings (older releases: {name} objects).",
       "severity": "low",
       "category": "logic",
@@ -300,7 +352,9 @@
       "anchor_line": 144,
       "anchors": [
         144,
-        438
+        438,
+        451,
+        458
       ],
       "must_match": "${SCRIPT_DIR}/../../grimoires/loa/a2a/",
       "severity": "low",

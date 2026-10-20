@@ -1,0 +1,168 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "anchor_type": "hunk",
+      "anchor_line": 157,
+      "anchor_line_end": 165,
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:165",
+      "cross_file_justification": null,
+      "description": "The diff deletes the `except ValueError` handler that mapped an embedded-NUL argv failure to ProviderUnavailableError. The prompt is built from untrusted review content (per the file's own comments) and passed verbatim on argv via `-p`. CPython's Popen raises `ValueError: embedded null byte` for any argv element containing \\x00; ValueError is not a subclass of OSError, so neither the FileNotFoundError nor the OSError handler catches it. `_build_prompt` and `enforce_context_window` do not strip NULs.",
+      "failure_mode": "A reviewed diff or message containing a single NUL byte makes `complete()` raise a raw ValueError instead of a typed, walkable cheval error. The fallback chain (gemini-api HTTP, etc.) never advances, and the review run for that input aborts with an unhandled exception. An author can trivially trigger this to knock the Gemini-voice review out for their PR, and if the orchestrator treats an uncaught exception as 'no result' rather than 'failure', review coverage is silently lost.",
+      "suggested_fix": "Restore the handler: `except ValueError as exc: raise ProviderUnavailableError(self.provider, f\"agy -p got un-execable argv (embedded NUL in the prompt?): {exc}\") from exc`. Additionally strip or reject NUL bytes in `_build_prompt` (e.g. `content.replace('\\x00', '')`) so the subprocess is never attempted with invalid argv.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/ledger-lib.sh:write_ledger",
+      "anchor_type": "line",
+      "anchor_line": 157,
+      "anchor_line_end": 160,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/ledger-lib.sh:157",
+      "cross_file_justification": null,
+      "description": "The pre-write guard was weakened from `jq -es 'length == 1 and (.[0] | type == \"object\")'` (exactly one top-level JSON object) to `jq empty` (any syntactically valid JSON, including scalars, arrays, `null`, and multiple concatenated documents). The stamping step `jq '.last_updated = $ts'` then runs on whatever passed. `null` input stamps to `{\"last_updated\": ...}` and overwrites the entire ledger with a near-empty object. Input such as `{} {}` or `{...}\\n{...}` passes `jq empty`, stamps into two documents, and is written as a multi-document file that single-object readers (`jq .field`) will misparse or that `jq -e` consumers will reject. The GUARD comment itself documents that this function previously truncated the ledger while callers reported success; the weakened check reopens the non-object variant of that bug.",
+      "failure_mode": "Any caller that assembles ledger content from a variable that ends up `null` (e.g. an unset jq path, `jq '.foo'` on a missing key) or that concatenates two jq outputs now silently replaces or corrupts the persistent ledger, with the lock/backup logic acting on bad content and the caller reporting success.",
+      "suggested_fix": "Restore the strict check: `printf '%s' \"$content\" | jq -es 'length == 1 and (.[0] | type == \"object\")' >/dev/null 2>&1` and keep the error message that names 'non-object'. Optionally also verify `updated_content` parses as a single object before the rename.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "tools/check-no-swallowed-jq.sh:in_heredoc",
+      "anchor_type": "hunk",
+      "anchor_line": 138,
+      "anchor_line_end": 146,
+      "scope": "diff",
+      "trigger_anchor": "tools/check-no-swallowed-jq.sh:138",
+      "cross_file_justification": null,
+      "description": "The `hd_exec` tracking and `_hd_command` detection were removed, so every heredoc body is now unconditionally skipped. Previously, heredocs fed to an interpreter (`bash <<EOF`, `... | sh`, unquoted terminators subject to expansion) were still scanned for the `jq ... || echo/printf` anti-pattern. Now `bash <<'EOF'\\n  val=$(jq .x f.json || echo '{}')\\nEOF` is executable shell that the gate no longer sees.",
+      "failure_mode": "The lint gate that exists specifically to prevent swallowed-jq data-loss bugs (the class behind the ledger truncation incident referenced in ledger-lib.sh) can be bypassed by wrapping the offending code in an interpreter heredoc. Combined with SEC-002, the two guards for the same bug class are weakened in one change.",
+      "suggested_fix": "Reinstate the `hd_exec` / `_hd_command` / INTERP logic so heredocs whose command is an interpreter, whose terminator is unquoted, or which are piped to an interpreter are scanned rather than skipped. Keep the fixture-skipping behaviour only for quoted, non-interpreter heredocs (e.g. `cat <<'EOF'` in bats tests).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tools/check-no-swallowed-jq.sh:_start_heredoc",
+      "anchor_type": "function",
+      "anchor_line": 119,
+      "anchor_line_end": 133,
+      "scope": "diff",
+      "trigger_anchor": "tools/check-no-swallowed-jq.sh:120",
+      "cross_file_justification": null,
+      "description": "The rewritten `_start_heredoc` dropped the pre-match sanitisation (stripping `$(( ))`, `(( ))`, and `<<<` here-strings) and the odd-quote check that prevented a `<<WORD` sequence inside a string literal from opening a heredoc. A line such as `msg=\"use <<EOF for heredocs\"` or `printf '%s' '<<END'` now puts the scanner into heredoc mode until a line equal to the bogus terminator appears, which may never happen.",
+      "failure_mode": "A single quoted string mentioning `<<IDENT` silences the scanner for the remainder of the file, so any swallowed-jq pattern after it is not reported. This is an easy, plausibly accidental, way to defeat the gate.",
+      "suggested_fix": "Restore the quote-parity check (`sq % 2 == 1 || dq % 2 == 1 → return`) and the `<<<` / arithmetic stripping before matching, or require the `<<` to be preceded by a shell operator or command word rather than appearing inside a quoted span.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/ledger-lib.sh:write_ledger",
+      "anchor_type": "line",
+      "anchor_line": 179,
+      "anchor_line_end": 179,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/ledger-lib.sh:179",
+      "cross_file_justification": null,
+      "description": "`printf '%s' \"$content\"` was replaced with `echo \"$content\"` on both the guard and the timestamp-stamping path. `echo` is not escape-safe: under dash/`sh`, or bash with `xpg_echo`/`shopt -s xpg_echo`, backslash sequences such as `\\n`, `\\t`, `\\\\`, and `\\uXXXX` inside JSON string values are interpreted before jq sees them, and content beginning with `-n`/`-e`/`-E` is consumed as an option.",
+      "failure_mode": "JSON strings containing escaped characters (file paths with backslashes, embedded newlines, unicode escapes) are silently rewritten on write, producing either invalid JSON (rejected, blocking the write) or subtly altered data persisted to the ledger.",
+      "suggested_fix": "Revert to `printf '%s' \"$content\"` for both the guard and the stamping pipeline; `printf` is the portable, escape-safe way to feed arbitrary content to jq.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-19T09:06:23Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 200,
+    "budget_cents_max": 600,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9574,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "c6d523afa6718166393351f7575872590f8e08557d369247424ba3c05063c268",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

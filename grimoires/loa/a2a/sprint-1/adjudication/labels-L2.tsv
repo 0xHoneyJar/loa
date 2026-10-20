@@ -1,0 +1,17 @@
+P01	labelled	Finding says the test stub's exit codes (quota -> 6) are author-chosen and mismatch cheval EXIT_CODES; same as the label's C-006 taxonomy bullet
+P02	different	Finding is about dotenv precedence and quote/comment stripping giving a false "present"; label is the secret materialised in val under xtrace
+P03	different	Finding is the unhandled 200K-1M context-window range; label is the >1000-line edge case contradicting the long full-file row
+P04	different	Finding is /^###/ matching #### headings; label is the hand-rolled fence toggle and the Date gate failing open
+P05	labelled	Finding says the porcelain compare misses writes to the shared git dir (hooks, refs, config) so the probe exits 0; that is the label's boundary defect
+P06	different	Findings are the report-glob prefix collision and handoff accepting proposed rows; label is op_close --consumed-by not requiring handed-off status
+P07	labelled	Finding says the check only greps the heading, so an empty or partial section passes, and asks for an item count vs rejected_summary length
+P08	different	Finding is loa-status.sh not printing the context class outside one branch; label is the class-unscoped large-file edge case
+P09	labelled	Auditor finding says _adv_cred_present reads the secret into val and xtrace would leak it; matches the label's first bullet
+P10	labelled	Finding says the removed except ValueError lets an embedded-NUL prompt escape as a raw ValueError; that is the planted defect
+P11	different	Finding: numeric tiers removed so splitting is not reproducible; label: parallel_threshold has no unit or reader and disagrees with the tables
+P12	labelled	Finding says _adv_cred_present reads the credential into val, contradicting "never read", and proposes grep -q; matches the label first bullet
+P13	different	Findings are bypasses (refspec push, branch -f, update-ref allowed); label is an over-broad merge span blocking prose lines, a false positive
+P14	different	Findings are about the long column label vs 400K models; label is the large-file edge case contradicting the long full-file row
+P15	different	Finding says the delete does not check the spike was pushed (data loss); label is missing tests for the decided-row and forged-transition cases
+P16	labelled	Findings say an _Aliases_ line before any term has an empty entry and reads MISS with a misleading message; matches the label
+P17	labelled	Finding says the porcelain compare misses content changes to files whose status line stays the same; same mechanism as label (ignored .run/.beads)

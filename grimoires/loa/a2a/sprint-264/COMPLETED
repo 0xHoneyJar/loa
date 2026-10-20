@@ -1,0 +1,17 @@
+sprint: sprint-264
+sprint-264 (cycle-131 sprint-2 — arms and batches: four review-catch arms, c131 suite root, arm smoke, pin, pre-registration, B1/B2a/B2b)
+
+Completion timestamp: 2026-10-20T09:36:23Z
+Branch: feature/cycle-131-honest-measurement
+Plan commit: 7600bd7d
+
+Lifecycle:
+  - Implementation: S2-A (Opus 5.5) Tasks 2.1/2.2 + lead integration — 0281ea57
+  - Review dissent run 1 (4 advisories) → r2a c0d42907; engineer review APPROVED (a2a/sprint-2/engineer-feedback.md 0/0/1/4)
+  - Audit dissent run (2 MEDIUM + 1 LOW) → r2b 798d88cf = THE PIN; audit APPROVED (auditor-sprint-feedback.md 0/0/0/1)
+  - Dissent runs used: 2 of 3
+  - Arm smoke smoke-c131-arms-20261020T025808Z (4/4 rules true; KF-051 refusal fallback)
+  - Pre-registration NOTES 2026-10-20T04:02:26Z (sha256 2ed2bfee…; DEC-0648); DEC-0649 cap handling; DEC-0650 min_valid_cells inconsistency
+  - Batches at pin 798d88cf: B1 c131-b1-oracle-ab (3/3, USD 57.62), B2a c131-b2-control-prices-a (18/18 rowed, 2 contaminated, USD 152.03), B2b c131-b2-control-prices-b (6/6 rowed, 1 contaminated, USD 82.87; one cell resumed under DEC-0649)
+  - 27 rows, USD 292.52 of the 300 allowance; scans a2a/sprint-2/batch-scans.md; tracked rows grimoires/loa/reports/ablation-2.0/c131-rows.jsonl
+  - Final commit of the sprint: f1176336

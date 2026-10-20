@@ -1,0 +1,7 @@
+2026-10-20T07:17:54Z run-ablation: c131-b2-control-prices-b-a1_no_dissent-review-r17-t2 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-b/a1_no_dissent/review-r17-t2
+arm a1_no_dissent: all_phases_present OK phases REVIEW,AUDIT
+arm a1_no_dissent: no_review_dissent_envelope OK no review envelope; code_review.enabled false; audit voices_succeeded 2
+arm a1_no_dissent: oracle_closed OK ok head:24 answer paths (24 present), 18 later-only pinned versions, sandbox git = base commit only
+arm a1_no_dissent: integrity_clean OK 1973 manifest entries verified; manifest_sha256 a3203270340d (matches checksums.json)
+arm a1_no_dissent: OK
+graded review-r17: recall 0.75 false_positives 51; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-b/a1_no_dissent/review-r17-t2/grade.json

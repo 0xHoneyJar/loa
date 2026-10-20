@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-01",
+  "defects": [
+    {
+      "id": "D01-decoy-flag-reanchor",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 210,
+      "must_match": "_bdb_re_git=\"(^|[^[:alnum:]_])git[[:space:]][^;&|]*commit",
+      "severity": "critical",
+      "category": "authz",
+      "source_commit": "900b27c4",
+      "synthetic": false
+    },
+    {
+      "id": "D02-aws-session-key-redaction",
+      "file": ".claude/scripts/lib/invoke-diagnostics.sh",
+      "anchor_line": 50,
+      "must_match": "s/AKIA[A-Z0-9]{16}/AKIA***REDACTED***/g",
+      "severity": "critical",
+      "category": "secret-leak",
+      "source_commit": "5ab3bebc",
+      "synthetic": false
+    },
+    {
+      "id": "D03-grep-count-double-zero",
+      "file": ".claude/scripts/workflow-state.sh",
+      "anchor_line": 72,
+      "must_match": "grep -c \"^## Sprint [0-9]\" \"${SPRINT_FILE}\" 2>/dev/null || echo \"0\"",
+      "severity": "low",
+      "category": "logic",
+      "source_commit": "7ce8f98b",
+      "synthetic": false
+    }
+  ]
+}

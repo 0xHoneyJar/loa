@@ -238,3 +238,79 @@ teardown() {
   run "$VS" --root "$R" --allow-partial
   [ "$status" -eq 0 ]
 }
+
+# --- cycle-131 Sprint 2 Task 2.1 (FR-5): arm toggles, took-effect rule ids, eval_only -------
+
+@test "VS-14 the committed suite declares the four cycle-131 arms with the new toggles, rule ids and eval_only, and validates; eval_only: false is accepted" {
+  make_task "$R" tasks review-catch-01 review-catch
+  [ "$(yq -r '.arms[] | select(.id == "a0_bare_fable") | .toggles.bare_model' "$SUITE")" = fable ]
+  [ "$(yq -r '.arms[] | select(.id == "a1_no_dissent") | .toggles.dissent' "$SUITE")" = false ]
+  [ "$(yq -r '.arms[] | select(.id == "a1_full_openmount") | .toggles.oracle_open' "$SUITE")" = true ]
+  [ "$(yq -r '.arms[] | select(.id == "a1_full_openmount") | .eval_only' "$SUITE")" = true ]
+  [ "$(yq -r '.arms[] | select(.id == "a1_review_only") | .phases | join(",")' "$SUITE")" = REVIEW ]
+  # the five cycle-131 rule ids appear on the arms
+  for r in oracle_closed oracle_open_recorded bare_model_fable review_only_phases no_review_dissent_envelope; do
+    yq -e ".arms[] | select(.took_effect // [] | contains([\"$r\"]))" "$SUITE" >/dev/null
+  done
+  run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a1_no_dissent") | .eval_only) = false' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "VS-15 toggles: an unknown toggle and every undefined value (bare_model: opus, dissent: true, oracle_open: false, effort: fast, gates: 0) are each a violation" {
+  make_task "$R" tasks review-catch-01 review-catch
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a1_full") | .toggles) = {"no_such_toggle": false}
+       | (.arms[] | select(.id == "a0_bare_fable") | .toggles.bare_model) = "opus"
+       | (.arms[] | select(.id == "a1_no_dissent") | .toggles.dissent) = true
+       | (.arms[] | select(.id == "a1_full_openmount") | .toggles.oracle_open) = false
+       | (.arms[] | select(.id == "a7_effort_medium") | .toggles.effort) = "fast"
+       | (.arms[] | select(.id == "a4_no_gates") | .toggles.gates) = 0' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  grep -q "suite: arm a1_full names unknown toggle 'no_such_toggle'" <<<"$output"
+  grep -q 'suite: arm a0_bare_fable toggle bare_model="opus" is not a defined value ("fable")' <<<"$output"
+  grep -q 'suite: arm a1_no_dissent toggle dissent=true is not a defined value (false)' <<<"$output"
+  grep -q 'suite: arm a1_full_openmount toggle oracle_open=false is not a defined value (true)' <<<"$output"
+  grep -q 'suite: arm a7_effort_medium toggle effort="fast" is not a defined value' <<<"$output"
+  grep -q 'suite: arm a4_no_gates toggle gates=0 is not a defined value (false)' <<<"$output"
+  yq -i '(.arms[] | select(.id == "a1_full") | .toggles) = "off"' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  grep -q "suite: arm a1_full toggles must be a mapping" <<<"$output"
+}
+
+@test "VS-16 took_effect: an unknown rule id, or a value that is not a list of ids, is a violation; the rule set is read from took-effect.sh" {
+  make_task "$R" tasks review-catch-01 review-catch
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a1_review_only") | .took_effect) += ["oracle_ajar"]
+       | (.arms[] | select(.id == "a1_no_dissent") | .took_effect) = "all_phases_present"' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  grep -q "suite: arm a1_review_only took_effect names unknown rule id 'oracle_ajar'" <<<"$output"
+  grep -q "suite: arm a1_no_dissent took_effect must be a list of rule ids" <<<"$output"
+  # every rule id the committed suite names is a rule_<id>() of took-effect.sh
+  for r in $(yq -r '.arms[] | select(.absent != true) | .took_effect[]' "$SUITE" | sort -u); do
+    grep -q "^rule_$r() {" "$REPO_ROOT/evals/harness/took-effect.sh"
+  done
+}
+
+@test "VS-17 eval_only: a non-boolean (\"yes\", 1) is a violation, and oracle_open: true without eval_only: true is one" {
+  make_task "$R" tasks review-catch-01 review-catch
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = "yes"
+       | (.arms[] | select(.id == "a1_no_dissent") | .eval_only) = 1' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  grep -q "suite: arm a1_full_openmount eval_only must be a boolean (true|false)" <<<"$output"
+  grep -q "suite: arm a1_no_dissent eval_only must be a boolean (true|false)" <<<"$output"
+  grep -q "suite: arm a1_full_openmount sets oracle_open: true without eval_only: true" <<<"$output"
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a1_full_openmount")) |= del(.eval_only)' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  [ "$(grep -c "^suite: " <<<"$output")" -eq 1 ]
+  grep -q "suite: arm a1_full_openmount sets oracle_open: true without eval_only: true" <<<"$output"
+}

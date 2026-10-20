@@ -1,0 +1,175 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/chart-unblock-probe.sh:main-tree verification",
+      "anchor_type": "hunk",
+      "anchor_line": 71,
+      "scope": "diff",
+      "description": "The main-tree protection compares only git status entries, which do not capture file contents. If a tracked file is already modified before the probe, the probe can overwrite it and leave exactly the same status entry. The helper then exits successfully despite changing the main tree.",
+      "failure_mode": "A probe overwrites existing uncommitted work in an already-dirty file; the before/after status strings remain identical, so the ticket incorrectly passes and the overwritten contents are lost.",
+      "suggested_fix": "Fingerprint file contents before and after the probe, including existing dirty and untracked files, and fail when any fingerprint changes. Include ignored contents covered by the unchanged-tree guarantee.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_research_end",
+      "anchor_type": "function",
+      "anchor_line": 451,
+      "anchor_line_end": 471,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/agents/chart-researcher.md:tools",
+      "cross_file_justification": "chart-researcher.md grants an unrestricted Write tool to a subagent that ingests untrusted WebFetch content; op_research_end in chart-ticket.sh is the only mechanical enforcement of the 'write exactly one file' rule, so a gap in its diff is a gap in the sandbox.",
+      "description": "The scope check compares two `git status --porcelain` listings and flags only lines that are new in the second listing (comm -13). A file whose status line is identical before and after is invisible: any tracked file already ` M` at dispatch time, or any untracked file already `??`, can be overwritten by the researcher without producing a new line. At the moment research-begin runs, `grimoires/loa/decisions.yaml` and `grimoires/loa/maps/<slug>.md` are almost always dirty, because op_ticket just wrote the open ledger row and the session is editing the map doc. A prompt-injected researcher (the agent file explicitly anticipates instruction-like text in fetched pages) can therefore append a `decided`/`operator:*` row to the ledger or rewrite the map doc, and research-end reports success. The awk filter also whitelists the whole `grimoires/loa/research/` directory, so overwriting other tickets' reports (which op_handoff later inlines) is likewise allowed. The `-newer` mtime check that would catch these is applied only to `.run` and `.beads`.",
+      "failure_mode": "Untrusted web content steers the researcher into writing the decision ledger or map doc; the scope check passes; the forged row is later treated as settled context by /plan-and-analyze and can unlock the FR-1.1 spike-branch deletion path in block-destructive-bash.sh.",
+      "suggested_fix": "Snapshot content, not status lines: in research-begin record `git -C ROOT status --porcelain` plus a content hash of the working tree (e.g. `git add -A --intent-to-add` is too invasive; instead hash `git ls-files -mo --exclude-standard -z | xargs -0 sha256sum`, or compare `git diff | sha256sum` and `git diff --cached | sha256sum`), and in research-end also run `find \"$ROOT\" -type f -newer \"$m\" -not -path '*/.git/*'` over the whole tree, excluding only the single expected report path (not the whole research/ directory). Fail if anything else changed.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/chart-unblock-probe.sh:after",
+      "anchor_type": "line",
+      "anchor_line": 71,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The probe's main-tree verdict has the same blind spot as DISS-001: it compares two porcelain listings as whole strings, so a probe that rewrites a file that was already modified or already untracked before the run is not detected. In addition, the throwaway worktree shares the main repo's object store and refs, so a probe can `git branch -f`, `git tag`, `git update-ref`, `git stash` or `git push` against the main repository without `git status` of the main tree changing at all. The header promises 'exits 1 when the main tree's status changed', which is narrower than 'never writes App-Zone code in the main tree'.",
+      "failure_mode": "An unblock probe silently alters already-dirty files or moves branch refs in the main repository and the helper exits 0, so the ticket records a clean probe.",
+      "suggested_fix": "Record and compare `git for-each-ref` output and a content hash of modified/untracked files alongside the porcelain listing; document the shared-refs limitation in the header if it is accepted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_fr11_spike_decided",
+      "anchor_type": "function",
+      "anchor_line": 642,
+      "anchor_line_end": 657,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new exemption lets `git branch -D spike/<slug>` through solely because a tracked YAML file says the verdict is decided. It never checks that the spike was actually pushed (SP-1 describes the spike as 'pushed as the pointer for a decision'), so a spike whose push failed or was never run is deleted along with the only copy of the prototype the DEC row points at. The gate also trusts `by: operator:*` text in a file the agent can edit with any text tool, so the ledger becomes a writable bypass of a hook whose job is to catch exactly that class of mistake.",
+      "failure_mode": "Operator decides the verdict, agent runs `git branch -D spike/x` before pushing (or after a rejected push); the hook allows it and the prototype commits become unreachable.",
+      "suggested_fix": "Additionally require `git rev-parse -q --verify refs/remotes/origin/spike/<slug>` to exist and to equal (or contain) the local branch tip before returning 0; keep the block otherwise.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": ".claude/scripts/chart-frontier.sh:FILTER",
+      "anchor_type": "line",
+      "anchor_line": 58,
+      "anchor_line_end": 59,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "create-sprint-task.sh (same diff) documents that older br releases emit labels as `{name}` objects and handles both shapes. chart-frontier.sh's label filter does `tostring` on each label and checks `startswith(\"decision:\")`; for an object label that yields the JSON text `{\"name\":...}`, which never starts with `decision:`, so every ticket fails the exactly-one-label test and the frontier is silently empty (exit 0, no output). The two scripts also disagree on the type field (`.issue_type // .type` here, `.issue_type` only in get-ready-work.sh).",
+      "failure_mode": "On a br version that emits object labels, `/chart <slug>` reports an empty frontier for a map that has open tickets, and the session may wrongly conclude it should hand off or close the map.",
+      "suggested_fix": "Normalise labels the same way as create-sprint-task.sh: `[(.labels // [])[] | if type == \"object\" then (.name // \"\") else tostring end]` before the `startswith` test, and share the type accessor between the two scripts.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T05:06:56Z",
+    "tokens_input": 125116,
+    "tokens_output": 19577,
+    "cost_usd": 0,
+    "latency_ms": 47454,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 406,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7fe80b24a6c7951e9ed52e74b4b2964c344a59e4de1b049a1bc7a64c2743d690",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

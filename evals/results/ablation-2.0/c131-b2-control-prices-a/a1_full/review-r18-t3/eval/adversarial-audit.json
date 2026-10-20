@@ -1,0 +1,188 @@
+{
+  "findings": [
+    {
+      "title": "[P1] Constrain execution before allowlisting the test wrapper",
+      "body": "The reviewer’s Bash allowlist now permits this wrapper with arbitrary arguments, but red-test-check.sh forwards the command after `--` directly to `exec` without filesystem, environment, or network isolation. With valid ancestor commits, an allowed invocation ending in `-- bash -c '...'` can modify application/framework files or read and transmit host credentials. A malicious test supplied in the reviewed changes has the same access. Changing cwd to a detached worktree does not enforce the reviewer's stated write restrictions, and linked dependency directories additionally expose the live tree to writes. Run these commands in an enforced sandbox with restricted mounts, credentials, and network access before granting blanket wrapper permission.",
+      "description": "The reviewer’s Bash allowlist now permits this wrapper with arbitrary arguments, but red-test-check.sh forwards the command after `--` directly to `exec` without filesystem, environment, or network isolation. With valid ancestor commits, an allowed invocation ending in `-- bash -c '...'` can modify application/framework files or read and transmit host credentials. A malicious test supplied in the reviewed changes has the same access. Changing cwd to a detached worktree does not enforce the reviewer's stated write restrictions, and linked dependency directories additionally expose the live tree to writes. Run these commands in an enforced sandbox with restricted mounts, credentials, and network access before granting blanket wrapper permission.",
+      "priority": 1,
+      "severity": "HIGH",
+      "category": "authz",
+      "confidence_score": 0.94,
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 7,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-akk0objk/.claude/skills/reviewing-code/SKILL.md",
+        "line_range": {
+          "start": 7,
+          "end": 7
+        }
+      },
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The reviewer’s Bash allowlist now permits this wrapper with arbitrary arguments, but red-test-check.sh forwards the command after `--` directly to `exec` without filesystem, environment, or network is",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 28,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "cross_file_justification": "The reviewer skill (diff-touched) adds Bash(.claude/scripts/red-test-check.sh *) to allowed-tools and the per-command allowlist (lines 6, 27-28). red-test-check.sh (new in diff) execs whatever argv follows `--` (line 248-250) and whatever --setup names (lines 93, 111-115, 291-292), with the operator's full environment. Phase 2 (line 219) tells the reviewer to take the red commit from reviewer.md and run a test command for it.",
+      "description": "The reviewer role was deliberately limited to `git diff`, `git log`, and a fixed set of framework scripts. This change auto-approves `red-test-check.sh *`, which is a general-purpose command executor: everything after `--` and the `--setup` string are exec'd verbatim (no runner allowlist, `bash -c ...` is accepted as argv). The command the reviewer runs is sourced from `reviewer.md`, a document written by the engineer agent / PR author, so an injected line such as `Red commit: <sha>; test command: bash -c 'curl ... | sh'` yields arbitrary code execution under the reviewer's auto-permitted tool surface, without a permission prompt, and in run mode without an operator present. The executed code also runs the untrusted red/green commits' tests with the live environment variables (tokens, credentials) inherited.",
+      "failure_mode": "Prompt injection in reviewer.md or a malicious PR test command gives arbitrary command execution in the operator's environment through an auto-allowed tool, bypassing the reviewer's intended read-only Bash boundary and the implement gate.",
+      "suggested_fix": "Do not auto-allow `red-test-check.sh *`. Either (a) drop it from allowed-tools so Claude Code prompts, or (b) make the script fail-closed on the executable: accept only argv[0] from a fixed runner allowlist (bats, pytest, npm/pnpm/yarn test, cargo test, go test) or from a `test_command` configured in .loa.config.yaml, reject `bash|sh|-c|eval`-style wrappers, and remove or likewise constrain `--setup`. Run the test with a scrubbed environment (`env -i` plus PATH/HOME) so inherited secrets are not exposed to PR code.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/red-test-check.sh:link_deps",
+      "anchor_type": "function",
+      "anchor_line": 222,
+      "anchor_line_end": 231,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "By default (`LINK_DEPS=1`) the script symlinks the live tree's `node_modules`, `.venv`, `vendor`, `target` and `.tox` into both detached worktrees (line 227) before running code from the red commit, which is by construction an unreviewed commit from the PR under review. Anything that test code writes through the symlink lands in the operator's real dependency directories: a poisoned `.venv/lib/.../sitecustomize.py`, a modified `node_modules/<pkg>/index.js`, or a cached cargo build artifact persists after the worktrees are removed and executes on the operator's next normal test or tool run. The header documents this but the unsafe behavior is the default and opt-out only.",
+      "failure_mode": "A malicious or compromised test at the red commit persists into the live dependency tree, giving durable code execution in the operator's environment beyond the ephemeral worktree.",
+      "suggested_fix": "Default to `--no-link-deps` and make linking opt-in (`--link-deps`). When linking, prefer a read-only copy (e.g. `cp -al` hard-link tree or `rsync` into the worktree, or a read-only bind mount where available) over a writable symlink into the live tree. At minimum print a prominent warning listing the linked directories before the run.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:Phase 2",
+      "anchor_type": "line",
+      "anchor_line": 219,
+      "anchor_line_end": 219,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "cross_file_justification": "SKILL.md line 219 instructs the reviewer to run red-test-check.sh with the red commit from reviewer.md and to cite its output as the evidence for 'Test fails with current code'. red-test-check.sh (lines 308-346) derives VERIFIED purely from exit codes of a caller-supplied argv.",
+      "description": "Both inputs to the verdict (the red SHA and the test command) are chosen by the party being reviewed. A command such as `bash -c 'test \"$(git rev-parse HEAD)\" = <green-sha>'` fails at red and passes at green and prints nothing matching the NOT_A_RED patterns, so the script returns VERIFIED without any real test existing. The reviewer protocol then treats this output as mechanical evidence. The script header acknowledges this scope, but the SKILL wording elevates the output to a citation for the acceptance criterion.",
+      "failure_mode": "A decoy fix passes the red-before-green gate; the reviewer cites a VERIFIED verdict that proves nothing about the test.",
+      "suggested_fix": "Require `--test-file` in the reviewer invocation and have the script fail when the test argv does not reference that file; in SKILL.md state that the reviewer must read the committed test and the exact argv, and that VERIFIED is only supporting evidence, not the AC citation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "tools/check-glossary-terms.sh:allowlist parse",
+      "anchor_type": "hunk",
+      "anchor_line": 97,
+      "anchor_line_end": 101,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Allowlist entries are taken as the first whitespace-delimited field of each non-comment line with no validation against the token grammar used for kernel spans (`^[A-Za-z][A-Za-z0-9_-]*$`). Entries containing control characters or arbitrary bytes are echoed unfiltered into WARN lines and the `--report` table on the terminal and in CI logs; there is no `strip` equivalent as in red-test-check.sh. Also, a non-conforming entry can never match a kernel token, so it silently counts toward the 30-entry cap while only ever producing a STALE warning.",
+      "failure_mode": "Terminal escape/control-sequence injection into operator and CI output via a repo-controlled file; silent acceptance of malformed allowlist entries.",
+      "suggested_fix": "Validate every allowlist token against the same regex as kernel spans and exit 2 on a malformed entry; strip control characters (tr -d '\\000-\\010\\013-\\037\\177') before echoing tokens in warnings and the report.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T06:26:21Z",
+    "tokens_input": 129050,
+    "tokens_output": 12803,
+    "cost_usd": 0,
+    "latency_ms": 38989,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 18,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 257,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

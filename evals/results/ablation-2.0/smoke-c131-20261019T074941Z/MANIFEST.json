@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "smoke-c131-20261019T074941Z",
+  "dry_run": true,
+  "smoke": true,
+  "created": "2026-10-19T07:49:44Z",
+  "source_commit": "bb03e93192d981309d99bf2c87dfdce321a9c9c9",
+  "source_worktree": "/home/merlin/.cache/loa/ablation-src-bb03e93192d9",
+  "source_commit_dot_claude_delta": " .../tests/test_pricing_resolution_ladder.py        |    2 +-\n .claude/checksums.json                             | 1510 +-------------------\n .claude/defaults/model-config.yaml                 |   36 +-\n .claude/defaults/model-config.yaml.checksum        |    2 +-\n .claude/loa/CLAUDE.loa.md                          |    2 +-\n .claude/schemas/adversarial-finding.schema.json    |   25 +\n .claude/schemas/wire/dissent-audit.wire.json       |   22 +\n .claude/schemas/wire/dissent-review.wire.json      |   22 +\n .claude/scripts/adversarial-review.sh              |  126 +-\n .claude/scripts/check-loa.sh                       |   29 +-\n .claude/scripts/generated-model-maps.sh            |    6 +\n .claude/scripts/preflight.sh                       |   22 +-\n .../resources/ADVERSARIAL-REVIEW.md                |   18 +\n .../bridgebuilder-review/dist/.build-manifest.json |    8 +-\n .../dist/config.generated.d.ts.map                 |    2 +-\n .../bridgebuilder-review/dist/config.generated.js  |   10 +\n .../dist/config.generated.js.map                   |    2 +-\n .../dist/core/truncation.generated.d.ts.map        |    2 +-\n .../dist/core/truncation.generated.js              |    1 +\n .../dist/core/truncation.generated.js.map          |    2 +-\n .../resources/config.generated.ts                  |   10 +\n .../resources/core/truncation.generated.ts         |    1 +\n .../reviewing-code/resources/ADVERSARIAL-REVIEW.md |   18 +\n 23 files changed, 388 insertions(+), 1490 deletions(-)",
+  "harness_commit": "bb03e93192d981309d99bf2c87dfdce321a9c9c9",
+  "harness_dirty": false,
+  "suite_file": "evals/suites/ablation-2.0.yaml",
+  "suite_file_path": "/home/merlin/Documents/thj/code/loa/evals/suites/ablation-2.0.yaml",
+  "suite_root": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131",
+  "tasks_dir": "smoke",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-20261019T074941Z/rows.jsonl",
+  "suite_version": 2,
+  "suite_manifest_sha256": "470ff687d629304b82e767e3dc6de59074eeb6110028d09828782eeb978ed51e",
+  "arms": [
+    "a1_full"
+  ],
+  "tasks": [
+    {
+      "id": "review-01",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-02",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-03",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-04",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-r16",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-r17",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-r18",
+      "type": "review-catch"
+    }
+  ],
+  "refused": [],
+  "trials_per_type": {
+    "build": 1,
+    "review-catch": 1
+  },
+  "trials_planned": 7,
+  "plan": [
+    {
+      "i": 1,
+      "arm": "a1_full",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-r17-t1",
+      "run_dir": "a1_full/review-r17-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-r17/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 2,
+      "arm": "a1_full",
+      "task_id": "review-03",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-03-t1",
+      "run_dir": "a1_full/review-03-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-03/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 3,
+      "arm": "a1_full",
+      "task_id": "review-01",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-01-t1",
+      "run_dir": "a1_full/review-01-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-01/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 4,
+      "arm": "a1_full",
+      "task_id": "review-r16",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-r16-t1",
+      "run_dir": "a1_full/review-r16-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-r16/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 5,
+      "arm": "a1_full",
+      "task_id": "review-04",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-04-t1",
+      "run_dir": "a1_full/review-04-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-04/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 6,
+      "arm": "a1_full",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-r18-t1",
+      "run_dir": "a1_full/review-r18-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-r18/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    },
+    {
+      "i": 7,
+      "arm": "a1_full",
+      "task_id": "review-02",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c131-20261019T074941Z-a1_full-review-02-t1",
+      "run_dir": "a1_full/review-02-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-smoke-c131/smoke/review-02/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    }
+  ],
+  "arm_map": {
+    "smoke-c131-20261019T074941Z-a1_full-review-r17-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-03-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-01-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-r16-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-04-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-r18-t1": "a1_full",
+    "smoke-c131-20261019T074941Z-a1_full-review-02-t1": "a1_full"
+  },
+  "shuffle_seed": 20261015,
+  "shuffle": "trial-major; python3 random.Random(shuffle_seed).shuffle per trial block, blocks in order",
+  "fingerprint": "fp:d83ca33769453ab7d50a3b550cd8d4703fde4a7461079d592d4a06a4e8091cc1",
+  "image": "loa-ablation:258",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "executor_mode": "container",
+  "cli_version": "2.1.299",
+  "cli_version_raw": "2.1.299 (Claude Code)",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "phase_models": {
+    "PLAN": "global.anthropic.claude-opus-5-5",
+    "IMPLEMENT": "global.anthropic.claude-opus-5-5",
+    "FIX": "global.anthropic.claude-opus-5-5",
+    "BARE": "global.anthropic.claude-opus-5-5",
+    "REVIEW": "global.anthropic.claude-fable-5-1",
+    "AUDIT": "global.anthropic.claude-fable-5-1"
+  },
+  "caps": {
+    "cycle_usd": 1500,
+    "run_usd": 12,
+    "reserve_usd": 250,
+    "max_usd": 140,
+    "run_usd_by_type": {
+      "build": 15,
+      "review-catch": 20
+    }
+  },
+  "cost_hint": {
+    "build": 7,
+    "review-catch": 8
+  },
+  "concurrency": 3,
+  "retry": {
+    "transport_retries": 1,
+    "wait_s": 120
+  },
+  "watchdog": {
+    "multiplier": 2,
+    "override_s": null,
+    "grace_s": 60,
+    "grade_timeout_s": 1800,
+    "took_effect_timeout_s": 300
+  },
+  "pre_registration_ref": "NOTES.md § Expected dissent status for the Sprint 263 closed-mount smoke",
+  "gate": null,
+  "corpus": {
+    "manifest": "evals/fixtures/review-prs/SHA256SUMS",
+    "sha256": "e3c5f8d4f69640ce47408757c92e6683d05d0f3044f49920fdc7564660678ed6"
+  },
+  "agy_opt_in": false,
+  "allow_partial": true,
+  "codex_token_exp": null,
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": null,
+    "checked": false,
+    "codex_arms": [
+      "a1_full"
+    ],
+    "horizon_source": null,
+    "required_until": null,
+    "token_exp": null,
+    "trials_counted": null
+  },
+  "environment": {
+    "os": "Linux 6.16.12+deb13-amd64 x86_64",
+    "bash": "5.2.37(1)-release",
+    "jq": "jq-1.7",
+    "yq": "yq (https://github.com/mikefarah/yq/) version v4.44.1",
+    "python": "Python 3.13.5",
+    "git": "git version 2.47.3"
+  }
+}

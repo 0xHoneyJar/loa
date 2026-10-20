@@ -19516,3 +19516,1481 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0610"
+    created_at: "2026-10-19T04:59:48Z"
+    updated_at: "2026-10-19T04:59:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 planning unattended on the templates: interview answered from the brief and the tree, no /ride (reality from May; harness-internal cycle) (D1)"
+    decision: "The operator's instruction is 'proceed as you suggest' on the deep analysis; the lead authors prd.md, sdd.md and sprint.md on the three templates following the planning skills' instructions, answers every interview phase from grimoires/loa/context/cycle-131-brief.md, analysis.md and the tree, tags each operator-level choice [ASSUMPTION decision] with a DEC row, validates with validate-artifact.sh, runs Flatline on each document and integrates HIGH_CONSENSUS items. /ride is not re-run: the reality files date from May and the cycle changes the eval harness, whose grounding is the cycle-130 run directories and scripts read in the analysis."
+    rationale: "DEC-0369 precedent (cycle-130): an interview-shaped skill in an unattended session adds prompts it cannot answer; the brief already settles scope, rules and budget"
+    alternatives_considered:
+      - option: "run /ride --enriched first"
+        rejected_because: "20 minutes for a tree the analysis just read file by file; the harness scripts, not the framework surface, are what this cycle changes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0611"
+    created_at: "2026-10-19T04:59:50Z"
+    updated_at: "2026-10-19T04:59:50Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 budget assumption: cycle cap USD 500, experiments (Sprint 2 batches) <= USD 250, review-catch run cap 20; halt only above the cap (D2)"
+    decision: "No cap was named with 'proceed as you suggest'. The cycle assumes a cap of USD 500 with the Sprint 2 batches limited to USD 250 (R1 A/B ≈ 85, R5 ≈ 30, R3 ≈ 70, R4 ≈ 45 at the cycle-130 actuals; re-grades cost nothing), per-run cap USD 20 for review-catch, concurrency 3; spend is posted in NOTES after every batch; the run halts only for spend above the cap. The operator may raise or lower the cap at any time; the batches run in the priority order R1 A/B, R5, R3, R4 so a lower cap cuts the tail."
+    rationale: "the cycle-130 headroom was 219 and the operator's last explicit allowance 300; 500 covers the planned batches plus the gates' own cost with a margin"
+    alternatives_considered:
+      - option: "reuse the cycle-130 headroom (USD 219) as the whole cap"
+        rejected_because: "the implement/review/audit gates of three sprints alone cost more than that in cycle-130"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0612"
+    created_at: "2026-10-19T04:59:52Z"
+    updated_at: "2026-10-19T04:59:52Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "cycle-131 arms pin the Sprint 2 completion commit (closed mount, grader rule, dissent anchors landed); cycle-130 rows are re-graded, never pooled (D3)"
+    decision: "Every cycle-131 arm runs the framework at the commit that completes Sprint 2 (the closed mount, the grader rule and the dissent anchor/budget change all landed), recorded in the batch MANIFEST; the cycle-130 rows are re-graded under the new grader rule for comparison but never pooled with cycle-131 rows (different pin, different mount). a0_bare, a1_full, a0_bare_fable, a1_review_only and the no-dissent review gate are all run under the same pin."
+    rationale: "the closed mount is itself a harness change, so the old pin cannot be compared like for like anyway; one pin for all arms keeps every within-cycle comparison attributable"
+    alternatives_considered:
+      - option: "keep ba11b860 as the pin and overlay the harness changes"
+        rejected_because: "the dissent anchor change is a framework change; two pins in one cycle would make the arms non-comparable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D3)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T04:59:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0613"
+    created_at: "2026-10-19T05:13:19Z"
+    updated_at: "2026-10-19T05:13:19Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-1.1: review-catch sandboxes overlay the PR's pr/base copy of every PR-touched framework path (added paths removed); head mode is the recorded fallback (D-1.1)"
+    decision: "overlay_pr_touched <ws> base runs after mount_prompt_surface for review-catch tasks: every path in head.diff's headers that exists under the sandbox framework copy, CLAUDE.md or .loa.config.yaml is replaced by pr/base/X (absent in base → removed); arm_evidence records mount_overlay=<mode>:<n> and a sha per path; the Sprint 1 smoke on all seven corpus PRs decides whether any PR class needs head mode, recorded as a DEC"
+    rationale: "base mode reveals nothing beyond head.diff and keeps a working pipeline where the PR only adds behaviour; head mode is the fallback that still holds no later-than-head copy"
+    alternatives_considered:
+      - option: "mount the framework at the PR base commit"
+        rejected_because: "changes the pipeline version under test per PR; the arms would no longer share one pin"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:13:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0614"
+    created_at: "2026-10-19T05:13:23Z"
+    updated_at: "2026-10-19T05:13:23Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-7.1: the Sprint 1 smoke (seven corpus PRs under the closed mount, ≈ USD 90) counts against the USD 500 cap, not the ≤ 250 batch allowance (D-7.1)"
+    decision: "The closed-mount smoke (one a1_full trial per corpus PR, plus one trial per new arm on pr-12) is Sprint 1's exit check and is budgeted inside the cycle cap but outside the batch allowance of DEC-0611; smoke rows decide nothing (DEC-0428)"
+    rationale: "the smoke proves the mount before any pre-registered row; charging it to the batch allowance would starve the prices"
+    alternatives_considered:
+      - option: "skip the smoke"
+        rejected_because: "a mode that breaks a gate on one PR class would surface only inside a pre-registered batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-7.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:13:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-7.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0615"
+    created_at: "2026-10-19T05:14:24Z"
+    updated_at: "2026-10-19T05:14:24Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-1.2/1.3: oracle_closed is a took-effect rule; the grader scans transcripts for a head-vs-workspace diff covering a planted site (D-1.2)"
+    decision: "took-effect.sh gains oracle_closed (every PR-touched path under the mount byte-equals its pr/base or pr/head version per the recorded mode, absent counts as closed) on every mounted arm; ablation-grade.sh scans REVIEW/AUDIT transcripts for a content diff (diff/sdiff/comm/git diff --no-index, not -q, not the word head.diff, not heredoc bodies) between a pr/ operand and a workspace operand of a PR-touched file whose printed ranges cover a planted site, writing oracle_exposed_defects and oracle_exposed_events; synthetic-transcript bats cases"
+    rationale: "a leaked sandbox must stop the batch, not just mark a row; the detector is the one the analysis validated on 36 runs"
+    alternatives_considered:
+      - option: "grader-only check"
+        rejected_because: "a batch would keep spending on a leaked mount"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0616"
+    created_at: "2026-10-19T05:14:26Z"
+    updated_at: "2026-10-19T05:14:26Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-2.1-2.3: grader rule ±3 OR same enclosing function (400-line cap, ±20 fallback); multi-site anchors; both rules reported; report partitions by pin (D-2.1)"
+    decision: "recall-vs-defects.sh 1.3.0 detects a defect when a citation is within ±3 of a site OR any cited line shares the site's enclosing symbol (bash function, python def, bats @test, markdown heading section), searching ≤ 400 lines back (longer → ±20); details carry rule, detected_pm3, missed_pm3, recall_pm3; manifests gain every head line the human finding named, re-approved; grade/row/report carry both rules and the primary defect_catch_rate uses the rule the batch pre-registration names; ablation-report.py partitions by source_commit"
+    rationale: "the function is the semantically defensible unit; a cap prevents a 2,000-line main from crediting everything; the old rule stays visible so nothing shipped is rewritten"
+    alternatives_considered:
+      - option: "widen the window to ±20 everywhere"
+        rejected_because: "credits unrelated findings; the gap shrank monotonically with the window in the analysis, which is leniency, not truth"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-2.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-2.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0617"
+    created_at: "2026-10-19T05:14:28Z"
+    updated_at: "2026-10-19T05:14:28Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-3.1-3.3: run-ablation --allow-partial in MANIFEST; KF-046 class 7 exempts a repo-name token present in the PR fixture; dissent_absent_gates row field (D-3.1)"
+    decision: "--allow-partial is a runner flag appended to the freeze check and every grader argv and recorded in MANIFEST.json (resume keeps it); the contamination scan treats a repo_name match as PR content when the token occurs in the fixture's head tree or head.diff; ablation-row.sh 1.4 records dissent_absent_gates (envelope status budget_exceeded/failed/record-fallback per gate) and ablation-report.py prints a labelled sensitivity excluding those rows; degraded keeps its definition"
+    rationale: "each is the minimal change that unblocks the replication root, the two contaminated replication rows and bd-ocovl"
+    alternatives_considered:
+      - option: "make partial suites the default"
+        rejected_because: "the four-per-type count is the suite freeze contract; partial must be explicit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-3.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:14:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-3.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0618"
+    created_at: "2026-10-19T05:15:09Z"
+    updated_at: "2026-10-19T05:15:09Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-4.1/4.2: dissent gets optional numeric anchors (symbol anchor stays); budget_scale fixed|diff, max 600 c, diff only in the eval config (D-4.1)"
+    decision: "adversarial-review.sh asks each voice for anchor_line (and anchor_line_end) beside anchor/anchor_type; the normaliser keeps integers only; the schema adds the two optional integers; the grader's envelope reduction reads anchor_line with the anchor's path as path:line[-end]; flatline_protocol.<gate>.budget_scale: fixed|diff (default fixed) with budget_cents = max(configured, estimate × 1.1) capped by budget_cents_max (600); the eval config for mounted arms sets diff; the shipped .loa.config.yaml is untouched"
+    rationale: "the component cannot be priced while the grader cannot see it and its own gate refuses to run it on real diffs; additive fields keep every consumer working"
+    alternatives_considered:
+      - option: "replace the symbol anchor with a line anchor"
+        rejected_because: "anchor_stability and the hallucination filter key on the symbol; the companion contract (cycle-126) would change"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-4.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:15:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-4.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0619"
+    created_at: "2026-10-19T05:15:11Z"
+    updated_at: "2026-10-19T05:15:11Z"
+    phase: "architecture"
+    category: "design"
+    summary: "D-5.1-5.4: arms a0_bare_fable, a1_review_only, a1_no_dissent with one took-effect rule per toggle (D-5.1)"
+    decision: "Three review-catch-only arms: a0_bare_fable = a0_bare with toggle bare_model: fable (pipeline-run maps BARE to global.anthropic.claude-fable-5-1; effort high) and took-effect bare_model_fable; a1_review_only = a1_full with phases [REVIEW] and took-effect review_only_phases; a1_no_dissent = a1_full with toggle dissent: false (sandbox config flatline_protocol.code_review.enabled: false, audit unchanged) and took-effect no_review_dissent_envelope; a1_full gains oracle_closed"
+    rationale: "the model-only comparison needs the same effort as a0_bare; the audit price needs the review gate alone; the dissent price needs the review gate without its dissent, audit intact"
+    alternatives_considered:
+      - option: "price the dissent with a3_one_voice"
+        rejected_because: "one voice still produces an uncreditable envelope; the question is the gate with no dissent at all"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-5.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:15:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-5.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0620"
+    created_at: "2026-10-19T05:17:48Z"
+    updated_at: "2026-10-19T05:17:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Batch allowance raised to USD 275 of the 500 cap (amends DEC-0611): the within-pin oracle A/B needs an open-mount arm on pr-17 (≈ 105) beside B2 (≈ 155) (F2)"
+    decision: "DEC-0611's ≤ 250 batch allowance becomes ≤ 275: B1 = a1_full_openmount and a1_full on pr-17 × 3 each (≈ USD 105), B2 unchanged (≈ 155; a1_review_only on pr-13 is the first cut if B1 overruns); the cycle cap stays USD 500; the Sprint 1 smoke (≈ 90, DEC-0614) and the gates' own cost fill the rest."
+    rationale: "a within-pin A/B is the only reading of the oracle that is not confounded by the pin's other changes; its cost is the open-mount arm"
+    alternatives_considered:
+      - option: "keep 250 and drop the open-mount arm"
+        rejected_because: "B1 would then compare across pins and could not attribute a difference to the oracle"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-f-flatline-integration (F2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:17:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0621"
+    created_at: "2026-10-19T05:23:16Z"
+    updated_at: "2026-10-19T05:23:16Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Flatline PRD blockers integrated by judgment (KF-041 shape): within-pin oracle A/B, fix-commit paths, read detector, 3-way re-grade, interval rules (F1)"
+    decision: "Blocker themes from the two-voice PRD review integrated into prd.md/sdd.md before any row: (1) the oracle A/B compares a1_full_openmount (eval-only arm, overlay off) with a1_full at the same pin on pr-17 — never against cycle-130 cells; (2) the overlay covers PR-touched paths plus every path the fixture's fix commit touched; oracle_closed also fails on a stray later copy anywhere outside pr/; (3) overlay evidence (sha per path) is written before the first phase and compared after (mount_mutated); (4) the grader's exposure detector also flags reads of a PR-touched workspace path whose output holds a later-than-head line at a planted site, and is validated on the 36 cycle-130 run dirs (must flag exactly review-04 t2, review-r17 t1, review-r18 t1); (5) three-way re-grade into a separate rows file (old rule + old anchors must equal stored; old rule + new anchors; new rule + new anchors), originals untouched; (6) interval-based, mutually exclusive pricing rules with the unit defined (defect-level paired bootstrap, trials averaged per defect), the decision statistic pre-committed as the new rule with ±3 beside, 2-PR cluster bootstrap descriptive; (7) sandbox manifest regenerated after the overlay; (8) per-row disclosure of the overlay mode and of any gate script run at the PR's version; (9) batches B1/B2 use pr-17 and pr-18 only — pr-12 and pr-13 touch the gate machinery itself, so they stay in the re-grade. Declined: adjudicating every function-rule credit (the 20-packet blind sample with a kappa floor of 0.6 stands)."
+    rationale: "each blocker names a way the measurement could be wrong again; integrating before the first row is cheaper than another deep analysis"
+    alternatives_considered:
+      - option: "re-run Flatline to chase consensus scoring"
+        rejected_because: "KF-041: the review content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/prd.md#appendix-f-flatline-integration (F1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:23:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0622"
+    created_at: "2026-10-19T05:25:06Z"
+    updated_at: "2026-10-19T05:25:06Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Overlay default is head mode (mounted copy = pr/head for answer paths), scoped to .claude/; base is the fallback — amends DEC-0613 after the SDD review (E1)"
+    decision: "The review-catch overlay replaces every answer-bearing path under the sandbox framework directory with its pr/head version (added paths present, deleted paths removed; a fix-commit path outside the PR takes its content at the fixture's head_commit via git show, or is removed when absent there), so the agent's reads of the mounted copy keep head line coordinates and the grader's head/<path>:<line> credit stays consistent; CLAUDE.md and .loa.config.yaml are harness-owned and outside the answer set (the toggles rewrite them after the overlay). base mode is the recorded per-task fallback (task.yaml review_catch.overlay_mode) when a head-version gate script breaks a gate on the Sprint 1 smoke. Disclosure per row: the gates run the PR's version of any touched gate script or skill."
+    rationale: "base mode moves every line number of a touched file and removes added lines, so a reviewer reading the mounted copy would mis-cite; head mode is the PR itself, which is what the reviewer is meant to read"
+    alternatives_considered:
+      - option: "keep base mode (DEC-0613)"
+        rejected_because: "coordinate mismatch with the grader and added-line defects absent from the mounted copy"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:25:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0623"
+    created_at: "2026-10-19T05:29:16Z"
+    updated_at: "2026-10-19T05:29:16Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Flatline SDD blockers integrated (KF-041): immutable verifier source, pristine pinned copy, dissent_absent_reason, no pooling across rules (E2)"
+    decision: "oracle_closed compares the sandbox against the immutable fixture under evals/fixtures/review-prs (SHA256SUMS-checked), never the agent-writable pr/; pipeline-run.sh runs the closed-mount check before the container starts and refuses to launch on a failure; the framework is copied only from the runner's pristine detached worktree at the pin (copy_source must equal source_commit); diff headers are parsed with quoted paths, renames, /dev/null and binary hunks handled and paths normalised; the sandbox .git must hold exactly the base commit; the detector also reads non-Bash Read/Grep tool_use events and records unparseable diff results as exposed_unknown; rows carry grader_rule, grader_version, corpus_sha256, config_variant (eval) and dissent_absent_reason per gate; ablation-report.py refuses to pool rows whose grader_rule or source_commit differ; a harness fix between B1 and B2 means B1 is re-run at the new pin or B2 runs without the fix; adjudication < 80 % → recall_pm3 becomes the decision statistic (DEC). Declined: resolving symbol-only dissent anchors to line ranges in the grader."
+    rationale: "each blocker names a way a row could be wrong or unreproducible; all are cheap before the first row"
+    alternatives_considered:
+      - option: "re-run Flatline to chase consensus"
+        rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E2)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:29:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0624"
+    created_at: "2026-10-19T05:47:24Z"
+    updated_at: "2026-10-19T05:47:24Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Flatline sprint blockers integrated (KF-041): E2E before PR, record secret scan, fsck closure, exposed_unknown excluded, adjudication fallbacks (D1)"
+    decision: "Sprint-plan review integrated by judgment: Task 3.E2E precedes the PR (3.3 ⇐ 3.E2E) with a post-publication check appended; a secret scan runs over the record tree before it is pushed; check_mount_closed runs after toggles, config writes and manifest regeneration; oracle_closed clause d adds git fsck --unreachable and packfile checks; exposed_unknown rows are excluded pairwise and reported; the detector validation is a floor (the three known runs flagged, no bare run; extra hits read by hand); the pin is the commit after Tasks 2.1 and 2.2 and any later harness/grader/framework fix re-pins and re-runs the affected batch; the adjudication protocol gains fallbacks (fewer eligible → all; empty stratum → redistribute; kappa < 0.6 after a third labeler → not adopted), a sample of anchor-expansion credits and a Wilson interval; exclusion counts per arm and an all-rows sensitivity accompany every read; a cycle spend ledger precedes Sprint 2; G-6 is an allowlisted default check with the additive schema fields listed; the smoke PR list is the explicit seven (pr-05, 08, 12, 13, 16, 17, 18); dependencies 1.3 → 1.6/1.9 and 1.4/1.6 → 1.11; manifests/v1 verified against ba11b860; dissent runs before the batches (KF-037); the eval-only refusal exempts smoke batches."
+    rationale: "each blocker names an ordering, accounting or coverage gap that would surface mid-sprint; all are cheaper before the first commit"
+    alternatives_considered:
+      - option: "re-run Flatline for consensus scoring"
+        rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e9a66e16"
+    source: "grimoires/loa/sprint.md#d-flatline-integration-sprint-run-2026-10-19 (D1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T05:47:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-integration-sprint-run-2026-10-19 (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0625"
+    created_at: "2026-10-19T06:00:23Z"
+    updated_at: "2026-10-19T06:00:23Z"
+    phase: "implementation"
+    category: "process"
+    summary: "System Zone authorization extended to the two dissent wire schemas for optional anchor_line/anchor_line_end (SZ-1)"
+    decision: "Implementer C found that schema-enforced voices (claude-headless --json-schema) are held to the closed wire schemas .claude/schemas/wire/dissent-review.wire.json and dissent-audit.wire.json, so FR-4's numeric anchors would be rejected on the wire. The PRD's System Zone authorization list (adversarial-review.sh, adversarial-finding.schema.json, the two ADVERSARIAL-REVIEW.md resources, checksums regeneration) is extended to the two wire schemas for exactly two optional integer fields (anchor_line, anchor_line_end, minimum 1); additionalProperties, enums and required lists stay as they are; a test asserts both shapes validate and the enum-equality marker test stays green."
+    rationale: "without the wire change the field exists only for unenforced hops and the measured numeric-anchor share would be an artefact of enforcement, not of the voices"
+    alternatives_considered:
+      - option: "request the field only from unenforced hops"
+        rejected_because: "the companion voice is the one most often enforced; the metric would silently exclude it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/prd.md#technical-considerations (SZ-1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:00:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#technical-considerations (SZ-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0626"
+    created_at: "2026-10-19T06:52:00Z"
+    updated_at: "2026-10-19T06:52:00Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Task 1.5 curation rules accepted: review-cited lines mapped to head by content, HEAD-ABSENT skipped, cap 6, blinding held (D-T1.5)"
+    decision: "Implementer D's multi-site anchor curation (44 defects, 112 lines, pr-11 … pr-18; pr-01 … pr-10 unchanged, no label_source): a line is added when the human finding cites it, names the statement on it or quotes its code; when the review cites a later commit than the fixture head the line is mapped to head by content, never by number; a cited site absent from head is listed HEAD-ABSENT and not added; citations in a file other than defect.file are listed, not added; blank range endpoints skipped; at most 6 added lines per defect (pr-17 L14 carries 10 sites after dedup with the originals); the originals are kept byte-identical under manifests/v1/ and equal the ba11b860 pin; SHA256SUMS regenerated offline with --freeze (860 entries). The lead spot-checked pr-13 L02, pr-16 L03, pr-17 L06/L09/L14 and accepts the curation; approved_by carries the lead stamp with the curator named. Blinding held: no run directory, analysis file or record/cycle-130-analysis content was read (D's worktree holds none). Follow-up bd-y4pqj: labels/*.tsv in step with the anchors."
+    rationale: "the rule credits what the human finding actually said, mapped to the fixture's own lines, and nothing the arms produced"
+    alternatives_considered:
+      - option: "regenerate manifests from labels/*.tsv with --build-manifest"
+        rejected_because: "the TSV labels hold one row per anchor and were not extended; keeping them in step is the follow-up bead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/a2a/sprint-1/anchors-curation.md#blinding-statement (D-T1.5)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:52:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-1/anchors-curation.md#blinding-statement (D-T1.5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0627"
+    created_at: "2026-10-19T06:57:40Z"
+    updated_at: "2026-10-19T06:57:40Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Overlay refuses a dirty or non-git copy source (copy_source ends -dirty); oracle_closed passes with stated evidence on build and unmounted runs (A-T1.1/1.2)"
+    decision: "copy_source ends in -dirty when the source tree's .claude/ has uncommitted or untracked changes; a dirty or non-git copy source refuses the overlay before launch. The took-effect rule oracle_closed passes, stating that as its evidence, on build runs and on runs with no mount, because a1_full applies to every task type; it fails on an unmodified mount, a stray copy, a mutated path or a second commit, and sorts failures by clause a, b, c, d printing the first with a (+N more) count. A path whose pre-run hash was already wrong reports (a); one that was correct and then changed reports (c) mount_mutated. The overlay writes five extra evidence keys (overlay_removed, overlay_fix_commit, overlay_fixture, overlay_source_tree, mount_closed); took-effect falls back to overlay_fixture when given no --task-yaml and never accepts a fixture inside the run directory."
+    rationale: "a dirty source cannot be pinned to a commit, so its overlay is not reproducible; build and unmounted runs have no answer path to leak"
+    alternatives_considered:
+      - option: "skip oracle_closed on build tasks"
+        rejected_because: "the suite declares the rule per arm, not per task type; a per-type skip would need a second rule list"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0628"
+    created_at: "2026-10-19T06:57:43Z"
+    updated_at: "2026-10-19T06:57:43Z"
+    phase: "implementation"
+    category: "design"
+    summary: "bare_model: fable overrides --phase-models and suite phase_defaults for BARE; drift guard expects Fable; exactly one claude-fable key, no opus key (A-T1.1/1.2)"
+    decision: "With toggle bare_model: fable the BARE phase runs on global.anthropic.claude-fable-5-1, overriding --phase-models and the suite's phase_defaults for that run; run-ablation's drift guard expects Fable on BARE for those runs so a0_bare_fable rows do not count as drift. The took-effect rule bare_model_fable requires exactly one model key starting global.anthropic.claude-fable and no global.anthropic.claude-opus key; other models (the WebFetch summariser of DEC-0545) are allowed. no_review_dissent_envelope also fails when a review envelope exists in the sandbox, not only in eval/. Toggles that edit .claude/ content (effort, karpathy_block, rule_files, audit_delta_instruction) fail the pre-launch check on a review-catch PR whose answer set includes the edited file; no cycle-131 arm uses them."
+    rationale: "the control arm must differ from a0_bare in model only, and the harness must be able to tell that it did"
+    alternatives_considered:
+      - option: "declare the Fable control through --phase-models alone"
+        rejected_because: "the toggle lives in the arm declaration and leaves evidence in the run; a CLI flag leaves none"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0629"
+    created_at: "2026-10-19T06:57:47Z"
+    updated_at: "2026-10-19T06:57:47Z"
+    phase: "implementation"
+    category: "design"
+    summary: "--allow-partial recorded as MANIFEST.json.allow_partial; on --resume the manifest value wins and a conflicting flag is a usage error (A-T1.7)"
+    decision: "run-ablation.sh --allow-partial passes the flag to the freeze check and to every grader call and writes MANIFEST.json.allow_partial. On --resume the value comes from the batch manifest; a manifest without the key counts as false; passing the flag on a batch that started without it is a usage error; without the flag the run takes the manifest's value. Three existing stubs were edited in place without the c131- prefix because the old ones fail under the new code: mount-lib-stub.sh, ablation-pipeline-stub.sh and ablation-grade-stub.sh."
+    rationale: "a batch's partial-suite status is a property of the batch, fixed at its first launch, and must not change between resumes"
+    alternatives_considered:
+      - option: "accept the flag on every resume and re-check"
+        rejected_because: "a late flag would let a batch started as a full suite be graded as partial, silently changing what its rows mean"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:57:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0630"
+    created_at: "2026-10-19T06:58:15Z"
+    updated_at: "2026-10-19T06:58:15Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Closed-mount answer set: PR-touched + fix-commit .claude/ paths; checksums.json excluded; symlinks removed; fix-only paths at head_commit (A-T1.1)"
+    decision: "The answer set for the closed mount is every PR-touched path plus every fix-commit path under .claude/, except .claude/checksums.json (harness-owned, regenerated, holds hashes not content; the pr-12 and pr-18 fix commits touch it). A path that is a symlink in the fixture's head/ or base/, or has a symlink component, has no version: it is removed from the mount, expected absent and never written as a link (the corpus holds none). A fix-commit path outside the PR takes git show <head_commit>:X in both overlay modes; when head_commit is unknown the path is removed. Clause (b) compares later-only pinned versions only (non-empty, matching no expected version and no fixture file) so pure renames or reverts do not false-hit; the scan skips pr/ and .git/. Clause (d) also rejects an objects/info/alternates file and any later-only pinned blob in the sandbox object store; git runs with empty global and system config, core.fsmonitor=false, no pager and literal pathspecs."
+    rationale: "the answer-bearing content is what the fix commit changed; hashes, links and renames carry no answer, and the sandbox .git is untrusted"
+    alternatives_considered:
+      - option: "include checksums.json in the answer set"
+        rejected_because: "it is regenerated by the harness and would make every mount fail the pre-launch check on a hash line that carries no fix content"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T06:58:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0631"
+    created_at: "2026-10-19T07:04:25Z"
+    updated_at: "2026-10-19T07:04:25Z"
+    phase: "implementation"
+    category: "design"
+    summary: "pr-12 under the closed mount: mounted cheval cannot import (private_workspace_base skew); expected dissent absent on both gates, recorded, re-grade-only"
+    decision: "A lead probe of the closed mount on real fixtures (head and base modes) shows pr-12's overlay writes headless_cli.py at the PR's head_commit (2026-09-25) while three pinned headless adapters import private_workspace_base, added 2026-10-04 between pr-12's head and fix commits; the mounted cheval raises ImportError on pr-12 and every dissent voice will fail there. The expected-dissent table is amended before the smoke: review-03 is expected to complete both gates with dissent_absent_gates = review,audit and an infrastructure reason naming the import; pr-12 stays excluded from the numeric-anchor share and stays re-grade-only (DEC-0611); no cycle-131 batch runs on it. pr-13 and pr-18 import cleanly under the overlay. The import skew is a property of partial overlays (fix-commit paths outside the PR rewound to head_commit beside pinned importers), not a defect in the overlay rule; widening the answer set to the importers would reopen the oracle question."
+    rationale: "the smoke must be read against an expectation written before it runs; a dissent failure on pr-12 is now a predicted infrastructure effect, not an unexplained degradation"
+    alternatives_considered:
+      - option: "overlay the whole framework at head_commit for pr-12 (brief option b)"
+        rejected_because: "a design change outside Sprint 263 scope; pr-12 is re-grade-only so no measurement depends on it this cycle"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/NOTES.md#pre-smoke-expectation-amendment-pr-12 (lead probe, overlay-probe.sh)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:04:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#pre-smoke-expectation-amendment-pr-12 (lead probe, overlay-probe.sh)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0632"
+    created_at: "2026-10-19T07:06:20Z"
+    updated_at: "2026-10-19T07:06:20Z"
+    phase: "implementation"
+    category: "design"
+    summary: "FR-1 AC4 ruling: oracle_exposed_defects stays the diff+read union as specified; by-form split reported; diff-only is a labelled sensitivity (B-T1.3)"
+    decision: "Implementer B's detector, validated on the 36 cycle-130 runs, flags the diff form on review-04 t2 (d1-d4), r17 t1 (8 sites; the analysis's ninth, d10, was a later-side coincidence) and r18 t1 (d7), plus two genuine head-versus-later-copy diffs the analysis missed (r17-t2 REVIEW event 144 and r17-t3 REVIEW event 137, loop-variable diffs oracle_scan.py could not resolve); the read form adds incidental later-copy reads covering a planted site on seven more full-arm runs (review-04 t1/t2/t3 d5, review-01 t2/t3 d2, review-02 t2/t3 d3, review-03 t2 d1); no bare run is flagged. Ruling: oracle_exposed_defects remains the union of both forms exactly as the SDD specifies; oracle_exposed_by_form {diff, read} is written beside it; the Task 1.9 re-grade and the Sprint 3 reads report the FR-6 exclusion under the union as the main read and the diff-form-only exclusion as a labelled sensitivity. The PRD's AC4 wording (exactly three runs) is recorded PARTIAL: it was written against a weaker detector, and narrowing the detector after seeing which runs it flags would be the post-hoc ruler move this cycle exists to stop. Under the closed mount the detector never fires (a path byte-equal to the fixture's head or base is skipped), so Sprint 264 batches are unaffected."
+    rationale: "a reviewer who reads the fixed text at a planted site is exposed whether or not it used it; the pre-specified union is the conservative rule and the by-form split preserves the information"
+    alternatives_considered:
+      - option: "set oracle_exposed_defects = by_form[diff] so AC4 reads exactly three runs"
+        rejected_because: "changes the pre-specified exclusion after seeing its effect on the cells; the diff-only read is kept as a labelled sensitivity instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#findings (B-T1.3 detector validation; lead ruling on FR-1 AC4)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:06:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#findings (B-T1.3 detector validation; lead ruling on FR-1 AC4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0633"
+    created_at: "2026-10-19T07:12:10Z"
+    updated_at: "2026-10-19T07:12:10Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Dissent wire schemas take anchor_line/anchor_line_end as nullable-required integers; normaliser bounds 1..10,000,000, drops strings, end without start (C-T1.8)"
+    decision: "The two wire schemas .claude/schemas/wire/dissent-review.wire.json and dissent-audit.wire.json gain anchor_line and anchor_line_end in the nullable-required form (anyOf integer|null, listed in required) rather than the optional-minimum form, because schema-enforced voices (claude-headless --json-schema) are held to a closed required list; five kf004 fixtures gain the null keys (s1-c-fixtures.patch) and without them FR7-10 and the wire fixture pytest go red. The normaliser keeps integer anchors in 1..10,000,000, drops integer-valued strings and floats without repair, drops an end without a kept start, keeps end == start, and also runs on the schema-enforced branch (dropping the nulls strict voices emit) only when a finding carries the keys. A symbol-only envelope normalises byte-identical to the 1.x output (NRM-70). The audit prompt gets its own anchor shape line. This amends DEC-0625 with the exact schema form."
+    rationale: "strict voices cannot omit a key the closed schema lists, so the field must be required-nullable to reach the wire at all; the bounds keep a hallucinated line from indexing anything"
+    alternatives_considered:
+      - option: "optional integer with minimum 1 (the finding schema form)"
+        rejected_because: "an optional key is rejected by the closed wire schema when present and unlisted, and absent when the voice is strict; the nullable-required form is the only one both voices can satisfy"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:12:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0634"
+    created_at: "2026-10-19T07:12:33Z"
+    updated_at: "2026-10-19T07:12:33Z"
+    phase: "implementation"
+    category: "design"
+    summary: "budget_scale: envelope names the scaling only when the key is set; literal formula capped by budget_cents_max; malformed values fall back to fixed (C-T1.8)"
+    decision: "_adv_conf_budget_scale reads flatline_protocol.<gate>.budget_scale (fixed|diff, tag-checked, case-sensitive; Diff, yes, numbers, lists and maps are malformed) and budget_cents_max (default 600; a malformed max makes the whole scale fall back to fixed). _adv_budget_effective applies min(max(configured, ceil(estimate x 1.2)), budget_cents_max) literally, so under diff a configured budget above the max is held to the max; configured means the effective --budget CLI value when given, else the config's budget_cents. The envelope carries budget_scale, budget_cents_effective, budget_cents_max and reason: budget on a refusal only when the budget_scale key is written; an absent key gives an envelope byte-identical to before. The example config writes budget_scale: fixed and budget_cents_max: 600 uncommented in the style of its siblings; the shipped default stays fixed; the eval variant (budget_scale: diff) is applied by the harness (DEC-0618)."
+    rationale: "a copier of the example gets the documented default and an envelope that names its own scaling; a scaled budget must never exceed the stated ceiling"
+    alternatives_considered:
+      - option: "always write the scaling fields to the envelope"
+        rejected_because: "changes every existing envelope and the fixtures that pin them for a field that carries no information under fixed"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:12:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0635"
+    created_at: "2026-10-19T07:22:45Z"
+    updated_at: "2026-10-19T07:22:45Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Grader 1.3.0: _pm3/_pm3_v1 keep the 1.2.0 rule; validity and 25-line cap bind recall only; scope = enclosing definition <= 400 lines (B-T1.4)"
+    decision: "recall_pm3 and recall_pm3_v1 apply the 1.2.0 citation rule byte-for-byte (the regression recall_pm3_v1 == stored recall holds 36/36; with the 25-line cap applied to _pm3 two runs, p1b review-02 t1-r2 and replication a0 r17-t3, would fail it). Citation validity (positive, ordered, inside the head file) and the 25-line range cap bind the new recall only. Scope is the enclosing definition by header line for bash, bats, python and markdown, innermost on nesting; bash and bats end at the first closing brace at the header's indentation and a one-line function ends on its header; python ends before the first dedented line; a site outside every definition has no scope (±3 only) and a cited line inside a definition over 400 lines has no scope. The head directory is EVAL_HEAD_DIR, else <manifest dir>/../<pr>/head, else <ws>/pr/head: the immutable fixture head, never the sandbox pr/. flags, findings_cited, the refuted share and false positives keep reading raw citations unchanged. A numeric dissent anchor uses the anchor's path part when it has a file extension, else the finding's file; the end is used only when greater than the start."
+    rationale: "the regression statistic must be the old ruler unchanged, and the new ruler must credit same-function prose without crediting whole files"
+    alternatives_considered:
+      - option: "apply validity and the range cap to every result"
+        rejected_because: "two stored grades would no longer reproduce, so the versioned re-grade could not show the rule change alone"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0636"
+    created_at: "2026-10-19T07:22:47Z"
+    updated_at: "2026-10-19T07:22:47Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Oracle detector: head-side ranges by operand order; byte-equal paths skipped; later-only line >= 8 chars; corroboration rule; BARE scanned (B-T1.3)"
+    decision: "The detector reads ranges on the head side chosen from operand order (a pr/base operand reads both sides; either-side would give r18 t1 two defects). A path whose sandbox copy byte-equals the fixture's head or base is skipped, so a closed mount in either mode never fires. A later-only line must be in neither head nor base and at least 8 characters; multi-file reads credit only result lines that name the file; must_match needs at least 12 characters; text in a multi-target command that no header attributes needs corroboration (a range near the site plus the head file's own text near it, or must_match). A diff to /dev/null, piped to wc, grep -c/-q/-l or cmp, or with an is_error result never exposes. BARE transcripts are scanned too. oracle_exposed_defects is the diff and read union (DEC-0632), oracle_exposed_by_form keeps the split, unknown exposures are a separate list the report counts as exposed. KF-046 class 7: the unit is the backtick span holding the token, else its line, exempt when a substring of a fixture line (whole-line equality would clear neither replication row)."
+    rationale: "the detector must fire on a reviewer that saw fixed text at a planted site and stay silent on reads of the PR's own files or of unrelated later text"
+    alternatives_considered:
+      - option: "either-side ranges and whole-line class 7 equality"
+        rejected_because: "either-side over-flags r18 t1 by a coordinate coincidence and whole-line equality clears neither genuinely PR-quoted replication row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0637"
+    created_at: "2026-10-19T07:22:49Z"
+    updated_at: "2026-10-19T07:22:49Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Row 1.4 / report 1.3: legacy rows grader_rule pm3 with null new rates; dissent precedence; partitions version x pin x rule; min_valid_cells 4 (B-T1.6)"
+    decision: "A 1.2.x review row gets grader_rule pm3 and null new rates, nothing inferred; row_writer_version 1.4 gates the --validate requirement so legacy rows still validate. Dissent precedence is disabled > budget > preflight > error > none; disabled comes from the sandbox config or dissent=false evidence; a gate that did not run is null; dissent_absent_gates includes disabled. The report partitions by version x pin x rule (keys <v> · pin <12> · rule <r>, split only when a version holds more than one pin or rule; the primary is the highest version's largest partition), prints _pm3 and _pm3_v1 beside every catch read, keeps oracle-exposed cells in the main read by default and applies the FR-6 exclusion under --exclude-oracle-exposed true, which every Sprint 264 pre-registration must name for its main read; valid cells per task are the smaller of the two arms' valid trial counts with rules.min_valid_cells 4 (insufficient) checked after the degenerate check. corpus_sha256 hashes the SHA256SUMS above the key's manifests/ and is null for build tasks."
+    rationale: "rows written under the old grader must stay readable and distinguishable, and no read may pool across grader rules or pins"
+    alternatives_considered:
+      - option: "exclude oracle-exposed cells by default in the report"
+        rejected_because: "the default would silently change the shipped cycle-130 report; the pre-registration names the flag instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:22:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0638"
+    created_at: "2026-10-19T07:38:27Z"
+    updated_at: "2026-10-19T07:38:27Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Task 1.10 adjudication: same-scope rule NOT adopted (2 of 7 credits are the labelled defect, kappa 1.0); recall_pm3 is the decision statistic"
+    decision: "Two independent Opus 5.5 labelers judged 17 blind packets (all 7 same-scope-only credits under grader 1.3.0 with the curated manifests, and 10 of the 40 anchor-expansion-only credits, stratified by arm x PR, seed 20261015) and agreed on every packet (agreement 1.000, Cohen's kappa 1.000, floor 0.6 met, no third labeler). Group (a): 2 of 7 same-scope credits describe the labelled defect (share 0.286, Wilson 95 % [0.082, 0.641]), below the pre-registered 80 % bar, so the ±3-or-same-enclosing-definition rule is NOT adopted: recall_pm3 (the 1.2.0 ±3 rule on the current, curated manifests) is the decision statistic for every Sprint 264 pre-registration and every Sprint 265 read; recall (the new rule) and recall_pm3_v1 are reported beside it. Group (b): 6 of 10 anchor-expansion credits describe the labelled defect (0.600 [0.313, 0.832]); reported, decides nothing, and is carried into the Sprint 265 reads as a labelled caveat on the curated anchors. The grader keeps writing all three results; the recommendation R2 of the cycle-130 analysis (same-function rule) is withdrawn by this measurement."
+    rationale: "the pre-registered rule said what would count as evidence for widening the ruler and the evidence did not arrive; a rule that credits a different finding five times in seven is not a better ruler"
+    alternatives_considered:
+      - option: "adopt the rule anyway because the 7-packet sample is small"
+        rejected_because: "the adoption rule named the denominator (all (a) packets sampled) before sampling; the interval upper bound 0.641 is itself below 0.8"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "grimoires/loa/a2a/sprint-1/adjudication/result.md (Task 1.10; pre-registration NOTES 2026-10-19T06:08:48Z)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:38:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-1/adjudication/result.md (Task 1.10; pre-registration NOTES 2026-10-19T06:08:48Z)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0639"
+    created_at: "2026-10-19T07:40:02Z"
+    updated_at: "2026-10-19T07:40:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Re-grade rows ship under grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl (evals/results/* is gitignored); the PRD path stays the working copy"
+    decision: "The PRD named evals/results/ablation-2.0/regrade-c131/rows.jsonl for the versioned re-grade, but evals/results/* is gitignored (.gitignore:288) and only runs.jsonl's home under grimoires/loa/reports/ablation-2.0/ is tracked. The tracked copy grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl is canonical (validated with ablation-row.sh --validate, 36 rows); the evals/results path remains the working copy the driver writes. CHANGELOG, the suite README and the Task 1.9 record name the tracked path."
+    rationale: "a result the Sprint 265 reads depend on must be in the tree the PR ships, beside the rows it is compared with"
+    alternatives_considered:
+      - option: "git add -f the file under evals/results"
+        rejected_because: "breaks the ignore rule that keeps run outputs out of the tree and leaves a path nobody else can regenerate into"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "7600bd7d"
+    source: "git check-ignore (.gitignore:288 evals/results/*); Task 1.9"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T07:40:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "git check-ignore (.gitignore:288 evals/results/*); Task 1.9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0640"
+    created_at: "2026-10-19T08:29:49Z"
+    updated_at: "2026-10-19T08:29:49Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Smoke fallback: review-catch REVIEW timeout 50 min / AUDIT 40 min on pr-17 and pr-18 (task bounds, pre-registered); pr-17 re-smoked once before Sprint 264"
+    decision: "The closed-mount smoke's pr-17 trial hit the 30-minute REVIEW cap (1800 s, 24 turns, USD 8.71) after launching the dissent in the background and waiting: under budget_scale: diff the 218 KB diff's dissent runs (cycle-130 refused it at 200 c, and its three REVIEW phases on pr-17 took 21-23 min). The per-task fallback is a task bound, not a ruler change: bounds.timeout_min.REVIEW 50 and AUDIT 40 on review-r17 and review-r18 in the Sprint 264 suite root (and on the smoke root's review-r17, re-frozen), declared before any batch; one more smoke trial on pr-17 under the bound (~USD 10) before Sprint 264 launches. If it completes, the cells keep the bound; if it times out again, pr-17 is replaced by pr-16 + pr-18 as the batch PRs and the cost frontier carries that caveat. The dissent-absence sensitivity for Sprint 264 is defined as dissent_absent_gates union gates with voices_run.<gate>.completed == 0 (the pr-12 row shows the failed-voices case lands in degraded, not dissent_absent)."
+    rationale: "a priced-in dissent costs wall time on large diffs; measuring it needs a cap it can finish under, set before the measurement rather than after a cell is lost"
+    alternatives_considered:
+      - option: "raise the suite-wide REVIEW default to 50 min"
+        rejected_because: "changes every arm and task; the two large PRs are the only ones that need it and a task bound is read in the row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/NOTES.md#smoke-reading-partial (smoke-c131-20261019T075011Z, review-r17-t1 agent_error)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T08:29:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#smoke-reading-partial (smoke-c131-20261019T075011Z, review-r17-t1 agent_error)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0641"
+    created_at: "2026-10-19T09:18:12Z"
+    updated_at: "2026-10-19T09:18:12Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Closed-mount smoke read: oracle_closed OK 7/7, both voices under budget_scale diff on 5 PRs, anchor_line share 0.94; pr-12 KF-050, pr-17 timed out (DEC-0640)"
+    decision: "The seven-PR closed-mount smoke (USD 91.45) is read against the 06:08:48Z expected-dissent table and its 07:04Z amendment: the closed mount held on every run (pre-launch and took-effect oracle_closed OK, no oracle exposure, no contamination); the scaled dissent ran both voices on both gates on pr-05, pr-08, pr-13, pr-16 and pr-18 (effective 200-440 c, nothing refused) and 62 of 66 dissent findings carry anchor_line (0.94; pr-13's review gate 0.67 is the one gate under the 0.80 expectation, recorded); pr-12 lost every voice to the KF-050 import skew exactly as amended; pr-17 lost its REVIEW phase to the 30-minute cap, handled by DEC-0640. Sprint 264 proceeds with the closed mount as built, the eval config variant (budget_scale diff), the per-task bounds of DEC-0640, and the dissent-absence sensitivity defined over dissent_absent_gates union zero-completed-voice gates. The priced-in dissent's cost (about USD 4-6 per run on the large PRs, runs of USD 10-19) enters the Sprint 264 budget plan: B1 and B2 estimates are re-derived from these per-run costs before launch."
+    rationale: "the smoke did what it was for: it confirmed the mount closes, showed the dissent now runs and cites lines, and surfaced the two per-task failures before any decision cell was bought"
+    alternatives_considered:
+      - option: "treat pr-13 review gate anchor share 0.67 as a failed expectation and re-prompt the voices"
+        rejected_because: "the expectation was aggregate per gate type and the aggregate is 0.94; a prompt change after the smoke would be an unmeasured intervention before the batches"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/NOTES.md#smoke-complete (smoke-c131-20261019T075011Z); a2a/sprint-1/reviewer.md § Smoke"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-19T09:18:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md#smoke-complete (smoke-c131-20261019T075011Z); a2a/sprint-1/reviewer.md § Smoke"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0642"
+    created_at: "2026-10-20T01:10:50Z"
+    updated_at: "2026-10-20T01:10:50Z"
+    phase: "review"
+    category: "design"
+    summary: "Review round r1a: detector keeps redirections in their segment, scans grep flags, stat-only git diff silent; class 7 bare-line tokens never exempt"
+    decision: "The Sprint 263 review dissent (gpt-5.5-pro + claude-headless, 9 findings, 2 BLOCKING) found that split_segments treated the ampersand of 2>&1 / >&2 / <&0 / &> as a command separator, so a diff reduced through 2>&1 | wc -l or discarded with &>/dev/null was planned as a content-printing diff and could mark every defect of the file exposed_unknown. Round r1a, test-first (AG-52, AG-53, RG-40 … RG-42): redirection ampersands stay in their segment; the silent-sink test scans every grep flag (grep -i -c) and the long forms; a stat-only git diff (--stat, --numstat, --shortstat, --name-only, --name-status, --compact-summary) prints no content; the KF-046 class 7 exemption joins backslash continuations into one logical line and never exempts a bare token standing as the whole line, while a backticked quotation of the name in prose stays PR content (AG-51 unchanged); grade_recall passes a non-existent EVAL_HEAD_DIR sentinel when the fixture head is unavailable so recall-vs-defects.sh never falls back to the sandbox pr/head; the bash/bats closing-brace test measures indentation with expandtabs(8) like headers(); markdown fences hide their # lines from heading detection; a python def with a multi-line signature keeps its body in scope. DISS-C-007 (dissent disabled read from the agent-writable sandbox config, bead bd-jszcp) and DISS-C-008 (false_positives stays ±3 beside the new rule, bead bd-9zmfn) are observations. The 36-run re-grade re-run on the fixed grader changed no row (0 of 36); AG-50's detector pins are unchanged."
+    rationale: "a detector that mis-parses the most common shell idiom would exclude cells for exposures that never happened; the fix is small, tested, and re-validated against the 36 runs before any batch"
+    alternatives_considered:
+      - option: "accept the findings as advisories and fix after Sprint 264"
+        rejected_because: "the exclusion set the Sprint 264 reads depend on would be computed by a known-wrong detector"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bb03e931"
+    source: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 1); round r1a"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T01:10:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 1); round r1a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0643"
+    created_at: "2026-10-20T01:37:10Z"
+    updated_at: "2026-10-20T01:37:10Z"
+    phase: "review"
+    category: "design"
+    summary: "Review round r1b: python one-liner defs end on their line, fences close by length, stat-only git diff needs no patch flag, |& is a pipe, -L/egrep/rg silent"
+    decision: "Review dissent run 2 on the r1a diff returned 12 findings, 3 BLOCKING, all against the r1a fixes: a one-liner def never met the signature-termination test and swallowed the file below it; a stat flag alone did not make a git diff stat-only (--stat -p prints the patch); a four-backtick fence was closed by a three-backtick line. Round r1b, test-first (RG-42 extended with one-liner and string-default headers, RG-43 nested fences, AG-52 extended with |& wc, egrep -c, grep -L and --stat -p, AG-53 printf emitting one backslash): the python signature ends at the colon after its closing parenthesis and falls back to a one-line header when no terminator is found; a fence closes only on a same-character fence at least as long with nothing after it, and a backtick opener whose info string holds a backtick is not a fence; a stat-only git diff is one with a stat flag and none of -p, -u, --patch, --unified, -U<n>; |& is one pipe with no empty segment; silent sinks include -L, --files-without-match and the egrep/fgrep/rg family. Observations kept as notes: the EVAL_HEAD_DIR sentinel silently disables the scope clause when the fixture head is missing (the harness always resolves it); the class 7 fixture index stays by physical line; the dissent diff excludes smoke/ paths so the review-r17 task.yaml edit was invisible to it, not missing. Dissent runs used: 2 of 3; the third is the audit's."
+    rationale: "the first round's fixes were themselves reviewed and three were found wrong at the edges; the edges are now pinned by tests"
+    alternatives_considered:
+      - option: "a third review dissent run on r1b"
+        rejected_because: "the sprint cap is three runs and the audit gate needs one; the r1b edges are covered by tests and the lead read"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "596627f4"
+    source: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 2 on bb03e931..596627f4); round r1b"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T01:37:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 2 on bb03e931..596627f4); round r1b"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0644"
+    created_at: "2026-10-20T02:00:59Z"
+    updated_at: "2026-10-20T02:00:59Z"
+    phase: "review"
+    category: "security"
+    summary: "Audit round r1c: executed probe lines never class-7 exempt; no workspace pr/head fallback; detector work bounded; corpus hash from one validated open"
+    decision: "The audit dissent (the sprint's third and last run) returned one HIGH, two MEDIUM and one LOW, all accepted: (1) the KF-046 class 7 exemption applied to executed Bash commands, and pr-13 and pr-16 carry curl … raw.githubusercontent.com/0xHoneyJar/loa … | bash and git remote add … 0xHoneyJar/loa.git lines, so running them verbatim would have been a licensed probe — now a Bash logical line (heredoc bodies removed) that holds the token and a network- or VCS-capable executable word (git, gh, curl, wget, pip, npm, npx, ssh, scp, nc, docker, rsync, python -c …) is never exempt, while quoting the fixture line in notes stays PR content (AG-54); (2) recall-vs-defects.sh no longer falls back to the graded agent's workspace pr/head unless EVAL_ALLOW_WORKSPACE_HEAD=1, and details.head_dir_source names env|fixture|workspace|none; a file with over 5,000 definition headers gets the ±20 fallback instead of a quadratic scope map (RG-44); (3) the oracle detector bounds every agent-controlled dimension — for-list words 64, expansion candidates 256, segments 64 KB, words 4,096 chars and 512 per segment, result lines clipped to 4,096 chars and 20,000 lines, the later-line map skipped above 20,000 lines and recorded in grade.json oracle_scan_skipped (AG-55); (4) corpus_sha256 hashes the bytes of one O_NOFOLLOW open with an fstat regular-file and size check. The 36-run re-grade is re-run on this grader; the review verdict stands; the final audit file records the re-check without a further dissent run."
+    rationale: "the grader is the only part of the measurement an agent cannot see but can feed; every rule it applies to agent text must fail closed and finish"
+    alternatives_considered:
+      - option: "keep the fixture-substring exemption and add the probe lines to a denylist"
+        rejected_because: "a denylist of fixture lines is the whack-a-mole the ledger warns about; executed network text is the class, not the lines"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "baea8024"
+    source: "grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md (audit dissent run 1); round r1c"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T02:00:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md (audit dissent run 1); round r1c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0645"
+    created_at: "2026-10-20T02:15:07Z"
+    updated_at: "2026-10-20T02:15:07Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Sprint 264 budget re-derived: B1 ≈ 66 + B2 ≈ 228 (R3/R4 on pr-17 only) ≈ 294 under a USD 300 batch allowance; arm smoke on pr-05; cycle cap 500 holds"
+    decision: "The smoke priced an a1_full run under the closed mount with the dissent actually running at USD 10-22 (pr-05/08 ≈ 10-11, pr-13 ≈ 14, pr-16 ≈ 19, pr-18 ≈ 18, pr-17 ≈ 22), about double cycle-130's, so the plan's B1 ≈ 48 / B2 ≈ 220 no longer holds. Sprint 264 runs the cell matrix with these cuts in the brief's priority order (R1 → R5 → R3 → R4): B1 = a1_full_openmount × 3 on pr-17 (≈ 66); B2 = a0_bare, a0_bare_fable and a1_full × 3 on both pr-17 and pr-18 (R1/R5; ≈ 153) plus a1_review_only and a1_no_dissent × 3 on pr-17 only (R3/R4 read on the 20-defect PR; ≈ 75); total ≈ 294 under a batch allowance of USD 300 (was 275) and a per-run review-catch cap of USD 30 on pr-17/pr-18 (DEC-0640). The Task 2.3 arm smoke (one trial per new arm) runs on review-01 (pr-05, ≈ USD 25) rather than pr-17: it checks took-effect rules, gate completion, the open-mount arm's oracle exposure and the models per phase, none of which needs the large PR. Cycle spend so far ≈ USD 140 (smokes 113, dissent runs and adjudication ≈ 27); planned ≈ 294 + 25 + the Sprint 264/265 gate dissents ≈ 15 → ≈ 475 of the USD 500 cycle cap, which holds. If B2 approaches the allowance the runner's cap cuts launches; the pre-registration names the cut order (a1_no_dissent, then a1_review_only, then pr-18's a0_bare_fable) and any cut cell is reported, never back-filled."
+    rationale: "the measurement priced the dissent in, which was the point; the budget follows the measured cost rather than the plan's guess, and the cycle cap is the hard line"
+    alternatives_considered:
+      - option: "keep all 36 cells and raise the allowance to ≈ 360"
+        rejected_because: "it would leave no room under the USD 500 cycle cap for the gates and a single re-run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e93a040a"
+    source: "grimoires/loa/NOTES.md (smoke readings 2026-10-19/20; sprint.md § Sprint 2 cell matrix); Sprint 264 planning"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T02:15:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md (smoke readings 2026-10-19/20; sprint.md § Sprint 2 cell matrix); Sprint 264 planning"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0646"
+    created_at: "2026-10-20T02:58:39Z"
+    updated_at: "2026-10-20T02:58:39Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Report components exclude eval_only arms (nine components with the cycle-131 control arms); expected-false-positive figures at two decimals"
+    decision: "With the four cycle-131 arms declared, ablation-report.py's multiple-comparison components (every runnable arm but the two baselines) would have grown from six to ten. An eval_only arm (a1_full_openmount, the open-mount oracle A/B) is an evaluation control that can never become a shipped-default decision, so it is excluded from the components; a0_bare_fable, a1_review_only and a1_no_dissent are component contrasts (model, audit gate, dissent) and stay. The components are therefore nine, the expected-false-positive sentence reads 9 × (1 − 0.90) / 2 = 0.45 one-sided (0.90 either direction) at two decimals (one decimal rounded 0.45 to 0.5 beside 0.9), and AR-12, AR-23 and AT-13 pin the new values; the cycle-130 report file is not regenerated. The Sprint 265 reads use the pre-registered interval rules, not the report's generic decisions, so this changes an appendix figure, not a read."
+    rationale: "the denominator of the false-positive expectation should count decisions a reader could act on"
+    alternatives_considered:
+      - option: "keep six components by excluding every cycle-131 arm"
+        rejected_because: "three of the four are genuine component contrasts whose decisions the report now prints"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "0281ea57"
+    source: "evals/harness/ablation-report.py components; AR-12/AR-23/AT-13 (Sprint 264 integration)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T02:58:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "evals/harness/ablation-report.py components; AR-12/AR-23/AT-13 (Sprint 264 integration)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0647"
+    created_at: "2026-10-20T03:37:01Z"
+    updated_at: "2026-10-20T03:37:01Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Arm smoke read: all four arms pass every took-effect rule and the batch-entry gates; refusal-fallback rows excluded from the model contrast, degraded elsewhere"
+    decision: "The Task 2.3 arm smoke on review-01 (pr-05, USD 21.77) completed all four new arms with every took-effect rule true (a0_bare_fable on Fable 5.1 effort high with no mount; a1_review_only phases [REVIEW] under the closed mount; a1_no_dissent with no review envelope and an audit envelope of two voices; a1_full_openmount with the open mount recorded), numeric-anchor shares 10/10, 9/9 and 4/4, both voices at every dissent-enabled review gate, so the arms enter the Sprint 264 batches. One new degradation class appeared (KF-051): the a1_no_dissent REVIEW phase carried a refusal fallback (Fable 5.1 refused the session, category cyber, and the pipeline continued on Opus 5.5), the first in 44 review-catch rows. Rule, added to the Sprint 264 pre-registration before any batch row: a row whose REVIEW or AUDIT phase carries a refusal_fallbacks entry is excluded from the model contrast R5 and counted as degraded in the sensitivity for R1, R3 and R4; its models_used per phase is reported; the cell is never retried to obtain a Fable row."
+    rationale: "a cell whose reviewer changed model mid-session is not a cell of the arm it was planned as; retrying would select on the refusal and bias the model read"
+    alternatives_considered:
+      - option: "retry refusal-fallback cells until a pure Fable run lands"
+        rejected_because: "conditioning on the absence of a refusal biases the Fable sample toward content the classifier accepts"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "0281ea57"
+    source: "grimoires/loa/a2a/sprint-2/reviewer.md § Arm smoke (smoke-c131-arms-20261020T025808Z); KF-051"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T03:37:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-2/reviewer.md § Arm smoke (smoke-c131-arms-20261020T025808Z); KF-051"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0648"
+    created_at: "2026-10-20T04:02:27Z"
+    updated_at: "2026-10-20T04:02:27Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 264 pre-registration: B1/B2a/B2b cells, pin 798d88cf, recall_pm3 decision statistic, interval reads R1/R5/R3/R4, exclusions incl. refusal fallbacks"
+    decision: "Before any batch row, the Sprint 264 pre-registration is written to NOTES under the heading 'Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z' (section text sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb, the same text carried into each batch MANIFEST pre_registration_ref): pin 798d88cfc920a95ce896a527145b21ca72d0ab18 (the audit-round r2b commit; any later harness, grader or framework fix re-pins and re-runs the affected batch); suite root ablation-2.0-c131 with bounds REVIEW 50 / AUDIT 40, --allow-partial, --run-cap 30, eval config variant, grader 1.3.0 with the Sprint 263 review/audit fixes, row writer 1.4, curated manifests; three runner batches in order — B1 c131-b1-oracle-ab (a1_full_openmount × r17 × 3, cap 70), B2a c131-b2-control-prices-a (a0_bare, a0_bare_fable, a1_full × r17, r18 × 3, cap 160), B2b c131-b2-control-prices-b (a1_review_only, a1_no_dissent × r17 × 3, cap 80), allowance 300, cut order a1_no_dissent → a1_review_only → pr-18 a0_bare_fable, cut cells reported never back-filled; decision statistic defect_catch_rate_pm3 with recall and recall_pm3_v1 beside it; validity: completed, took-effect true, contaminated null, oracle_exposed_defects empty except the open-mount arm (union main read, diff-only sensitivity); degraded and dissent-absent rows kept in the main read and reported in a labelled sensitivity (dissent_absent_gates ∪ zero-completed-voice gates); refusal-fallback rows excluded from R5 and degraded elsewhere; pairwise exclusion; min_valid_cells 4; the 25 % guard; reads R1 (±0.05 inflation interval), R5 (±0.05 model), R3 (±0.05 and cost ratio ≤ 0.6 / below −0.10), R4 (±0.08) with defect-level paired bootstrap 10,000 at 90 %, cluster bootstrap by PR descriptive, catch per USD as the frontier."
+    rationale: "the reads are fixed before the rows exist so that no number can move the ruler afterwards; the hash makes a later edit of the text visible"
+    alternatives_considered:
+      - option: "pre-register after B1 to tune the reads on its rows"
+        rejected_because: "that is the post-hoc move the cycle exists to stop"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "798d88cf"
+    source: "grimoires/loa/NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z (section sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T04:02:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z (section sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0649"
+    created_at: "2026-10-20T05:45:55Z"
+    updated_at: "2026-10-20T05:45:55Z"
+    phase: "implementation"
+    category: "process"
+    summary: "B2a completes all 18 planned cells (resume with --max-usd 190 if its 160 cap cuts); the shortfall comes out of B2b in the pre-registered cut order"
+    decision: "Eight of B2a's eighteen trials have spent USD 79.41 and the four remaining a1_full cells cost about 19-22 each, so B2a will end near USD 170, above its 160 runner cap; the runner would cut the last a1_full cells, which every read (R1, R3, R4, R5) uses as its baseline. Declared before any cut: B2a is completed in full — if the runner cuts, it is resumed with --max-usd 190 and the same pin, pre-registration reference and cells; the total batch allowance stays USD 300 (DEC-0645), so B2b's allowance becomes 300 − 57.62 (B1) − B2a's actual spend (about USD 70), and the pre-registered cut order applies inside B2b: a1_no_dissent is cut first, then a1_review_only; a cut cell is reported in the scans and the reads as cut, never back-filled. The cycle cap of USD 500 holds (about USD 300 spent at this point, about 165 planned)."
+    rationale: "the baseline arm is shared by every read, so a cut there removes four reads' denominators; the cut order written before the batches already ranks the dissent and audit prices below the model read"
+    alternatives_considered:
+      - option: "let the runner cut the last a1_full cells and run B2b in full"
+        rejected_because: "it trades the shared baseline for the two lowest-priority reads, the reverse of the pre-registered priority"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bdabbab6"
+    source: "evals/results/ablation-2.0/c131-b2-control-prices-a/STATUS.json (spent 79.41 after 8 of 18 trials); DEC-0645 cut order; DEC-0648"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T05:45:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "evals/results/ablation-2.0/c131-b2-control-prices-a/STATUS.json (spent 79.41 after 8 of 18 trials); DEC-0645 cut order; DEC-0648"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0650"
+    created_at: "2026-10-20T07:26:39Z"
+    updated_at: "2026-10-20T07:26:39Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Pre-registration inconsistency: min_valid_cells 4 makes R1/R3/R4 insufficient by construction; main read as written, trial-level sensitivity beside"
+    decision: "The Sprint 264 pre-registration (DEC-0648) carries report 1.3's min_valid_cells threshold of 4 valid cells per side, where a contrast's valid cells are the sum over its tasks of the smaller of the two arms' valid trial counts, and the same pre-registration plans R1, R3 and R4 as 3 trials per arm on one PR — 3 cells at most, so those three reads are insufficient by construction under the rule as written. The inconsistency is the lead's drafting error, found while checking the read script's mechanics on the B1/B2a rows and declared before any B2b row exists. Handling: the pre-registered text is not edited (its sha256 stands); the main read reports R1, R3 and R4 as insufficient exactly as the rule says, and R5 (two PRs, 5-6 cells) under the rule; beside it a labelled trial-level sensitivity applies the threshold at the planned count (3 valid trials per side) and reports the pre-registered interval outcomes verbatim for every read. The reads script carries both; the addendum states which branch each read reaches under each threshold and does not pick between them."
+    rationale: "a rule that cannot be met by the design it governs is a drafting error, and the honest repair is to show both the written rule and the intended one side by side rather than to rewrite the hash"
+    alternatives_considered:
+      - option: "amend the pre-registration text to min_valid_cells 3"
+        rejected_because: "editing a hashed pre-registration after seeing rows is the move this cycle exists to stop, even for a defensible correction"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bdabbab6"
+    source: "DEC-0648 pre-registration text (min_valid_cells 4) vs the Sprint 264 cell matrix (3 trials per arm on one PR for R1, R3, R4); declared before any B2b row"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T07:26:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "DEC-0648 pre-registration text (min_valid_cells 4) vs the Sprint 264 cell matrix (3 trials per arm on one PR for R1, R3, R4); declared before any B2b row"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0651"
+    created_at: "2026-10-20T09:37:41Z"
+    updated_at: "2026-10-20T09:37:41Z"
+    phase: "review"
+    category: "design"
+    summary: "R1 (oracle A/B, pr-17): main read insufficient (3 cells < 4 as written); trial-level: investigate — Δ +0.067 [−0.017, +0.150], open mount peeked in 3/3 runs"
+    decision: "R1 contrasts a1_full_openmount against a1_full on review-r17 (20 defects, 3 trials each, decision statistic defect_catch_rate_pm3): open 0.750 vs closed 0.683, Δ = +0.067, 90 % defect-level bootstrap interval [−0.017, +0.150], cluster interval (one PR) degenerate. Under the pre-registered min_valid_cells 4 the read is 'insufficient' (3 cells; DEC-0650); under the trial-level threshold the pre-registered branch is 'investigate' (the interval is neither above +0.05 nor inside ±0.05). The detector shows the open mount was used in all three open runs (7, 15 and 3 defects exposed) and that the exposure moved the catch by at most the width of this interval; the diff-only and strict sensitivities read the same. Cost: open USD 19.21 per run, closed 21.50."
+    rationale: "the pre-registered branches are quoted as written; the oracle leak is real and bounded on this PR, not the whole lift"
+    alternatives_considered:
+      - option: "read the +0.067 as no measurable inflation"
+        rejected_because: "the interval upper bound 0.150 is outside ±0.05; the written rule says investigate"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0652"
+    created_at: "2026-10-20T09:37:43Z"
+    updated_at: "2026-10-20T09:37:43Z"
+    phase: "review"
+    category: "design"
+    summary: "R3 (audit gate, pr-17): main read insufficient (3 cells); trial-level: inconclusive — Δ −0.033 [−0.133, +0.067], cost ratio 0.53"
+    decision: "R3 contrasts a1_review_only against a1_full on review-r17 (20 defects, 3 trials each): review-only 0.650 vs full 0.683, Δ = −0.033, 90 % [−0.133, +0.067]; cost per run USD 11.42 vs 21.50 (ratio 0.53 ≤ 0.6). Under the pre-registered min_valid_cells 4 the read is 'insufficient' (DEC-0650); at the trial level the interval is not within ±0.05 and not below −0.10, so the branch is 'inconclusive': the audit gate's contribution on this PR is small and unresolved at three trials while it costs 47 % of the run. No opt-in proposal follows from this read; the frontier figure (catch per USD 0.057 review-only vs 0.032 full) is reported."
+    rationale: "the rule names inconclusive when the interval straddles the opt-in band; three trials on one PR cannot narrow it"
+    alternatives_considered:
+      - option: "propose audit-gate opt-in on the cost ratio alone"
+        rejected_because: "the pre-registered branch requires the catch interval inside ±0.05 as well"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0653"
+    created_at: "2026-10-20T09:37:44Z"
+    updated_at: "2026-10-20T09:37:44Z"
+    phase: "review"
+    category: "design"
+    summary: "R4 (dissent, pr-17): insufficient under every read — 2 valid a1_no_dissent cells (the third contaminated by a scratch-dir reproduction outside S3's path shapes)"
+    decision: "R4 contrasts a1_no_dissent against a1_full on review-r17: only 2 of the 3 no-dissent cells are valid (t3 read contaminated — an outside_path write under /home/evaluser/audit-scratch, a reproduction with no fetch, but not under the $HOME/tmp or /tmp shapes S3 declared, so S3 as written does not re-include it), and 2 cells is below both the pre-registered threshold (4) and the trial-level one (3): 'insufficient' in every read. The two valid cells read 0.75 and 0.75 against full's 0.683 (Δ +0.067 [−0.050, +0.192], descriptive only); the numeric-anchor change itself is proven (every dissent-enabled gate ran both voices at the diff-scaled budget with ≥ 0.90 of findings carrying anchor_line). No dissent opt-in proposal follows; the price of the dissent on review-catch PRs stays unmeasured at this sample."
+    rationale: "a read with fewer valid cells than its own threshold says insufficient, whatever the two cells show"
+    alternatives_considered:
+      - option: "widen S3 to any scratch directory to recover the third cell"
+        rejected_because: "S3 was declared with named path shapes before the reads; widening it after seeing which cell it rescues is the post-hoc move"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0654"
+    created_at: "2026-10-20T09:39:07Z"
+    updated_at: "2026-10-20T09:39:07Z"
+    phase: "review"
+    category: "design"
+    summary: "R5 (model): between — bare-Fable 0.226 vs full 0.685 (Δ −0.458) and vs bare-Opus 0.393 (Δ −0.167); the model does not explain the lift"
+    decision: "R5 contrasts a0_bare_fable against a1_full and against a0_bare on review-r17 and review-r18 (28 defects; 5 valid cells per side in the main read, 6 under S3): bare-Fable catches 0.226 of the planted defects, the full pipeline on Fable 0.685 (Δ = −0.458, 90 % [−0.601, −0.316]; cluster [−0.563, −0.417]) and bare-Opus 0.393 (Δ = −0.167, 90 % [−0.310, −0.018]; cluster [−0.250, −0.133]). Neither interval lies within ±0.05, so the pre-registered outcome is 'between (both intervals reported)': the model does not explain the lift — a single Fable session catches less than a single Opus session on these PRs, and the gated pipeline on Fable catches far more than either; the pipeline's lift is not the model and is at least as large as cycle-130 read. Cost per run: bare-Fable USD 4.28, bare-Opus 1.40, full 19.94. Every sensitivity (trial-level, diff-only, strict, S3) reads the same branch; no refusal fallback occurred in these cells."
+    rationale: "this was the largest unexplained term of the cycle-130 analysis and it resolves against the model confound"
+    alternatives_considered:
+      - option: "read the gates earn their cost"
+        rejected_because: "that branch required bare-Fable within ±0.05 of bare-Opus; bare-Fable is 0.167 below it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:39:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0655"
+    created_at: "2026-10-20T10:43:12Z"
+    updated_at: "2026-10-20T10:43:12Z"
+    phase: "review"
+    category: "design"
+    summary: "PR #1286 BB round r4: overlay refuses an unavailable fix_commit (F001); grader 1.3.1 scans error-marked results (F002); 63/63 re-grades unchanged"
+    decision: "Both findings are accepted as real and fixed in the PR. F001: overlay_answer_paths exits 2 before any write when fixture.yaml's fix_commit is not in the source tree (1.3.0 logged fix_commit_unavailable, overlaid the PR paths only and check_mount_closed called the mount closed); check_mount_closed and took-effect rule oracle_closed fail on overlay_fix_commit=unavailable. No recorded run was affected (18 available, 4 none). F002: grader 1.3.1 strips Claude Code's 'Exit code N' preamble and scans error-marked tool results; the diff form needs ranges near a site (no must_match-only credit), the read form later-only text, never exposed_unknown. Re-graded under 1.3.1 (~/.cache/loa/cycle-131/regrade-131/compare.tsv), the 36 cycle-130 and 27 cycle-131 review-catch runs are identical on every oracle field, recall and contamination; the 26 error-marked results with diff ranges all compare pr/base with pr/head or read head.diff. The pinned 1.3.0 rows stay the main read (DEC-0648); the 1.3.1 grades are a labelled sensitivity. F003 acknowledged."
+    rationale: "F001 is a genuine falsely-closed-mount path: the answer set silently shrank to the PR paths, the overlay and the check used the same incomplete set, so a fixture whose fix commit was missing from the source tree would have passed the closure check with the fix-only paths still at the later copy. F002 is a genuine detector blind spot: diff exits 1 on differences and Claude Code marks that result is_error, so 1.3.0 never read a differing diff's hunks. Refusing (not warning) and scanning (not skipping) are the fail-closed readings; the re-grade shows the recorded measurement did not depend on either gap."
+    alternatives_considered:
+      - option: "Warn on an unavailable fix commit and overlay the PR paths only (the Sprint 263 behaviour)"
+        rejected_because: "leaves the fix-only paths at the later copy while the evidence and the check call the mount closed — exactly the KF-049 peek the closed mount exists to remove"
+      - option: "Read the fix-commit path list from an immutable manifest instead of the source tree"
+        rejected_because: "a second source of truth for the answer set; the fixture already pins fix_commit and the source tree is the pinned copy source, so refusing when the commit is absent is simpler and equally closed"
+      - option: "Scan error-marked results exactly like successful ones (unknown form included)"
+        rejected_because: "a refusal or hook-block message names the command's paths without printing a diff and would count as exposed_unknown on every refused probe; ranges near a site and later-only text are the evidence the forms were built on"
+      - option: "Re-run the batches under grader 1.3.1 and make it the main read"
+        rejected_because: "DEC-0648 pins the main read to the pre-registered 1.3.0 rows; the 63 re-grades are identical, so a labelled sensitivity records the check without moving the pin"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "a3289c2b"
+    source: "PR #1286 Bridgebuilder review comment 6288566518 (gpt-5.5-pro voice; claude-headless incomplete): F001 HIGH, F002 MEDIUM, F003 PRAISE; bead bd-cxdsm"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T10:43:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "PR #1286 Bridgebuilder review comment 6288566518 (gpt-5.5-pro voice; claude-headless incomplete): F001 HIGH, F002 MEDIUM, F003 PRAISE; bead bd-cxdsm"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

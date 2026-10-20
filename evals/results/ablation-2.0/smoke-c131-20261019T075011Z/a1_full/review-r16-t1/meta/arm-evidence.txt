@@ -1,0 +1,40 @@
+base_commit=767c3017265082cb97dea32f2f86e8eec9fbd1a8
+mount=tree
+copy_source=bb03e93192d981309d99bf2c87dfdce321a9c9c9
+mount_overlay=head:23
+overlay_sha256=.claude/commands/contribute.md=405c9c6dc64330bd86c6769449d9cdef610e3a665c0daad62721c959ea075a0d
+overlay_sha256=.claude/commands/decisions.md=86408358a005d606bc321b420dbd123c2fa0a35fb14092d98626bdd43cac823a
+overlay_sha256=.claude/commands/loa-eject.md=fa25c72908722fa9f0a10ce540ee48e52788fffb672875549326e92ec645b06f
+overlay_sha256=.claude/commands/loa-setup.md=449995a77babbaf98d84fd3fe31ac052a0ce745edad6dbe5a881a0b27e2f77c2
+overlay_sha256=.claude/commands/permission-audit.md=4b48c7360c7a9eee8b58c8a537865d65cd1b67a43eac7fd7998098f0baea26ce
+overlay_sha256=.claude/commands/run-halt.md=6d7b156ceae5136061c51c88c87cd9dc95ab63939dd6781c93c0e85e000ca43b
+overlay_sha256=.claude/commands/toggle-gpt-review.md=8076451b94325390d15cdc8dc85d64d679e91d490c46dda133534dd86874c063
+overlay_sha256=.claude/data/user-invoked-commands.txt=36034250119e596b1a3509f1bbebb4408d87d36c9eac4108549fa19bcc0e4bd5
+overlay_sha256=.claude/hooks/session-start/loa-decisions-surface.sh=723ccfce2d5e43b44219ab93c0b0261971ff862d6e695a7da9de52b06d547431
+overlay_sha256=.claude/protocols/karpathy-principles.md=a727de15d0fa209af7ce6175ff3825f83676e95bc4673350b855a4baeaff3683
+overlay_sha256=.claude/scripts/grimoire-index.sh=70da4b217b766a73d88d2816872b257adc256ef7bcaf425d8221e96dd486939e
+overlay_sha256=.claude/scripts/lib/dec-write-lib.sh=bbb95195f41575d782f5d68aa3894d7bee09f74d83854fe1cf0d5a866695257a
+overlay_sha256=.claude/scripts/validate-artifact.sh=e4dce9168350dddcdf888fc5b6dcf10f8e7b2c4ae14504394c51bc603cd44f93
+overlay_sha256=.claude/scripts/validate-gitignore-state.sh=b9dd2ffa3cd054e7acf5d755a9851e39a09c1a95683992ddd15f02de9ee2db1c
+overlay_sha256=.claude/settings.json=a37f8fabddb683a326168e916eb2c5eab5ee8c31bd986765253fb2e1384b7fcf
+overlay_sha256=.claude/skills/autonomous-agent/SKILL.md=8421e87dfe2758ca6f1a1712aa30c4d8b32ed38cdf537e33d3d52c28b6b98145
+overlay_sha256=.claude/skills/designing-architecture/SKILL.md=f529b8989755d5e677340f10df48383e4fd0088f4c68036336426f03a0e15846
+overlay_sha256=.claude/skills/designing-architecture/resources/templates/sdd-template.md=5dd2250696be687ba86f17682422f91c4d9797f48ef3749ab00e29718ed3374b
+overlay_sha256=.claude/skills/discovering-requirements/SKILL.md=ab09b0fba11e3ccb8814227e586b8ff992b3e7200a04580fffcaed671f91b57c
+overlay_sha256=.claude/skills/discovering-requirements/resources/REFERENCE.md=3eb39801183ddc558ed07f4e42def5c342018e30cfb2f1603dda7bc816c14ff8
+overlay_sha256=.claude/skills/discovering-requirements/resources/templates/prd-template.md=2b73d3f60fe7f280471270dcf8a02b8ae3de1b5360f2053cb397addb2f226910
+overlay_sha256=.claude/skills/planning-sprints/SKILL.md=d7a2e68c312ad13da6e60e1ad178a3c8882f54ecf9c5a75f4e04d0075e4b0e19
+overlay_sha256=.claude/skills/run-mode/resources/render-templates.md=9534d85ca1b68ac59c822a05954e671648817be5489592503db8fe4c604569dc
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=.claude/hooks/session-start/loa-decisions-surface.sh,.claude/scripts/grimoire-index.sh,.claude/scripts/lib/dec-write-lib.sh,.claude/scripts/validate-artifact.sh,.claude/scripts/validate-gitignore-state.sh,.claude/skills/autonomous-agent/SKILL.md,.claude/skills/designing-architecture/SKILL.md,.claude/skills/discovering-requirements/SKILL.md,.claude/skills/planning-sprints/SKILL.md
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-16
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-bb03e93192d9
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=19a5b5786a18dd663c546068dabb42442660d635663888b90ea8bb406cedb034
+mount_closed=pre-launch head:23 answer paths (23 present), 9 later-only pinned versions, sandbox git = base commit only
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=4fa1d603747b6c7c03f33c5c3e2b260e8cdb651cab6935f417486b2d3e66c5c3

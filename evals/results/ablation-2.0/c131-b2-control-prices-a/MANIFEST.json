@@ -1,0 +1,439 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "c131-b2-control-prices-a",
+  "dry_run": false,
+  "smoke": false,
+  "created": "2026-10-20T04:45:00Z",
+  "source_commit": "798d88cfc920a95ce896a527145b21ca72d0ab18",
+  "source_worktree": "/home/merlin/.cache/loa/ablation-src-798d88cfc920",
+  "source_commit_dot_claude_delta": " .../tests/test_pricing_resolution_ladder.py        |    2 +-\n .claude/checksums.json                             | 1510 +-------------------\n .claude/defaults/model-config.yaml                 |   36 +-\n .claude/defaults/model-config.yaml.checksum        |    2 +-\n .claude/loa/CLAUDE.loa.md                          |    2 +-\n .claude/schemas/adversarial-finding.schema.json    |   25 +\n .claude/schemas/wire/dissent-audit.wire.json       |   22 +\n .claude/schemas/wire/dissent-review.wire.json      |   22 +\n .claude/scripts/adversarial-review.sh              |  126 +-\n .claude/scripts/check-loa.sh                       |   29 +-\n .claude/scripts/generated-model-maps.sh            |    6 +\n .claude/scripts/preflight.sh                       |   22 +-\n .../resources/ADVERSARIAL-REVIEW.md                |   18 +\n .../bridgebuilder-review/dist/.build-manifest.json |    8 +-\n .../dist/config.generated.d.ts.map                 |    2 +-\n .../bridgebuilder-review/dist/config.generated.js  |   10 +\n .../dist/config.generated.js.map                   |    2 +-\n .../dist/core/truncation.generated.d.ts.map        |    2 +-\n .../dist/core/truncation.generated.js              |    1 +\n .../dist/core/truncation.generated.js.map          |    2 +-\n .../resources/config.generated.ts                  |   10 +\n .../resources/core/truncation.generated.ts         |    1 +\n .../reviewing-code/resources/ADVERSARIAL-REVIEW.md |   18 +\n 23 files changed, 388 insertions(+), 1490 deletions(-)",
+  "harness_commit": "bdabbab67f809d079dd717713b6a1f7cff4e3790",
+  "harness_dirty": false,
+  "suite_file": "evals/suites/ablation-2.0.yaml",
+  "suite_file_path": "/home/merlin/Documents/thj/code/loa/evals/suites/ablation-2.0.yaml",
+  "suite_root": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131",
+  "tasks_dir": "tasks",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl",
+  "suite_version": 2,
+  "suite_manifest_sha256": "60316fb8df0c09cae01f3d3267b00cc1c604b19195871f899bb3debcf5d11dfd",
+  "arms": [
+    "a0_bare",
+    "a0_bare_fable",
+    "a1_full"
+  ],
+  "tasks": [
+    {
+      "id": "review-r17",
+      "type": "review-catch"
+    },
+    {
+      "id": "review-r18",
+      "type": "review-catch"
+    }
+  ],
+  "refused": [],
+  "trials_per_type": {
+    "build": 3,
+    "review-catch": 3
+  },
+  "trials_planned": 18,
+  "plan": [
+    {
+      "i": 1,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r17-t1",
+      "run_dir": "a0_bare_fable/review-r17-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 2,
+      "arm": "a0_bare",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r17-t1",
+      "run_dir": "a0_bare/review-r17-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 3,
+      "arm": "a1_full",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r17-t1",
+      "run_dir": "a1_full/review-r17-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 4,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r18-t1",
+      "run_dir": "a0_bare_fable/review-r18-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 5,
+      "arm": "a1_full",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r18-t1",
+      "run_dir": "a1_full/review-r18-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 6,
+      "arm": "a0_bare",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r18-t1",
+      "run_dir": "a0_bare/review-r18-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 7,
+      "arm": "a1_full",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r17-t2",
+      "run_dir": "a1_full/review-r17-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 8,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r18-t2",
+      "run_dir": "a0_bare_fable/review-r18-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 9,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r17-t2",
+      "run_dir": "a0_bare_fable/review-r17-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 10,
+      "arm": "a0_bare",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r18-t2",
+      "run_dir": "a0_bare/review-r18-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 11,
+      "arm": "a1_full",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r18-t2",
+      "run_dir": "a1_full/review-r18-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 12,
+      "arm": "a0_bare",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 2,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r17-t2",
+      "run_dir": "a0_bare/review-r17-t2",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 13,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r17-t3",
+      "run_dir": "a0_bare_fable/review-r17-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 14,
+      "arm": "a0_bare",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r18-t3",
+      "run_dir": "a0_bare/review-r18-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 15,
+      "arm": "a0_bare",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a0_bare-review-r17-t3",
+      "run_dir": "a0_bare/review-r17-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    },
+    {
+      "i": 16,
+      "arm": "a1_full",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r18-t3",
+      "run_dir": "a1_full/review-r18-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 17,
+      "arm": "a1_full",
+      "task_id": "review-r17",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a1_full-review-r17-t3",
+      "run_dir": "a1_full/review-r17-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 90,
+      "watchdog_s": 10800
+    },
+    {
+      "i": 18,
+      "arm": "a0_bare_fable",
+      "task_id": "review-r18",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 3,
+      "run_id": "c131-b2-control-prices-a-a0_bare_fable-review-r18-t3",
+      "run_dir": "a0_bare_fable/review-r18-t3",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r18/task.yaml",
+      "phases": [
+        "BARE"
+      ],
+      "phase_sum_min": 70,
+      "watchdog_s": 8400
+    }
+  ],
+  "arm_map": {
+    "c131-b2-control-prices-a-a0_bare_fable-review-r17-t1": "a0_bare_fable",
+    "c131-b2-control-prices-a-a0_bare-review-r17-t1": "a0_bare",
+    "c131-b2-control-prices-a-a1_full-review-r17-t1": "a1_full",
+    "c131-b2-control-prices-a-a0_bare_fable-review-r18-t1": "a0_bare_fable",
+    "c131-b2-control-prices-a-a1_full-review-r18-t1": "a1_full",
+    "c131-b2-control-prices-a-a0_bare-review-r18-t1": "a0_bare",
+    "c131-b2-control-prices-a-a1_full-review-r17-t2": "a1_full",
+    "c131-b2-control-prices-a-a0_bare_fable-review-r18-t2": "a0_bare_fable",
+    "c131-b2-control-prices-a-a0_bare_fable-review-r17-t2": "a0_bare_fable",
+    "c131-b2-control-prices-a-a0_bare-review-r18-t2": "a0_bare",
+    "c131-b2-control-prices-a-a1_full-review-r18-t2": "a1_full",
+    "c131-b2-control-prices-a-a0_bare-review-r17-t2": "a0_bare",
+    "c131-b2-control-prices-a-a0_bare_fable-review-r17-t3": "a0_bare_fable",
+    "c131-b2-control-prices-a-a0_bare-review-r18-t3": "a0_bare",
+    "c131-b2-control-prices-a-a0_bare-review-r17-t3": "a0_bare",
+    "c131-b2-control-prices-a-a1_full-review-r18-t3": "a1_full",
+    "c131-b2-control-prices-a-a1_full-review-r17-t3": "a1_full",
+    "c131-b2-control-prices-a-a0_bare_fable-review-r18-t3": "a0_bare_fable"
+  },
+  "shuffle_seed": 20261015,
+  "shuffle": "trial-major; python3 random.Random(shuffle_seed).shuffle per trial block, blocks in order",
+  "fingerprint": "fp:bdb747032d28510d123419d8b5981c8634bc5e556d7c5cb3d29b623011170011",
+  "image": "loa-ablation:258",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "executor_mode": "container",
+  "cli_version": "2.1.299",
+  "cli_version_raw": "2.1.299 (Claude Code)",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "phase_models": {
+    "PLAN": "global.anthropic.claude-opus-5-5",
+    "IMPLEMENT": "global.anthropic.claude-opus-5-5",
+    "FIX": "global.anthropic.claude-opus-5-5",
+    "BARE": "global.anthropic.claude-opus-5-5",
+    "REVIEW": "global.anthropic.claude-fable-5-1",
+    "AUDIT": "global.anthropic.claude-fable-5-1"
+  },
+  "caps": {
+    "cycle_usd": 1500,
+    "run_usd": 30,
+    "reserve_usd": 250,
+    "max_usd": 160,
+    "run_usd_by_type": {
+      "build": 30,
+      "review-catch": 30
+    }
+  },
+  "cost_hint": {
+    "build": 7,
+    "review-catch": 8
+  },
+  "concurrency": 3,
+  "retry": {
+    "transport_retries": 1,
+    "wait_s": 120
+  },
+  "watchdog": {
+    "multiplier": 2,
+    "override_s": null,
+    "grace_s": 60,
+    "grade_timeout_s": 1800,
+    "took_effect_timeout_s": 300
+  },
+  "pre_registration_ref": "NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z; sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb",
+  "gate": {
+    "manifest": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0-c131/MANIFEST.sha256",
+    "manifest_sha256": "60316fb8df0c09cae01f3d3267b00cc1c604b19195871f899bb3debcf5d11dfd",
+    "review_md": {
+      "review-r17": "2b91e2f833f8ec1c5ab699cba76d64dd3bfe7274594324d0024a2df6023500fb",
+      "review-r18": "f014fb220eb3335330db099534f48cc64ace2192cbcf65c2aab3503b55ade8fe"
+    },
+    "self_check_log": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/sprint-2/self-check-c131.log",
+    "self_check_log_sha256": "7bd2e0cfe70651a2a81ade969120f0d2897617a5bf64c93671b0038eb1a99539",
+    "self_check_pass_lines": 6
+  },
+  "corpus": {
+    "manifest": "evals/fixtures/review-prs/SHA256SUMS",
+    "sha256": "e3c5f8d4f69640ce47408757c92e6683d05d0f3044f49920fdc7564660678ed6"
+  },
+  "agy_opt_in": false,
+  "allow_partial": true,
+  "codex_token_exp": "2026-10-28T04:44:32Z",
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": "chatgpt",
+    "checked": true,
+    "codex_arms": [
+      "a1_full"
+    ],
+    "horizon_source": "plan",
+    "required_until": "2026-10-21T11:25:01Z",
+    "token_exp": "2026-10-28T04:44:32Z",
+    "trials_counted": 18
+  },
+  "environment": {
+    "os": "Linux 6.16.12+deb13-amd64 x86_64",
+    "bash": "5.2.37(1)-release",
+    "jq": "jq-1.7",
+    "yq": "yq (https://github.com/mikefarah/yq/) version v4.44.1",
+    "python": "Python 3.13.5",
+    "git": "git version 2.47.3"
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:main",
+      "anchor_type": "line",
+      "anchor_line": 170,
+      "anchor_line_end": 176,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The R5a/R5b outcome expression at line 170 tests `within ±0.05` before it tests `c.get(\"insufficient\")`, so a contrast whose valid-cell count is below the pre-registered threshold but whose interval happens to sit inside the band is labelled `within ±0.05` instead of `insufficient`. The R5 aggregation at line 176 has the same ordering problem: `the model explains the lift` / `the gates earn their cost` are assigned before the `insufficient` check, so an insufficient R5a paired with a within-band R5b yields a definitive branch. The generic `outcome()` function gets this right (insufficiency first); the R5 path does not. The current rows (Σ5 cells on R5) are not affected, but the script is the pre-registered decision instrument and the report plans re-runs.",
+      "failure_mode": "On a re-run where one R5 cell drops out (e.g. an r18 arm loses a trial to contamination), the script can print a definitive R5 branch from a read that the pre-registration defines as insufficient, and the JSON `reads.R5.outcome` carries that wrong branch into the DEC rows.",
+      "suggested_fix": "Route R5a/R5b through the same precondition as `outcome()`: `\"insufficient\" if c.get(\"insufficient\") or not c.get(\"ci90\") else (\"within ±0.05\" if ... else \"outside ±0.05\")`. In the R5 aggregation, check `\"insufficient\" in (R5a, R5b)` first and return `insufficient` before evaluating the two definitive branches.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:grade_of",
+      "anchor_type": "function",
+      "anchor_line": 23,
+      "anchor_line_end": 29,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`grade_of` swallows every exception and returns None, and `s3_eligible` (lines 61-72) returns False on any exception. Neither emits a warning, and the report has no column saying how many grades or transcripts were actually found. When `--batches-root` lacks the batch directories (they live on the record branch, not with `c131-rows.jsonl`), the `diff_only` sensitivity silently falls back to row-level `oracle_exposed_defects` and the S3 sensitivity silently becomes identical to `trial_level`, because no row can be S3-eligible. Likewise rows failing the pin check are kept in `rows`, counted in the title (`27 c131 rows`) and in the inventory `rows` column, but silently dropped from every read.",
+      "failure_mode": "Anyone reproducing the formal read from the main branch gets a `c131-reads.md` whose S3 table differs from the published one (a1_full r18 shows 2/3 instead of 3/3) with no indication that inputs were missing; the discrepancy looks like a data change rather than a missing-input condition.",
+      "suggested_fix": "Count missing `grade.json` files and unreadable transcripts and either abort or print a prominent line in the report header (`grades found N/27, transcripts found M`). Add a `pin_ok` column to the row inventory, or drop pin-failing rows in `load_rows` with a logged count.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:grade_of",
+      "anchor_type": "line",
+      "anchor_line": 24,
+      "anchor_line_end": 24,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The run directory is derived as `r[\"run_id\"].split(f\"-{r['arm']}-\", 1)[1]` with `r[\"batch\"]` and `r[\"arm\"]` accessed by subscript. In `grade_of` this happens outside the `try`, and it is executed for every row at load time (line 151). `load_rows` admits a row when either `batch` or `run_id` starts with `c131-`, so a row with a `run_id` prefix but no `batch` key, or a `run_id` that does not embed `-<arm>-`, is admitted and then raises KeyError/IndexError, aborting the whole run before any table is produced. The same expression is duplicated in `s3_eligible` (line 63) where it is at least inside the `try`.",
+      "failure_mode": "One malformed or differently-formatted row in a future rows file (e.g. a resumed cell written with a different run_id scheme) crashes the formal read with a traceback instead of excluding the row.",
+      "suggested_fix": "Factor a `run_dir(r, root)` helper that uses `.get`, checks the separator is present, and returns None otherwise; have `grade_of` and `s3_eligible` both call it and treat None as missing. Better, have the batch scanner write an explicit `run_dir` field into each row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:caught_set",
+      "anchor_type": "function",
+      "anchor_line": 31,
+      "anchor_line_end": 34,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`caught_set` builds the defect universe as `{d1..dn}` from the manifest's defect count and subtracts `defects_missed_pm3`. The manifests are loaded in `main` (line 150) but only `len(...)` is used; the actual defect ids are never read and there is no check that every entry in `defects_missed_pm3` is a member of the universe. Any id that does not match the `d<i>` form (different casing, zero-padding, a renamed defect in a future manifest, or a grader that emits names) is silently ignored, which counts that defect as caught.",
+      "failure_mode": "A grader or manifest id-format change inflates `defect_catch_rate_pm3` for the affected arm without any error, biasing a contrast in the direction of whichever arm's grades were emitted in the new form.",
+      "suggested_fix": "Build the universe from the manifest (`{d[\"id\"] for d in manifest[\"defects\"]}`), pass it instead of `n`, and raise or warn when `set(missed) - universe` is non-empty.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:fallback",
+      "anchor_type": "function",
+      "anchor_line": 77,
+      "anchor_line_end": 78,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "CHANGELOG (KF-051) and analysis.md §10.7 state that Fable-refusal rows \"read degraded and are excluded from model contrasts\". In the script, the R5 specs (lines 158-159) exclude only rows where `fallback(r)` is true, i.e. where some `phases[].refusal_fallbacks` list is non-empty. The `degraded` flag is consulted only in the `strict` sensitivity (line 49), not in the main R5 read. If a KF-051 row records the fallback via `degraded: true` (or under a different key than `phases[].refusal_fallbacks`), it is included in the headline R5 contrast, contrary to the documented exclusion. The current rows show 0 degraded and 0 fallback so no number changes.",
+      "failure_mode": "A future batch containing a KF-051 row that is flagged `degraded` but whose fallback is not recorded exactly as `phases[].refusal_fallbacks` enters the bare-Fable vs full/bare-Opus comparison, contradicting the documented rule for the model read.",
+      "suggested_fix": "For the `exfb` specs exclude `r.get(\"degraded\")` as well as `fallback(r)`, or make the row schema guarantee that every refusal fallback sets both, and say so in the valid() docstring.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:s3_eligible",
+      "anchor_type": "function",
+      "anchor_line": 55,
+      "anchor_line_end": 75,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The docstring defines S3 eligibility as a row \"whose only recorded hit is an outside_path write under a scratch directory\". The implementation inspects a single `contaminated` dict (`pattern`, one `excerpt_id`) and one transcript line; it never verifies that there is no second hit. The scratch token `\"/tmp/\"` is a bare substring test, so any command mentioning a path such as `<repo>/tmp/` or `/var/tmp/` passes the shape check. Classification is otherwise fail-closed, which is good, but the implemented rule is looser than the pre-declared text in one direction (multiple hits) and than the intended path shapes in another.",
+      "failure_mode": "A contaminated row carrying an outside_path hit plus a second, more serious hit recorded in a sibling field would be re-included in S3, or a row whose command only touches a repo-internal `tmp/` directory would be classified as a scratch write.",
+      "suggested_fix": "If the contamination record has a hit list, require every hit to be `outside_path` with a scratch shape; otherwise document that the grader guarantees a single hit. Anchor scratch tokens to a path start (`$HOME/tmp/`, `/tmp/` preceded by a space, quote or `=`) rather than bare substring.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/a2a/sprint-3/reads-c131.py:valid",
+      "anchor_type": "line",
+      "anchor_line": 49,
+      "anchor_line_end": 49,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `strict` sensitivity drops any row with a non-empty `dissent_absent_gates`. For the `a1_no_dissent` arm the dissent is absent on every gate by design, so the filter removes the whole arm and R4 under `strict` prints `0 defects / r17:0/3 (Σ0) / None / insufficient` (visible in c131-reads.md). That row reads as an evidential result but is a construction artefact, and the text `insufficient under every read` in analysis.md §10.4 leans on it.",
+      "failure_mode": "A reader of the strict table takes the R4 `insufficient` as a fourth independent confirmation when it is the sensitivity excluding the arm it is meant to test.",
+      "suggested_fix": "Skip the `dissent_absent_gates` criterion for arms whose toggles disable the dissent (or for reads where arm A is `a1_no_dissent`), or print `n/a (arm excluded by construction)` for R4 under strict.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-265",
+    "timestamp": "2026-10-20T09:41:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 30153,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "fce4d87f75256d940d127915a30d103d0e5b62b579533a1b48fced7786f17a90",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

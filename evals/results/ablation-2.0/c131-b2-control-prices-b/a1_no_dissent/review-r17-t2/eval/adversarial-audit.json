@@ -1,0 +1,241 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Compare file contents when checking research write scope",
+      "body": "The scope check compares porcelain status entries rather than file contents. If an application file is already modified before research-begin, a researcher can overwrite it and leave its status entry unchanged; research-end then accepts the report despite the out-of-scope write. This undermines the containment check for a Write-capable agent consuming untrusted web content. chart-unblock-probe.sh has the same bypass in its before/after comparison. Record and compare content hashes, including existing dirty and ignored files, and enforce the research agent's exact output path before writes occur.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "authz",
+      "confidence_score": 0.99,
+      "anchor": ".claude/scripts/chart-ticket.sh:op_research_end",
+      "anchor_type": "function",
+      "anchor_line": 458,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-y1twvtue/.claude/scripts/chart-ticket.sh",
+        "line_range": {
+          "start": 458,
+          "end": 458
+        }
+      },
+      "id": "DISS-001",
+      "description": "The scope check compares porcelain status entries rather than file contents. If an application file is already modified before research-begin, a researcher can overwrite it and leave its status entry unchanged; research-end then accepts the report despite the out-of-scope write. This undermines the containment check for a Write-capable agent consuming untrusted web content. chart-unblock-probe.sh has the same bypass in its before/after comparison. Record and compare content hashes, including existing dirty and ignored files, and enforce the research agent's exact output path before writes occur.",
+      "id_derived": true,
+      "failure_mode": "The scope check compares porcelain status entries rather than file contents.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_research_end",
+      "anchor_type": "function",
+      "anchor_line": 455,
+      "anchor_line_end": 467,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/agents/chart-researcher.md:tools",
+      "cross_file_justification": "chart-researcher.md grants an unrestricted Write tool (and agent-types.yaml marks it write_capable: true) while feeding the agent untrusted WebFetch content; chart-ticket.sh research-end is the only mechanical check that the subagent stayed inside grimoires/loa/research/, and its integrity anchor lives inside that same directory.",
+      "description": "research-begin stores the pre-dispatch `git status` snapshot in `grimoires/loa/research/.chart-<slug>-<ticket>.dispatch` (marker(), line 437; written at line 448). research-end then (a) `comm -13`s that marker against the post-run status and (b) uses `find ... -newer \"$m\"` for .run/.beads. The subagent's one allowed write region is exactly `grimoires/loa/research/`, so the marker is writable by the thing it is supposed to police. A prompt-injected chart-researcher (WebFetch output is untrusted by the feature's own threat model) can modify any file in the repo, then append the matching porcelain line (e.g. ` M .claude/hooks/safety/block-destructive-bash.sh`) to the marker; `comm -13` suppresses it and the rewritten marker's newer mtime also defeats the `-newer` test for .run/.beads. The Write tool has no path allow-list, so 'write exactly one file' is enforced only by prompt. Secondary: the allow-list is the whole research/ directory, so the subagent may also overwrite other tickets' or other maps' reports, which op_handoff later inlines as priority-1 context.",
+      "failure_mode": "A research subagent compromised by fetched web content edits tracked files (hooks, scripts, skills) or the beads DB and the ticket passes research-end as clean; the tampered files are then committed as 'research' and executed by later sessions.",
+      "suggested_fix": "Store the dispatch marker outside the subagent's writable region (e.g. .run/ or a mktemp dir recorded in a variable, or compare against a git stash/tree hash instead of a file). Compare full status lines plus a content hash of tracked files (`git diff --stat HEAD` / `git write-tree`) rather than only new porcelain lines, and restrict the allowed write to exactly `chart-<slug>-<ticket>.md` (flag any other changed path under research/). Consider removing Write from the agent and having the session write the report from the subagent's return value.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-unblock-probe.sh:main",
+      "anchor_type": "hunk",
+      "anchor_line": 66,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The helper's verdict is only `git status --porcelain` of the main worktree before vs after (lines 57 and 71). The probe argv runs with the full environment inside a linked worktree that shares the main repo's `.git` (objects, refs, hooks, config). None of that is visible to `git status`: the probe can `git config core.hooksPath`/`core.fsmonitor` (code execution on the next git command in the main tree), drop files into `$MAIN/.git/hooks/`, create/force-move branches, or write to any path outside the repo (~/.ssh, ~/.claude, other repos). It can also hide edits to tracked main-tree files with `git -C \"$MAIN\" update-index --assume-unchanged/--skip-worktree`, which removes them from porcelain output. The header claims this is 'the only way a decision:unblock ticket runs anything' and that the probe 'never writes App-Zone code in the main tree', but the fence only covers the worktree listing.",
+      "failure_mode": "An unblock probe (chosen by the agent, possibly under prompt injection) achieves persistence or code execution via the shared .git directory or the user's home while the helper reports 'main tree unchanged' (exit 0).",
+      "suggested_fix": "Snapshot and compare more than porcelain: `git -C MAIN rev-parse HEAD`, `git for-each-ref`, a hash of `.git/config` and `.git/hooks`, and the index (`git ls-files -s | sha256sum`). Run the probe with `GIT_DIR`/`GIT_COMMON_DIR` unset and a minimal env, or clone the worktree into a separate repo (`git clone --shared` is still shared; use `git worktree add` then `git -C WT config ... ` guards or a plain `cp -a` of HEAD via `git archive`). Document that the helper is a fence, not a sandbox, in the SDD.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_fr11_spike_decided",
+      "anchor_type": "function",
+      "anchor_line": 642,
+      "anchor_line_end": 657,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "FR-1.1 blocks `git branch -D` on unmerged branches. The new exception lets a `spike/<slug>` branch be force-deleted when `grimoires/loa/decisions.yaml` holds a row with status decided, source `grimoires/loa/spikes/<slug>.md`, and a transition `to: decided` with `by` starting `operator:`. The ledger is a tracked, agent-writable file; the hook only governs Bash, so the agent can add or edit such a row with the Edit/Write tool (or `yq`/`sed` in Bash, which is not blocked) and then `git branch -D spike/<slug>` passes at line 691. The `operator:` prefix is a string the agent controls, not an authenticated signal, so this is a destructive-action bypass gated by data the actor can author.",
+      "failure_mode": "An agent (or prompt-injected session) fabricates an `operator:` decided transition and force-deletes an unmerged spike branch that was, by the SDD's own definition, the sole pointer for a decision; the prototype work is lost.",
+      "suggested_fix": "Require the deciding evidence to come from something the agent cannot forge inside the repo: e.g. only accept the exception when the ledger row's commit is already on origin/main (`git log origin/main -- grimoires/loa/decisions.yaml` contains the row), or when the spike branch's tip SHA is recorded in the row and the branch is pushed to origin (`git branch -r --contains`). Alternatively route spike deletion through git-branch-prune.sh with an operator-confirmation step instead of a hook exception.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_resolve",
+      "anchor_type": "line",
+      "anchor_line": 300,
+      "anchor_line_end": 304,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh:op_handoff",
+      "cross_file_justification": null,
+      "description": "Every other free-text input to chart-ticket.sh goes through `san1` (control-strip, single line) and `no_url`, but `--decision`, `--rationale`, `--evidence`, `--answer-ref`, `--consequence-*` and `--alternative-json` are forwarded raw to `dec-write-lib.sh decide` (line 300). Those values land in the tracked decision ledger and are then emitted unsanitized into the priority-1 hand-off snapshot by `dw list --source-epic ... --format md` in op_handoff (line 377), the one section of the snapshot not passed through the L6 sanitizer. plan-and-analyze.md now reads `grimoires/loa/context/chart-*.md` as priority-1 'settled, do not re-ask' context. Multi-line text, markdown headers, URLs, or instruction-like content in a resolve call (e.g. copied from an untrusted research report the session is summarizing) can therefore rewrite the structure of the snapshot or smuggle directives into the highest-priority context of a later planning session.",
+      "failure_mode": "Research-report content that reads like instructions is pasted into `--rationale`/`--evidence`, survives into decisions.yaml and the hand-off snapshot, and is consumed by /plan-and-analyze as settled operator decisions.",
+      "suggested_fix": "Apply `san1` and `no_url` (or at least control-strip + line flattening + length caps) to --decision, --rationale, --evidence, --answer-ref and each --consequence-*; validate --alternative-json with `jq -e 'type==\"object\"'` and sanitize its string leaves. In op_handoff, pass the `dw list --format md` output through the same L6 sanitizer used for research reports, or render the rows yourself from `--format json` with escaping.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/beads/get-ready-work.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 74,
+      "anchor_line_end": 74,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The build-path exclusion of decision tickets keys only on `.issue_type`, whereas chart-frontier.sh (and the rest of the new code, e.g. bead_row) tolerate `.issue_type // .type`. If `br ready --json` emits `type` (older/newer release, or the `{issues:[...]}` envelope the frontier script also accepts), the filter silently passes every question bead into /implement and /run. create-sprint-task.sh fails closed on unreadable labels, but this filter fails open.",
+      "failure_mode": "An autonomous /run session claims and 'implements' a /chart decision ticket as if it were build work, violating the plans-never-builds boundary the rest of the change enforces.",
+      "suggested_fix": "Use the same normalisation as chart-frontier.sh: unwrap `{issues:[...]}`, select on `((.issue_type // .type // \"\") != \"question\")`, and additionally drop beads carrying a `decision:` label as a second signal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-guard.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 46,
+      "anchor_line_end": 50,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh:op_close",
+      "cross_file_justification": null,
+      "description": "`--close-consumed` lets an unattended context pass the guard, and op_close with `--consumed-by` (chart-ticket.sh lines 402-404) only regex-checks the cycle id; it never verifies that the cycle exists, that a PRD was actually written, or that the named map was the one consumed. It then rejects every open ledger row, closes every bead and the epic. This is the only destructive /chart operation reachable autonomously and it is gated on a free-form string.",
+      "failure_mode": "An autonomous run (or a prompt-injected one) closes an unrelated open map with a made-up cycle id, marking all its undecided questions rejected and the epic closed, with no operator in the loop.",
+      "suggested_fix": "In op_close with --consumed-by, require the hand-off snapshot `grimoires/loa/context/chart-<slug>.md` to exist and the map Status to be `handed-off`, and verify the cycle id against the ledger/cycle registry (e.g. grimoires/loa/ledger.json) and that prd.md cites the snapshot. Refuse otherwise.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_ticket",
+      "anchor_type": "line",
+      "anchor_line": 234,
+      "anchor_line_end": 234,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`br create \"$q\" --type question ...` passes the sanitized question as the first positional argument. `san1` strips controls and flattens whitespace but does not reject a leading `-`, so a question such as `--parent <other-epic> ...` or `--labels sprint:1` is parsed by br as options, letting the ticket be attached to a different epic or labelled outside the `decision:` allow-list that chart-frontier.sh and create-sprint-task.sh rely on. The same applies to `--description \"$b\"` if br's parser accepts `--description --flag`.",
+      "failure_mode": "A crafted question string reparents or relabels the bead, breaking the exactly-one-decision-label invariant and the map/epic isolation the sprint tooling checks.",
+      "suggested_fix": "Reject or prefix values that start with `-` (e.g. `[[ \"$q\" != -* ]] || die`), and pass positionals after `--` if br supports it. Apply the same check to --body, --title, --destination and --why.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T07:49:02Z",
+    "tokens_input": 126212,
+    "tokens_output": 18212,
+    "cost_usd": 0,
+    "latency_ms": 47148,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 18,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 406,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7fe80b24a6c7951e9ed52e74b4b2964c344a59e4de1b049a1bc7a64c2743d690",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

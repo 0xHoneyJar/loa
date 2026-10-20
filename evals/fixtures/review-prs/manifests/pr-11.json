@@ -1,7 +1,7 @@
 {
   "fixture": "pr-11",
   "approved": true,
-  "approved_by": "lead 2026-10-14",
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
   "record": {
     "sprint": "247",
     "record_ref": "origin/record/cycle-126-a2a",
@@ -14,7 +14,10 @@
       "file": ".claude/adapters/cheval.py",
       "anchor_line": 2304,
       "anchors": [
+        1843,
         1992,
+        2256,
+        2297,
         2304
       ],
       "must_match": "RATE_LIMIT_UNVERIFIED",
@@ -32,7 +35,10 @@
       "anchors": [
         264,
         277,
-        292
+        279,
+        290,
+        292,
+        299
       ],
       "must_match": "record_observed",
       "severity": "high",
@@ -48,7 +54,11 @@
       "anchor_line": 165,
       "anchors": [
         165,
-        171
+        171,
+        172,
+        173,
+        174,
+        175
       ],
       "must_match": "# traffic; output-side: output + reasoning).",
       "severity": "high",
@@ -62,6 +72,10 @@
       "id": "L04-store-and-catalog-paths-are-read-through",
       "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
       "anchor_line": 225,
+      "anchors": [
+        225,
+        231
+      ],
       "must_match": "def load_observed(path: Optional[str] = None)",
       "severity": "low",
       "category": "security",
@@ -76,6 +90,7 @@
       "anchor_line": 2004,
       "anchors": [
         2004,
+        2016,
         2022
       ],
       "must_match": "nonlocal _last_walk_exit_code",

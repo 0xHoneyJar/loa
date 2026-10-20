@@ -277,3 +277,201 @@ json.dump(d, open(m, "w"))' "$T/runs/a7-build/sandbox/.claude/checksums.json" "$
   run "$TE" --run-dir "$T/runs/a1-build" --batch-dir "$T/runs" --suite-file "$SUITE"
   [ "$status" -eq 2 ]
 }
+
+# --- cycle-131 Sprint 263 Task 1.2: oracle_closed, oracle_open_recorded, bare_model_fable,
+# review_only_phases, no_review_dissent_envelope (PRD FR-1 AC 2, FR-5; SDD §5.2) ------------
+
+# c131_suite — the fixture suite plus the cycle-131 arms, one rule each (Sprint 2 declares the real ones)
+c131_suite() {
+  S131="$T/suite-c131.yaml"
+  cp "$SUITE" "$S131"
+  yq -i '.arms += [
+    {"id": "a1_closed", "task_types": ["review-catch"], "toggles": {}, "took_effect": ["oracle_closed"]},
+    {"id": "a1_full_openmount", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["oracle_open_recorded"]},
+    {"id": "a0_bare_fable", "task_types": ["all"], "toggles": {"loa_mount": false, "bare_model": "fable"}, "phases": ["BARE"], "took_effect": ["bare_model_fable"]},
+    {"id": "a1_review_only", "task_types": ["review-catch"], "toggles": {}, "phases": ["REVIEW"], "took_effect": ["review_only_phases"]},
+    {"id": "a1_no_dissent", "task_types": ["review-catch"], "toggles": {"dissent": false}, "took_effect": ["no_review_dissent_envelope"]}]' "$S131"
+}
+te131() { local run="$1"; shift; run "$TE" --run-dir "$run" --suite-file "$S131" "$@"; }
+gg() { git -C "$1" -c user.email=t@t -c user.name=t -c commit.gpgsign=false "${@:2}"; }
+
+# make_closed_run — a source repo (head commit H, fix commit F = the pin), a PR fixture and a
+# run dir whose sandbox was materialised and overlaid by the real mount library
+make_closed_run() {
+  local src="$T/c-src" fx="$T/c-fx" rd="$T/c-run" w
+  mkdir -p "$src/.claude/scripts" "$src/.claude/loa"
+  printf 'gate head\n' > "$src/.claude/scripts/gate.sh"
+  printf 'helper head\n' > "$src/.claude/scripts/helper.sh"
+  printf 'loa\n' > "$src/.claude/loa/CLAUDE.loa.md"
+  ( cd "$src" && git init -q && gg . add -A && gg . commit -qm head )
+  CH="$(git -C "$src" rev-parse HEAD)"
+  printf 'gate LATER fixed\n' > "$src/.claude/scripts/gate.sh"
+  printf 'helper LATER fixed\n' > "$src/.claude/scripts/helper.sh"
+  ( cd "$src" && gg . add -A && gg . commit -qm fix )
+  CF="$(git -C "$src" rev-parse HEAD)"
+  mkdir -p "$fx/head/.claude/scripts" "$fx/base/.claude/scripts"
+  printf 'gate head\n' > "$fx/head/.claude/scripts/gate.sh"; printf 'gate base\n' > "$fx/base/.claude/scripts/gate.sh"
+  printf 'diff --git a/.claude/scripts/gate.sh b/.claude/scripts/gate.sh\n--- a/.claude/scripts/gate.sh\n+++ b/.claude/scripts/gate.sh\n@@ -1 +1 @@\n-gate base\n+gate head\n' > "$fx/head.diff"
+  printf 'name: pr-c\nhead_commit: "%s"\nfix_commit: "%s"\n' "$CH" "$CF" > "$fx/fixture.yaml"
+  mkdir -p "$rd/meta" "$rd/sandbox/pr" "$rd/eval"
+  w="$rd/sandbox"
+  cp -a "$fx/head" "$fx/base" "$fx/head.diff" "$w/pr/"
+  git -C "$w" init -q; printf '/.claude/\n' >> "$w/.git/info/exclude"; gg "$w" add -A; gg "$w" commit -qm base
+  printf 'base_commit=%s\n' "$(git -C "$w" rev-parse HEAD)" > "$rd/meta/arm-evidence.txt"
+  mkdir -p "$w/.claude"; cp -a "$src/.claude/." "$w/.claude/"
+  ARM_EVIDENCE_FILE="$rd/meta/arm-evidence.txt" bash -c 'source "$1"; overlay_answer_paths "$2" "$3" head "$4" "$5"' _ \
+    "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$w" "$fx" "$src" "$CF" 2>/dev/null
+  echo a1_closed > "$rd/meta/arm"
+  jq -n --arg sc "$CF" '{schema_version: 1, arm: "a1_closed", task_id: "rc-c", task_type: "review-catch", status: "completed",
+                         source_commit: $sc, arm_toggles: {}, phases: [{name: "REVIEW", label: "REVIEW"}, {name: "AUDIT", label: "AUDIT"}]}' > "$rd/meta/pipeline.json"
+  # the task yaml the runner passes (--task-yaml), its fixture outside the run dir
+  mkdir -p "$T/c-suite/tasks/rc-c"
+  printf 'id: rc-c\ntype: review-catch\nreview_catch: {fixture: "%s"}\n' "$fx" > "$T/c-suite/tasks/rc-c/task.yaml"
+  CRD="$rd" CSRC="$src" CFX="$fx" CTY="$T/c-suite/tasks/rc-c/task.yaml"
+}
+
+@test "oracle_closed: OK on an overlaid run (fixture from --task-yaml, or from the overlay_fixture evidence)" {
+  c131_suite; make_closed_run
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 0 ]
+  line oracle_closed | grep -q ' OK ok head:2 answer paths (2 present), 2 later-only pinned versions'
+  te131 "$CRD" --source-repo "$CSRC"       # no --task-yaml: the harness-written overlay_fixture
+  [ "$status" -eq 0 ]
+  te131 "$CRD"                              # no --source-repo: the evidence's overlay_source_tree
+  [ "$status" -eq 0 ]
+}
+
+@test "oracle_closed: FAIL on an unmodified (later) mount, a stray later copy, a mutated path, a second sandbox commit, an unavailable fix commit, an open mount, a copy_source mismatch" {
+  c131_suite; make_closed_run
+  local W="$CRD/sandbox" ev="$CRD/meta/arm-evidence.txt"
+  cp "$ev" "$T/ev.orig"
+  # (a) an unmodified mount: the pinned (later) copy is back and the evidence says so
+  git -C "$CSRC" show "$CF:.claude/scripts/gate.sh" > "$W/.claude/scripts/gate.sh"
+  sed -i "s|^overlay_sha256=.claude/scripts/gate.sh=.*|overlay_sha256=.claude/scripts/gate.sh=$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$W/.claude/scripts/gate.sh")|" "$ev"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]
+  line oracle_closed | grep -q ' FAIL FAIL (a) .claude/scripts/gate.sh: '
+  cp "$T/ev.orig" "$ev"; printf 'gate head\n' > "$W/.claude/scripts/gate.sh"
+  # (b) a stray copy outside pr/
+  git -C "$CSRC" show "$CF:.claude/scripts/helper.sh" > "$W/.claude/scripts/helper.sh.bak"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]
+  line oracle_closed | grep -q ' FAIL FAIL (b) .claude/scripts/helper.sh.bak: byte-equal to the pinned .claude/scripts/helper.sh'
+  rm "$W/.claude/scripts/helper.sh.bak"
+  # (c) a path mutated after the overlay
+  echo edited >> "$W/.claude/scripts/gate.sh"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]
+  line oracle_closed | grep -q 'FAIL (c) .claude/scripts/gate.sh: mount_mutated=.claude/scripts/gate.sh'
+  printf 'gate head\n' > "$W/.claude/scripts/gate.sh"
+  # (d) a second commit in the sandbox repository
+  echo r > "$W/review.md"; gg "$W" add review.md; gg "$W" commit -qm later
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]
+  line oracle_closed | grep -q 'FAIL (d) .git: commits'
+  gg "$W" reset -q --hard HEAD~1; gg "$W" reflog expire --expire=now --all; gg "$W" gc -q --prune=now
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 0 ]
+  # a fix commit the overlay could not read (PR #1286 F001): its paths were never pinned
+  sed -i 's/^overlay_fix_commit=.*/overlay_fix_commit=unavailable/' "$ev"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)'
+  cp "$T/ev.orig" "$ev"
+  # an open mount is never closed; a copy source other than source_commit fails first
+  sed -i 's/^mount_overlay=.*/mount_overlay=none/' "$ev"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'mount_overlay=none (an open mount)'
+  cp "$T/ev.orig" "$ev"
+  jq --arg c "$CH" '.source_commit = $c' "$CRD/meta/pipeline.json" > "$T/x.json" && mv "$T/x.json" "$CRD/meta/pipeline.json"
+  te131 "$CRD" --task-yaml "$CTY"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q "copy_source $CF is not source_commit $CH"
+}
+
+@test "oracle_closed: the fixture never resolves inside the run dir (the agent-writable pr/)" {
+  c131_suite; make_closed_run
+  sed -i "s|^overlay_fixture=.*|overlay_fixture=$CRD/sandbox/pr|" "$CRD/meta/arm-evidence.txt"
+  : > "$CRD/sandbox/pr/head.diff"
+  te131 "$CRD" --source-repo "$CSRC"
+  [ "$status" -eq 1 ]
+  line oracle_closed | grep -q 'the PR fixture does not resolve'
+}
+
+@test "oracle_open_recorded: OK with mount_overlay=none and oracle_open=true; FAIL when either is missing" {
+  c131_suite
+  local rd="$T/runs/a1-review"
+  echo a1_full_openmount > "$rd/meta/arm"
+  printf 'mount_overlay=none\noracle_open=true\n' >> "$rd/meta/arm-evidence.txt"
+  te131 "$rd"
+  [ "$status" -eq 0 ]; line oracle_open_recorded | grep -q ' OK mount_overlay=none, oracle_open=true'
+  sed -i '/^oracle_open=/d' "$rd/meta/arm-evidence.txt"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line oracle_open_recorded | grep -q 'no oracle_open=true'
+  sed -i 's/^mount_overlay=none$/mount_overlay=head:4/' "$rd/meta/arm-evidence.txt"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line oracle_open_recorded | grep -q 'no mount_overlay=none in arm_evidence (got head:4)'
+}
+
+@test "bare_model_fable: OK when BARE used one Fable model at effort high; FAIL on Opus, a mixed record or another effort" {
+  c131_suite
+  local rd="$T/runs/a0-build"
+  echo a0_bare_fable > "$rd/meta/arm"
+  edit_json "$rd/meta/pipeline.json" '(.phases[] | select(.name == "BARE") | .models_used) = {"global.anthropic.claude-fable-5-1": 200}'
+  te131 "$rd"
+  [ "$status" -eq 0 ]; line bare_model_fable | grep -q ' OK BARE models_used global.anthropic.claude-fable-5-1, effort_requested high'
+  edit_json "$rd/meta/pipeline.json" '(.phases[] | select(.name == "BARE") | .models_used) = {"global.anthropic.claude-opus-5-5": 200}'
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line bare_model_fable | grep -q 'want exactly one global.anthropic.claude-fable'
+  edit_json "$rd/meta/pipeline.json" '(.phases[] | select(.name == "BARE") | .models_used) = {"global.anthropic.claude-fable-5-1": 200, "global.anthropic.claude-opus-5-5": 3}'
+  te131 "$rd"
+  [ "$status" -eq 1 ]
+  edit_json "$rd/meta/pipeline.json" '(.phases[] | select(.name == "BARE")) |= (.models_used = {"global.anthropic.claude-fable-5-1": 200} | .effort_requested = "xhigh")'
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line bare_model_fable | grep -q 'effort_requested xhigh (want high)'
+}
+
+@test "review_only_phases: OK on a REVIEW-only record without auditor feedback; FAIL with an AUDIT record or an auditor feedback file" {
+  c131_suite
+  local rd="$T/runs/a1-review"
+  echo a1_review_only > "$rd/meta/arm"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line review_only_phases | grep -q 'phases REVIEW,AUDIT, want REVIEW'
+  edit_json "$rd/meta/pipeline.json" '.phases |= map(select(.name == "REVIEW"))'
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line review_only_phases | grep -q 'auditor-sprint-feedback.md exists'
+  rm "$rd/sandbox/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md"
+  te131 "$rd"
+  [ "$status" -eq 0 ]; line review_only_phases | grep -q ' OK phases REVIEW; no auditor-sprint-feedback.md'
+}
+
+@test "no_review_dissent_envelope: OK without a review envelope, the gate disabled in the sandbox config and an audit envelope with a voice; FAIL otherwise" {
+  c131_suite
+  local rd="$T/runs/a1-review"
+  echo a1_no_dissent > "$rd/meta/arm"
+  printf 'flatline_protocol:\n  code_review:\n    enabled: false\n' > "$rd/sandbox/.loa.config.yaml"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line no_review_dissent_envelope | grep -q 'a review envelope exists (eval/adversarial-review.json)'
+  rm "$rd/eval/adversarial-review.json"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line no_review_dissent_envelope | grep -q 'sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json'
+  rm "$rd/sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json"
+  te131 "$rd"
+  [ "$status" -eq 0 ]; line no_review_dissent_envelope | grep -q ' OK no review envelope; code_review.enabled false; audit voices_succeeded 2'
+  edit_json "$rd/eval/adversarial-audit.json" '.verdict_quality.voices_succeeded = 0'
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line no_review_dissent_envelope | grep -q 'audit envelope voices_succeeded 0'
+  printf 'flatline_protocol:\n  code_review:\n    enabled: true\n' > "$rd/sandbox/.loa.config.yaml"
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line no_review_dissent_envelope | grep -q 'code_review.enabled is true'
+}
+
+@test "oracle_closed: a build run and an unmounted run pass with that evidence (a1_full lists the rule for every type)" {
+  c131_suite
+  echo a1_closed > "$T/runs/a1-build/meta/arm"
+  te131 "$T/runs/a1-build"
+  [ "$status" -eq 0 ]; line oracle_closed | grep -q ' OK not a review-catch run'
+  local rd="$T/runs/a1-review"
+  echo a1_closed > "$rd/meta/arm"
+  edit_json "$rd/meta/pipeline.json" '.arm_toggles.loa_mount = false'
+  te131 "$rd"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'loa_mount: false but the sandbox has .claude/'
+}

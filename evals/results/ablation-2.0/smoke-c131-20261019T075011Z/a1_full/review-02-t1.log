@@ -1,0 +1,6 @@
+2026-10-19T08:48:31Z run-ablation: smoke-c131-20261019T075011Z-a1_full-review-02-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-20261019T075011Z/a1_full/review-02-t1
+arm a1_full: all_phases_present OK phases REVIEW,AUDIT
+arm a1_full: oracle_closed OK ok head:2 answer paths (2 present), 2 later-only pinned versions, sandbox git = base commit only
+arm a1_full: integrity_clean OK 1973 manifest entries verified; manifest_sha256 008e78e849eb (matches checksums.json)
+arm a1_full: OK
+graded review-02: recall 1.0 false_positives 36; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-20261019T075011Z/a1_full/review-02-t1/grade.json

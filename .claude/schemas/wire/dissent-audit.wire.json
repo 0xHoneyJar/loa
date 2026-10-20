@@ -17,6 +17,8 @@
           "category",
           "anchor",
           "anchor_type",
+          "anchor_line",
+          "anchor_line_end",
           "scope",
           "trigger_anchor",
           "cross_file_justification",
@@ -74,6 +76,26 @@
                   "line",
                   "file"
                 ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_line_end": {
+            "anyOf": [
+              {
+                "type": "integer"
               },
               {
                 "type": "null"

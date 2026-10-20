@@ -1,0 +1,14 @@
+head/.claude/skills/reviewing-code/SKILL.md:6
+head/.claude/skills/reviewing-code/SKILL.md:27
+head/.claude/scripts/red-test-check.sh:183
+head/.claude/scripts/red-test-check.sh:313
+head/.claude/scripts/red-test-check.sh:20
+head/.claude/scripts/validate-artifact.sh:885
+head/.claude/scripts/validate-artifact.sh:1297
+head/.claude/scripts/validate-artifact.sh:1282
+head/tools/check-glossary-terms.sh:127
+head/.claude/skills/reviewing-code/SKILL.md:219
+head/.claude/skills/reviewing-code/SKILL.md:213
+head/.claude/skills/reviewing-code/SKILL.md:241
+planning-sprints/SKILL.md:205
+head/tests/unit/glossary-terms.bats:33

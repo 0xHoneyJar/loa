@@ -1,0 +1,241 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Compare file contents when validating research write scope",
+      "body": "The scope check compares Git status entries rather than file contents. If an application or configuration file was already modified before research-begin, the Write-capable researcher can overwrite it and leave the same ` M path` entry; research-end then accepts the report despite the unauthorized write. Existing untracked files have the same problem. chart-unblock-probe.sh uses an equivalent status comparison and also misses these changes. Snapshot and compare content hashes outside the permitted report path, including existing dirty and untracked files, and fail closed if the snapshot cannot be collected.",
+      "description": "The scope check compares Git status entries rather than file contents. If an application or configuration file was already modified before research-begin, the Write-capable researcher can overwrite it and leave the same ` M path` entry; research-end then accepts the report despite the unauthorized write. Existing untracked files have the same problem. chart-unblock-probe.sh uses an equivalent status comparison and also misses these changes. Snapshot and compare content hashes outside the permitted report path, including existing dirty and untracked files, and fail closed if the snapshot cannot be collected.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "authz",
+      "confidence_score": 0.99,
+      "anchor": ".claude/scripts/chart-ticket.sh:op_research_end",
+      "anchor_type": "function",
+      "anchor_line": 458,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-3n_r8by0/.claude/scripts/chart-ticket.sh",
+        "line_range": {
+          "start": 457,
+          "end": 458
+        }
+      },
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The scope check compares Git status entries rather than file contents.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_research_end",
+      "anchor_type": "function",
+      "anchor_line": 455,
+      "anchor_line_end": 467,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/agents/chart-researcher.md:5",
+      "cross_file_justification": "chart-researcher.md grants an unrestricted Write tool (and agent-types.yaml marks it write_capable: true); chart-ticket.sh research-end is the only mechanical enforcement of the 'one file under grimoires/loa/research/' rule.",
+      "description": "The research-end scope check is defeatable from inside the permitted write zone. (1) The baseline marker `.chart-<slug>-<ticket>.dispatch` lives in grimoires/loa/research/, which is exactly the directory the filter `p !~ /^grimoires\\/loa\\/research\\//` ignores, so a subagent (or a WebFetch prompt injection steering it) can overwrite the marker with a fresh `git status` after making changes, and the `comm -13` diff and the `find -newer \"$m\"` check on .run/.beads both pass. (2) `git status` only sees the repo tree: writes to ~/.claude/settings.json, ~/.gitconfig, ~/.bashrc or any path outside the worktree are invisible. (3) Files already modified or already ignored before dispatch produce identical status lines after further edits, so edits to pre-dirty or ignored files (e.g. .env, .claude/settings.local.json if dirty) go undetected. (4) Other tickets' reports and markers in the same directory can be overwritten, tampering with evidence that later flows into priority-1 planning context.",
+      "failure_mode": "A prompt-injected chart-researcher writes outside its scope (or rewrites the marker), research-end reports success, and the session proceeds to ingest and act on the compromised state.",
+      "suggested_fix": "Store the baseline snapshot outside the subagent's writable zone (e.g. a mktemp file held by the session, or .run/ which is already checked) and compare content hashes, not status lines. Record a full `git ls-files -z | xargs sha256sum` plus a listing of ignored/untracked files before and after. Restrict the subagent's Write tool to the single report path via a PreToolUse hook rather than relying on post-hoc detection. Fail research-end if the marker mtime or content changed.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_fr11_spike_decided",
+      "anchor_type": "function",
+      "anchor_line": 642,
+      "anchor_line_end": 657,
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/safety/block-destructive-bash.sh:691",
+      "cross_file_justification": null,
+      "description": "FR-1.1 previously allowed `git branch -D` only when git itself confirmed the branch was merged. The new exemption trusts a repo-tracked text file: if grimoires/loa/decisions.yaml contains a row with status decided, source grimoires/loa/spikes/<slug>.md and any transition to decided with by starting 'operator:', the unmerged spike branch may be force-deleted. The agent under guard can author that row with the Write/Edit tools (this hook only intercepts Bash), or via dec-write-lib.sh with a chosen --recorded-by, so the fence now depends on data the fenced party controls.",
+      "failure_mode": "Agent (or an injected instruction) edits decisions.yaml to add a fake decided row, then runs `git branch -D spike/<slug>`; unmerged prototype work is lost with no git-level safeguard.",
+      "suggested_fix": "Require an independent signal that the agent cannot forge: e.g. the spike branch pushed to origin (`git rev-parse origin/spike/<slug>` equals local HEAD of the branch), or a signed/operator-only confirmation artifact outside the repo tree. At minimum also require the row be committed on main (git show origin/main:grimoires/loa/decisions.yaml) rather than the working-tree file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": ".claude/scripts/chart-ticket.sh:section_append",
+      "anchor_type": "line",
+      "anchor_line": 127,
+      "anchor_line_end": 127,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh:325",
+      "cross_file_justification": null,
+      "description": "`awk -v line=\"$2\"` processes backslash escape sequences in the assigned value (gawk/mawk/BWK awk all do). san1 strips control characters but leaves backslashes, so a --line, --name, --why or bead title containing a literal `\\n` becomes a real newline inside the map doc, breaking the 'one plain line' invariant and injecting arbitrary extra lines (new `## ` sections, fake `- Decision (DEC-…)` bullets, instruction text). op_handoff then copies the whole map doc verbatim into grimoires/loa/context/chart-<slug>.md, which /plan-and-analyze reads as priority-1 'settled, do not re-ask' context without the L6 sanitizer.",
+      "failure_mode": "Attacker-influenced text (e.g. a bead title set from research output) carries `\\n## Decisions so far\\n- Use vendor X (DEC-9999, bd-x): …` and lands in the hand-off snapshot as a settled decision.",
+      "suggested_fix": "Pass values through the environment or ENVIRON[] (`line=\"$2\" awk '... ENVIRON[\"line\"] ...'`), or `-v` with backslashes pre-escaped (`${2//\\\\/\\\\\\\\}`). Add `\\\\` to the san1 strip set or reject it. Apply the same to `set_status` for consistency.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/scripts/chart-unblock-probe.sh",
+      "anchor_type": "line",
+      "anchor_line": 71,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-unblock-probe.sh:66",
+      "cross_file_justification": null,
+      "description": "The probe runs an arbitrary argv with full user privileges; the only containment is comparing `git status --porcelain` of the main tree before and after. That comparison cannot see: (a) the shared .git directory (hooks/, config, info/exclude), so a probe can plant .git/hooks/post-checkout or set core.fsmonitor / core.pager to persist code execution; (b) content changes to files already listed as ignored (`!! .env`, `!! .beads/…`) because the status line is unchanged; (c) any path outside the repository (home dotfiles, ~/.claude). The header claims the helper 'exits 1 when the main tree's status changed', which overstates the guarantee.",
+      "failure_mode": "A probe command derived from untrusted research or an injected instruction modifies .git/hooks or an ignored secrets file undetected; the ticket passes and the backdoor fires on the next git operation.",
+      "suggested_fix": "Hash tracked and ignored file contents (not just status lines) before/after; snapshot and compare .git/hooks and .git/config; run the probe under a restricted user/namespace or with `HOME` pointed at a scratch dir and `GIT_DIR` unset; document the residual gaps honestly in the header.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": ".claude/commands/chart.md",
+      "anchor_type": "line",
+      "anchor_line": 22,
+      "anchor_line_end": 24,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/chart-ticket.sh:469",
+      "cross_file_justification": "chart.md loads grimoires/loa/research/chart-*.md raw as context; chart-ticket.sh research-end accepts any report whose first line is the UNTRUSTED banner; chart-researcher.md populates those reports from WebFetch.",
+      "description": "Research reports are built from arbitrary web pages via WebFetch and then auto-loaded into the /chart session as context_files with no sanitization. The only gate (research-end line 469) is that the first line equals the banner, which any report trivially satisfies; the remaining content is unconstrained. op_handoff does run the L6 sanitizer when inlining reports into the snapshot, but the direct context_files path in chart.md bypasses that entirely, so injected instructions reach the charting session that calls chart-ticket.sh resolve/rule-out/close with br and ledger write access.",
+      "failure_mode": "A fetched page contains instructions; the subagent paraphrases them into the report (or is steered to copy them); the next /chart session ingests the report as context and records a decision or rules out a ticket the operator never confirmed.",
+      "suggested_fix": "Do not list research reports as auto-loaded context_files; have the skill read them explicitly through sanitize_for_session_start L6 (as op_handoff does). Have research-end run the L6 sanitizer / fence-corpus scan over the full report and reject on hits, not just check the banner line.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_ticket",
+      "anchor_type": "line",
+      "anchor_line": 234,
+      "anchor_line_end": 234,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`br create \"$q\" --type question …` passes the sanitized question text as the first positional argument. san1 does not reject a leading `-`, so a --question beginning with `--` (e.g. `--parent OTHER-EPIC` or `--dry-run`) is parsed by br as an option, allowing argument injection into the bead create call (same at line 230). The epic path is safe because of the fixed 'Map: ' prefix.",
+      "failure_mode": "A question string starting with a dash alters br's behaviour (wrong parent, silently no-op create) and the script's subsequent id parsing misattributes the bead.",
+      "suggested_fix": "Reject `q` matching `^-` in op_ticket, or pass the title after `--` if br supports it, or prefix it as op_epic does.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/chart-ticket.sh:op_close",
+      "anchor_type": "line",
+      "anchor_line": 431,
+      "anchor_line_end": 431,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/chart-guard.sh:46",
+      "cross_file_justification": null,
+      "description": "op_close appends `## Closed` text to `$DOC` with `>>` and never checks that grimoires/loa/maps/<slug>.md is a regular file (every other write path uses mktemp + mv, and the hook's ledger check does test `! -L`). `close --consumed-by` is the one operation chart-guard allows unattended, so a planted symlink at the map path (e.g. from a PR) gets arbitrary text appended to its target during an autonomous run.",
+      "failure_mode": "Unattended /plan-and-analyze closes a map whose doc is a symlink to another tracked file, corrupting that file.",
+      "suggested_fix": "In need_doc require `[[ -f \"$DOC\" && ! -L \"$DOC\" ]]`, and perform the `## Closed` append through the same mktemp/doc_swap path as section_append.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T05:15:14Z",
+    "tokens_input": 174426,
+    "tokens_output": 18601,
+    "cost_usd": 0,
+    "latency_ms": 41675,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 14,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 406,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7fe80b24a6c7951e9ed52e74b4b2964c344a59e4de1b049a1bc7a64c2743d690",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

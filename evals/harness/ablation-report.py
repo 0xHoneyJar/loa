@@ -16,6 +16,7 @@
 #                      [--seed 20261015] [--resamples N] [--level L]
 #                      [--exclude-degraded true|false] [--partial]
 #                      [--cuts F] [--not-run CSV] [--suite-version N]
+#                      [--pin SHA] [--exclude-oracle-exposed true|false]
 #
 # Options:
 #   --runs F            a runs.jsonl file (repeatable). Every non-blank line is one row
@@ -51,7 +52,41 @@
 #                       (default) or inconclusive_by_power (a pre-declared power cut)
 #   --not-run CSV       arm ids or labels read as Not run (cut) with figure "--not-run"
 #   --suite-version N   the suite_version the main sections report (default: the highest
-#                       present); a version no row holds → exit 2
+#                       present); a version no row holds → exit 2. When that version is split
+#                       by pin or rule (report 1.3), its largest partition is the primary
+#   --pin SHA           read only the rows whose source_commit starts with SHA (4–40 lowercase
+#                       hex); the header counts the rows left out; no row left → exit 2
+#   --exclude-oracle-exposed true|false  (default false) true applies the oracle-exposed rule
+#                       below in the main reads too (a pre-registration that names it, FR-6);
+#                       false keeps it in its labelled sensitivity only
+#
+# Report 1.3 (cycle-131 Sprint 263 Task 1.6, SDD §3.5, D-2.3, D-3.3):
+#   decision statistic  defect_catch_rate (row writer 1.4: grader 1.3's rule, the row's
+#                   grader_rule); every catch read (H1 and each component) prints
+#                   defect_catch_rate_pm3 and defect_catch_rate_pm3_v1 beside it, with the same
+#                   pairs, unit and bootstrap, deciding nothing ("n/a" when a paired row lacks the
+#                   field: a 1.2.x grade). JSON comparisons[].beside {metric: {n, unit, d, lo, hi,
+#                   valid_cells, insufficient} | null}; decision_statistic, beside.
+#   partitions      rows are partitioned by suite_version and, within a version holding more than
+#                   one source_commit or grader_rule (a review-catch row without one reads "pm3",
+#                   the 1.2.x rule), by "<version> · pin <12 hex> · rule <rule>" keys — never pooled;
+#                   each partition is a version section as before, the primary the highest version's
+#                   largest partition.
+#   valid cells     a contrast's valid cells are, per paired task, the smaller of the two arms' valid
+#                   trial counts; fewer than rules.min_valid_cells (default 4) reads "insufficient":
+#                   not usable by a component decision ("no valid pair (…: insufficient, k valid
+#                   cells < 4)"), H1 "H1: insufficient — fewer than 4 valid cells", A4 likewise; the
+#                   degenerate check is read first. JSON valid_cells, insufficient.
+#   sensitivities   two labelled analyses per partition, deciding nothing, each with the rows its rule
+#                   excluded per arm printed beside the reads: "oracle-exposed cells excluded" (a row
+#                   whose oracle_exposed_defects or oracle_exposed_unknown is non-empty leaves its cell
+#                   pairwise; a row whose oracle_open is true is reported, never excluded) and
+#                   "dissent-absent gates excluded" (a row whose dissent_absent_reason names budget,
+#                   preflight or error; a planned absence, disabled, never). JSON sensitivities
+#                   {oracle_exposed_excluded, dissent_absent_excluded: {label, excluded_rows_per_arm,
+#                   reported_open_rows_per_arm, h1, a4, rows}}.
+#   finding volume  per review-catch arm: flags per valid row (finding_volume_per_run) and planted
+#                   defects caught ÷ findings flagged (precision_planted_per_flag), informational.
 #
 # Suite versions (Sprint 262): rows of different suite_version values are never pooled. The
 # main sections (Decisions, Per-arm detail, Exclusions, Cuts, Sensitivity, Rows per cell) read
@@ -220,7 +255,7 @@ import statistics
 import subprocess
 import sys
 
-VERSION = "1.2.3"
+VERSION = "1.3.0"
 REPORT_SCHEMA = 1
 ROW_SCHEMA_MAJOR = 1
 MANIFEST_SCHEMA_MAJOR = 1
@@ -231,6 +266,15 @@ BUILD_TYPES = ("feature-build", "bug-fix", "refactor")
 REVIEW = "review-catch"
 PASS = "hidden_test_pass_rate"
 CATCH = "defect_catch_rate"
+CATCH_PM3 = "defect_catch_rate_pm3"          # report 1.3: the 1.2.0 rule on the current anchors (beside)
+CATCH_PM3_V1 = "defect_catch_rate_pm3_v1"    # report 1.3: the 1.2.0 rule on manifests/v1/ (beside)
+CATCH_METRICS = (CATCH, CATCH_PM3, CATCH_PM3_V1)
+MISSED_KEY = {CATCH: "defects_missed", CATCH_PM3: "defects_missed_pm3", CATCH_PM3_V1: "defects_missed_pm3_v1"}
+MIN_VALID_CELLS = 4                          # report 1.3 (FR-6): a contrast needs this many valid cells
+UNPLANNED_ABSENCE = ("budget", "preflight", "error")
+ORACLE_LABEL = "oracle-exposed cells excluded"
+DISSENT_LABEL = "dissent-absent gates excluded"
+PIN_GRAMMAR = re.compile(r"[0-9a-f]{4,40}")
 DEC0417_EXCLUDED = ("transport_error", "infrastructure_error")
 SCORING = ("completed", "agent_error", "cap_failure")
 POWER = 0.90
@@ -531,8 +575,27 @@ def load_cuts(path, not_run, arm_ids, labels):
 
 # --------------------------------------------------------------------------- the analysis
 def usable(p):
-    """A comparison with a valid pair that is not degenerate."""
-    return p["n"] > 0 and not p.get("degenerate")
+    """A comparison with a valid pair that is neither degenerate nor insufficient (report 1.3)."""
+    return p["n"] > 0 and not p.get("degenerate") and not p.get("insufficient")
+
+
+def oracle_reason(row):
+    """report 1.3: why a row leaves the oracle-exposed sensitivity (non-empty oracle_exposed_defects or
+    oracle_exposed_unknown); None for a clean row and for an arm whose evidence says oracle_open (reported,
+    never excluded)"""
+    ex = [x for x in (row.get("oracle_exposed_defects") or []) if isinstance(x, str)]
+    unk = [x for x in (row.get("oracle_exposed_unknown") or []) if isinstance(x, str)]
+    if not (ex or unk) or row.get("oracle_open") is True:
+        return None
+    return "oracle-exposed: " + (", ".join(ex) or "none") + (f"; exposed_unknown {', '.join(unk)}" if unk else "")
+
+
+def dissent_reason(row):
+    """report 1.3: why a row leaves the dissent-absent sensitivity — a gate whose dissent was absent for an
+    unplanned reason (budget, preflight, error); a planned absence (disabled) never excludes"""
+    r = row.get("dissent_absent_reason")
+    bad = sorted((g, v) for g, v in (r.items() if isinstance(r, dict) else []) if v in UNPLANNED_ABSENCE)
+    return ("dissent absent: " + ", ".join(f"{g}={v}" for g, v in bad)) if bad else None
 
 
 def applies_to(arm_def, ttype):
@@ -541,9 +604,14 @@ def applies_to(arm_def, ttype):
 
 
 class Analysis:
-    def __init__(self, suite, rows, mans, args, cap_excluded, include_degraded=False):
+    def __init__(self, suite, rows, mans, args, cap_excluded, include_degraded=False, extra=None):
         self.suite, self.rules, self.args = suite, suite["rules"], args
         self.cap_excluded = cap_excluded
+        # extra (report 1.3): a further exclusion rule row → reason | None (the labelled sensitivities)
+        self.extra = extra
+        self.extra_excluded = {}    # arm -> rows the extra rule excluded
+        self.open_reported = {}     # arm -> oracle-exposed rows of an oracle_open arm (reported, kept)
+        self.min_cells = int(self.rules.get("min_valid_cells", MIN_VALID_CELLS))
         # include_degraded (Sprint 262 R3): the sensitivity H1/A4 lines read degraded rows as scored
         self.exclude_degraded = bool(args.exclude_degraded) and not include_degraded
         self.arms = {a["id"]: a for a in suite["arms"] if isinstance(a, dict) and a.get("id")}
@@ -612,6 +680,14 @@ class Analysis:
                 reason = "ungraded (defect_catch_rate null)"
             elif ttype != REVIEW and not isinstance(row.get(PASS), (int, float)):
                 reason = "ungraded (hidden_test_pass_rate null)"
+        if reason is None and self.extra is not None:
+            reason = self.extra(row)
+            if reason is not None:
+                self.extra_excluded[arm] = self.extra_excluded.get(arm, 0) + 1
+        if self.extra is oracle_reason and row.get("oracle_open") is True and \
+                (row.get("oracle_exposed_defects") or row.get("oracle_exposed_unknown")):
+            self.open_reported[arm] = self.open_reported.get(arm, 0) + 1
+        row = dict(row)     # per-Analysis validity (the sensitivities classify the same rows)
         row["_valid"] = reason is None
         row["_reason"] = reason
         cell = self.cells.setdefault((arm, task), {}).setdefault(row["trial"], {"valid": None, "rows": []})
@@ -621,23 +697,25 @@ class Analysis:
     def pass_score(self, row):
         return 0.0 if row["status"] == "cap_failure" else float(row[PASS])
 
-    def catch_task_score(self, row):
-        return 0.0 if row["status"] == "cap_failure" else float(row[CATCH])
+    def catch_task_score(self, row, metric=CATCH):
+        return 0.0 if row["status"] == "cap_failure" else float(row[metric])
 
-    def defect_vector(self, row):
+    def defect_vector(self, row, metric=CATCH):
         n = self.task_defects.get(row["task_id"], 0)
         if n <= 0:
             return None, "none"
         if row["status"] == "cap_failure":
             return [0.0] * n, "cap"
-        missed = row.get("defects_missed")
-        if missed is None and isinstance(row.get("recall"), dict):
+        missed = row.get(MISSED_KEY[metric])
+        if missed is None and metric == CATCH and isinstance(row.get("recall"), dict):
             missed = row["recall"].get("missed")
+        # the beside metrics carry their own rate; defects_caught counts the decision rule's catches
+        caught = row.get("defects_caught") if metric == CATCH else None
         if isinstance(missed, list) and all(isinstance(x, str) for x in missed) \
-                and missed_consistent(missed, n, row.get("defects_caught")):
+                and missed_consistent(missed, n, caught):
             ms = set(missed)
             return [0.0 if f"d{k}" in ms else 1.0 for k in range(1, n + 1)], "ids"
-        return [float(row[CATCH])] * n, "rate"
+        return [float(row[metric])] * n, "rate"
 
     # -- shares
     def excluded_share(self, arm, types=None):
@@ -651,10 +729,11 @@ class Analysis:
 
     # -- one paired comparison of `arm` against `ctrl` on one primary
     def compare(self, arm, ctrl, metric, seed):
-        types = (REVIEW,) if metric == CATCH else BUILD_TYPES
+        types = (REVIEW,) if metric in CATCH_METRICS else BUILD_TYPES
         tasks = sorted({t for (a, t) in self.cells if a in (arm, ctrl) and self.task_type.get(t) in types})
         res = {"metric": metric, "arm": arm, "control": ctrl, "unit": "tasks", "pairs": [], "unpaired": [],
-               "dropped": [], "diffs": [], "task_diffs": [], "defect_identity": set()}
+               "dropped": [], "diffs": [], "task_diffs": [], "defect_identity": set(), "valid_cells": 0,
+               "unavailable": False}
         for task in tasks:
             ca, cc = self.cells.get((arm, task), {}), self.cells.get((ctrl, task), {})
             drop = sorted(t for t in set(ca) | set(cc)
@@ -679,6 +758,12 @@ class Analysis:
                         why.append(f"the cells of {side} dropped pairwise")
                 res["unpaired"].append({"task_id": task, "reason": "; ".join(why)})
                 continue
+            if metric in (CATCH_PM3, CATCH_PM3_V1) and not all(
+                    r["status"] == "cap_failure" or is_num(r.get(metric)) for r in va + vc):
+                res["unavailable"] = True      # a row without the beside field (a 1.2.x grade): no figure
+                continue
+            # report 1.3: a valid cell is a trial valid in both arms of the pair (per task, the smaller count)
+            res["valid_cells"] += min(len(va), len(vc))
             pair = {"task_id": task, "arm_runs": [r["run_id"] for r in va], "control_runs": [r["run_id"] for r in vc],
                     "arm_cost": mean([float(usd_of(r)) for r in va]),
                     "control_cost": mean([float(usd_of(r)) for r in vc]),
@@ -690,11 +775,12 @@ class Analysis:
                 res["diffs"].append(ma - mc)
                 res["task_diffs"].append(ma - mc)
             else:
-                ma, mc = mean([self.catch_task_score(r) for r in va]), mean([self.catch_task_score(r) for r in vc])
+                ma = mean([self.catch_task_score(r, metric) for r in va])
+                mc = mean([self.catch_task_score(r, metric) for r in vc])
                 pair.update(arm_value=ma, control_value=mc, diff=ma - mc)
                 res["task_diffs"].append(ma - mc)
-                vecs_a = [self.defect_vector(r) for r in va]
-                vecs_c = [self.defect_vector(r) for r in vc]
+                vecs_a = [self.defect_vector(r, metric) for r in va]
+                vecs_c = [self.defect_vector(r, metric) for r in vc]
                 for _, how in vecs_a + vecs_c:
                     res["defect_identity"].add(how)
                 if all(v is not None for v, _ in vecs_a + vecs_c):
@@ -706,8 +792,10 @@ class Analysis:
                 else:
                     pair["defects"] = 0
             res["pairs"].append(pair)
-        if metric == CATCH:
+        if metric in CATCH_METRICS:
             res["unit"] = "defects"
+        if res["unavailable"]:
+            res["pairs"], res["diffs"], res["task_diffs"], res["valid_cells"] = [], [], [], 0
         res["defect_identity"] = sorted(res["defect_identity"] - {"cap"})
         n = len(res["diffs"])
         res["n"] = n
@@ -719,16 +807,24 @@ class Analysis:
         # A catch-rate comparison whose pairs come from one task and whose defect vectors are the
         # row's rate (no per-defect ids) has a zero-variance interval by construction: degenerate,
         # read as no valid pair by H1 and by the component decision (Sprint 262).
-        res["degenerate"] = bool(metric == CATCH and n > 0 and res["n_tasks"] == 1
+        res["degenerate"] = bool(metric in CATCH_METRICS and n > 0 and res["n_tasks"] == 1
                                  and "ids" not in res["defect_identity"])
+        # report 1.3 (FR-6): fewer than min_valid_cells valid cells reads "insufficient" (no decision)
+        res["insufficient"] = bool(n > 0 and res["valid_cells"] < self.min_cells)
         if res["degenerate"]:
             res["degenerate_reason"] = (
                 f"valid pairs on one task ({res['pairs'][0]['task_id']}) with no per-defect ids: every "
                 f"defect takes the row's {CATCH}, so the bootstrap interval has zero variance by construction")
-        if metric == CATCH:
+        if metric in CATCH_METRICS:
             td = res["task_diffs"]
             lo, hi = bootstrap(td, self.args.resamples, self.args.level, seed)
             res["task_level"] = {"unit": "tasks", "n": len(td), "d": mean(td) if td else None, "lo": lo, "hi": hi}
+        if metric == CATCH:
+            # report 1.3: the 1.2.0-rule figures printed beside the decision statistic, deciding nothing
+            res["beside"] = {}
+            for m in (CATCH_PM3, CATCH_PM3_V1):
+                b = self.compare(arm, ctrl, m, seed)
+                res["beside"][m] = None if b["unavailable"] or b["n"] == 0 else b
         return res
 
     def deltas(self, comps):
@@ -753,6 +849,13 @@ class Analysis:
         P = [p for p in comps if usable(p)]
         nopair = len(P) < len(comps)
         name = lambda p: p["metric"]  # noqa: E731
+
+        def why_not(p):
+            if p.get("degenerate"):
+                return ": degenerate"
+            if p.get("insufficient"):
+                return f": insufficient, {p['valid_cells']} valid cells < {self.min_cells}"
+            return ""
         if share is not None and r9(share) > self.guard:
             # DEC-0393: the degradation guard reads first, whatever the interval (lead's ruling, Sprint 260)
             clause = f"excluded share {share:.3f} > {self.guard:g}"
@@ -769,7 +872,7 @@ class Analysis:
             clauses.append(f"d < -{T:g} ({', '.join(hits)})")
         if nopair:
             clauses.append("no valid pair (" + ", ".join(
-                name(p) + (": degenerate" if p["n"] > 0 else "") for p in comps if not usable(p)) + ")")
+                name(p) + why_not(p) for p in comps if not usable(p)) + ")")
         if clauses:
             return "inconclusive", "inconclusive: " + "; ".join(clauses), clauses
         cost_ok = (c is not None and r9(c) <= -C) or (w is not None and r9(w) <= -C)
@@ -848,7 +951,7 @@ class Analysis:
         # precision and cost per true defect (Sprint 262 R3, informational): the arm's valid review-catch
         # rows with a numeric defects_caught (a cap_failure counts 0 caught); false_positives null → 0
         prec = {"precision": None, "usd_per_true_defect": None, "true_defects": None, "flagged_regions": None,
-                "precision_rows": 0}
+                "precision_rows": 0, "finding_volume_per_run": None, "precision_planted_per_flag": None, "flag_rows": 0}
         if rc:
             caught = fp = usd = 0.0
             nrows = 0
@@ -868,6 +971,17 @@ class Analysis:
                     "true_defects": int(caught) if float(caught).is_integer() else caught,
                     "flagged_regions": int(caught + fp) if float(caught + fp).is_integer() else caught + fp,
                     "precision_rows": nrows}
+        # report 1.3: finding volume (flags = distinct cited findings per run) and precision as planted
+        # defects caught over findings flagged, over the valid review-catch rows with a numeric flags
+        caught_f = flags = 0.0
+        frows = 0
+        for rs in rc.values():
+            for r in rs:
+                f, c = r.get("flags"), (0 if r["status"] == "cap_failure" else r.get("defects_caught"))
+                if is_num(f) and is_num(c):
+                    caught_f, flags, frows = caught_f + c, flags + f, frows + 1
+        prec.update(finding_volume_per_run=(flags / frows) if frows else None,
+                    precision_planted_per_flag=(caught_f / flags) if flags > 0 else None, flag_rows=frows)
         return {
             **prec,
             "rows": len(rows), "by_status": dict(sorted(status.items())),
@@ -892,7 +1006,19 @@ class Analysis:
 def interval(p):
     if p is None or p["n"] == 0:
         return "no pair"
-    return f"{f3(p['d'])} [{f3(p['lo'])}, {f3(p['hi'])}]" + (" (degenerate)" if p.get("degenerate") else "")
+    return f"{f3(p['d'])} [{f3(p['lo'])}, {f3(p['hi'])}]" + (" (degenerate)" if p.get("degenerate") else "") + \
+        (f" (insufficient: {p['valid_cells']} valid cells)" if p.get("insufficient") and not p.get("degenerate") else "")
+
+
+def beside_text(p):
+    """report 1.3: the _pm3 and _pm3_v1 figures of a defect_catch_rate comparison (decide nothing)"""
+    if p is None or "beside" not in p:
+        return ""
+    parts = []
+    for m in (CATCH_PM3, CATCH_PM3_V1):
+        b = p["beside"].get(m)
+        parts.append(f"{m} " + ("n/a (rows without the field)" if b is None else f"{interval(b)} (n = {b['n']} {b['unit']})"))
+    return "; ".join(parts)
 
 
 def comp_json(p):
@@ -904,6 +1030,13 @@ def comp_json(p):
     out["degenerate"] = bool(p.get("degenerate"))
     if p.get("degenerate"):
         out["degenerate_reason"] = p["degenerate_reason"]
+    out["valid_cells"] = p.get("valid_cells", 0)
+    out["insufficient"] = bool(p.get("insufficient"))
+    if "beside" in p:
+        out["beside"] = {m: (None if b is None else {"n": b["n"], "unit": b["unit"], "d": j6(b["d"]), "lo": j6(b["lo"]),
+                                                     "hi": j6(b["hi"]), "valid_cells": b["valid_cells"],
+                                                     "insufficient": bool(b.get("insufficient"))})
+                         for m, b in p["beside"].items()}
     if "task_level" in p:
         out["task_level"] = {k: (j6(v) if isinstance(v, float) else v) for k, v in p["task_level"].items()}
     return out
@@ -990,6 +1123,44 @@ def list_reason(row, mans, arms):
     return None
 
 
+PART_VERSION = {}   # report 1.3: partition key -> its suite_version key (a key differs from it when split)
+
+
+def part_rule(r):
+    """the grader rule a row's catch figures follow: grader_rule, "pm3" for a review-catch row without one
+    (a 1.2.x grade), None for a build row (no catch figure)"""
+    if r.get("task_type") != REVIEW:
+        return None
+    v = r.get("grader_rule")
+    return v if isinstance(v, str) and v else "pm3"
+
+
+def part_split(v, rows):
+    """report 1.3: one suite version's rows split by source_commit and grader_rule when either takes more
+    than one value — rows of different pins or rules are never pooled; the key names the pin (12
+    characters) and the rule ("n/a" for build rows when review rows hold two rules)"""
+    commits = sorted({str(r.get("source_commit") or "") for r in rows})
+    rules = sorted({x for x in (part_rule(r) for r in rows) if x is not None})
+    if len(commits) <= 1 and len(rules) <= 1:
+        PART_VERSION[v] = v
+        return {v: list(rows)}
+    out = {}
+    for r in rows:
+        k = v
+        if len(commits) > 1:
+            k += f" · pin {str(r.get('source_commit') or '')[:12] or 'n/a'}"
+        if len(rules) > 1:
+            k += f" · rule {part_rule(r) or 'n/a'}"
+        PART_VERSION[k] = v
+        out.setdefault(k, []).append(r)
+    return out
+
+
+def part_order(groups):
+    """sort key over partition keys: the version, then the larger group, then the key"""
+    return lambda k: (version_order(PART_VERSION.get(k, k)), len(groups[k]), k)
+
+
 def partition(rows, wanted, mans=None, arms=None):
     """Rows by suite_version, never pooled; returns ({key: rows}, primary key, version-less rows listed
     under the primary). Among two or more versions a version-less row that would enter a cell stops the
@@ -1010,15 +1181,20 @@ def partition(rows, wanted, mans=None, arms=None):
                            f"name its suite_version")
             unversioned.append((r, "no suite_version; " + why))
     if len(keys) <= 1:
-        groups = {(keys[0] if keys else "n/a"): list(rows)}
+        vgroups = {(keys[0] if keys else "n/a"): list(rows)}
     else:
-        groups = {k: [r for r in rows if version_key(r.get("suite_version")) == k] for k in keys}
+        vgroups = {k: [r for r in rows if version_key(r.get("suite_version")) == k] for k in keys}
+    groups = {}
+    for v, rs in vgroups.items():
+        groups.update(part_split(v, rs))
+    order = part_order(groups)
     if wanted is not None:
         w = version_key(wanted)
-        if w not in groups:
-            raise Fail(f"--suite-version {wanted}: no row has that suite_version (present: {', '.join(groups)})")
-        return groups, w, unversioned
-    return groups, max(groups, key=version_order), unversioned
+        cands = [k for k in groups if PART_VERSION.get(k, k) == w]
+        if not cands:
+            raise Fail(f"--suite-version {wanted}: no row has that suite_version (present: {', '.join(vgroups)})")
+        return groups, max(cands, key=order), unversioned
+    return groups, max(groups, key=order), unversioned
 
 
 def assess(an, arm, ctrl, p):
@@ -1035,6 +1211,8 @@ def assess(an, arm, ctrl, p):
         return "inconclusive_by_degradation", "; ".join(over)
     if p.get("degenerate"):
         return "degenerate", p["degenerate_reason"]
+    if p.get("insufficient"):
+        return "insufficient", f"{p['valid_cells']} valid cells < {an.min_cells}"
     if p["n"] == 0:
         return "no_pair", None
     return "tested", None
@@ -1048,6 +1226,8 @@ def read_text(p, state, why, v):
         return f"{p['metric']} inconclusive by degradation ({why}); remaining pairs {interval(p)} (n = {p['n']} {p['unit']})"
     if state == "degenerate":
         return base + " — read as no valid pair"
+    if state == "insufficient":
+        return f"{p['metric']} insufficient ({why}); {interval(p)} (n = {p['n']} {p['unit']})"
     return base
 
 
@@ -1069,6 +1249,8 @@ def h1a4(main, v, seed):
         live = [s for s in states if s != "not_testable"]
         if live and all(s == "inconclusive_by_degradation" for s in live):
             h1_state, h1_line = "inconclusive_by_degradation", "H1: inconclusive by degradation — not established"
+        elif "insufficient" in states:
+            h1_state, h1_line = "insufficient", f"H1: insufficient — fewer than {main.min_cells} valid cells"
         else:
             h1_state, h1_line = "not_yet_decidable", "H1: not yet decidable (no pair)"
 
@@ -1081,6 +1263,8 @@ def h1a4(main, v, seed):
             a4_state, a4_line = "not_testable", f"A4 sensitivity: not testable on suite_version {v} — no admissible build task"
         elif s == "inconclusive_by_degradation":
             a4_state, a4_line = s, f"A4 sensitivity: inconclusive by degradation ({why}) — not decided"
+        elif s == "insufficient":
+            a4_state, a4_line = "insufficient", f"A4 sensitivity: insufficient — fewer than {main.min_cells} valid cells"
         elif s in ("no_pair", "degenerate"):
             a4_state, a4_line = "not_yet_decidable", "A4 sensitivity: not yet decidable (no pair)"
         elif r9(a4["hi"]) < 0:
@@ -1426,6 +1610,35 @@ def render_batches(L, recs):
         L("")
 
 
+def render_extra_sens(L, V, rules, h):
+    """report 1.3: the oracle-exposed and dissent-absent sensitivities, with the cells each rule excluded
+    per arm printed beside every read"""
+    for key in ("oracle_exposed_excluded", "dissent_absent_excluded"):
+        X = V["extra_sens"][key]
+        L(f"{h} Sensitivity: {X['label']} — decides nothing")
+        L("")
+        counts = ", ".join(f"`{a}` {n}" for a, n in X["counts"].items()) or "none"
+        L(f"- rows this rule excluded, per arm: {counts}")
+        if key == "oracle_exposed_excluded":
+            rep_ = ", ".join(f"`{a}` {n}" for a, n in X["reported"].items()) or "none"
+            L(f"- oracle-exposed rows of an oracle_open arm (reported, not excluded): {rep_}")
+        else:
+            L("- a planned absence (dissent_absent_reason disabled) is never excluded; budget, preflight and error are")
+        L("")
+        L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | excluded by the rule | "
+          "predicate outcome (not used) |")
+        L("|---|---|---|---|---|---|---|")
+        for d in X["rows"]:
+            cp = {p["metric"]: p for p in d["comparisons"]}
+            npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
+            catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
+            L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | "
+              f"{X['counts'].get(d['arm'], 0)} (control {X['counts'].get(CONTROL, 0)}) | {d['predicate_label']} |")
+        L("")
+        render_h1a4(L, X["h"], rules, prefix=f"sensitivity ({X['label']}; decides nothing): ",
+                    suffix=f" (excluded: a1_full {X['counts'].get(CONTROL, 0)}, a0_bare {X['counts'].get(BARE, 0)})")
+
+
 def render_sens(L, V, rules, h):
     L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
       "wall-clock Δ % | excluded share | predicate outcome (not used) |")
@@ -1446,8 +1659,9 @@ def render_sens(L, V, rules, h):
 def analyse(suite, vrows, mans, args, cuts, components, v):
     """Every figure of one suite_version (the rows of no other version enter)."""
     seed = args.seed
-    main = Analysis(suite, vrows, mans, args, cap_excluded=False)
-    sens = Analysis(suite, vrows, mans, args, cap_excluded=True)
+    main_extra = oracle_reason if getattr(args, "exclude_oracle_exposed", "false") == "true" else None
+    main = Analysis(suite, vrows, mans, args, cap_excluded=False, extra=main_extra)
+    sens = Analysis(suite, vrows, mans, args, cap_excluded=True, extra=main_extra)
     decisions = [main.arm_report(a, cuts, seed) for a in components]
     sens_rows = [sens.arm_report(a, {}, seed) for a in components]
 
@@ -1461,9 +1675,17 @@ def analyse(suite, vrows, mans, args, cuts, components, v):
     shas = sorted({str(mans[b].get("suite_manifest_sha256")) for b in batches
                    if b in mans and mans[b].get("suite_manifest_sha256") not in (None, "")}
                   | {str(r.get("suite_manifest_sha256")) for r in vrows if r.get("suite_manifest_sha256") not in (None, "")})
+    # report 1.3: the two labelled sensitivities (decide nothing); planned dissent absence never excludes
+    extra = {}
+    for key, label, fn in (("oracle_exposed_excluded", ORACLE_LABEL, oracle_reason),
+                           ("dissent_absent_excluded", DISSENT_LABEL, dissent_reason)):
+        an = Analysis(suite, vrows, mans, args, cap_excluded=False, extra=fn)
+        extra[key] = {"label": label, "an": an, "rows": [an.arm_report(a, {}, seed) for a in components],
+                      "h": h1a4(an, v, seed), "counts": dict(sorted(an.extra_excluded.items())),
+                      "reported": dict(sorted(an.open_reported.items()))}
     return dict(H, rows=vrows, main=main, sens=sens, decisions=decisions, sens_rows=sens_rows,
                 decidable=decidable, caps=caps, batches=batches, shas=shas, sens_h=sens_h,
-                budget=budget_matched(main, v))
+                budget=budget_matched(main, v), extra_sens=extra)
 
 
 def render_decisions(L, V, absent, rules):
@@ -1485,6 +1707,13 @@ def render_decisions(L, V, absent, rules):
         L(f"| {a.get('label', a['id'])} | `{a['id']}` | — | — | — | — | — | — | **component-absent** | "
           f"{md_cell(a.get('evidence', 'absent: true'))} | 0 |")
     L("")
+    besides = [(d, p) for d in V["decisions"] for p in d["comparisons"] if p["metric"] == CATCH and p["n"] > 0]
+    if besides:
+        L(f"Beside the decision statistic ({CATCH}; decide nothing):")
+        L("")
+        for d, p in besides:
+            L(f"- {d['arm_label']} `{d['arm']}`: {beside_text(p)}")
+        L("")
     render_h1a4(L, V, rules)
 
 
@@ -1493,6 +1722,10 @@ def render_h1a4(L, H, rules, prefix="", suffix=""):
     h1p = ", ".join(read_text(p, s, why, H["version"]) for p, (s, why) in zip(H["h1_comps"], H["h1_reads"]))
     L(f"**{prefix}{H['h1_line']}** — a1_full − a0_bare: {h1p}{suffix}. Rule (rules.h1): \"{rules.get('h1', '')}\"")
     L("")
+    for p in H["h1_comps"]:
+        if p["metric"] == CATCH and p["n"] > 0:
+            L(f"{prefix}Beside the decision statistic (decides nothing): {beside_text(p)}")
+            L("")
     a4 = H["a4"]
     if a4 is None:
         a4p = "no arm a4_no_gates"
@@ -1557,6 +1790,9 @@ def render_per_arm(L, V, detail_arms, h):
             L(f"- precision ({BUDGET_LABEL}): {u3(m['precision'])} = true defects {m['true_defects']} / flagged "
               f"regions {m['flagged_regions']} (defects caught + false positives over {m['precision_rows']} valid "
               f"review-catch rows); cost per true defect caught: {'n/a' if usd is None else f'USD {usd:.2f}'}")
+            L(f"- finding volume ({BUDGET_LABEL}): {u3(m['finding_volume_per_run'])} flagged findings per run; "
+              f"precision as planted ÷ flagged: {u3(m['precision_planted_per_flag'])} (over {m['flag_rows']} valid "
+              f"review-catch rows with flags)")
         wall, tin, tout = m["wall_clock_ms_per_run"], m["tokens_in_per_run"], m["tokens_out_per_run"]
         wall_s = "n/a" if wall is None else f"{wall / 60000.0:.1f} min"
         tin_s = "n/a" if tin is None else f"{tin:.0f}"
@@ -1653,6 +1889,16 @@ def build(args):
     if args.resamples < 1 or not (0.0 < args.level < 1.0):
         raise Fail("--resamples must be >= 1 and --level in (0, 1)")
     rows, dups = load_rows(args.runs)
+    pin_dropped = 0
+    if args.pin is not None:
+        pin = args.pin.strip().lower()
+        if not PIN_GRAMMAR.fullmatch(pin):
+            raise Fail(f"--pin {args.pin}: want 4 to 40 lowercase hex characters (a commit sha or its prefix)")
+        kept = [r for r in rows if str(r.get("source_commit") or "").lower().startswith(pin)]
+        pin_dropped = len(rows) - len(kept)
+        if not kept:
+            raise Fail(f"--pin {args.pin}: no row has a source_commit starting with it")
+        rows = kept
     mans = load_manifests(args.manifests)
     arms = [a for a in suite["arms"] if isinstance(a, dict) and a.get("id")]
     arm_ids = [a["id"] for a in arms]
@@ -1662,12 +1908,19 @@ def build(args):
         if need not in arm_ids:
             raise Fail(f"suite has no arm {need}")
 
-    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent")]
+    # components: every runnable arm but the two baselines; an eval_only arm (cycle-131 FR-5: the open-mount
+    # oracle A/B) is an evaluation control, never a shipped-default decision, so it is not a component here
+    def is_eval_only(a):   # the flag, or the property it protects (audit r1 DISS-C-002)
+        return a.get("eval_only") is True or (a.get("toggles") or {}).get("oracle_open") is True
+    for a in arms:
+        if not a.get("absent") and (a.get("toggles") or {}).get("oracle_open") is True and a.get("eval_only") is not True:
+            raise Fail(f"suite arm {a.get('id')} opens the oracle (toggles.oracle_open: true) without eval_only: true")
+    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and not is_eval_only(a)]
     absent = [a for a in arms if a.get("absent")]
     seed = args.seed
     groups, primary, unversioned = partition(rows, args.suite_version, mans,
                                              {a["id"]: a for a in arms})
-    versions = sorted(groups, key=version_order, reverse=True)
+    versions = sorted(groups, key=part_order(groups), reverse=True)
     others = [v for v in versions if v != primary]
     VS = {v: analyse(suite, groups[v], mans, args, cuts, components, v) for v in versions}
     # version-less rows that never reach a decision: listed under the primary version (report 1.2.1)
@@ -1677,10 +1930,15 @@ def build(args):
     h1_comps, a4 = P["h1_comps"], P["a4"]
 
     k = len(components)
+    eval_only_arms = [a["id"] for a in arms if is_eval_only(a) and not a.get("absent")]
+    eval_only_counts = {aid: sum(1 for r in P.get("rows", []) if r.get("arm") == aid) for aid in eval_only_arms}
+    eval_only_line = ("Evaluation-only arms (not components): " +
+                      (", ".join(f"{aid} ({n} rows)" for aid, n in eval_only_counts.items()) if eval_only_counts else "none") +
+                      " — read by their own pre-registered contrast, never by a decision here.")
     efp = k * (1.0 - args.level) / 2.0
     efp_line = (f"Expected false positives at level {args.level:.2f} over {k} components: "
-                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.1f} one-sided per direction "
-                f"({2 * efp:.1f} in either direction); no multiple-comparison correction is applied "
+                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.2f} one-sided per direction "
+                f"({2 * efp:.2f} in either direction); no multiple-comparison correction is applied "
                 f"(multiple_comparisons: {rules.get('multiple_comparisons', 'none')}).")
 
     # provenance
@@ -1710,7 +1968,15 @@ def build(args):
         role = "primary: the main sections" if v == primary else "reported separately, never pooled"
         L(f"  - suite_version {v} ({role}): {len(V['rows'])} rows; batches {', '.join(V['batches']) or 'none'}; "
           f"suite manifest sha256 {', '.join(V['shas']) or 'n/a'}")
-    L(f"- source commit(s): {', '.join(distinct('source_commit')) or 'n/a'}")
+    L(f"- source commit(s): {', '.join(distinct('source_commit')) or 'n/a'}"
+      + (f"; --pin {args.pin}: {pin_dropped} row(s) of other source commits not read" if args.pin is not None else ""))
+    rules_seen = sorted({x for x in (part_rule(r) for r in rows) if x is not None})
+    L(f"- decision statistic: {CATCH} (grader rule {', '.join(rules_seen) or 'n/a'}); {CATCH_PM3} and {CATCH_PM3_V1} "
+      f"are printed beside it and decide nothing; rows of different suite_version, source_commit or grader_rule "
+      f"are never pooled (partitions: {', '.join(versions)})")
+    L(f"- a contrast needs at least {main.min_cells} valid cells (a trial valid in both arms) or reads insufficient; "
+      f"oracle-exposed cells in the main reads: "
+      f"{'excluded (--exclude-oracle-exposed true)' if args.exclude_oracle_exposed == 'true' else 'included (the labelled sensitivity excludes them)'}")
     shas = distinct("suite_manifest_sha256")
     drift = [v for v in versions if len(VS[v]["shas"]) > 1]
     L(f"- suite manifest sha256: {', '.join(shas) or 'n/a'}" + (
@@ -1740,6 +2006,7 @@ def build(args):
     L("")
     render_decisions(L, P, absent, rules)
     L(efp_line)
+    L(eval_only_line)
     L("")
 
     L("## Per-arm detail")
@@ -1765,6 +2032,7 @@ def build(args):
     L(f"## Sensitivity figure: {SENS_LABEL}")
     L("")
     render_sens(L, P, rules, "###")
+    render_extra_sens(L, P, rules, "##")
 
     render_budget(L, P["budget"], "##")
 
@@ -1815,6 +2083,7 @@ def build(args):
         L(f"### Sensitivity figure (suite_version {v}): {SENS_LABEL}")
         L("")
         render_sens(L, V, rules, "####")
+        render_extra_sens(L, V, rules, "###")
         render_budget(L, V["budget"], "###")
 
     # never fatal: the batch record is presentation only; its computation (grouping rows by batch, the
@@ -1876,7 +2145,15 @@ def build(args):
                 "h1": h1_json(V, rules), "a4": a4_json(V, rules), "decisions": decisions_json(V["decisions"]),
                 "arms": arms_json(ms), "exclusions": exclusions_json(V), "listed": listed_json(V),
                 "cap_failures": [r["run_id"] for r in V["caps"]],
-                "sensitivity": sens_json(V), "budget_matched": budget_json(V["budget"])}
+                "sensitivity": sens_json(V), "budget_matched": budget_json(V["budget"]),
+                "sensitivities": extra_json(V)}
+
+    def extra_json(V):
+        return {k: {"label": X["label"], "excluded_rows_per_arm": X["counts"], "reported_open_rows_per_arm": X["reported"],
+                    "h1": dict(h1_json(X["h"], rules)), "a4": dict(a4_json(X["h"], rules)),
+                    "rows": [{"arm": d["arm"], "predicate_state": d["predicate_state"],
+                              "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in X["rows"]]}
+                for k, X in V["extra_sens"].items()}
 
     def sens_json(V):
         return {"treatment": SENS_H_TREATMENT,
@@ -1905,7 +2182,8 @@ def build(args):
                     "evidence": a.get("evidence")} for a in absent],
         "h1": h1_json(P, rules),
         "a4": a4_json(P, rules),
-        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line},
+        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line,
+                                     "eval_only_arms": eval_only_counts},
         "arms": arms_json(metrics),
         "exclusions": exclusions_json(P),
         "listed": listed_json(P),
@@ -1913,6 +2191,10 @@ def build(args):
         "cap_failures": [r["run_id"] for r in P["caps"]],
         "cuts": [dict(arm=a, **cuts[a]) for a in sorted(cuts)],
         "sensitivity": dict(sens_json(P), label=SENS_LABEL),
+        "sensitivities": extra_json(P),
+        "decision_statistic": CATCH, "beside": [CATCH_PM3, CATCH_PM3_V1], "min_valid_cells": main.min_cells,
+        "pin": args.pin, "pin_dropped_rows": pin_dropped,
+        "oracle_exposed_in_main": "excluded" if args.exclude_oracle_exposed == "true" else "included",
         "budget_matched": budget_json(P["budget"]),
         "batches": recs_json,
         "batches_note": recs_note,
@@ -1978,6 +2260,8 @@ def main(argv):
     ap.add_argument("--cuts")
     ap.add_argument("--not-run")
     ap.add_argument("--suite-version")
+    ap.add_argument("--pin")
+    ap.add_argument("--exclude-oracle-exposed", choices=("true", "false"), default="false")
     args = ap.parse_args(argv)
     args.exclude_degraded = args.exclude_degraded == "true"
     try:

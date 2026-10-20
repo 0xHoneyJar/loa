@@ -1,0 +1,201 @@
+{
+  "fixture": "pr-16",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "252",
+    "record_ref": "origin/record/cycle-128-a2a",
+    "head_commit": "8dc4a49dc38ae397c4efbc5fb379e7dbbd044ea7",
+    "fix_commit": "16f38539459a12ecd1f19bf09d4cca5a960b8156"
+  },
+  "defects": [
+    {
+      "id": "L01-treats-any-as-a-fixture-so-reaches-the-w",
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "anchor_line": 249,
+      "must_match": "resolve_target(){ # mode: write|read",
+      "severity": "medium",
+      "category": "test",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33",
+      "source_commit": "8dc4a49d",
+      "synthetic": false
+    },
+    {
+      "id": "L02-discards-any-line-containing-user-operat",
+      "file": "tests/unit/user-invoked-commands.bats",
+      "anchor_line": 74,
+      "anchors": [
+        61,
+        74
+      ],
+      "must_match": "grep -viE \"$exempt\"",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41",
+      "source_commit": "8dc4a49d",
+      "synthetic": false
+    },
+    {
+      "id": "L03-the-shape-check-runs-over-a-json-stream",
+      "file": "tools/check-round-independence.sh",
+      "anchor_line": 65,
+      "anchors": [
+        65,
+        71
+      ],
+      "must_match": "rounds_json=\"[]\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60",
+      "source_commit": "8dc4a49d",
+      "synthetic": false
+    },
+    {
+      "id": "L04-index-decisions-family-emitted-ledger-te",
+      "file": ".claude/scripts/grimoire-index.sh",
+      "anchor_line": 177,
+      "anchors": [
+        177,
+        186
+      ],
+      "must_match": "emit_decisions()",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76",
+      "source_commit": "8dc4a49d",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/scripts/grimoire-index.sh",
+      "start": 186,
+      "end": 189,
+      "source": "fix/16f38539459a:186-189"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "start": 248,
+      "end": 252,
+      "source": "fix/16f38539459a:248-252"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "start": 626,
+      "end": 626,
+      "source": "fix/16f38539459a:626-626"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/skills/discovering-requirements/resources/REFERENCE.md",
+      "start": 60,
+      "end": 60,
+      "source": "fix/16f38539459a:60-60"
+    },
+    {
+      "id": "F005",
+      "file": ".loa.config.yaml.example",
+      "start": 100,
+      "end": 100,
+      "source": "fix/16f38539459a:100-100"
+    },
+    {
+      "id": "F006",
+      "file": ".loa.config.yaml.example",
+      "start": 127,
+      "end": 127,
+      "source": "fix/16f38539459a:127-127"
+    },
+    {
+      "id": "F007",
+      "file": ".loa.config.yaml.example",
+      "start": 140,
+      "end": 140,
+      "source": "fix/16f38539459a:140-140"
+    },
+    {
+      "id": "F008",
+      "file": "tests/unit/check-round-independence.bats",
+      "start": 137,
+      "end": 137,
+      "source": "fix/16f38539459a:137-137"
+    },
+    {
+      "id": "F009",
+      "file": "tests/unit/dec-write-lib.bats",
+      "start": 381,
+      "end": 381,
+      "source": "fix/16f38539459a:381-381"
+    },
+    {
+      "id": "F010",
+      "file": "tests/unit/dec-write-lib.bats",
+      "start": 417,
+      "end": 417,
+      "source": "fix/16f38539459a:417-417"
+    },
+    {
+      "id": "F011",
+      "file": "tests/unit/grimoire-index.bats",
+      "start": 140,
+      "end": 140,
+      "source": "fix/16f38539459a:140-140"
+    },
+    {
+      "id": "F012",
+      "file": "tests/unit/user-invoked-commands.bats",
+      "start": 61,
+      "end": 69,
+      "source": "fix/16f38539459a:61-69"
+    },
+    {
+      "id": "F013",
+      "file": "tests/unit/user-invoked-commands.bats",
+      "start": 74,
+      "end": 75,
+      "source": "fix/16f38539459a:74-75"
+    },
+    {
+      "id": "F014",
+      "file": "tests/unit/user-invoked-commands.bats",
+      "start": 209,
+      "end": 209,
+      "source": "fix/16f38539459a:209-209"
+    },
+    {
+      "id": "F015",
+      "file": "tools/check-round-independence.sh",
+      "start": 65,
+      "end": 65,
+      "source": "fix/16f38539459a:65-65"
+    },
+    {
+      "id": "F016",
+      "file": "tools/check-round-independence.sh",
+      "start": 71,
+      "end": 83,
+      "source": "fix/16f38539459a:71-83"
+    },
+    {
+      "id": "F017",
+      "file": "tools/check-round-independence.sh",
+      "start": 90,
+      "end": 90,
+      "source": "fix/16f38539459a:90-90"
+    },
+    {
+      "id": "F018",
+      "file": "tools/check-round-independence.sh",
+      "start": 138,
+      "end": 143,
+      "source": "fix/16f38539459a:138-143"
+    }
+  ]
+}

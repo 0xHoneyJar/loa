@@ -1,0 +1,17 @@
+P01	labelled	Stub :92 encodes exit codes the test author chose, not cheval's EXIT_CODES; matches the label's taxonomy bullet (C-006), not its setup-vocabulary bullet
+P02	different	Finding is dotenv precedence and quote/comment strip order causing false presence; label is the secret materialised in val under xtrace
+P03	different	Finding is the 200K-1M range missing from the class table; label is the >1000-line edge case not class-scoped
+P04	different	Finding is /^###/ also matching #### headings; label is the fence toggle (not md-fence.awk) and fail-open Date gate
+P05	labelled	Finding: porcelain compare misses writes to shared git dir (refs, config, hooks), helper exits 0; that is the label's main-tree-only boundary
+P06	different	Findings are handoff glob prefix collision and handoff accepting proposed rows; label is op_close --consumed-by not verifying handed-off/open rows
+P07	labelled	Same defect: contract check only greps the heading; empty or partial triage passes; count list items vs rejected_summary length
+P08	different	Finding is loa-status display_context_line placement/JSON omission; label is the >1000-line edge case contradicting the long row
+P09	labelled	Auditor LOW-001 describes val holding the dotenv secret and xtrace leaking it; same mechanism and fix as label bullet one
+P10	labelled	Finding: removed except ValueError lets an embedded-NUL prompt escape raw instead of ProviderUnavailableError; matches the planted defect
+P11	different	Finding laments lost numeric tiers and unseen REFERENCE table; label is parallel_threshold being unitless and misaligned, not a lost guard
+P12	labelled	Finding: grep/sed extract the credential into val before the emptiness test, contradicting never-read; presence-only grep -q fix; label bullet one
+P13	different	Findings are fence bypasses (refspec push, branch -f, update-ref); label is a false-positive block of prose lines via [^;&|]*
+P14	different	All three findings are the >200K column label/400K models; label is the >1000-line edge case not class-scoped
+P15	different	Finding is spike delete not checking the branch was pushed; label is the missing positive/forged-transition test coverage
+P16	labelled	Same defect: an _Aliases_ line before the first term has empty entry, tokens read MISS misleadingly; fix skip with WARN
+P17	labelled	Same mechanism at same site: porcelain line unchanged when an already-listed file's content changes; label names the ignored .run/.beads case

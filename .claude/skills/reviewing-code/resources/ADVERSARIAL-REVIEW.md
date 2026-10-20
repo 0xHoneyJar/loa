@@ -210,3 +210,21 @@ this block are kept byte-identical (CMP-138 fails on any drift).
 attempt per hop, so a host with neither still repairs through its own primary; `LOA_ADVERSARIAL_REPAIR_MODEL`
 pins the whole chain to one model (the round-1 hardening above has the retirement, lock and budget rules).
 KF-004 evidence: the three real rejected payloads under `tests/fixtures/dissent-rejected/` now pass without a repair.
+
+## Numeric anchors and the budget scaling (cycle-131 FR-4)
+
+- **Numeric anchors (`anchor_line`, `anchor_line_end`).** Both prompts ask each voice for the head-file line the finding
+  sits on (`anchor_line`) and, for a range, its last line (`anchor_line_end`), beside the symbol `anchor` and
+  `anchor_type`. The symbol anchor stays the stable reference and stays required for high-severity findings: the
+  anchor check, `anchor_stability` and the hallucination filter key on `anchor` alone. The normaliser keeps a line only
+  as a whole number from 1 to 10,000,000, and an end only beside a kept start and at least it; any other value is
+  dropped silently, never a rejection or a repair hop. A finding with no line is unchanged. Graders (the eval harness's
+  envelope reduction) read `anchor_line` with the anchor's file as `path:line[-end]`; read them as a pointer, never as
+  a replacement for the symbol.
+- **Budget scaling (`budget_scale`, `budget_cents_max`).** `flatline_protocol.<code_review|security_audit>.budget_scale`
+  is `fixed` (the default; an absent key is the shipped gate, byte for byte) or `diff`: the budget becomes
+  `min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max)` (`budget_cents_max` default 600), where the estimate
+  is the gate's own pre-dispatch estimate over the planned voices. An estimate above that budget still refuses (exit 4,
+  `status: budget_exceeded`, `reason: budget`). A malformed scale or maximum is said and `fixed` applies. When the key is
+  written, the envelope's metadata carries `budget_scale`, `budget_cents_effective` and `budget_cents_max`. The eval
+  harness writes `diff` for both gates in its sandbox config; the shipped default stays `fixed`.

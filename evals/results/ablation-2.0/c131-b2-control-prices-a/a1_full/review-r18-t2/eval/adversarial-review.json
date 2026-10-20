@@ -1,0 +1,192 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/red-test-check.sh:NOT_A_RED_PATTERNS",
+      "anchor_type": "line",
+      "anchor_line": 326,
+      "scope": "diff",
+      "description": "A missing pytest test file can produce VERIFIED without any failing assertion. With `pytest tests/test_regression.py`, pytest exits 4 and prints `ERROR: file or directory not found:` when the file is absent at red. Neither the exit-code check nor the output patterns reject this. The prescribed review invocation also omits the optional --test-file check.",
+      "failure_mode": "If green adds the passing test and a production change, the script returns VERIFIED even though the regression test never existed or ran at red.",
+      "suggested_fix": "Reject pytest usage and missing-file failures as NOT_A_RED, and require the regression test path in the bug-review invocation so its existence at red is checked.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "anchor_type": "function",
+      "anchor_line": 275,
+      "scope": "diff",
+      "description": "The fallback timeout cancels its KILL escalation when the direct test process exits after TERM. If a test spawns a child that ignores TERM, the watcher sends TERM to the group, the parent exits, and run_bounded immediately kills the watcher during its two-second sleep.",
+      "failure_mode": "On systems without timeout/gtimeout, the child survives the timeout and worktree cleanup, potentially retaining ports or continuing to write through linked dependency directories.",
+      "suggested_fix": "When the timeout flag exists, let the watcher complete its group KILL before clearing the run PID and returning. Preserve equivalent escalation during interrupt cleanup.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:allowed-tools",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/red-test-check.sh:run_bounded",
+      "cross_file_justification": null,
+      "description": "The review role's tool allowlist is deliberately narrow (git diff/log, a handful of named scripts, State-zone writes only, per the C-PROC-001 comment). This change adds `Bash(.claude/scripts/red-test-check.sh *)` plus the structured `args: [\"*\"]` entry. red-test-check.sh is a generic argv runner: everything after `--` is exec'd verbatim (`exec \"$@\"` in run_bounded), and `--setup` exec's a second arbitrary argv. The `*` glob therefore grants the review skill unrestricted command execution (e.g. `-- bash -c '...'`, `-- curl ...`, `-- rm -rf ...` with cwd in a worktree but no other confinement). Worse, the SKILL.md instructs the reviewer to take the test command from the engineer-authored reviewer.md, so an engineer agent (or injected content in that file) chooses what the privileged review role executes. Linked dependency directories make writes land in the live tree, so the scratch worktree is not a sandbox.",
+      "failure_mode": "Privilege escalation of the review role: the permission model that keeps review read-only is bypassed by a single allowlisted wrapper; a malicious or prompt-injected reviewer.md can drive arbitrary command execution under the review skill's permissions.",
+      "suggested_fix": "Do not allowlist the wrapper with `*`. Either (a) have red-test-check.sh read the test command from a committed, validated source (e.g. a `test_command` field in sprint/bug state that the engineer cannot change post-review, or a project config key) rather than from argv, and allowlist only the fixed flags; or (b) restrict the glob to a known runner set (`Bash(.claude/scripts/red-test-check.sh --red * -- bats *)`, `... -- npm test*`, `... -- pytest *`) and reject `--setup` in the review context; and (c) at minimum have the script refuse shells/interpreters as argv[0] of the test command (bash, sh, python -c, node -e).",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/red-test-check.sh:link_deps",
+      "anchor_type": "function",
+      "anchor_line": 222,
+      "anchor_line_end": 231,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "link_deps symlinks the live tree's `.venv`, `node_modules`, `.tox`, `target`, `vendor` into each worktree. For the most common Python and JS setups this makes the red/green runs execute the LIVE tree's source, not the checked-out commit's: an editable install (`pip install -e .`, `uv sync`, `poetry install` default) writes a `.pth`/finder pointing at MAIN's `src/`, and npm/pnpm/yarn workspace links (`node_modules/@scope/pkg -> ../../packages/pkg`) resolve relative to the symlink's real location in MAIN. With a src-layout project run via the `pytest` binary (cwd is not on sys.path), the red worktree's test imports the fixed code from the live tree. The header explicitly promises 'Uncommitted state in the live tree never counts', which this breaks.",
+      "failure_mode": "Wrong verdicts for the tool's core job: (1) red run imports the already-fixed live code -> test passes -> false DECOY (exit 3) on a legitimate red/green pair, blocking the fix; (2) an uncommitted fix in the live tree makes the green run pass -> false VERIFIED against a green commit that does not actually contain the fix, which the reviewer is told to cite as evidence.",
+      "suggested_fix": "Default to `--no-link-deps` and make linking opt-in with an explicit warning, or detect and refuse to link when the dependency dir resolves back into the live tree: for `.venv` check for `*.pth`/`__editable__*` files under site-packages that reference $MAIN; for `node_modules` check for symlinks whose target resolves outside node_modules. Alternatively run `--setup` to install deps per worktree (that is what the flag exists for) and never share a dependency tree between the live checkout and a worktree. At minimum, document the editable-install/workspace caveat next to the 'never counts' promise and surface `linked_deps` in the text verdict as a warning.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/validate-artifact.sh:validate_sprint_seams",
+      "anchor_type": "line",
+      "anchor_line": 868,
+      "anchor_line_end": 868,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "SEAMS_REQUIRED_FROM is set to 2026-10-13, which is already a week in the past at merge time. The gate is a hard violation (not WARN) for any plan whose **Date:** is on or after that day. Every consumer project that mounts the framework and generated a sprint plan from the previous template between 2026-10-13 and the day it updates its submodule will have its in-flight plan fail `validate-artifact.sh --type sprint` after the update, with no migration path other than hand-editing every sprint block.",
+      "failure_mode": "Framework update breaks validation of already-approved, in-progress sprint plans in downstream repos; run mode / review gates that call the validator start failing on plans that were valid when written.",
+      "suggested_fix": "Set SEAMS_REQUIRED_FROM to the framework release date (on or after the day this ships) so only plans authored with the new template are gated; or key the requirement on a template/schema version marker in the plan header rather than the calendar date.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/validate-artifact.sh:validate_glossary",
+      "anchor_type": "line",
+      "anchor_line": 1297,
+      "anchor_line_end": 1298,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The sentence counter treats every `[.!?]+` followed by whitespace as a sentence end, so common abbreviations inside a definition ('e.g. ', 'i.e. ', 'vs. ', 'etc. ', 'Dr. ') each add a sentence. A legitimate two-sentence definition containing one abbreviation is rejected as a hard violation ('has 3 sentences; at most two'), and the error message gives no hint that the abbreviation is the cause.",
+      "failure_mode": "False-positive validation failures on project glossaries; authors get a confusing 'too many sentences' error for text that is within the rule.",
+      "suggested_fix": "Exclude a small abbreviation set before counting (strip `(e\\.g|i\\.e|etc|vs|cf)\\.` occurrences), or only count a terminator when it is followed by whitespace and an uppercase letter or end of string.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-20T05:59:33Z",
+    "tokens_input": 169748,
+    "tokens_output": 26902,
+    "cost_usd": 0,
+    "latency_ms": 67262,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 257,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

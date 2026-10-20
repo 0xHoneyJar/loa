@@ -1,8 +1,0 @@
-start 2026-10-19T02:47:55Z grader GRADER_VERSION = "1.2.13"
-self-check base review-r17: PASS recall 0.0 (0/20), false_positives 0
-self-check reference review-r17: PASS recall 1.0 (20/20), false_positives 0
-self-check noisy review-r17: PASS recall 1.0 (20/20), false_positives 64 vs reference 0
-self-check base review-r18: PASS recall 0.0 (0/8), false_positives 0
-self-check reference review-r18: PASS recall 1.0 (8/8), false_positives 0
-self-check noisy review-r18: PASS recall 1.0 (8/8), false_positives 40 vs reference 0
-done 2026-10-19T02:48:00Z failures 0

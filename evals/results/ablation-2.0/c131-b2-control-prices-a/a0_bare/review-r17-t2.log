@@ -1,0 +1,7 @@
+2026-10-20T05:44:13Z run-ablation: c131-b2-control-prices-a-a0_bare-review-r17-t2 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-a/a0_bare/review-r17-t2
+arm a0_bare: no_dot_claude OK sandbox has no .claude/ and no CLAUDE.md
+arm a0_bare: no_system_prompt OK no --append-system-prompt-file in 1 argv
+arm a0_bare: no_audit_rows OK no sandbox/.run/audit.jsonl
+arm a0_bare: integrity_clean OK no mount (loa_mount: false)
+arm a0_bare: OK
+graded review-r17: recall 0.5 false_positives 19; verdict_accuracy None; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-a/a0_bare/review-r17-t2/grade.json

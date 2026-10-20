@@ -1,0 +1,59 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "review",
+    "model": "claude-headless",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-19T08:02:13Z",
+    "status": "api_failure",
+    "degraded": false,
+    "error": "API call failed with exit code 1",
+    "model_attempts": [
+      "gpt-5.5-pro:api_failure",
+      "gpt-5.5:api_failure",
+      "gemini-3.1-pro:api_failure",
+      "claude-headless:api_failure"
+    ],
+    "final_model": "claude-headless",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "status": "failed",
+      "failure_class": "model_unavailable",
+      "cost_cents": null,
+      "attempts": [
+        "claude-headless:api_failure"
+      ]
+    },
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 0,
+    "voices_succeeded_ids": [],
+    "voices_dropped": [
+      {
+        "voice": "claude-headless",
+        "reason": "ProviderUnavailable",
+        "exit_code": 1,
+        "blocker_risk": "unknown"
+      }
+    ],
+    "chain_health": "exhausted",
+    "confidence_floor": "low",
+    "rationale": "multi-voice aggregate (0/1 succeeded); chain_health=exhausted; dropped: claude-headless(ProviderUnavailable/unknown)",
+    "single_voice_call": true,
+    "status": "FAILED"
+  }
+}

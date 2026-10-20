@@ -17,6 +17,16 @@
 #   --context-file <path>     Reviewer findings (review only; omit for audit independence)
 #   --model <model>           Dissenter model (default: from config or gpt-5.3-codex)
 #   --budget <cents>          Max cost in cents (default: from config or 150)
+#                             cycle-131 FR-4: flatline_protocol.<code_review|security_audit>.budget_scale: fixed | diff
+#                             (default fixed — an absent key is the shipped gate, envelope unchanged) and budget_cents_max
+#                             (default 600). diff: the gate's budget is min(max(<this budget>, ceil(estimate × 1.2)),
+#                             budget_cents_max), estimate = the pre-dispatch estimate over the planned voices; above it
+#                             the run refuses (exit 4, status budget_exceeded, reason budget). A malformed scale or maximum
+#                             is said and fixed applies. With the key written the envelope's metadata carries
+#                             budget_scale, budget_cents_effective, budget_cents_max.
+#
+# Findings (cycle-131 FR-4): each finding may carry anchor_line / anchor_line_end (the head-file line, or range, it
+# sits on) beside the symbol anchor; kept only as whole numbers 1..10,000,000 (end ≥ start), else dropped silently.
 #   --timeout <seconds>       API timeout (default: from config or 60)
 #   --dry-run                 Assemble context without calling API
 #   --json                    Output as JSON (default)
@@ -145,6 +155,49 @@ _conf_uint() {  # <key (for the message)> <raw> <default> [floor] → a whole nu
   echo "$def"
 }
 
+# cycle-131 FR-4 (SDD D-4.2): flatline_protocol.<gate>.budget_scale (fixed | diff, default fixed) and
+# flatline_protocol.<gate>.budget_cents_max (default 600). Fails CLOSED to `fixed`: a scale that is not one of the two words
+# (any case, any YAML type) or a malformed maximum is said, and the gate keeps the configured budget_cents. Sets
+# CONF_BUDGET_SCALE, CONF_BUDGET_SCALE_SET and CONF_BUDGET_CENTS_MAX.
+_adv_conf_budget_scale() {  # <config key>
+  local config_key="$1" _bt _bs _bm
+  _bt=$(yq eval ".flatline_protocol.${config_key}.budget_scale | tag" "$CONFIG_FILE" 2>/dev/null || echo "unreadable")
+  case "$_bt" in
+    '!!null'|'') return 0 ;;   # absent: the shipped behaviour, and the envelope says nothing about it
+  esac
+  CONF_BUDGET_SCALE_SET="true"
+  if [[ "$_bt" == '!!str' ]]; then
+    _bs=$(yq eval ".flatline_protocol.${config_key}.budget_scale" "$CONFIG_FILE" 2>/dev/null || echo "")
+  else
+    _bs="(a ${_bt#!!}, not a string)"
+  fi
+  case "$_bs" in
+    fixed|diff) CONF_BUDGET_SCALE="$_bs" ;;
+    *) log "WARN: flatline_protocol.${config_key}.budget_scale='$(printf '%s' "$_bs" | LC_ALL=C tr -cd 'A-Za-z0-9 ()._-' | cut -c1-40)' is not fixed or diff — fixed applies"
+       CONF_BUDGET_SCALE="fixed" ;;
+  esac
+  _bm=$(yq eval ".flatline_protocol.${config_key}.budget_cents_max // 600" "$CONFIG_FILE" 2>/dev/null || echo "600")
+  if [[ "$_bm" =~ ^(0|[1-9][0-9]{0,14})$ ]]; then
+    CONF_BUDGET_CENTS_MAX="$_bm"
+  else
+    log "WARN: flatline_protocol.${config_key}.budget_cents_max='$(printf '%s' "$_bm" | LC_ALL=C tr -cd 'A-Za-z0-9._-' | cut -c1-40)' is not a whole number — budget_scale fixed applies"
+    CONF_BUDGET_SCALE="fixed"
+  fi
+  return 0
+}
+
+_adv_budget_effective() {  # <configured budget cents> <estimate cents> → the gate's budget in cents (CONF_BUDGET_SCALE / _MAX)
+  # fixed: the configured budget. diff: min(max(configured, ceil(estimate × 1.2)), budget_cents_max) — integer arithmetic,
+  # ceil(e × 12 / 10) = (e × 12 + 9) / 10; every operand a validated whole number of at most fifteen digits
+  local conf="$1" est="$2" scaled eff
+  if [[ "${CONF_BUDGET_SCALE:-fixed}" != "diff" ]]; then echo "$conf"; return 0; fi
+  scaled=$(( (est * 12 + 9) / 10 ))
+  eff="$conf"
+  (( scaled > eff )) && eff="$scaled"
+  (( eff > ${CONF_BUDGET_CENTS_MAX:-600} )) && eff="${CONF_BUDGET_CENTS_MAX:-600}"
+  echo "$eff"
+}
+
 load_adversarial_config() {
   local type="$1"
 
@@ -153,6 +206,11 @@ load_adversarial_config() {
   CONF_MODEL="gpt-5.3-codex"
   CONF_TIMEOUT=60
   CONF_BUDGET_CENTS=150
+  # cycle-131 FR-4 (SDD D-4.2): the budget scaling — `fixed` (the shipped behaviour) or `diff`; _SET says the key was written
+  # (the envelope names the scaling only then, so a config without the key writes the envelope it always wrote)
+  CONF_BUDGET_SCALE="fixed"
+  CONF_BUDGET_SCALE_SET="false"
+  CONF_BUDGET_CENTS_MAX=600
   CONF_COMPANION_VOICE="true"   # cycle-126 FR-2.1: the second, other-family chain (opt-out per block)
   CONF_COMPANION_CHAIN_ANTHROPIC=""  # review sprint-248 C-011: optional operator chains (space-separated)
   CONF_COMPANION_CHAIN_OPENAI=""
@@ -199,6 +257,7 @@ load_adversarial_config() {
   CONF_TIMEOUT=$(_conf_uint "flatline_protocol.${config_key}.timeout_seconds" "$CONF_TIMEOUT" 60 1)
   CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
   CONF_BUDGET_CENTS=$(_conf_uint "flatline_protocol.${config_key}.budget_cents" "$CONF_BUDGET_CENTS" 0 0)   # (a malformed spend cap fails CLOSED: 0 cents — sixteenth run, a1 C-004)
+  _adv_conf_budget_scale "$config_key"
   # `false // true` is true in jq/yq semantics — read the raw value and default only when absent
   local _cv _cvl
   _cv=$(yq eval ".flatline_protocol.${config_key}.companion_voice" "$CONFIG_FILE" 2>/dev/null || echo "null")
@@ -546,12 +605,28 @@ _adv_jq_pair() {
 # category -> lower (matches the lowercase enum). No synonym mapping — a
 # model that emits "warning" instead of "ADVISORY" still gets rejected.
 # Absent keys stay absent (no null keys introduced).
+# cycle-131 FR-4 (SDD D-4.1): the numeric anchor — `anchor_line` / `anchor_line_end`, the head-file line (range) the finding
+# sits on, asked for beside the symbol `anchor`. Kept only as a whole number in 1..10,000,000, and the end only beside a kept
+# start and at least it; any other value (a string, a float, a zero, an end with no start) is dropped silently — never a
+# rejection, never a repair hop. The symbol anchor is untouched: validate_anchor, the hallucination filter and
+# anchor_stability key on `anchor` alone. One jq filter, used by the normaliser and on the schema-enforced branch alike.
+_ADV_NUMERIC_ANCHOR_JQ='
+  def _adv_line_ok: type == "number" and . == floor and . >= 1 and . <= 10000000;
+  (if type == "object" and has("anchor_line") and ((.anchor_line | _adv_line_ok) | not) then del(.anchor_line) else . end)
+  | (if type == "object" and has("anchor_line_end")
+        and ((has("anchor_line") | not) or ((.anchor_line_end | _adv_line_ok) | not) or (.anchor_line_end < .anchor_line))
+     then del(.anchor_line_end) else . end)'
+_adv_keep_numeric_anchor() {  # stdin → stdout: one finding with its numeric anchor kept only when valid (see above)
+  jq "$_ADV_NUMERIC_ANCHOR_JQ" 2>/dev/null
+}
+
 _normalize_finding_for_validation() {
   local finding="$1"
   local index="${2:-}"
   # (thirty-fourth run, a1 DISS-C-001: the *_derived markers are the normaliser's provenance — a dissenter's own are dropped first)
-  echo "$finding" | jq '
-    del(.id_derived, .failure_mode_derived)
+  # (cycle-131 FR-4: a numeric anchor that is not a valid line is dropped here — _ADV_NUMERIC_ANCHOR_JQ)
+  echo "$finding" | jq "$_ADV_NUMERIC_ANCHOR_JQ"'
+    | del(.id_derived, .failure_mode_derived)
     | (if has("severity") and (.severity | type) == "string"
      then .severity |= (gsub("^\\s+|\\s+$"; "") | ascii_upcase)
      else . end)
@@ -1155,10 +1230,12 @@ CATEGORY (required, one of):
 OUTPUT: JSON object {"findings": [...]}. Each finding:
 {"id": "DISS-NNN", "severity": "BLOCKING|ADVISORY", "category": "...",
  "anchor": "file:symbol", "anchor_type": "function|hunk|line",
+ "anchor_line": <int, the head line the finding sits on>, "anchor_line_end": <int, optional, for a range>,
  "scope": "diff|cross_file",
  "trigger_anchor": "file:symbol (required if scope=cross_file; must be in diff)",
  "cross_file_justification": "...(required if scope=cross_file)",
- "description": "...", "failure_mode": "...", "suggested_fix": "..."}'
+ "description": "...", "failure_mode": "...", "suggested_fix": "..."}
+Give `anchor_line` whenever the finding sits on a specific line; keep `anchor` as `file:symbol`.'
   else
     system_prompt='You are an adversarial security auditor. Find exploitable vulnerabilities.
 
@@ -1180,7 +1257,10 @@ CATEGORY (required, one of):
   injection, authz, secrets, xss, ssrf, deserialization, crypto,
   info-disclosure, rate-limiting, input-validation, config, other
 
-OUTPUT: JSON object {"findings": [...]}. Same field structure as code review.'
+OUTPUT: JSON object {"findings": [...]}. Same field structure as code review, with
+ "anchor": "file:symbol", "anchor_type": "function|hunk|line",
+ "anchor_line": <int, the head line the finding sits on>, "anchor_line_end": <int, optional, for a range>.
+Give `anchor_line` whenever the finding sits on a specific line; keep `anchor` as `file:symbol`.'
   fi
 
   # Build user prompt
@@ -1619,7 +1699,14 @@ while i < len(text):
     # enforced payload's enums are exact by construction, and normalizing
     # one would hide a wire-schema/prompt drift.
     local candidate="$finding"
-    if [[ "$schema_enforced" != "true" ]]; then
+    if [[ "$schema_enforced" == "true" ]]; then
+      # cycle-131 FR-4: an enforced payload is never normalised, but its numeric anchor is held to the same rule (a wire schema
+      # that admits a null line must not carry one through); a finding without one is byte-for-byte what it was
+      if jq -e 'type == "object" and (has("anchor_line") or has("anchor_line_end"))' >/dev/null 2>&1 <<<"$finding"; then
+        candidate=$(_adv_keep_numeric_anchor <<<"$finding") || candidate="$finding"
+        [[ -n "$candidate" ]] || candidate="$finding"
+      fi
+    else
       candidate=$(_normalize_finding_for_validation "$finding" "$i")
       local _cid
       _cid=$(echo "$candidate" | jq -r '.id // ""' 2>/dev/null || true)
@@ -4340,11 +4427,28 @@ main() {
   for _bav in ${advisory_planned[@]+"${advisory_planned[@]}"}; do _bvoices+=("advisory=$_bav"); done
   _adv_budget_estimate "$estimated_input_tokens" "${_bvoices[@]}"
   local estimated_cost_cents="$_ADV_BUDGET_TOTAL"
-  if [[ $estimated_cost_cents -gt $budget ]]; then
-    error "Estimated cost (${estimated_cost_cents}c) exceeds budget (${budget}c)"
-    jq -n --arg type "$type" --argjson est "$estimated_cost_cents" --argjson bud "$budget" --argjson voices "$_ADV_BUDGET_VOICES" \
-      '{findings: [], metadata: {type: $type, status: "budget_exceeded",
-        estimated_cents: $est, budget_cents: $bud, estimate_voices: $voices}}'
+  # cycle-131 FR-4 (SDD D-4.2): under budget_scale: diff the gate's budget follows the estimate, up to budget_cents_max;
+  # fixed (the default, and any malformed setting) keeps the configured budget. The envelope names the scaling only when
+  # the key was written — a config without it writes the envelope it always wrote.
+  local budget_effective
+  budget_effective=$(_adv_budget_effective "$budget" "$estimated_cost_cents")
+  local _budget_meta="{}"
+  if [[ "${CONF_BUDGET_SCALE_SET:-false}" == "true" ]]; then
+    _budget_meta=$(jq -nc --arg bs "${CONF_BUDGET_SCALE:-fixed}" --argjson be "$budget_effective" --argjson bm "${CONF_BUDGET_CENTS_MAX:-600}" \
+      '{budget_scale: $bs, budget_cents_effective: $be, budget_cents_max: $bm}')
+    log "budget: budget_scale=${CONF_BUDGET_SCALE:-fixed} — configured ${budget}c, estimate ${estimated_cost_cents}c, effective ${budget_effective}c (max ${CONF_BUDGET_CENTS_MAX:-600}c)"
+  fi
+  if [[ $estimated_cost_cents -gt $budget_effective ]]; then
+    error "Estimated cost (${estimated_cost_cents}c) exceeds budget (${budget_effective}c)"
+    if [[ "${CONF_BUDGET_SCALE_SET:-false}" == "true" ]]; then
+      jq -n --arg type "$type" --argjson est "$estimated_cost_cents" --argjson bud "$budget" --argjson voices "$_ADV_BUDGET_VOICES" --argjson bm "$_budget_meta" \
+        '{findings: [], metadata: ({type: $type, status: "budget_exceeded", reason: "budget",
+          estimated_cents: $est, budget_cents: $bud, estimate_voices: $voices} + $bm)}'
+    else
+      jq -n --arg type "$type" --argjson est "$estimated_cost_cents" --argjson bud "$budget" --argjson voices "$_ADV_BUDGET_VOICES" \
+        '{findings: [], metadata: {type: $type, status: "budget_exceeded",
+          estimated_cents: $est, budget_cents: $bud, estimate_voices: $voices}}'
+    fi
     exit 4
   fi
 
@@ -4642,6 +4746,8 @@ main() {
     --argjson attempts "$(printf '%s\n' "${model_attempts[@]}" | jq -R . | jq -s .)" \
     --arg fm "$final_model" \
     '.metadata.model_attempts = $attempts | .metadata.final_model = $fm')
+  # cycle-131 FR-4: the budget scaling the gate ran under (only when the key was written — see the budget gate)
+  [[ "$_budget_meta" == "{}" ]] || result=$(echo "$result" | jq --argjson bm "$_budget_meta" '.metadata += $bm')
   local -a COMPANION_VQ_FILES=()
   if [[ "$companion_planned" == "true" ]]; then
     if [[ -n "$companion_pid" ]]; then

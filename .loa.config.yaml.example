@@ -1632,6 +1632,16 @@ flatline_protocol:
                                  # the heaviest hop's charges plus a timeout —
                                  # pinned by LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS (env only — one pin for both gates; a pin below
                                  # the heaviest repair hop's charge is warned: that hop is never started)
+    # cycle-131 FR-4: how the gate's budget is set. fixed (the default; an absent key is fixed) gates on budget_cents
+    # as above. diff fits the budget to the diff: budget = min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max),
+    # where estimate is the gate's own pre-dispatch estimate over the planned voices (primary, the companion's first hop,
+    # each advisory voice); an estimate above that budget still refuses (exit 4, budget_exceeded, reason budget). Note
+    # that under diff a budget_cents above budget_cents_max is held to the maximum. A value that is not fixed or diff, or a
+    # budget_cents_max that is not a whole number, is said and fixed applies. When the key is written the envelope's
+    # metadata names budget_scale, budget_cents_effective and budget_cents_max. The eval harness
+    # (evals/harness/pipeline-run.sh) writes budget_scale: diff for both gates in its sandbox config; the shipped default stays fixed.
+    budget_scale: fixed
+    budget_cents_max: 600        # the ceiling of the diff scaling (cents); unused under fixed
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
     # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
     # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI — → opus → claude-headless;
@@ -1694,6 +1704,9 @@ flatline_protocol:
                                  # any dispatch estimated above 0): the second voice, fallback hops and the KF-004 repairs
                                  # are further calls; the repairs are bounded by count and wall clock — code_review's rule on THIS block's timeout_seconds,
                                  # never under two of the heaviest hop's charges plus a timeout; code_review's LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS pin, one for both gates)
+    budget_scale: fixed          # cycle-131 FR-4: see code_review — fixed | diff; diff: budget = min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max),
+                                 # read from THIS block; the eval harness writes diff, the shipped default stays fixed
+    budget_cents_max: 600        # the ceiling of the diff scaling (cents); unused under fixed
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true);
                                  # a companion_chain is read per block — this block's own, as code_review documents it

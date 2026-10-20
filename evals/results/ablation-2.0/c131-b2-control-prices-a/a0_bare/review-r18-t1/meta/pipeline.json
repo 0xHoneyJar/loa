@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "run_id": "c131-b2-control-prices-a-a0_bare-review-r18-t1",
+  "arm": "a0_bare",
+  "task_id": "review-r18",
+  "task_type": "review-catch",
+  "trial": 1,
+  "source_commit": "798d88cfc920a95ce896a527145b21ca72d0ab18",
+  "suite_version": 2,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 30,
+  "spent_usd": 1.212583,
+  "arm_toggles": {
+    "loa_mount": false
+  },
+  "effort_flag": "high",
+  "arm_evidence": {
+    "base_commit": "1bbc33c6816da92eb045b2f5cfc661d9e210a730",
+    "loa_mount": "none",
+    "claude_md_sha256": "absent",
+    "loa_config_sha256": "absent"
+  },
+  "executor_mode": "container",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "fingerprint": "fp:bdb747032d28510d123419d8b5981c8634bc5e556d7c5cb3d29b623011170011",
+  "sandbox_fingerprint": "fp:bdb747032d28510d123419d8b5981c8634bc5e556d7c5cb3d29b623011170011",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {},
+  "phases": [
+    {
+      "name": "BARE",
+      "label": "BARE",
+      "skipped": false,
+      "session_id": "06420081-6b1b-4e88-a11e-472e8f6fb890",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-opus-5-5",
+      "models_used": {
+        "global.anthropic.claude-opus-5-5": 17780
+      },
+      "effort_requested": "high",
+      "tokens_in": 72,
+      "tokens_out": 17780,
+      "cache_read_tokens": 1996548,
+      "cache_creation_tokens": 91477,
+      "cost_usd": 1.2125825999999997,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 284787,
+      "wall_ms": 287942,
+      "num_turns": 37,
+      "max_turns": 170,
+      "timeout_s": 4200,
+      "exit": 0,
+      "cli_exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "turn_cap_hit": false,
+      "gate_recovered": false,
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 1.261772,
+        "turns_seen": 36,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-20T04:59:42Z",
+      "finished": "2026-10-20T05:04:30Z"
+    }
+  ],
+  "mount_integrity": {
+    "claude_md": "absent",
+    "loa_config": "absent"
+  },
+  "started": "2026-10-20T04:59:42Z",
+  "finished": "2026-10-20T05:04:30Z"
+}

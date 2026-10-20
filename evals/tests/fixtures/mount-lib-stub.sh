@@ -11,8 +11,16 @@
 #   STUB_MOUNT_FAIL=<fn>   make that function return 2 (infrastructure path)
 #   STUB_BRIEF_EXTRA=<s>   appended to task-brief.md (leak-guard cases)
 #   STUB_ARM_ENV_EXTRA=<l> an extra line written to $ARM_ENV_FILE (env filter case)
+#   STUB_MOUNT_CALLS=<f>   every library call appends its function name to <f> (wiring order)
+#   STUB_COPY_SOURCE=<sha> overlay_answer_paths reports this copy_source instead of the tree's HEAD
+# cycle-131 (Sprint 263 Task 1.1): overlay_answer_paths, check_mount_closed and
+# apply_eval_config_variant are stubbed with their evidence shapes; the toggles
+# bare_model, dissent and oracle_open print their evidence lines.
 
-_stub_fail() { [[ "${STUB_MOUNT_FAIL:-}" == "$1" ]] && { echo "stub: $1 refused" >&2; return 0; }; return 1; }
+_stub_fail() {
+  [[ -n "${STUB_MOUNT_CALLS:-}" ]] && printf '%s\n' "$1" >> "$STUB_MOUNT_CALLS"
+  [[ "${STUB_MOUNT_FAIL:-}" == "$1" ]] && { echo "stub: $1 refused" >&2; return 0; }; return 1
+}
 
 mount_prompt_surface() {  # <ws> <prompt_tree> <skill|->
   _stub_fail mount_prompt_surface && return 2
@@ -59,6 +67,11 @@ apply_arm_toggles() {  # <ws> <toggles_json> <arm>
     echo "effort=$e"; echo "effort_stripped=$n"
   fi
   [[ "$(jq -r '.loa_mount' <<<"$tg")" == false ]] && echo "loa_mount=none"
+  [[ "$(jq -r '.bare_model // empty' <<<"$tg")" == fable ]] && echo "bare_model=fable"
+  if [[ "$(jq -r '.dissent' <<<"$tg")" == false ]]; then
+    yq -i '.flatline_protocol.code_review.enabled = false' "$cfg"; echo "dissent=false"
+  fi
+  [[ "$(jq -r '.oracle_open' <<<"$tg")" == true ]] && echo "oracle_open=true"
   [[ -n "${STUB_ARM_ENV_EXTRA:-}" && -n "${ARM_ENV_FILE:-}" ]] && printf '%s\n' "$STUB_ARM_ENV_EXTRA" >> "$ARM_ENV_FILE"
   return 0
 }
@@ -113,4 +126,27 @@ write_sandbox_grimoire() {  # <ws> <task_yaml> <arm> <sprint_label>
 init_sandbox_beads() {  # <ws> <task_title>
   _stub_fail init_sandbox_beads && return 2
   echo "beads=opt-out"
+}
+
+overlay_answer_paths() {  # <ws> <fixture-dir> <mode> [<source-tree> [<source-commit>]]
+  _stub_fail overlay_answer_paths && return 2
+  local cs="${STUB_COPY_SOURCE:-$(git -C "${4:-.}" rev-parse HEAD 2>/dev/null || echo unknown)}"
+  echo "copy_source=$cs"
+  [[ -f "$2/head.diff" ]] || { echo "stub: no head.diff in $2" >&2; return 2; }
+  echo "mount_overlay=$3:0"; echo "overlay_removed=0"; echo "overlay_fix_commit=none"; echo "gate_scripts_at_pr_version="
+  echo "overlay_fixture=$2"
+}
+
+check_mount_closed() {  # <ws> <fixture-dir> [<source-tree>]
+  _stub_fail check_mount_closed && { echo "check_mount_closed: FAIL (b) .claude/x: byte-equal to the pinned .claude/y (stub)" >&2; return 2; }
+  echo "mount_closed=pre-launch stub"
+}
+
+apply_eval_config_variant() {  # <ws>
+  _stub_fail apply_eval_config_variant && return 2
+  local cfg="$1/.loa.config.yaml"
+  [[ -f "$cfg" ]] || : > "$cfg"
+  yq -i '.flatline_protocol.code_review.budget_scale = "diff" | .flatline_protocol.security_audit.budget_scale = "diff"
+         | .flatline_protocol.code_review.budget_cents_max = 600 | .flatline_protocol.security_audit.budget_cents_max = 600' "$cfg"
+  echo "config_variant=eval"
 }

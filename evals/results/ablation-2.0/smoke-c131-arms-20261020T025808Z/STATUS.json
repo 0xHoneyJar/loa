@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "smoke-c131-arms-20261020T025808Z",
+  "smoke": true,
+  "state": "complete",
+  "per_arm": {
+    "a0_bare_fable": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 1,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a1_review_only": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 1,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a1_no_dissent": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 1,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 1,
+      "skipped_paused": 0
+    },
+    "a1_full_openmount": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 1,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 21.7734565,
+    "ledger_usd": 0,
+    "spent_usd": 21.7734565,
+    "max_usd": 60,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 4,
+  "resume_cursor": 4,
+  "drift": null,
+  "drift_cleared": [],
+  "rerowed": [],
+  "rerun": [],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": null,
+    "checked": false,
+    "codex_arms": [
+      "a1_full_openmount",
+      "a1_no_dissent",
+      "a1_review_only"
+    ],
+    "horizon_source": null,
+    "required_until": null,
+    "token_exp": null,
+    "trials_counted": null
+  },
+  "extra_models": {
+    "global.anthropic.claude-opus-5-5": {
+      "runs": 1,
+      "output_tokens": 14682
+    }
+  },
+  "extra_models_by_run": {
+    "smoke-c131-arms-20261020T025808Z-a1_no_dissent-review-01-t1": {
+      "global.anthropic.claude-opus-5-5": 14682
+    }
+  },
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "0281ea57ad2bcc755f302dc2863f251fa3a9088e",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/rows.jsonl",
+  "started": "2026-10-20T02:58:10Z",
+  "finished": "2026-10-20T03:32:14Z"
+}

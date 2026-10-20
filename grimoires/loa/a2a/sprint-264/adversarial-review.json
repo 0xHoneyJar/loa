@@ -1,0 +1,146 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "grimoires/loa/evals/ablation-2.0-c131/MANIFEST.sha256:file",
+      "anchor_type": "file",
+      "anchor_line": 1,
+      "anchor_line_end": 6,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new suite root ships only MANIFEST.sha256 and README.md. The manifest lists six files under tasks/review-r17 and tasks/review-r18 (TASK.md, REVIEW.md, task.yaml with the DEC-0640 bounds change), and the README also points at grimoires/loa/a2a/sprint-2/self-check-c131.log, but none of those files appear in this diff. If they are not in the commit, the manifest is dangling and the README documents a suite root that cannot be frozen, validated or run.",
+      "failure_mode": "validate-suite.sh --root grimoires/loa/evals/ablation-2.0-c131 dies with no tasks (or fails the manifest freeze check), and run-ablation.sh --suite-root for the cycle-131 batch fails pre-flight on a manifest/tree mismatch before any trial runs.",
+      "suggested_fix": "Commit tasks/review-r17/{TASK.md,REVIEW.md,task.yaml} and tasks/review-r18/{...} alongside the manifest (or confirm they land in the same change), and run `freeze.sh --root grimoires/loa/evals/ablation-2.0-c131 --allow-partial` plus `validate-suite.sh --root ... --allow-partial` in CI so the committed MANIFEST.sha256 is verified against the tree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "evals/harness/pipeline-run.sh:EVAL_ONLY",
+      "anchor_type": "line",
+      "anchor_line": 258,
+      "anchor_line_end": 262,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The refusal keys on the arm's `eval_only` flag only. The pairing `oracle_open: true` ⇒ `eval_only: true` is enforced solely by validate-suite.sh, which pipeline-run.sh never invokes. A suite file (or a test-fixture suite built with yq, as pipeline-run.bats does) that sets `oracle_open: true` and omits `eval_only` runs the open mount outside any batch with no refusal, and `eval_only: 1` or `eval_only: \"yes\"` are silently treated as false by `jq -r '.eval_only // false' == true`.",
+      "failure_mode": "An open-mount (oracle-visible) review-catch run is produced outside an evaluation batch, records mount_overlay=none, and its row can be mistaken for a closed-mount measurement; the FR-5 guard is bypassed by omitting one key.",
+      "suggested_fix": "Derive the guard from the property it protects: treat the arm as eval_only when `.eval_only == true` OR `.toggles.oracle_open == true`, and refuse (exit 2) if `eval_only` is present but not a JSON boolean. Keep validate-suite.sh's pairing check as the lint, but make pipeline-run.sh self-sufficient.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/validate-suite.sh:TOGGLE_VALUES",
+      "anchor_type": "line",
+      "anchor_line": 138,
+      "anchor_line_end": 140,
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/pipeline-run.sh:sb_edits",
+      "cross_file_justification": "The dry-run sandbox line in pipeline-run.sh (head line 341) re-implements the toggle→config-key mapping of lib/sandbox-mount.sh apply_arm_toggles in a jq expression, and validate-suite.sh hard-codes the same vocabulary in Python while its header claims the vocabulary is 'of lib/sandbox-mount.sh apply_arm_toggles'. The toggle contract now lives in three places with no derivation between them.",
+      "description": "RULE_IDS is correctly derived from took-effect.sh at runtime, but the toggle vocabulary and values are a hand-maintained table in validate-suite.sh, and the dry-run `config_edits=` text is a second hand-maintained copy of apply_arm_toggles' effects. Neither is checked against lib/sandbox-mount.sh, which validate-suite.sh already sources.",
+      "failure_mode": "When apply_arm_toggles gains a toggle or changes which .loa.config.yaml key a toggle edits, the validator rejects a valid suite (or accepts a toggle the runtime ignores), and the dry-run plan reports config edits that differ from what the sandbox actually receives, misleading the operator who relies on it before a priced batch.",
+      "suggested_fix": "Expose the vocabulary from lib/sandbox-mount.sh (e.g. an `arm_toggle_vocabulary` function or a `case` list the validator parses, as RULE_IDS does for took-effect.sh) and have the dry run call apply_arm_toggles in a scratch directory, or at least add a bats test that diffs the TOGGLE_VALUES table and the dry-run jq keys against the keys apply_arm_toggles sets.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-report.py:build",
+      "anchor_type": "function",
+      "anchor_line": 1913,
+      "anchor_line_end": 1913,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`components` now excludes eval_only arms, so a1_full_openmount gets no decision line and no longer counts toward k. The diff adds nothing that reports its rows: no A/B against a1_full (the stated purpose, 'the open-mount oracle A/B'), and no explicit 'excluded as eval_only' line. The report test fixture passes with 9 decisions, but it is not shown to contain openmount rows.",
+      "failure_mode": "Either the open-mount rows vanish from the report silently (the FR-5 A/B is never surfaced and the operator cannot tell the arm was run), or a downstream per-arm path that assumes every runnable non-baseline arm is a component (per-component tables, arm-coverage or 'rows for unexpected arm' checks) hits a KeyError/Fail on the first real batch that includes a1_full_openmount rows.",
+      "suggested_fix": "Add a report fixture scenario whose rows include a1_full_openmount and assert the report (a) completes, (b) lists the arm under an explicit 'evaluation-only arms (not components)' line with its row count, and ideally (c) prints the a1_full vs a1_full_openmount closed/open-mount comparison in a Method-level section outside the decisions.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-264",
+    "timestamp": "2026-10-20T03:36:35Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 17256,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3c79bb78d511db1fa401001712bea973e158e17882b4b62273e558f011b12d8e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}
