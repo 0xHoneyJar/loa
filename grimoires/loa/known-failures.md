@@ -98,6 +98,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-048](#kf-048-ablation-containers-consume-the-host-codex-refresh-token-every-later-container-and-the-host-lose-the-openai-voice) | Open (operator re-auth needed) | evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers | 2 |
 | [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 4 |
 | [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 1 |
+| [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 1 |
 
 ---
 
@@ -1888,3 +1889,24 @@ A review-catch lift measured with the framework mounted is an upper bound. Befor
 ### Reading guide
 
 Mechanism: a fix-commit path OUTSIDE the PR is written at the PR's head_commit, but pinned files that changed between head_commit and the pin may import symbols that only the fixed version exports. Check: git log -S'<missing symbol>' -- .claude/adapters; if the introducing commit lies between the fixture's head_commit and fix_commit, the PR is skewed. Do NOT retry base mode (same failure, probed). Do NOT widen the answer set to the importers (reopens the oracle question). Decide per PR before the batch: exclude, or accept dissent-absent as pre-registered.
+
+## KF-051: Fable 5.1 review-gate session refused (category cyber) and the pipeline fell back to Opus 5.5 mid-phase: a 'Fable reviewer' row that mostly ran on Opus
+
+**Status**: OPEN — observed once; rows read degraded, excluded from model contrasts
+**Feature**: evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback'
+**Symptom**: phases.jsonl REVIEW record: refusal_fallbacks [{from: global.anthropic.claude-fable-5-1, to: global.anthropic.claude-opus-5-5, category: cyber, scope: session}], models_used holds both models (Fable 3,228 vs Opus 14,682 output tokens), the phase completes normally (cli_exit 0, verdict written); the row reads degraded: true, degraded_reason 'REVIEW: refusal fallback'
+**First observed**: 2026-10-20 cycle-131 Sprint 264 arm smoke smoke-c131-arms-20261020T025808Z, a1_no_dissent × review-01 (pr-05); 0 of 36 cycle-130 runs, 0 of 8 Sprint 263 smoke rows carried one
+**Recurrence count**: 1
+**Current workaround**: None needed for completion (the fallback is the designed behaviour). For reads: exclude the row from any model contrast (R5) and count it degraded elsewhere; report models_used per phase. Do not retry the cell to 'get a Fable row' — that selects on the refusal.
+**Upstream issue**: cycle-131 pre-registration (Sprint 264); row writer flags it already
+**Related visions / lore**: KF-048 (credential), KF-037 (CLI contention); DEC-0545 (extra models are telemetry, not drift — a refusal fallback IS a model change)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-20 | arm smoke on pr-05: a1_no_dissent REVIEW phase (dissent disabled; Fable 5.1 xhigh) hit the refusal; a1_full_openmount and a0_bare_fable on the same PR did not | row completed, catch 1.0, degraded by the fallback; rule added to the Sprint 264 pre-registration (R5 exclusion) | evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_no_dissent/review-01-t1/meta/phases.jsonl; commit 0281ea57 |
+
+### Reading guide
+
+A refusal fallback is a model-safety event on the review content, not infrastructure: the same PR reviewed on Fable without a fallback in two sibling arms the same hour, so it is stochastic per session. Read the row's phases[].refusal_fallbacks and models_used before attributing any Fable-vs-Opus difference to the pipeline; a cell with a fallback is not a Fable cell. If the rate grows past a few percent of review-catch rows, the model confound in every full-pipeline read is live and must be reported as such.

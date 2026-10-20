@@ -20636,3 +20636,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0645"
+    created_at: "2026-10-20T02:15:07Z"
+    updated_at: "2026-10-20T02:15:07Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Sprint 264 budget re-derived: B1 ≈ 66 + B2 ≈ 228 (R3/R4 on pr-17 only) ≈ 294 under a USD 300 batch allowance; arm smoke on pr-05; cycle cap 500 holds"
+    decision: "The smoke priced an a1_full run under the closed mount with the dissent actually running at USD 10-22 (pr-05/08 ≈ 10-11, pr-13 ≈ 14, pr-16 ≈ 19, pr-18 ≈ 18, pr-17 ≈ 22), about double cycle-130's, so the plan's B1 ≈ 48 / B2 ≈ 220 no longer holds. Sprint 264 runs the cell matrix with these cuts in the brief's priority order (R1 → R5 → R3 → R4): B1 = a1_full_openmount × 3 on pr-17 (≈ 66); B2 = a0_bare, a0_bare_fable and a1_full × 3 on both pr-17 and pr-18 (R1/R5; ≈ 153) plus a1_review_only and a1_no_dissent × 3 on pr-17 only (R3/R4 read on the 20-defect PR; ≈ 75); total ≈ 294 under a batch allowance of USD 300 (was 275) and a per-run review-catch cap of USD 30 on pr-17/pr-18 (DEC-0640). The Task 2.3 arm smoke (one trial per new arm) runs on review-01 (pr-05, ≈ USD 25) rather than pr-17: it checks took-effect rules, gate completion, the open-mount arm's oracle exposure and the models per phase, none of which needs the large PR. Cycle spend so far ≈ USD 140 (smokes 113, dissent runs and adjudication ≈ 27); planned ≈ 294 + 25 + the Sprint 264/265 gate dissents ≈ 15 → ≈ 475 of the USD 500 cycle cap, which holds. If B2 approaches the allowance the runner's cap cuts launches; the pre-registration names the cut order (a1_no_dissent, then a1_review_only, then pr-18's a0_bare_fable) and any cut cell is reported, never back-filled."
+    rationale: "the measurement priced the dissent in, which was the point; the budget follows the measured cost rather than the plan's guess, and the cycle cap is the hard line"
+    alternatives_considered:
+      - option: "keep all 36 cells and raise the allowance to ≈ 360"
+        rejected_because: "it would leave no room under the USD 500 cycle cap for the gates and a single re-run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "e93a040a"
+    source: "grimoires/loa/NOTES.md (smoke readings 2026-10-19/20; sprint.md § Sprint 2 cell matrix); Sprint 264 planning"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T02:15:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/NOTES.md (smoke readings 2026-10-19/20; sprint.md § Sprint 2 cell matrix); Sprint 264 planning"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0646"
+    created_at: "2026-10-20T02:58:39Z"
+    updated_at: "2026-10-20T02:58:39Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Report components exclude eval_only arms (nine components with the cycle-131 control arms); expected-false-positive figures at two decimals"
+    decision: "With the four cycle-131 arms declared, ablation-report.py's multiple-comparison components (every runnable arm but the two baselines) would have grown from six to ten. An eval_only arm (a1_full_openmount, the open-mount oracle A/B) is an evaluation control that can never become a shipped-default decision, so it is excluded from the components; a0_bare_fable, a1_review_only and a1_no_dissent are component contrasts (model, audit gate, dissent) and stay. The components are therefore nine, the expected-false-positive sentence reads 9 × (1 − 0.90) / 2 = 0.45 one-sided (0.90 either direction) at two decimals (one decimal rounded 0.45 to 0.5 beside 0.9), and AR-12, AR-23 and AT-13 pin the new values; the cycle-130 report file is not regenerated. The Sprint 265 reads use the pre-registered interval rules, not the report's generic decisions, so this changes an appendix figure, not a read."
+    rationale: "the denominator of the false-positive expectation should count decisions a reader could act on"
+    alternatives_considered:
+      - option: "keep six components by excluding every cycle-131 arm"
+        rejected_because: "three of the four are genuine component contrasts whose decisions the report now prints"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "0281ea57"
+    source: "evals/harness/ablation-report.py components; AR-12/AR-23/AT-13 (Sprint 264 integration)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T02:58:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "evals/harness/ablation-report.py components; AR-12/AR-23/AT-13 (Sprint 264 integration)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0647"
+    created_at: "2026-10-20T03:37:01Z"
+    updated_at: "2026-10-20T03:37:01Z"
+    phase: "implementation"
+    category: "design"
+    summary: "Arm smoke read: all four arms pass every took-effect rule and the batch-entry gates; refusal-fallback rows excluded from the model contrast, degraded elsewhere"
+    decision: "The Task 2.3 arm smoke on review-01 (pr-05, USD 21.77) completed all four new arms with every took-effect rule true (a0_bare_fable on Fable 5.1 effort high with no mount; a1_review_only phases [REVIEW] under the closed mount; a1_no_dissent with no review envelope and an audit envelope of two voices; a1_full_openmount with the open mount recorded), numeric-anchor shares 10/10, 9/9 and 4/4, both voices at every dissent-enabled review gate, so the arms enter the Sprint 264 batches. One new degradation class appeared (KF-051): the a1_no_dissent REVIEW phase carried a refusal fallback (Fable 5.1 refused the session, category cyber, and the pipeline continued on Opus 5.5), the first in 44 review-catch rows. Rule, added to the Sprint 264 pre-registration before any batch row: a row whose REVIEW or AUDIT phase carries a refusal_fallbacks entry is excluded from the model contrast R5 and counted as degraded in the sensitivity for R1, R3 and R4; its models_used per phase is reported; the cell is never retried to obtain a Fable row."
+    rationale: "a cell whose reviewer changed model mid-session is not a cell of the arm it was planned as; retrying would select on the refusal and bias the model read"
+    alternatives_considered:
+      - option: "retry refusal-fallback cells until a pure Fable run lands"
+        rejected_because: "conditioning on the absence of a refusal biases the Fable sample toward content the classifier accepts"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "0281ea57"
+    source: "grimoires/loa/a2a/sprint-2/reviewer.md § Arm smoke (smoke-c131-arms-20261020T025808Z); KF-051"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T03:37:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-2/reviewer.md § Arm smoke (smoke-c131-arms-20261020T025808Z); KF-051"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

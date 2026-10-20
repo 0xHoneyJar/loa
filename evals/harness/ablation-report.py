@@ -1925,6 +1925,11 @@ def build(args):
     h1_comps, a4 = P["h1_comps"], P["a4"]
 
     k = len(components)
+    eval_only_arms = [a["id"] for a in arms if a.get("eval_only") is True and not a.get("absent")]
+    eval_only_counts = {aid: sum(1 for r in P.get("rows", []) if r.get("arm") == aid) for aid in eval_only_arms}
+    eval_only_line = ("Evaluation-only arms (not components): " +
+                      (", ".join(f"{aid} ({n} rows)" for aid, n in eval_only_counts.items()) if eval_only_counts else "none") +
+                      " — read by their own pre-registered contrast, never by a decision here.")
     efp = k * (1.0 - args.level) / 2.0
     efp_line = (f"Expected false positives at level {args.level:.2f} over {k} components: "
                 f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.2f} one-sided per direction "
@@ -1996,6 +2001,7 @@ def build(args):
     L("")
     render_decisions(L, P, absent, rules)
     L(efp_line)
+    L(eval_only_line)
     L("")
 
     L("## Per-arm detail")
@@ -2171,7 +2177,8 @@ def build(args):
                     "evidence": a.get("evidence")} for a in absent],
         "h1": h1_json(P, rules),
         "a4": a4_json(P, rules),
-        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line},
+        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line,
+                                     "eval_only_arms": eval_only_counts},
         "arms": arms_json(metrics),
         "exclusions": exclusions_json(P),
         "listed": listed_json(P),

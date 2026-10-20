@@ -187,6 +187,7 @@ report() {  # report <scenario> <out-prefix> [extra args]
 
 @test "AR-12 the expected-false-positive sentence and the Method section quoting the suite rules block verbatim" {
   grep -qF 'Expected false positives at level 0.90 over 9 components: 9 × (1 − 0.90) / 2 = 0.45 one-sided per direction (0.90 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"   # 9 = a2 … a7 + the three cycle-131 control arms; a1_full_openmount is eval_only and not a component
+  grep -qF 'Evaluation-only arms (not components): a1_full_openmount (0 rows) — read by their own pre-registered contrast, never by a decision here.' "$FX/main/report.md"   # review r1 DISS-C-004
   python3 -I - "$SUITE" "$FX/main/report.md" <<'PY'
 import re, sys
 suite = open(sys.argv[1], encoding="utf-8").read().splitlines()

@@ -138,7 +138,8 @@
 # when the run stopped before materialisation). `.claude/` itself is covered by
 # took-effect.sh integrity_clean.
 #
-# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is
+# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount), or whose
+# toggles set `oracle_open: true`, is
 # refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
 # run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
 # LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
@@ -255,7 +256,15 @@ fi
 SUITE_TOGGLES="$(jq -c '.toggles // {}' <<<"$ARM_DEF")"
 # eval_only (cycle-131 FR-5): refused before anything is created, dry run included, unless the
 # runner marks the batch context; no pipeline.json, so no infrastructure_error row is possible
-EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+# eval_only is derived from the property it protects as well as from the flag (review r1 DISS-C-002): an arm whose
+# toggles open the mount (oracle_open: true) is evaluation-only whatever the suite says; a present eval_only that is
+# not a JSON boolean is refused rather than read as false
+case "$(jq -r 'if has("eval_only") then (.eval_only | type) else "absent" end' <<<"$ARM_DEF")" in
+  absent|boolean) ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': eval_only must be a JSON boolean (true|false)" >&2; exit 2 ;;
+esac
+EVAL_ONLY=false
+[[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
 if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
   echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
   exit 2

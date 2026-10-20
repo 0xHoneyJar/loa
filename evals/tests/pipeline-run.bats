@@ -1243,6 +1243,20 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
   [ "$status" -eq 0 ]
 }
 
+@test "eval_only (review r1 DISS-C-002): an arm whose toggles open the mount is refused outside the batch context even without eval_only; a non-boolean eval_only is refused as malformed" {
+  c131_arms
+  unset LOA_ABLATION_BATCH_CONTEXT
+  yq -i '.arms += [{"id": "x_open", "label": "XO", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["integrity_clean"]}]' "$T/suite.yaml"
+  dryrun_rc x_open
+  [ "$status" -eq 2 ]
+  grep -q "refused: arm 'x_open': eval_only arm outside an evaluation batch" <<<"$output"
+  [ ! -e "$T/run" ]
+  yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = "yes"' "$T/suite.yaml"
+  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
+  [ "$status" -eq 2 ]
+  grep -q "eval_only must be a JSON boolean" <<<"$output"
+}
+
 @test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {
   c131_arms
   LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full_openmount "$REVIEWC"
