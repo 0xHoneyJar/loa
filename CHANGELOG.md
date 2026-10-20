@@ -19,13 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`flatline_protocol.<gate>.budget_scale: fixed|diff` and `budget_cents_max`** (Sprint 263, FR-4; DEC-0618, DEC-0634). Under `diff` the dissent budget becomes `min(max(configured, ceil(estimate × 1.2)), budget_cents_max)` (default maximum 600 c) and the envelope names `budget_scale`, `budget_cents_effective`, `budget_cents_max` and `reason: budget` on a refusal; an absent key leaves the envelope byte-identical to before. Shipped default `fixed`; the evaluation harness runs its mounted arms with `diff`.
 - **Multi-site corpus labels** (Sprint 263, FR-2; DEC-0626). `evals/fixtures/review-prs/manifests/pr-11 … pr-18.json` gain every head line the human finding named (blind curation from `label_source`, mapped to head by content, at most six added lines per defect); the originals are kept byte-identical under `manifests/v1/`; `SHA256SUMS` regenerated.
 
+- **Four review-catch evaluation arms** (Sprint 264, FR-5; DEC-0646, DEC-0647). `evals/suites/ablation-2.0.yaml` declares `a0_bare_fable` (one Fable 5.1 session, the bare prompt, no mount), `a1_review_only` (phases `[REVIEW]`), `a1_no_dissent` (`dissent: false`) and `a1_full_openmount` (`oracle_open: true`, `eval_only: true`) outside `priority`; `validate-suite.sh` checks every arm's toggles against `apply_arm_toggles`' vocabulary (type-exact), its `took_effect` ids against `took-effect.sh`, `eval_only` as a boolean and `oracle_open ⇒ eval_only`; `pipeline-run.sh` refuses an evaluation-only arm (the flag, or an arm whose toggles open the mount) outside a runner batch (`LOA_ABLATION_BATCH_CONTEXT=1`, set by `run-ablation.sh` on every trial), holds `eval_only` and `toggles.oracle_open` to the JSON-boolean rule, and prints the sandbox plan on `--dry-run`. `ablation-report.py` excludes evaluation-only arms from the multiple-comparison components and names them.
+- **The cycle-131 suite root** `grimoires/loa/evals/ablation-2.0-c131/` (Sprint 264; DEC-0640, DEC-0645): review-r17 and review-r18 with task bounds REVIEW 50 / AUDIT 40 min, frozen; image self-check 6/6.
+- **The measurement** (Sprints 264–265; DEC-0648 … DEC-0654): 27 batch rows at pin `798d88cf` (`grimoires/loa/reports/ablation-2.0/c131-rows.jsonl`), the formal reads (`c131-reads.md`) and the addendum `analysis.md` §10. Outcomes under the pre-registered rules: R1 oracle A/B insufficient as written / investigate at the trial level (Δ +0.067 [−0.017, +0.150]); R5 between — the model does not explain the lift (bare-Fable 0.226, bare-Opus 0.393, full 0.685); R3 audit gate insufficient / inconclusive (Δ −0.033 [−0.133, +0.067], cost ratio 0.53); R4 dissent insufficient (2 valid cells). No shipped default changes.
+
 ### Changed
 
 - `ablation-grade.sh` contamination scan: a `repo_name` match whose backtick span or line is a substring of a line in the PR fixture is PR content, recorded under `contamination_exempt[]`, not contamination (KF-046 class 7; DEC-0636).
 
 ### Known failures
 
-- KF-049 recurrence 4 (two further head-versus-later-copy diffs in the replication runs, found by the detector), KF-050 (closed-mount import skew on pr-12).
+- KF-049 recurrence 4 (two further head-versus-later-copy diffs in the replication runs, found by the detector) and closed for the mounted arm by the closed mount (24/24 batch rows unexposed); KF-050 (closed-mount import skew on pr-12); KF-051 (a Fable review session refused with category `cyber` and the pipeline continued on Opus — rows read degraded and are excluded from model contrasts); KF-046 recurrence 10 (a bare run's real upstream fetch, caught; a scratch-directory reproduction read as `outside_path`).
 
 
 ## [2.0.0-rc.6] — 2026-10-18 — Loa 2.0 component ablation (release candidate)

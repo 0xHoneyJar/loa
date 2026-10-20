@@ -20828,3 +20828,131 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0651"
+    created_at: "2026-10-20T09:37:41Z"
+    updated_at: "2026-10-20T09:37:41Z"
+    phase: "review"
+    category: "design"
+    summary: "R1 (oracle A/B, pr-17): main read insufficient (3 cells < 4 as written); trial-level: investigate — Δ +0.067 [−0.017, +0.150], open mount peeked in 3/3 runs"
+    decision: "R1 contrasts a1_full_openmount against a1_full on review-r17 (20 defects, 3 trials each, decision statistic defect_catch_rate_pm3): open 0.750 vs closed 0.683, Δ = +0.067, 90 % defect-level bootstrap interval [−0.017, +0.150], cluster interval (one PR) degenerate. Under the pre-registered min_valid_cells 4 the read is 'insufficient' (3 cells; DEC-0650); under the trial-level threshold the pre-registered branch is 'investigate' (the interval is neither above +0.05 nor inside ±0.05). The detector shows the open mount was used in all three open runs (7, 15 and 3 defects exposed) and that the exposure moved the catch by at most the width of this interval; the diff-only and strict sensitivities read the same. Cost: open USD 19.21 per run, closed 21.50."
+    rationale: "the pre-registered branches are quoted as written; the oracle leak is real and bounded on this PR, not the whole lift"
+    alternatives_considered:
+      - option: "read the +0.067 as no measurable inflation"
+        rejected_because: "the interval upper bound 0.150 is outside ±0.05; the written rule says investigate"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0652"
+    created_at: "2026-10-20T09:37:43Z"
+    updated_at: "2026-10-20T09:37:43Z"
+    phase: "review"
+    category: "design"
+    summary: "R3 (audit gate, pr-17): main read insufficient (3 cells); trial-level: inconclusive — Δ −0.033 [−0.133, +0.067], cost ratio 0.53"
+    decision: "R3 contrasts a1_review_only against a1_full on review-r17 (20 defects, 3 trials each): review-only 0.650 vs full 0.683, Δ = −0.033, 90 % [−0.133, +0.067]; cost per run USD 11.42 vs 21.50 (ratio 0.53 ≤ 0.6). Under the pre-registered min_valid_cells 4 the read is 'insufficient' (DEC-0650); at the trial level the interval is not within ±0.05 and not below −0.10, so the branch is 'inconclusive': the audit gate's contribution on this PR is small and unresolved at three trials while it costs 47 % of the run. No opt-in proposal follows from this read; the frontier figure (catch per USD 0.057 review-only vs 0.032 full) is reported."
+    rationale: "the rule names inconclusive when the interval straddles the opt-in band; three trials on one PR cannot narrow it"
+    alternatives_considered:
+      - option: "propose audit-gate opt-in on the cost ratio alone"
+        rejected_because: "the pre-registered branch requires the catch interval inside ±0.05 as well"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0653"
+    created_at: "2026-10-20T09:37:44Z"
+    updated_at: "2026-10-20T09:37:44Z"
+    phase: "review"
+    category: "design"
+    summary: "R4 (dissent, pr-17): insufficient under every read — 2 valid a1_no_dissent cells (the third contaminated by a scratch-dir reproduction outside S3's path shapes)"
+    decision: "R4 contrasts a1_no_dissent against a1_full on review-r17: only 2 of the 3 no-dissent cells are valid (t3 read contaminated — an outside_path write under /home/evaluser/audit-scratch, a reproduction with no fetch, but not under the $HOME/tmp or /tmp shapes S3 declared, so S3 as written does not re-include it), and 2 cells is below both the pre-registered threshold (4) and the trial-level one (3): 'insufficient' in every read. The two valid cells read 0.75 and 0.75 against full's 0.683 (Δ +0.067 [−0.050, +0.192], descriptive only); the numeric-anchor change itself is proven (every dissent-enabled gate ran both voices at the diff-scaled budget with ≥ 0.90 of findings carrying anchor_line). No dissent opt-in proposal follows; the price of the dissent on review-catch PRs stays unmeasured at this sample."
+    rationale: "a read with fewer valid cells than its own threshold says insufficient, whatever the two cells show"
+    alternatives_considered:
+      - option: "widen S3 to any scratch directory to recover the third cell"
+        rejected_because: "S3 was declared with named path shapes before the reads; widening it after seeing which cell it rescues is the post-hoc move"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:37:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0654"
+    created_at: "2026-10-20T09:39:07Z"
+    updated_at: "2026-10-20T09:39:07Z"
+    phase: "review"
+    category: "design"
+    summary: "R5 (model): between — bare-Fable 0.226 vs full 0.685 (Δ −0.458) and vs bare-Opus 0.393 (Δ −0.167); the model does not explain the lift"
+    decision: "R5 contrasts a0_bare_fable against a1_full and against a0_bare on review-r17 and review-r18 (28 defects; 5 valid cells per side in the main read, 6 under S3): bare-Fable catches 0.226 of the planted defects, the full pipeline on Fable 0.685 (Δ = −0.458, 90 % [−0.601, −0.316]; cluster [−0.563, −0.417]) and bare-Opus 0.393 (Δ = −0.167, 90 % [−0.310, −0.018]; cluster [−0.250, −0.133]). Neither interval lies within ±0.05, so the pre-registered outcome is 'between (both intervals reported)': the model does not explain the lift — a single Fable session catches less than a single Opus session on these PRs, and the gated pipeline on Fable catches far more than either; the pipeline's lift is not the model and is at least as large as cycle-130 read. Cost per run: bare-Fable USD 4.28, bare-Opus 1.40, full 19.94. Every sensitivity (trial-level, diff-only, strict, S3) reads the same branch; no refusal fallback occurred in these cells."
+    rationale: "this was the largest unexplained term of the cycle-130 analysis and it resolves against the model confound"
+    alternatives_considered:
+      - option: "read the gates earn their cost"
+        rejected_because: "that branch required bare-Fable within ±0.05 of bare-Opus; bare-Fable is 0.167 below it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "f1176336"
+    source: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules)"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T09:39:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
