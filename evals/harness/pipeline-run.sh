@@ -263,6 +263,12 @@ case "$(jq -r 'if has("eval_only") then (.eval_only | type) else "absent" end' <
   absent|boolean) ;;
   *) echo "pipeline-run.sh: refused: arm '$ARM': eval_only must be a JSON boolean (true|false)" >&2; exit 2 ;;
 esac
+# the toggle that opens the mount is held to the same type rule, so the strict `== true` below and the mount
+# path's loose text read can never disagree on a quoted "true" (audit r1 DISS-C-001)
+case "$(jq -r 'if (.toggles // {}) | has("oracle_open") then (.toggles.oracle_open | type) else "absent" end' <<<"$ARM_DEF")" in
+  absent|boolean) ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': toggles.oracle_open must be a JSON boolean (true|false)" >&2; exit 2 ;;
+esac
 EVAL_ONLY=false
 [[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
 if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then

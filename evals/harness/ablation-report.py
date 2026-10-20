@@ -1910,7 +1910,12 @@ def build(args):
 
     # components: every runnable arm but the two baselines; an eval_only arm (cycle-131 FR-5: the open-mount
     # oracle A/B) is an evaluation control, never a shipped-default decision, so it is not a component here
-    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and a.get("eval_only") is not True]
+    def is_eval_only(a):   # the flag, or the property it protects (audit r1 DISS-C-002)
+        return a.get("eval_only") is True or (a.get("toggles") or {}).get("oracle_open") is True
+    for a in arms:
+        if not a.get("absent") and (a.get("toggles") or {}).get("oracle_open") is True and a.get("eval_only") is not True:
+            raise Fail(f"suite arm {a.get('id')} opens the oracle (toggles.oracle_open: true) without eval_only: true")
+    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and not is_eval_only(a)]
     absent = [a for a in arms if a.get("absent")]
     seed = args.seed
     groups, primary, unversioned = partition(rows, args.suite_version, mans,
@@ -1925,7 +1930,7 @@ def build(args):
     h1_comps, a4 = P["h1_comps"], P["a4"]
 
     k = len(components)
-    eval_only_arms = [a["id"] for a in arms if a.get("eval_only") is True and not a.get("absent")]
+    eval_only_arms = [a["id"] for a in arms if is_eval_only(a) and not a.get("absent")]
     eval_only_counts = {aid: sum(1 for r in P.get("rows", []) if r.get("arm") == aid) for aid in eval_only_arms}
     eval_only_line = ("Evaluation-only arms (not components): " +
                       (", ".join(f"{aid} ({n} rows)" for aid, n in eval_only_counts.items()) if eval_only_counts else "none") +

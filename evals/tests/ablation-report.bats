@@ -324,6 +324,14 @@ PY
   grep -qF 'degradation guard first' "$T/r.md"
 }
 
+@test "AR-12b (audit r1 DISS-C-002) the report refuses a suite arm that opens the oracle without eval_only, and counts an eval_only arm by its toggle too" {
+  SUITE_SRC="$SUITE" yq -o=json '.arms += [{"id": "x_open", "label": "XO", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["integrity_clean"]}]' "$SUITE" > "$T/bad-suite.json"
+  run python3 -I "$REPORT" --runs "$FX/main/runs.jsonl" --manifests "$FX/main/manifests" --suite "$T/bad-suite.json" --out "$T/bad.md"
+  [ "$status" -ne 0 ]
+  grep -q "suite arm x_open opens the oracle (toggles.oracle_open: true) without eval_only: true" <<<"$output"
+  [ ! -e "$T/bad.md" ]
+}
+
 @test "AR-23 two suite_versions are never pooled: main sections on v2 (catch-rate H1, pass rate and A4 not testable), v1 in its own section; --suite-version 1 flips the primary" {
   J="$FX/versions/report.json"; M="$FX/versions/report.md"
   [ "$(jq -r .primary_suite_version "$J")" = "2" ]
