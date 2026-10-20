@@ -20764,3 +20764,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0649"
+    created_at: "2026-10-20T05:45:55Z"
+    updated_at: "2026-10-20T05:45:55Z"
+    phase: "implementation"
+    category: "process"
+    summary: "B2a completes all 18 planned cells (resume with --max-usd 190 if its 160 cap cuts); the shortfall comes out of B2b in the pre-registered cut order"
+    decision: "Eight of B2a's eighteen trials have spent USD 79.41 and the four remaining a1_full cells cost about 19-22 each, so B2a will end near USD 170, above its 160 runner cap; the runner would cut the last a1_full cells, which every read (R1, R3, R4, R5) uses as its baseline. Declared before any cut: B2a is completed in full — if the runner cuts, it is resumed with --max-usd 190 and the same pin, pre-registration reference and cells; the total batch allowance stays USD 300 (DEC-0645), so B2b's allowance becomes 300 − 57.62 (B1) − B2a's actual spend (about USD 70), and the pre-registered cut order applies inside B2b: a1_no_dissent is cut first, then a1_review_only; a cut cell is reported in the scans and the reads as cut, never back-filled. The cycle cap of USD 500 holds (about USD 300 spent at this point, about 165 planned)."
+    rationale: "the baseline arm is shared by every read, so a cut there removes four reads' denominators; the cut order written before the batches already ranks the dissent and audit prices below the model read"
+    alternatives_considered:
+      - option: "let the runner cut the last a1_full cells and run B2b in full"
+        rejected_because: "it trades the shared baseline for the two lowest-priority reads, the reverse of the pre-registered priority"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bdabbab6"
+    source: "evals/results/ablation-2.0/c131-b2-control-prices-a/STATUS.json (spent 79.41 after 8 of 18 trials); DEC-0645 cut order; DEC-0648"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T05:45:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "evals/results/ablation-2.0/c131-b2-control-prices-a/STATUS.json (spent 79.41 after 8 of 18 trials); DEC-0645 cut order; DEC-0648"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0650"
+    created_at: "2026-10-20T07:26:39Z"
+    updated_at: "2026-10-20T07:26:39Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Pre-registration inconsistency: min_valid_cells 4 makes R1/R3/R4 insufficient by construction; main read as written, trial-level sensitivity beside"
+    decision: "The Sprint 264 pre-registration (DEC-0648) carries report 1.3's min_valid_cells threshold of 4 valid cells per side, where a contrast's valid cells are the sum over its tasks of the smaller of the two arms' valid trial counts, and the same pre-registration plans R1, R3 and R4 as 3 trials per arm on one PR — 3 cells at most, so those three reads are insufficient by construction under the rule as written. The inconsistency is the lead's drafting error, found while checking the read script's mechanics on the B1/B2a rows and declared before any B2b row exists. Handling: the pre-registered text is not edited (its sha256 stands); the main read reports R1, R3 and R4 as insufficient exactly as the rule says, and R5 (two PRs, 5-6 cells) under the rule; beside it a labelled trial-level sensitivity applies the threshold at the planned count (3 valid trials per side) and reports the pre-registered interval outcomes verbatim for every read. The reads script carries both; the addendum states which branch each read reaches under each threshold and does not pick between them."
+    rationale: "a rule that cannot be met by the design it governs is a drafting error, and the honest repair is to show both the written rule and the intended one side by side rather than to rewrite the hash"
+    alternatives_considered:
+      - option: "amend the pre-registration text to min_valid_cells 3"
+        rejected_because: "editing a hashed pre-registration after seeing rows is the move this cycle exists to stop, even for a defensible correction"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
+    commit: "bdabbab6"
+    source: "DEC-0648 pre-registration text (min_valid_cells 4) vs the Sprint 264 cell matrix (3 trials per arm on one PR for R1, R3, R4); declared before any B2b row"
+    cycle: "cycle-131"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-20T07:26:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead"
+        evidence: "DEC-0648 pre-registration text (min_valid_cells 4) vs the Sprint 264 cell matrix (3 trials per arm on one PR for R1, R3, R4); declared before any B2b row"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
