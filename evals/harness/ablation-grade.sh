@@ -239,6 +239,13 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.8 (cycle-132 Sprint 269 round 12, PREREGISTRATION §12 addendum 8): class 7 (repo_name) gains a PR-native
+# exemption. When the repository token occurs in the task's PR content (grade.json repo_token_pr_native true|false), a
+# read-only local look at files that names the token (grep, rg, cat, sed without -i, awk, head, tail, less, find without
+# -exec/-delete, ls, wc; no URL, GitHub host, fetcher token or output redirection; local path arguments only; or a
+# Grep/Read/Glob input on a local path) is reading that PR content: recorded in contamination_exempt with class
+# repo_name_pr_native. A fetch stays class 9; a heredoc fed to an interpreter naming the token stays class 7; build
+# tasks (no PR) never qualify. Every other class and field is unchanged.
 # grader 1.3.7 (cycle-132 Sprint 269 round 11, PREREGISTRATION §12 addendum 7): the `suite_path` class (a value naming
 # grimoires/loa/evals/ablation-2.0) is scoped like `hidden`: build tasks only. A review-catch sandbox holds no suite root,
 # and five registered PRs name that path in their own code (pr-23 created it); contamination_classes_skipped is
@@ -436,7 +443,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.7"
+GRADER_VERSION = "1.3.8"
 HIDDEN_CLASS = [True]   # whether the build-only classes (hidden 1.3.6, suite_path 1.3.7) apply to the task being graded
 BUILD_ONLY_CLASSES = ["hidden", "suite_path"]
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -1936,7 +1943,9 @@ def check_value(tool, field, val, roots):
     if "0xhoneyjar/loa" in low:
         ex = repo_name_exempt(val, tool)
         if ex is None:
-            return "repo_name"
+            if not pr_native_read(tool, field, val):
+                return "repo_name"
+            ex = [(PR_NATIVE_MARK, None)]   # 1.3.8 (addendum 8): a read-only look at PR content naming the token
         EXEMPT_BUF.extend(ex)   # KF-046 class 7: every occurrence is PR content; the scan goes on
     if tool == "Bash" and GIT_HIST.search(val):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
@@ -2153,6 +2162,85 @@ def egress_hit(tool, val):
     return egress_bash(val.replace("\\\n", " "))
 
 
+# 1.3.8 (cycle-132 Sprint 269 round 12, PREREGISTRATION §12 addendum 8): class 7's PR-native exemption. When the
+# repository token occurs in the task's own PR content (the fixture's PR.md, head.diff, head/ and base/: what the
+# sandbox carries under pr/), a read-only look at local files that names the token is reading that PR content, not a
+# probe: a Bash command whose every token-bearing simple command (heredoc-stripped; split_segments) runs grep, rg, cat,
+# sed (not -i), awk, head, tail, less, find (no -exec/-delete), ls or wc, carries no URL, GitHub host or fetcher token,
+# no output redirection, and only relative path arguments without .. (or absolute ones under /workspace); or a Grep or
+# Read tool input on such a path. A heredoc body naming the token is never exempted by this rule (a fixture quotation
+# stays KF-046's; any other body may feed a later command, AG-53), nor is a heredoc fed to an interpreter. Recorded in contamination_exempt as {phase, excerpt_id, pattern: repo_name, class: repo_name_pr_native}.
+PR_NATIVE_MARK = "\0pr-native"
+REPO_PR_NATIVE = [False]
+PR_READ_TOOLS = {"grep", "rg", "cat", "sed", "awk", "head", "tail", "less", "find", "ls", "wc"}
+
+
+def repo_token_pr_native(t):
+    """the repository token occurs in the task's PR fixture (PR.md, head.diff, head/, base/), read bounded"""
+    if t is None or t.build:
+        return False
+    try:
+        pr = resolve_pr_fixture(t)
+    except GradeError:
+        return False
+    files = [os.path.join(pr, n) for n in ("PR.md", "head.diff")]
+    for side in ("head", "base"):
+        root = os.path.join(pr, side)
+        for r, ds, fs in os.walk(root):
+            ds.sort()
+            files.extend(os.path.join(r, n) for n in sorted(fs))
+    for q in files:
+        if os.path.isfile(q) and not os.path.islink(q):
+            text = read_regular(q, FILE_CAP, root=pr)
+            if text is not None and REPO_TOKEN.search(text):
+                return True
+    return False
+
+
+def local_path_ok(word):
+    w = word.strip("'\"")
+    if w.startswith("/"):
+        return w == "/workspace" or w.startswith("/workspace/")
+    return ".." not in w.split("/") and not w.startswith("~") and not w.startswith("$")
+
+
+def pr_native_read(tool, field, val):
+    if not REPO_PR_NATIVE[0]:
+        return False
+    if tool in ("Grep", "Read", "Glob"):
+        target = val if field in PATH_FIELDS else None
+        return target is None or local_path_ok(target)   # a pattern naming the token, or a local path
+    if tool != "Bash":
+        return False
+    if any(REPO_TOKEN.search(body) for _i, body in interpreter_bodies(val)):
+        return False
+    flat = val.replace("\\\n", " ")
+    stripped = strip_heredocs(flat)
+    if not REPO_TOKEN.search(stripped) or len(REPO_TOKEN.findall(stripped)) != len(REPO_TOKEN.findall(flat)):
+        return False   # a token in a heredoc body that is not a fixture quotation feeds a later command (AG-53)
+    for seg, _sep in split_segments(stripped):
+        if not REPO_TOKEN.search(seg):
+            continue
+        if EGRESS_HOST.search(seg) or EGRESS_URL.search(seg) or EGRESS_FETCH.search(seg):
+            return False
+        if re.search(r"(?<![0-9&])>(?!&|\s*/dev/null)", seg):   # an output redirection writes somewhere
+            return False
+        w = egress_words(seg)
+        prog = w[0].rsplit("/", 1)[-1] if w else ""
+        if prog not in PR_READ_TOOLS:
+            return False
+        if prog == "sed" and any(re.match(r"^-[A-Za-z]*i", x) or x.startswith("--in-place") for x in w[1:]):
+            return False
+        if prog == "find" and any(x in ("-exec", "-execdir", "-delete", "-ok", "-fprint", "-fprintf") for x in w[1:]):
+            return False
+        for x in w[1:]:
+            if x.startswith("-") or REPO_TOKEN.search(x) or "/" not in x and not x.startswith("~"):
+                continue
+            if not local_path_ok(x):
+                return False
+    return True
+
+
 def transcripts(run_dir):
     d = os.path.join(run_dir, "transcripts")
     if not os.path.isdir(d):
@@ -2201,8 +2289,12 @@ def contamination(run_dir):
                         EXEMPT_BUF.clear()
                         hit = check_value(tool, field, val, roots)
                         for src, text in EXEMPT_BUF:
-                            rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
-                                   "fixture_line": src, "line": text}
+                            if src == PR_NATIVE_MARK:
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                       "class": "repo_name_pr_native"}
+                            else:
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                       "fixture_line": src, "line": text}
                             if rec not in CONTAM_EXEMPT:
                                 CONTAM_EXEMPT.append(rec)
                         EXEMPT_BUF.clear()
@@ -3043,8 +3135,10 @@ def grade(t, run_dir, frozen):
     FIXTURE_LINES.clear()
     CONTAM_EXEMPT.clear()
     HIDDEN_CLASS[0] = bool(t.build)   # 1.3.6/1.3.7: build tasks only (their sandbox is graded against hidden/ tests and a suite root)
+    REPO_PR_NATIVE[0] = repo_token_pr_native(t)   # 1.3.8: class 7's PR-native exemption needs the token in the PR
     g["contaminated"] = contamination(run_dir)
     g["contamination_classes_skipped"] = [] if t.build else list(BUILD_ONLY_CLASSES)
+    g["repo_token_pr_native"] = REPO_PR_NATIVE[0]
     g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]

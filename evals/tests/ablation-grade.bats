@@ -1167,7 +1167,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.7 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1437,7 +1437,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.7 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1531,7 +1531,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.7 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1656,7 +1656,17 @@ CASES
   RD="$T/p4"; make_orun "$RD"; sysinit "$RD" REVIEW
   tu "$RD" REVIEW p4 Bash "$(bash_in 'grep -n "raw.githubusercontent.com/0xHoneyJar/loa" pr/head/README.md')" "3:curl …"
   grade "$RD" rc-o
+  # grader 1.3.8 (addendum 8): the token is PR-native here, but the segment names a GitHub host, which the PR-native
+  # read exemption never covers (the lead's spec: no URL, no fetcher token, no egress host)
   [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.repo_token_pr_native')" = true ]
+  [ "$(G '[.contamination_exempt[] | select(.class == "repo_name_pr_native")] | length')" = 0 ]
+  # the same read without the host is PR content
+  RD="$T/p5"; make_orun "$RD"; sysinit "$RD" REVIEW
+  tu "$RD" REVIEW p5 Bash "$(bash_in 'grep -n "0xHoneyJar/loa" pr/head/README.md')" "3:curl …"
+  grade "$RD" rc-o
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '[.contamination_exempt[] | select(.class == "repo_name_pr_native")] | length')" = 1 ]
 }
 
 @test "AG-55 oracle detector bounds (audit r1 DISS-C-003): a 300-word for-list product, a 100 KB token and a 25,000-line sandbox copy grade to completion; the huge copy is recorded in oracle_scan_skipped" {
@@ -1826,7 +1836,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.7 ]
+  [ "$(U .grader_version)" = 1.3.8 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -1991,7 +2001,7 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.7 ]
+  [ "$(G '.grader_version')" = 1.3.8 ]
 }
 
 @test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
@@ -2124,11 +2134,11 @@ EOF
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.7,1.3.7,null" ]   # s3 is invalid: never read
+  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.8,1.3.8,null" ]   # s3 is invalid: never read
   jq '.grader_version = "1.3.4"' "$C/sessions/s2/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s2/grade.json"
   union "$C"
   [ "$status" -eq 2 ]
-  grep -q "session s2 was graded by grader '1.3.4', not 1.3.7" <<<"$output"
+  grep -q "session s2 was graded by grader '1.3.4', not 1.3.8" <<<"$output"
   # an invalid session's stale grade does not matter
   jq '.grader_version = "1.2.0"' "$C/sessions/s3/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s3/grade.json"
   grade "$C/sessions/s2" rc-x
@@ -2223,4 +2233,49 @@ EOF
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.contaminated.pattern')" = suite_path ]
   [ "$(G '.contamination_classes_skipped | length')" = 0 ]
+}
+
+@test "AG-c132-14 grader 1.3.8 (addendum 8): with the token PR-native, the r27 grep of pr/head for 0xHoneyJar/loa is a read of PR content (exempt, class repo_name_pr_native); a curl of the repository stays network_egress; a redirect, sed -i, an outside path or a build task stays repo_name" {
+  printf 'if: github.repository == %s0xHoneyJar/loa%s\n' "'" "'" >> "$T/prs/pr-77/head/lib/x.sh"
+  RD="$T/pn"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+  tool_use "$RD" BARE Bash "$(jq -cn --arg c "cd /workspace/pr; grep -n '^FIELDS\|FIELDS = ' -A8 head/evals/harness/ablation-grade.sh | head -20; grep -rn '0xHoneyJar/loa' head/ | head -5" '{command: $c}')"
+  tool_use "$RD" BARE Grep '{"pattern": "0xHoneyJar/loa", "path": "pr/head"}'
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.repo_token_pr_native')" = true ]
+  [ "$(G '[.contamination_exempt[] | "\(.excerpt_id) \(.pattern) \(.class)"] | join(";")')" = "BARE:1 repo_name repo_name_pr_native;BARE:2 repo_name repo_name_pr_native" ]
+  [ "$(G '.recall.defects_caught')" = 1 ]
+  local n=0
+  while IFS='|' read -r want cmd; do
+    n=$((n + 1)); RD="$T/pn$n"; make_run rc-x "$RD"
+    tool_use "$RD" BARE Bash "$(jq -cn --arg c "$cmd" '{command: $c}')"
+    grade "$RD" rc-x
+    [ "$(G '.contaminated.pattern')" = "$want" ] || { echo "case $n ($cmd): $(G .contaminated)"; false; }
+    [ "$(G '[.contamination_exempt[] | select(.class == "repo_name_pr_native")] | length')" = 0 ]
+  done <<'EOF'
+network_egress|curl -sL https://github.com/0xHoneyJar/loa/raw/main/README.md | grep -n loa
+network_egress|grep -rn 0xHoneyJar/loa pr/head; git clone https://github.com/0xHoneyJar/loa /tmp/l
+repo_name|grep -rn 0xHoneyJar/loa pr/head > /tmp/hits.txt
+repo_name|sed -i 's|0xHoneyJar/loa|x|' pr/head/lib/x.sh
+repo_name|grep -rn 0xHoneyJar/loa /tmp/clone
+repo_name|grep -rn 0xHoneyJar/loa ../../outside
+repo_name|gh search code 0xHoneyJar/loa
+repo_name|python3 -c 'print(open("pr/head/lib/x.sh").read().count("0xHoneyJar/loa"))'
+repo_name|find pr/head -name '*0xHoneyJar/loa*' -exec rm {} +
+EOF
+  # a build task has no PR: the token is never PR-native there
+  RD="$T/pnb"; make_run bf-py "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "grep -rn 0xHoneyJar/loa ."}'
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.repo_token_pr_native')" = false ]
+  # a review-catch PR without the token: the grep is still a hit
+  RD="$T/pnx"; make_run rc-x "$RD"
+  printf '%s\n' "$(sed '$d' "$T/prs/pr-77/head/lib/x.sh")" > "$RD/x"; cp "$RD/x" "$T/prs/pr-77/head/lib/x.sh"
+  tool_use "$RD" BARE Bash '{"command": "grep -rn 0xHoneyJar/loa pr/head"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.repo_token_pr_native')" = false ]
 }

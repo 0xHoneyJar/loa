@@ -25590,3 +25590,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0789"
+    created_at: "2026-10-21T12:36:03Z"
+    updated_at: "2026-10-21T12:36:03Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Addendum 8 (§12): class 7 exempts read-only local commands naming a PR-native repository token (grader 1.3.8); fetches and URLs unchanged"
+    decision: "When the repository token occurs in the PR content, a read-only local command whose paths resolve inside pr/ or the sandbox and that carries no URL, fetcher or egress host is exempt from class 7, recorded as contamination_exempt class repo_name_pr_native; class 9 and the fetch forms of class 7 unchanged; filed as REGISTRATION-7.json superseding 6205eaf5…"
+    rationale: "smoke2's a0_bare review-r27 was excluded for grepping the PR's own head tree for the token the PR's code carries; reading PR content is neither egress nor exposure evidence; five harness PRs carry the token"
+    alternatives_considered:
+      - option: "keep class 7 as is"
+        rejected_because: "excludes any reviewer who searches a harness PR for its own repository references — a bias against the PRs that name the repository, which are the harness PRs"
+      - option: "drop class 7 for review-catch"
+        rejected_because: "a reviewer that reaches for the upstream repository by name in a fetch is still exposure; class 7 keeps its fetch forms"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "bb00f2c4"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-8.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T12:36:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke2/a0_bare/review-r27-t1/grade.json (repo_name BARE:249)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
