@@ -22414,3 +22414,357 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0692"
+    created_at: "2026-10-21T01:22:52Z"
+    updated_at: "2026-10-21T01:22:52Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Flatline SDD blockers integrated by judgment (KF-041 shape, 27 blockers, agreement 0 %): D-7.1 … D-7.10 below; the rest answered in §11.E (E1)"
+    decision: "Cross-scoring degraded again; the raw reviews were read in full; the SDD moves to 1.1 with the decisions D-7.1 … D-7.10 and the PRD's D13–D18 folded in; items not adopted carry a reason in §11.E"
+    rationale: "KF-041 recurrence: integrate by judgment, do not re-run for consensus"
+    alternatives_considered:
+      - option: "re-run Flatline"
+        rejected_because: "KF-041 reading guide"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:22:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0693"
+    created_at: "2026-10-21T01:22:55Z"
+    updated_at: "2026-10-21T01:22:55Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.4: the permutation test swaps arm labels per PR (all of a PR's cells together); the within-pair swap is a sensitivity; exchangeability stated"
+    decision: "PR-level paired permutation preserves within-PR dependence across trials; the pre-registration states the exchangeability assumption; the pair-level swap is reported as a sensitivity"
+    rationale: "Independent within-pair swaps assume trials of one PR are exchangeable units, which they are not"
+    alternatives_considered:
+      - option: "within PR × trial swaps as primary"
+        rejected_because: "ignores the repeated-trial dependence"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:22:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0694"
+    created_at: "2026-10-21T01:24:00Z"
+    updated_at: "2026-10-21T01:24:00Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-7.1: annotators and the judge run as containerized claude -p sessions over packet-only sandboxes (blind-session.sh); transcripts are the access log"
+    decision: "A harness mode runs each blind role through the existing container executor: the sandbox contains the packets and nothing else, no repository mount, the model via the Bedrock route; the transcript is the audit log of what the role read"
+    rationale: "Instruction-level blinding cannot be verified; a subagent with filesystem access can read the labels; the container executor already exists"
+    alternatives_considered:
+      - option: "Agent-tool subagents told not to open the corpus"
+        rejected_because: "unverifiable; the cycle-131 limitation the review named"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0695"
+    created_at: "2026-10-21T01:24:02Z"
+    updated_at: "2026-10-21T01:24:02Z"
+    phase: "architecture"
+    category: "process"
+    summary: "D-7.2: REGISTRATION.json (JCS) binds text, corpus sums, suite manifest, analysis-code hash, pin, routing, addenda; its sha256 is the batch hash"
+    decision: "The hash in the batch MANIFEST and NOTES is the hash of a canonical registration manifest listing every experimental input by hash; reads-c132.py refuses rows whose batch registered a different manifest; addenda are listed in a later manifest that names its predecessor"
+    rationale: "Hashing only the text leaves labels, tasks, code and routing unbound"
+    alternatives_considered:
+      - option: "text hash only"
+        rejected_because: "an unbound input can change under a fixed text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0696"
+    created_at: "2026-10-21T01:24:03Z"
+    updated_at: "2026-10-21T01:24:03Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.3: matched cells — infra failures re-run ≤ 2 attempts; refusal/contaminated sessions kept; cell valid at ≥ ⌈k/2⌉ sessions; ITT table"
+    decision: "Session outcomes: transport/cap/interrupted re-run up to 2 attempts (every attempt's cost counted); a refusal fallback or a contamination marks that session invalid and kept; the cell is valid when at least ⌈k/2⌉ sessions are valid, graded on them with the realized spend recorded and the dollar-matching tolerance applied; the report carries an intention-to-run table of every planned cell's outcome"
+    rationale: "Cell-level invalidation at k ≈ 13 would exclude the matched arm far more often than the full arm and bias the pairwise read; re-running bad draws would bias it the other way"
+    alternatives_considered:
+      - option: "any invalid session invalidates the cell"
+        rejected_because: "1 − (1 − r)^k at r = 5 % is ≈ 49 %"
+      - option: "re-run every failed session"
+        rejected_because: "re-rolls bad draws; selection bias"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0697"
+    created_at: "2026-10-21T01:24:05Z"
+    updated_at: "2026-10-21T01:24:05Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.5: minimum information — no decision before 6 valid PRs and 30 defects; degenerate cases get named statuses; --expect = input manifest"
+    decision: "reads-c132.py validates an input manifest (rows hash, grade hashes, pin, label set, expected cells, session membership) and refuses mismatches; looks fire a decision only with ≥ 6 valid PRs and ≥ 30 defects; degenerate cases print a named inconclusive status, never a number"
+    rationale: "A bootstrap SE from 2–5 clusters is unstable; silent degenerate arithmetic is how a wrong read ships"
+    alternatives_considered:
+      - option: "looks at every PR group regardless of size"
+        rejected_because: "look 1 with 4 PRs would decide on an unstable SE"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0698"
+    created_at: "2026-10-21T01:24:07Z"
+    updated_at: "2026-10-21T01:24:07Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.6: fix hunks tagged review_driven from the feedback citations; a pipeline-independent read (non-review-driven + incidents) pre-registered"
+    decision: "annotation-packets.sh (outside the blind packet) records review_driven: true|false per hunk from the record-branch feedback citations; the manifest stores it per defect; the primary read uses all confirmed defects, a pre-registered secondary read uses only non-review-driven and incident defects"
+    rationale: "Fix hunks answer the production pipeline's findings; the subset that nobody in the review cited is the only labelled set independent of the a1_full twin"
+    alternatives_considered:
+      - option: "all confirmed defects only"
+        rejected_because: "the circularity the review named would stay unmeasured"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0699"
+    created_at: "2026-10-21T01:24:08Z"
+    updated_at: "2026-10-21T01:24:08Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.7: power model — latent difficulty + blind-spot mixture (π0), logit-scale design effect with clipping diagnostics; no Beta(1,1) smoothing"
+    decision: "p_bare(d) comes from a Beta-Binomial posterior shrunk toward the arm's grand mean with a mixture weight π0 for defects never caught (estimated from the 3-trial zero-catch share adjusted for chance); matched recall = (1 − π0) × E[1 − (1 − p)^k]; the design effect is applied on the logit scale and the share of clipped defects is reported"
+    rationale: "Beta(1,1) smoothing gives a never-caught defect p = 0.2 and matched ≈ 0.945 at k = 13: the simulation would saturate and N would be meaningless"
+    alternatives_considered:
+      - option: "Beta(1,1) smoothing as drafted"
+        rejected_because: "degenerate at k ≈ 13"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0700"
+    created_at: "2026-10-21T01:24:10Z"
+    updated_at: "2026-10-21T01:24:10Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-7.8: one incident window (merge date → scan date) across sources; gh paginated with completeness recorded; full evidence saved"
+    decision: "incident-scan.sh applies the same temporal rule to fix commits, issues, Bridgebuilder rounds and KF entries, paginates gh (api --paginate), records counts and any truncation, and saves each incident's full evidence (issue body, commit diff) under incidents/pr-NN/evidence/"
+    rationale: "A 200-item search truncates silently; mixed windows across sources are irreproducible"
+    alternatives_considered:
+      - option: "limit-200 search from the fix date"
+        rejected_because: "silent truncation; inconsistent window"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0701"
+    created_at: "2026-10-21T01:24:12Z"
+    updated_at: "2026-10-21T01:24:12Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.9: defects per USD per arm is a pre-registered secondary read; a pair is dollar-matched within 25 % of the full run's cost, else flagged"
+    decision: "Beside recall at matched k, the report gives defects per dollar per arm with cluster-bootstrap intervals; pairs whose realized matched spend differs from the full run by more than 25 % are flagged and the exact-dollar trim covers them"
+    rationale: "The operator's question is per dollar; integer session counts do not enforce equal realized spend"
+    alternatives_considered:
+      - option: "recall at matched k only"
+        rejected_because: "does not state the efficiency claim directly"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0702"
+    created_at: "2026-10-21T01:24:14Z"
+    updated_at: "2026-10-21T01:24:14Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-7.10: positive control pre-registers its expected effect (R1 +0.067), exempts saturated PRs (closed recall > 0.9), needs detector-verified exposure"
+    decision: "The control read passes on point estimate > 0 with detector-verified exposure in ≥ 1 open run; PRs whose closed-mount recall exceeds 0.9 are exempt from the control read (no headroom); the expected effect size is stated"
+    rationale: "An improvement cannot show on a saturated PR; exposure that is not used is not a positive control"
+    alternatives_considered:
+      - option: "require significance on G1"
+        rejected_because: "4–6 cells cannot carry it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "570b07e7"
+    source: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:24:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.E (Flatline SDD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
