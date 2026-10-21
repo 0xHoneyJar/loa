@@ -25485,3 +25485,76 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0786"
+    created_at: "2026-10-21T11:02:53Z"
+    updated_at: "2026-10-21T11:02:53Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 5 (§12, KF-050): the closed mount leaves .claude/adapters pinned so the dissent's cheval imports; the oracle on those files is guarded by the detector"
+    decision: "overlay_answer_paths excludes .claude/adapters/** (recorded as overlay_excluded in arm evidence); took-effect oracle_closed accepts the recorded exclusion; the five fixtures touching the adapters run the pinned pipeline; runs that exploit the reopened oracle on those files are invalid via oracle_exposed_defects and reported per PR; filed as REGISTRATION-5.json superseding f2c0e8f9…"
+    rationale: "The smoke refused a1_full on review-r15 (mount_cheval_broken ImportError, KF-050); five of fourteen registered PRs modify the cheval adapters; the framework has no adapters-path override and must not be changed; excluding the adapters from the overlay keeps the pipeline under test pinned at the stated cost of an oracle the detector already polices"
+    alternatives_considered:
+      - option: "drop the five fixtures (cycle-131 practice: pr-12 re-grade-only)"
+        rejected_because: "loses a third of the corpus and every harness PR that modifies the transport; N = 14 is the ceiling"
+      - option: "run a PR-era cheval for those PRs"
+        rejected_because: "changes the pipeline under test per PR and risks the same skew against the pinned scripts"
+      - option: "an adapters-path override in the framework"
+        rejected_because: "modifying the framework under test for the evaluation"
+    consequences:
+      positive: []
+      negative:
+        - "Oracle exposure may exclude cells on the five adapter PRs; reported as a limitation"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "ca71fbc7"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-5.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T11:02:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke2/a1_full/review-r15-t1/meta/pipeline.json; KF-050"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0787"
+    created_at: "2026-10-21T11:23:24Z"
+    updated_at: "2026-10-21T11:23:24Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Addendum 6 (§12): class-9 grades record repo_named/host/url; one more sensitivity re-includes non-repository GitHub egress cells; the primary rule unchanged"
+    decision: "The registered class-9 rule (any GitHub egress by a fetcher invalidates the cell) stays the primary filter; grades record whether the egress named the repository; the final read adds the sensitivity 'class-9 non-repository egress re-included' with per-arm counts; filed as REGISTRATION-6.json after addendum 5"
+    rationale: "smoke2's a0_bare review-r22 lost its cell for downloading a jq release from github.com — contamination by the registered rule but not answer-key retrieval; a bare agent installing tools from GitHub loses cells more often than the pipeline arms, so the report must show how much of the bare arm's exclusion is of that kind without loosening a rule after seeing data"
+    alternatives_considered:
+      - option: "require the repository token for class 9 (loosen the rule)"
+        rejected_because: "a post-hoc loosening of a pre-registered exclusion after an excluded bare cell; codeload/gist mirrors need not name the repository"
+      - option: "leave it to post-hoc reading of the flagged commands"
+        rejected_because: "not pre-registered; the sensitivity must be declared before the rows exist"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "ca71fbc7"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-6.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T11:23:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke2/a0_bare/review-r22-t1/grade.json (network_egress BARE:350: curl github.com/jqlang/jq release)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -841,3 +841,20 @@ make_cell_rows() {
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '.sessions_meta_unreadable' <<<"$(last)")" = null ]
 }
+
+@test "RW15-8 (round 10) a network_egress contamination carries repo_named, host and url into the row; other patterns stay {phase, pattern}; --validate checks the types" {
+  jq '.contaminated = {"phase": "BARE", "pattern": "network_egress", "excerpt_id": "BARE:350", "repo_named": false, "host": "github.com", "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"}' \
+    "$T/runs/a3-review/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a3-review/grade.json"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.contaminated' <<<"$(last)")" = '{"phase":"BARE","pattern":"network_egress","repo_named":false,"host":"github.com","url":"https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"}' ]  || { jq -c .contaminated <<<"$(last)"; false; }
+  [ "$(jq -r '.status' <<<"$(last)")" = contaminated ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  jq -c '.contaminated.repo_named = "no"' <<<"$(last)" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"contaminated.repo_named must be boolean|null"* ]]
+  jq '.contaminated = {"phase": "BARE", "pattern": "outside_path", "excerpt_id": "BARE:2", "host": "x"}' \
+    "$T/runs/a3-review/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a3-review/grade.json"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.contaminated' <<<"$(last)")" = '{"phase":"BARE","pattern":"outside_path"}' ]
+}

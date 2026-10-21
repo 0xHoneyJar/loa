@@ -471,7 +471,11 @@ EOF
     grade "$RD" "$task"
     [ "$status" -eq 0 ]
     [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "IMPLEMENT $want IMPLEMENT:2" ]
-    [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,pattern,phase" ]
+    if [ "$want" = network_egress ]; then   # round 10: class 9 adds its telemetry (repo_named, host, url)
+      [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,host,pattern,phase,repo_named,url" ]
+    else
+      [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,pattern,phase" ]
+    fi
   done <<'EOF'
 Bash	{"command": "cat tests/HIDDEN_cases.py"}	hidden
 Read	{"file_path": "/workspace/grimoires/loa/evals/ablation-2.0/tasks/x/task.yaml"}	suite_path
@@ -2172,4 +2176,28 @@ EOF
     [ "$(jq -c --arg k "$k" '.[$k]' "$T/old.json")" = "$(jq -c --arg k "$k" '.[$k]' "$T/new.json")" ] || { echo "$k differs"; false; }
   done
   [ "$(jq -r '.contaminated.pattern' "$T/new.json")" = hidden ]
+}
+
+@test "AG-c132-12 class 9 telemetry (round 10): a jq release download from github.com reads repo_named false with its host and url; codeload.github.com/0xHoneyJar/loa and a WebFetch of the repository read repo_named true; other classes carry no extra keys" {
+  local n=0
+  while IFS='|' read -r want_named want_host tool input; do
+    n=$((n + 1)); RD="$T/t$n"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" BARE "$tool" "$input"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$(G '.contaminated | "\(.pattern) \(.repo_named) \(.host)"')" = "network_egress $want_named $want_host" ] || { echo "case $n: $(G -c .contaminated)"; false; }
+    [ "$(G '.contaminated.url | length <= 200')" = true ]
+  done <<'EOF'
+false|github.com|Bash|{"command": "mkdir -p ~/rev && curl -sSL -o ~/rev/jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"}
+true|codeload.github.com|Bash|{"command": "curl -sL https://codeload.github.com/0xHoneyJar/loa/tar.gz/main | tar xz"}
+true|github.com|WebFetch|{"url": "https://github.com/0xHoneyJar/loa/pull/1290", "prompt": "read"}
+true|api.github.com|Bash|{"command": "bash -c 'gh api https://api.github.com/repos/0xHoneyJar/loa/pulls'"}
+EOF
+  [ "$(G '.contaminated.url')" = "https://api.github.com/repos/0xHoneyJar/loa/pulls" ]
+  RD="$T/t1"; [ "$(G '.contaminated.url')" = "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64" ]
+  # outside_path keeps its three keys
+  RD="$T/tx"; make_run rc-x "$RD"
+  tool_use "$RD" BARE Bash '{"command": "cat /home/operator/notes"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,pattern,phase" ]
 }

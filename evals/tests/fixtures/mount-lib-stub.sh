@@ -155,7 +155,7 @@ overlay_answer_paths() {  # <ws> <fixture-dir> <mode> [<source-tree> [<source-co
   local cs="${STUB_COPY_SOURCE:-$(git -C "${4:-.}" rev-parse HEAD 2>/dev/null || echo unknown)}"
   echo "copy_source=$cs"
   [[ -f "$2/head.diff" ]] || { echo "stub: no head.diff in $2" >&2; return 2; }
-  echo "mount_overlay=$3:0"; echo "overlay_removed=0"; echo "overlay_fix_commit=none"; echo "gate_scripts_at_pr_version="
+  echo "mount_overlay=$3:0"; echo "overlay_excluded=0"; echo "overlay_removed=0"; echo "overlay_fix_commit=none"; echo "gate_scripts_at_pr_version="
   echo "overlay_fixture=$2"
 }
 

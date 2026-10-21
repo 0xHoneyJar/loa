@@ -347,3 +347,46 @@ content() { cat "$W/$1"; }
   ! grep -q 'checksums.json' <<<"$output" || false
   ! grep -q 'AGENTS.md' <<<"$output" || false
 }
+
+@test "overlay (cycle-132 addendum 5, KF-050): a diff touching .claude/adapters/x.py and .claude/scripts/y.sh overlays y.sh, leaves x.py pinned, records overlay_excluded=1:.claude/adapters/x.py; the check passes, and fails on an adapter path not at its pin or a non-adapter path left un-overlaid" {
+  mkdir -p "$SRC/.claude/adapters"
+  printf 'pinned adapter\n' > "$SRC/.claude/adapters/x.py"; printf 'y pinned LATER\n' > "$SRC/.claude/scripts/y.sh"
+  ( cd "$SRC" && g . add -A && g . commit -qm adapters )
+  P="$(git -C "$SRC" rev-parse HEAD)"
+  mkdir -p "$W/.claude/adapters"; cp "$SRC/.claude/adapters/x.py" "$W/.claude/adapters/x.py"; cp "$SRC/.claude/scripts/y.sh" "$W/.claude/scripts/y.sh"
+  mkdir -p "$FX/head/.claude/adapters" "$FX/base/.claude/adapters"
+  printf 'pr head adapter\n' > "$FX/head/.claude/adapters/x.py"; printf 'pr base adapter\n' > "$FX/base/.claude/adapters/x.py"
+  printf 'y head\n' > "$FX/head/.claude/scripts/y.sh"; printf 'y base\n' > "$FX/base/.claude/scripts/y.sh"
+  printf 'diff --git a/.claude/adapters/x.py b/.claude/adapters/x.py\n--- a/.claude/adapters/x.py\n+++ b/.claude/adapters/x.py\n@@ -1 +1 @@\n-pr base adapter\n+pr head adapter\ndiff --git a/.claude/scripts/y.sh b/.claude/scripts/y.sh\n--- a/.claude/scripts/y.sh\n+++ b/.claude/scripts/y.sh\n@@ -1 +1 @@\n-y base\n+y head\n' >> "$FX/head.diff"
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$P"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(content .claude/adapters/x.py)" = "pinned adapter" ]
+  [ "$(content .claude/scripts/y.sh)" = "y head" ]
+  [ "$(ev overlay_excluded)" = "1:.claude/adapters/x.py" ]
+  ! grep -q '^overlay_sha256=.claude/adapters/' "$ARM_EVIDENCE_FILE" || false
+  [ "$(ev mount_overlay)" = "head:10" ]          # the nine paths plus y.sh; x.py is not counted
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '1 adapter path(s) left pinned' "$ARM_EVIDENCE_FILE"
+  # an adapter path that is not the pinned version fails (a)
+  printf 'pr head adapter\n' > "$W/.claude/adapters/x.py"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'FAIL (a) .claude/adapters/x.py: an excluded adapter path' <<<"$output"
+  cp "$SRC/.claude/adapters/x.py" "$W/.claude/adapters/x.py"
+  # a non-adapter answer path left at its pinned (later) version fails as before
+  cp "$SRC/.claude/scripts/y.sh" "$W/.claude/scripts/y.sh"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -qE 'FAIL \([abc]\) .claude/scripts/y.sh' <<<"$output"
+  # evidence that names another exclusion fails
+  printf 'y head\n' > "$W/.claude/scripts/y.sh"
+  sed -i 's/^overlay_excluded=.*/overlay_excluded=0/' "$ARM_EVIDENCE_FILE"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'overlay_excluded=0, the answer set excludes 1:.claude/adapters/x.py' <<<"$output"
+}
+
+@test "overlay (addendum 5): a fixture touching no adapter path records overlay_excluded=0 and overlays as before" {
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$F"
+  [ "$status" -eq 0 ]
+  [ "$(ev overlay_excluded)" = 0 ]
+  [ "$(ev mount_overlay)" = "head:9" ]
+}

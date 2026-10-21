@@ -59,6 +59,10 @@
 #                              (d) the sandbox .git holds exactly the base commit, no remote, no
 #                                  alternates, nothing unreachable (git fsck --unreachable
 #                                  --no-reflogs) and no later-only pinned blob.
+#                              Cycle-132 addendum 5 (KF-050): the answer set leaves out every path under
+#                              .claude/adapters/ (the overlay keeps the pinned cheval there); the check
+#                              requires overlay_excluded=<n>:<list> to name exactly those paths and each to
+#                              be at its pinned version, and judges (a)-(d) on the other paths.
 #                              The comparison is lib/sandbox-mount.sh's (_sm_oracle_py check), the
 #                              same one pipeline-run.sh's pre-launch check_mount_closed runs.
 #                              A build run (no PR fixture) and a loa_mount: false run with no

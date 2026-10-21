@@ -284,7 +284,10 @@
 #                  code using urllib or requests and naming a host; a curl/wget in $( … ) or backticks naming a host; a
 #                  heredoc body only when fed to an interpreter (python: urllib/requests and a host; bash/sh: its
 #                  commands by the same rule). A WebFetch url or WebSearch query naming a host or the repository →
-#                  contaminated {pattern: "network_egress"}. grep/rg/echo naming a host, prose in a cat heredoc, and
+#                  contaminated {pattern: "network_egress"}, plus (round 10 telemetry, not a rule change) repo_named
+#                  (REPO_TOKEN in the flagged command, segment, body or input), host (its first GitHub host) and url
+#                  (its first URL, ≤ 200 characters): a third-party tool download from a GitHub host reads repo_named
+#                  false. grep/rg/echo naming a host, prose in a cat heredoc, and
 #                  words on separate commands never combine into a hit. A lower bound: an egress the transcript cannot
 #                  show (a program the agent wrote, a remote fetched by name) is not seen.
 #   Union (--union <cell-dir> --task-id T; SDD D-3.1): a matched cell is k independent BARE sessions under
@@ -2102,25 +2105,44 @@ def egress_pipelines(segs):
         if len(p) < 2 or not any(EGRESS_HOST.search(s) for s in p):
             continue
         if any((egress_words(s) or [""])[0].rsplit("/", 1)[-1] in ("curl", "wget") for s in p):
-            return True
+            return egress_note(" | ".join(p))
     return False
+
+
+# telemetry for a class 9 hit (Sprint 269 round 10; not a rule change): the flagged text's first GitHub host, first
+# URL (at most 200 characters) and whether it names the repository (REPO_TOKEN) — a third-party tool download from a
+# GitHub host reads repo_named false. The first noted text of an egress_hit call wins (the most specific segment).
+EGRESS_DETAIL = [None]
+EGRESS_URL = re.compile(r"(?i)\bhttps?://[^\s'\"<>`)\]]+")
+
+
+def egress_note(text):
+    if EGRESS_DETAIL[0] is None:
+        h, u = EGRESS_HOST.search(text), EGRESS_URL.search(text)
+        EGRESS_DETAIL[0] = {"repo_named": bool(REPO_TOKEN.search(text)), "host": h.group(0).lower() if h else None,
+                            "url": re.sub(r"[\x00-\x1f\x7f]", "", u.group(0))[:200] if u else None}
+    return True
 
 
 def egress_bash(cmd, depth=0):
     segs = split_segments(strip_heredocs(cmd))
-    if any(egress_command(seg, depth) for seg, _sep in segs) or egress_pipelines(segs):
+    for seg, _sep in segs:
+        if egress_command(seg, depth):
+            return egress_note(seg)
+    if egress_pipelines(segs):
         return True
     for interp, body in interpreter_bodies(cmd):
         if interp.startswith("python") and EGRESS_PYLIB.search(body) and EGRESS_HOST.search(body):
-            return True
+            return egress_note(body)
         if interp in EGRESS_SHELLS and depth < 3 and egress_bash(body, depth + 1):
             return True
     return False
 
 
 def egress_hit(tool, val):
+    EGRESS_DETAIL[0] = None
     if tool in ("WebFetch", "WebSearch"):
-        return bool(EGRESS_HOST.search(val) or REPO_TOKEN.search(val))
+        return egress_note(val) if (EGRESS_HOST.search(val) or REPO_TOKEN.search(val)) else False
     if tool != "Bash":
         return False
     return egress_bash(val.replace("\\\n", " "))
@@ -2180,7 +2202,10 @@ def contamination(run_dir):
                                 CONTAM_EXEMPT.append(rec)
                         EXEMPT_BUF.clear()
                         if hit:
-                            return {"phase": label, "pattern": hit, "excerpt_id": f"{label}:{i}"}
+                            rec = {"phase": label, "pattern": hit, "excerpt_id": f"{label}:{i}"}
+                            if hit == "network_egress" and EGRESS_DETAIL[0] is not None:
+                                rec.update(EGRESS_DETAIL[0])   # round 10 telemetry: repo_named, host, url
+                            return rec
     return None
 
 

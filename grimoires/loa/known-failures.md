@@ -97,7 +97,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-047](#kf-047-run-mode-circuit-breaker-trips-on-a-stale-timeout-clock-carried-over-from-the-previous-run) | Open (worked around) | run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json | 1 |
 | [KF-048](#kf-048-ablation-containers-consume-the-host-codex-refresh-token-every-later-container-and-the-host-lose-the-openai-voice) | Open (operator re-auth needed) | evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers | 2 |
 | [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 4 |
-| [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 1 |
+| [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 2 |
 | [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 1 |
 
 ---
@@ -1880,7 +1880,7 @@ A review-catch lift measured with the framework mounted is an upper bound. Befor
 **Feature**: evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount)
 **Symptom**: Under the closed mount (head or base mode) the sandbox's .claude/adapters cheval raises ImportError: cannot import name 'private_workspace_base' from 'loa_cheval.providers.headless_cli'; every dissent voice fails on that PR (dissent_absent_gates = review,audit, infrastructure reason)
 **First observed**: 2026-10-19 cycle-131 Sprint 263, lead probe overlay-probe.sh on pr-12 before the Task 1.11 smoke
-**Recurrence count**: 1
+**Recurrence count**: 2
 **Current workaround**: None inside the overlay rule. Keep the affected PR out of closed-mount batches (pr-12 is re-grade-only, DEC-0611/DEC-0631); read its smoke row as a predicted infrastructure effect. Candidate: a pre-launch mount_cheval=ok|broken:<reason> evidence line (bead bd-56nn6)
 **Upstream issue**: bead bd-56nn6
 **Related visions / lore**: KF-049 (the oracle the closed mount closes), DEC-0622 (head-mode overlay), DEC-0630 (fix-commit paths at head_commit), DEC-0631

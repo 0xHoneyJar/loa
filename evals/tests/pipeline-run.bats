@@ -1435,3 +1435,33 @@ arm_named_pr() {
   [[ "$output" == *"arm id appears in the sandbox: grimoires/loa/context/task-brief.md"* || "$output" == *"task-brief.md leaks arm id a1_full"* ]]
   [ ! -e "$T/log/call-1.argv" ]
 }
+
+@test "PR-c132-11 (addendum 5, KF-050) real library: a PR whose head version of .claude/adapters/loa_cheval/providers/__init__.py no longer imports is overlaid without that path — the pinned adapters stay, mount_cheval=ok, the run completes, overlay_excluded names the path" {
+  cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
+  # the pinned tree: an importable cheval (make_source_tree) plus a gate script; the PR fixture rewrites providers to an
+  # import its sandbox neighbours lack (the KF-050 shape)
+  printf 'gate pinned\n' > "$T/src/.claude/scripts/gate.sh"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm pin )
+  local p="$T/prs/pr-k" r="$T/suite/tasks/rc-k" hc
+  hc="$(git -C "$T/src" rev-parse HEAD)"
+  mkdir -p "$p/base/.claude/scripts" "$p/head/.claude/scripts" "$p/base/.claude/adapters/loa_cheval/providers" "$p/head/.claude/adapters/loa_cheval/providers" "$r"
+  printf 'gate base\n' > "$p/base/.claude/scripts/gate.sh"; printf 'gate head\n' > "$p/head/.claude/scripts/gate.sh"
+  : > "$p/base/.claude/adapters/loa_cheval/providers/__init__.py"
+  printf 'from .headless_cli import private_workspace_base\n' > "$p/head/.claude/adapters/loa_cheval/providers/__init__.py"
+  printf 'diff --git a/.claude/scripts/gate.sh b/.claude/scripts/gate.sh\n--- a/.claude/scripts/gate.sh\n+++ b/.claude/scripts/gate.sh\n@@ -1 +1 @@\n-gate base\n+gate head\ndiff --git a/.claude/adapters/loa_cheval/providers/__init__.py b/.claude/adapters/loa_cheval/providers/__init__.py\n--- a/.claude/adapters/loa_cheval/providers/__init__.py\n+++ b/.claude/adapters/loa_cheval/providers/__init__.py\n@@ -0,0 +1 @@\n+from .headless_cli import private_workspace_base\n' > "$p/head.diff"
+  printf '# PR\n' > "$p/PR.md"
+  printf 'name: pr-k\nhead_commit: "%s"\n' "$hc" > "$p/fixture.yaml"
+  printf 'Review the pull request in pr/.\n' > "$r/TASK.md"
+  printf 'id: rc-k\nschema_version: 1\ntype: review-catch\ncriterion: "review the change"\nreview_catch: {fixture: "%s"}\n' "$p" > "$r/task.yaml"
+  export LOA_EVAL_BR_BIN="$T/no-br"
+  run "$PR" --task-yaml "$r/task.yaml" --arm a1_full --run-dir "$T/run" --run-id r-k --trial 1 \
+    --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude"
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log" 2>/dev/null; false; }
+  [ "$(evline mount_cheval)" = ok ]
+  [ "$(evline overlay_excluded)" = "1:.claude/adapters/loa_cheval/providers/__init__.py" ]
+  [ "$(evline mount_overlay)" = "head:1" ]
+  [ ! -s "$T/run/sandbox/.claude/adapters/loa_cheval/providers/__init__.py" ]   # the pinned (empty) providers module
+  [ "$(cat "$T/run/sandbox/.claude/scripts/gate.sh")" = "gate head" ]
+  grep -q private_workspace_base "$T/run/sandbox/pr/head/.claude/adapters/loa_cheval/providers/__init__.py"
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+}

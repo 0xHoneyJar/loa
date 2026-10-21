@@ -330,6 +330,45 @@ class PositiveControlTest(Base):
         self.assertEqual(self.final(self.batch())["secondary"]["positive_control"], {"status": "not_run"})
 
 
+class NonRepoEgressTest(Base):
+    def test_class9_nonrepo_cell_reincluded_only_in_the_sensitivity(self):
+        def egress(row, grade):
+            if row["arm"] == "a0_bare_matched" and row["task_id"] == "review-s02" and row["trial"] == 1:
+                row["contaminated"] = {"pattern": "network_egress", "repo_named": False, "host": "github.com",
+                                       "url": "https://github.com/jqlang/jq/releases"}
+                row["status"] = "contaminated"
+                grade["contaminated"] = row["contaminated"]
+            if row["arm"] == "a0_bare_matched" and row["task_id"] == "review-s07" and row["trial"] == 2:
+                row["contaminated"] = {"pattern": "network_egress", "repo_named": True, "host": "github.com"}
+                row["status"] = "contaminated"
+                grade["contaminated"] = row["contaminated"]
+        s = self.batch(mutate=egress)
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        prim = doc["primary"]
+        sens = doc["sensitivities"]["reads"]["class9_nonrepo_egress_reincluded"]
+        self.assertEqual(prim["n_pairs"], 14)                    # both contaminated pairs excluded by the main filter
+        self.assertEqual(sens["n_pairs"], 15)                    # the non-repo one comes back; the repo one stays out
+        self.assertEqual(sens["reincluded_cells"], {"a0_bare_matched": {"G1": 1}})
+        self.assertEqual(sens["reincluded_keys"], ["c132-g1/a0_bare_matched/review-s02/1"])
+        self.assertIn("recall_matched", sens)
+        order = doc["sensitivities"]["order"]
+        self.assertEqual(order.index("class9_nonrepo_egress_reincluded"), order.index("degraded_contaminated_excluded") + 1)
+        # the main filter's reasons are unchanged; the detail is a separate field
+        ms = doc["missingness"]["cells_by_arm"]["a0_bare_matched"]["excluded"]
+        self.assertEqual(ms.get("contaminated"), 2)
+        md = slurp(os.path.join(o, "reads.md"))
+        self.assertIn("re-included cells (arm: group n) | a0_bare_matched: G1 1", md)
+
+    def test_detail(self):
+        self.assertEqual(common.contamination_detail({"pattern": "network_egress", "repo_named": False}), "network_egress:nonrepo")
+        self.assertEqual(common.contamination_detail({"pattern": "network_egress"}), "network_egress:repo")
+        self.assertEqual(common.contamination_detail(None, {"pattern": "outside_path"}), "outside_path")
+        self.assertEqual(common.contamination_detail(None, None), "unknown")
+
+
 class PartitionTest(unittest.TestCase):
     """reads.decide — the ordered, exhaustive table (round 3; Flatline SKP-003/SKP-006).
     Arguments: delta, z_yes, b_yes, z_no, b_no, rci_hi, mde, cp_yes, cp_no, final."""

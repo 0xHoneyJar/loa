@@ -187,9 +187,34 @@ def build_cell(row, grade, run_dir=None, grade_path=None, rules="c132"):
         "per_session": (grade or {}).get("per_session") if matched else None,
         "labels_meta": labels_meta_map(grade, ids),
     }
+    c["contamination"] = None
     c["valid"], c["reasons"], c["took_effect"] = validity(c, rules)
     c["session1"] = session1(c)
     return c
+
+
+CONTAMINATION_REASONS = ("contaminated", "status:contaminated")
+
+
+def contamination_detail(*objs):
+    """the contamination's detail string (round 4): "network_egress:nonrepo" when the class-9
+    pattern names no repository (repo_named explicitly false — grader 1.3.2), "network_egress:repo"
+    when it does or does not say, else the pattern ("unknown" when absent). The main filter's
+    reason stays "contaminated"; the detail only selects cells for a sensitivity."""
+    for o in objs:
+        if isinstance(o, dict):
+            pat = o.get("pattern")
+            if pat == "network_egress":
+                return "network_egress:nonrepo" if o.get("repo_named") is False else "network_egress:repo"
+            if isinstance(pat, str) and pat:
+                return pat
+    return "unknown"
+
+
+def only_nonrepo_egress(c):
+    """the cell's only invalidity is a class-9 egress that names no repository"""
+    return (not c["valid"]) and c.get("contamination") == "network_egress:nonrepo" and \
+        set(c["reasons"]) <= set(CONTAMINATION_REASONS)
 
 
 def validity(c, rules="c132"):
@@ -207,6 +232,7 @@ def validity(c, rules="c132"):
         reasons.append("took_effect")
     if row.get("contaminated") is not None or grade.get("contaminated") is not None:
         reasons.append("contaminated")
+        c["contamination"] = contamination_detail(row.get("contaminated"), grade.get("contaminated"))
     if c["arm"] not in OPEN_MOUNT_ARMS and rules == "c132":
         ox = row.get("oracle_exposed_defects")
         if ox is None:

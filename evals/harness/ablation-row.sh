@@ -113,6 +113,8 @@
 #   batch_context       meta/arm-evidence.txt batch_context= (a cell: its first session's), else null
 #   mount_cheval        meta/arm-evidence.txt mount_cheval= (ok | none | broken:<reason>), else null
 #   registration_sha256 the batch MANIFEST.json registration_sha256, else null
+#   contaminated        {phase, pattern} as before; a network_egress hit (grader 1.3.6, round 10) adds repo_named
+#                       (boolean|null), host and url (string|null) from grade.json — --validate checks those types
 #   took_effect         {<rule>: true|false, …} from <run-dir>/meta/took-effect.json (the took-effect.sh --json-out
 #                       record run-ablation.sh writes for the run or the cell); null when took-effect did not run
 #                       (no record: a smoke or override path, a timeout); a record that is empty, does not parse or
@@ -298,6 +300,10 @@ if [[ -n "$VALIDATE" ]]; then
           else empty end)
       // (if has("sessions_meta_unreadable") and ((.sessions_meta_unreadable | type) as $ty | ["array","null"] | index($ty)) == null
            then "field sessions_meta_unreadable has type \(.sessions_meta_unreadable | type), want array|null" else empty end)
+      // (if (.contaminated | type) == "object" and (
+             ((.contaminated | has("repo_named")) and ((.contaminated.repo_named | type) as $ty | ["boolean","null"] | index($ty)) == null)
+             or any(("host", "url") as $k | .contaminated | select(has($k)) | .[$k] | type; . != "string" and . != "null"))
+           then "contaminated.repo_named must be boolean|null and contaminated.host/url string|null" else empty end)
       // (if (.row_writer_version // null) == "1.5" and (.took_effect | type) == "object"
              and any(.took_effect[]; type != "boolean")
            then "took_effect values must be booleans" else empty end)
@@ -738,7 +744,11 @@ ROW="$(jq -n -c \
       status: $status,
       cap_phase: ($p.cap_phase // null),
       snapshots: {implement: ($p.snapshots.implement // null), fix1: ($p.snapshots.fix1 // null), fix2: ($p.snapshots.fix2 // null)},
-      contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)} else null end),
+      contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)}
+                       + (if .pattern == "network_egress" then {repo_named: (.repo_named | if type == "boolean" then . else null end),   # not `// null`: false must survive
+                            host: (.host // null | if type == "string" then . else null end),
+                            url: (.url // null | if type == "string" then .[0:200] else null end)} else {} end)
+                     else null end),
       zone_violations: {dot_claude_writes: $dot, bash_mount_refs: $bashref,
                         mount_changed: [($p.mount_integrity | obj) | to_entries[] | select(.value == "changed") | .key],
                         envelope_mismatch: $mismatch}
