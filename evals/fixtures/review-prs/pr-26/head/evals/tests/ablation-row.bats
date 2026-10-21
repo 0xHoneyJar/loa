@@ -1,0 +1,479 @@
+#!/usr/bin/env bats
+# =============================================================================
+# evals/tests/ablation-row.bats — cycle-130 Sprint 258 Task 1.8 (SDD §3.1, §5.8; AC-1.8, PRD AC-6.3)
+#
+# evals/harness/ablation-row.sh joins a run directory (meta/pipeline.json, eval/
+# MODELINV and cost ledgers, dissent envelopes, transcripts), grade.json and the
+# batch MANIFEST.json into one runs.jsonl row, and --validate checks rows. The run
+# directories are the fixtures under evals/tests/fixtures/ablation-runs/runs/
+# (real pipeline-run.sh runs against the stub CLI; rebuilt by regen.sh); each test
+# works on a copy.
+# =============================================================================
+
+setup() {
+  TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
+  ROW="$REPO_ROOT/evals/harness/ablation-row.sh"
+  FX="$TESTS_DIR/fixtures/ablation-runs"
+  T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/ar.XXXXXX")"
+  cp -a "$FX/runs" "$T/runs"
+  cp "$FX/MANIFEST.json" "$T/MANIFEST.json"
+  BUILD_TASK="$FX/tasks/bf-01/task.yaml" REVIEW_TASK="$FX/tasks/rc-01/task.yaml"
+}
+
+teardown() {
+  find "$T" -mindepth 1 -delete 2>/dev/null || true
+  rmdir "$T" 2>/dev/null || true
+}
+
+row() {  # row <run> <task-yaml> [extra args…] → $T/rows.jsonl (appended)
+  local run="$1" task="$2"; shift 2
+  "$ROW" --run-dir "$T/runs/$run" --task-yaml "$task" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl" "$@"
+}
+last() { sed -n '$p' "$T/rows.jsonl"; }
+edit_pipe() {  # edit_pipe <run> <jq filter>
+  jq "$2" "$T/runs/$1/meta/pipeline.json" > "$T/p.json" && mv "$T/p.json" "$T/runs/$1/meta/pipeline.json"
+}
+
+@test "a full graded A1 build row validates and carries the joined fields" {
+  row a1-build "$BUILD_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  local r; r="$(last)"
+  [ "$(jq -r '.arm + " " + .batch + " " + .task_type' <<<"$r")" = "a1_full fixture-batch bug-fix" ]
+  [ "$(jq -r '.hidden_test_pass_rate' <<<"$r")" = 0.875 ]
+  [ "$(jq -r '.verdict' <<<"$r")" = APPROVED ]
+  # a false accuracy stays false (never null)
+  [ "$(jq -r '"\(.verdict_accuracy) \(.verdict_accuracy_review) \(.verdict_accuracy_audit)"' <<<"$r")" = "false true false" ]
+  [ "$(jq -r '.image_digest + " " + .host_fingerprint' <<<"$r")" = "sha256:fixture-image fp:fixture" ]
+  [ "$(jq -r '[.phases[].label] | join(",")' <<<"$r")" = "PLAN,IMPLEMENT,REVIEW,FIX1,AUDIT" ]
+  [[ "$(jq -r '.snapshots.implement' <<<"$r")" =~ ^[0-9a-f]{40}$ ]]
+  [[ "$(jq -r '.snapshots.fix1' <<<"$r")" =~ ^[0-9a-f]{40}$ ]]
+  [ "$(jq -r '.snapshots.fix2' <<<"$r")" = null ]
+  [ "$(jq -r '.suite_version' <<<"$r")" = 1 ]
+  [ "$(jq -r '.status + " " + (.degraded | tostring)' <<<"$r")" = "completed false" ]
+}
+
+@test "effort_effective per phase comes from the sandbox MODELINV rows the phase wrote" {
+  row a1-build "$BUILD_TASK"
+  local r; r="$(last)"
+  [ "$(jq -r '[.phases[] | "\(.label)=\(.effort_effective)"] | join(" ")' <<<"$r")" = "PLAN=null IMPLEMENT=null REVIEW=xhigh FIX1=null AUDIT=xhigh" ]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].voice_cost_usd' <<<"$r")" = 0.4 ]
+  # cost = Σ result cost (5 phases × 0.5) + Σ ledger (0.4 + 0.3)
+  [ "$(jq -r '.cost_usd' <<<"$r")" = 3.2 ]
+}
+
+@test "voices_run comes from the dissent envelopes; null for A0 and A4" {
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.voices_run.review | {planned, completed, quality}' <<<"$(last)")" = '{"planned":2,"completed":2,"quality":"APPROVED"}' ]
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -r '"\(.voices_run.review.planned) \(.voices_run.audit.companion_planned)"' <<<"$(last)")" = "1 false" ]
+  row a0-build "$BUILD_TASK"
+  [ "$(jq -r '.voices_run' <<<"$(last)")" = null ]
+  row a4-build "$BUILD_TASK"
+  [ "$(jq -r '.voices_run' <<<"$(last)")" = null ]
+}
+
+@test "review-catch rows fill the defect fields and leave hidden_tests null" {
+  row a3-review "$REVIEW_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  local r; r="$(last)"
+  [ "$(jq -r '"\(.defects_seeded) \(.defects_caught) \(.defect_catch_rate) \(.flags) \(.false_positives) \(.hidden_tests)"' <<<"$r")" = "3 2 0.6667 4 1 null" ]
+}
+
+@test "--validate rejects a row missing any §3.1 field (each field in turn)" {
+  row a1-build "$BUILD_TASK"
+  local good f fields
+  good="$(last)"
+  fields="schema_version run_id batch arm task_id task_type trial source_commit suite_manifest_sha256 suite_version host_fingerprint image_digest agy_opt_in started finished phases voices_run hidden_tests hidden_test_pass_rate defects_seeded defects_caught defect_catch_rate flags false_positives verdict verdict_accuracy verdict_accuracy_review verdict_accuracy_audit regressions diff_lines files_changed cost_usd wall_clock_ms tokens_in tokens_out stalls attempts retry_reason degraded degraded_reason status snapshots contaminated zone_violations"
+  for f in $fields; do
+    jq -c --arg f "$f" 'del(.[$f])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl" --allow-ungraded
+    [ "$status" -eq 1 ] || { echo "field $f: status $status"; return 1; }
+    [[ "$output" == *"missing field $f"* ]] || { echo "field $f: $output"; return 1; }
+  done
+  for f in name session_id model_requested models_used effort_requested effort_effective tokens_in tokens_out cache_read_tokens cache_creation_tokens cost_usd duration_ms num_turns exit refusal_fallbacks; do
+    jq -c --arg f "$f" '.phases[0] |= del(.[$f])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl" --allow-ungraded
+    [ "$status" -eq 1 ] && [[ "$output" == *"phases[0]: missing field $f"* ]] || { echo "phase field $f: $output"; return 1; }
+  done
+}
+
+@test "--validate rejects wrong types and bad enums and names the line number" {
+  row a1-build "$BUILD_TASK"
+  local good; good="$(last)"
+  { echo "$good"; jq -c '.cost_usd = "3.2"' <<<"$good"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"two.jsonl:2: field cost_usd has type string"* ]]
+  jq -c '.status = "done"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"status done is not one of"* ]]
+  jq -c '.task_type = "build"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"task_type build"* ]]
+  jq -c '.degraded = true' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"degraded without degraded_reason"* ]]
+  echo 'not json' > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]
+}
+
+@test "--validate accepts each of the seven status values" {
+  row a1-build "$BUILD_TASK"
+  local good s; good="$(last)"
+  : > "$T/seven.jsonl"
+  for s in completed cap_failure agent_error transport_error infrastructure_error interrupted contaminated; do
+    jq -c --arg s "$s" '.status = $s' <<<"$good" >> "$T/seven.jsonl"
+  done
+  run "$ROW" --validate "$T/seven.jsonl"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"7 rows valid"* ]]
+}
+
+@test "an ungraded smoke row has null grade fields; --validate needs --allow-ungraded for it" {
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -r '"\(.hidden_tests) \(.hidden_test_pass_rate) \(.verdict)"' <<<"$(last)")" = "null null null" ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"graded build row has no hidden_tests"* ]]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+}
+
+@test "degraded: the requested model absent from models_used (a substitution, DEC-0545)" {
+  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"claude-sonnet-5": 90}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.degraded' <<<"$(last)")" = true ]
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"IMPLEMENT: requested global.anthropic.claude-opus-5-5 absent from models_used (claude-sonnet-5)"* ]]
+}
+
+@test "not degraded: an extra model beside the requested one (a WebFetch summariser, DEC-0545)" {
+  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"global.anthropic.claude-opus-5-5": 6000, "global.anthropic.claude-haiku-4-5-20251001-v1:0": 516}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.degraded' <<<"$(last)")" = false ]
+  [ "$(jq -r '.degraded_reason' <<<"$(last)")" = null ]
+}
+
+@test "degraded: the Bedrock region prefix alone is not a different model" {
+  edit_pipe a1-build '(.phases[] | select(.label == "IMPLEMENT") | .models_used) = {"us.anthropic.claude-opus-5-5": 90}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.degraded' <<<"$(last)")" = false ]
+}
+
+@test "degraded: a refusal fallback" {
+  edit_pipe a1-build '(.phases[] | select(.label == "REVIEW") | .refusal_fallbacks) = [{"from": "global.anthropic.claude-fable-5-1", "to": "x"}]'
+  row a1-build "$BUILD_TASK"
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"REVIEW: refusal fallback"* ]]
+}
+
+@test "degraded: a MODELINV effort_effective that differs from the effort the hop requested" {
+  jq -c '(select(.payload.calling_primitive == "adversarial-review") | .payload.effort_effective) |= "low"' \
+    "$T/runs/a1-build/eval/model-invoke.jsonl" > "$T/m" && mv "$T/m" "$T/runs/a1-build/eval/model-invoke.jsonl"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.degraded' <<<"$(last)")" = true ]
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"REVIEW: MODELINV adversarial-review effort xhigh->low"* ]]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].effort_effective' <<<"$(last)")" = low ]
+}
+
+@test "degraded: a DEGRADED envelope, and an envelope with fewer completed voices than planned" {
+  # the harness copies under eval/ are what the row reads
+  local e="$T/runs/a1-build/eval"
+  jq '.verdict_quality.status = "DEGRADED"' "$e/adversarial-review.json" > "$T/x" && mv "$T/x" "$e/adversarial-review.json"
+  jq '.verdict_quality.voices_succeeded = 1' "$e/adversarial-audit.json" > "$T/x" && mv "$T/x" "$e/adversarial-audit.json"
+  row a1-build "$BUILD_TASK"
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"review envelope verdict_quality DEGRADED"* ]]
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"audit envelope 1 of 2 voices completed"* ]]
+  # a legacy run without eval/ copies falls back to the sandbox envelope
+  local s="$T/runs/a5-build/sandbox/grimoires/loa/a2a/sprint-1"
+  rm "$T/runs/a5-build/eval/adversarial-review.json"
+  jq '.verdict_quality.status = "DEGRADED"' "$s/adversarial-review.json" > "$T/x" && mv "$T/x" "$s/adversarial-review.json"
+  row a5-build "$BUILD_TASK"
+  [[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"review envelope verdict_quality DEGRADED"* ]]
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '[]' ]
+}
+
+@test "envelopes: eval/ first; a sandbox envelope tampered after the gate leaves the row on the eval/ values and envelope_mismatch names the gate (audit MEDIUM-A1)" {
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '[]' ]
+  local s="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1"
+  jq '.verdict_quality.status = "DEGRADED" | .verdict_quality.voices_planned = 1 | .verdict_quality.voices_succeeded = 1' \
+    "$s/adversarial-review.json" > "$T/x" && mv "$T/x" "$s/adversarial-review.json"
+  row a1-build "$BUILD_TASK"
+  local r; r="$(last)"
+  [ "$(jq -c '.voices_run.review | {planned, completed, quality}' <<<"$r")" = '{"planned":2,"completed":2,"quality":"APPROVED"}' ]
+  [ "$(jq -r '"\(.degraded) \(.degraded_reason)"' <<<"$r")" = "false null" ]
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$r")" = '["review"]' ]
+  # both gates tampered → both listed, in gate order
+  echo '{}' > "$s/adversarial-audit.json"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.envelope_mismatch' <<<"$(last)")" = '["review","audit"]' ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "zone_violations.bash_mount_refs: write-shaped Bash commands toward .claude/, CLAUDE.md or .loa.config.yaml only; reads never match; excerpt cut at 160 characters (audit LOW-A2)" {
+  local long; long="echo $(printf 'x%.0s' $(seq 1 200)) >> CLAUDE.md"
+  jq -cn --arg long "$long" '{type: "assistant", message: {content: [
+      {type: "tool_use", name: "Bash", input: {command: "sed -i s/x/y/ .claude/rules/a.md"}},
+      {type: "tool_use", name: "Bash", input: {command: "cat .claude/skills/auditing-security/SKILL.md"}},
+      {type: "tool_use", name: "Bash", input: {command: "ls .claude/skills/ | grep -i audit"}},
+      {type: "tool_use", name: "Bash", input: {command: "sed -n '"'"'95,400p'"'"' .claude/scripts/a.sh | head -40"}},
+      {type: "tool_use", name: "Bash", input: {command: "cat .claude/rules/a.md > /tmp/y"}},
+      {type: "tool_use", name: "Bash", input: {command: "grep -rn integrity .loa.config.yaml"}},
+      {type: "tool_use", name: "Bash", input: {command: "ls src && pytest -q"}},
+      {type: "tool_use", name: "Bash", input: {command: $long}},
+      {type: "tool_use", name: "Bash", input: {command: "yq -i '"'"'.flatline_protocol.enabled = true'"'"' .loa.config.yaml"}},
+      {type: "tool_use", name: "Bash", input: {command: "tee -a CLAUDE.md <<< x"}},
+      {type: "tool_use", name: "Read", input: {file_path: ".loa.config.yaml"}}]}}' >> "$T/runs/a1-build/transcripts/events-FIX1.jsonl"
+  row a1-build "$BUILD_TASK"
+  local r; r="$(last)"
+  [ "$(jq -r '.zone_violations.bash_mount_refs | length' <<<"$r")" = 4 ]
+  [ "$(jq -c '.zone_violations.bash_mount_refs[0]' <<<"$r")" = '{"phase":"FIX1","excerpt":"sed -i s/x/y/ .claude/rules/a.md"}' ]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[1].excerpt | length' <<<"$r")" = 160 ]
+  [[ "$(jq -r '.zone_violations.bash_mount_refs[1].excerpt' <<<"$r")" == "echo xxx"* ]]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[2].excerpt' <<<"$r")" = "yq -i '.flatline_protocol.enabled = true' .loa.config.yaml" ]
+  [ "$(jq -r '.zone_violations.bash_mount_refs[3].excerpt' <<<"$r")" = "tee -a CLAUDE.md <<< x" ]
+  # none of the reads is listed
+  [ "$(jq -r '[.zone_violations.bash_mount_refs[].excerpt | select(test("^(cat|ls|grep|sed -n)"))] | length' <<<"$r")" = 0 ]
+  [ "$(jq -c '.zone_violations.dot_claude_writes' <<<"$r")" = '[]' ]
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.bash_mount_refs' <<<"$(last)")" = '[]' ]
+}
+
+@test "zone_violations.mount_changed: the pipeline.json mount_integrity keys that read changed (audit LOW-A2)" {
+  edit_pipe a1-build '.mount_integrity = {"claude_md": "changed", "loa_config": "ok"}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '["claude_md"]' ]
+  edit_pipe a1-build '.mount_integrity = {"claude_md": "changed", "loa_config": "changed"}'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '["claude_md","loa_config"]' ]
+  # a record without mount_integrity (legacy, or stopped before materialisation) → none
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.mount_changed' <<<"$(last)")" = '[]' ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+}
+
+@test "--validate requires the four zone_violations arrays (audit MEDIUM-A1, LOW-A2)" {
+  row a1-build "$BUILD_TASK"
+  local good k; good="$(last)"
+  for k in dot_claude_writes bash_mount_refs mount_changed envelope_mismatch; do
+    jq -c --arg k "$k" '.zone_violations |= del(.[$k])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] && [[ "$output" == *"zone_violations.$k is not an array"* ]] || { echo "$k: $output"; return 1; }
+    jq -c --arg k "$k" '.zone_violations[$k] = "x"' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] || { echo "$k string: $output"; return 1; }
+  done
+}
+
+@test "arm grammar: the writer refuses an arm outside ^[a-z][a-z0-9_]{0,63}$ (exit 2); --validate names the line (audit LOW-A5)" {
+  printf 'A1 Full!\n' > "$T/runs/a1-build/meta/arm"
+  run "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK"
+  [ "$status" -eq 2 ] && [[ "$output" == *"does not match ^[a-z][a-z0-9_]{0,63}$"* ]]
+  # a manifest arm_map value is held to the same grammar
+  rm "$T/runs/a1-build/meta/arm"
+  jq '.arm_map["abl-fixture-a1_full-bf-01-t1"] = "A1"' "$T/MANIFEST.json" > "$T/m.json"
+  run "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK" --manifest "$T/m.json"
+  [ "$status" -eq 2 ] && [[ "$output" == *"arm 'A1' does not match"* ]]
+  # --validate: line 2 carries "arm":"A1"
+  row a5-build "$BUILD_TASK"
+  { last; jq -c '.arm = "A1"' <<<"$(last)"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl" --allow-ungraded
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"two.jsonl:2: arm A1 does not match the arm grammar"* ]]
+}
+
+@test "arm: from the manifest arm_map or meta/arm, never from sandbox/" {
+  # the sandbox claims another arm in every place an agent could write
+  echo "a0_bare" > "$T/runs/a1-build/sandbox/arm"
+  echo '{"arm": "a0_bare"}' > "$T/runs/a1-build/sandbox/pipeline.json"
+  mkdir -p "$T/runs/a1-build/sandbox/.eval" && echo '{"arm": "a0_bare"}' > "$T/runs/a1-build/sandbox/.eval/pipeline.json"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '.arm' <<<"$(last)")" = a1_full ]
+  # without the manifest the arm is meta/arm
+  "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK" --out "$T/rows.jsonl"
+  [ "$(jq -r '.arm + " " + .batch' <<<"$(last)")" = "a1_full unbatched" ]
+  # a manifest that disagrees with meta/arm is refused
+  jq '.arm_map["abl-fixture-a1_full-bf-01-t1"] = "a7_effort_medium"' "$T/MANIFEST.json" > "$T/m.json"
+  run "$ROW" --run-dir "$T/runs/a1-build" --task-yaml "$BUILD_TASK" --manifest "$T/m.json"
+  [ "$status" -eq 2 ] && [[ "$output" == *"arm mismatch"* ]]
+}
+
+@test "status: a running record reads interrupted; grade.json contaminated reads contaminated; --status overrides" {
+  edit_pipe a5-build '.status = "running" | .finished = null'
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -r '.status' <<<"$(last)")" = interrupted ]
+  jq '.contaminated = {"phase": "IMPLEMENT", "pattern": "hidden", "excerpt_id": 3}' "$T/runs/a1-build/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a1-build/grade.json"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '[.status, .contaminated]' <<<"$(last)")" = '["contaminated",{"phase":"IMPLEMENT","pattern":"hidden"}]' ]
+  row a0-build "$BUILD_TASK" --status transport_error --attempts 2 --retry-reason "socket hang up"
+  [ "$(jq -c '[.status, .attempts, .retry_reason]' <<<"$(last)")" = '["transport_error",2,"socket hang up"]' ]
+  run "$ROW" --run-dir "$T/runs/a0-build" --task-yaml "$BUILD_TASK" --status finished
+  [ "$status" -eq 2 ]
+}
+
+@test "zone_violations lists transcript Write/Edit inputs under .claude/" {
+  printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/workspace/.claude/skills/x/SKILL.md"}},{"type":"tool_use","name":"Write","input":{"file_path":"src/app.py"}}]}}' \
+    >> "$T/runs/a1-build/transcripts/events-IMPLEMENT.jsonl"
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.dot_claude_writes' <<<"$(last)")" = '[{"phase":"IMPLEMENT","tool":"Edit","path":"/workspace/.claude/skills/x/SKILL.md"}]' ]
+  row a5-build "$BUILD_TASK"
+  [ "$(jq -c '.zone_violations.dot_claude_writes' <<<"$(last)")" = '[]' ]
+}
+
+@test "--out appends one row per run; every fixture run yields a valid ungraded-or-graded row" {
+  local d t
+  for d in "$T"/runs/*; do
+    case "$(basename "$d")" in *review*) t="$REVIEW_TASK" ;; *) t="$BUILD_TASK" ;; esac
+    "$ROW" --run-dir "$d" --task-yaml "$t" --manifest "$T/MANIFEST.json" --out "$T/all.jsonl"
+  done
+  [ "$(wc -l < "$T/all.jsonl" | tr -d ' ')" -eq 10 ]
+  run "$ROW" --validate "$T/all.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  [ "$(jq -r 'select(.run_id == "abl-fixture-a4_no_gates-rc-01-t1") | .status' "$T/all.jsonl")" = infrastructure_error ]
+}
+
+@test "usage: missing inputs exit 2" {
+  run "$ROW" --run-dir "$T/runs/none" --task-yaml "$BUILD_TASK"
+  [ "$status" -eq 2 ]
+  run "$ROW" --validate "$T/nope.jsonl"
+  [ "$status" -eq 2 ]
+  run "$ROW" --bogus
+  [ "$status" -eq 2 ]
+}
+
+@test "a MODELINV ledger over 200 KB reaches jq as a file: the row is written and validates" {
+  local m="$T/runs/a1-build/eval/model-invoke.jsonl" pad i
+  pad="$(printf '%0600d' 0)"
+  for i in $(seq 1 400); do
+    printf '{"schema_version":"1.1.0","primitive_id":"MODELINV","event_type":"model.invoke.complete","payload":{"calling_primitive":"bulk-%s","cost_micro_usd":1000,"pad":"%s"}}\n' "$i" "$pad"
+  done >> "$m"
+  [ "$(wc -c < "$m" | tr -d ' ')" -gt 204800 ]
+  # the REVIEW phase owns lines 1-402 (its own hop, the audit hop, 400 bulk rows), so
+  # every bulk row is read, not only loaded: 0.4 + 0.3 + 400 x 0.001
+  edit_pipe a1-build '(.phases[] | select(.label == "REVIEW") | .modelinv_lines.to) = 402'
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.phases[] | select(.label == "REVIEW")][0].voice_cost_usd' <<<"$(last)")" = 1.1 ]
+  # the work directory is removed at exit
+  [ -z "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'ablation-row.*' -newer "$m" 2>/dev/null)" ]
+}
+
+@test "an empty finished timestamp and a boolean companion_voice still yield a valid row" {
+  local e="$T/runs/a1-build/eval" sum   # the envelope copy the row reads
+  edit_pipe a1-build '.finished = ""'
+  jq '.metadata.companion_voice = false' "$e/adversarial-review.json" > "$T/x" && mv "$T/x" "$e/adversarial-review.json"
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  sum="$(jq '[.phases[] | select(.skipped != true) | .wall_ms // .duration_ms // 0] | add' "$T/runs/a1-build/meta/pipeline.json")"
+  [ "$(jq -r '.wall_clock_ms' <<<"$(last)")" = "$sum" ]
+  [ "$(jq -r '.voices_run.review.companion_planned' <<<"$(last)")" = null ]
+}
+
+@test "odd field shapes: an offset timestamp, an array models_used, a string verdict_accuracy, no name or model_requested" {
+  edit_pipe a1-build '.started = "2026-10-14T22:42:11+00:00"
+    | (.phases[] | select(.label == "IMPLEMENT")) |= (.models_used = ["claude-opus-5-5"] | del(.name) | del(.model_requested))'
+  jq '.verdict_accuracy = "yes" | .verdict_accuracy_per_gate = "n/a" | del(.verdict_accuracy_review) | del(.verdict_accuracy_audit)' \
+    "$T/runs/a1-build/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a1-build/grade.json"
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 0 ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  local r; r="$(last)"
+  [ "$(jq -c '[.phases[] | select(.label == "IMPLEMENT")][0] | [.name, .model_requested, .models_used]' <<<"$r")" = '["IMPLEMENT","",{}]' ]
+  [ "$(jq -c '[.verdict_accuracy, .verdict_accuracy_review, .verdict_accuracy_audit]' <<<"$r")" = '[null,null,null]' ]
+  [[ "$(jq -r '.degraded_reason // ""' <<<"$r")" != *"model claude-opus-5-5 used"* ]]
+}
+
+@test "a row program abort exits 2 naming the run (never a bare jq exit)" {
+  edit_pipe a1-build '.phases = [1, 2]'
+  run row a1-build "$BUILD_TASK"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"row build failed for abl-fixture-a1_full-bf-01-t1"* ]]
+  [ ! -s "$T/rows.jsonl" ]
+}
+
+# --- row writer 1.2: defects_missed (bd-yz1rd) and regressions_final_green (bd-m0hw7) ---
+edit_grade() {  # edit_grade <run> <jq filter>
+  jq "$2" "$T/runs/$1/grade.json" > "$T/g.json" && mv "$T/g.json" "$T/runs/$1/grade.json"
+}
+
+@test "defects_missed: a review-catch row copies recall.missed; regressions_final_green is null" {
+  edit_grade a3-review '.recall.missed = ["d2","d5"]'
+  row a3-review "$REVIEW_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '[.defects_missed, .regressions_final_green]' <<<"$(last)")" = '[["d2","d5"],null]' ]
+}
+
+@test "defects_missed: an empty recall.missed is [], an absent one or a null recall is null" {
+  edit_grade a3-review '.recall.missed = []'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = '[]' ]
+  edit_grade a3-review 'del(.recall.missed)'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+  edit_grade a3-review '.recall = null'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+  edit_grade a3-review '.recall = {defects_seeded: 3, missed: "d2"}'
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
+}
+
+@test "regressions_final_green: a build row copies regressions.final_green (true, false); defects_missed is null" {
+  edit_grade a1-build '.regressions.final_green = true | .recall = {missed: ["d1"]}'
+  row a1-build "$BUILD_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[true,null]' ]
+  edit_grade a1-build '.regressions.final_green = false'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[false,null]' ]
+  edit_grade a1-build '.regressions.final_green = "yes"'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
+  edit_grade a1-build '.regressions = null'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "an ungraded run has defects_missed and regressions_final_green null" {
+  [ ! -f "$T/runs/a1-review/grade.json" ]
+  row a1-review "$REVIEW_TASK"
+  row a5-build "$BUILD_TASK"
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ]
+  [ "$(jq -s -c 'map([has("defects_missed"), .defects_missed, has("regressions_final_green"), .regressions_final_green])' "$T/rows.jsonl")" = '[[true,null,true,null],[true,null,true,null]]' ]
+}
+
+@test "--validate: defects_missed must be a list of non-empty strings or null, regressions_final_green a boolean or null; a legacy row lacking both keys validates" {
+  edit_grade a3-review '.recall.missed = ["d2"]'
+  row a3-review "$REVIEW_TASK"
+  local good; good="$(last)"
+  jq -c '.defects_missed = "d2"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"one.jsonl:1: field defects_missed has type string"* ]]
+  jq -c '.defects_missed = ["d2", 3]' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"field defects_missed has type array"* ]]
+  jq -c '.defects_missed = [""]' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]
+  jq -c '.regressions_final_green = "yes"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ] && [[ "$output" == *"field regressions_final_green has type string, want boolean|null"* ]]
+  { jq -c '.defects_missed = null | .regressions_final_green = true' <<<"$good"
+    jq -c 'del(.defects_missed) | del(.regressions_final_green)' <<<"$good"; } > "$T/two.jsonl"
+  run "$ROW" --validate "$T/two.jsonl"
+  [ "$status" -eq 0 ] && [[ "$output" == *"2 rows valid"* ]]
+}

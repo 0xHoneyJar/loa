@@ -1,0 +1,584 @@
+diff --git a/evals/harness/ablation-report.py b/evals/harness/ablation-report.py
+index dc3b2637..dafe3e62 100755
+--- a/evals/harness/ablation-report.py
++++ b/evals/harness/ablation-report.py
+@@ -1908,7 +1908,9 @@ def build(args):
+         if need not in arm_ids:
+             raise Fail(f"suite has no arm {need}")
+ 
+-    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent")]
++    # components: every runnable arm but the two baselines; an eval_only arm (cycle-131 FR-5: the open-mount
++    # oracle A/B) is an evaluation control, never a shipped-default decision, so it is not a component here
++    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and a.get("eval_only") is not True]
+     absent = [a for a in arms if a.get("absent")]
+     seed = args.seed
+     groups, primary, unversioned = partition(rows, args.suite_version, mans,
+@@ -1925,8 +1927,8 @@ def build(args):
+     k = len(components)
+     efp = k * (1.0 - args.level) / 2.0
+     efp_line = (f"Expected false positives at level {args.level:.2f} over {k} components: "
+-                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.1f} one-sided per direction "
+-                f"({2 * efp:.1f} in either direction); no multiple-comparison correction is applied "
++                f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.2f} one-sided per direction "
++                f"({2 * efp:.2f} in either direction); no multiple-comparison correction is applied "
+                 f"(multiple_comparisons: {rules.get('multiple_comparisons', 'none')}).")
+ 
+     # provenance
+diff --git a/evals/harness/pipeline-run.sh b/evals/harness/pipeline-run.sh
+index c91bb790..12676a49 100755
+--- a/evals/harness/pipeline-run.sh
++++ b/evals/harness/pipeline-run.sh
+@@ -43,7 +43,12 @@
+ #   --docker-bin D      docker CLI (default $EVAL_DOCKER_BIN, else docker)
+ #   --phase-models JSON {"PLAN": "<model id>", …} override ($LOA_EVAL_PHASE_MODELS)
+ #   --phase-timeouts JSON {"IMPLEMENT": <seconds>, …} override
+-#   --dry-run           print the phase plan and exit 0; nothing is created
++#   --dry-run           print the phase plan and exit 0; nothing is created. Lines:
++#                       `plan: task … arm … phases <labels>`, one `phase <n> <label> model=…
++#                       max_turns=… timeout_s=… effort=… session=…` per phase, `sandbox:
++#                       mount=loa|none overlay=head|base|none(<why>) config_variant=eval|none
++#                       config_edits=<key=value,…>|-` (the arm's sandbox .loa.config.yaml edits),
++#                       and `eval_only: true (…)` for an eval_only arm
+ #
+ # Run directory layout (DEC-0413 — the grader never reads meta/):
+ #   sandbox/     the agent's tree (its own .git initialised at `base`)
+@@ -133,9 +138,16 @@
+ # when the run stopped before materialisation). `.claude/` itself is covered by
+ # took-effect.sh integrity_clean.
+ #
++# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is
++# refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
++# run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
++# LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
++# (batch and smoke); --dry-run honours the same variable, so the operator dry-runs the
++# open-mount arm with `LOA_ABLATION_BATCH_CONTEXT=1 pipeline-run.sh … --dry-run`.
++#
+ # Env: EVAL_CLAUDE_BIN, EVAL_DOCKER_BIN, LOA_EVAL_PHASE_MODELS, LOA_EVAL_PRICING_JSON,
+ # LOA_EVAL_WATCHDOG_POLL_S, LOA_EVAL_CREDS_HOME (where ~/.codex is read; default $HOME),
+-# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR.
++# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR, LOA_ABLATION_BATCH_CONTEXT.
+ #
+ # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
+ # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
+@@ -178,7 +190,7 @@ while [[ $# -gt 0 ]]; do
+     --phase-models)   PHASE_MODELS_JSON="${2:-}"; shift 2 ;;
+     --phase-timeouts) PHASE_TIMEOUTS_JSON="${2:-}"; shift 2 ;;
+     --dry-run)        DRY_RUN=true; shift ;;
+-    -h|--help)        sed -n '2,144p' "$0"; exit 0 ;;
++    -h|--help)        sed -n '2,156p' "$0"; exit 0 ;;
+     *) die_usage "unknown argument: $1" ;;
+   esac
+ done
+@@ -241,6 +253,13 @@ elif ! jq -e --arg k "$KIND" --arg t "$TASK_TYPE" \
+ fi
+ [[ -n "$ARM_DEF" ]] || ARM_DEF='{}'
+ SUITE_TOGGLES="$(jq -c '.toggles // {}' <<<"$ARM_DEF")"
++# eval_only (cycle-131 FR-5): refused before anything is created, dry run included, unless the
++# runner marks the batch context; no pipeline.json, so no infrastructure_error row is possible
++EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
++if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
++  echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
++  exit 2
++fi
+ 
+ # plan_phases <toggles-json> → JSON array of {name,label}
+ plan_phases() {
+@@ -310,6 +329,23 @@ if [[ "$DRY_RUN" == true ]]; then
+       "$(phase_model "$name")" "$(phase_cap "$name" max_turns)" "$(phase_timeout_s "$name")" \
+       "${EFFORT_FLAG:--}" "$sess" "$cond"
+   done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$plan")
++  # the sandbox plan: the mount, the closed-mount overlay, the eval config variant and the
++  # arm's config edits (the keys apply_arm_toggles sets in the sandbox .loa.config.yaml)
++  if [[ "$(jq -r '.loa_mount' <<<"$SUITE_TOGGLES")" == false ]]; then
++    sb_mount=none sb_overlay="none(no mount)" sb_variant=none sb_edits=-
++  else
++    sb_mount=loa sb_variant=eval
++    if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
++    elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
++    else sb_overlay="$OVERLAY_MODE"; fi
++    sb_edits="$(jq -r '[ (if .companion_voice == false then "flatline_protocol.code_review.companion_voice=false", "flatline_protocol.security_audit.companion_voice=false" else empty end),
++                         (if .gates == false then "flatline_protocol.code_review.enabled=false", "flatline_protocol.security_audit.enabled=false" else empty end),
++                         (if .dissent == false and .gates != false then "flatline_protocol.code_review.enabled=false" else empty end),
++                         (if .flatline == false then "flatline_protocol.enabled=false" else empty end) ]
++                       | if length == 0 then "-" else join(",") end' <<<"$SUITE_TOGGLES")"
++  fi
++  printf 'sandbox: mount=%s overlay=%s config_variant=%s config_edits=%s\n' "$sb_mount" "$sb_overlay" "$sb_variant" "$sb_edits"
++  [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)"
+   exit 0
+ fi
+ 
+diff --git a/evals/harness/run-ablation.sh b/evals/harness/run-ablation.sh
+index f0daeda4..f63b67f8 100755
+--- a/evals/harness/run-ablation.sh
++++ b/evals/harness/run-ablation.sh
+@@ -160,7 +160,10 @@
+ #
+ # Per trial, in order: pipeline-run.sh --task-yaml … --arm … --run-dir … --run-id … --trial …
+ #   --source-tree <pinned> --suite-file … --executor … --image … --docker-bin …
+-#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log; then
++#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log, with
++#   LOA_ABLATION_BATCH_CONTEXT=1 in its environment (batch and smoke alike; the variable is set
++#   on the trial's command only, never exported to this shell): pipeline-run.sh refuses an arm
++#   declaring eval_only: true without it (cycle-131 FR-5); then
+ #   1. status from meta/pipeline.json (missing or `running` → interrupted; a missing record
+ #      is written as a minimal pipeline.json with synthesized_by: run-ablation.sh)
+ #   2. transport: agent_error plus a provider signature in the failing phase's
+@@ -1292,9 +1295,10 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
+     local -a cmd=("$PIPELINE_BIN" --task-yaml "$tyaml" --arm "$arm" --run-dir "$rd" --run-id "$rid" --trial "$trial"
+                   --source-tree "$TREE" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE"
+                   --docker-bin "$DOCKER_BIN" --max-run-usd "$(cap_for "$kind")")
+-    # its own process group, so the watchdog can signal the pipeline and everything under it
+-    if command -v setsid >/dev/null 2>&1; then setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+-    else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
++    # its own process group, so the watchdog can signal the pipeline and everything under it;
++    # LOA_ABLATION_BATCH_CONTEXT=1 marks the batch context the eval_only arms need (cycle-131 FR-5)
++    if command -v setsid >/dev/null 2>&1; then LOA_ABLATION_BATCH_CONTEXT=1 setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
++    else LOA_ABLATION_BATCH_CONTEXT=1 "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+     fi
+     pid=$!
+     printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
+diff --git a/evals/harness/validate-suite.sh b/evals/harness/validate-suite.sh
+index 0cd981d0..be4dd145 100755
+--- a/evals/harness/validate-suite.sh
++++ b/evals/harness/validate-suite.sh
+@@ -43,6 +43,14 @@
+ #      of the review manifest, a `D[0-9]{2}-` key, an arm id of the suite file
+ #   7. suite file: every non-absent arm's task_types are known (all | build |
+ #      review-catch | feature-build | bug-fix | refactor)
++#   8. suite file arms (cycle-131 FR-5): `toggles` is a mapping whose every key is in
++#      the vocabulary of lib/sandbox-mount.sh apply_arm_toggles with a value it defines
++#      (companion_voice, karpathy_block, rule_files, audit_delta_instruction, loa_mount,
++#      gates, flatline, sprint_plan, context_resets, dissent: false; effort:
++#      low|medium|high|xhigh|max; bare_model: fable; oracle_open: true); `took_effect`
++#      is a list whose every id is a rule took-effect.sh defines (its `rule_<id>()`
++#      functions, read from the script beside this one); `eval_only`, when present, is
++#      a boolean; an arm whose toggles set oracle_open: true carries eval_only: true
+ #
+ # Exit: 0 valid; 1 violations (every one listed); 2 usage / unreadable input.
+ # Tested by evals/tests/validate-suite.bats.
+@@ -57,7 +65,7 @@ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
+ PROMPTS_DIR="${LOA_EVAL_PHASE_PROMPTS_DIR:-$SCRIPT_DIR/lib/phase-prompts}"
+ SMOKE=false ALLOW_PARTIAL=false
+ 
+-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,47p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
++usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,55p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+ die() { echo "validate-suite: $*" >&2; exit 2; }
+ 
+ while [[ $# -gt 0 ]]; do
+@@ -74,6 +82,10 @@ done
+ ROOT="$(cd "$ROOT" && pwd)"
+ [[ -f "$SUITE_FILE" ]] || die "suite file not found: $SUITE_FILE"
+ for tool in yq jq python3; do command -v "$tool" >/dev/null 2>&1 || die "missing tool: $tool"; done
++TOOK_EFFECT="$SCRIPT_DIR/took-effect.sh"
++[[ -f "$TOOK_EFFECT" ]] || die "took-effect.sh not found beside this script: $TOOK_EFFECT"
++RULE_IDS="$(sed -n 's/^rule_\([a-z_][a-z0-9_]*\)() *{.*$/\1/p' "$TOOK_EFFECT" | sort -u | tr '\n' ',' | sed 's/,$//')"
++[[ -n "$RULE_IDS" ]] || die "no rule_<id>() functions found in $TOOK_EFFECT"
+ # eval.yml trust boundary: a literal in-tree path, no variable on the source line
+ pushd "$SCRIPT_DIR" >/dev/null
+ # shellcheck source=lib/sandbox-mount.sh
+@@ -107,10 +119,11 @@ done
+ 
+ # Python does the schema, counts, allowlist, manifest, leakage and suite checks;
+ # it prints violations, and `FIXTURE\t<id>\t<dir>` lines for the path rule below.
+-python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
++python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" "$RULE_IDS" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
+ import json, os, re, sys
+ 
+-tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir = sys.argv[1:7]
++tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir, rule_ids = sys.argv[1:8]
++RULE_IDS = set(r for r in rule_ids.split(",") if r)
+ allow_partial = allow_partial == "true"
+ suite = json.load(open(suite_json))
+ out = []
+@@ -120,6 +133,10 @@ TYPES = ["feature-build", "bug-fix", "refactor", "review-catch"]
+ BUILD = {"feature-build", "bug-fix", "refactor"}
+ ALLOW = {"python3", "pytest", "bats", "bash", "node", "npx"}
+ KNOWN_TASK_TYPES = {"all", "build", "review-catch", "feature-build", "bug-fix", "refactor"}
++# lib/sandbox-mount.sh apply_arm_toggles: the toggle vocabulary and each toggle's defined values
++TOGGLE_VALUES = {k: [False] for k in ("companion_voice", "karpathy_block", "rule_files", "audit_delta_instruction",
++                                      "loa_mount", "gates", "flatline", "sprint_plan", "context_resets", "dissent")}
++TOGGLE_VALUES.update({"effort": ["low", "medium", "high", "xhigh", "max"], "bare_model": ["fable"], "oracle_open": [True]})
+ MOUNT_OWNED = (".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run")
+ REQUIRED = ["id", "schema_version", "type", "source", "post_cutoff", "fixture", "criterion",
+             "success_criterion", "test_command", "regression_command", "reference_patch",
+@@ -137,6 +154,30 @@ for a in arms:
+     for t in tt:
+         if t not in KNOWN_TASK_TYPES:
+             bad("suite", f"arm {a.get('id')} task_types names unknown type '{t}'")
++for a in arms:
++    if a.get("absent") is True:
++        continue
++    aid = a.get("id")
++    tg = a.get("toggles", {})
++    if not isinstance(tg, dict):
++        bad("suite", f"arm {aid} toggles must be a mapping")
++        tg = {}
++    for k, v in tg.items():
++        if k not in TOGGLE_VALUES:
++            bad("suite", f"arm {aid} names unknown toggle '{k}'")
++        elif not any(type(v) is type(x) and v == x for x in TOGGLE_VALUES[k]):   # type-exact: 0 is not false
++            bad("suite", f"arm {aid} toggle {k}={json.dumps(v)} is not a defined value ({'|'.join(json.dumps(x) for x in TOGGLE_VALUES[k])})")
++    te = a.get("took_effect")
++    if not isinstance(te, list) or not all(isinstance(r, str) and r for r in te):
++        bad("suite", f"arm {aid} took_effect must be a list of rule ids")
++    else:
++        for r in te:
++            if r not in RULE_IDS:
++                bad("suite", f"arm {aid} took_effect names unknown rule id '{r}'")
++    if "eval_only" in a and not isinstance(a["eval_only"], bool):
++        bad("suite", f"arm {aid} eval_only must be a boolean (true|false)")
++    if tg.get("oracle_open") is True and a.get("eval_only") is not True:
++        bad("suite", f"arm {aid} sets oracle_open: true without eval_only: true (the open mount is evaluation-only)")
+ suite_version = suite.get("suite_version")
+ 
+ def rel_ok(p):
+diff --git a/evals/suites/ablation-2.0.yaml b/evals/suites/ablation-2.0.yaml
+index 59f4bc05..d922fba2 100644
+--- a/evals/suites/ablation-2.0.yaml
++++ b/evals/suites/ablation-2.0.yaml
+@@ -29,6 +29,9 @@
+ #   Every mounted review-catch arm runs the closed mount (lib/sandbox-mount.sh
+ #   overlay_answer_paths, head mode unless the task sets review_catch.overlay_mode: base)
+ #   and every mounted arm the eval config variant (config_variant=eval).
++# eval_only: true|false (cycle-131 FR-5; default false): an evaluation-only arm. pipeline-run.sh
++#   refuses it (exit 2) unless LOA_ABLATION_BATCH_CONTEXT=1, which run-ablation.sh exports to every
++#   trial it launches; validate-suite.sh requires it on an arm whose toggles set oracle_open: true.
+ # =============================================================================
+ name: ablation-2.0
+ version: 1
+@@ -88,6 +91,18 @@ arms:
+      took_effect: [implementer_single_session, gates_separate_sessions, applicability_refused, integrity_clean]}
+   - {id: a7_effort_medium, label: A7, task_types: [all], toggles: {effort: medium},
+      took_effect: [effort_flag_medium, skill_effort_stripped, integrity_clean]}
++  # cycle-131 FR-5 (DEC-0619, SDD §3.2 "Entity: suite arm"): review-catch only. a0_bare_fable is A0 on the
++  # review model; a1_review_only drops the AUDIT gate; a1_no_dissent turns the review gate's dissent off;
++  # a1_full_openmount is the cycle-130 open mount, eval_only (pipeline-run.sh refuses it outside a
++  # run-ablation.sh batch or smoke: LOA_ABLATION_BATCH_CONTEXT=1) and never a decision arm
++  - {id: a0_bare_fable, label: A0F, task_types: [review-catch], toggles: {loa_mount: false, bare_model: fable}, phases: [BARE], effort: high,
++     took_effect: [no_dot_claude, no_system_prompt, no_audit_rows, bare_model_fable, integrity_clean]}
++  - {id: a1_review_only, label: A1R, task_types: [review-catch], toggles: {}, phases: [REVIEW],
++     took_effect: [review_only_phases, oracle_closed, integrity_clean]}
++  - {id: a1_no_dissent, label: A1N, task_types: [review-catch], toggles: {dissent: false},
++     took_effect: [all_phases_present, no_review_dissent_envelope, oracle_closed, integrity_clean]}
++  - {id: a1_full_openmount, label: A1O, task_types: [review-catch], toggles: {oracle_open: true}, eval_only: true,
++     took_effect: [all_phases_present, oracle_open_recorded, integrity_clean]}
+   - {id: a8_no_ceremonies, label: A8, absent: true,
+      evidence: "no /meeting command, skill or sosyete config key at 4d69c3c4 (grep -rli sosyete .claude/ docs/; ls .claude/commands .claude/skills)"}
+ 
+diff --git a/evals/tests/ablation-report.bats b/evals/tests/ablation-report.bats
+index e12175db..cd129ad1 100644
+--- a/evals/tests/ablation-report.bats
++++ b/evals/tests/ablation-report.bats
+@@ -186,7 +186,7 @@ report() {  # report <scenario> <out-prefix> [extra args]
+ }
+ 
+ @test "AR-12 the expected-false-positive sentence and the Method section quoting the suite rules block verbatim" {
+-  grep -qF 'Expected false positives at level 0.90 over 6 components: 6 × (1 − 0.90) / 2 = 0.3 one-sided per direction (0.6 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"
++  grep -qF 'Expected false positives at level 0.90 over 9 components: 9 × (1 − 0.90) / 2 = 0.45 one-sided per direction (0.90 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"   # 9 = a2 … a7 + the three cycle-131 control arms; a1_full_openmount is eval_only and not a component
+   python3 -I - "$SUITE" "$FX/main/report.md" <<'PY'
+ import re, sys
+ suite = open(sys.argv[1], encoding="utf-8").read().splitlines()
+@@ -339,7 +339,7 @@ PY
+   [ "$(jq -r '.by_suite_version["1"].h1.line' "$J")" = "H1: established" ]
+   [ "$(jq -r '.by_suite_version["1"].a4.line' "$J")" = "A4 sensitivity: holds" ]
+   [ "$(jq -r '.by_suite_version["2"].h1.line' "$J")" = "$(jq -r .h1.line "$J")" ]
+-  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 6 ]
++  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 9 ]   # the nine components (cycle-131 arms included; eval_only excluded)
+   grep -qF 'hidden_test_pass_rate: not testable on suite_version 2 — no admissible task' "$M"
+   grep -qxF '## Suite version 1 (batches: ver-v1) — reported separately, never pooled' "$M"
+   grep -qF -- '  - suite_version 2 (primary: the main sections): 24 rows; batches ver-v2; suite manifest sha256 ddd200b3' "$M"
+diff --git a/evals/tests/arm-toggles.bats b/evals/tests/arm-toggles.bats
+index 0c63658e..fee9f14e 100644
+--- a/evals/tests/arm-toggles.bats
++++ b/evals/tests/arm-toggles.bats
+@@ -252,9 +252,11 @@ integrity_in() {
+   ( cd "$1" && bash -c 'source "$1" && { check_integrity || true; } && echo "FAILURES=$FAILURES"' _ "$REPO_ROOT/.claude/scripts/check-loa.sh" )
+ }
+ 
+-@test "AT-13 ablation-2.0 declares the nine canonical arms, task_types per arm, A8 absent with its evidence, integrity_clean on every runnable arm (AC-1.10)" {
++@test "AT-13 ablation-2.0 declares the nine canonical arms plus the four cycle-131 review-catch arms, task_types per arm, A8 absent with its evidence, integrity_clean on every runnable arm (AC-1.10; cycle-131 FR-5)" {
+   S="$REPO_ROOT/$ABL_SUITE_REL"
+-  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies" ]
++  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount,a8_no_ceremonies" ]   # the absent arm stays last
++  [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "review-catch") | .id] | join(",")' "$S")" = "a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount" ]
++  [ "$(yq -r '[.arms[] | select(.eval_only == true) | .id] | join(",")' "$S")" = "a1_full_openmount" ]
+   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "build") | .id] | join(",")' "$S")" = "a2_no_sprint_plan,a4_no_gates,a5_no_flatline,a6_one_window" ]
+   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "all") | .id] | join(",")' "$S")" = "a0_bare,a1_full,a3_one_voice,a7_effort_medium" ]
+   [ "$(yq -r '.arms[] | select(.id == "a8_no_ceremonies") | .absent' "$S")" = "true" ]
+diff --git a/evals/tests/fixtures/ablation-pipeline-stub.sh b/evals/tests/fixtures/ablation-pipeline-stub.sh
+index c5247e33..092c8d41 100755
+--- a/evals/tests/fixtures/ablation-pipeline-stub.sh
++++ b/evals/tests/fixtures/ablation-pipeline-stub.sh
+@@ -7,6 +7,8 @@
+ # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
+ #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
+ #   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
++#   STUB_ENV_LOG   append "<run_id> LOA_ABLATION_BATCH_CONTEXT=<value|<unset>>" per invocation
++#                  (cycle-131 Sprint 264: the batch context run-ablation.sh exports to a trial)
+ #   STUB_COST      USD per run (default 2.5), on the first phase record
+ #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
+ #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
+@@ -50,6 +52,7 @@ done
+ TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
+ [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
+ [[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
++[[ -n "${STUB_ENV_LOG:-}" ]] && printf '%s LOA_ABLATION_BATCH_CONTEXT=%s\n' "$RUN_ID" "${LOA_ABLATION_BATCH_CONTEXT-<unset>}" >> "$STUB_ENV_LOG"
+ 
+ MODE=ok
+ if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then
+diff --git a/evals/tests/pipeline-run.bats b/evals/tests/pipeline-run.bats
+index b49ad1b1..fc4d0145 100644
+--- a/evals/tests/pipeline-run.bats
++++ b/evals/tests/pipeline-run.bats
+@@ -1012,12 +1012,12 @@ JSON
+ 
+ # --- cycle-131 Sprint 263 Task 1.1: closed-mount wiring, toggles, eval config variant ---------------
+ 
+-# c131_arms — the fixture suite plus cycle-131-shaped arms (Sprint 2 declares the real ones)
++# c131_arms — the fixture suite plus the four cycle-131 arms exactly as evals/suites/ablation-2.0.yaml
++# declares them (Sprint 264 Task 2.1): a0_bare_fable, a1_review_only, a1_no_dissent, a1_full_openmount
+ c131_arms() {
+-  yq -i '.arms += [
+-    {"id": "a1_full_openmount", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["oracle_open_recorded"]},
+-    {"id": "a1_no_dissent", "task_types": ["review-catch"], "toggles": {"dissent": false}, "took_effect": ["all_phases_present"]},
+-    {"id": "a0_bare_fable", "task_types": ["all"], "toggles": {"loa_mount": false, "bare_model": "fable"}, "phases": ["BARE"], "effort": "high", "took_effect": ["bare_model_fable"]}]' "$T/suite.yaml"
++  SUITE_SRC="$REPO_ROOT/evals/suites/ablation-2.0.yaml" yq -i '.arms += [load(strenv(SUITE_SRC)).arms[]
++    | select(.id == "a0_bare_fable" or .id == "a1_review_only" or .id == "a1_no_dissent" or .id == "a1_full_openmount")]' "$T/suite.yaml"
++  [ "$(yq -r '[.arms[] | select(.id | test("^(a0_bare_fable|a1_review_only|a1_no_dissent|a1_full_openmount)$"))] | length' "$T/suite.yaml")" -eq 4 ]
+ }
+ calls() { tr '\n' ' ' < "$T/calls" | sed 's/ $//'; }
+ evline() { sed -n "s/^$1=//p" "$T/run/meta/arm-evidence.txt"; }
+@@ -1051,7 +1051,7 @@ fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -m
+ 
+ @test "closed mount wiring: oracle_open: true skips the overlay and the check and records mount_overlay=none" {
+   c131_arms
+-  export STUB_MOUNT_CALLS="$T/calls"
++  export STUB_MOUNT_CALLS="$T/calls" LOA_ABLATION_BATCH_CONTEXT=1   # eval_only: the batch context run-ablation.sh sets
+   run_pr a1_full_openmount "$REVIEWC"
+   [ "$status" -eq 0 ]
+   [ "$(calls)" = "resolve_arm_toggles mount_prompt_surface apply_arm_toggles apply_eval_config_variant write_sandbox_grimoire init_sandbox_beads regen_sandbox_manifest" ]
+@@ -1165,3 +1165,99 @@ EOF
+   [ "$status" -eq 0 ] || { echo "$output"; false; }
+   grep -q 'oracle_closed OK ok head:1 answer paths (1 present)' <<<"$output"
+ }
++
++# --- cycle-131 Sprint 264 Task 2.1: the four arms' dry-run plans, the eval_only refusal ------------
++
++dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
++  run "$PR" --task-yaml "$REVIEWC" --arm "$1" --run-id r --trial 1 --source-tree "$T/src" --suite-file "$T/suite.yaml" --dry-run
++}
++
++@test "dry-run (c131): a0_bare_fable is one BARE phase on global.anthropic.claude-fable-5-1, effort high, no mount" {
++  c131_arms
++  dryrun_rc a0_bare_fable
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  grep -q 'arm a0_bare_fable .* phases BARE$' <<<"$output"
++  grep -q '^phase 1 BARE model=global.anthropic.claude-fable-5-1 max_turns=170 timeout_s=4200 effort=high session=new$' <<<"$output"
++  [ "$(grep -c '^phase ' <<<"$output")" -eq 1 ]
++  grep -q '^sandbox: mount=none overlay=none(no mount) config_variant=none config_edits=-$' <<<"$output"
++}
++
++@test "dry-run (c131): a1_review_only runs exactly [REVIEW] under the closed mount" {
++  c131_arms
++  dryrun_rc a1_review_only
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  grep -q 'arm a1_review_only .* phases REVIEW$' <<<"$output"
++  [ "$(grep -c '^phase ' <<<"$output")" -eq 1 ]
++  grep -q '^phase 1 REVIEW model=global.anthropic.claude-fable-5-1 ' <<<"$output"
++  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=-$' <<<"$output"
++}
++
++@test "dry-run (c131): a1_no_dissent plans REVIEW,AUDIT with flatline_protocol.code_review.enabled false in the sandbox config" {
++  c131_arms
++  dryrun_rc a1_no_dissent
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  grep -q 'arm a1_no_dissent .* phases REVIEW,AUDIT$' <<<"$output"
++  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=flatline_protocol.code_review.enabled=false$' <<<"$output"
++  # the audit gate keeps its dissent: security_audit is not edited
++  ! grep -q 'security_audit' <<<"$output" || false
++}
++
++@test "dry-run (c131): a1_full_openmount (eval_only) plans REVIEW,AUDIT with no overlay inside the batch context; a1_full keeps the overlay" {
++  c131_arms
++  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  grep -q 'arm a1_full_openmount .* phases REVIEW,AUDIT$' <<<"$output"
++  grep -q '^sandbox: mount=loa overlay=none(oracle_open) config_variant=eval config_edits=-$' <<<"$output"
++  grep -q '^eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)$' <<<"$output"
++  dryrun_rc a1_full
++  [ "$status" -eq 0 ]
++  grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=-$' <<<"$output"
++  ! grep -q '^eval_only' <<<"$output" || false
++  # a build task: mounted, no overlay; the dry run of a build arm with config toggles lists its edits
++  run_pr a1_full "$BUILD" --dry-run
++  grep -q '^sandbox: mount=loa overlay=none(build) config_variant=eval config_edits=-$' <<<"$output"
++  run_pr a4_no_gates "$BUILD" --dry-run
++  grep -q '^sandbox: mount=loa overlay=none(build) config_variant=eval config_edits=flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false$' <<<"$output"
++}
++
++@test "eval_only: outside the batch context the open-mount arm is refused (exit 2, reason named, no run dir, no pipeline.json), dry run included" {
++  c131_arms
++  unset LOA_ABLATION_BATCH_CONTEXT
++  dryrun_rc a1_full_openmount
++  [ "$status" -eq 2 ]
++  grep -q "refused: arm 'a1_full_openmount': eval_only arm outside an evaluation batch" <<<"$output"
++  ! grep -q '^plan:' <<<"$output" || false
++  run_pr a1_full_openmount "$REVIEWC"
++  [ "$status" -eq 2 ]
++  grep -q "eval_only arm outside an evaluation batch" <<<"$output"
++  [ ! -e "$T/run" ]
++  [ ! -e "$T/log/call-1.argv" ]
++  # only the exact value 1 marks the context
++  for v in 0 yes true ""; do
++    LOA_ABLATION_BATCH_CONTEXT="$v" run_pr a1_full_openmount "$REVIEWC"
++    [ "$status" -eq 2 ]
++    [ ! -e "$T/run" ]
++  done
++  # an arm without eval_only is never refused for it
++  run_pr a1_no_dissent "$REVIEWC"
++  [ "$status" -eq 0 ]
++}
++
++@test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {
++  c131_arms
++  LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full_openmount "$REVIEWC"
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
++  [ "$(labels)" = "REVIEW,AUDIT" ]
++  [ "$(evline mount_overlay)" = none ]
++  [ "$(evline oracle_open)" = true ]
++}
++
++@test "a1_review_only (c131): a run records exactly one REVIEW phase and never launches AUDIT" {
++  c131_arms
++  run_pr a1_review_only "$REVIEWC"
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  [ "$(labels)" = REVIEW ]
++  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
++  [ "$(grep -lx AUDIT "$T"/log/call-*.phase 2>/dev/null | wc -l | tr -d ' ')" -eq 0 ]
++}
+diff --git a/evals/tests/run-ablation.bats b/evals/tests/run-ablation.bats
+index 96c4e771..29243a3b 100644
+--- a/evals/tests/run-ablation.bats
++++ b/evals/tests/run-ablation.bats
+@@ -28,7 +28,7 @@ setup() {
+   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
+   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
+   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
+-  unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
++  unset STUB_ENV_LOG LOA_ABLATION_BATCH_CONTEXT STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+   RES="$T/res"
+   # hermetic codex credentials (KF-048 pre-flight): an empty directory unless a case writes one
+   mkdir -p "$T/creds/.codex"; export LOA_EVAL_CREDS_HOME="$T/creds"
+@@ -1183,3 +1183,27 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
+   [ "$(jq -r '.drift.field' "$RES/bf2/STATUS.json")" = models_used.BARE ]
+   [ "$(jq -r '.drift.expected' "$RES/bf2/STATUS.json")" = claude-fable-5-1 ]
+ }
++
++# --- cycle-131 Sprint 264 Task 2.1: the eval_only batch context ---------------------------------
++
++@test "RAB-c131-5 every trial a batch or a smoke launches gets LOA_ABLATION_BATCH_CONTEXT=1 (the eval_only arms' context); the runner's own environment is unchanged" {
++  export STUB_ENV_LOG="$T/env.log"
++  [ -z "${LOA_ABLATION_BATCH_CONTEXT+x}" ]
++  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch bc1 --concurrency 2
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  [ "$(wc -l < "$T/env.log")" -eq 2 ]
++  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
++  S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
++  : > "$T/env.log"
++  run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --suite-root "$S" \
++    --pipeline-bin "$FX/ablation-pipeline-stub.sh" --grade-bin "$FX/ablation-grade-stub.sh" --docker-bin "$T/bin/docker" \
++    --smoke --arms a1_full --batch smoke-bc2 --max-usd 100
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  [ "$(wc -l < "$T/env.log")" -eq 2 ]
++  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
++  # the stub reports an absent variable as <unset> (the assertion above is not vacuous)
++  : > "$T/env.log"
++  "$FX/ablation-pipeline-stub.sh" --task-yaml "$S/tasks/review-01/task.yaml" --arm a1_full --run-dir "$T/manual" \
++    --run-id manual-1 --trial 1 --source-tree "$T/src" --suite-file "$REPO_ROOT/evals/suites/ablation-2.0.yaml" >/dev/null 2>&1 || true
++  grep -qx 'manual-1 LOA_ABLATION_BATCH_CONTEXT=<unset>' "$T/env.log"
++}
+diff --git a/evals/tests/validate-suite.bats b/evals/tests/validate-suite.bats
+index 93b8368f..fffd9c92 100644
+--- a/evals/tests/validate-suite.bats
++++ b/evals/tests/validate-suite.bats
+@@ -238,3 +238,79 @@ teardown() {
+   run "$VS" --root "$R" --allow-partial
+   [ "$status" -eq 0 ]
+ }
++
++# --- cycle-131 Sprint 2 Task 2.1 (FR-5): arm toggles, took-effect rule ids, eval_only -------
++
++@test "VS-14 the committed suite declares the four cycle-131 arms with the new toggles, rule ids and eval_only, and validates; eval_only: false is accepted" {
++  make_task "$R" tasks review-catch-01 review-catch
++  [ "$(yq -r '.arms[] | select(.id == "a0_bare_fable") | .toggles.bare_model' "$SUITE")" = fable ]
++  [ "$(yq -r '.arms[] | select(.id == "a1_no_dissent") | .toggles.dissent' "$SUITE")" = false ]
++  [ "$(yq -r '.arms[] | select(.id == "a1_full_openmount") | .toggles.oracle_open' "$SUITE")" = true ]
++  [ "$(yq -r '.arms[] | select(.id == "a1_full_openmount") | .eval_only' "$SUITE")" = true ]
++  [ "$(yq -r '.arms[] | select(.id == "a1_review_only") | .phases | join(",")' "$SUITE")" = REVIEW ]
++  # the five cycle-131 rule ids appear on the arms
++  for r in oracle_closed oracle_open_recorded bare_model_fable review_only_phases no_review_dissent_envelope; do
++    yq -e ".arms[] | select(.took_effect // [] | contains([\"$r\"]))" "$SUITE" >/dev/null
++  done
++  run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++  cp "$SUITE" "$T/suite.yaml"
++  yq -i '(.arms[] | select(.id == "a1_no_dissent") | .eval_only) = false' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  [ "$status" -eq 0 ] || { echo "$output"; false; }
++}
++
++@test "VS-15 toggles: an unknown toggle and every undefined value (bare_model: opus, dissent: true, oracle_open: false, effort: fast, gates: 0) are each a violation" {
++  make_task "$R" tasks review-catch-01 review-catch
++  cp "$SUITE" "$T/suite.yaml"
++  yq -i '(.arms[] | select(.id == "a1_full") | .toggles) = {"no_such_toggle": false}
++       | (.arms[] | select(.id == "a0_bare_fable") | .toggles.bare_model) = "opus"
++       | (.arms[] | select(.id == "a1_no_dissent") | .toggles.dissent) = true
++       | (.arms[] | select(.id == "a1_full_openmount") | .toggles.oracle_open) = false
++       | (.arms[] | select(.id == "a7_effort_medium") | .toggles.effort) = "fast"
++       | (.arms[] | select(.id == "a4_no_gates") | .toggles.gates) = 0' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  [ "$status" -eq 1 ]
++  grep -q "suite: arm a1_full names unknown toggle 'no_such_toggle'" <<<"$output"
++  grep -q 'suite: arm a0_bare_fable toggle bare_model="opus" is not a defined value ("fable")' <<<"$output"
++  grep -q 'suite: arm a1_no_dissent toggle dissent=true is not a defined value (false)' <<<"$output"
++  grep -q 'suite: arm a1_full_openmount toggle oracle_open=false is not a defined value (true)' <<<"$output"
++  grep -q 'suite: arm a7_effort_medium toggle effort="fast" is not a defined value' <<<"$output"
++  grep -q 'suite: arm a4_no_gates toggle gates=0 is not a defined value (false)' <<<"$output"
++  yq -i '(.arms[] | select(.id == "a1_full") | .toggles) = "off"' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  grep -q "suite: arm a1_full toggles must be a mapping" <<<"$output"
++}
++
++@test "VS-16 took_effect: an unknown rule id, or a value that is not a list of ids, is a violation; the rule set is read from took-effect.sh" {
++  make_task "$R" tasks review-catch-01 review-catch
++  cp "$SUITE" "$T/suite.yaml"
++  yq -i '(.arms[] | select(.id == "a1_review_only") | .took_effect) += ["oracle_ajar"]
++       | (.arms[] | select(.id == "a1_no_dissent") | .took_effect) = "all_phases_present"' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  [ "$status" -eq 1 ]
++  grep -q "suite: arm a1_review_only took_effect names unknown rule id 'oracle_ajar'" <<<"$output"
++  grep -q "suite: arm a1_no_dissent took_effect must be a list of rule ids" <<<"$output"
++  # every rule id the committed suite names is a rule_<id>() of took-effect.sh
++  for r in $(yq -r '.arms[] | select(.absent != true) | .took_effect[]' "$SUITE" | sort -u); do
++    grep -q "^rule_$r() {" "$REPO_ROOT/evals/harness/took-effect.sh"
++  done
++}
++
++@test "VS-17 eval_only: a non-boolean (\"yes\", 1) is a violation, and oracle_open: true without eval_only: true is one" {
++  make_task "$R" tasks review-catch-01 review-catch
++  cp "$SUITE" "$T/suite.yaml"
++  yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = "yes"
++       | (.arms[] | select(.id == "a1_no_dissent") | .eval_only) = 1' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  [ "$status" -eq 1 ]
++  grep -q "suite: arm a1_full_openmount eval_only must be a boolean (true|false)" <<<"$output"
++  grep -q "suite: arm a1_no_dissent eval_only must be a boolean (true|false)" <<<"$output"
++  grep -q "suite: arm a1_full_openmount sets oracle_open: true without eval_only: true" <<<"$output"
++  cp "$SUITE" "$T/suite.yaml"
++  yq -i '(.arms[] | select(.id == "a1_full_openmount")) |= del(.eval_only)' "$T/suite.yaml"
++  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
++  [ "$status" -eq 1 ]
++  [ "$(grep -c "^suite: " <<<"$output")" -eq 1 ]
++  grep -q "suite: arm a1_full_openmount sets oracle_open: true without eval_only: true" <<<"$output"
++}

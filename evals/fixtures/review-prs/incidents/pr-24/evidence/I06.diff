@@ -1,0 +1,63 @@
+commit c0d429074f263b22f3643eb44bfd4a38eac7b6bf
+Date: 2026-10-20T14:49:27+11:00
+
+fix(cycle-131): sprint-264 review round r2a — eval_only derived from oracle_open and type-checked in pipeline-run; the report names evaluation-only arms
+
+Review dissent run 1 on e93a040a..0281ea57 (4 advisories, 0 blocking):
+- pipeline-run.sh treats an arm whose toggles set oracle_open: true as evaluation-only whatever the suite says, and
+  refuses a present eval_only that is not a JSON boolean (DISS-C-002; pipeline-run.bats case added).
+- ablation-report.py prints 'Evaluation-only arms (not components): <arm> (<n> rows) …' under the decisions and
+  records them in report.json (DISS-C-004; AR-12 asserts the line).
+- DISS-C-001 (task files not in the dissent diff) is the dissent driver's path exclusion, not a missing commit;
+  DISS-C-003 (hand-maintained toggle vocabulary) → bead bd-gdl5s.
+- KF-051 (Fable refusal fallback mid-phase) recorded; DEC-0646, DEC-0647.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/ablation-report.py b/evals/harness/ablation-report.py
+index dafe3e62..b192da6c 100755
+--- a/evals/harness/ablation-report.py
++++ b/evals/harness/ablation-report.py
+@@ -1925,6 +1925,11 @@ def build(args):
+     h1_comps, a4 = P["h1_comps"], P["a4"]
+ 
+     k = len(components)
++    eval_only_arms = [a["id"] for a in arms if a.get("eval_only") is True and not a.get("absent")]
++    eval_only_counts = {aid: sum(1 for r in P.get("rows", []) if r.get("arm") == aid) for aid in eval_only_arms}
++    eval_only_line = ("Evaluation-only arms (not components): " +
++                      (", ".join(f"{aid} ({n} rows)" for aid, n in eval_only_counts.items()) if eval_only_counts else "none") +
++                      " — read by their own pre-registered contrast, never by a decision here.")
+     efp = k * (1.0 - args.level) / 2.0
+     efp_line = (f"Expected false positives at level {args.level:.2f} over {k} components: "
+                 f"{k} × (1 − {args.level:.2f}) / 2 = {efp:.2f} one-sided per direction "
+@@ -1996,6 +2001,7 @@ def build(args):
+     L("")
+     render_decisions(L, P, absent, rules)
+     L(efp_line)
++    L(eval_only_line)
+     L("")
+ 
+     L("## Per-arm detail")
+@@ -2171,7 +2177,8 @@ def build(args):
+                     "evidence": a.get("evidence")} for a in absent],
+         "h1": h1_json(P, rules),
+         "a4": a4_json(P, rules),
+-        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line},
++        "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line,
++                                     "eval_only_arms": eval_only_counts},
+         "arms": arms_json(metrics),
+         "exclusions": exclusions_json(P),
+         "listed": listed_json(P),
+diff --git a/evals/tests/ablation-report.bats b/evals/tests/ablation-report.bats
+index cd129ad1..b15fbcfd 100644
+--- a/evals/tests/ablation-report.bats
++++ b/evals/tests/ablation-report.bats
+@@ -187,6 +187,7 @@ report() {  # report <scenario> <out-prefix> [extra args]
+ 
+ @test "AR-12 the expected-false-positive sentence and the Method section quoting the suite rules block verbatim" {
+   grep -qF 'Expected false positives at level 0.90 over 9 components: 9 × (1 − 0.90) / 2 = 0.45 one-sided per direction (0.90 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"   # 9 = a2 … a7 + the three cycle-131 control arms; a1_full_openmount is eval_only and not a component
++  grep -qF 'Evaluation-only arms (not components): a1_full_openmount (0 rows) — read by their own pre-registered contrast, never by a decision here.' "$FX/main/report.md"   # review r1 DISS-C-004
+   python3 -I - "$SUITE" "$FX/main/report.md" <<'PY'
+ import re, sys
+ suite = open(sys.argv[1], encoding="utf-8").read().splitlines()

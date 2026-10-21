@@ -1,0 +1,40 @@
+commit 2bcf0e40401df71bad441813e36840f22ab6c333
+Date: 2026-10-13T14:00:27+11:00
+
+fix(cycle-128): sprint-252 review round r252-1 — the Fable review's three requested changes and one observation fix: the shipped .loa.config.yaml.example leaves interview.pacing commented so the per-mode default (rounds for thorough, batch for minimal) applies, with REFERENCE §Interview Modes stating the unset rule; dec-write-lib.sh classifies an explicit --file by its canonical path (live ledger, a2a/*/decisions-pending.yaml, or fixture) so naming the live ledger never bypasses the CI/hook refusal, and a linked worktree refuses a live --file (two new bats incl. relative, absolute and dot-dot paths under CI, GITHUB_ACTIONS and LOA_HOOK_CONTEXT, plus import --from into the live ledger); the FR-8 operative-reference lint judges the clause before the verb in awk, so an exempt word after the command name no longer hides an operative line (fixture with seven sentences); tools/check-round-independence.sh rejects a multi-value capture as a malformed-block violation (exit 1) instead of a jq crash (RI-11b). Dissent DISS-001 (jq index([x]) "never matches") refuted with evidence; DISS-C-001/002/003/004 fixed. Sprint 1 tasks ticked in sprint.md. Verification: 347/347 across 14 suites; budgets, sha256 lint, decisions validator and agents-md-gen --check green.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index a91cb9d6..1a9d5f32 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -97,7 +97,7 @@ plan_and_analyze:
+ # Interview Depth Configuration (v1.41.0)
+ # -----------------------------------------------------------------------------
+ # Controls question depth, input style, and pacing across planning skills.
+-# Default: thorough mode with rounds of plain-text discovery questions.
++# Default: thorough mode; pacing unset, so rounds of plain-text discovery questions.
+ #
+ # Construct override: Schema supports future construct manifest interview
+ # overrides gated by trust tier (RFC #379). Not wired yet.
+@@ -124,7 +124,8 @@ interview:
+ 
+   # Question pacing. One key for the discovery interview, /architect Phase 2,
+   # /sprint-plan Phase 2 and /chart; per_skill above still picks the mode.
+-  # Unset: rounds for thorough, batch for minimal. An explicit value always wins.
++  # Left unset (the shipped default), it is rounds for thorough and batch for
++  # minimal; uncomment and set a value to pin it for every mode.
+   #   rounds: each turn asks the whole frontier, every open question whose
+   #     prerequisites are settled; a question that depends on another one still
+   #     open waits for a later round. Questions are numbered across the session
+@@ -137,7 +138,7 @@ interview:
+   #   sequential: one question per turn, wait for the answer (the supported
+   #     opt-out if you prefer one question at a time)
+   #   batch: 3-6 numbered questions per turn, user responds freely
+-  pacing: rounds   # sequential | batch | rounds
++  # pacing: rounds   # sequential | batch | rounds; unset = rounds for thorough, batch for minimal
+ 
+   # Phase transition gates
+   phase_gates:

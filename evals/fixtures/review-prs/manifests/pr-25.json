@@ -1,0 +1,255 @@
+{
+  "fixture": "pr-25",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": "261",
+    "record_ref": "origin/record/cycle-130-a2a",
+    "head_commit": "4af3294b54f1fe034e5acfb1b30a64cf35ea590e",
+    "fix_commit": "e95139fee6c864be259fef27426e0b8d8ef64f4c"
+  },
+  "defects": [
+    {
+      "id": "L01-grader-1-2-11-can-delete-an-agent-s-prod",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1074,
+      "anchors": [
+        1074,
+        1075
+      ],
+      "must_match": "def remove_colliding",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L11",
+      "source_commit": "4af3294b",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 220,
+      "end": 220,
+      "source": "fix/e95139fee6c8:220-220"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 299,
+      "end": 299,
+      "source": "fix/e95139fee6c8:299-299"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 305,
+      "end": 305,
+      "source": "fix/e95139fee6c8:305-305"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1071,
+      "end": 1071,
+      "source": "fix/e95139fee6c8:1071-1071"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1075,
+      "end": 1102,
+      "source": "fix/e95139fee6c8:1075-1102"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1773,
+      "end": 1773,
+      "source": "fix/e95139fee6c8:1773-1773"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 607,
+      "end": 607,
+      "source": "fix/e95139fee6c8:607-607"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 636,
+      "end": 636,
+      "source": "fix/e95139fee6c8:636-636"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 115,
+      "end": 121,
+      "source": "fix/e95139fee6c8:115-121"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 230,
+      "end": 230,
+      "source": "fix/e95139fee6c8:230-230"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 242,
+      "end": 242,
+      "source": "fix/e95139fee6c8:242-242"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 272,
+      "end": 272,
+      "source": "fix/e95139fee6c8:272-272"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 312,
+      "end": 312,
+      "source": "fix/e95139fee6c8:312-312"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 394,
+      "end": 394,
+      "source": "fix/e95139fee6c8:394-394"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 786,
+      "end": 788,
+      "source": "fix/e95139fee6c8:786-788"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 796,
+      "end": 797,
+      "source": "fix/e95139fee6c8:796-797"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 804,
+      "end": 809,
+      "source": "fix/e95139fee6c8:804-809"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 813,
+      "end": 817,
+      "source": "fix/e95139fee6c8:813-817"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 831,
+      "end": 833,
+      "source": "fix/e95139fee6c8:831-833"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 837,
+      "end": 839,
+      "source": "fix/e95139fee6c8:837-839"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 865,
+      "end": 865,
+      "source": "fix/e95139fee6c8:865-865"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 903,
+      "end": 903,
+      "source": "fix/e95139fee6c8:903-903"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 1076,
+      "end": 1076,
+      "source": "fix/e95139fee6c8:1076-1076"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 1082,
+      "end": 1082,
+      "source": "fix/e95139fee6c8:1082-1082"
+    },
+    {
+      "id": "F025",
+      "file": "evals/tests/ablation-grade.bats",
+      "start": 1136,
+      "end": 1136,
+      "source": "fix/e95139fee6c8:1136-1136"
+    },
+    {
+      "id": "F026",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 984,
+      "end": 984,
+      "source": "fix/e95139fee6c8:984-984"
+    },
+    {
+      "id": "F027",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 886,
+      "end": 886,
+      "source": "fix/e95139fee6c8:886-886"
+    },
+    {
+      "id": "F028",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 907,
+      "end": 907,
+      "source": "fix/e95139fee6c8:907-907"
+    },
+    {
+      "id": "F029",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 912,
+      "end": 912,
+      "source": "fix/e95139fee6c8:912-912"
+    },
+    {
+      "id": "F030",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 918,
+      "end": 918,
+      "source": "fix/e95139fee6c8:918-918"
+    },
+    {
+      "id": "F031",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 939,
+      "end": 939,
+      "source": "fix/e95139fee6c8:939-939"
+    },
+    {
+      "id": "F032",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 968,
+      "end": 968,
+      "source": "fix/e95139fee6c8:968-968"
+    }
+  ]
+}

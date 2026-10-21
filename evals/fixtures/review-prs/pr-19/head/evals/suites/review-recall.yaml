@@ -1,0 +1,90 @@
+name: review-recall
+description: "cycle-124 FR-9 A/B suite: review-recall (arm A = Sprint-2 tip prompts, arm B = audited prompts; same executor model, fixed effort)"
+version: 1
+
+tasks:
+  include:
+    - "tasks/review-recall/**/*.yaml"
+  exclude: []
+
+defaults:
+  trials: 3
+  timeout:
+    per_trial: 1500
+    per_grader: 180
+  composite_strategy: all_must_pass
+
+# compare.sh freshness rule (evals/tests/recall-baseline-freshness.bats):
+# a baseline must be captured at or after floor_commit (the Sprint-2 landing
+# commit) on a prompt tree different from the one under comparison, with the
+# corpus frozen.
+ab:
+  floor_commit: "da3bd07f3db2fc1bd09a6761a9b96b688fa2a09e"
+  corpus_manifest: evals/fixtures/review-prs/SHA256SUMS
+
+  # cycle-129 FR-2 control arms (SDD D-2.1). Each arm is applied by
+  # execute-agent.sh (LOA_EVAL_ARM=<id>) to the SANDBOX COPY of the prompt
+  # surface only, after materialisation and immediately before the executor
+  # starts; the source tree is never edited. run-arms.sh drives the arms
+  # against a detached worktree pinned at --source-commit.
+  #   id           canonical arm id (results rows and reports key on it)
+  #   description  what the arm removes, and what it does not
+  #   toggles      toggle -> false; an unknown toggle fails the trial (exit 2)
+  #   informational  true: the arm reports a yield figure only; its verdict
+  #                can never license removing the control
+  arms:
+    - id: baseline
+      description: "the pinned source tree's prompt surface, unchanged"
+      toggles: {}
+    - id: no_companion
+      description: >-
+        flatline_protocol.code_review.companion_voice set false in the sandbox
+        .loa.config.yaml. The companion voice is a floor key that no profile
+        can remove; this arm measures its yield only.
+      informational: true
+      toggles:
+        companion_voice: false
+    - id: no_karpathy
+      description: >-
+        the '## Karpathy Principles' section removed from the sandbox
+        CLAUDE.loa.md (and any Karpathy row from a sandbox constraints.json).
+        It removes the kernel block only, not the SURGICAL review axis in
+        reviewing-code/SKILL.md or the surgical-diff hook.
+      toggles:
+        karpathy_block: false
+    - id: no_rule_files
+      description: "stash-safety.md and skill-invariants.md removed from the sandbox .claude/rules/"
+      toggles:
+        rule_files: false
+
+  # Pre-registered verdict rule (PRD FR-2; report.sh --arms applies it).
+  # An arm reads `no recall loss` only when every condition holds; a violated
+  # condition reads `recall loss`; anything missing reads `inconclusive`.
+  threshold:
+    # every (fixture, arm) cell needs this many completed trials
+    trials_required: 3
+    # full = every fixture in the batch for every arm; a missing cell is inconclusive
+    coverage_required: full
+    # the upper bound of the bootstrap interval on (baseline - arm) mean
+    # recall must not exceed this (= ci.regression_threshold)
+    mean_recall_max_drop: 0.10
+    # the arm's worst trial-mean recall may sit at most this far below the baseline's worst
+    min_trial_recall_max_drop: 0.15
+    # refuted share (cited findings matching no feedback label and no fix
+    # region, over cited findings) may rise at most this much over the baseline
+    refuted_share_max_rise: 0.10
+    # percentile bootstrap of the recall delta: resample fixtures with
+    # replacement `iterations` times, report the `level` two-sided interval
+    bootstrap:
+      method: percentile
+      level: 0.90
+      resample: fixtures
+      iterations: 2000
+
+ci:
+  gate_type: advisory
+  min_trials: 3
+  regression_threshold: 0.10
+
+execution_order: parallel
+concurrency: 2

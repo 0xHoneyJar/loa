@@ -1,0 +1,374 @@
+import type { PullRequest, PullRequestFile } from "../ports/git-provider.js";
+
+export interface BridgebuilderConfig {
+  repos: Array<{ owner: string; repo: string }>;
+  model: string;
+  maxPrs: number;
+  maxFilesPerPr: number;
+  maxDiffBytes: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  dimensions: string[];
+  reviewMarker: string;
+  repoOverridePath: string;
+  dryRun: boolean;
+  excludePatterns: string[];
+  sanitizerMode: "default" | "strict";
+  maxRuntimeMinutes: number;
+  /** When set (via --pr flag), filters fetchPRItems() to this single PR number. */
+  targetPr?: number;
+  /** Explicit Loa-aware mode override. true=force on, false=force off, undefined=auto-detect. */
+  loaAware?: boolean;
+  /**
+   * Per-PR self-review opt-in. When true, the Loa-aware filter (Step 0 of
+   * truncateFiles) is skipped — framework files under `.claude/`, `grimoires/`,
+   * `.beads/`, etc. are admitted into the review payload.
+   *
+   * Set per-call by reviewer.ts when the PR carries the `bridgebuilder:self-review`
+   * label. This is the per-PR opt-in vision-013 names — reviews of bridgebuilder
+   * itself, of cycle-planning artifacts, or of other framework changes need to
+   * see the substrate, not be blinded by the filter that protects code-PR review
+   * from grimoire noise. Closes #796.
+   *
+   * NOTE: this is intentionally a per-call override, not a config-wide knob.
+   * `loaAware: false` already exists for global disable; `selfReview: true` is
+   * the per-PR signal that flows from PR labels to the truncate call.
+   */
+  selfReview?: boolean;
+  /** Git repo root for path resolution (defaults to cwd). */
+  repoRoot?: string;
+  /** Persona pack name (e.g. "security", "dx"). */
+  persona?: string;
+  /** Custom persona file path. */
+  personaFilePath?: string;
+  /** Force full review even when incremental context is available (V3-1). */
+  forceFullReview?: boolean;
+  /** Review mode: two-pass (convergence + enrichment) or single-pass (legacy). */
+  reviewMode: "two-pass" | "single-pass";
+  /** Path to ecosystem context JSON file for cross-repo pattern hints (Pass 0 prototype). */
+  ecosystemContextPath?: string;
+  /** Pass 1 convergence cache configuration (Sprint 70). */
+  pass1Cache?: { enabled: boolean };
+  /** Multi-model review configuration. When enabled, multiple models review in parallel. */
+  multiModel?: MultiModelConfig;
+  /**
+   * cycle-129 D-7.5 (DEC-0170): the provider declarations, locality and exit key read from TRUSTED configuration only
+   * (the base branch's config or repository settings on a pull request, the working tree locally). Set by main.ts.
+   */
+  trusted?: TrustedConfig;
+}
+
+/** One `hounfour.providers.<name>` declaration as Bridgebuilder reads it (cycle-129 D-7.5, D-8.0 canonical keys). */
+export interface ProviderDecl {
+  /** `keyless: true`, or a literal `auth` value (normalised to keyless, D-8.0): no credential env var is required. */
+  keyless: boolean;
+  /** `allow_insecure_endpoint` is set (any non-null, non-false value). */
+  insecure: boolean;
+  /** The env var named by an `auth: "{env:VAR}"` template, when the declaration has one. */
+  authEnv?: string;
+  /** Provider-level `dispatch_group`, when declared. */
+  dispatchGroup?: string;
+  /** `models.<model_id>.dispatch_group` per declared model. */
+  modelGroups: Record<string, string | undefined>;
+}
+
+/** Where the trusted provider configuration was read from. */
+export type TrustedConfigSource = "working-tree" | "base-ref" | "repository-settings" | "none";
+
+/** The trusted configuration view (cycle-129 D-7.5, D-7.7, D-8.1). */
+export interface TrustedConfig {
+  /** `pull-request` when run on a PR (`--pr`, `GITHUB_EVENT_NAME`, `GITHUB_BASE_REF`); `local` otherwise. */
+  mode: "local" | "pull-request";
+  source: TrustedConfigSource;
+  /** The git ref the base config was read from (`source: base-ref`). */
+  ref?: string;
+  /** `hounfour.providers` from the trusted source only. */
+  providers: Record<string, ProviderDecl>;
+  /** Providers the head checkout declares keyless or insecure that the trusted source does not: refused by name. */
+  headOnlyRefused: string[];
+  /** `hounfour.locality` (default `hosted`). */
+  locality: "hosted" | "local_voices";
+  /** `bridgebuilder.exit_on_degraded` (default 3; 0 restores the pre-cycle-129 exit). */
+  exitOnDegraded: number;
+  /** Lines to log once at startup (read failures, refusals, invalid values). */
+  warnings: string[];
+}
+
+/** Multi-model provider configuration entry. */
+export interface MultiModelProviderEntry {
+  provider: string;
+  model_id: string;
+  role: "primary" | "reviewer";
+}
+
+/** Multi-model Bridgebuilder configuration. */
+export interface MultiModelConfig {
+  enabled: boolean;
+  models: MultiModelProviderEntry[];
+  iteration_strategy: "every" | "final" | number[];
+  api_key_mode: "graceful" | "strict";
+  consensus: {
+    enabled: boolean;
+    scoring_thresholds: {
+      high_consensus: number;
+      disputed_delta: number;
+      low_value: number;
+      blocker: number;
+    };
+  };
+  token_budget: {
+    per_model: number | null;
+    total: number | null;
+  };
+  depth: {
+    structural_checklist: boolean;
+    checklist_min_elements: number;
+    permission_to_question: boolean;
+    lore_active_weaving: boolean;
+    /**
+     * Path to the lore patterns YAML file. Used only when
+     * `lore_active_weaving === true`. Defaults to
+     * `grimoires/loa/lore/patterns.yaml` (DEFAULT_LORE_PATH in lore-loader.ts).
+     */
+    lore_path?: string;
+  };
+  cross_repo: {
+    auto_detect: boolean;
+    manual_refs: string[];
+    /** #1014: extra owners whose auto-detected refs may be fetched (org-only by default). */
+    allowed_owners: string[];
+  };
+  rating: {
+    enabled: boolean;
+    timeout_seconds: number;
+    retrospective_command: boolean;
+  };
+  progress: {
+    verbose: boolean;
+  };
+  max_concurrency?: number;
+  cost_rates?: Record<string, { input: number; output: number }>;
+}
+
+export interface ReviewItem {
+  owner: string;
+  repo: string;
+  pr: PullRequest;
+  files: PullRequestFile[];
+  hash: string;
+}
+
+export type ErrorCategory = "transient" | "permanent" | "unknown";
+
+export interface ReviewError {
+  code: string;
+  message: string;
+  category: ErrorCategory;
+  retryable: boolean;
+  source: "github" | "llm" | "sanitizer" | "pipeline";
+}
+
+/** Token metrics for a single LLM pass. */
+export interface PassTokenMetrics {
+  input: number;
+  output: number;
+  duration: number;
+}
+
+export interface ReviewResult {
+  item: ReviewItem;
+  posted: boolean;
+  skipped: boolean;
+  skipReason?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  error?: ReviewError;
+  /** Raw Pass 1 response content (for observability — FR-5.2). */
+  pass1Output?: string;
+  /** Token metrics for convergence pass (two-pass mode only). */
+  pass1Tokens?: PassTokenMetrics;
+  /** Token metrics for enrichment pass (two-pass mode only). */
+  pass2Tokens?: PassTokenMetrics;
+  /** Confidence statistics from Pass 1 findings (two-pass mode only). */
+  pass1ConfidenceStats?: { min: number; max: number; mean: number; count: number };
+  /** Persona identity for provenance tracking (two-pass mode only). */
+  personaId?: string;
+  /** SHA-256 hash of persona content for integrity verification. */
+  personaHash?: string;
+  /** Whether Pass 1 findings were served from cache (Sprint 70). */
+  pass1CacheHit?: boolean;
+  /** Explicit review-body decision; absence is never merge clearance. */
+  verdict?: "REQUEST_CHANGES" | "APPROVE" | "COMMENT" | "UNKNOWN";
+  highestSeverity?: string | null;
+  mergeBlocked?: boolean;
+}
+
+export interface RunSummary {
+  reviewed: number;
+  skipped: number;
+  errors: number;
+  startTime: string;
+  endTime: string;
+  runId: string;
+  results: ReviewResult[];
+}
+
+export interface TruncationResult {
+  included: PullRequestFile[];
+  excluded: Array<{ filename: string; stats: string }>;
+  totalBytes: number;
+  /** True when all files were excluded by Loa filtering (no app files remain). */
+  allExcluded?: boolean;
+  /** Banner string when Loa files were excluded. */
+  loaBanner?: string;
+  /** Loa exclusion statistics. */
+  loaStats?: { filesExcluded: number; bytesSaved: number };
+  /**
+   * True when the self-review opt-in (#796 / vision-013) was active AND
+   * succeeded for this truncation pass — framework files were admitted.
+   *
+   * BB-797-001 (iter-3): typed; never substring-match the banner prose.
+   * BB-797-004-typing (iter-4): required, not optional.
+   *
+   * BB-797-002 (iter-5): kept as a convenience mirror of `selfReviewState ===
+   * "active"`. Downstream consumers needing to distinguish "rejected" from
+   * "inactive" (cache keys, audit) MUST read `selfReviewState` instead — the
+   * boolean lossy-encodes the tri-state and produces cache collisions.
+   */
+  selfReviewActive: boolean;
+  /**
+   * Tri-state self-review outcome (#797 iter-5 BB-797-002):
+   *   - "inactive": no self-review label on PR (default-filter path ran)
+   *   - "active":   label present + .reviewignore readable + framework files admitted
+   *   - "rejected": label present BUT .reviewignore unreadable → fail-closed
+   *                 to default filter (BB-797-001-security iter-4)
+   *
+   * Cache keys MUST dimension on this field, not the boolean: "inactive" and
+   * "rejected" both yield selfReviewActive=false but produce different prompts.
+   */
+  selfReviewState: "inactive" | "active" | "rejected";
+  /** Truncation level applied (undefined = no progressive truncation). */
+  truncationLevel?: 1 | 2 | 3;
+  /** Disclaimer text for the current truncation level. */
+  truncationDisclaimer?: string;
+}
+
+export interface LoaDetectionResult {
+  isLoa: boolean;
+  version?: string;
+  source: "file" | "config_override";
+}
+
+/** Security pattern entry with category and rationale for auditability. */
+export interface SecurityPatternEntry {
+  pattern: RegExp;
+  category: string;
+  rationale: string;
+}
+
+/** Per-model token budget constants. */
+export interface TokenBudget {
+  maxInput: number;
+  maxOutput: number;
+  coefficient: number;
+}
+
+/** Progressive truncation result from the retry loop. */
+export interface ProgressiveTruncationResult {
+  success: boolean;
+  level?: 1 | 2 | 3;
+  files: PullRequestFile[];
+  excluded: Array<{ filename: string; stats: string }>;
+  totalBytes: number;
+  disclaimer?: string;
+  tokenEstimate?: TokenEstimateBreakdown;
+}
+
+/** Persona identity and version for provenance tracking. */
+export interface PersonaMetadata {
+  id: string;
+  version: string;
+  hash: string;
+}
+
+/** Cross-repository pattern hints for enrichment context (Pass 0 prototype). */
+export interface EcosystemContext {
+  patterns: Array<{ repo: string; pr?: number; pattern: string; connection: string }>;
+  lastUpdated: string;
+}
+
+/** Truncation context passed from Pass 1 to Pass 2 for enrichment awareness. */
+export interface TruncationContext {
+  filesExcluded: number;
+  totalFiles: number;
+}
+
+/** Consolidated options for the enrichment prompt builder (Sprint 69 — params object pattern). */
+export interface EnrichmentOptions {
+  findingsJSON: string;
+  item: ReviewItem;
+  persona: string;
+  truncationContext?: TruncationContext;
+  personaMetadata?: PersonaMetadata;
+  ecosystemContext?: EcosystemContext;
+  /**
+   * Lore entries passed through to `buildEnrichedSystemPrompt`. Only emitted
+   * in the prompt when `multiModelConfig.depth.lore_active_weaving === true`.
+   * Closes #464 A5 — multi-model enrichment now actually weaves lore.
+   */
+  loreEntries?: LoreEntryRef[];
+  /**
+   * Multi-model config. Required to read the `depth.lore_active_weaving`
+   * flag that gates lore inclusion. Optional for backwards compatibility.
+   */
+  multiModelConfig?: MultiModelConfig;
+}
+
+/**
+ * Local minimal LoreEntry shape (mirrors `LoreEntry` exported by template.ts).
+ * Avoids a circular type import — types.ts is imported by template.ts.
+ */
+export interface LoreEntryRef {
+  id: string;
+  term: string;
+  short: string;
+  context: string;
+  source?: string;
+  tags?: string[];
+}
+
+/** Token estimate broken down by component for calibration logging. */
+export interface TokenEstimateBreakdown {
+  persona: number;
+  template: number;
+  metadata: number;
+  diffs: number;
+  total: number;
+}
+
+/**
+ * Ecosystem pattern extracted from bridge findings (Sprint 71 — dynamic ecosystem context).
+ * Extends the static pattern shape with provenance fields for traceability.
+ */
+export interface EcosystemPattern {
+  repo: string;
+  pr: number;
+  pattern: string;
+  connection: string;
+  extractedFrom: string;
+  confidence: number | undefined;
+}
+
+/**
+ * Persona registry entry for the persona marketplace (Sprint 71 — schema primitives).
+ * Defines the identity and metadata for a review persona.
+ * The full persona marketplace is future work; these types formalize the slot architecture.
+ */
+export interface PersonaRegistryEntry {
+  name: string;
+  version: string;
+  hash: string;
+  description: string;
+  dimensions: string[];
+  voiceSamples?: string[];
+}

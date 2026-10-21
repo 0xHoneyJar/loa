@@ -1,0 +1,129 @@
+commit 3b0f8bf38bd7468326ed583ef68d539de2adc302
+Date: 2026-10-13T18:22:52+11:00
+
+fix(cycle-128): sprint-254 review round r254-1 and the cycle's docs — the Fable review's MEDIUM and seven LOWs closed with tests, Task 3.6 and Task 3.E2E delivered: the glossary gate can no longer be satisfied by an alias line (validate-artifact.sh --type glossary fails an entry with more than six aliases and WARNs on an alias that shares no word with its term or definition and is not the term's initials; the checker WARNs, advisory, when alias resolutions outnumber defined-term resolutions and keeps the alias column in --report; GV-20…24, GT-24/25); fences follow CommonMark through the new shared .claude/scripts/lib/md-fence.awk (an opener's character and length close it; code spans match backtick runs of equal length; GT-20/21/22/27/28, GV-23); the token shape admits one interior colon so the four decision: labels are checked (the kernel gained no token; GT-8b/8c); --json avoids jq 1.6-only features (GT-26); an orphan _Aliases_: line WARNs with its glossary line and no longer shadows a later alias (GT-23); RTC-9 builds its no-timeout shim from the entries of PATH (Homebrew, Nix and asdf hosts keep their tools) and red-test-check.sh prints (no output) inside an empty marker block (RTC-18); planning-sprints, reviewing-code and riding-codebase trimmed to 16,124 / 16,223 / 16,226 of 16,384 bytes without dropping a rule. Docs (Task 3.6, implementer H): CHANGELOG [Unreleased] reconciled into one release note for sprints 252–254 (Added / Changed / Fixed / Security grouped by FR, the review and audit rounds folded into the entries they correct, a Migration section for the pacing default, the Seams rule date, yq v4 and the operator-only commands); README what's-new block; hooks-reference.md "Decision surfaces" table (SessionStart decisions surface, ICE spike rule, fence SP-1, the FR-1.1 decided-spike unlock, the /chart interactive-only gate, the FR-8 lint, each with its accepted bypasses); scripts-reference.md rows for every new script; protocols-summary.md; grimoires/loa/sdd.md §10 Open Questions DEC column backfilled from the seeded ledger (DEC-0001…DEC-0016, DEC-0025, DEC-0030, DEC-0049, DEC-0051, DEC-0053; the validator WARN is gone); REPO-MAP.md regenerated with its checksum over the final .claude/ code (repo-map-gen.sh --validate exit 0); .claude/checksums.json refreshed for tracked files only; evals fixture copies of golden-path.sh and mount-loa.sh re-synced (sync-fixtures.sh --check exit 0). Task 3.E2E: grimoires/loa/a2a/sprint-254/e2e.md records G-1…G-7 with commands, artefacts and results (G-3 scored on a second rounds transcript, G-7 verified by one live harness run whose stream is saved; the archived cycle-127 plan fails two pre-existing required-section rules while the Seams rule adds only a WARN there). Sprint 3 tasks ticked in sprint.md; Sprint 3 implementer decisions seeded as proposed ledger rows. Verification on the final tree: the 22-suite run recorded in the review; check-prompt-budget exit 0; validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; sync-fixtures --check current; md-fence.awk parses under awk; bash -n on every changed script; shell-compat greps clean; check-glossary-terms.sh PASS on the live kernel (16 kept, 0 missing, 11/30 allowlisted, one advisory WARN); both glossaries, the sprint plan (seams + live beads cross-check), the PRD and the SDD validate.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/validate-artifact.sh b/.claude/scripts/validate-artifact.sh
+index e9b951cc..69b0a6f3 100755
+--- a/.claude/scripts/validate-artifact.sh
++++ b/.claude/scripts/validate-artifact.sh
+@@ -67,8 +67,11 @@
+ #               '## Language', then one-line '**Term**: definition' entries of
+ #               at most two sentences and 300 characters; _Avoid_: and
+ #               _Aliases_: only directly below an entry; no duplicate term or
+-#               alias (case, '-', '_' and spaces folded); WARN on a path or file
+-#               extension in '## Language'; PII scan
++#               alias (case, '-', '_' and spaces folded); at most six aliases
++#               per entry; WARN on an alias that shares no word with its term
++#               or definition and is not the term's initials; WARN on a path or
++#               file extension in '## Language'; CommonMark fences
++#               (lib/md-fence.awk); PII scan
+ #   sprint also: with br and .beads/, no question bead carries a sprint: label
+ #               or sits under a sprint epic (an info line without br)
+ #
+@@ -1249,15 +1252,21 @@ validate_spike() {
+ # glossary: the framework or a project glossary (grimoires/loa/sdd.md D-6.4, §4.5)
+ # =============================================================================
+ GLOSSARY_MAX_CHARS=300
++GLOSSARY_MAX_ALIASES=6
+ 
+ validate_glossary() {
+-    local kind msg
++    local kind msg fence_src
++    # The CommonMark fence tracker shared with tools/check-glossary-terms.sh.
++    if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
++        violations+=("cannot read ${SCRIPT_DIR}/lib/md-fence.awk; the glossary check needs it (reinstall the framework scripts)")
++        return
++    fi
+     while IFS=$'\t' read -r kind msg; do
+         case "$kind" in
+             V) violations+=("$msg") ;;
+             W) warnings+=("$msg") ;;
+         esac
+-    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" '
++    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" "$fence_src"'
+         function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
+         function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
+         # names compare as the drift check matches them: case and "-", "_", " " folded
+@@ -1267,8 +1276,28 @@ validate_glossary() {
+             if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
+             else seen[norm(x)] = what " \"" x "\" (line " NR ")"
+         }
+-        /^[[:space:]]*(```|~~~)/ { fence = !fence; prev = "other"; next }
+-        fence { next }
++        # word sets: a name splits on case-folded "-", "_" and spaces, prose on
++        # anything that is not a letter or digit; words under two characters drop
++        function words(x, set,   n, i, parts) {
++            split("", set); n = split(x, parts, / /)
++            for (i = 1; i <= n; i++) if (length(parts[i]) >= 2) set[parts[i]] = 1
++        }
++        function plural_eq(a, b) { return a == b || a "s" == b || a "es" == b || b "s" == a || b "es" == a }
++        # An alias names the same thing as its entry, so it shares a word with
++        # the term or the definition, or it is the initials of the term
++        # ("KF" for Known failure); anything else is a name the entry never explains.
++        function alias_related(al, term, def,   aw, tw, x, y, ini, n, i, parts) {
++            words(norm(al), aw)
++            words(norm(term), tw)
++            for (x in aw) for (y in tw) if (plural_eq(x, y)) return 1
++            def = tolower(def); gsub(/[^a-z0-9]+/, " ", def); words(def, tw)
++            for (x in aw) for (y in tw) if (plural_eq(x, y)) return 1
++            n = split(norm(term), parts, / /); ini = ""
++            for (i = 1; i <= n; i++) ini = ini substr(parts[i], 1, 1)
++            x = norm(al); gsub(/ /, "", x)
++            return n >= 2 && x == ini
++        }
++        md_fence($0) { prev = "other"; next }
+         /^# / {
+             if (!h1) { h1 = NR; if ($0 !~ /^# Glossary: [^[:space:]]/) w("the H1 is not \"# Glossary: <name>\"") }
+             prev = "other"; next
+@@ -1296,7 +1325,7 @@ validate_glossary() {
+             if (length(c) > max) v("the definition of \"" t "\" is " length(c) " characters, over " max "; shorten it")
+             s = d " "; n = gsub(/[.!?]+[)"]*[[:space:]]/, "&", s); if (n == 0) n = 1
+             if (n > 2) v("the definition of \"" t "\" has " n " sentences; at most two")
+-            prev = "entry"; seen_avoid = 0; seen_alias = 0; next
++            prev = "entry"; seen_avoid = 0; seen_alias = 0; n_alias = 0; next
+         }
+         /^_(Avoid|Aliases)_:/ {
+             k = ($0 ~ /^_Avoid_:/) ? "Avoid" : "Aliases"
+@@ -1307,7 +1336,14 @@ validate_glossary() {
+             if (a !~ /[^[:space:]]/) v("an empty _" k "_: line")
+             if (k == "Aliases") {
+                 gsub(/`/, "", a); m = split(a, parts, /,/)
+-                for (i = 1; i <= m; i++) { p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p); claim(p, "alias") }
++                for (i = 1; i <= m; i++) {
++                    p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
++                    if (p == "") continue
++                    n_alias++
++                    claim(p, "alias")
++                    if (!alias_related(p, t, d)) w("alias \"" p "\" of \"" t "\" shares no word with the term or its definition and is not its initials; name it in the definition, or give it its own entry")
++                }
++                if (n_alias > maxal) v("\"" t "\" has " n_alias " aliases, over " maxal "; an alias list is not a place to resolve tokens, so define the extra names as entries or allowlist the code identifiers")
+             }
+             prev = "annot"; next
+         }
+diff --git a/README.md b/README.md
+index 0a3e07ee..f9e6acb3 100644
+--- a/README.md
++++ b/README.md
+@@ -19,6 +19,18 @@ ## What's new in v2.0.0-rc.2 (release candidate)
+ 
+ The 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [rc.1 release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
+ 
++**Unreleased — decision surfaces** (cycle-128, [CHANGELOG](CHANGELOG.md)):
++
++- **Decision maps**: `/chart <slug>` maps an effort that spans more than one cycle as `question` tickets and a map doc in `grimoires/loa/maps/`. It plans and never builds, and `/plan` reports the `charting` phase.
++- **Decision ledger**: every planning decision becomes a `DEC` row in `grimoires/loa/decisions.yaml` with who decided it. Agent decisions stay `proposed` until you confirm them with `/decisions`.
++- **Rounds and attribution**: the interview asks every question whose prerequisites are settled in one round, each with a recommended answer. Facts are looked up, never asked; decisions are yours, and PR bodies list the ones taken on your behalf.
++- **Spike tickets**: a question talk cannot settle becomes a prototype ticket on a `spike/<slug>` branch that is pushed, never merged and never opened as a PR.
++- **Glossaries**: `.claude/loa/GLOSSARY.md` and a project `GLOSSARY.md`; `tools/check-glossary-terms.sh` fails CI when a kernel term has no entry.
++- **Test discipline**: sprint plans name their Seams Under Test, and `red-test-check.sh` proves a bug fix's test failed before the fix and passes after it.
++- **Operator-only commands**: `/decisions`, `/contribute`, `/run-halt`, `/loa-eject` and three others carry `disable-model-invocation`, so only you can run them.
++
++Upgrading: `interview.pacing` unset now means rounds in `thorough` mode, and plans dated from 2026-10-13 need the Seams block (see the CHANGELOG Migration notes).
++
+ **rc.2 — friction floor** (cycle-125, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.2.md)): the destructive-command fence stops blocking cache/scratch cleanups it cannot lose data on (corpus-gated, 49 benign / 60 dangerous rows), the big planning artefacts read by section (`notes-guard.sh read --file F --section 'Sprint N'`), `/run` refuses to start a run it cannot finish (`run-preflight.sh`, eight predicates, the fix named) and the next session is told how to resume, `/loa` shows provider health (breakers, credential presence, CLI hops) and artefact sizes, and the ids the fleet actually calls are priced (dated releases, aliases, CLI hops) with the unpriced share always visible. No new configuration key.
+ 
+ **Unreleased — full size** (cycle-126, [migration addendum](docs/migration/v2.0-model-generation-floor.md#cycle-126-addendum--full-size-two-voices-context-class-current-generation-unreleased)): size limits come from the catalog entry actually resolved (the probed input bound until you calibrate it), every dissent gets a second voice from the other model family, context-clearing thresholds follow the session model's window, `opus` → `claude-opus-5-5` and `cheap` → `claude-sonnet-5`, and `/loa` shows what the implement gate can and cannot see.

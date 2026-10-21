@@ -1,0 +1,23 @@
+name: pr-19
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-255 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 255
+base_commit: "ffd25258d09493d188c83bcaf65526bb9755e2a3"
+head_commit: "ee1625a0b674c261787615852e34cc6bedc09877"
+fix_commit: "b6802e4f392abe2dba46845d6d2e85a274e777a5"
+record_ref: "origin/record/cycle-129-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md"
+scope_paths: "!evals/fixtures/review-prs/*"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-14 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-14; sandbox has network; egress scanned (grader class 9)"

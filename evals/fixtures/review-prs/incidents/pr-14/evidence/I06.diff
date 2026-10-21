@@ -1,0 +1,93 @@
+commit 263a8d4c469b7946bf9923d449d69b930c9aee11
+Date: 2026-10-08T07:38:08+11:00
+
+fix(cycle-127): sprint-251 Bridgebuilder round r251-6 — the pass on PR #1275 (two voices planned, the google voice not planned, verdict quality APPROVED 2/2): a correct user-private-group exception in all three opt-in readers (a 0664 config is trusted only when its gid is the owner's primary gid, the group is named like the user and has no other members — Ubuntu umask-002 checkouts opt in again, shared groups and world-writable stay refused), the trust check fstat's the descriptor it read (TOCTOU) and guards a missing os.geteuid, the provider-map overlay anchors to the same install root as the opt-in read, an alias/non-mapping ancestor of the key WARNs once in every reader, the Python no-PyYAML fallback applies the yq-flavour check, the "both rungs set" effort WARN fires only for CLI entries, _plan_around_agy uses dataclasses.replace and a regression test pins that an all-agy chain is returned whole (the claimed empty-chain IndexError is refuted), and the conformance test's TypeScript leg runs the Bridgebuilder skill's pinned tsx with a clear skip when it is absent (the Shell Tests CI failure: `npx --no-install tsx` on a bare runner printed nothing). Release notes for 2.0.0-rc.3 drafted; CHANGELOG, addendum and SDD state the user-private-group rule.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 32be62fd..86550e9e 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -408,16 +408,15 @@ def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Di
+     _loader.warn_agy_available_once()   # (SDD D-1.7 / r251-1 G18: once per process, a PATH lookup only)
+     if len(agy) == len(chain.entries):
+         return chain, []
+-    from loa_cheval.routing.types import ResolvedChain as _RC
+-    kept = tuple(e for e in chain.entries if e not in agy)
++    kept = [e for e in chain.entries if e not in agy]
+     skipped = [{"model": e.canonical, "provider": e.provider, "reason": "opt_in_required"} for e in agy]
+     if not _AGY_NOT_PLANNED_WARNED:
+         _AGY_NOT_PLANNED_WARNED = True
+         logger.warning(
+             "agy hop(s) %s not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — "
+             "walking the remaining hop(s) %s", ", ".join(x["model"] for x in skipped), ", ".join(e.canonical for e in kept))
+-    return _RC(primary_alias=chain.primary_alias, entries=kept, headless_mode=chain.headless_mode,
+-               headless_mode_source=chain.headless_mode_source), skipped
++    # (r251-6 V8, BB #4: every other ResolvedChain field is carried, and `entries` keeps its container type)
++    return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
+ 
+ 
+ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
+@@ -965,14 +964,16 @@ def resolve_effort(
+       ``none``    — nothing on the wire, the vendor default applies.
+     The catalog is not schema-validated at load, so an invalid `default_effort`
+     is skipped with one WARN (never a crash); an entry setting both
+-    `params.default_effort` and `extra.effort` gets one WARN too.
++    `params.default_effort` and `extra.effort` gets one WARN too — a CLI entry only,
++    the one whose extra rung is read (r251-6 V7).
+     """
+     explicit = getattr(args, "effort", None)
+     entry = entry if isinstance(entry, dict) else {}
+     params = entry.get("params") if isinstance(entry.get("params"), dict) else {}
+     extra = entry.get("extra") if isinstance(entry.get("extra"), dict) else {}
+     extra_raw = extra.get("effort") or extra.get("reasoning_effort")
+-    if "default_effort" in params and extra_raw:
++    # (r251-6 V7, BB #10: only a CLI entry reads the extra rung — on an HTTP entry it is inert, so there is no conflict)
++    if "default_effort" in params and extra_raw and _is_cli_entry(entry):
+         _effort_warn_once((model_key, "both"),
+                           "%s sets both params.default_effort and extra.effort; params.default_effort wins "
+                           "(cycle-127 FR-2) — drop one", model_key)
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index 44cfb788..3a7f3fd6 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-07T18:59:38Z",
+-  "source_hash": "6b1183fa06303eb069149ca39c939e6f77fd81320e3c5165e658debebc57353f",
++  "generated_at": "2026-10-07T20:31:07Z",
++  "source_hash": "b7ee6626d8931660b817d67e7fe35c912235070b79392b6c2e6fc18d1c5137cc",
+   "file_count": 42,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "e740d4d5fa9c740cecb2312980b2c8cce014ebba46aa6c30f064c90159c6770a"
++      "sha256": "a0b586a502a0015646aa8d0d6450ce74440a699ef9a2e7769d21f1cf6f846161"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+diff --git a/docs/migration/v2.0-model-generation-floor.md b/docs/migration/v2.0-model-generation-floor.md
+index 9f8d2d71..5b23bc8a 100644
+--- a/docs/migration/v2.0-model-generation-floor.md
++++ b/docs/migration/v2.0-model-generation-floor.md
+@@ -294,9 +294,11 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   `.loa.config.yaml` alone (a framework defaults file cannot opt you in) — cheval from its
+   own install root, never a cwd-ancestor file — and only the scalar written exactly
+   `true` opts in: a quoted `"true"`, `yes`/`on`/`True`, an alias or a merge key read off
+-  in every reader with one WARN. A config you do not own, or that your group or others
+-  can write, is ignored by every reader (off, one WARN naming the file and the reason):
+-  `chmod 644 .loa.config.yaml` if your opt-in "does not take". Bridgebuilder blocks the
++  in every reader with one WARN. A config you do not own, that others can write, or that
++  a group other than your own user-private group can write, is ignored by every reader
++  (off, one WARN naming the file and the reason) — a umask-002 checkout on a
++  user-private-group host still opts in; on a shared-group host `chmod 644
++  .loa.config.yaml` if your opt-in "does not take". Bridgebuilder blocks the
+   merge when it cannot read the config at all (never a smaller quorum). Set it `true` only where `agy` is installed and
+   OAuth-authed, knowing the argv exposure. With it on, behaviour is exactly as before.
+ - **Opus 5.5 effort default.** See the cycle-126 bullet above: `claude-opus-5-5` carries

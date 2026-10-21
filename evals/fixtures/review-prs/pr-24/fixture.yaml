@@ -1,0 +1,22 @@
+name: pr-24
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-260 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 260
+base_commit: "9ad48150243edccacd157188429bac5232ddf9e9"
+head_commit: "4c2796067e8b9b65c66a8843328b5abae06bd9ca"
+fix_commit: "53600ea3168adfba0745ae5c1c461ab4d24a342e"
+record_ref: "origin/record/cycle-130-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-260/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-260/auditor-sprint-feedback-r1.md"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-16 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-16; sandbox has network; egress scanned (grader class 9)"

@@ -1,0 +1,90 @@
+commit baea80244306d0bee0334ba5f8238777c7cdb1e7
+Date: 2026-10-20T12:39:13+11:00
+
+fix(cycle-131): sprint-263 review round r1b — one-liner python defs, fence lengths, stat-only git diff, |&, grep-family sinks
+
+Review dissent run 2 on the r1a diff (12 findings, 3 BLOCKING, all at the edges of r1a; DEC-0643):
+- recall-vs-defects.sh: a python signature ends at the colon after its closing parenthesis, so `def f(): return 1`
+  ends on its own line (and a header with no terminator falls back to one line); a markdown fence closes only on a
+  same-character fence at least as long with nothing after it, and a backtick opener whose info string holds a
+  backtick is not a fence (RG-42 extended, RG-43).
+- ablation-grade.sh: a stat-only git diff needs a stat flag and none of -p/-u/--patch/--unified/-U<n>; `|&` is one
+  pipe with no empty segment; silent sinks include -L / --files-without-match and the egrep/fgrep/rg family
+  (AG-52 extended); AG-53's printf now emits a real line continuation.
+- Re-grade of the 36 cycle-130 runs on this grader: 36/36 regression, 0 rows changed.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/graders/recall-vs-defects.sh b/evals/graders/recall-vs-defects.sh
+index d40528fb..4b0432af 100755
+--- a/evals/graders/recall-vs-defects.sh
++++ b/evals/graders/recall-vs-defects.sh
+@@ -270,13 +270,15 @@ def headers(kind, lines):
+     for i, l in enumerate(lines, 1):
+         m = None
+         if kind == "markdown":
+-            fm = re.match(r"^\s{0,3}(`{3,}|~{3,})", l)   # a fenced block's `#` lines are code, not headings (review r1 DISS-C-004)
++            fm = re.match(r"^\s{0,3}(`{3,}|~{3,})(.*)$", l)   # a fenced block's `#` lines are code, not headings (review r1 DISS-C-004)
+             if fm:
+-                tok = fm.group(1)[0]
++                tok, rest = fm.group(1), fm.group(2)
+                 if fence is None:
+-                    fence = tok
+-                elif fence == tok:
+-                    fence = None
++                    if not (tok[0] == "`" and "`" in rest):   # CommonMark: a backtick opener's info string holds no backtick
++                        fence = (tok[0], len(tok))
++                    continue
++                if tok[0] == fence[0] and len(tok) >= fence[1] and not rest.strip():
++                    fence = None      # the closer is at least as long as the opener, with nothing after it (review r2 DISS-003)
+                 continue
+             if fence is not None:
+                 continue
+@@ -317,9 +319,12 @@ def close_line(kind, lines, h, lv, end):
+         while j <= end:
+             t = re.sub(r"#.*$", "", lines[j - 1])
+             depth += t.count("(") - t.count(")")
+-            if depth <= 0 and t.rstrip().endswith(":"):
+-                break
+-            j += 1
++            rest = t[t.rfind(")") + 1:] if depth <= 0 and ")" in t else ""
++            if depth <= 0 and ":" in rest:
++                break                 # the colon after the closing parenthesis ends the header (a one-liner
++            j += 1                    # `def f(): return 1` ends on its own line; review r2 DISS-001)
++        if j > end:
++            j = h                     # no terminating colon found (a `(` or `#` inside a string default): one-line header
+         last = j
+         for L in range(j + 1, end + 1):
+             t = lines[L - 1]
+diff --git a/evals/tests/eval-recall-grader.bats b/evals/tests/eval-recall-grader.bats
+index 75b521dc..f161e7ee 100644
+--- a/evals/tests/eval-recall-grader.bats
++++ b/evals/tests/eval-recall-grader.bats
+@@ -460,6 +460,26 @@ D() { echo "$output" | jq -r "$1"; }
+   review 'sig.py:14 the next def'
+   run "$GRADER" "$WS" pr-s
+   [ "$(D '.details.detected | length')" = "0" ]
++  # a one-liner def ends on its own line (review r2 DISS-001): the top-level lines after it are not its body
++  { echo 'def one(): return 1'; for i in $(seq 2 12); do echo "x$i = $i"; done; echo 'def two(s, comment="#"):'; echo '    return s'; echo 'y = 0'; } > "$T/pr-s/head/.claude/scripts/one.py"
++  man_s '[{"id":"S1","file":".claude/scripts/one.py","anchor_line":1,"severity":"medium"},{"id":"S2","file":".claude/scripts/one.py","anchor_line":14,"severity":"low"}]'
++  review 'one.py:9 top level, far from the one-liner'
++  run "$GRADER" "$WS" pr-s
++  [ "$(D '.details.detected | length')" = "0" ]
++  review 'one.py:15 the line after two(): top level, not the body'
++  run "$GRADER" "$WS" pr-s
++  [ "$(D '.details.detected | join(",")')" = "S2" ]     # ±3 of site 14 only; S1 untouched
++}
++
++@test "RG-43 (review r2 DISS-003) a four-backtick fence is not closed by a three-backtick line inside it" {
++  make_scope
++  { echo '## Section A'; echo 'text 2'; echo 'text 3'; echo '````md'; echo 'example:'; echo '```bash'; echo '# inner comment'; echo '```'; echo '# still inside the outer fence'; echo '````'
++    echo 'text 11'; echo 'text 12'; echo '## Section B'; echo 'text 14'; } > "$T/pr-s/head/.claude/docs/fence4.md"
++  man_s '[{"id":"S1","file":".claude/docs/fence4.md","anchor_line":3,"severity":"low"}]'
++  review 'fence4.md:12 after the nested fences, same section'
++  run "$GRADER" "$WS" pr-s
++  [ "$status" -eq 0 ]
++  [ "$(D '.details.detected | join(",")')" = "S1" ]
+ }
+ 
+ @test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {

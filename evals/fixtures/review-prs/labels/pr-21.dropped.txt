@@ -1,0 +1,9 @@
+# pr-21 sprint-257: findings that did not become labels
+# 16 secret-shaped test string(s) redacted as REDACTED-TEST-SECRET in base/, head/ and head.diff (verbatim copies of tracked test fixtures; line numbers unchanged)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L28 [low] cites no file: beside `auth: "local"` is silently overridden (dissent DISS-C-004, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L32 [low] first cited file is not part of this fixture (.loa.config.yaml): the probe helper CLI leaks tracebacks outside its exit-code contract (dissent DISS-C-005, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L18 [medium] first cited file is not part of this fixture (adapters/cheval-delegate.ts:117-172): Bridgebuilder's trusted configuration governs which voices it accepts, but cheval reads the checkout's configuration for the dispatch (dissent DISS-C-002, conf…
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L24 [low] cites no file: is accepted as a local host but resolved by the system resolver (dissent DISS-C-004, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L28 [low] first cited file is not part of this fixture (metadata.locality.note): the one-family DEGRADED audit is not machine-readable (dissent DISS-C-005, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L32 [low] cites no file: a zero price on a hosted model zeroes both the pre-call estimate and the ledger (dissent DISS-C-003, confirmed as a hardening)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12 [medium] duplicate of L01-a-declared-is-trusted-not-enforced-disse (same anchor): under `local_voices` a local model's hosted fallback leaves the declared providers inside one cheval call (dissent DISS-C-001, confirmed)

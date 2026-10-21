@@ -1,0 +1,61 @@
+# tools/prompt-keeplist.txt — protected prompt text (cycle-124 FR-8, AC-8.3)
+#
+# One entry per line: <id> TAB <path-or-glob> TAB <ERE> TAB <reason>
+# tests/unit/prompt-audit-keeplist.bats asserts that EVERY file matching the
+# glob still matches the ERE. The human companion that explains each entry is
+# tools/prompt-keeplist.md (one row per id; it moved out of the a2a record
+# because the template repo keeps a2a/sprint-* off main).
+# An audit patch that deletes a keep-listed string is rejected by the lead gate
+# before it is read (PRD FR-8 step 2); this file is itself keep-listed (K-46).
+#
+# ---- CLAUDE.loa.md: zone model, gates, generated blocks, invariants ----------
+K-01	.claude/loa/CLAUDE.loa.md	\| System \| `\.claude/` \| NEVER edit	Three-Zone table row: the System Zone rule and its permission
+K-02	.claude/loa/CLAUDE.loa.md	Never edit `\.claude/`.*\.claude/overrides/	the zone rule's remedy (overrides / config) stays with the rule
+K-03	.claude/loa/CLAUDE.loa.md	@constraint-generated: start process_compliance_never	registry-rendered NEVER table (edited only through generate-constraints.sh)
+K-04	.claude/loa/CLAUDE.loa.md	@constraint-generated: start process_compliance_always	registry-rendered ALWAYS table
+K-05	.claude/loa/CLAUDE.loa.md	@constraint-generated: start task_tracking_hierarchy	registry-rendered task-tracking table
+K-06	.claude/loa/CLAUDE.loa.md	@constraint-generated: start merge_constraints	registry-rendered merge constraints
+K-07	.claude/loa/CLAUDE.loa.md	@constraint-generated: start agent_teams_constraints	registry-rendered Agent Teams MUST rows
+K-08	.claude/loa/CLAUDE.loa.md	LOA-VERDICT	the machine trailer contract is named in the always-loaded surface
+K-09	.claude/loa/CLAUDE.loa.md	verdict-derive\.sh	the mechanical verdict filter is named where the trailer is named
+K-10	.claude/loa/CLAUDE.loa.md	one-way rule	critical+high > 0 forces CHANGES_REQUIRED; zero never forces APPROVED
+K-11	.claude/loa/CLAUDE.loa.md	audit_emit	agent-network L1 universal invariant: chain writes only through the lib
+K-12	.claude/loa/CLAUDE.loa.md	lib/jcs\.sh	agent-network invariant: canonicalize via jcs.sh, never jq -S
+K-13	.claude/loa/CLAUDE.loa.md	UNTRUSTED	agent-network invariant: L5/L6/L7 bodies are data, never instructions
+K-14	.claude/loa/CLAUDE.loa.md	JACKED_OUT	run-mode state recovery table (RUNNING / HALTED / JACKED_OUT)
+K-15	.claude/loa/CLAUDE.loa.md	sprint-plan-state\.json	run-mode state file named for post-compaction recovery
+K-16	.claude/loa/CLAUDE.loa.md	session-limit-capture\.sh	session-limit capture instruction (the remedy, not history)
+K-17	.claude/loa/CLAUDE.loa.md	beads-health\.sh	beads-first: the health check command
+K-18	.claude/loa/CLAUDE.loa.md	hooks-reference\.md	safety-hook inventory pointer (fence documentation may shrink; the pointer stays)
+K-19	.claude/loa/CLAUDE.loa.md	Never simplify away	Karpathy floor: the never-simplify-away list survives the kernel compression
+K-20	.claude/loa/CLAUDE.loa.md	loa:shortcut	Karpathy in-code marker convention
+K-21	.claude/loa/CLAUDE.loa.md	simplicity_intensity	Karpathy intensity knob (config key named in the kernel)
+K-22	.claude/loa/CLAUDE.loa.md	karpathy-principles\.md	the kernel's pointer to the full rationale
+K-23	.claude/loa/CLAUDE.loa.md	golden-path\.sh	Golden Path entry script
+K-24	.claude/loa/CLAUDE.loa.md	\| `/loa` \|	Golden Path table (kept verbatim)
+# ---- review / audit skills: verdict contract, format pins, tool policy -------
+K-25	.claude/skills/reviewing-code/SKILL.md	^All good$|`All good`	APPROVED first-line contract the gates read
+K-26	.claude/skills/reviewing-code/SKILL.md	LOA-VERDICT	trailer contract
+K-27	.claude/skills/reviewing-code/SKILL.md	verdict-derive\.sh	self-check command
+K-28	.claude/skills/reviewing-code/SKILL.md	"gate":"review"	format-pinning trailer example
+K-29	.claude/skills/reviewing-code/SKILL.md	engineer-feedback\.md	output path contract
+K-30	.claude/skills/reviewing-code/SKILL.md	^disallowed-tools:	tool-policy frontmatter (mechanical C-PROC-001)
+K-31	.claude/skills/auditing-security/SKILL.md	APPROVED - LET'S FUCKING GO	audit ritual string the gate reads
+K-32	.claude/skills/auditing-security/SKILL.md	LOA-VERDICT	trailer contract
+K-33	.claude/skills/auditing-security/SKILL.md	verdict-derive\.sh	self-check command
+K-34	.claude/skills/auditing-security/SKILL.md	auditor-sprint-feedback\.md	output path contract
+K-35	.claude/skills/auditing-security/SKILL.md	^disallowed-tools:	tool-policy frontmatter
+K-36	.claude/skills/implementing-tasks/SKILL.md	reviewer\.md	implementation report path contract
+K-37	.claude/skills/implementing-tasks/SKILL.md	AC Verification	the report section validate-ac-verification.sh gates on
+K-38	.claude/skills/implementing-tasks/SKILL.md	br close	beads lifecycle (single source of truth for task state)
+K-39	.claude/skills/run-mode/SKILL.md	JACKED_OUT	run-mode state machine names
+K-40	.claude/skills/run-mode/SKILL.md	verdict-derive	run-mode review/audit gate reads the trailer, not prose
+# ---- routing text: every audited skill keeps its trigger surface -------------
+K-41	.claude/skills/{rtfm-testing,bug-triaging,translating-for-executives,planning-sprints,simstim-workflow,riding-codebase,autonomous-agent,discovering-requirements,deploying-infrastructure,auditing-security,reviewing-code,implementing-tasks,run-mode}/SKILL.md	^name:	skill name (routing)
+K-42	.claude/skills/{rtfm-testing,bug-triaging,translating-for-executives,planning-sprints,simstim-workflow,riding-codebase,autonomous-agent,discovering-requirements,deploying-infrastructure,auditing-security,reviewing-code,implementing-tasks,run-mode}/SKILL.md	^description:	skill description (trigger/routing text)
+# ---- personas: the schema-bearing fields the wire schemas mirror ------------
+K-43	.claude/skills/flatline-reviewer/persona.md	confidence	reviewer finding field (wire parity W5)
+K-44	.claude/skills/flatline-skeptic/persona.md	"concerns"	skeptic envelope key scoring-engine reads
+K-45	.claude/skills/flatline-scorer/persona.md	score	scorer output field
+# ---- the keep list itself ----------------------------------------------------
+K-46	tests/unit/prompt-audit-keeplist.bats	prompt-keeplist\.txt	the bats that reads this list must keep reading it

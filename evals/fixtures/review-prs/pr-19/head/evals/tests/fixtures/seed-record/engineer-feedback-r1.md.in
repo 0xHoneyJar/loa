@@ -1,0 +1,14 @@
+# Sprint 901 Review Feedback — round 1 (seed-corpus.bats fixture)
+
+## Changes Required
+
+- **HIGH** (confidence: high) `scripts/a.sh:check_input` — the input check accepts an empty value and reports it as accepted.
+- **MEDIUM** (confidence: high) `scripts/b.sh:2` — the read loop never ends on a closed pipe.
+- **LOW** (confidence: high) `scripts/c.sh:3` — the log line printed @SECRET@ to stdout.
+- **LOW** (confidence: medium) process — the dissent run skipped `scripts/a.sh` once.
+
+## Previous Feedback Status
+
+- **HIGH** (confidence: high) `scripts/a.sh:check_input` — a previous-round item that must never be read.
+
+<!-- LOA-VERDICT {"gate":"review","verdict":"CHANGES_REQUIRED","counts":{"critical":0,"high":1,"medium":1,"low":2},"sprint_id":"sprint-901","ts":"2026-10-14T00:00:00Z"} -->

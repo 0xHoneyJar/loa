@@ -1,0 +1,182 @@
+{
+  "changed_files": 88,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 22,
+    "issue": 2,
+    "kf": 2
+  },
+  "fixture": "pr-14",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 6,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \".build-manifest.json\" OR \".loa.config.yaml.example\" OR \"CLAUDE.loa.md\" OR \"README.md\" OR \"SHA256SUMS\"",
+      "total_count": 6
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"SKILL.md\" OR \"adversarial-review-companion.bats\" OR \"agent-types.yaml\" OR \"alternative-model.md\" OR \"base.py\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"check-permissions.bats\" OR \"check-permissions.sh\" OR \"check-prompt-budget.sh\" OR \"cheval.py\" OR \"compliance-hook.bats\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"config.generated.d.ts.map\" OR \"config.generated.js\" OR \"config.generated.js.map\" OR \"config.generated.ts\" OR \"constraint-rationales-pre-diet.json\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"constraints.json\" OR \"cycle-124-anthropic-catalog.bats\" OR \"cycle-124-effort-flag.bats\" OR \"cycle099-prefer-pro-wiring.bats\" OR \"cycle099-tier-groups-defaults.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"detect-platform-features.sh\" OR \"edit-lib-active-bug.json\" OR \"edit-src-subagent-plain.json\" OR \"ensure_license_fixtures.sh\" OR \"eval-recall-grader.bats\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"expected.tsv\" OR \"flatline-learning-extractor.sh\" OR \"flatline-max-tokens.bats\" OR \"flatline-model-allowlist.bats\" OR \"flatline-model-validation.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"flatline-orchestrator.sh\" OR \"flatline-proposal-review.sh\" OR \"flatline-readiness.sh\" OR \"flatline-validate-learning.sh\" OR \"gen-adapter-maps.bats\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"gen-bb-registry-codegen.bats\" OR \"generated-model-maps.sh\" OR \"golden-always-table.md\" OR \"golden-never-table.md\" OR \"hook-guard.bats\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 4,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"hook-guard.sh\" OR \"implement-gate.bats\" OR \"implement-gate.sh\" OR \"instruction-diet-revert.bats\" OR \"lib-content.sh\"",
+      "total_count": 4
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"license-fixture-freshness.bats\" OR \"loa-status-providers.bats\" OR \"loa-status.sh\" OR \"model-adapter.bats\" OR \"model-adapter.sh\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"model-config-v3-schema.bats\" OR \"model-config-v3.schema.json\" OR \"model-config.yaml\" OR \"model-config.yaml.checksum\" OR \"model-permissions.yaml\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"model-residue.bats\" OR \"pr-02.json\" OR \"pr-05.json\" OR \"prompt-budget.bats\" OR \"protocol-refs-resolve.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"recall-vs-defects.sh\" OR \"red-team-model-adapter.sh\" OR \"red-team-pipeline.sh\" OR \"skill-capabilities.bats\" OR \"skill-invariants.md\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"test_anthropic_catalog_floor.py\" OR \"test_anthropic_thinking.py\" OR \"test_max_tokens_defaults.py\" OR \"test_model_registry_parity.py\" OR \"test_trust_scopes.py\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"truncation.generated.d.ts.map\" OR \"truncation.generated.js\" OR \"truncation.generated.js.map\" OR \"truncation.generated.ts\" OR \"v2.0-model-generation-floor.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"validate-artifact.bats\" OR \"validate-artifact.sh\" OR \"validate-skill-capabilities.sh\" OR \"write-app-active-review.json\" OR \"write-src-active-implement.json\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"write-src-plain.json\" OR \"write-src-subagent-run.json\" OR \"write-state-active-review.json\"",
+      "total_count": 0
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 13,
+  "merge_commit": "e70f2838ef29e52e25f651d62706317b335c29b6",
+  "merge_date": "2026-10-07T07:45:33Z",
+  "pr": 1274,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:23:59Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-07T07:45:33Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:23:59Z"
+  }
+}

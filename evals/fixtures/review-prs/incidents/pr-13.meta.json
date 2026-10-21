@@ -1,0 +1,102 @@
+{
+  "changed_files": 54,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 11,
+    "issue": 1,
+    "kf": 1
+  },
+  "fixture": "pr-13",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"BIBLIOGRAPHY.md\" OR \"CLAUDE.loa.md\" OR \"NOTES.md.template\" OR \"PARALLEL-REVIEW.md\" OR \"PARALLEL-SPLIT.md\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"PROCESS.md\" OR \"README.md\" OR \"SKILL.md\" OR \"check-prompt-budget.sh\" OR \"citations.md\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"constraints.json\" OR \"constructs-integration.md\" OR \"context-class.bats\" OR \"context-engineering.md\" OR \"context-retrieval.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"context_discipline.md\" OR \"continuous-learning.md\" OR \"golden-always-table.md\" OR \"golden-never-table.md\" OR \"grounding-enforcement.md\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"helper-scripts.md\" OR \"hooks-reference.md\" OR \"impact-analysis.md\" OR \"loa-context-class.sh\" OR \"loa-status.sh\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"prompt-budget.bats\" OR \"protocols-summary.md\" OR \"recommended-hooks.md\" OR \"ride-translation.md\" OR \"ride.md\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"scripts-reference.md\" OR \"session-continuity.md\" OR \"settings.hooks.json\" OR \"settings.json\" OR \"skill-includes.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"structured-memory.md\" OR \"synthesis-checkpoint.md\" OR \"tool-result-clearing.md\" OR \"trajectory-evaluation.md\" OR \"validate-ck-integration.sh\"",
+      "total_count": 0
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 13,
+  "merge_commit": "e70f2838ef29e52e25f651d62706317b335c29b6",
+  "merge_date": "2026-10-07T07:45:33Z",
+  "pr": 1274,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:23:23Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-07T07:45:33Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:23:23Z"
+  }
+}

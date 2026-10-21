@@ -1,0 +1,134 @@
+{
+  "changed_files": 68,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 0,
+    "issue": 0,
+    "kf": 1
+  },
+  "fixture": "pr-20",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \".loa.config.yaml\" OR \".loa.config.yaml.example\" OR \"CLAUDE.loa.md\" OR \"SKILL.md\" OR \"agent-teams-reference.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"block-destructive-bash.sh\" OR \"check-knob-readers.sh\" OR \"check-prompt-budget.sh\" OR \"check-prompt-budget.yml\" OR \"completion-modes.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"constraints.json\" OR \"corpus.jsonl\" OR \"danger-level-enforcer.sh\" OR \"generate-constraints.sh\" OR \"golden-path-c8-verdict-trailer.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"guard-origins.yaml\" OR \"guard-yield.bats\" OR \"guardrails-orchestrator.sh\" OR \"halt-resume.md\" OR \"heredoc-classifier.sh\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"hooks-reference.md\" OR \"implement-gate.bats\" OR \"implement-gate.sh\" OR \"input-guardrails-prelude.md\" OR \"input_guardrails.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"instruction-diet-revert.bats\" OR \"karpathy-surgical-diff-check.sh\" OR \"karpathy-surgical-diff-hook.bats\" OR \"karpathy-surgical-diff.bats\" OR \"karpathy-trajectory-event.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"lint-invariants.bats\" OR \"lint-invariants.sh\" OR \"loa-decisions-surface.sh\" OR \"loa-kf-surface.sh\" OR \"loa-l6-surface-handoffs.sh\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"loa-l7-surface-soul.sh\" OR \"loa-status.sh\" OR \"profile-floor.bats\" OR \"profile-lib.bats\" OR \"profile-lib.sh\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"profiles.yaml\" OR \"prompt-budget.bats\" OR \"prompt-keeplist.md\" OR \"prompt-keeplist.txt\" OR \"retrospective-postlude.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"retrospective_postlude.md\" OR \"run-checkpoint-derive.bats\" OR \"run-checkpoint-record-round.bats\" OR \"run-checkpoint.sh\" OR \"run-corpus.sh\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"skill-capabilities.bats\" OR \"skill-invariants.md\" OR \"sprint-plan-mode.md\" OR \"standard-oracle.json\" OR \"state-schemas.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-14 \"test-lint-invariants.sh\" OR \"validate-constraints.sh\" OR \"validate-skill-capabilities.sh\"",
+      "total_count": 1
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 6,
+  "merge_commit": "9e53d5d2e108690a62e75bb1235f79c466050f84",
+  "merge_date": "2026-10-14T12:32:46Z",
+  "pr": 1282,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:28:44Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-14T12:32:46Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:28:44Z"
+  }
+}

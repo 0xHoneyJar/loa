@@ -1,0 +1,51 @@
+# approved-by: pending
+# fixture pr-19 | sprint-255 | record origin/record/cycle-129-a2a | base ffd25258d094 | head ee1625a0b674 | fix b6802e4f392a
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor: text on exactly one head line, or @L<n> for head line n), then --approve
+# L01 medium review: default executor and header contradict DEC-0172 [quoted snippet + fix hunk near cited line 45]
+# L02 medium review: the floor snapshot never runs in CI [fix hunk near cited line 17]
+# L03 low review: intermediate symlink escapes the hook containment check (dissent DISS-C-002) [quoted snippet + fix hunk near cited line 219]
+# L04 medium audit: Arm toggles apply outside arm mode and leak from the environment (dissent DISS-C-001) [fix hunk near cited line 163]
+# L05 medium audit: corpus check ignores unlisted files (dissent DISS-C-002) [fix hunk near cited line 134]
+# L06 low audit: accepts `.` and `..` (dissent DISS-C-004) [quoted snippet + fix hunk near cited line 131]
+# L07 low audit: Transport-failure classifier reads the agent's own output (dissent DISS-C-005) [quoted snippet + fix hunk near cited line 318]
+# L08 low audit: Pristine-worktree check ignores ignored files (dissent DISS-C-006) [fix hunk near cited line 231]
+# L09 low audit: Redaction regexes narrower than the grader's; [quoted snippet + fix hunk near cited line 112]
+# L10 low audit: Karpathy constraints rewrite could fail silently (dissent DISS-C-008) [fix hunk near cited line 256]
+# L11 low audit: unvalidated (dissent DISS-C-009) [cited line 401 (no fix hunk within 60 lines)]
+defect_id	severity	category	file	must_match	label_source	source
+L01-default-executor-and-header-contradict-d	medium	security	evals/harness/run-arms.sh	DEFAULT_MODEL="claude-fable-5-1"	review	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L12
+L01-default-executor-and-header-contradict-d	medium	security	evals/harness/run-arms.sh	# Executor: Fable 5.1 (D33, DEC-0164); the default --model is the id the	review	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L12
+L02-the-floor-snapshot-never-runs-in-ci	medium	logic	tests/unit/floor-snapshot.bats	@test "FS-3 the register disables nothing: settings.json hook registrations are identical to origin/main" {	review	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L15
+L03-intermediate-symlink-escapes-the-hook-co	low	security	.claude/scripts/guard-yield.sh	readlink	review	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L21
+L03-intermediate-symlink-escapes-the-hook-co	low	security	.claude/scripts/guard-yield.sh	if [[ -L "$abs" ]]; then	review	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L21
+L04-arm-toggles-apply-outside-arm-mode-and-l	medium	logic	evals/harness/execute-agent.sh	resolve_toggles() {	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L24
+L05-corpus-check-ignores-unlisted-files-diss	medium	logic	evals/harness/run-arms.sh	[[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L27
+L05-corpus-check-ignores-unlisted-files-diss	medium	logic	evals/harness/run-arms.sh	bad.append(rel)	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L27
+L06-accepts-and-dissent-diss-c-004	low	logic	evals/harness/run-arms.sh	cleanup()	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L38
+L06-accepts-and-dissent-diss-c-004	low	logic	evals/harness/run-arms.sh	[[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L38
+L07-transport-failure-classifier-reads-the-a	low	logic	evals/harness/run-arms.sh	5[0-9][0-9]	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L41
+L08-pristine-worktree-check-ignores-ignored	low	logic	evals/harness/run-arms.sh	[[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]] \	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L44
+L09-redaction-regexes-narrower-than-the-grad	low	logic	evals/harness/seed-corpus-from-record.sh	password	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L47
+L09-redaction-regexes-narrower-than-the-grad	low	logic	evals/harness/seed-corpus-from-record.sh	s = re.sub(r"\s+", " ", s).strip()	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L47
+L10-karpathy-constraints-rewrite-could-fail	low	logic	evals/harness/execute-agent.sh	local cj="$WORKSPACE/.claude/data/constraints.json"	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L50
+L11-unvalidated-dissent-diss-c-009	low	logic	evals/harness/execute-agent.sh	--arg source_commit "${LOA_EVAL_SOURCE_COMMIT:-$prompt_tree_commit}" \	audit	record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L53
+F001	-	fix	.claude/scripts/guard-yield.sh	if [[ -L "$abs" ]]; then	fix	fix/b6802e4f392a:220-229
+F002	-	fix	.claude/scripts/guard-yield.sh	done < <(jq -r '.guards[] | select(.kind == "gate" or .kind == "policy") | .script' <<<"$MAP_JSON")	fix	fix/b6802e4f392a:334-334
+F003	-	fix	.claude/scripts/guard-yield.sh	|| die 3 "$HOOKS_REF needs exactly one <!-- guard-register:begin --> and one <!-- guard-register:end --> line (found $nb and $ne)"	fix	fix/b6802e4f392a:393-393
+F004	-	fix	.github/workflows/bats-tests.yml	- uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1	fix	fix/b6802e4f392a:91-91
+F005	-	fix	evals/harness/execute-agent.sh	resolve_toggles() {	fix	fix/b6802e4f392a:162-165
+F006	-	fix	evals/harness/execute-agent.sh	local cj="$WORKSPACE/.claude/data/constraints.json"	fix	fix/b6802e4f392a:254-258
+F007	-	fix	evals/harness/execute-agent.sh	prompt_tree_commit="$(git -C "$PROMPT_TREE" rev-parse HEAD 2>/dev/null || echo unknown)"	fix	fix/b6802e4f392a:289-289
+F008	-	fix	evals/harness/run-arms.sh	# Executor: Fable 5.1 (D33, DEC-0164); the default --model is the id the	fix	fix/b6802e4f392a:45-46
+F009	-	fix	evals/harness/run-arms.sh	DEFAULT_MODEL="claude-fable-5-1"	fix	fix/b6802e4f392a:56-56
+F010	-	fix	evals/harness/run-arms.sh	[[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"	fix	fix/b6802e4f392a:127-127
+F011	-	fix	evals/harness/run-arms.sh	bad.append(rel)	fix	fix/b6802e4f392a:150-150
+F012	-	fix	evals/harness/run-arms.sh	[[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]] \	fix	fix/b6802e4f392a:231-232
+F013	-	fix	evals/harness/run-arms.sh	grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|network|socket hang up|5[0-9][0-9] ' \	fix	fix/b6802e4f392a:314-315
+F014	-	fix	evals/harness/run-arms.sh	EVAL_PROMPT_TREE="$WORKTREE" EVAL_MODEL="$MODEL" LOA_EVAL_ARM="$arm" LOA_EVAL_SUITE_FILE="$SUITE_FILE" \	fix	fix/b6802e4f392a:336-336
+F015	-	fix	evals/harness/seed-corpus-from-record.sh	s = re.sub(r"\s+", " ", s).strip()	fix	fix/b6802e4f392a:110-114
+F016	-	fix	evals/harness/seed-corpus-from-record.sh	record_name = record_ref.split("origin/", 1)[-1]	fix	fix/b6802e4f392a:307-307
+F017	-	fix	evals/tests/arm-toggles.bats	LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT=864069f2 \	fix	fix/b6802e4f392a:194-194
+F018	-	fix	evals/tests/arm-toggles.bats	[ "$(jq -r '.source_commit' "$WS/.eval/executor.json")" = "864069f2" ]	fix	fix/b6802e4f392a:199-199
+F019	-	fix	evals/tests/run-arms.bats	[ "$(jq -r '.model_id' "$M")" = "claude-fable-5-1" ]	fix	fix/b6802e4f392a:52-52
+F020	-	fix	tests/unit/floor-snapshot.bats	@test "FS-3 the register disables nothing: settings.json hook registrations are identical to origin/main" {	fix	fix/b6802e4f392a:44-50

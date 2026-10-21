@@ -7,7 +7,8 @@
 # Usage:
 #   seed-corpus-from-record.sh <global-sprint> <record-ref> [--out <corpus>/pr-NN]
 #                              [--base <rev>] [--head <rev>] [--fix <rev>]
-#                              [--feedback a.md,b.md] [--dry-run]
+#                              [--feedback a.md,b.md] [--paths 'glob,!glob'] [--allow-no-labels] [--dry-run]
+#   seed-corpus-from-record.sh --stamp-exposure pr-NN   # add/refresh the exposure block (cycle-132)
 #   seed-corpus-from-record.sh --build-manifest pr-NN   # labels → hidden manifest (after curation)
 #   seed-corpus-from-record.sh --approve pr-NN --by "<who> <YYYY-MM-DD>"
 #   seed-corpus-from-record.sh --sync-labels pr-NN      # manifest anchors/approved_by → labels rows
@@ -15,8 +16,41 @@
 #   seed-corpus-from-record.sh --check                  # verify SHA256SUMS
 #   common: [--repo <git dir>] [--corpus <evals/fixtures/review-prs>]
 #
-# Without --base/--head/--fix/--feedback/--out the sprint's row in
+# Without --base/--head/--fix/--feedback/--paths/--out the sprint's row in
 # <corpus>/record-pairs.tsv supplies them.
+#
+# --feedback (cycle-132 FR-1, SDD D-1.1) is a comma list; each entry is a bare
+# `<name>.md` (the shorthand: grimoires/loa/a2a/sprint-<N>/<name>.md on the record
+# ref), `a2a/<dir>/<name>.md` (under grimoires/loa/) or any `.md` path relative to
+# the record ref's root (the cycle-131 sprints keep theirs under a2a/sprint-1 … 3/).
+# An absolute path, a `..` or `.` component, a backslash, a NUL or a non-.md name
+# is a usage error (exit 2); a path the record ref does not hold is reported as
+# dropped. fixture.yaml lists the paths read.
+#
+# --paths (cycle-132) scopes the fixture to part of base..head when two sprints
+# share a base (sprints 261/262): a comma list of fnmatch globs (`*` crosses `/`);
+# an entry starting with `!` excludes. A changed path is in scope when it matches
+# an include (or there is none) and no exclude. The scope is recorded in
+# fixture.yaml as `scope_paths`; a scope that leaves no file is refused (exit 1).
+#
+# --allow-no-labels (cycle-132) builds the fixture even when no finding became a
+# label: the review-derived set is then empty (a manifest with `defects: []`, the
+# fix regions kept) because the blind annotation (FR-2), not the review, supplies
+# the primary key. Without it such a sprint is a gap row in corpus.tsv, as before.
+#
+# Provenance (cycle-132 FR-1, SDD §3.2): every seeded fixture.yaml ends with
+#   exposure:
+#     fable_5_1: post-cutoff|pre-cutoff   # head commit date (UTC) after the knowledge-cutoff month
+#     opus_5_5: unverified                # the catalog date is an upper bound, not a cutoff
+#     retrieval: public-repository
+#   contamination_note: "fix commits on main since <head date>; sandbox has network; egress scanned (grader class 9)"
+# computed from the MODEL_AVAILABILITY table below and the head commit's committer
+# date. --stamp-exposure pr-NN writes the same block into an existing fixture.yaml
+# (pr-11 … pr-18): it removes any earlier `exposure:` block and `contamination_note:`
+# line, appends the fresh block, keeps every other line byte for byte and is
+# idempotent; it refuses (exit 1, file untouched) a fixture without fixture.yaml,
+# without head_commit, or whose head commit --repo does not hold. It does not
+# refreeze: run --freeze.
 #
 # Writes (seed):
 #   <corpus>/pr-NN/{fixture.yaml, head.diff, PR.md, REVIEW-INSTRUCTIONS.md,
@@ -32,6 +66,10 @@
 # Scope: the fixture is the change base..head without the generated or state
 # files (grimoires/, CHANGELOG.md, .claude/checksums.json, REPO-MAP.md, lock
 # files, .beads/, .run/, evals/results/) and without binaries.
+#
+# Findings are read from `- **SEV** …` bullets, `### [SEV-n] …` and (cycle-132)
+# `### SEV-n — …` headings, `**SEV-n — title.** …` paragraphs and a Bridgebuilder
+# `Fixed` table; sections named previous feedback / refuted / praise / closed are skipped.
 #
 # Label rule: a feedback finding becomes a label only when the fix commit
 # touches the file it cites (`git diff --name-only head..fix`) and that file
@@ -104,7 +142,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 exec python3 -I - "$REPO_ROOT" "$@" <<'PY'
-import argparse, csv, hashlib, io, json, os, re, shutil, subprocess, sys, tempfile
+import argparse, csv, fnmatch, hashlib, io, json, os, re, shutil, subprocess, sys, tempfile
 
 HARNESS_ROOT = sys.argv[1]
 argv = sys.argv[2:]
@@ -116,6 +154,8 @@ ap.add_argument("--out"); ap.add_argument("--base"); ap.add_argument("--head"); 
 ap.add_argument("--feedback"); ap.add_argument("--dry-run", action="store_true")
 ap.add_argument("--build-manifest", metavar="FIXTURE"); ap.add_argument("--approve", metavar="FIXTURE")
 ap.add_argument("--sync-labels", metavar="FIXTURE")
+ap.add_argument("--stamp-exposure", metavar="FIXTURE"); ap.add_argument("--paths")
+ap.add_argument("--allow-no-labels", action="store_true")
 ap.add_argument("--by"); ap.add_argument("--freeze", action="store_true"); ap.add_argument("--check", action="store_true")
 ap.add_argument("--repo", default=HARNESS_ROOT)
 ap.add_argument("--corpus", default=os.path.join(HARNESS_ROOT, "evals", "fixtures", "review-prs"))
@@ -157,6 +197,67 @@ def rev(r):
 def show(r, path):
     p = subprocess.run(["git", "-C", REPO, "show", f"{r}:{path}"], capture_output=True)
     return p.stdout if p.returncode == 0 else None
+
+# cycle-132 FR-1: what each model could have seen (SDD §3.2 `exposure`). The Fable 5.1
+# knowledge cutoff is the published month; Opus 5.5's vendor cutoff is not published and
+# its catalog date is only an upper bound, so its exposure is never claimed either way.
+MODEL_AVAILABILITY = {
+    "fable_5_1": {"model": "claude-fable-5-1", "knowledge_cutoff": "2026-06"},
+    "opus_5_5": {"model": "claude-opus-5-5", "catalog_date": "2026-10-05", "cutoff": None},
+}
+RETRIEVAL = "public-repository"
+
+def head_date(commit):
+    """The head commit's committer date, UTC, YYYY-MM-DD."""
+    p = subprocess.run(["git", "-C", REPO, "log", "-1", "--date=format-local:%Y-%m-%d", "--format=%cd", commit],
+                       capture_output=True, text=True, env={**os.environ, "TZ": "UTC"})
+    d = p.stdout.strip()
+    if p.returncode != 0 or not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+        fail(f"cannot date head commit {commit[:12]} in {REPO}")
+    return d
+
+def exposure_values(commit):
+    d = head_date(commit)
+    fable = "post-cutoff" if d[:7] > MODEL_AVAILABILITY["fable_5_1"]["knowledge_cutoff"] else "pre-cutoff"
+    oc = MODEL_AVAILABILITY["opus_5_5"]["cutoff"]
+    opus = "unverified" if oc is None else ("post-cutoff" if d[:7] > oc else "pre-cutoff")
+    return d, fable, opus
+
+def exposure_block(commit):
+    d, fable, opus = exposure_values(commit)
+    return ("exposure:\n"
+            f"  fable_5_1: {fable}      # knowledge cutoff {MODEL_AVAILABILITY['fable_5_1']['knowledge_cutoff']}; head committed {d} (UTC)\n"
+            f"  opus_5_5: {opus}        # vendor cutoff not published; the catalog date {MODEL_AVAILABILITY['opus_5_5']['catalog_date']} is an upper bound only\n"
+            f"  retrieval: {RETRIEVAL}\n"
+            f'contamination_note: "fix commits on main since {d}; sandbox has network; egress scanned (grader class 9)"\n')
+
+def stamp_exposure(fx):
+    """--stamp-exposure: drop any earlier exposure block / contamination_note, append the fresh block."""
+    fy = os.path.join(CORPUS, fx, "fixture.yaml")
+    if not os.path.isfile(fy):
+        fail(f"{fx}: no fixture.yaml under {CORPUS}")
+    raw = open(fy, encoding="utf-8", newline="").read()
+    m = re.search(r'^head_commit:\s*"?([0-9a-f]{7,64})"?\s*$', raw, re.M)
+    if not m:
+        fail(f"{fx}: fixture.yaml has no head_commit (not a record fixture); left unchanged")
+    blk = exposure_block(rev(m.group(1)))
+    keep, in_blk = [], False
+    for l in raw.splitlines(keepends=True):
+        if in_blk and (l.startswith((" ", "\t")) or not l.strip()):
+            continue
+        in_blk = False
+        if re.match(r"^exposure:\s*(#.*)?$", l.rstrip("\r\n")):
+            in_blk = True; continue
+        if l.startswith("contamination_note:"):
+            continue
+        keep.append(l)
+    if keep and not keep[-1].endswith("\n"):
+        keep[-1] += "\n"
+    new = "".join(keep) + blk
+    if new != raw:
+        open(fy, "w", encoding="utf-8", newline="").write(new)
+    fable = re.search(r"fable_5_1: (\S+)", blk).group(1)
+    print(f"{fx}: exposure {'stamped' if new != raw else 'unchanged'} (fable_5_1 {fable}); run --freeze to refresh SHA256SUMS")
 
 CTRL = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
 def clean(s, cap=160):
@@ -530,6 +631,11 @@ if args.build_manifest:
     n = freeze()
     print(f"{args.build_manifest}: {len(m['defects'])} label(s), {len(m['fix_regions'])} fix region(s); approved={m['approved']}; SHA256SUMS {n} files")
     sys.exit(0)
+if args.stamp_exposure:
+    if not FX_RX.match(args.stamp_exposure):
+        fail("fixture id must be pr-NN", 2)
+    stamp_exposure(args.stamp_exposure)
+    sys.exit(0)
 if args.sync_labels:
     if not FX_RX.match(args.sync_labels):
         fail("fixture id must be pr-NN", 2)
@@ -577,9 +683,28 @@ fdir = os.path.join(CORPUS, fx)
 fy = os.path.join(fdir, "fixture.yaml")
 if os.path.isfile(fy) and "\nsprint:" not in "\n" + open(fy, encoding="utf-8").read():
     fail(f"{fx} exists and is not a record fixture; refusing to overwrite it")
-for f in feedback:
-    if "/" in f or f.startswith(".") or not f.endswith(".md"):
-        fail(f"feedback file must be a bare .md name: {f}", 2)
+def feedback_path(f):
+    """cycle-132 D-1.1: a bare name is the a2a/sprint-<N>/ shorthand; a2a/… sits under grimoires/loa/;
+    anything else is a path from the record ref's root. Unsafe or non-.md entries are usage errors."""
+    parts = f.split("/")
+    if (not f.endswith(".md") or f.startswith("/") or "\\" in f or "\x00" in f
+            or any(x in ("", ".", "..") for x in parts) or parts[-1].startswith(".")):
+        fail(f"feedback must be a .md name or a relative .md path without . or .. components: {f!r}", 2)
+    if len(parts) == 1:
+        return f"grimoires/loa/a2a/sprint-{sprint}/{f}"
+    if parts[0] == "a2a":
+        return "grimoires/loa/" + f
+    return f
+feedback = [(f.rsplit("/", 1)[-1], feedback_path(f)) for f in feedback]
+scope_raw = args.paths if args.paths is not None else (pair.get("paths") or "-")
+scope_raw = "" if scope_raw.strip() == "-" else scope_raw.strip()
+if "\n" in scope_raw or '"' in scope_raw or "\\" in scope_raw:
+    fail("--paths: a comma list of globs (no quote, backslash or newline)", 2)
+scope_inc = [g for g in scope_raw.split(",") if g and not g.startswith("!")]
+scope_exc = [g[1:] for g in scope_raw.split(",") if g.startswith("!") and len(g) > 1]
+def in_scope(p):
+    return ((not scope_inc or any(fnmatch.fnmatchcase(p, g) for g in scope_inc))
+            and not any(fnmatch.fnmatchcase(p, g) for g in scope_exc))
 base, head, fixc = rev(base_r), rev(head_r), rev(fix_r)
 record_ref = args.record_ref
 if subprocess.run(["git", "-C", REPO, "rev-parse", "--verify", "--quiet", record_ref], capture_output=True).returncode != 0:
@@ -606,12 +731,15 @@ for l in git("diff", "--name-status", "-M", base, head).splitlines():
         old = new = parts[1]
     if EXCL.match(new) or EXCL.match(old) or new in binary or old in binary:
         continue
+    if not (in_scope(new) or in_scope(old)):
+        continue
     for p in (old, new):
         if p.startswith("/") or ".." in p.split("/"):
             fail(f"unsafe path in the change: {p}")
     changes.append((st, old, new))
 if not changes:
-    fail(f"sprint {sprint}: no in-scope file changed between {base[:8]} and {head[:8]}")
+    fail(f"sprint {sprint}: no in-scope file changed between {base[:8]} and {head[:8]}"
+         + (f" (scope {scope_raw})" if scope_raw else ""))
 head_files = sorted({n for st, o, n in changes if st != "D"})
 paths = sorted({p for st, o, n in changes for p in (o, n)})
 diff_text = redact(git("diff", "-M", "--no-color", "--no-ext-diff", base, head, "--", *paths))
@@ -685,6 +813,11 @@ def symbol_extent(lines, sym):
 SEV = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "MED": "medium", "LOW": "low"}
 RX_A = re.compile(r"^\s*(?:[-*]|\d+\.)\s+\*\*(CRITICAL|HIGH|MEDIUM|LOW)\*\*\s*(?:\(([^)]*)\))?\s*(.*)$")
 RX_B = re.compile(r"^#{3,4}\s+\[(CRITICAL|HIGH|MEDIUM|MED|LOW)(?:-\d+)?\]\s*(.*)$")
+# cycle-132: the cycle-129/130 feedback writes findings as `### HIGH-1 — title` / `### MEDIUM-A1 (…) — title`
+# headings (RX_C) and as `**LOW-2 — title.** body` paragraphs (RX_D); both carry their locus in the body
+SEV_ID = r"(CRITICAL|HIGH|MEDIUM|MED|LOW)-[A-Z]?\d+\b\s*(?:\([^)]*\))?\s*[—–:-]\s*"
+RX_C = re.compile(r"^#{3,4}\s+" + SEV_ID + r"(.*)$")
+RX_D = re.compile(r"^\*\*" + SEV_ID + r"(.*?)\*\*\s*(.*)$")
 RX_H = re.compile(r"^#{1,4}\s")
 RX_BULLET = re.compile(r"^\s*(?:[-*]|\d+\.)\s+")
 SKIP_SECTION = re.compile(r"previous feedback|refuted|praise|status of prior|closed", re.I)
@@ -710,21 +843,25 @@ def parse_findings(name, text):
         l = lines[i]
         if LATER_ROUND.match(l):
             break   # a round-1 file that appends later rounds: those read a tree after head
-        if RX_H.match(l) and not RX_B.match(l):
+        if RX_H.match(l) and not RX_B.match(l) and not RX_C.match(l):
             section = l
             in_fixed_table = bool(re.match(r"^#{2,4}\s+Fixed\b", l))
             i += 1; continue
         if SKIP_SECTION.search(section):
             i += 1; continue
-        m_a, m_b = RX_A.match(l), RX_B.match(l)
-        if m_a or m_b:
-            sev = SEV[(m_a or m_b).group(1)]
-            rest = m_a.group(3) if m_a else m_b.group(2)
+        m_a, m_b = RX_A.match(l), RX_B.match(l) or RX_C.match(l)
+        m_d = None if (m_a or m_b) else RX_D.match(l)
+        if m_d:
+            sev, rest = SEV[m_d.group(1)], m_d.group(2).rstrip(" .") + (". " + m_d.group(3) if m_d.group(3) else "")
+        if m_a or m_b or m_d:
+            if not m_d:
+                sev = SEV[(m_a or m_b).group(1)]
+                rest = m_a.group(3) if m_a else m_b.group(m_b.lastindex)
             body = []
             j = i + 1
             while j < len(lines):
                 n = lines[j]
-                if RX_A.match(n) or RX_B.match(n) or RX_H.match(n) or (m_a and RX_BULLET.match(n)):
+                if RX_A.match(n) or RX_B.match(n) or RX_C.match(n) or RX_D.match(n) or RX_H.match(n) or (m_a and RX_BULLET.match(n)):
                     break
                 body.append(n); j += 1
             title = re.sub(r"^(?:`[^`]*`[\s,]*(?:and\s+|\([^)]*\)\s*)?)+", "", rest).lstrip("—–-: ")
@@ -798,11 +935,10 @@ def slug(title):
     return (s[:40].rstrip("-") or "finding")
 
 labels, dropped, fb_paths = [], [], []
-for name in feedback:
-    path = f"grimoires/loa/a2a/sprint-{sprint}/{name}"
+for name, path in feedback:
     blob = show(record_ref, path)
     if blob is None:
-        dropped.append(f"{name}: not on {record_ref}")
+        dropped.append(f"{name if path == f'grimoires/loa/a2a/sprint-{sprint}/{name}' else path}: not on {record_ref}")
         continue
     fb_paths.append(path)
     for f in parse_findings(name, blob.decode("utf-8", "replace")):
@@ -997,7 +1133,7 @@ if args.dry_run:
         print(f"  DROP {d}")
     sys.exit(0)
 
-if not labels:
+if not labels and not args.allow_no_labels:
     # the gap goes into corpus.tsv and the reasons into labels/<fx>.dropped.txt;
     # a previous build of this record fixture is removed (never left stale)
     shutil.rmtree(fdir, ignore_errors=True)
@@ -1038,7 +1174,8 @@ open(fy, "w", encoding="utf-8").write(
     f'description: "record fixture: sprint-{sprint} round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"\n'
     f'difficulty: advanced\ndomain: framework\ndeprecated: false\n'
     f'sprint: {sprint}\nbase_commit: "{base}"\nhead_commit: "{head}"\nfix_commit: "{fixc}"\n'
-    f'record_ref: "{record_ref}"\nfeedback_files:\n' + "".join(f'  - "{p}"\n' for p in fb_paths))
+    f'record_ref: "{record_ref}"\nfeedback_files:\n' + "".join(f'  - "{p}"\n' for p in fb_paths)
+    + (f'scope_paths: "{scope_raw}"\n' if scope_raw else "") + exposure_block(head))
 os.makedirs(LABELS_DIR, exist_ok=True)
 open(os.path.join(LABELS_DIR, f"{fx}.tsv"), "w", encoding="utf-8").write("\n".join(tsv) + "\n")
 open(os.path.join(LABELS_DIR, f"{fx}.dropped.txt"), "w", encoding="utf-8").write(

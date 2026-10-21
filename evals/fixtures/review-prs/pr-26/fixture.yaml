@@ -1,0 +1,23 @@
+name: pr-26
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-262 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 262
+base_commit: "b4ef76bf35cd420f0b9e2d05b7fbf3959289cce2"
+head_commit: "82c5cd7d5f677e6c5211696e5a1d0f63b8f339af"
+fix_commit: "56ce0b8f78cc762279d9fb1553f5e812d4014311"
+record_ref: "origin/record/cycle-130-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-262/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-262/auditor-sprint-feedback.md"
+scope_paths: "evals/harness/ablation-row.sh,evals/harness/ablation-report.py,evals/tests/ablation-row.bats,evals/tests/ablation-report.bats,evals/tests/fixtures/ablation-report/*"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-18 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-18; sandbox has network; egress scanned (grader class 9)"

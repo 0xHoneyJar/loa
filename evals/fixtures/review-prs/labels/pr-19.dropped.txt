@@ -1,0 +1,6 @@
+# pr-19 sprint-255: findings that did not become labels
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L18 [medium] fix commit does not touch .claude/data/floor.yaml: a floor gate can be unregistered without tripping the register (dissent DISS-C-003)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L24 [low] cites no file: marker order unchecked in `render_hooks_ref` (dissent DISS-C-006)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L33 [medium] first cited file is not part of this fixture (CLAUDE.md): Fixture content may carry an instruction file for the agent under test (dissent DISS-C-003, partly refuted)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L56 [low] fix commit does not touch .claude/hooks/safety/block-destructive-bash.sh: The replay flag is an environment variable
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L30 [medium] duplicate of L02-the-floor-snapshot-never-runs-in-ci (same anchor): Floor snapshot pins every hook registration and every fence call site

@@ -1,0 +1,1620 @@
+diff --git a/evals/harness/ablation-grade.sh b/evals/harness/ablation-grade.sh
+index e326e4d2..157e22a3 100755
+--- a/evals/harness/ablation-grade.sh
++++ b/evals/harness/ablation-grade.sh
+@@ -217,6 +217,13 @@
+ #    first contamination hit, like history_probes; telemetry, not a row field), contaminated}
+ # grader 1.2.1 (Sprint 260 calibration, DEC-0540): git history probes are telemetry; a
+ # one-component absolute word is a command token unless it names root, home, mnt, media or srv.
++# grader 1.2.11 (Sprint 261): 1.2.10's --import-mode=importlib is reverted (it broke the sibling-module imports hidden
++# suites and fixture suites rely on: import _oracle_x, from helpers import …); instead a Python file the agent added
++# (no fixture file and no hidden overlay at its path) whose basename equals a hidden overlay's or a fixture test file's
++# basename is removed before any command runs (counted in grade.json colliding_tests_removed, paths beside the tree in
++# grading/<label>.colliding-removed.txt): under pytest's default import mode two test modules with one basename in
++# package-less directories abort collection (import file mismatch) and would grade a correct solution as failing.
++# grader 1.2.10 (Sprint 261, superseded by 1.2.11): pytest ran with --import-mode=importlib.
+ # grader 1.2.9 (Sprint 260 audit round 2): the glob rule reads * and ? only — a [ after a one-component word
+ # is a regex bracket expression (two P1 commands read as contaminated under 1.2.8: grep '/home[^"]*…',
+ # sed 's/job\["status"\]…'; KF-046 recurrence 7) — and a quoted one-component pattern stays exempt.
+@@ -295,7 +302,7 @@ import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, sub
+ # TERM; names carry this pid, so a later grade never collides)
+ signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
+ 
+-GRADER_VERSION = "1.2.9"
++GRADER_VERSION = "1.2.11"
+ SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
+ SPRINT = "sprint-1"
+ _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
+@@ -1008,7 +1015,9 @@ def prepare(t, tree):
+                 remove_path(os.path.join(tree, *parts))
+     for _s, dest, full in t.overlay:
+         put_file(tree, dest, full)
+-    return remove_harness(t, tree)
++    n = remove_harness(t, tree)
++    COLLIDING[0] += remove_colliding(t, tree)
++    return n
+ 
+ 
+ def is_harness(parts):
+@@ -1059,6 +1068,41 @@ def remove_harness(t, tree):
+     return len(found)
+ 
+ 
++COLLIDING = [0]   # agent-added .py files removed for a basename collision in this grade (1.2.11)
++
++
++def remove_colliding(t, tree):
++    """1.2.11: a .py file at a path that is neither a hidden overlay dest nor present in the fixture, whose basename
++    equals the basename of a hidden overlay .py file or of a fixture .py file under tests/ or test/, is removed: under
++    the default import mode pytest imports package-less test modules by basename and a second module with the same
++    basename aborts collection. Paths go to grading/<label>.colliding-removed.txt beside the tree → count"""
++    owned = {d for _s, d, f in t.overlay if not os.path.isdir(f)}
++    owned_dirs = tuple(d + "/" for _s, d, f in t.overlay if os.path.isdir(f))
++    reserved = {d.rsplit("/", 1)[-1] for d in owned if d.endswith(".py")}
++    fx = t.fixture or ""
++    if fx and os.path.isdir(fx):
++        for r, _ds, fs in os.walk(fx, followlinks=False):
++            parts = os.path.relpath(r, fx).replace(os.sep, "/").split("/")
++            if any(p in ("tests", "test") for p in parts):
++                reserved.update(n for n in fs if n.endswith(".py") and n not in ("__init__.py", "conftest.py"))
++    reserved.discard("conftest.py")   # pytest registers conftest modules per directory; remove_harness owns them
++    found = []
++    for r, ds, fs in os.walk(tree, followlinks=False):
++        relr = os.path.relpath(r, tree)
++        for name in sorted(fs):
++            if name not in reserved:
++                continue
++            rel = name if relr == "." else relr.replace(os.sep, "/") + "/" + name
++            if rel in owned or rel.startswith(owned_dirs) or (fx and os.path.lexists(os.path.join(fx, *rel.split("/")))):
++                continue
++            found.append((rel, os.path.join(r, name)))
++    for _rel, p in found:
++        os.unlink(p)
++    with open(tree.rstrip("/") + ".colliding-removed.txt", "w", encoding="utf-8") as f:
++        f.write("".join(rel + "\n" for rel, _p in sorted(found)))
++    return len(found)
++
++
+ def git_env(home):
+     return {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": home, "LC_ALL": "C",
+             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+@@ -1646,6 +1690,7 @@ def grade(t, run_dir, frozen):
+     acc = {"review": None, "audit": None}
+     SNAPSHOT_LINKS_DROPPED[0] = 0
+     OVERSIZED[0] = 0
++    COLLIDING[0] = 0
+     HISTORY_PROBES[0] = 0
+     HEREDOC_INTERP[0] = 0
+     RUN_TAG[0] = re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(run_dir))[:40] or "run"
+@@ -1725,6 +1770,7 @@ def grade(t, run_dir, frozen):
+             if v is not None:
+                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
+     g["oversized_files_skipped"] = OVERSIZED[0]
++    g["colliding_tests_removed"] = COLLIDING[0]
+     g["verdict_accuracy_per_gate"] = acc
+     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
+     g["contaminated"] = contamination(run_dir)
+diff --git a/evals/harness/lib/arms-common.sh b/evals/harness/lib/arms-common.sh
+index e6a4cb15..f2ee09b7 100644
+--- a/evals/harness/lib/arms-common.sh
++++ b/evals/harness/lib/arms-common.sh
+@@ -34,16 +34,19 @@
+ #   est_next <key> [<pool>]    the next trial's expected cost: the key's mean, else the
+ #                              pool's mean (default pool "all"), else `est_hint <key>`
+ #                              (default: $COST_HINT; a runner may redefine est_hint)
+-#   spend_charge <status> <cost> <what>
++#   spend_charge <status> <cost> <what> [<cap>]
+ #                              charge one finished trial to SPENT: a trial that ended
+ #                              without status completed and without a reported cost is
+-#                              charged RUN_CAP (ASSUMED_CAP+1, logged); else its cost.
++#                              charged <cap> (default RUN_CAP; run-ablation.sh passes the
++#                              trial kind's cap, DEC-0567) (ASSUMED_CAP+1, logged); else its cost.
+ #                              Sets CHARGED_COST to the reported cost it accepted (0 for an
+ #                              assumed charge); call it directly, never in $( ), or SPENT
+ #                              is lost with the subshell
+-#   budget_gate <key> <trial-number> [<pool>]
++#   budget_gate <key> <trial-number> [<pool>] [<reserve-per-trial>]
+ #                              0 launch; 1 cut (CUT_JSON set). Waits (reap) while only the
+-#                              in-flight reservation (${#PIDS[@]} × RUN_CAP) blocks the launch
++#                              in-flight reservation (${#PIDS[@]} × <reserve-per-trial>,
++#                              default RUN_CAP; run-ablation.sh passes the largest cap among
++#                              its plan's kinds, DEC-0567) blocks the launch
+ #
+ # Globals read: RUN_CAP, MAX_USD, COST_HINT, LAUNCHED, PIDS (array); written: SPENT,
+ # ASSUMED_CAP, CHARGED_COST, CUT_JSON, EST_KEYS/EST_SUM/EST_N, POOL_KEYS/POOL_SUM/POOL_N (parallel
+@@ -122,13 +125,13 @@ est_next() {  # est_next <key> [<pool>]
+   else est_hint "$1"; fi
+ }
+ 
+-spend_charge() {  # spend_charge <status> <cost> <what>
+-  local st="$1" cost="$2" what="$3"
++spend_charge() {  # spend_charge <status> <cost> <what> [<cap>]
++  local st="$1" cost="$2" what="$3" cap="${4:-$RUN_CAP}"
+   [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
+   if [[ "$st" != "completed" ]] && awk -v c="$cost" 'BEGIN { exit !(c + 0 == 0) }'; then
+     # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
+-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+-    log "assumed cap: $what ended ${st:-without a status} with no reported cost; USD $RUN_CAP charged to spent"
++    SPENT="$(fadd "$SPENT" "$cap")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++    log "assumed cap: $what ended ${st:-without a status} with no reported cost; USD $cap charged to spent"
+     CHARGED_COST=0
+   else
+     SPENT="$(fadd "$SPENT" "$cost")"
+@@ -136,11 +139,11 @@ spend_charge() {  # spend_charge <status> <cost> <what>
+   fi
+ }
+ 
+-budget_gate() {  # budget_gate <key> <trial-number> [<pool>]
+-  local key="$1" at="$2" pool="${3:-all}" est inflight reserved
++budget_gate() {  # budget_gate <key> <trial-number> [<pool>] [<reserve-per-trial>]
++  local key="$1" at="$2" pool="${3:-all}" per="${4:-$RUN_CAP}" est inflight reserved
+   while true; do
+     est="$(est_next "$key" "$pool")"; inflight=${#PIDS[@]}
+-    reserved="$(awk -v k="$inflight" -v c="$RUN_CAP" 'BEGIN { printf "%.10g", k * c }')"
++    reserved="$(awk -v k="$inflight" -v c="$per" 'BEGIN { printf "%.10g", k * c }')"
+     if awk -v s="$SPENT" -v e="$est" -v m="$MAX_USD" 'BEGIN { exit !(s + e > m) }'; then
+       CUT_JSON="$(jq -cn --arg s "$SPENT" --arg r "$reserved" --arg m "$MAX_USD" --arg e "$est" \
+         --argjson launched "$LAUNCHED" --argjson at "$at" \
+diff --git a/evals/harness/pipeline-run.sh b/evals/harness/pipeline-run.sh
+index e8d98bde..d5479416 100755
+--- a/evals/harness/pipeline-run.sh
++++ b/evals/harness/pipeline-run.sh
+@@ -80,8 +80,11 @@
+ #     --tmpfs /tmp:rw,size=1g --pids-limit 512 --memory 4g --cpus 2
+ #     -v <run>/sandbox:/workspace:rw -v <run>/meta/home:/home/evaluser:rw
+ #     -w /workspace -e <KEY=value…> -e AWS_BEARER_TOKEN_BEDROCK <image> python3 -I -c <shim> … claude …
+-# Exactly two mounts. meta/home/ (mode 0700) holds copies of $HOME/.codex/{auth.json,
+-# config.toml} when present and empty .claude/ and .aws/; the CLI's session store
++# Exactly two mounts. meta/home/ (mode 0700) holds a copy of $HOME/.codex/config.toml and
++# a copy of $HOME/.codex/auth.json whose tokens.refresh_token is the placeholder
++# "loa-ablation-no-refresh-token" (mode 0600; the real one is single-use and a container
++# refresh burned the host's; the codex CLI treats a MISSING key as logged out, KF-048)
++# when present, and empty .claude/ and .aws/; the CLI's session store
+ # lives there for the whole run, so A6's --resume works across phases. No ~/.claude
+ # file is ever copied. The directory is deleted at exit and on interrupt.
+ # image_digest = the image's RepoDigest or id (container), else the fingerprint (host).
+@@ -598,19 +601,48 @@ build_prompt() {  # build_prompt <name> <out-file>
+ # --- per-run HOME (container mode; DEC-0411 as amended in Sprint 258) -------------------------
+ # One writable host directory mounted at /home/evaluser: the CLI's session store lives
+ # there for the whole run (A6 --resume continues across phases), and it holds only the
+-# codex CLI's own files. ~/.claude/.credentials.json and ~/.claude/settings.json are never
+-# copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
++# codex CLI's own files: config.toml verbatim and auth.json with a PLACEHOLDER tokens.refresh_token
++# (KF-048: the refresh token is single-use, so a container that refreshed with a verbatim
++# copy invalidated the host's token and every later run's; an unreadable auth.json gives
++# the run no codex credential and one WARN line). ~/.claude/.credentials.json and
++# ~/.claude/settings.json are never copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
+ # and --setting-sources project ignores user settings.
+ CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
+ make_home() {
+-  local f
+   mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+   # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
+   # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
+   printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
+-  for f in auth.json config.toml; do
+-    if [[ -f "$CREDS_HOME/.codex/$f" ]]; then cp "$CREDS_HOME/.codex/$f" "$HOME_DIR/.codex/$f"; fi
+-  done
++  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
++  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
++  # container that refreshed with a verbatim copy consumed the host's token and every later run and
++  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
++  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
++  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
++  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
++    python3 -I -c '
++import json, os, sys
++src, dst = sys.argv[1], sys.argv[2]
++try:
++    with open(src, "rb") as fh:
++        data = json.loads(fh.read().decode("utf-8"))
++except Exception:
++    data = None
++if not isinstance(data, dict):
++    sys.exit(3)
++tok = data.get("tokens")
++if isinstance(tok, dict):
++    if "refresh_token" in tok:
++        tok["refresh_token"] = "loa-ablation-no-refresh-token"
++fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
++os.fchmod(fd, 0o600)
++with os.fdopen(fd, "w", encoding="utf-8") as out:
++    json.dump(data, out)
++    out.write("\n")
++' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
++      || { rm -f "$HOME_DIR/.codex/auth.json"
++           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
++  fi
+   chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+ }
+ [[ "$EXECUTOR" == container ]] && make_home
+diff --git a/evals/harness/run-ablation.sh b/evals/harness/run-ablation.sh
+index bd5c8313..c0134900 100755
+--- a/evals/harness/run-ablation.sh
++++ b/evals/harness/run-ablation.sh
+@@ -2,7 +2,7 @@
+ # =============================================================================
+ # run-ablation.sh — the cycle-130 ablation batch runner (SDD §5.9, §3.4; sprint Task 3.2;
+ # DEC-0405, DEC-0407, DEC-0413, DEC-0417, DEC-0418, DEC-0428, DEC-0429, DEC-0435, DEC-0545,
+-# DEC-0553, DEC-0554)
++# DEC-0553, DEC-0554, DEC-0567)
+ #
+ # Plans a batch (arm × applicable task × trial), dispatches every trial to
+ # pipeline-run.sh against a pinned source tree, checks after each trial that the arm
+@@ -31,9 +31,11 @@
+ #   --trials-build N     trials per build task (default the suite's trials.build; --smoke 1)
+ #   --trials-review N    trials per review-catch task (default trials.review-catch; --smoke 1)
+ #   --max-usd USD        batch spend cap (see Spend); no cap when absent
+-#   --run-cap USD        per-run cap passed to pipeline-run.sh --max-run-usd and reserved per
+-#                        running trial (default evals.ablation.run_cap_usd in .loa.config.yaml,
+-#                        else the suite's caps.run_usd, else 12)
++#   --run-cap USD        the single-cap override: one per-run cap for both task kinds (see
++#                        Run caps). Without it each kind takes the suite's
++#                        caps.run_usd_by_type[<kind>], else evals.ablation.run_cap_usd in
++#                        .loa.config.yaml, else the suite's caps.run_usd, else 12. Ignored
++#                        (with a stderr note) on --resume: a batch keeps its MANIFEST caps
+ #   --concurrency N      trials at once, 1-9 (default 3)
+ #   --batch NAME         batch directory name (default batch-<UTC ts>; --smoke smoke-<UTC ts>;
+ #                        the smoke- prefix is reserved for --smoke)
+@@ -105,6 +107,18 @@
+ #      $LOA_ABLATION_CACHE/ablation-src-<sha12> (default ~/.cache/loa) cut from
+ #      $LOA_ABLATION_SOURCE_REPO (default this repository) with git worktree add --detach;
+ #      it must be at the commit and pristine (git status --porcelain --ignored empty)
++#   6. codex token freshness (KF-048), non-smoke batches only (fresh, --resume and --dry-run),
++#      after the plan is built, when a planned arm uses codex (every arm except one whose
++#      toggles set loa_mount: false; a0_bare never runs the dissent): the exp claim of the JWT
++#      tokens.access_token in ${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json (the file
++#      pipeline-run.sh copies with a placeholder refresh token; payload decoded with base64url, no
++#      signature check) must be later than required_until = now + 2 x (sum of the plan's
++#      watchdog_s) / concurrency (on --resume the whole recorded plan counts). Refused: exp <=
++#      required_until (`codex access token expires <ISO>, before the batch's required horizon
++#      <ISO> (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host`),
++#      and a present file that is not JSON or whose access token is missing, not a three-part
++#      JWT or has no numeric exp. A missing auth.json is no refusal: one `run-ablation: WARN no
++#      codex auth.json under <dir>; codex-using arms will run without the OpenAI voice` line.
+ #   --resume also refuses when the source commit, the suite manifest hash, the image digest
+ #   or the CLI version differ from MANIFEST.json, or when STATUS.json records a drift
+ #   (unless --clear-drift re-reads that run clean under the current rule).
+@@ -121,7 +135,7 @@
+ #
+ # Per trial, in order: pipeline-run.sh --task-yaml … --arm … --run-dir … --run-id … --trial …
+ #   --source-tree <pinned> --suite-file … --executor … --image … --docker-bin …
+-#   --max-run-usd <run-cap>, output to <batch>/<arm>/<task>-t<n>.log; then
++#   --max-run-usd <the trial kind's run cap>, output to <batch>/<arm>/<task>-t<n>.log; then
+ #   1. status from meta/pipeline.json (missing or `running` → interrupted; a missing record
+ #      is written as a minimal pipeline.json with synthesized_by: run-ablation.sh)
+ #   2. transport: agent_error plus a provider signature in the failing phase's
+@@ -171,16 +185,29 @@
+ #   is set and the batch finishes partial (exit 1): `partial (outage breaker): N consecutive
+ #   transport failures; --resume --rerun-status transport_error after the network is back`.
+ #
++# Run caps (DEC-0559, DEC-0567): each task kind (build = feature-build, bug-fix, refactor;
++#   review-catch) has its own per-run cap, cap_for <kind>: --run-cap when given (both kinds),
++#   else the suite's caps.run_usd_by_type[<kind>] (a present entry that is not an amount in
++#   USD, or a run_usd_by_type that is not a map, is a usage error), else the single-cap chain
++#   (evals.ablation.run_cap_usd in .loa.config.yaml, else caps.run_usd, else 12), which is
++#   also MANIFEST caps.run_usd. The kind's cap goes to pipeline-run.sh --max-run-usd and is
++#   the assumed charge of that kind's trials (Spend). The in-flight reservation per running
++#   trial is the largest cap among the plan's kinds (a build-only plan reserves the build
++#   cap; a plan with review-catch trials reserves the larger of the two for every running
++#   trial, whatever its kind). --resume reads all three from MANIFEST.json caps (a manifest
++#   without run_usd_by_type gives both kinds its run_usd), never from the suite file.
++#
+ # Spend (--max-usd, SDD §5.5 reused through lib/arms-common.sh): before each launch,
+-#   spent + in_flight × run_cap + est_next > max waits for a running trial and
++#   spent + in_flight × reserve_cap + est_next > max waits for a running trial and
+ #   spent + est_next > max cuts (no further launches; STATUS.json cuts[] gets {reason,
+ #   spent, in_flight_reserved, max, est_next, trials_launched, at_trial}; exit 1).
++#   reserve_cap = the largest run cap among the plan's kinds (Run caps).
+ #   est_next = the mean cost of this arm's completed trials of the task kind (build |
+ #   review-catch), else the kind's pooled mean, else the suite's cost_hint[kind]. spent =
+ #   rows' cost_usd + transport first attempts' spent_usd + assumed charges: a trial ending
+-#   neither completed nor with a reported cost is charged run_cap, a cap_failure is charged
+-#   max(cost, run_cap); both count in spend.assumed_cap_trials when the charge exceeds the
+-#   reported cost.
++#   neither completed nor with a reported cost is charged its kind's run cap, a cap_failure
++#   is charged max(cost, its kind's run cap); both count in spend.assumed_cap_trials when
++#   the charge exceeds the reported cost.
+ #
+ # Files: <results-root>/<batch>/{MANIFEST.json, STATUS.json, run.log, spend.txt,
+ #   REFUSED.txt, driver.log, .gitignore (non-smoke: the run directories and logs stay out of
+@@ -192,9 +219,15 @@
+ #   tasks, refused, trials_per_type, trials_planned, plan, arm_map, shuffle_seed, shuffle,
+ #   fingerprint, image, image_digest, executor_mode, cli_version (`docker run --rm --network
+ #   none <image> claude --version`, host: the CLI's), cli_version_raw, tools, phase_models,
+-#   caps {cycle_usd, run_usd, reserve_usd, max_usd}, cost_hint, concurrency, retry,
++#   caps {cycle_usd, run_usd (the single-cap fallback), reserve_usd, max_usd,
++#   run_usd_by_type {build, review-catch} (the effective per-kind caps after the chain)},
++#   cost_hint, concurrency, retry,
+ #   watchdog {multiplier, override_s, grace_s, grade_timeout_s, took_effect_timeout_s},
+-#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.
++#   pre_registration_ref, gate (null for smoke), corpus, agy_opt_in,
++#   codex_token_exp (the access token's exp, ISO 8601 UTC, or null when not checked),
++#   codex_preflight {checked (true only when the token was read and its exp compared),
++#   auth_file_present, codex_arms (the planned arms that use codex, sorted), token_exp,
++#   required_until (ISO or null)} (pre-flight 6; --resume keeps the start's record), environment.
+ #   STATUS.json (§3.4), rewritten after every trial: {schema_version, suite, batch, smoke,
+ #   state: running|complete|partial|failed, per_arm: {<arm>: {trials_planned, launched,
+ #   completed, failed (agent_error), excluded (transport_error, infrastructure_error,
+@@ -211,7 +244,7 @@
+ #   output_tokens}}, the per-run source a rerow replaces), rows_invalid, started,
+ #   finished}. At the end the spend.sh line and a batch line go to <batch>/spend.txt.
+ #
+-# --resume: reads MANIFEST.json (plan, arms, suite paths, executor, image, run cap, rows
++# --resume: reads MANIFEST.json (plan, arms, suite paths, executor, image, run caps, rows
+ #   file) and STATUS.json (paused_arms, cuts, retries, first-attempt spend); a plan run_id
+ #   with a row of this batch is done; a trial without a row reruns into a fresh -r<k> run
+ #   dir (the stale dir is kept); counters and spend are recomputed from the rows.
+@@ -258,6 +291,7 @@ SELF_ARGS=("$@")
+ 
+ ARMS_CSV="" SOURCE_COMMIT="" TASKS_CSV="" TYPES_CSV="" TRIALS_BUILD="" TRIALS_REVIEW=""
+ MAX_USD="" RUN_CAP="" CONCURRENCY=3 BATCH="" RESULTS_ROOT="" ROWS=""
++CAP_BUILD="" CAP_REVIEW=""   # the per-kind run caps (DEC-0567; cap_for)
+ SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
+ SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
+ IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
+@@ -330,6 +364,7 @@ case "$EXECUTOR" in container|host) ;; *) die "--executor must be container or h
+ [[ "$SEED" =~ ^[0-9]{1,10}$ ]] || die "--seed must be a non-negative integer"
+ if [[ -n "$MAX_USD" ]]; then usd_ok "$MAX_USD" && [[ "$MAX_USD" != "0" ]] || die "--max-usd must be a positive amount in USD"; fi
+ [[ -z "$RUN_CAP" ]] || usd_ok "$RUN_CAP" || die "--run-cap must be an amount in USD"
++RUN_CAP_OVERRIDE="$RUN_CAP"   # --run-cap: the single-cap override of both kinds
+ [[ -z "$SOURCE_COMMIT" || "$SOURCE_COMMIT" =~ ^[0-9a-f]{7,40}$ ]] || die "--source-commit must be a hex commit id"
+ [[ "$IMAGE" =~ ^[A-Za-z0-9._:/@-]{1,200}$ ]] || die "--image has unexpected characters"
+ [[ "${#PRE_REG_REF}" -le 300 && "$PRE_REG_REF" != *$'\n'* ]] || die "--pre-registration-ref must be one line of at most 300 characters"
+@@ -409,7 +444,12 @@ if [[ "$RESUME" == true ]]; then
+   ARMS_CSV="$(jq -r '.arms | join(",")' "$MAN_PATH")"
+   SUITE_ROOT="$(jq -r '.suite_root' "$MAN_PATH")" SUITE_FILE="$(jq -r '.suite_file_path' "$MAN_PATH")"
+   EXECUTOR="$(jq -r '.executor_mode' "$MAN_PATH")" IMAGE="$(jq -r '.image' "$MAN_PATH")"
++  [[ -z "$RUN_CAP_OVERRIDE" ]] || echo "run-ablation: --run-cap $RUN_CAP_OVERRIDE ignored on --resume; batch $BATCH keeps the caps in its MANIFEST.json" >&2
+   RUN_CAP="$(jq -r '.caps.run_usd' "$MAN_PATH")" SEED="$(jq -r '.shuffle_seed' "$MAN_PATH")"
++  # a manifest written before DEC-0567 has no run_usd_by_type: both kinds keep its run_usd
++  CAP_BUILD="$(jq -r '.caps.run_usd_by_type.build // .caps.run_usd' "$MAN_PATH")"
++  CAP_REVIEW="$(jq -r '.caps.run_usd_by_type["review-catch"] // .caps.run_usd' "$MAN_PATH")"
++  for c in "$RUN_CAP" "$CAP_BUILD" "$CAP_REVIEW"; do usd_ok "$c" || die "$MAN_PATH caps hold a run cap that is not an amount in USD: $c"; done
+   ROWS="$(jq -r '.rows_file' "$MAN_PATH")"
+   [[ -n "$MAX_USD" ]] || MAX_USD="$(jq -r '.caps.max_usd // empty' "$MAN_PATH")"
+   PRE_REG_REF="$(jq -r '.pre_registration_ref // ""' "$MAN_PATH")"
+@@ -454,6 +494,25 @@ if [[ -z "$RUN_CAP" ]]; then
+   usd_ok "${RUN_CAP:-x}" || RUN_CAP="$(jq -r '.caps.run_usd // ""' <<<"$SUITE_JSON")"
+   usd_ok "${RUN_CAP:-x}" || RUN_CAP=12
+ fi
++# per-kind caps (DEC-0567): --run-cap, else the suite's caps.run_usd_by_type[<kind>], else
++# RUN_CAP from the chain above (.loa.config.yaml evals.ablation.run_cap_usd, else
++# caps.run_usd, else 12). A present but malformed per-kind entry is refused, never skipped.
++suite_kind_cap() {  # suite_kind_cap <kind> → the suite's entry, or empty when it has none
++  local v
++  v="$(jq -r --arg k "$1" '.caps.run_usd_by_type // null
++        | if . == null then "" elif type == "object" then (.[$k] // "" | tostring) else "!" end' <<<"$SUITE_JSON")"
++  [[ "$v" != "!" ]] || die "suite caps.run_usd_by_type must be a map of task kind to USD ($SUITE_FILE)"
++  [[ -z "$v" ]] || usd_ok "$v" || die "suite caps.run_usd_by_type.$1 is not an amount in USD: $v ($SUITE_FILE)"
++  printf '%s' "$v"
++}
++if [[ -z "$CAP_BUILD" ]]; then   # --resume set both from MANIFEST.json
++  if [[ -n "$RUN_CAP_OVERRIDE" ]]; then CAP_BUILD="$RUN_CAP_OVERRIDE" CAP_REVIEW="$RUN_CAP_OVERRIDE"
++  else
++    CAP_BUILD="$(suite_kind_cap build)" || exit 2; CAP_BUILD="${CAP_BUILD:-$RUN_CAP}"
++    CAP_REVIEW="$(suite_kind_cap review-catch)" || exit 2; CAP_REVIEW="${CAP_REVIEW:-$RUN_CAP}"
++  fi
++fi
++cap_for() { if [[ "$1" == review-catch ]]; then printf '%s' "$CAP_REVIEW"; else printf '%s' "$CAP_BUILD"; fi; }
+ hint_for() { local h; h="$(jq -r --arg k "$1" '.cost_hint | if type == "object" then .[$k] // "" else (. // "") end' <<<"$SUITE_JSON")"; usd_ok "${h:-x}" || h=5.0; printf '%s' "$h"; }
+ HINT_BUILD="$(hint_for build)" HINT_REVIEW="$(hint_for review-catch)"
+ # est_next's last fallback per kind (the key is "<arm>|<kind>")
+@@ -503,7 +562,7 @@ printf '%s\n' "$SUITE_JSON" > "$WORK/suite.json"
+ for t in "${SEL_TASKS[@]}"; do
+   yq -o=json '{"id": .id, "type": .type, "bounds": (.bounds // {})}' "$TDIR/$t/task.yaml" \
+     | jq -c --arg y "$TDIR/$t/task.yaml" --arg want "$WANT_TYPES" \
+-        'select($want == "" or (($want | split(" ")) | index(.type)) != null) | with_entries(.) + {yaml: $y}'
++        'select($want == "" or (.type as $t | ($want | split(" ") | map(select(. != ""))) | index($t)) != null) | with_entries(.) + {yaml: $y}'   # .type is the task'"'"'s, not the list'"'"'s (Sprint 261 dry run; RAB-27)
+ done | jq -s -c '.' > "$WORK/tasks.json" || die "a task.yaml does not parse"
+ [[ "$(jq 'length' "$WORK/tasks.json")" -gt 0 ]] || die "no task left after --tasks/--types"
+ jq -e 'all(.[]; (.type == "feature-build" or .type == "bug-fix" or .type == "refactor" or .type == "review-catch"))' \
+@@ -717,6 +776,69 @@ fi
+ jq -c '.plan' "$WORK/plan.json" > "$WORK/plan-only.json"
+ PLAN_N="$(jq 'length' "$WORK/plan-only.json")"
+ [[ "$PLAN_N" -gt 0 ]] || die "the plan is empty: every arm is refused on every selected task (task_types)"
++
++# --- codex token freshness (KF-048): the access token must outlive the batch's horizon -------
++# The per-run HOME carries a placeholder refresh token (pipeline-run.sh), so a container cannot renew an
++# expired access token; a batch that would outlive it degrades every codex-using row. Only the
++# JWT payload's exp claim is read (no signature check); no token value is printed.
++CODEX_AUTH="${LOA_EVAL_CREDS_HOME:-$HOME}/.codex/auth.json"
++CODEX_SKIP=false; [[ "$SMOKE" == true ]] && CODEX_SKIP=true
++CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" <<'PY'
++import base64, json, math, os, sys, time
++auth, plan_p, suite_p, conc, skip = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5] == "true"
++plan = json.load(open(plan_p)); suite = json.load(open(suite_p))
++defs = {a.get("id"): a for a in suite.get("arms") or []}
++iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
++def uses_codex(a):   # a0_bare (loa_mount: false) never runs the dissent
++    return ((defs.get(a) or {}).get("toggles") or {}).get("loa_mount") is not False
++arms = sorted({e["arm"] for e in plan if uses_codex(e["arm"])})
++present = os.path.isfile(auth)
++pf = {"checked": False, "auth_file_present": present, "codex_arms": arms, "token_exp": None, "required_until": None}
++out = {"preflight": pf, "refuse": None, "warn": None}
++def done():
++    print(json.dumps(out, sort_keys=True)); sys.exit(0)
++if skip or not arms:
++    done()
++if not present:
++    out["warn"] = "run-ablation: WARN no codex auth.json under %s; codex-using arms will run without the OpenAI voice" % os.path.dirname(auth)
++    done()
++now = time.time()
++required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in plan) / max(conc, 1)))
++pf["required_until"] = iso(required)
++def bad(why):
++    out["refuse"] = "codex auth.json %s: %s (KF-048) — run codex login on the host" % (auth, why); done()
++try:
++    data = json.loads(open(auth, "rb").read().decode("utf-8"))
++except Exception:
++    bad("is not JSON")
++tok = (data.get("tokens") if isinstance(data, dict) else None) or {}
++at = tok.get("access_token") if isinstance(tok, dict) else None
++if not isinstance(at, str) or not at:
++    bad("has no tokens.access_token")
++parts = at.split(".")
++if len(parts) != 3:
++    bad("tokens.access_token is not a three-part JWT")
++try:
++    seg = parts[1] + "=" * (-len(parts[1]) % 4)
++    claims = json.loads(base64.urlsafe_b64decode(seg.encode("ascii")).decode("utf-8"))
++except Exception:
++    bad("the access token's JWT payload does not decode")
++exp = claims.get("exp") if isinstance(claims, dict) else None
++if isinstance(exp, bool) or not isinstance(exp, (int, float)) or not math.isfinite(exp):
++    bad("the access token has no numeric exp claim")
++exp = int(exp)
++pf["checked"] = True; pf["token_exp"] = iso(exp)
++if exp <= required:
++    out["refuse"] = ("codex access token expires %s, before the batch's required horizon %s "
++                     "(now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host") % (iso(exp), iso(required))
++done()
++PY
++)" || die "the codex token pre-flight failed"
++printf '%s' "$CODEX_PF" | jq -c '.preflight' > "$WORK/codex-preflight.json"
++CODEX_WARN="$(jq -r '.warn // ""' <<<"$CODEX_PF")"
++[[ -z "$CODEX_WARN" ]] || echo "$CODEX_WARN" >&2
++CODEX_REFUSE="$(jq -r '.refuse // ""' <<<"$CODEX_PF")"
++[[ -z "$CODEX_REFUSE" ]] || refuse "$CODEX_REFUSE"
+ PL_ARM=() PL_TASK=() PL_TYPE=() PL_KIND=() PL_TRIAL=() PL_RUN=() PL_YAML=() PL_WD=()
+ while IFS=$'\t' read -r a t ty k tr rid y wd; do
+   PL_ARM+=("$a"); PL_TASK+=("$t"); PL_TYPE+=("$ty"); PL_KIND+=("$k"); PL_TRIAL+=("$tr"); PL_RUN+=("$rid"); PL_YAML+=("$y"); PL_WD+=("$wd")
+@@ -724,7 +846,12 @@ done < <(jq -r '.[] | [.arm, .task_id, .type, .kind, (.trial | tostring), .run_i
+ EST_TOTAL=0
+ for k in ${PL_KIND[@]+"${PL_KIND[@]}"}; do EST_TOTAL="$(fadd "$EST_TOTAL" "$(est_hint "x|$k")")"; done
+ N_TASKS="$(jq 'length' "$WORK/tasks.json")"
+-PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials, shuffle seed $SEED, est USD $EST_TOTAL (cap ${MAX_USD:-none}, run cap $RUN_CAP, reserve $(jq -r '.caps.reserve_usd // "n/a"' <<<"$SUITE_JSON"))"
++# the in-flight reservation per running trial: the largest cap among the plan's kinds (DEC-0567)
++RESERVE_CAP=0
++for k in ${PL_KIND[@]+"${PL_KIND[@]}"}; do
++  c="$(cap_for "$k")"; awk -v c="$c" -v r="$RESERVE_CAP" 'BEGIN { exit !(c > r) }' && RESERVE_CAP="$c"
++done
++PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials, shuffle seed $SEED, est USD $EST_TOTAL (cap ${MAX_USD:-none}, run caps build $CAP_BUILD review-catch $CAP_REVIEW, in-flight reserve $RESERVE_CAP per trial, reserve $(jq -r '.caps.reserve_usd // "n/a"' <<<"$SUITE_JSON"))"
+ 
+ write_manifest() {  # write_manifest <path> <dry_run>
+   local out="$1" dry="$2" harness_commit harness_dirty=false
+@@ -735,14 +862,14 @@ write_manifest() {  # write_manifest <path> <dry_run>
+   printf '%s' "$GATE_JSON" > "$WORK/gate.json"
+   jq -n \
+     --slurpfile plan_f "$WORK/plan.json" --slurpfile suite_f "$WORK/suite.json" --slurpfile tasks_f "$WORK/tasks.json" \
+-    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" \
++    --slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" --slurpfile cpf_f "$WORK/codex-preflight.json" \
+     --arg batch "$BATCH" --argjson dry "$dry" --argjson smoke "$SMOKE" --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+     --arg src "$SRC_FULL" --arg tree "$TREE" --arg hc "$harness_commit" --argjson hd "$harness_dirty" \
+     --arg suite_file "${SUITE_FILE#"$REPO_ROOT"/}" --arg suite_file_path "$SUITE_FILE" --arg suite_root "$SUITE_ROOT" \
+     --arg tasks_dir "$TASKS_DIR_NAME" --arg rows "$ROWS" --arg msha "$SUITE_MANIFEST_SHA" \
+     --argjson arms "$(json_array "${ARMS[@]}")" --argjson tb "$TB" --argjson tr "$TR" --argjson seed "$SEED" \
+     --arg fp "$FINGERPRINT" --arg image "$IMAGE" --arg digest "$IMAGE_DIGEST" --arg mode "$EXECUTOR" \
+-    --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" \
++    --arg cli "$CLI_VERSION" --arg cli_raw "$CLI_RAW" --arg max_usd "$MAX_USD" --arg run_cap "$RUN_CAP" --arg cap_b "$CAP_BUILD" --arg cap_r "$CAP_REVIEW" \
+     --arg hb "$HINT_BUILD" --arg hr "$HINT_REVIEW" --argjson conc "$CONCURRENCY" --argjson rw "$RETRY_WAIT" \
+     --arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg gto "$GRADE_TIMEOUT_S" --arg tto "$TOOK_TIMEOUT_S" --argjson tmo "$TMO_ON" --arg prr "$PRE_REG_REF" \
+     --arg corpus "$CORPUS_SHA" --arg os "$(uname -srm)" --arg bash_v "$BASH_VERSION" \
+@@ -764,7 +891,8 @@ write_manifest() {  # write_manifest <path> <dry_run>
+        cli_version: $cli, cli_version_raw: $cli_raw,
+        tools: ($s.phase_defaults.tools // null), phase_models: ($s.phase_defaults.models // {}),
+        caps: {cycle_usd: ($s.caps.cycle_usd // null), run_usd: ($run_cap | tonumber), reserve_usd: ($s.caps.reserve_usd // null),
+-              max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end)},
++              max_usd: (if $max_usd == "" then null else ($max_usd | tonumber) end),
++              run_usd_by_type: {build: ($cap_b | tonumber), "review-catch": ($cap_r | tonumber)}},
+        cost_hint: {build: ($hb | tonumber), "review-catch": ($hr | tonumber)},
+        concurrency: $conc, retry: {transport_retries: 1, wait_s: $rw},
+        watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace,
+@@ -772,6 +900,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
+        pre_registration_ref: (if $prr == "" then null else $prr end),
+        gate: $g, corpus: {manifest: "evals/fixtures/review-prs/SHA256SUMS", sha256: (if $corpus == "" then null else $corpus end)},
+        agy_opt_in: ($s.agy_opt_in // false),
++       codex_token_exp: $cpf_f[0].token_exp, codex_preflight: $cpf_f[0],
+        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
+   mv "$out.tmp" "$out"
+ }
+@@ -911,15 +1040,16 @@ account_row() {
+   esac
+   [[ "$deg" == true ]] && C_DEGRADED[$i]=$(( ${C_DEGRADED[$i]} + 1 ))
+   ROWS_USD="$(fadd "$ROWS_USD" "$cost")"
++  local cap; cap="$(cap_for "$kind")"   # the trial kind's cap (DEC-0567)
+   if [[ "$st" == cap_failure ]]; then
+-    if awk -v c="$cost" -v r="$RUN_CAP" 'BEGIN { exit !(c < r) }'; then
+-      SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+-      log "assumed cap: $rid ended cap_failure at USD $cost; USD $RUN_CAP charged to spent"
++    if awk -v c="$cost" -v r="$cap" 'BEGIN { exit !(c < r) }'; then
++      SPENT="$(fadd "$SPENT" "$cap")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++      log "assumed cap: $rid ended cap_failure at USD $cost; USD $cap ($kind cap) charged to spent"
+     else
+       SPENT="$(fadd "$SPENT" "$cost")"
+     fi
+   else
+-    spend_charge "$st" "$cost" "$rid"
++    spend_charge "$st" "$cost" "$rid" "$cap"
+     if [[ "$st" == completed ]]; then est_record "$arm|$kind" "$kind" "$CHARGED_COST"; fi
+   fi
+ }
+@@ -1053,7 +1183,7 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
+     printf '%s run-ablation: %s attempt %d run_dir %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rid" "$attempt" "$rd" >> "$tlog"
+     local -a cmd=("$PIPELINE_BIN" --task-yaml "$tyaml" --arm "$arm" --run-dir "$rd" --run-id "$rid" --trial "$trial"
+                   --source-tree "$TREE" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE"
+-                  --docker-bin "$DOCKER_BIN" --max-run-usd "$RUN_CAP")
++                  --docker-bin "$DOCKER_BIN" --max-run-usd "$(cap_for "$kind")")
+     # its own process group, so the watchdog can signal the pipeline and everything under it
+     if command -v setsid >/dev/null 2>&1; then setsid "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
+@@ -1151,8 +1281,8 @@ outage_tick() {
+ collect() {  # collect <jid> <plan-index>
+   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
+   if [[ ! -f "$res" ]]; then
+-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+-    log "FAILED $rid (the trial job ended without a result; see $BATCH_DIR/$arm/${PL_TASK[$k]}-t${PL_TRIAL[$k]}.log); assumed cap: USD $RUN_CAP charged to spent"
++    SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++    log "FAILED $rid (the trial job ended without a result; see $BATCH_DIR/$arm/${PL_TASK[$k]}-t${PL_TRIAL[$k]}.log); assumed cap: USD $(cap_for "$kind") ($kind cap) charged to spent"
+     outage_tick "$rid" ""
+     rm -f "$JOBS_DIR/$jid".*; write_status; return 0
+   fi
+@@ -1189,8 +1319,8 @@ collect() {  # collect <jid> <plan-index>
+     account_row "$arm" "$kind" "$rid" "$st" "$cost" "$deg"
+     log "done $rid $st pass=$pass USD $cost $(( $(jq -r '.seconds' "$res") / 60 ))m attempts $att${rr:+ ($rr)}"
+   else
+-    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
+-    log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $RUN_CAP charged to spent"
++    SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++    log "FAILED $rid: no row written (ablation-row.sh exit $(jq -r '.row_rc' "$res"); see the trial log); assumed cap: USD $(cap_for "$kind") ($kind cap) charged to spent"
+   fi
+   outage_tick "$rid" "$st"
+   apply_flags "$arm" "$rid" "$te" "$ter" "$drift"
+@@ -1401,7 +1531,7 @@ for k in "${!PL_RUN[@]}"; do
+   reap "$CONCURRENCY"
+   [[ -z "$STOP" ]] || break
+   if is_paused "$a"; then i="$(arm_index "$a")"; C_SKIPPED[$i]=$(( ${C_SKIPPED[$i]} + 1 )); continue; fi
+-  if [[ -n "$MAX_USD" ]] && ! budget_gate "$a|${PL_KIND[$k]}" "$((k + 1))" "${PL_KIND[$k]}"; then
++  if [[ -n "$MAX_USD" ]] && ! budget_gate "$a|${PL_KIND[$k]}" "$((k + 1))" "${PL_KIND[$k]}" "$RESERVE_CAP"; then
+     CUTS_JSON="$(jq -c --argjson c "$CUT_JSON" '. + [$c]' <<<"$CUTS_JSON")"; STOP=cut; write_status; break
+   fi
+   [[ -z "$STOP" ]] || break
+diff --git a/evals/suites/ablation-2.0.yaml b/evals/suites/ablation-2.0.yaml
+index e72285fe..d07611c8 100644
+--- a/evals/suites/ablation-2.0.yaml
++++ b/evals/suites/ablation-2.0.yaml
+@@ -28,10 +28,17 @@ tasks:
+   root: grimoires/loa/evals/ablation-2.0/tasks
+   manifest: grimoires/loa/evals/ablation-2.0/MANIFEST.sha256
+   smoke_root: grimoires/loa/evals/ablation-2.0/smoke
+-suite_version: 1
++suite_version: 2   # suite v2 (DEC-0559, DEC-0566): twelve harder build tasks with v2 ids; the four review-catch tasks unchanged in content
+ trials: {build: 3, review-catch: 3}      # D-A4: review-catch trials 3, not 5, under the gate pipeline
+ cut_ladder: ["A5, A6, A7 not run", "A2 and A3 build trials 3 -> 2", "A3 review-catch trials 3 -> 2"]   # DEC-0397; A0, A1, A4 keep 3
+-caps: {cycle_usd: 1500, run_usd: 12, reserve_usd: 250}   # reserve released to A7 when the re-verification rule needs no run (DEC-0398)
++# Per-run caps (DEC-0559, DEC-0567): from Sprint 261 the cap is per task kind,
++# run_usd_by_type {build: 15, review-catch: 20}; run-ablation.sh passes the kind's cap to
++# pipeline-run.sh --max-run-usd, charges a cap failure or a costless failed trial that
++# kind's cap, and reserves in-flight trials at the largest cap among the plan's kinds.
++# run_usd stays the single-cap fallback (suite v1 batches, a kind without an entry) and
++# --run-cap overrides both kinds. reserve_usd is kept for spend.sh; DEC-0559 released the
++# reserve (a batch's --max-usd = 1,500 - spend so far - concurrency x the largest cap).
++caps: {cycle_usd: 1500, run_usd: 12, reserve_usd: 250, run_usd_by_type: {build: 15, review-catch: 20}}
+ priority: [a0_bare, a1_full, a2_no_sprint_plan, a3_one_voice, a4_no_gates, a7_effort_medium, a5_no_flatline, a6_one_window]
+ cost_hint: {build: 7, review-catch: 8}   # USD per run before any actual exists (run-arms/run-ablation est_next fallback)
+ 
+diff --git a/evals/tests/ablation-grade.bats b/evals/tests/ablation-grade.bats
+index 22b7f380..0cdd7d25 100644
+--- a/evals/tests/ablation-grade.bats
++++ b/evals/tests/ablation-grade.bats
+@@ -1102,6 +1102,24 @@ bash_case() {
+   bash_case hidden 'cd tests/hidden'
+ }
+ 
++@test "AG-35 basename collisions (1.2.11): an agent test file with a hidden test's basename in another directory is removed before the run, so the hidden suite still collects; a fixture file is never removed" {
++  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
++  mkdir -p "$RD/sandbox/tests/extra"
++  printf 'def test_mine():\n    assert True\n' > "$RD/sandbox/tests/extra/test_slug.py"   # same basename as the hidden tests/test_slug.py
++  printf 'def test_other():\n    assert True\n' > "$RD/sandbox/tests/extra/test_unrelated.py"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.colliding_tests_removed')" = 1 ]
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "8/8" ]   # the 7 hidden cases + the agent's own test_unrelated (test_command runs tests/)
++  [ ! -e "$RD/grading/final/tests/extra/test_slug.py" ]
++  [ -f "$RD/grading/final/tests/extra/test_unrelated.py" ]
++  grep -qx 'tests/extra/test_slug.py' "$RD/grading/final.colliding-removed.txt"
++  [ -f "$RD/sandbox/tests/extra/test_slug.py" ]   # the sandbox is never written
++  RD="$T/clean"; make_run bf-py "$RD"; apply_ref "$RD"
++  grade "$RD" bf-py
++  [ "$(G '.colliding_tests_removed')" = 0 ]
++}
++
+ @test "AG-33 heredoc_interpreters (LOW-3): heredocs fed to an interpreter are counted, never contamination" {
+   bash_case null $'python3 - <<\'PY\'\nprint(1)\nPY'
+   [ "$(G '.heredoc_interpreters')" = 1 ]
+@@ -1115,5 +1133,5 @@ bash_case() {
+   [ "$status" -eq 0 ]
+   [ "$(G '.contaminated')" = null ]
+   [ "$(G '.heredoc_interpreters')" = 5 ]
+-  [ "$(G '.grader_version')" = 1.2.9 ]
++  [ "$(G '.grader_version')" = 1.2.11 ]
+ }
+diff --git a/evals/tests/fixtures/ablation-pipeline-stub.sh b/evals/tests/fixtures/ablation-pipeline-stub.sh
+index ec10f13e..f8be1675 100755
+--- a/evals/tests/fixtures/ablation-pipeline-stub.sh
++++ b/evals/tests/fixtures/ablation-pipeline-stub.sh
+@@ -6,6 +6,7 @@
+ # event with claude_code_version, a result event), sandbox/.claude/checksums.json (a
+ # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
+ #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
++#   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
+ #   STUB_COST      USD per run (default 2.5), on the first phase record
+ #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
+ #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
+@@ -19,11 +20,12 @@
+ #                  phase's models_used holds the requested model and, beside it,
+ #                  global.anthropic.claude-haiku-4-5-20251001-v1:0 with 516 output tokens:
+ #                  a WebFetch summariser, DEC-0545) | hang (pipeline.json `running`, then sleeps) |
+-#                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0)
++#                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0) |
++#                  agent_error_nocost (agent_error as above, reporting cost 0)
+ #   STUB_HANG=1    every run hangs (mode hang)
+ set -euo pipefail
+ export LC_ALL=C
+-TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE=""
++TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE="" MAX_RUN_USD=none
+ while [[ $# -gt 0 ]]; do
+   case "$1" in
+     --task-yaml) TASK_YAML="$2"; shift 2 ;;
+@@ -36,13 +38,14 @@ while [[ $# -gt 0 ]]; do
+     --docker-bin) DOCKER_BIN="$2"; shift 2 ;;
+     --executor) EXECUTOR="$2"; shift 2 ;;
+     --image) IMAGE="$2"; shift 2 ;;
+-    --max-run-usd) shift 2 ;;
++    --max-run-usd) MAX_RUN_USD="$2"; shift 2 ;;
+     *) echo "stub: unknown flag $1" >&2; exit 2 ;;
+   esac
+ done
+ [[ -e "$RUN_DIR" && -n "$(ls -A "$RUN_DIR" 2>/dev/null)" ]] && { echo "stub: run dir not empty: $RUN_DIR" >&2; exit 2; }
+ TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
+ [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
++[[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
+ 
+ MODE=ok
+ if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then
+@@ -57,6 +60,7 @@ if [[ "$MODE" == transport_once ]]; then
+   if [[ "$(basename "$RUN_DIR")" =~ -r[0-9]+$ ]]; then MODE=ok; else MODE=transport; fi
+ fi
+ [[ "$MODE" == hang_norecord ]] && exec sleep 600
++NOCOST=0; [[ "$MODE" == agent_error_nocost ]] && { MODE=agent_error; NOCOST=1; }
+ 
+ mkdir -p "$RUN_DIR"/{meta,sandbox,transcripts,eval,snapshots}
+ printf '%s\n' "$ARM" > "$RUN_DIR/meta/arm"
+@@ -72,7 +76,7 @@ PHASES="$(jq -c -n --argjson arm "$DEF" --argjson suite "$S" --arg kind "$KIND"
+   | reduce $p3[] as $n ({out: [], fix: 0}; if $n == "FIX" then .fix += 1 | .out += [{name: "FIX", label: ("FIX" + (.fix | tostring))}]
+                                         else .out += [{name: $n, label: $n}] end) | .out')"
+ NPH="$(jq 'length' <<<"$PHASES")"
+-COST="${STUB_COST:-2.5}"; [[ "$MODE" == zero_cost ]] && COST=0
++COST="${STUB_COST:-2.5}"; [[ "$MODE" == zero_cost || $NOCOST -eq 1 ]] && COST=0
+ # the whole cost sits on the first phase (exact sums in the tests)
+ CLI="${STUB_CLI:-2.1.299}"; [[ "$MODE" == drift_cli ]] && CLI="9.9.9"
+ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+diff --git a/evals/tests/pipeline-run.bats b/evals/tests/pipeline-run.bats
+index 5674ac77..cb8c4ad5 100644
+--- a/evals/tests/pipeline-run.bats
++++ b/evals/tests/pipeline-run.bats
+@@ -914,3 +914,71 @@ rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth
+   # the check sits between the clone and install.sh
+   [ "$(grep -nF 'rev-parse HEAD' "$df" | cut -d: -f1)" -lt "$(grep -nF 'install.sh /usr/local' "$df" | cut -d: -f1)" ]
+ }
++
++# --- KF-048: the per-run HOME carries a codex auth.json with a placeholder refresh token (Sprint 261) ---
++# snap_docker: a docker wrapper that, on the first `docker run`, copies the mounted HOME's
++# .codex/ to $T/snap (mode preserved) before handing over to the stub; the HOME itself is
++# deleted at exit.
++snap_docker() {
++  mv "$T/docker" "$T/docker.inner"
++  cat > "$T/docker" <<EOF
++#!/usr/bin/env bash
++if [[ "\${1:-}" == run && ! -e "$T/snap" ]]; then
++  prev=""
++  for a in "\$@"; do
++    if [[ "\$prev" == -v && "\$a" == *:/home/evaluser* ]]; then mkdir -p "$T/snap"; cp -a "\${a%%:*}/.codex" "$T/snap/"; fi
++    prev="\$a"
++  done
++fi
++exec "$T/docker.inner" "\$@"
++EOF
++  chmod +x "$T/docker"
++}
++
++@test "container: KF-048 — the per-run auth.json carries the placeholder refresh token (never the host's), keeps every other key, mode 0600; the host file is untouched" {
++  cat > "$T/home/.codex/auth.json" <<'JSON'
++{"OPENAI_API_KEY": null, "auth_mode": "chatgpt", "last_refresh": "2026-10-18T00:00:00Z", "extra": {"k": 1},
++ "tokens": {"access_token": "x.y.z", "refresh_token": "R", "id_token": "i.d.t", "account_id": "acct-1"}}
++JSON
++  local before; before="$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/home/.codex/auth.json")"
++  snap_docker
++  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
++    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
++  [ "$status" -eq 0 ]
++  local c="$T/snap/.codex/auth.json"
++  [ -f "$c" ]
++  [ "$(stat -c %a "$c")" = 600 ]
++  jq -e '.tokens.refresh_token == "loa-ablation-no-refresh-token"
++         and .tokens.access_token == "x.y.z" and .tokens.id_token == "i.d.t" and .tokens.account_id == "acct-1"
++         and has("OPENAI_API_KEY") and .auth_mode == "chatgpt" and .last_refresh == "2026-10-18T00:00:00Z"
++         and .extra.k == 1' "$c"
++  ! grep -q '"R"' "$c"
++  [ "$(cat "$T/snap/.codex/config.toml")" = "model = 'x'" ]
++  # the host file is byte-identical and still carries its refresh token
++  [ "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/home/.codex/auth.json")" = "$before" ]
++  jq -e '.tokens.refresh_token == "R"' "$T/home/.codex/auth.json"
++  # no token value reaches the docker argv
++  ! tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -qE 'x\.y\.z|i\.d\.t'
++}
++
++@test "container: KF-048 — an unreadable auth.json gives the run no codex credential, one WARN line, and the run proceeds" {
++  printf 'not json {\n' > "$T/home/.codex/auth.json"
++  snap_docker
++  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
++    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
++  [ "$status" -eq 0 ]
++  [ "$(grep -c 'pipeline-run: WARN codex auth.json unreadable; the run has no codex credential' <<<"$output")" -eq 1 ]
++  [ ! -e "$T/snap/.codex/auth.json" ]
++  [ -f "$T/snap/.codex/config.toml" ]
++  ! grep -q 'codex/auth.json' "$T/dlog/run-1.mounts"
++}
++
++@test "container: KF-048 — a JSON auth.json that is not an object is unreadable too" {
++  printf '[1, 2]\n' > "$T/home/.codex/auth.json"
++  snap_docker
++  run "$PR" --task-yaml "$BUILD" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
++    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
++  [ "$status" -eq 0 ]
++  grep -q 'pipeline-run: WARN codex auth.json unreadable' <<<"$output"
++  [ ! -e "$T/snap/.codex/auth.json" ]
++}
+diff --git a/evals/tests/run-ablation.bats b/evals/tests/run-ablation.bats
+index 0cc06f60..41ee4d0c 100644
+--- a/evals/tests/run-ablation.bats
++++ b/evals/tests/run-ablation.bats
+@@ -28,8 +28,10 @@ setup() {
+   for i in $(seq 1 36); do echo "self-check base task-$i: PASS hidden 1/1"; done > "$T/self-check.log"
+   export PATH="$T/bin:$PATH" EVAL_CLAUDE_BIN="$T/bin/claude" LOA_ABLATION_SOURCE_TREE="$T/src"
+   export LOA_ABLATION_RETRY_WAIT_S=0 LOA_ABLATION_POLL_S=0.2 STUB_LOG="$T/stub.log" STUB_GRADE_LOG="$T/grade.log"
+-  unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
++  unset STUB_ARGV_LOG STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL STUB_GRADE_HANG LOA_ABLATION_GRADE_TIMEOUT_S LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER
+   RES="$T/res"
++  # hermetic codex credentials (KF-048 pre-flight): an empty directory unless a case writes one
++  mkdir -p "$T/creds/.codex"; export LOA_EVAL_CREDS_HOME="$T/creds"
+ }
+ 
+ teardown() {
+@@ -46,7 +48,7 @@ rules() { printf '%s\n' "$@" > "$T/rules"; export STUB_RULES="$T/rules"; }
+ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
+ 
+ @test "RAB-1 --dry-run: plan shape (arms x applicable tasks x trials), one refused line per inapplicable pair, trial-major order, MANIFEST.json with every §3.4 field, no run dir and no pipeline call" {
+-  ra --arms a0_bare,a1_full,a4_no_gates --tasks bugfix-01,review-01 --trials-build 2 --trials-review 1 --batch b1 \
++  ra --arms a0_bare,a1_full,a4_no_gates --tasks bugfix-v2-02,review-01 --trials-build 2 --trials-review 1 --batch b1 \
+      --max-usd 100 --pre-registration-ref "NOTES ## Pre-registration 2026-10-15T08:00:00Z" --dry-run
+   [ "$status" -eq 0 ]
+   grep -q '^plan: 3 arms, 2 tasks, 8 trials, shuffle seed 20261015' <<<"$output"
+@@ -77,7 +79,8 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
+   [ "$(jq -r '.arm_map | length' "$M")" = 8 ]
+   [ "$(jq -r '.arm_map["b1-a1_full-review-01-t1"]' "$M")" = a1_full ]
+   [ "$(jq -c '.trials_per_type' "$M")" = '{"build":2,"review-catch":1}' ]
+-  [ "$(jq -c '.caps' "$M")" = '{"cycle_usd":1500,"run_usd":12,"reserve_usd":250,"max_usd":100}' ]
++  # Sprint 261 (DEC-0567): caps gains run_usd_by_type, the effective per-kind caps
++  [ "$(jq -c '.caps' "$M")" = '{"cycle_usd":1500,"run_usd":12,"reserve_usd":250,"max_usd":100,"run_usd_by_type":{"build":15,"review-catch":20}}' ]
+   [ "$(jq -r '.executor_mode' "$M")" = container ]
+   [ "$(jq -r '.image_digest' "$M")" = "sha256:feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface" ]
+   [ "$(jq -r '.cli_version' "$M")" = "2.1.299" ]   # the image's CLI, not the host's 2.1.300
+@@ -87,28 +90,47 @@ row() { jq -c --arg r "$1" 'select(.run_id == $r)' "$RES/runs.jsonl"; }
+   [ "$(jq -r '.pre_registration_ref' "$M")" = "NOTES ## Pre-registration 2026-10-15T08:00:00Z" ]
+   [ "$(jq -r '.suite_manifest_sha256' "$M")" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$REPO_ROOT/grimoires/loa/evals/ablation-2.0/MANIFEST.sha256")" ]
+   [ "$(jq -r '.refused | length' "$M")" = 1 ]
+-  # the watchdog deadline is twice the phase-sum timeout: A0 BARE 70 min, A1 build 130 min, A4 build 40 min
+-  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare")][0].watchdog_s' "$M")" = 8400 ]
+-  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].watchdog_s' "$M")" = 15600 ]
+-  [ "$(jq -r '[.plan[] | select(.arm == "a4_no_gates")][0].phase_sum_min' "$M")" = 40 ]
++  # the watchdog deadline is twice the phase-sum timeout. Suite v2 build tasks carry bounds
++  # timeout_min {IMPLEMENT: 35}: A1 build 15 + 35 + 30 + 15 + 30 + 15 = 140 min, A4 build 15 + 35 = 50,
++  # A1 review-catch (no bounds) 60. A0 BARE stays 70 min: the suite's phase_defaults declares BARE,
++  # so pipeline-run.sh's PLAN + IMPLEMENT + 2 x FIX derivation (80) does not apply
++  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare" and .type == "bug-fix")][0].watchdog_s' "$M")" = 9600 ]   # BARE = 15 + 35 + 2 x 15 on a v2 task (per-task bounds, DEC-0580)
++  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].watchdog_s' "$M")" = 16800 ]
++  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "bug-fix")][0].phase_sum_min' "$M")" = 140 ]
++  [ "$(jq -r '[.plan[] | select(.arm == "a1_full" and .type == "review-catch")][0].phase_sum_min' "$M")" = 60 ]
++  [ "$(jq -r '[.plan[] | select(.arm == "a4_no_gates")][0].phase_sum_min' "$M")" = 50 ]
++}
++
++@test "RAB-27 --types filters the plan by task type (Sprint 261 calibration dry run): build keeps the twelve build tasks, review-catch the four; the a0 BARE budget on a v2 task is 80 min" {
++  ra --arms a0_bare --types build --trials-build 2 --batch ty1 --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '.tasks | length' "$RES/ty1/MANIFEST.json")" = 12 ]
++  [ "$(jq -r '[.tasks[].type] | unique | join(",")' "$RES/ty1/MANIFEST.json")" = "bug-fix,feature-build,refactor" ]
++  [ "$(jq -r '.trials_planned' "$RES/ty1/MANIFEST.json")" = 24 ]
++  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare")][0].phase_sum_min' "$RES/ty1/MANIFEST.json")" = 80 ]
++  ra --arms a1_full --types review-catch --trials-review 1 --batch ty2 --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '[.tasks[].id] | join(",")' "$RES/ty2/MANIFEST.json")" = "review-01,review-02,review-03,review-04" ]
++  ra --arms a1_full --types nope --batch ty3 --dry-run
++  [ "$status" -eq 2 ]
+ }
+ 
+ @test "RAB-2 the shuffle is a seeded Fisher-Yates per trial block: reproducible for a seed (and equal to random.Random(seed).shuffle), different for another seed" {
+-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s1 --dry-run
++  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-02,refactor-v2-05,review-01 --trials-build 2 --trials-review 2 --batch s1 --dry-run
+   [ "$status" -eq 0 ]
+   first="$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s1/MANIFEST.json")"
+-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s2 --dry-run
++  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-02,refactor-v2-05,review-01 --trials-build 2 --trials-review 2 --batch s2 --dry-run
+   [ "$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s2/MANIFEST.json")" = "$first" ]
+   # an independent re-derivation: arm-major blocks, tasks by id, one generator, blocks in trial order
+   want="$(python3 -I -c '
+ import random
+ rng = random.Random(20261015); out = []
+ for t in (1, 2):
+-    b = [(a, k) for a in ("a0_bare", "a1_full", "a3_one_voice") for k in ("bugfix-01", "refactor-01", "review-01")]
++    b = [(a, k) for a in ("a0_bare", "a1_full", "a3_one_voice") for k in ("bugfix-v2-02", "refactor-v2-05", "review-01")]
+     rng.shuffle(b); out += ["%s/%s/%d" % (a, k, t) for a, k in b]
+ print(",".join(out))')"
+   [ "$first" = "$want" ]
+-  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-01,refactor-01,review-01 --trials-build 2 --trials-review 2 --batch s3 --seed 7 --dry-run
++  ra --arms a0_bare,a1_full,a3_one_voice --tasks bugfix-v2-02,refactor-v2-05,review-01 --trials-build 2 --trials-review 2 --batch s3 --seed 7 --dry-run
+   [ "$status" -eq 0 ]
+   other="$(jq -r '[.plan[] | "\(.arm)/\(.task_id)/\(.trial)"] | join(",")' "$RES/s3/MANIFEST.json")"
+   [ "$other" != "$first" ]
+@@ -120,7 +142,7 @@ print(",".join(out))')"
+ 
+ @test "RAB-3 hard gate (DEC-0435): a non-smoke batch without MANIFEST.sha256, without the self-check log, or with a task lacking REVIEW.md is refused (exit 2, REFUSED.txt only); with all three their hashes land in MANIFEST.json gate" {
+   S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
+-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g0 --dry-run
++  ra --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g0 --dry-run
+   [ "$status" -eq 0 ]
+   G="$RES/g0/MANIFEST.json"
+   [ "$(jq -r '.gate.review_md | length' "$G")" = 16 ]
+@@ -130,29 +152,29 @@ print(",".join(out))')"
+   [ "$(jq -r '.gate.review_md["review-03"]' "$G")" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$S/tasks/review-03/REVIEW.md")" ]
+   # 1. the self-check log missing
+   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --docker-bin "$T/bin/docker" \
+-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1 --dry-run
++    --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g1 --dry-run
+   [ "$status" -eq 2 ]
+   [ "$(ls -A "$RES/g1")" = "REFUSED.txt" ]
+   grep -q 'self-check log .* is missing' "$RES/g1/REFUSED.txt"
+   # a log with a FAIL line, or too few PASS lines
+   { cat "$T/self-check.log"; echo "self-check base x: FAIL hidden 0/1"; } > "$T/fail.log"
+   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/fail.log" --docker-bin "$T/bin/docker" \
+-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1b --dry-run
++    --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g1b --dry-run
+   [ "$status" -eq 2 ]; grep -q '1 FAIL line' "$RES/g1b/REFUSED.txt"
+   head -35 "$T/self-check.log" > "$T/short.log"
+   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/short.log" --docker-bin "$T/bin/docker" \
+-    --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g1c --dry-run
++    --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g1c --dry-run
+   [ "$status" -eq 2 ]; grep -q '35 PASS lines, want 36' "$RES/g1c/REFUSED.txt"
+   # 2. a task without REVIEW.md (the suite re-frozen so only the gate can refuse)
+   rm "$S/tasks/review-02/REVIEW.md"
+   "$REPO_ROOT/evals/harness/freeze.sh" --smoke --root "$S" >/dev/null
+-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g2 --dry-run
++  ra --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g2 --dry-run
+   [ "$status" -eq 2 ]
+   grep -q 'no REVIEW.md in tasks/{review-02}' "$RES/g2/REFUSED.txt"
+   [ ! -e "$RES/g2/MANIFEST.json" ]
+   # 3. no MANIFEST.sha256
+   rm "$S/MANIFEST.sha256"
+-  ra --arms a1_full --tasks bugfix-01 --suite-root "$S" --batch g3 --dry-run
++  ra --arms a1_full --tasks bugfix-v2-02 --suite-root "$S" --batch g3 --dry-run
+   [ "$status" -eq 2 ]
+   grep -q 'MANIFEST.sha256 is missing' "$RES/g3/REFUSED.txt"
+   [ "$(ls -A "$RES/g3")" = "REFUSED.txt" ]
+@@ -187,51 +209,52 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-5 dispatch and rows: completed rows validate; agent_error is never retried (not even when the agent writes 'rate limit'); a transport failure is retried once (attempts 2, retry_reason, one row) and twice is transport_error; a cap failure charges run_cap; a grade exit 2 rows infrastructure_error" {
+-  rules '*-bugfix-02-* agent_error' '*-refactor-01-* transport_once' '*-refactor-02-* transport' '*-feature-01-* cap_failure' '*-feature-02-* ok'
+-  export STUB_GRADE_FAIL='*-feature-02-*'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,refactor-01,refactor-02,feature-01,feature-02,review-01 --trials-build 1 --trials-review 1 \
++  rules '*-bugfix-v2-05-* agent_error' '*-refactor-v2-05-* transport_once' '*-refactor-v2-06-* transport' '*-feature-v2-01-* cap_failure' '*-feature-v2-05-* ok'
++  export STUB_GRADE_FAIL='*-feature-v2-05-*'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,refactor-v2-05,refactor-v2-06,feature-v2-01,feature-v2-05,review-01 --trials-build 1 --trials-review 1 \
+      --batch d1 --concurrency 2
+   [ "$status" -eq 1 ]   # partial: the transport_error and infrastructure_error rows are excluded
+   B="$RES/d1"
+   "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
+   [ "$(wc -l < "$RES/runs.jsonl")" -eq 7 ]
+   [ "$(jq -r '.run_id' "$RES/runs.jsonl" | sort -u | wc -l)" -eq 7 ]
+-  [ "$(row d1-a1_full-bugfix-01-t1 | jq -r '.status, .attempts, .retry_reason, .arm, .batch' | tr '\n' ' ')" = "completed 1 null a1_full d1 " ]
++  [ "$(row d1-a1_full-bugfix-v2-02-t1 | jq -r '.status, .attempts, .retry_reason, .arm, .batch' | tr '\n' ' ')" = "completed 1 null a1_full d1 " ]
+   [ "$(row d1-a1_full-review-01-t1 | jq -r '.defect_catch_rate')" = "0.5" ]
+-  [ "$(row d1-a1_full-bugfix-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "agent_error 1 " ]
+-  [ "$(grep -c 'd1-a1_full-bugfix-02-t1 ' "$T/stub.log")" -eq 1 ]
+-  [ "$(grep -c 'd1-a1_full-refactor-01-t1 ' "$T/stub.log")" -eq 2 ]
+-  grep -q 'd1-a1_full-refactor-01-t1 a1_full refactor-01 1 refactor-01-t1-r2$' "$T/stub.log"
+-  [ "$(row d1-a1_full-refactor-01-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "completed 2 " ]
+-  [ "$(row d1-a1_full-refactor-01-t1 | jq -r '.retry_reason')" = "transport: stderr in phase FIX2" ]
+-  [ -d "$B/a1_full/refactor-01-t1" ] && [ -d "$B/a1_full/refactor-01-t1-r2" ]
+-  [ "$(row d1-a1_full-refactor-02-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "transport_error 2 " ]
+-  [ "$(row d1-a1_full-feature-01-t1 | jq -r '.status')" = cap_failure ]
+-  [ "$(row d1-a1_full-feature-02-t1 | jq -r '.status')" = infrastructure_error ]
+-  grep -q 'grade exit 2' "$B/a1_full/feature-02-t1.log"
++  [ "$(row d1-a1_full-bugfix-v2-05-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "agent_error 1 " ]
++  [ "$(grep -c 'd1-a1_full-bugfix-v2-05-t1 ' "$T/stub.log")" -eq 1 ]
++  [ "$(grep -c 'd1-a1_full-refactor-v2-05-t1 ' "$T/stub.log")" -eq 2 ]
++  grep -q 'd1-a1_full-refactor-v2-05-t1 a1_full refactor-v2-05 1 refactor-v2-05-t1-r2$' "$T/stub.log"
++  [ "$(row d1-a1_full-refactor-v2-05-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "completed 2 " ]
++  [ "$(row d1-a1_full-refactor-v2-05-t1 | jq -r '.retry_reason')" = "transport: stderr in phase FIX2" ]
++  [ -d "$B/a1_full/refactor-v2-05-t1" ] && [ -d "$B/a1_full/refactor-v2-05-t1-r2" ]
++  [ "$(row d1-a1_full-refactor-v2-06-t1 | jq -r '.status, .attempts' | tr '\n' ' ')" = "transport_error 2 " ]
++  [ "$(row d1-a1_full-feature-v2-01-t1 | jq -r '.status')" = cap_failure ]
++  [ "$(row d1-a1_full-feature-v2-05-t1 | jq -r '.status')" = infrastructure_error ]
++  grep -q 'grade exit 2' "$B/a1_full/feature-v2-05-t1.log"
+   S="$B/STATUS.json"
+   [ "$(jq -r '.state' "$S")" = partial ]
+   [ "$(jq -c '.per_arm.a1_full' "$S")" = '{"trials_planned":7,"launched":7,"completed":3,"failed":1,"excluded":2,"cap_failures":1,"degraded":0,"skipped_paused":0}' ]
+   [ "$(jq -r '.retries | length' "$S")" = 2 ]
+-  [ "$(jq -r '.retries[] | select(.run_id == "d1-a1_full-refactor-01-t1") | .first_attempt_usd' "$S")" = 2.5 ]
+-  # rows 7 x 2.5 = 17.5; first attempts 2 x 2.5; the cap failure (2.5 < 12) is charged 12
++  [ "$(jq -r '.retries[] | select(.run_id == "d1-a1_full-refactor-v2-05-t1") | .first_attempt_usd' "$S")" = 2.5 ]
++  # rows 7 x 2.5 = 17.5; first attempts 2 x 2.5; the build cap failure (2.5 < 15, the build
++  # cap since DEC-0567; 12 before) is charged 15: 17.5 - 2.5 + 15 + 5 = 35
+   [ "$(jq -r '.spend.rows_usd' "$S")" = 17.5 ]
+   [ "$(jq -r '.spend.ledger_usd' "$S")" = 5 ]
+   [ "$(jq -r '.spend.assumed_cap_trials' "$S")" = 1 ]
+-  [ "$(jq -r '.spend.spent_usd' "$S")" = 32 ]
++  [ "$(jq -r '.spend.spent_usd' "$S")" = 35 ]
+   [ "$(jq -r '.resume_cursor' "$S")" = 7 ]
+   jq -e '.finished != null and .drift == null and .paused_arms == {} and .cuts == []' "$S" >/dev/null
+ }
+ 
+ @test "RAB-6 took-effect pause (DEC-0418): a run whose evidence fails rows infrastructure_error and pauses the arm, later trials of that arm do not launch; --resume --clear-arm continues them" {
+-  rules '*-a1_full-bugfix-01-t1 bad_evidence'
+-  ra --arms a0_bare,a1_full --tasks bugfix-01,bugfix-02 --trials-build 2 --batch p1 --concurrency 1
++  rules '*-a1_full-bugfix-v2-02-t1 bad_evidence'
++  ra --arms a0_bare,a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 2 --batch p1 --concurrency 1
+   [ "$status" -eq 1 ]
+   B="$RES/p1" S="$RES/p1/STATUS.json"
+-  [ "$(row p1-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
+-  jq -e '.paused_arms.a1_full | test("p1-a1_full-bugfix-01-t1: took-effect exit 1: arm a1_full: integrity_clean FAIL")' "$S" >/dev/null
++  [ "$(row p1-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = infrastructure_error ]
++  jq -e '.paused_arms.a1_full | test("p1-a1_full-bugfix-v2-02-t1: took-effect exit 1: arm a1_full: integrity_clean FAIL")' "$S" >/dev/null
+   # every a1_full entry after the failing one in plan order never reached the pipeline
+-  after="$(jq -r '.plan | (map(.run_id) | index("p1-a1_full-bugfix-01-t1")) as $k | .[$k + 1:][] | select(.arm == "a1_full") | .run_id' "$B/MANIFEST.json")"
++  after="$(jq -r '.plan | (map(.run_id) | index("p1-a1_full-bugfix-v2-02-t1")) as $k | .[$k + 1:][] | select(.arm == "a1_full") | .run_id' "$B/MANIFEST.json")"
+   [ -n "$after" ]
+   for r in $after; do ! grep -q "^$r " "$T/stub.log" || false; done
+   [ "$(grep -c ' a0_bare ' "$T/stub.log")" -eq 4 ]
+@@ -256,7 +279,7 @@ print(",".join(out))')"
+ 
+ @test "RAB-7 drift guard (DEC-0407): an init claude_code_version other than MANIFEST cli_version fails the batch (state failed, drift populated, nothing more launches); a foreign model id does too" {
+   rules '* drift_cli'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch dr1 --concurrency 1
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06 --trials-build 1 --batch dr1 --concurrency 1
+   [ "$status" -eq 3 ]
+   S="$RES/dr1/STATUS.json"
+   [ "$(jq -r '.state' "$S")" = failed ]
+@@ -268,7 +291,7 @@ print(",".join(out))')"
+   ra --batch dr1 --resume
+   [ "$status" -eq 2 ]
+   rules '* drift_model'
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch dr2
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch dr2
+   [ "$status" -eq 3 ]
+   jq -e '.drift.field | startswith("models_used.")' "$RES/dr2/STATUS.json" >/dev/null
+   # DEC-0545: the requested model is absent; got is the sorted models_used keys, expected the manifest model
+@@ -276,13 +299,13 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-8 watchdog (DEC-0429): a pipeline that hangs past the deadline (with a running record, or with none) is SIGTERMed and rowed interrupted" {
+-  rules '*-bugfix-01-* hang' '*-bugfix-02-* hang_norecord'
++  rules '*-bugfix-v2-02-* hang' '*-bugfix-v2-05-* hang_norecord'
+   export LOA_ABLATION_WATCHDOG_S=2 LOA_ABLATION_WATCHDOG_GRACE_S=2
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch w1 --concurrency 2
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch w1 --concurrency 2
+   [ "$status" -eq 3 ]   # no trial completed
+-  [ "$(row w1-a1_full-bugfix-01-t1 | jq -r '.status')" = interrupted ]
+-  [ "$(row w1-a1_full-bugfix-02-t1 | jq -r '.status')" = interrupted ]
+-  [ "$(jq -r '.synthesized_by' "$RES/w1/a1_full/bugfix-02-t1/meta/pipeline.json")" = run-ablation.sh ]
++  [ "$(row w1-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = interrupted ]
++  [ "$(row w1-a1_full-bugfix-v2-05-t1 | jq -r '.status')" = interrupted ]
++  [ "$(jq -r '.synthesized_by' "$RES/w1/a1_full/bugfix-v2-05-t1/meta/pipeline.json")" = run-ablation.sh ]
+   [ "$(grep -c 'watchdog: .* SIGTERM' "$RES/w1/run.log")" -eq 2 ]
+   [ "$(jq -r '.per_arm.a1_full.excluded' "$RES/w1/STATUS.json")" = 2 ]
+   # every interrupted trial without a reported cost is charged the run cap
+@@ -291,7 +314,7 @@ print(",".join(out))')"
+ 
+ @test "RAB-9 --max-usd: USD 5 per trial under max 12 launches two (0+7 hint, 5+5) and cuts the third (10+5 > 12) with cuts[] populated; exit 1" {
+   export STUB_COST=5
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch c1 --concurrency 1 --max-usd 12
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07 --trials-build 1 --batch c1 --concurrency 1 --max-usd 12
+   [ "$status" -eq 1 ]
+   S="$RES/c1/STATUS.json"
+   [ "$(wc -l < "$T/stub.log")" -eq 2 ]
+@@ -303,7 +326,7 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-10 --resume: an interrupted batch (STATUS mid-plan, two rows, one stale run dir) resumes without duplicate run_ids and finishes" {
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch r1 --concurrency 1
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07 --trials-build 1 --batch r1 --concurrency 1
+   [ "$status" -eq 0 ]
+   B="$RES/r1"
+   mapfile -t ids < <(jq -r '.plan[].run_id' "$B/MANIFEST.json")
+@@ -329,12 +352,12 @@ print(",".join(out))')"
+   : > "$T/stub.log"
+   ra --batch r1 --resume
+   [ "$status" -eq 0 ]; [ ! -s "$T/stub.log" ]
+-  ra --arms a1_full --tasks bugfix-01 --batch r1
++  ra --arms a1_full --tasks bugfix-v2-02 --batch r1
+   [ "$status" -eq 2 ]; grep -q 'use --resume' <<<"$output"
+ }
+ 
+ @test "RAB-11 --detach re-execs in a new session, prints the batch dir and pid, and the batch completes in the background" {
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch dt1 --detach
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch dt1 --detach
+   [ "$status" -eq 0 ]
+   grep -q "^detached: batch $RES/dt1 pid [0-9]*" <<<"$output"
+   pid="$(sed -n 's/.* pid \([0-9]*\).*/\1/p' <<<"$output")"
+@@ -355,20 +378,20 @@ print(",".join(out))')"
+   [ "$status" -eq 2 ]
+   ra --arms a1_full --tasks nope-01 --batch u3 --dry-run
+   [ "$status" -eq 2 ]
+-  DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-01 --batch u4 --dry-run
++  DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-v2-02 --batch u4 --dry-run
+   [ "$status" -eq 2 ]; grep -q 'image loa-ablation:258 not found' "$RES/u4/REFUSED.txt"
+   echo y > "$T/src/.claude/new" && git -C "$T/src" add -A && git -C "$T/src" -c user.email=t@t -c user.name=t commit -q -m two
+-  ra --arms a1_full --tasks bugfix-01 --batch u5 --dry-run
++  ra --arms a1_full --tasks bugfix-v2-02 --batch u5 --dry-run
+   [ "$status" -eq 2 ]; grep -q "is not at" "$RES/u5/REFUSED.txt"
+   # the default arm list is the suite's priority minus absent arms
+-  ra --source-commit "$(git -C "$T/src" rev-parse HEAD)" --tasks bugfix-01 --batch u6 --dry-run
++  ra --source-commit "$(git -C "$T/src" rev-parse HEAD)" --tasks bugfix-v2-02 --batch u6 --dry-run
+   [ "$status" -eq 0 ]
+   [ "$(jq -r '.arms | join(",")' "$RES/u6/MANIFEST.json")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a7_effort_medium,a5_no_flatline,a6_one_window" ]
+ }
+ 
+ @test "RAB-13 a signalled driver marks the batch partial, terminates its running pipelines by process group, and --resume reruns the unrowed trial into a fresh run dir" {
+   export STUB_HANG=1
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch sg1 --detach
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch sg1 --detach
+   [ "$status" -eq 0 ]
+   pid="$(sed -n 's/.* pid \([0-9]*\).*/\1/p' <<<"$output")"
+   pg=""
+@@ -390,7 +413,7 @@ print(",".join(out))')"
+   unset STUB_HANG
+   ra --batch sg1 --resume
+   [ "$status" -eq 0 ]
+-  [ -d "$RES/sg1/a1_full/bugfix-01-t1-r2" ]
++  [ -d "$RES/sg1/a1_full/bugfix-v2-02-t1-r2" ]
+   [ "$(jq -r '.status' "$RES/runs.jsonl")" = completed ]
+   [ "$(jq -r '.state' "$RES/sg1/STATUS.json")" = complete ]
+ }
+@@ -423,7 +446,7 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-15 a start is refused while a process group recorded by an earlier (SIGKILLed) driver still runs" {
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch k1
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch k1
+   [ "$status" -eq 0 ]
+   mkdir -p "$RES/k1/.jobs"
+   setsid sleep 60 & sp=$!
+@@ -438,29 +461,29 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-16 an extra model beside the requested one (a WebFetch summariser, DEC-0545) is not drift: the trial completes and grades, the trial log names it, STATUS.json extra_models counts it, the row is not degraded" {
+-  rules '*-bugfix-01-* extra_model'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch x1 --concurrency 1
++  rules '*-bugfix-v2-02-* extra_model'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch x1 --concurrency 1
+   [ "$status" -eq 0 ]
+   S="$RES/x1/STATUS.json"
+   jq -e '.drift == null and .state == "complete" and .drift_cleared == [] and .rerowed == []' "$S" >/dev/null
+   [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
+-  [ "$(jq -c '.extra_models_by_run | keys' "$S")" = '["x1-a1_full-bugfix-01-t1"]' ]
+-  grep -qF 'run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in FIX2 (516 output tokens; a WebFetch summariser or built-in subagent, not drift' "$RES/x1/a1_full/bugfix-01-t1.log"
+-  ! grep -q 'extra model' "$RES/x1/a1_full/bugfix-02-t1.log" || false
+-  [ "$(row x1-a1_full-bugfix-01-t1 | jq -r '.status + " " + (.degraded | tostring) + " " + (.hidden_test_pass_rate | tostring)')" = "completed false 0.75" ]
++  [ "$(jq -c '.extra_models_by_run | keys' "$S")" = '["x1-a1_full-bugfix-v2-02-t1"]' ]
++  grep -qF 'run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in FIX2 (516 output tokens; a WebFetch summariser or built-in subagent, not drift' "$RES/x1/a1_full/bugfix-v2-02-t1.log"
++  ! grep -q 'extra model' "$RES/x1/a1_full/bugfix-v2-05-t1.log" || false
++  [ "$(row x1-a1_full-bugfix-v2-02-t1 | jq -r '.status + " " + (.degraded | tostring) + " " + (.hidden_test_pass_rate | tostring)')" = "completed false 0.75" ]
+   [ "$(wc -l < "$T/grade.log")" -eq 2 ]
+   # a batch without one carries an empty object
+   unset STUB_RULES
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch x0
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch x0
+   [ "$status" -eq 0 ]
+   [ "$(jq -c '.extra_models' "$RES/x0/STATUS.json")" = '{}' ]
+ }
+ 
+ @test "RAB-17 --clear-drift: a drift recorded under the old rule on an extra-model run is re-read clean (drift null, drift_cleared[], the rest of the plan runs); a real substitution is still a drift (exit 2, STATUS.json unchanged); --clear-drift needs --resume" {
+-  rules '*-bugfix-01-* extra_model'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch cd1 --concurrency 1
++  rules '*-bugfix-v2-02-* extra_model'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06 --trials-build 1 --batch cd1 --concurrency 1
+   [ "$status" -eq 0 ]
+-  B="$RES/cd1" x=cd1-a1_full-bugfix-01-t1
++  B="$RES/cd1" x=cd1-a1_full-bugfix-v2-02-t1
+   # the old rule's stop: the drift recorded on the extra-model run, no other row
+   jq -c --arg r "$x" 'select(.run_id == $r)' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+   jq --arg r "$x" '.state = "failed" | .drift = {run_id: $r, field: "models_used.FIX2", expected: ["claude-fable-5-1", "claude-opus-5-5"],
+@@ -487,11 +510,11 @@ print(",".join(out))')"
+   ! grep -q "^$x " "$T/stub.log" || false
+   [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
+   # a real substitution (the requested model absent) stays a drift
+-  rules '*-bugfix-01-* drift_model'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch cd2 --concurrency 1
++  rules '*-bugfix-v2-02-* drift_model'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch cd2 --concurrency 1
+   [ "$status" -eq 3 ]
+   cp "$RES/cd2/STATUS.json" "$T/st2.before"; cp "$RES/runs.jsonl" "$T/rows2.before"
+-  [ "$(jq -r '.drift.run_id' "$RES/cd2/STATUS.json")" = cd2-a1_full-bugfix-01-t1 ]
++  [ "$(jq -r '.drift.run_id' "$RES/cd2/STATUS.json")" = cd2-a1_full-bugfix-v2-02-t1 ]
+   ra --batch cd2 --resume --clear-drift
+   [ "$status" -eq 2 ]; grep -q 'still drifts under the current rule' <<<"$output"
+   cmp "$RES/cd2/STATUS.json" "$T/st2.before"
+@@ -500,12 +523,12 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-18 --rerow: an infrastructure_error row left by the old drift rule on an extra-model run is rowed again (one row, completed, rerowed[], spend counts it once, no pipeline call); an unknown id, another batch's id, a duplicated row, an interrupted row and a rerow without --resume are refused with the rows file byte-identical" {
+-  rules '*-bugfix-01-* extra_model'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rr1 --concurrency 1
++  rules '*-bugfix-v2-02-* extra_model'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06 --trials-build 1 --batch rr1 --concurrency 1
+   [ "$status" -eq 0 ]
+   unset STUB_RULES
+-  B="$RES/rr1" x=rr1-a1_full-bugfix-01-t1 y=rr1-a1_full-bugfix-03-t1
+-  xd="$B/a1_full/bugfix-01-t1"
++  B="$RES/rr1" x=rr1-a1_full-bugfix-v2-02-t1 y=rr1-a1_full-bugfix-v2-06-t1
++  xd="$B/a1_full/bugfix-v2-02-t1"
+   # x's row as the old rule left it: drift, never graded, --status infrastructure_error, in its place
+   rm "$xd/grade.json"
+   "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
+@@ -523,7 +546,7 @@ print(",".join(out))')"
+   [ "$status" -eq 2 ]; grep -q 'failed on drift' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+   ra --batch rr1 --resume --clear-drift --rerow rr1-a1_full-nope-01-t1
+   [ "$status" -eq 2 ]; grep -q 'not in the batch' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+-  ra --batch rr1 --resume --clear-drift --rerow other-a1_full-bugfix-01-t1
++  ra --batch rr1 --resume --clear-drift --rerow other-a1_full-bugfix-v2-02-t1
+   [ "$status" -eq 2 ]; grep -q 'not a run of batch rr1' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+   { cat "$T/rows.before"; jq -c --arg r "$x" 'select(.run_id == $r)' "$T/rows.before"; } > "$RES/runs.jsonl"; cp "$RES/runs.jsonl" "$T/rows.dup"
+   ra --batch rr1 --resume --clear-drift --rerow "$x"
+@@ -552,19 +575,19 @@ print(",".join(out))')"
+   [ "$(jq -r '.spend.rows_usd, .per_arm.a1_full.completed, .per_arm.a1_full.excluded, .per_arm.a1_full.launched' "$S" | tr '\n' ' ')" = "7.5 3 0 3 " ]
+   [ "$(jq -c '.extra_models' "$S")" = '{"global.anthropic.claude-haiku-4-5-20251001-v1:0":{"runs":1,"output_tokens":516}}' ]
+   grep -qF "rerow $x: infrastructure_error → completed" "$B/run.log"
+-  grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-01-t1.log"
++  grep -q "rerow $x run_dir $xd (was infrastructure_error)" "$B/a1_full/bugfix-v2-02-t1.log"
+   ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false   # no temp file left beside the rows file
+ }
+ 
+ @test "RAB-19 --rerun-status transport_error (DEC-0553): a finished batch's two transport rows are launched again into -r3 dirs and replaced in place (one row per run_id, rerun[], no assumed charge left, spent = rows + ledger); --rerun of a completed row, --rerun-status completed, --rerun without --resume and an id given to both --rerun and --rerow are refused with the rows file byte-identical" {
+   export LOA_ABLATION_OUTAGE_BREAKER=0
+-  rules '*-bugfix-02-* transport' '*-bugfix-04-* transport'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04 --trials-build 1 --batch rn1 --concurrency 1
++  rules '*-bugfix-v2-05-* transport' '*-bugfix-v2-07-* transport'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07 --trials-build 1 --batch rn1 --concurrency 1
+   [ "$status" -eq 1 ]
+-  B="$RES/rn1" S="$RES/rn1/STATUS.json" x=rn1-a1_full-bugfix-02-t1 y=rn1-a1_full-bugfix-04-t1
++  B="$RES/rn1" S="$RES/rn1/STATUS.json" x=rn1-a1_full-bugfix-v2-05-t1 y=rn1-a1_full-bugfix-v2-07-t1
+   [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
+   [ "$(row "$y" | jq -r '.status')" = transport_error ]
+-  [ -d "$B/a1_full/bugfix-02-t1-r2" ] && [ ! -e "$B/a1_full/bugfix-02-t1-r3" ]
++  [ -d "$B/a1_full/bugfix-v2-05-t1-r2" ] && [ ! -e "$B/a1_full/bugfix-v2-05-t1-r3" ]
+   # the P1 shape: a transport row reports no cost, so reconciliation would charge it the run cap
+   jq -c --arg x "$x" --arg y "$y" 'if .run_id == $x or .run_id == $y then .cost_usd = 0 else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+   order="$(jq -r '.run_id' "$RES/runs.jsonl")"
+@@ -574,7 +597,7 @@ print(",".join(out))')"
+   [ "$status" -eq 2 ]; grep -q -- '--rerun needs --resume' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+   ra --batch rn1 --resume --rerun-status completed
+   [ "$status" -eq 2 ]; grep -q -- '--rerun-status must be transport_error, interrupted or infrastructure_error' <<<"$output"
+-  ra --batch rn1 --resume --rerun rn1-a1_full-bugfix-01-t1
++  ra --batch rn1 --resume --rerun rn1-a1_full-bugfix-v2-02-t1
+   [ "$status" -eq 2 ]; grep -q 'the row is completed; only transport_error' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+   ra --batch rn1 --resume --rerun "$x" --rerow "$x"
+   [ "$status" -eq 2 ]; grep -q 'is also a --rerow' <<<"$output"; cmp "$RES/runs.jsonl" "$T/rows.before"
+@@ -585,8 +608,8 @@ print(",".join(out))')"
+   ra --batch rn1 --resume --rerun-status transport_error
+   [ "$status" -eq 0 ]
+   [ "$(wc -l < "$T/stub.log")" -eq 2 ]
+-  grep -q "^$x a1_full bugfix-02 1 bugfix-02-t1-r3$" "$T/stub.log"
+-  grep -q "^$y a1_full bugfix-04 1 bugfix-04-t1-r3$" "$T/stub.log"
++  grep -q "^$x a1_full bugfix-v2-05 1 bugfix-v2-05-t1-r3$" "$T/stub.log"
++  grep -q "^$y a1_full bugfix-v2-07 1 bugfix-v2-07-t1-r3$" "$T/stub.log"
+   # one row per run_id, in the old file order, every one completed with the new run's own attempts
+   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+   [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
+@@ -612,17 +635,17 @@ print(",".join(out))')"
+   [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
+   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+   [ "$(jq -c '.rerun[-1] | [.run_id, .from, .to]' "$S")" = "[\"$x\",\"interrupted\",\"transport_error\"]" ]
+-  [ -d "$B/a1_full/bugfix-02-t1-r4" ] && [ -d "$B/a1_full/bugfix-02-t1-r5" ]
++  [ -d "$B/a1_full/bugfix-v2-05-t1-r4" ] && [ -d "$B/a1_full/bugfix-v2-05-t1-r5" ]
+ }
+ 
+ @test "RAB-19b --rerow and --rerun in one resume: an infrastructure_error row left by the old drift rule is rowed again and a transport row is launched again; each lands in its own STATUS array" {
+   export LOA_ABLATION_OUTAGE_BREAKER=0
+-  rules '*-bugfix-01-* extra_model' '*-bugfix-03-* transport'
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03 --trials-build 1 --batch rn2 --concurrency 1
++  rules '*-bugfix-v2-02-* extra_model' '*-bugfix-v2-06-* transport'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06 --trials-build 1 --batch rn2 --concurrency 1
+   [ "$status" -eq 1 ]
+   unset STUB_RULES
+-  B="$RES/rn2" x=rn2-a1_full-bugfix-01-t1 y=rn2-a1_full-bugfix-03-t1
+-  xd="$B/a1_full/bugfix-01-t1"
++  B="$RES/rn2" x=rn2-a1_full-bugfix-v2-02-t1 y=rn2-a1_full-bugfix-v2-06-t1
++  xd="$B/a1_full/bugfix-v2-02-t1"
+   rm "$xd/grade.json"
+   "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$xd" --manifest "$B/MANIFEST.json" --status infrastructure_error \
+     --task-yaml "$(jq -r --arg r "$x" '.plan[] | select(.run_id == $r) | .task_yaml' "$B/MANIFEST.json")" --out "$T/old.row"
+@@ -633,7 +656,7 @@ print(",".join(out))')"
+   ra --batch rn2 --resume --rerow "$x" --rerun-status transport_error --rerun-status infrastructure_error
+   [ "$status" -eq 0 ]
+   [ "$(wc -l < "$T/stub.log")" -eq 1 ]
+-  grep -q "^$y a1_full bugfix-03 1 bugfix-03-t1-r3$" "$T/stub.log"
++  grep -q "^$y a1_full bugfix-v2-06 1 bugfix-v2-06-t1-r3$" "$T/stub.log"
+   [ "$(wc -l < "$T/grade.log")" -eq 2 ]
+   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
+   [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
+@@ -644,13 +667,13 @@ print(",".join(out))')"
+ }
+ 
+ @test "RAB-20 outage breaker (DEC-0554): three consecutive transport_error collections stop launches (partial, STATUS.outage, the message in run.log); a non-transport collection resets the count; --resume --rerun-status transport_error completes the batch and moves outage to outage_history; LOA_ABLATION_OUTAGE_BREAKER=0 runs to the end" {
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --dry-run
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07,feature-v2-01,feature-v2-05,feature-v2-07 --trials-build 1 --batch ob1 --dry-run
+   [ "$status" -eq 0 ]
+   mapfile -t ids < <(jq -r '.plan[].run_id' "$RES/ob1/MANIFEST.json")
+   [ "${#ids[@]}" -eq 7 ]
+   # plan order: T T ok T T T | x — the ok at the third resets the count, the sixth trips it
+   rules "${ids[0]} transport" "${ids[1]} transport" "${ids[2]} ok" "${ids[3]} transport" "${ids[4]} transport" "${ids[5]} transport" "${ids[6]} ok"
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob1 --concurrency 1
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07,feature-v2-01,feature-v2-05,feature-v2-07 --trials-build 1 --batch ob1 --concurrency 1
+   [ "$status" -eq 1 ]
+   S="$RES/ob1/STATUS.json"
+   [ "$(jq -r '.state' "$S")" = partial ]
+@@ -676,30 +699,30 @@ print(",".join(out))')"
+   export LOA_ABLATION_OUTAGE_BREAKER=0
+   rules '* transport'
+   : > "$T/stub.log"
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,bugfix-03,bugfix-04,feature-01,feature-02,feature-03 --trials-build 1 --batch ob2 --concurrency 1
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,bugfix-v2-06,bugfix-v2-07,feature-v2-01,feature-v2-05,feature-v2-07 --trials-build 1 --batch ob2 --concurrency 1
+   [ "$status" -eq 3 ]   # no trial completed
+   [ "$(wc -l < "$T/stub.log")" -eq 14 ]
+   [ "$(jq -r 'select(.batch == "ob2") | .status' "$RES/runs.jsonl" | sort | uniq -c | awk '{print $1, $2}')" = "7 transport_error" ]
+   jq -e '.outage == null and .outage_history == []' "$RES/ob2/STATUS.json" >/dev/null
+   # a breaker value that is not a whole number is a usage error
+   export LOA_ABLATION_OUTAGE_BREAKER=x
+-  ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch ob3
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch ob3
+   [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_OUTAGE_BREAKER must be a whole number' <<<"$output"
+ }
+ 
+ @test "RAB-21 post-run deadlines (Sprint 260 LOW-4): a grade that hangs past LOA_ABLATION_GRADE_TIMEOUT_S rows infrastructure_error and the batch finishes; a hung took-effect too, without pausing the arm; MANIFEST watchdog records both; a non-integer value is a usage error" {
+-  export STUB_GRADE_HANG='*-bugfix-01-*' LOA_ABLATION_GRADE_TIMEOUT_S=2
++  export STUB_GRADE_HANG='*-bugfix-v2-02-*' LOA_ABLATION_GRADE_TIMEOUT_S=2
+   SECONDS=0
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02,review-01 --trials-build 1 --trials-review 1 --batch gt1 --concurrency 2
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,review-01 --trials-build 1 --trials-review 1 --batch gt1 --concurrency 2
+   [ "$status" -eq 1 ]   # partial: the timed-out row is excluded
+   [ "$SECONDS" -lt 120 ]
+   B="$RES/gt1"
+   [ "$(wc -l < "$RES/runs.jsonl")" -eq 3 ]
+-  [ "$(row gt1-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
+-  [ "$(row gt1-a1_full-bugfix-02-t1 | jq -r '.status')" = completed ]
++  [ "$(row gt1-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = infrastructure_error ]
++  [ "$(row gt1-a1_full-bugfix-v2-05-t1 | jq -r '.status')" = completed ]
+   [ "$(row gt1-a1_full-review-01-t1 | jq -r '.status')" = completed ]
+-  grep -q 'run-ablation: grade timed out after 2s' "$B/a1_full/bugfix-01-t1.log"
+-  ! grep -q 'grade timed out' "$B/a1_full/bugfix-02-t1.log" || false
++  grep -q 'run-ablation: grade timed out after 2s' "$B/a1_full/bugfix-v2-02-t1.log"
++  ! grep -q 'grade timed out' "$B/a1_full/bugfix-v2-05-t1.log" || false
+   [ "$(jq -r '.state' "$B/STATUS.json")" = partial ]
+   [ "$(jq -r '.per_arm.a1_full.excluded' "$B/STATUS.json")" = 1 ]
+   [ "$(jq -c '.watchdog | [.grade_timeout_s, .took_effect_timeout_s]' "$B/MANIFEST.json")" = '[2,300]' ]
+@@ -708,18 +731,238 @@ print(",".join(out))')"
+   unset STUB_GRADE_HANG
+   printf '%s\n' '#!/usr/bin/env bash' 'sleep 600' > "$T/te-hang"; chmod +x "$T/te-hang"
+   export LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=1
+-  ra --arms a1_full --tasks bugfix-01,bugfix-02 --trials-build 1 --batch gt2 --concurrency 1 --took-effect-bin "$T/te-hang"
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch gt2 --concurrency 1 --took-effect-bin "$T/te-hang"
+   [ "$status" -eq 3 ]   # failed: no trial completed — but both launched (no pause after the first)
+-  [ "$(row gt2-a1_full-bugfix-01-t1 | jq -r '.status')" = infrastructure_error ]
+-  [ "$(row gt2-a1_full-bugfix-02-t1 | jq -r '.status')" = infrastructure_error ]
+-  grep -q 'run-ablation: took-effect timed out after 1s' "$RES/gt2/a1_full/bugfix-01-t1.log"
++  [ "$(row gt2-a1_full-bugfix-v2-02-t1 | jq -r '.status')" = infrastructure_error ]
++  [ "$(row gt2-a1_full-bugfix-v2-05-t1 | jq -r '.status')" = infrastructure_error ]
++  grep -q 'run-ablation: took-effect timed out after 1s' "$RES/gt2/a1_full/bugfix-v2-02-t1.log"
+   [ "$(jq -c '.paused_arms' "$RES/gt2/STATUS.json")" = '{}' ]
+   [ "$(jq -r '.watchdog.took_effect_timeout_s' "$RES/gt2/MANIFEST.json")" = 1 ]
+   # a deadline that is not a positive whole number is a usage error
+   for v in x 0 1.5 1234567; do
+-    LOA_ABLATION_GRADE_TIMEOUT_S="$v" ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt3 --dry-run
++    LOA_ABLATION_GRADE_TIMEOUT_S="$v" ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch gt3 --dry-run
+     [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_GRADE_TIMEOUT_S must be positive whole seconds' <<<"$output"
+   done
+-  LOA_ABLATION_GRADE_TIMEOUT_S=5 LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=abc ra --arms a1_full --tasks bugfix-01 --trials-build 1 --batch gt4 --dry-run
++  LOA_ABLATION_GRADE_TIMEOUT_S=5 LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S=abc ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch gt4 --dry-run
+   [ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds' <<<"$output"
+ }
++
++# --- Sprint 261 Task 4.2: per-task-type run caps (DEC-0559, DEC-0567) -------------------
++# line <pattern> → the first run.log line number matching it (launch/done order checks)
++logline() { grep -n -E "$1" "$2" | head -1 | cut -d: -f1; }
++
++@test "RAB-22 per-kind caps in the plan and the manifest (DEC-0567): the suite's run_usd_by_type lands in MANIFEST caps; --run-cap 9 overrides both kinds; a suite without run_usd_by_type falls back to run_usd per kind; a malformed entry is a usage error" {
++  ra --arms a1_full,a4_no_gates --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k1 --dry-run
++  [ "$status" -eq 0 ]
++  grep -q 'run caps build 15 review-catch 20, in-flight reserve 20 per trial' <<<"$output"
++  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k1/MANIFEST.json")" = '{"build":15,"review-catch":20}' ]
++  [ "$(jq -r '.caps.run_usd' "$RES/k1/MANIFEST.json")" = 12 ]
++  # the single-cap override
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k2 --run-cap 9 --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(jq -c '.caps | {run_usd, run_usd_by_type}' "$RES/k2/MANIFEST.json")" = '{"run_usd":9,"run_usd_by_type":{"build":9,"review-catch":9}}' ]
++  grep -q 'run caps build 9 review-catch 9, in-flight reserve 9 per trial' <<<"$output"
++  # a build-only plan reserves the build cap
++  ra --arms a1_full --tasks bugfix-v2-02,refactor-v2-05 --trials-build 1 --batch k3 --dry-run
++  [ "$status" -eq 0 ]
++  grep -q 'in-flight reserve 15 per trial' <<<"$output"
++  # suite v1 shape: no run_usd_by_type, both kinds take run_usd; one kind missing falls back alone
++  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/v1.yaml"
++  yq -i 'del(.caps.run_usd_by_type)' "$T/v1.yaml"
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k4 --suite-file "$T/v1.yaml" --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k4/MANIFEST.json")" = '{"build":12,"review-catch":12}' ]
++  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/half.yaml"
++  yq -i 'del(.caps.run_usd_by_type["review-catch"])' "$T/half.yaml"
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k5 --suite-file "$T/half.yaml" --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(jq -c '.caps.run_usd_by_type' "$RES/k5/MANIFEST.json")" = '{"build":15,"review-catch":12}' ]
++  # a present but malformed entry, or a run_usd_by_type that is not a map: refused, never skipped
++  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/bad.yaml"
++  yq -i '.caps.run_usd_by_type.build = "fifteen"' "$T/bad.yaml"
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch k6 --suite-file "$T/bad.yaml" --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'caps.run_usd_by_type.build is not an amount in USD: fifteen' <<<"$output"
++  [ ! -e "$RES/k6/MANIFEST.json" ]
++  yq -i '.caps.run_usd_by_type = [15, 20]' "$T/bad.yaml"
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch k7 --suite-file "$T/bad.yaml" --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'caps.run_usd_by_type must be a map' <<<"$output"
++}
++
++@test "RAB-23 dispatch passes the trial kind's cap to pipeline-run.sh --max-run-usd (build 15, review-catch 20); --run-cap 9 passes 9 to both" {
++  export STUB_ARGV_LOG="$T/argv.log"
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k8 --concurrency 2
++  [ "$status" -eq 0 ]
++  [ "$(wc -l < "$T/argv.log")" -eq 2 ]
++  grep -qx 'k8-a1_full-bugfix-v2-02-t1 max-run-usd 15' "$T/argv.log"
++  grep -qx 'k8-a1_full-review-01-t1 max-run-usd 20' "$T/argv.log"
++  : > "$T/argv.log"
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch k9 --concurrency 2 --run-cap 9
++  [ "$status" -eq 0 ]
++  grep -qx 'k9-a1_full-bugfix-v2-02-t1 max-run-usd 9' "$T/argv.log"
++  grep -qx 'k9-a1_full-review-01-t1 max-run-usd 9' "$T/argv.log"
++}
++
++@test "RAB-24 assumed charges per kind (DEC-0567): a review-catch cap_failure is charged 20 and a costless failed build trial 15; a completed build trial its cost" {
++  rules '*-review-01-* cap_failure' '*-bugfix-v2-02-* agent_error_nocost' '*-bugfix-v2-05-* ok'
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05,review-01 --trials-build 1 --trials-review 1 --batch ka --concurrency 2
++  [ "$status" -eq 0 ]
++  [ "$(row ka-a1_full-review-01-t1 | jq -r '.status, .cost_usd' | tr '\n' ' ')" = "cap_failure 2.5 " ]
++  [ "$(row ka-a1_full-bugfix-v2-02-t1 | jq -r '.status, .cost_usd' | tr '\n' ' ')" = "agent_error 0 " ]
++  S="$RES/ka/STATUS.json"
++  # rows 2.5 + 0 + 2.5; spent = 20 (review-catch cap, not 12 or 15) + 15 (build cap) + 2.5
++  [ "$(jq -r '.spend.rows_usd, .spend.spent_usd, .spend.assumed_cap_trials' "$S" | tr '\n' ' ')" = "5 37.5 2 " ]
++  grep -q 'assumed cap: ka-a1_full-review-01-t1 ended cap_failure at USD 2.5; USD 20 (review-catch cap) charged to spent' "$RES/ka/run.log"
++  grep -q 'assumed cap: ka-a1_full-bugfix-v2-02-t1 ended agent_error with no reported cost; USD 15 charged to spent' "$RES/ka/run.log"
++}
++
++@test "RAB-25 in-flight reservation = running trials x the largest cap among the plan's kinds (DEC-0567): a build trial running in a plan with review-catch reserves 20 (max 27.99 waits, 28 launches); a build-only plan reserves 15 (21.99 waits, 22 launches)" {
++  export STUB_COST=1
++  # seed 5 puts the build trial first; the second gate sees one build trial running and the
++  # review-catch hint 8: 0 + 1 x 20 + 8 = 28 (a per-own-kind rule would give 23, the old cap 20)
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch kb --concurrency 2 --seed 5 --max-usd 27.99
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '.plan[0].task_id' "$RES/kb/MANIFEST.json")" = bugfix-v2-02 ]
++  L="$RES/kb/run.log"
++  [ "$(logline 'done kb-a1_full-bugfix-v2-02-t1 ' "$L")" -lt "$(logline 'launch kb-a1_full-review-01-t1 ' "$L")" ]
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch kc --concurrency 2 --seed 5 --max-usd 28
++  [ "$status" -eq 0 ]
++  L="$RES/kc/run.log"
++  [ "$(logline 'launch kc-a1_full-review-01-t1 ' "$L")" -lt "$(logline 'done kc-a1_full-bugfix-v2-02-t1 ' "$L")" ]
++  # build only: 0 + 1 x 15 + 7 = 22
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch kd --concurrency 2 --max-usd 21.99
++  [ "$status" -eq 0 ]
++  first="$(jq -r '.plan[0].run_id' "$RES/kd/MANIFEST.json")" second="$(jq -r '.plan[1].run_id' "$RES/kd/MANIFEST.json")"
++  L="$RES/kd/run.log"
++  [ "$(logline "done $first " "$L")" -lt "$(logline "launch $second " "$L")" ]
++  ra --arms a1_full --tasks bugfix-v2-02,bugfix-v2-05 --trials-build 1 --batch ke --concurrency 2 --max-usd 22
++  [ "$status" -eq 0 ]
++  first="$(jq -r '.plan[0].run_id' "$RES/ke/MANIFEST.json")" second="$(jq -r '.plan[1].run_id' "$RES/ke/MANIFEST.json")"
++  L="$RES/ke/run.log"
++  [ "$(logline "launch $second " "$L")" -lt "$(logline "done $first " "$L")" ]
++}
++
++@test "RAB-26 --resume keeps the batch's recorded caps: the suite file's caps edited after the start (and a --run-cap on the resume) change neither the dispatch caps nor MANIFEST caps" {
++  cp "$REPO_ROOT/evals/suites/ablation-2.0.yaml" "$T/suite.yaml"
++  export STUB_ARGV_LOG="$T/argv.log"
++  ra --arms a1_full --tasks bugfix-v2-02,review-01 --trials-build 1 --trials-review 1 --batch kf --concurrency 2 --suite-file "$T/suite.yaml"
++  [ "$status" -eq 0 ]
++  B="$RES/kf"
++  before="$(jq -c '.caps' "$B/MANIFEST.json")"
++  [ "$(jq -c '.caps.run_usd_by_type' "$B/MANIFEST.json")" = '{"build":15,"review-catch":20}' ]
++  yq -i '.caps.run_usd = 50 | .caps.run_usd_by_type = {"build": 30, "review-catch": 40}' "$T/suite.yaml"
++  # the driver "died" before either row landed
++  : > "$RES/runs.jsonl"
++  jq '.state = "running" | .finished = null | .resume_cursor = 0' "$B/STATUS.json" > "$T/st" && mv "$T/st" "$B/STATUS.json"
++  : > "$T/argv.log"
++  ra --batch kf --resume --run-cap 9
++  [ "$status" -eq 0 ]
++  grep -q -- '--run-cap 9 ignored on --resume' <<<"$output"
++  grep -qx 'kf-a1_full-bugfix-v2-02-t1 max-run-usd 15' "$T/argv.log"
++  grep -qx 'kf-a1_full-review-01-t1 max-run-usd 20' "$T/argv.log"
++  [ "$(jq -c '.caps' "$B/MANIFEST.json")" = "$before" ]
++  [ "$(wc -l < "$RES/runs.jsonl")" -eq 2 ]
++}
++
++# --- KF-048: the codex access-token freshness pre-flight (Sprint 261) ------------------------
++# codex_auth <exp offset s> — a crafted auth.json whose access token is h.<base64url({"exp": now+offset})>.s;
++# prints the exp instant (ISO 8601 UTC)
++codex_auth() {
++  python3 -I - "$T/creds/.codex/auth.json" "$1" <<'PY'
++import base64, json, sys, time
++exp = int(time.time()) + int(sys.argv[2])
++pl = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).decode().rstrip("=")
++json.dump({"auth_mode": "chatgpt", "tokens": {"access_token": "h.%s.s" % pl, "refresh_token": "R", "account_id": "a"}},
++          open(sys.argv[1], "w"))
++print(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(exp)))
++PY
++}
++
++@test "RAB-28 KF-048 pre-flight: an expired codex access token with a1_full planned refuses a fresh batch (exit 2, REFUSED.txt names codex and KF-048, no MANIFEST.json)" {
++  codex_auth -60 >/dev/null
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf1 --max-usd 100
++  [ "$status" -eq 2 ]
++  grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"
++  [ ! -e "$RES/kf1/MANIFEST.json" ]
++  [ ! -e "$T/stub.log" ]
++  # no token material in the refusal
++  ! grep -qE 'h\.[A-Za-z0-9_-]+\.s|"R"' "$RES/kf1/REFUSED.txt" || false
++  ! grep -q 'refresh' <<<"$output"
++}
++
++@test "RAB-29 KF-048 pre-flight: a token that expires inside the horizon (now + 60 s; 2 x summed watchdog / concurrency is hours) is refused" {
++  codex_auth 60 >/dev/null
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf2 --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'KF-048' "$RES/kf2/REFUSED.txt"
++}
++
++@test "RAB-30 KF-048 pre-flight: a fresh token (now + 10 days) is accepted; MANIFEST.json records codex_token_exp at second precision and codex_preflight" {
++  local exp; exp="$(codex_auth 864000)"
++  ra --arms a0_bare,a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf3 --dry-run
++  [ "$status" -eq 0 ]
++  M="$RES/kf3/MANIFEST.json"
++  [ "$(jq -r '.codex_token_exp' "$M")" = "$exp" ]
++  [ "$(jq -c '.codex_preflight | keys' "$M")" = '["auth_file_present","checked","codex_arms","required_until","token_exp"]' ]
++  [ "$(jq -r '.codex_preflight.checked' "$M")" = true ]
++  [ "$(jq -r '.codex_preflight.auth_file_present' "$M")" = true ]
++  [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '["a1_full"]' ]
++  [ "$(jq -r '.codex_preflight.token_exp' "$M")" = "$exp" ]
++  # required_until = now + 2 x (9600 + 16800) / 3 s, about 4.9 h ahead
++  jq -e '.codex_preflight.required_until | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$M"
++  local ru; ru="$(jq -r '.codex_preflight.required_until' "$M")"
++  python3 -I -c '
++import calendar, sys, time
++ru = calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")); d = ru - time.time()
++sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"
++  ! grep -q 'WARN no codex auth.json' <<<"$output" || false
++}
++
++@test "RAB-31 KF-048 pre-flight: an expired token with only a0_bare planned is not refused; checked false, codex_arms []" {
++  codex_auth -60 >/dev/null
++  ra --arms a0_bare --tasks bugfix-v2-02 --trials-build 1 --batch kf4 --dry-run
++  [ "$status" -eq 0 ]
++  M="$RES/kf4/MANIFEST.json"
++  [ "$(jq -r '.codex_preflight.checked' "$M")" = false ]
++  [ "$(jq -c '.codex_preflight.codex_arms' "$M")" = '[]' ]
++  [ "$(jq -r '.codex_token_exp' "$M")" = null ]
++  [ ! -e "$RES/kf4/REFUSED.txt" ]
++}
++
++@test "RAB-32 KF-048 pre-flight: no auth.json is not a refusal; one WARN line, codex_token_exp null" {
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf5 --dry-run
++  [ "$status" -eq 0 ]
++  [ "$(grep -c "^run-ablation: WARN no codex auth.json under $T/creds/.codex; codex-using arms will run without the OpenAI voice\$" <<<"$output")" -eq 1 ]
++  M="$RES/kf5/MANIFEST.json"
++  [ "$(jq -r '.codex_token_exp' "$M")" = null ]
++  [ "$(jq -c '.codex_preflight' "$M")" = '{"auth_file_present":false,"checked":false,"codex_arms":["a1_full"],"required_until":null,"token_exp":null}' ]
++}
++
++@test "RAB-33 KF-048 pre-flight: --smoke skips the check (an expired token is not refused)" {
++  codex_auth -60 >/dev/null
++  ra --smoke --arms a1_full --batch smoke-kf6 --dry-run
++  [ "$status" -eq 0 ]
++  [ ! -e "$RES/smoke-kf6/REFUSED.txt" ]
++  [ "$(jq -r '.codex_preflight.checked' "$RES/smoke-kf6/MANIFEST.json")" = false ]
++}
++
++@test "RAB-34 KF-048 pre-flight: --dry-run with an expired token is refused (the dry run is where the operator sees it first); a malformed access token is refused too" {
++  codex_auth -60 >/dev/null
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf7 --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'codex access token expires' "$RES/kf7/REFUSED.txt"
++  [ ! -e "$RES/kf7/MANIFEST.json" ]
++  echo '{"tokens": {"access_token": "not-a-jwt"}}' > "$T/creds/.codex/auth.json"
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf8 --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'not a three-part JWT (KF-048)' "$RES/kf8/REFUSED.txt"
++  echo '{"tokens": {"access_token": "h.e30.s"}}' > "$T/creds/.codex/auth.json"   # payload {}
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf9 --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'no numeric exp claim (KF-048)' "$RES/kf9/REFUSED.txt"
++  echo 'nope' > "$T/creds/.codex/auth.json"
++  ra --arms a1_full --tasks bugfix-v2-02 --trials-build 1 --batch kf10 --dry-run
++  [ "$status" -eq 2 ]
++  grep -q 'is not JSON (KF-048)' "$RES/kf10/REFUSED.txt"
++}
+diff --git a/evals/tests/seed-bugfix.bats b/evals/tests/seed-bugfix.bats
+index 1527003d..4fded169 100644
+--- a/evals/tests/seed-bugfix.bats
++++ b/evals/tests/seed-bugfix.bats
+@@ -76,7 +76,8 @@ commit_claude_fix() {
+ @test "SB-1 a clean fix commit becomes a task: fixture from the parent, hidden tests from the commit, proof printed, validate-suite passes" {
+   commit_clean_fix
+   FIX="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
+-  run "$SEED" --since 2000-01-01 --select 4 --out "$S" --repo "$G"
++  # the written suite is validated against the real suite file below: seed its suite_version
++  run "$SEED" --since 2000-01-01 --select 4 --out "$S" --repo "$G" --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+   [ "$status" -eq 0 ]
+   grep -q "^candidate ${FIX:0:12} " <<<"$output"
+   grep -qx "proof bugfix-01 ${FIX:0:12}: red 2 failed / green 3 passed" <<<"$output"
+diff --git a/evals/tests/seed-refactor.bats b/evals/tests/seed-refactor.bats
+index dbb71ece..7d9d3557 100644
+--- a/evals/tests/seed-refactor.bats
++++ b/evals/tests/seed-refactor.bats
+@@ -74,7 +74,8 @@ PY
+   commit_refactor
+   SHA="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
+   read -r F I D < <(git -C "$G" diff --numstat "$BASE" "$SHA" | awk '{f++; i+=$1; d+=$2} END {print f, i, d}')
+-  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  # the written suite is validated against the real suite file below: seed its suite_version
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+   [ "$status" -eq 0 ]
+   grep -q "^candidate ${SHA:0:12} " <<<"$output"
+   grep -qx "proof refactor-01 ${SHA:0:12}: green at base (2 passed) / green at reference (2 passed)" <<<"$output"
+diff --git a/evals/tests/validate-suite.bats b/evals/tests/validate-suite.bats
+index 01c3d3ed..93b8368f 100644
+--- a/evals/tests/validate-suite.bats
++++ b/evals/tests/validate-suite.bats
+@@ -134,14 +134,16 @@ teardown() {
+   make_task "$R" tasks refactor-01 refactor
+   make_task "$R" tasks odd-01 bug-fix
+   yq -i 'del(.success_criterion)' "$R/tasks/bug-fix-01/task.yaml"
+-  yq -i '.suite_version = 2' "$R/tasks/bug-fix-01/task.yaml"
++  # one past the suite file's suite_version, whatever it is (1 for suite v1, 2 since Sprint 261)
++  sv="$(yq -r .suite_version "$SUITE")"; other=$(( sv + 1 ))
++  yq -i ".suite_version = $other" "$R/tasks/bug-fix-01/task.yaml"
+   yq -i '.review_catch = null' "$R/tasks/review-catch-01/task.yaml"
+   yq -i '.structural_check = null' "$R/tasks/refactor-01/task.yaml"
+   yq -i '.type = "chore" | .post_cutoff = "yes"' "$R/tasks/odd-01/task.yaml"
+   run "$VS" --root "$R" --allow-partial
+   [ "$status" -eq 1 ]
+   grep -q "tasks/bug-fix-01: schema: missing field 'success_criterion'" <<<"$output"
+-  grep -q "tasks/bug-fix-01: schema: suite_version 2 differs from the suite file's 1" <<<"$output"
++  grep -q "tasks/bug-fix-01: schema: suite_version $other differs from the suite file's $sv" <<<"$output"
+   grep -q "tasks/review-catch-01: schema: review_catch {fixture, manifest} is required for review-catch" <<<"$output"
+   grep -q "tasks/refactor-01: schema: structural_check is required for refactor" <<<"$output"
+   grep -q "tasks/odd-01: schema: type 'chore' not in" <<<"$output"

@@ -1,0 +1,7 @@
+id: bf-01
+schema_version: 1
+type: bug-fix
+fixture: fx
+criterion: "the app prints two"
+test_command: ["python3", "-m", "pytest", "-q", "tests"]
+suite_version: 1

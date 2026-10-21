@@ -1,0 +1,14 @@
+# pr-20 sprint-256: findings that did not become labels
+# 10 secret-shaped test string(s) redacted as REDACTED-TEST-SECRET in base/, head/ and head.diff (verbatim copies of tracked test fixtures; line numbers unchanged)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L12 [high] the finding calls itself pre-existing (not this change): backtick command substitution is inert to the fence, and B79/B84 now pin that as the expected result (dissent DISS-C-001, confirmed and widened)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L18 [low] fix commit does not touch .claude/scripts/guardrails-orchestrator.sh: guardrail readers and `loa_knob` (dissent DISS-C-002;
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L30 [low] cites no file: the implementing-skill marker's window
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L38 [low] first cited file is not part of this fixture (run-checkpoint.sh read --json): surgical-diff hook cost per write
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L42 [low] the finding calls itself pre-existing (not this change): AC-2.12 is Partial
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L14 [high] cites no file: with a destructive method on refs, branches, tags, releases or the repository bypasses the branch-protection intent (dissent DISS-C-001, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L22 [medium] first cited file is not part of this fixture (guard-yield.sh): the register's false-positive heuristic treats a System-Zone block as prose (dissent DISS-C-007, confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L26 [low] first cited file is not part of this fixture (package.json): executable-content targets the classifier should also treat as code (dissent DISS-C-008, partly confirmed)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L30 [low] cites no file: guardrails and danger-level enforcement default off for a fresh install (dissent DISS-001, DISS-C-004: accepted by decision, documentation required)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L34 [low] first cited file is not part of this fixture (state.json): Bash-forgeable sanctions (dissent DISS-C-002: accepted gap, already documented)
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L38 [low] cites no file: honoured outside bats (dissent DISS-C-005;
+record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L42 [low] cites no file: knob-lint bypass forms and scope (dissent DISS-C-006)

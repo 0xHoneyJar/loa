@@ -1,0 +1,91 @@
+commit 0c200dd625aad6ff0b82f1f680197c210573e191
+Date: 2026-10-15T13:04:12+11:00
+
+fix(cycle-130): sprint-258 review round 1 — the row writer reads every run-scaled input through --slurpfile (MAX_ARG_STRLEN) and never aborts outside its exit contract (try/catch timestamps, object guards, writer defaults that satisfy --validate, "row build failed" exit 2); Dockerfile.ablation drops the dead brbuild stage so the legacy builder builds it too; spend.sh marks a skipped line INCOMPLETE with exit 1 and counts a re-rowed run at its larger cost; run-arms.sh excludes screen batches by the STATUS marker and refuses --batch screen-* without --screen; freeze.sh refuses symlinks and newline paths before hashing; codex 0.162.1 in the executor header, CHANGELOG and SDD; 13 new bats cases (269/269); DEC-0492…0495 (review round decisions L13–L16); beads bd-obk5p, bd-eriso, bd-xj75c for the Sprint 259/260 follow-ups
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/run-arms.sh b/evals/harness/run-arms.sh
+index 3320adb5..8608f767 100755
+--- a/evals/harness/run-arms.sh
++++ b/evals/harness/run-arms.sh
+@@ -29,7 +29,9 @@
+ #   2) per arm into <results-dir>/<suite>/screen-<UTC ts>/ (its own MANIFEST,
+ #   STATUS, rows), prints a per-arm table (trials, mean USD, mean recall) on
+ #   stdout, and never writes the suite-level STATUS.json; the suite aggregate
+-#   never reads screen-* batches. --batch and --trials are ignored under --screen.
++#   skips every batch whose STATUS.json says screen: true (the marker, not the
++#   directory name). --batch and --trials are ignored under --screen; without
++#   --screen a --batch name starting with screen- is refused (exit 2).
+ #
+ # Per trial (fixture × arm × trial), in this order:
+ #   1. the fixture's SHA256SUMS entries (its files, hidden manifest and labels)
+@@ -162,6 +164,9 @@ SRC_FULL="$(git -C "$SOURCE_REPO" rev-parse --verify --quiet "${SOURCE_COMMIT}^{
+ SRC12="${SRC_FULL:0:12}"
+ WORKTREE="$CACHE_ROOT/arms-src-$SRC12"
+ 
++if [[ "$SCREEN" != "true" && "$BATCH" == screen-* ]]; then
++  die "invalid --batch '$BATCH': the screen- prefix is reserved for --screen batches"
++fi
+ [[ -n "$BATCH" ]] || BATCH="batch-${FIXTURES[0]}-${FIXTURES[${#FIXTURES[@]}-1]}-n${#FIXTURES[@]}"
+ [[ "$SCREEN" == "true" ]] && BATCH="screen-$(date -u +%Y%m%dT%H%M%SZ)"
+ [[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"
+@@ -371,11 +376,14 @@ write_status() {
+ 
+ # The suite-level STATUS.json merges every batch: counters add per arm; the
+ # state is failed > running > partial > complete; source/model must agree.
++# Screen batches are excluded by their STATUS.json marker (screen: true), whatever
++# their directory is called.
+ aggregate_status() {
+   local agg="$SUITE_DIR/STATUS.json" lockd="$SUITE_DIR/.status.lock" n=0
+   until mkdir "$lockd" 2>/dev/null; do n=$((n + 1)); [[ $n -gt 50 ]] && return 0; sleep 0.1; done
+   # shellcheck disable=SC2046
+   jq -s --arg suite "$SUITE" '
++    map(select(.screen != true)) |
+     def rank: {"failed": 4, "running": 3, "partial": 2, "complete": 1}[.] // 4;
+     (map(.state) | max_by(rank)) as $state |
+     {schema_version: 1, suite: $suite, state: $state,
+@@ -388,7 +396,7 @@ aggregate_status() {
+      source_commit: (map(.source_commit) | unique | if length == 1 then .[0] else "MIXED" end),
+      model_id: (map(.model_id) | unique | if length == 1 then .[0] else "MIXED" end),
+      started: (map(.started) | min), finished: (if $state == "running" then null else (map(.finished) | max) end)}' \
+-    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json ! -path "$SUITE_DIR/screen-*" | sort) > "$agg.tmp" 2>/dev/null \
++    $(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json | sort) > "$agg.tmp" 2>/dev/null \
+     && mv "$agg.tmp" "$agg"
+   rmdir "$lockd" 2>/dev/null || true
+ }
+diff --git a/evals/tests/run-arms.bats b/evals/tests/run-arms.bats
+index a0096e92..d56643c2 100644
+--- a/evals/tests/run-arms.bats
++++ b/evals/tests/run-arms.bats
+@@ -247,3 +247,29 @@ teardown() {
+   [ "$status" -eq 2 ]
+   [ ! -e "$RES/review-recall" ]
+ }
++
++@test "RA-11 the suite aggregate excludes screen batches by the STATUS marker, not the directory name" {
++  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 \
++    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
++  [ "$status" -eq 0 ]
++  local suite="$RES/review-recall" one="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
++  # a regular batch whose directory happens to start with screen-
++  mkdir -p "$suite/screen-foo" "$suite/batch-x"
++  jq '.batch = "screen-foo" | .screen = false' "$one" > "$suite/screen-foo/STATUS.json"
++  # a screen batch (marker true, with a cut) in a directory that does not say so
++  jq '.batch = "batch-x" | .screen = true | .cut = {reason: "max_usd"}' "$one" > "$suite/batch-x/STATUS.json"
++  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch second \
++    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '[.batches[].batch] | join(",")' "$suite/STATUS.json")" = "batch-pr-01-pr-01-n1,screen-foo,second" ]
++  [ "$(jq -r '.per_arm.baseline.trials_planned' "$suite/STATUS.json")" = "3" ]
++  [ "$(jq -c '.cuts' "$suite/STATUS.json")" = "[]" ]
++}
++
++@test "RA-12 --batch screen-<name> without --screen is refused (exit 2) and writes nothing" {
++  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --batch screen-foo \
++    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"screen- prefix is reserved"* ]]
++  [ ! -e "$RES/review-recall/screen-foo" ]
++}

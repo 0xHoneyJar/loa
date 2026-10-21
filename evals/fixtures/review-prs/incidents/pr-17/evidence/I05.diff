@@ -1,0 +1,98 @@
+commit 9c4ed3198c7891882ca77847e37bd10475885779
+Date: 2026-10-14T16:45:43+11:00
+
+fix(cycle-129): sprint-256 audit round r256-5 — /loa Profile line reports an off guardrail control (DEC-0161 mitigation; PL-14); shell reserved words are transparent prefixes in the heredoc per-segment scan and Dockerfile, pre-commit and gitlab-ci targets are executable content (D169–D178, B100); FR-GH-1 covers gh api graphql mutations, full-URL and leading-slash paths, --hostname and a non-literal method (D179–D184, B98–B99; the corpus lint admits api.github.com); profile-lib WARNs when LOA_PROFILE_CONFIG_FILE redirects a live read; check-knob-readers.sh matches the trailing two components of three-part keys (PL-17 bypass shapes); DEC-0307…DEC-0311 (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/hooks/safety/block-destructive-bash.sh b/.claude/hooks/safety/block-destructive-bash.sh
+index d3fd0400..8ecfc9fb 100755
+--- a/.claude/hooks/safety/block-destructive-bash.sh
++++ b/.claude/hooks/safety/block-destructive-bash.sh
+@@ -187,7 +187,7 @@ _bdb_hd_re_ctl=$'[\x01-\x08\x0b-\x1f\x7f]'
+ _bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'
+ _bdb_hd_re_exlong='^--(exec|eval|command|in-?place)'
+ _bdb_hd_re_ext='\.(sh|bash|zsh|ksh|csh|fish|py|pyw|rb|pl|pm|js|mjs|cjs|ts|mts|cts|ps1|psm1|php|lua|tcl|command|bat|cmd)$'
+-_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$)'
++_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$|Dockerfile([.][^/]*)?$|\.pre-commit-config\.ya?ml$|\.gitlab-ci\.ya?ml$)'
+ _bdb_hd_re_rc='(^|/)\.(bashrc|bash_profile|bash_login|bash_logout|profile|zshrc|zshenv|zprofile|zlogin|zlogout|kshrc|mkshrc|cshrc|tcshrc|login|logout|envrc)$'
+ _bdb_hd_re_sedp='^(([0-9]+|[$]|/[^/]*/)(,([0-9]+|[$]|/[^/]*/))?)?p$'
+ _bdb_hd_re_assign='^[A-Za-z_][A-Za-z0-9_]*='
+@@ -548,6 +548,11 @@ _bdb_hd_segword() {
+     w="${s%%[[:space:]]*}"
+     s="${s:${#w}}"
+     if [[ "$w" =~ $_bdb_hd_re_assign ]]; then continue; fi
++    # Shell reserved words are transparent prefixes: `if :; then rm …; fi` keeps its rm
++    # segment (audit r256-5, dissent DISS-C-002).
++    case "$w" in
++      if|then|elif|else|do|done|while|until|fi|esac|coproc|function) continue ;;
++    esac
+     case "$w" in
+       sudo|doas|command|exec|env|nice|time|nohup|builtin|stdbuf|ionice)
+         while :; do
+@@ -1325,12 +1330,28 @@ check_and_block() {
+ # values only, so the path and the method remain visible. Placed OUTSIDE the
+ # git-family pre-filter below: a gh api call need not contain the word git.
+ # -----------------------------------------------------------------------------
+-if [[ "$command" == *"gh"* && "$command" == *"api"* ]] \
+-   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
+-   && _match 'gh[[:space:]]+api[[:space:]][^;&|]*(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|repos/[^/[:space:];&|]+/[^/[:space:];&|]+(["'"'"'[:space:];&|]|$))'; then
+-  matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+-  # @guard fence:FR-GH-1
+-  emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
++if [[ "$command" == *"gh"* && "$command" == *"api"* ]]; then
++  # REST form: a destructive method — literal DELETE|PUT|PATCH, or a NON-literal value
++  # (`-X "$M"`, `--method=$m`), which cannot be judged and is treated as destructive —
++  # against a protected path. The path may carry an optional https://HOST(/api/v3)
++  # prefix or a leading slash (audit r256-5, dissent DISS-C-003).
++  _ghapi_path='(https?://[^/[:space:];&|]+(/api/v3)?)?/?repos/[^/[:space:];&|]+/[^/[:space:];&|]+'
++  if { _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
++       || _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?[$]'; } \
++     && _match 'gh[[:space:]]+api[[:space:]][^;&|]*'"${_ghapi_path}"'(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|(["'"'"'[:space:];&|]|$))'; then
++    matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
++    # @guard fence:FR-GH-1
++    emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH (or a method the fence cannot read) on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
++  fi
++  # GraphQL form: the mutations that delete or rewrite refs, branch protection or the
++  # repository (audit r256-5, dissent DISS-C-003).
++  if [[ "$command" == *"graphql"* ]] \
++     && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?graphql([[:space:]]|$)' \
++     && _match_ci '(deleteref|deletebranchprotectionrule|updatebranchprotectionrule|createbranchprotectionrule|deleterepository|updaterepository|deleterelease)[[:space:]]*\('; then
++    matched=$(echo "$command" | grep -oiE '(deleteRef|deleteBranchProtectionRule|updateBranchProtectionRule|createBranchProtectionRule|deleteRepository|updateRepository|deleteRelease)[[:space:]]*\(' | head -1)
++    # @guard fence:FR-GH-1
++    emit_block "FR-GH-1" "gh api graphql ${matched}" "gh api graphql with a mutation that deletes or rewrites refs, branch protection, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
++  fi
+ fi
+ 
+ # pass-8 git-family pre-filter (wraps P2, P2b, P3, P4, P5, P6, P7).
+diff --git a/tests/fixtures/fence-corpus/corpus.jsonl b/tests/fixtures/fence-corpus/corpus.jsonl
+index 13ea6ec0..c9df2958 100644
+--- a/tests/fixtures/fence-corpus/corpus.jsonl
++++ b/tests/fixtures/fence-corpus/corpus.jsonl
+@@ -249,6 +249,25 @@
+ {"id":"D166","cmd":"cat > .envrc <<'EOF'\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): direnv runs .envrc on cd","cwd":"repo"}
+ {"id":"D167","cmd":"cat > .claude/settings.local.json <<'EOF'\n{\"hooks\": {\"PreToolUse\": \"rm -rf src\"}}\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a settings file defines hooks (and FR-SZ2 refuses the System-Zone write regardless)","cwd":"repo"}
+ {"id":"D168","cmd":"cat > package.json <<'EOF'\n{\"scripts\": {\"postinstall\": \"rm -rf src\"}}\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a package manifest's script section runs on install","cwd":"repo"}
++{"id":"D169","cmd":"tee notes.md <<'EOF'\nif :; then rm -rf src; fi\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5 (DISS-C-002): a shell reserved word (then) is a transparent prefix in the per-segment scan; the rm segment is kept. tee, not a standalone quoted cat: the #1245 special case drops that body whole, by design (nothing executes at the write)","cwd":"repo"}
++{"id":"D170","cmd":"tee notes.md <<'EOF'\n{ rm -rf src; }\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: a brace group prefix is stripped before the command word","cwd":"repo"}
++{"id":"D171","cmd":"tee notes.md <<'EOF'\n! rm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: a negation prefix is stripped before the command word","cwd":"repo"}
++{"id":"D172","cmd":"cat > notes.md <<'EOF'\ntimeout 5 rm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: a wrapper command word (timeout) sends the body to the full scan","cwd":"repo"}
++{"id":"D173","cmd":"tee notes.md <<'EOF'\nnohup rm -rf src &\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: the nohup wrapper prefix is stripped","cwd":"repo"}
++{"id":"D174","cmd":"tee notes.md <<'EOF'\nwhile read -r d; do rm -rf src; done < list\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: loop keywords (while, do) are transparent prefixes","cwd":"repo"}
++{"id":"B100","cmd":"cat > notes.md <<'EOF'\nif :; then rm -rf src; fi\nEOF","expect":"allow","rule":"FR-6","why":"audit r256-5: the #1245 special case — a standalone quoted cat to a plain file writes literal text and nothing executes at this command; the later-execution shape is the documented per-command gap (the tee twin is D169)","cwd":"repo"}
++{"id":"D175","cmd":"crontab - <<'EOF'\n* * * * * rm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: crontab is an unlisted consumer, so the body is scanned in full","cwd":"repo"}
++{"id":"D176","cmd":"at now + 1 minute <<'EOF'\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: at is an unlisted consumer, so the body is scanned in full","cwd":"repo"}
++{"id":"D177","cmd":"cat > Dockerfile <<'EOF'\nRUN rm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: a Dockerfile runs its RUN lines at build; the target is executable content","cwd":"repo"}
++{"id":"D178","cmd":"cat > .pre-commit-config.yaml <<'EOF'\n- entry: rm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-5: a pre-commit config runs its entries on commit; the target is executable content","cwd":"repo"}
++{"id":"D179","cmd":"gh api graphql -f query='mutation { deleteRef(input: {refId: \"MDM6UmVmMQ==\"}) { clientMutationId } }'","expect":"block","rule":"FR-GH-1","why":"audit r256-5 (DISS-C-003): the GraphQL deleteRef mutation deletes a branch","cwd":"repo"}
++{"id":"D180","cmd":"gh api graphql -F query=@mutation.graphql -f query='mutation{updateBranchProtectionRule(input:{branchProtectionRuleId:\"x\"}){clientMutationId}}'","expect":"block","rule":"FR-GH-1","why":"audit r256-5: the branch-protection mutations","cwd":"repo"}
++{"id":"D181","cmd":"gh api -X DELETE https://api.github.com/repos/o/r/git/refs/heads/main","expect":"block","rule":"FR-GH-1","why":"audit r256-5: the full-URL path form (the corpus lint admits the api.github.com host for this row class)","cwd":"repo"}
++{"id":"D182","cmd":"gh api -X DELETE /repos/o/r/releases/3","expect":"block","rule":"FR-GH-1","why":"audit r256-5: a leading-slash path","cwd":"repo"}
++{"id":"D183","cmd":"M=DELETE; gh api -X \"$M\" repos/o/r/git/refs/heads/main","expect":"block","rule":"FR-GH-1","why":"audit r256-5: a method the fence cannot read (a variable) against a protected path is treated as destructive","cwd":"repo"}
++{"id":"D184","cmd":"gh api --hostname ghe.example.invalid -X PUT repos/o/r/branches/main/protection --input -","expect":"block","rule":"FR-GH-1","why":"audit r256-5: --hostname does not change the method or the path","cwd":"repo"}
++{"id":"B98","cmd":"gh api graphql -f query='query { repository(owner: \"o\", name: \"r\") { pullRequests(first: 5) { nodes { number } } } }'","expect":"allow","rule":"FR-GH-1","why":"audit r256-5: a GraphQL query (no destructive mutation) stays allowed","cwd":"repo"}
++{"id":"B99","cmd":"gh api -X PATCH repos/o/r/pulls/7 -f title='fence FP' -f body='see the corpus'","expect":"allow","rule":"FR-GH-1","why":"audit r256-5: PATCH on a pull request is outside the protected paths","cwd":"repo"}
+ {"id":"D143","cmd":"cat >> grimoires/loa/NOTES.md <<EOF\n- **Sprint 253**: SP-1 refused `git merge spike/ceiling-ui` typed inside this NOTES append (prose, not a command)\nEOF","expect":"block","rule":"SP-1","why":"r256-1: under an UNQUOTED delimiter the backtick span is a command substitution that runs when the heredoc is expanded; normalised to the dollar-paren form, the spike merge anchors and SP-1 blocks (the quoted twin is B79)","cwd":"repo"}
+ {"id":"D144","cmd":"cat > grimoires/loa/a2a/sprint-256/review.md <<EOF\n- the transcript's `git push --force origin main` was refused by P2, as intended\nEOF","expect":"block","rule":"P2","why":"r256-1: unquoted delimiter, backtick span = a force push that runs when the heredoc is expanded (the quoted twin is B84)","cwd":"repo"}
+ {"id":"D145","cmd":"echo \"see `git push --force origin main` for the refusal\"","expect":"block","rule":"P2","why":"r256-1: a backtick substitution inside a double-quoted echo argument executes the force push; before the normalisation only the dollar-paren form (D148) anchored","cwd":"repo"}

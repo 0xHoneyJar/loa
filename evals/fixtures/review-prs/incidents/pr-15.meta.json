@@ -1,0 +1,118 @@
+{
+  "changed_files": 45,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 9,
+    "issue": 2,
+    "kf": 1
+  },
+  "fixture": "pr-15",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \".build-manifest.json\" OR \".loa.config.yaml.example\" OR \"adversarial-review-companion.bats\" OR \"adversarial-review.sh\" OR \"agy_headless_adapter.py\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"ceiling-probe-live.py\" OR \"cheval.py\" OR \"claude_headless_adapter.py\" OR \"config.d.ts\" OR \"config.d.ts.map\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"config.js\" OR \"config.js.map\" OR \"config.ts\" OR \"cycle-124-effort-flag.bats\" OR \"flatline-orchestrator.sh\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"flatline-tertiary-agy-opt-in.bats\" OR \"loa-status-providers.bats\" OR \"loa-status.sh\" OR \"loader.py\" OR \"model-config-v3-schema.bats\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"model-config-v3.schema.json\" OR \"model-config.yaml\" OR \"model-config.yaml.checksum\" OR \"model-invoke-complete.payload.schema.json\" OR \"modelinv.py\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"multi-model-agy-opt-in.test.ts\" OR \"multi-model-pipeline.d.ts\" OR \"multi-model-pipeline.d.ts.map\" OR \"multi-model-pipeline.js\" OR \"multi-model-pipeline.js.map\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"multi-model-pipeline.ts\" OR \"run-preflight.bats\" OR \"run-preflight.sh\" OR \"test_agy_headless_adapter.py\" OR \"test_agy_opt_in_gate.py\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"test_anthropic_catalog_floor.py\" OR \"test_ceiling_probe_cli_transport.py\" OR \"test_effort_catalog_default.py\" OR \"test_headless_argv_nul_robustness.py\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"test_headless_shared_contract.py\" OR \"test_no_literal_opus55_ceiling_pins.py\" OR \"truncation.generated.js\" OR \"truncation.generated.ts\" OR \"types.py\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"v2.0-model-generation-floor.md\"",
+      "total_count": 1
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 13,
+  "merge_commit": "2913c0263270ea124a0be81c763b1797a64a194e",
+  "merge_date": "2026-10-07T21:20:39Z",
+  "pr": 1275,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:25:20Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-07T21:20:39Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:25:20Z"
+  }
+}

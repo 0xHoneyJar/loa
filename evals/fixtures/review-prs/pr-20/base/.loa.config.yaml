@@ -1,0 +1,618 @@
+# Loa Configuration
+# Active: Eval Sandbox (#277)
+
+# Cycle-110 sprint-2b2b1 (2026-05-15): advisor_strategy enabled per operator
+# instruction. Enables headless-first dispatch wire-up shipped in PRs
+# #903-#908. MODELINV envelopes now carry v1.4 fields
+# (auth_type_resolved + auth_type_selection_reason + auto_selection_inputs
+# + auto_evaluation_timestamp). Auto-mode runs with empty stats (cold-start)
+# until 7-day measurement window completes and sprint-3 wires the windowed
+# stats reader.
+#
+# Sprint-3 entry condition (cycle-110 PRD §M2.5): operator runs
+# `.claude/scripts/loa-substrate-doctor.sh` and attests OAuth state OK across
+# all three providers BEFORE flipping `dispatch_preference: headless`. Until
+# then, leaving as `auto` (default) lets cold-start path prefer headless
+# only when the chain has a headless entry.
+advisor_strategy:
+  schema_version: 2
+  enabled: true
+  # dispatch_preference defaults to "auto" per advisor-strategy.schema.json.
+  # Auto-mode falls to cold-start-default-headless (preferring headless
+  # when a chain has a headless entry) until warm stats accumulate.
+  # Operator may explicitly set "headless" or "http_api" per role here:
+  # per_role_dispatch_preference:
+  #   review: headless
+  #   audit: headless
+  #   planning: auto    # planning may want gpt-5.5-pro reasoning
+  # allow_cross_auth_fallback: null  # null → derive from FR-1.4 ladder
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: advisor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-5   # cycle-124 FR-3: 4-8 → 5
+      openai: gpt-5.5-pro
+      google: gemini-3.1-pro-preview
+    executor:
+      anthropic: claude-sonnet-5
+      openai: gpt-5.3-codex
+      google: gemini-2.5-pro
+  # cycle-108 keys, populated cycle-116 D3 (bd-c116-d3-tiering). Additive
+  # no-op today: the role gate at cheval.py:1069 only fires when a caller
+  # passes --role AND omits --model, and no production dispatch site does
+  # (see grimoires/loa/runbooks/model-tiering-per-stage.md). Empty overrides
+  # keep every stage on its role default (all `advisor` above).
+  per_skill_overrides: {}
+  # NFR-Sec1 hard-pin: these skills MUST resolve to advisor tier regardless
+  # of any future per_skill_overrides edit. Loader enforces at load time
+  # (advisor_strategy.py §4b) + schema pins the enum. Values MUST be schema
+  # enum members (.claude/data/schemas/advisor-strategy.schema.json).
+  audited_review_skills:
+    - auditing-security
+    - bridgebuilder-review
+    - eval-running
+    - flatline-knowledge
+    - red-teaming
+    - reviewing-code
+    - rtfm-testing
+    - validating-construct-manifest
+  # cycle-116 D3: per-stage tier-routing opt-in. Nested map so future stages
+  # add a key without a schema churn. flatline_scorer=false => Flatline
+  # score-mode dispatch is byte-identical to pre-D3 (hardcoded --model pin
+  # in flatline-orchestrator.sh call_model). Flip true ONLY after the live
+  # A/B in the runbook clears; see model-tiering-per-stage.md. Cross-ref:
+  # workload_tier_map (informational calibration memory, not a dispatch
+  # consumer) records the same advisor/executor evidence per skill.
+  stage_routing:
+    flatline_scorer: false
+
+simstim:
+  enabled: true
+  bridgebuilder_design_review: true # Phase 3.5 gate — enabled for cycle-048
+  flatline:
+    auto_accept_high_consensus: true
+    show_disputed: true
+    show_blockers: true
+    beads_loop: true # Phase 6.5: Flatline Beads iterative refinement
+    phases:
+      - prd
+      - sdd
+      - sprint
+run_mode:
+  enabled: true
+  defaults:
+    max_cycles: 20
+    timeout_hours: 8
+  sprint_plan:
+    branch_prefix: "feat/"
+    default_branch_name: "platform-hardening-c015"
+    consolidate_pr: true
+    commit_prefix: "feat"
+    include_commits_by_sprint: true
+# Hounfour — Model-Heterogeneous Agent Routing (cycle-026)
+hounfour:
+  # cycle-107 (2026-05-12): flipped to true. Without this, Flatline + Red-team
+  # bypass cheval.py entirely → no chain-walk (cycle-104 T2.5), no voice-drop
+  # (T2.8), no MODELINV v1.1 (T2.6). The cycle-104 multi-model stabilization
+  # is INERT for FL+RT until this flag is true.
+  # Rollback: flip to false to restore the cycle-103 legacy model-adapter.sh.legacy path.
+  flatline_routing: true # Route Flatline/GPT-review through model-invoke (cheval.py)
+  # cycle-124 (2026-09-17): disabled — see flatline_protocol.models.tertiary note (KF-018; 2/3 DEGRADED otherwise)
+  # flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
+  # cycle-109 (2026-05-13, C109.OP-8): headless mode default for /run invocations
+  # API path is billing-degraded (Anthropic + OpenAI Pro); CLI subscription path works.
+  # Restore to "api" once operator-side billing is resolved.
+  headless:
+    mode: cli-only
+  # Per-subsystem feature flags (all default true — opt-out)
+  feature_flags:
+    google_adapter: true # Enable Google provider adapter
+    deep_research: true # Enable Deep Research models (Interactions API)
+    flatline_routing: true # cycle-107: flipped to engage cheval chain-walk + voice-drop
+    metering: true # Enable BudgetEnforcer cost tracking
+    thinking_traces: true # Include thinking config in request bodies
+    jam_geometry: false # Enable Jam multi-model parallel review (opt-in)
+  # Metering configuration
+  metering:
+    enabled: true
+    ledger_path: .run/cost-ledger.jsonl
+    budget:
+      daily_micro_usd: 500000000 # $500/day default
+      warn_at_percent: 80
+      on_exceeded: downgrade # block | downgrade | warn
+# BUTTERFREEZONE — Cross-Repo Agent Legibility (cycle-017)
+butterfreezone:
+  ecosystem:
+    - repo: 0xHoneyJar/loa-finn
+      role: runtime
+      interface: hounfour-router
+      protocol: loa-hounfour@8.3.1
+    - repo: 0xHoneyJar/loa-hounfour
+      role: protocol
+      interface: npm-package
+      protocol: loa-hounfour@8.3.1
+    - repo: 0xHoneyJar/arrakis
+      role: distribution
+      interface: jwt-auth
+      protocol: loa-hounfour@8.3.1
+  culture:
+    naming_etymology: "Vodou terminology (Loa, Grimoire, Hounfour, Simstim) as cognitive hooks for agent framework concepts"
+    principles:
+      - "Think Before Coding — plan and analyze before implementing"
+      - "Simplicity First — minimum complexity for the current task"
+      - "Surgical Changes — minimal diff, maximum impact"
+      - "Goal-Driven — every action traces to acceptance criteria"
+    methodology: "Agent-driven development with iterative excellence loops (Simstim, Run Bridge, Flatline Protocol)"
+    generative:
+      description: "Creative methodology drawing from cyberpunk fiction, free jazz improvisation, and temporary autonomous zones"
+      references:
+        - "Neuromancer (Gibson) — Simstim as shared consciousness metaphor"
+        - "Flatline Protocol — adversarial multi-model review as creative tension"
+        - "TAZ (Hakim Bey) — temporary spaces for autonomous agent exploration"
+      study_groups: "Knowledge production through collective inquiry — Flatline as multi-model study group"
+# Vision Registry Integration (v1.42.0 — cycle-041)
+# Weaves captured visions from bridge reviews into planning workflows.
+# Disabled by default — opt-in via enabled: true.
+vision_registry:
+  enabled: true # Graduated in cycle-069 (#486)
+  shadow_mode: true # Log matches silently before presenting to user
+  shadow_cycles_before_prompt: 2 # Shadow cycles before graduation prompt
+  status_filter:
+    - Captured
+    - Exploring
+  min_tag_overlap: 2 # Minimum tag overlap for relevance
+  max_visions_per_session: 3 # Cap visions shown per planning session
+  ref_elevation_threshold: 3 # Ref count before lore elevation suggestion
+  propose_requirements: false # Experimental — vision-inspired requirement proposals
+  bridge_auto_capture: false # Auto-capture VISION findings from bridge reviews (cycle-042)
+# Spiral Configuration (cycle-069 seed, cycle-070 e2e)
+# Autonomous multi-cycle development loop.
+spiral:
+  enabled: true # Master switch for /spiral --start
+  task: "" # Set dynamically by --start "task description"
+  max_budget_per_cycle_usd: 15 # Per-cycle cost cap (3x Flatline + implement + review + audit)
+  max_total_budget_usd: 50 # Spiral-level hard stop across all cycles
+  status_file: ".run/spiral-status.txt" # Human-readable status artifact
+  seed:
+    mode: "full" # "full" (Vision Registry queries), "degraded" (text-blob), "cold" (no context)
+    default_tags: # Fallback tags when HARVEST sidecar has no mappable categories
+      - architecture
+      - security
+    max_seed_visions: 10 # Max visions included in seed context
+  step_timeouts:
+    seed_sec: 30
+    simstim_sec: 7200 # 2 hours per cycle dispatch
+    harvest_sec: 60
+  harness: # Evidence-gated orchestrator (cycle-071)
+    enabled: true # Use harness vs monolithic dispatch
+    max_phase_retries: 3 # Retries per gate on failure
+    # (thirty-third run, e2b DISS-C-003) the caps below were sized for the sonnet executor / opus advisor split:
+    # Fable 5.1 is 5x sonnet-5 and 2x opus-5 per token, and each cap is `claude -p --max-budget-usd` — a session that reaches it ends,
+    # leaving partial work for the retry gate. Not raised here (a spend decision for the operator, NOTES 2026-10-03).
+    # (thirty-seventh run, e2b DISS-C-001) a phase whose need exceeds its cap hits it again on each of max_phase_retries' retries:
+    # up to (1 + max_phase_retries) x the cap spent before the gate fails — raise the cap, not the retries, when a phase ends on it.
+    planning_budget_usd: 1 # Per-phase budget for PRD/SDD/Sprint
+    implement_budget_usd: 5 # Budget for implementation session
+    review_budget_usd: 2 # Budget for independent review session
+    audit_budget_usd: 2 # Budget for independent audit session
+    # Advisor Strategy (https://claude.com/blog/the-advisor-strategy): a cheap executor, a stronger judge — set aside
+    # 2026-10-01 by operator directive: every Claude hop on Fable 5.1 (Bedrock key; harness `claude -p` reaches Bedrock
+    # only from a claude-bedrock parent — bd-swz7). Was sonnet / opus. Both values go only to `claude -p --model`
+    # (spiral-harness.sh _invoke_claude and the BB fix cycle): the CLI resolves `fable`, never cheval (operator-measured: a
+    # claude-bedrock session on `model: fable` reports global.anthropic.claude-fable-5-1, 2026-10-04 — thirty-ninth run, e2b DISS-C-004).
+    executor_model: fable # PRD, SDD, Sprint, Implementation
+    advisor_model: fable # Review, Audit (judgment quality)
+    # Pipeline Profiles (cycle-072): full | standard | light
+    pipeline_profile: standard # Sprint Flatline only + the advisor_model judge
+  # Off-Hours Scheduling (cycle-072)
+  scheduling:
+    enabled: false # Must opt-in
+    windows:
+      - start_utc: "02:00"
+        end_utc: "08:00"
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill # fill | single | continuous
+    max_cycles_per_window: 3
+# Prompt Isolation (v1.42.0 — cycle-042)
+# De-authorization wrappers for untrusted content in LLM prompts.
+# Addresses vision-003: Context Isolation as Prompt Injection Defense.
+prompt_isolation:
+  enabled: true # Enable context isolation wrappers in prompt construction
+# Continuous Learning — Skill Extraction (cycle-046)
+continuous_learning:
+  skills_dir: grimoires/loa/skills
+  pending_dir: grimoires/loa/skills-pending
+  archive_dir: grimoires/loa/skills-archived
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 5
+    per_sprint: false
+    flatline_threshold: 0.05
+    consecutive_flatline: 2
+  bridgebuilder:
+    persona_enabled: true
+    persona_path: .claude/data/bridgebuilder-persona.md
+    enriched_findings: true
+    insights_stream: true
+    praise_findings: true
+    integrity_check: true
+    token_budget:
+      findings_tokens: 5000
+      insights_tokens: 25000
+      total_tokens: 30000
+    size_limits:
+      truncate_bytes: 66560
+      findings_only_bytes: 262144
+    redaction:
+      enabled: true
+      post_redaction_safety: true
+    # Multi-model Bridgebuilder (cycle-052 PR #463 architecture)
+    # Three-model kaironic review: Opus + GPT-5.3-codex + Gemini 2.5 Pro.
+    # Consensus scoring + iterative convergence (findings stabilize → kaironic termination).
+    # api_key_mode: graceful — missing keys degrade gracefully rather than blocking review.
+    multi_model:
+      enabled: true
+      # Restored after sprint-bug-143 fix (2026-05-08) — see grimoires/loa/a2a/bug-20260508-i789-e3f89e/.
+      # #787 closed: legacy adapter now sets max_output_tokens=8000 for /v1/responses.
+      # #789a closed: BB OpenAI per-model timeout = 30min for reasoning-class (multi-model-pipeline.ts deriveTimeoutMs).
+      # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
+      models:
+        - provider: anthropic
+          model_id: claude-headless   # 2026-10-01: Fable 5.1 via the CLI (cli_model fable); http_api ids need ANTHROPIC_API_KEY (unset here). Was claude-opus-5
+          # (a CLI hop: a concurrent BB sweep or a live dissent shares the claude CLI and the plan window — KF-010 / KF-037 / KF-038;
+          # run sweeps serially, and read a sweep-wide timeout as contention, not an outage. Its auth follows CLAUDE_HEADLESS_BIN:
+          # the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7)
+          role: primary
+        - provider: openai
+          model_id: gpt-5.5-pro
+          role: reviewer
+        - provider: google
+          model_id: gemini-3.1-pro-preview
+          role: reviewer
+      iteration_strategy: final
+      api_key_mode: graceful
+      consensus:
+        enabled: true
+        scoring_thresholds:
+          high_consensus: 700
+          disputed_delta: 300
+          low_value: 400
+          blocker: 700
+  pipeline_self_review:
+    enabled: false # Default false — progressive rollout
+    base_branch: main # Branch to diff against
+# Post-PR Validation — Amendment 1 enablement (cycle-053, Issue #467)
+# The BRIDGEBUILDER_REVIEW phase runs after FLATLINE_PR, performs iterative
+# adversarial review with kaironic termination. Feature enabled here for
+# real-world observation per Option A from Issue #467 roadmap.
+post_pr_validation:
+  enabled: true
+  phases:
+    bridgebuilder_review:
+      enabled: true # ← Enabling Option A (was false default)
+      auto_triage_blockers: true # Autonomous dispatch with logged reasoning (HITL decision #1)
+      depth: 5 # Inherit from /run-bridge default; kaironic short-circuit on FLATLINE
+# Bridgebuilder Design Review (cycle-044)
+bridgebuilder_design_review:
+  enabled: true # Enabled for cycle-048 — progressive rollout (sole gate)
+  persona_path: ".claude/data/bridgebuilder-persona.md" # FR-5.2: configurable persona
+  lore_enabled: true # Load lore context for reviews
+  vision_capture: true # Capture VISION/SPECULATION to registry
+  token_budget: # Inherits run_bridge.bridgebuilder defaults
+    findings_tokens: 5000
+    insights_tokens: 25000
+    total_tokens: 30000 # Output budget only (input context is additional)
+flatline_protocol:
+  enabled: true
+  auto_trigger: true
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+  models:
+    # 2026-10-01: claude-headless = Fable 5.1 on the CLI/Bedrock; `opus`/`fable` are http_api ids that fail
+    # INVALID_CONFIG without ANTHROPIC_API_KEY (fleet-measured, search 2026-10-01). Was opus.
+    # Flatline runs its voices in parallel and nothing serialises CLI hops across it (the per-binary lock is
+    # adversarial-review.sh's): two claude -p calls share the CLI and the plan window, each bounded by the catalog's
+    # headless_timeout_seconds (900 s) — up to ~15 min per phase under contention (KF-037 / KF-038).
+    # Its auth follows CLAUDE_HEADLESS_BIN (the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7), and it
+    # shares the anthropic headless circuit breaker with the dissent companion: a rate limit on either opens it for both.
+    # (thirty-seventh run, e2b DISS-C-002) so a Flatline rate limit leaves a review that follows while the breaker is open
+    # single-voice: its companion is refused by the open breaker, the envelope reads companion_voice.status failed (not degraded),
+    # and nothing in the unattended harness re-runs it (KF-038) — read companion_voice before taking such a review as two-voice.
+    # (thirty-ninth run, e2b DISS-C-002/003) the route — and the account billed — is the environment's, not this file's: a shell
+    # without CLAUDE_HEADLESS_BIN (cron, CI, a fresh login) runs Flatline and Bridgebuilder on the plain CLI's plan, and the breaker
+    # bucket is anthropic/headless whatever the route, so a plan-window limit there also refuses a Bedrock-wrapped companion; export
+    # the wrapper in every shell that runs them, and clear a bucket opened on the other route with `cheval --reset-breaker anthropic:headless`.
+    primary: claude-headless
+    # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
+    # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks
+    # Pro-tier access (gpt-5.5-pro → 404 "not a chat model" on /v1/chat/completions
+    # AND insufficient_quota on /v1/responses; gpt-5.5 → success with correct
+    # params). gpt-5.5 is the cost-safe default per cycle-095 Sprint 2; alias
+    # already in substrate catalog. Filed as cycle-109 evidence (C109.OP-6):
+    # substrate misdiagnosed model-tier-access-denied as insufficient_quota —
+    # FR-1 capability-aware substrate would have caught this at boot.
+    secondary: gpt-5.5
+    # cycle-124 (2026-09-17): tertiary DISABLED on this host — gemini CLI is tier-blocked (KF-018, rec 2) and
+    # hounfour.headless.mode cli-only never reaches the HTTP rung, so a configured tertiary only turns every
+    # Flatline run into 2/3 DEGRADED (Phase 2 skipped). Fleet baseline (framework-review §10): no tertiary
+    # unless `agy` is installed. Re-enable by restoring the line below.
+    # tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
+  thresholds:
+    high_consensus: 700
+    disputed_delta: 300
+    low_value: 400
+    blocker_skeptic: 700
+  max_iterations: 5
+  # Phase 2.5: Adversarial cross-model review (PR #552 enforcement gate)
+  # When enabled, `/review-sprint` and `/audit-sprint` invoke a cross-model
+  # dissenter (gpt-5.3-codex by default) and produce adversarial-{review,audit}.json.
+  # The PreToolUse:Write hook at .claude/hooks/safety/adversarial-review-gate.sh
+  # blocks COMPLETED marker writes when enabled but the artifact is missing.
+  # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
+  code_review:
+    enabled: true
+    # cycle-104 Sprint 2 T2.9 (2026-05-12): REVERTED to gpt-5.5-pro per
+    # SDD R8. Closing evidence:
+    #   (1) Architecture proof — chain_resolver populates the within-
+    #       company chain `gpt-5.5-pro → gpt-5.5 → gpt-5.3-codex → codex-headless`
+    #       and cheval.cmd_invoke walks it on EmptyContentError. Pinned by
+    #       .claude/adapters/tests/test_chain_walk_audit_envelope.py
+    #       (test_primary_empty_content_walks_to_fallback mocks the
+    #       primary returning EMPTY_CONTENT and asserts walk to fallback).
+    #   (2) Empirical evidence — cycle-104 sprint-2 T2.10 25-trial live
+    #       replay (2026-05-12) showed KF-003 NOT REPRODUCIBLE at OpenAI
+    #       across 5 sizes × 5 prompts at 30K-80K input tokens.
+    # The T1B.4 workaround is no longer load-bearing. If KF-003 returns,
+    # the chain absorbs it; if the chain exhausts, T2.8 voice-drop keeps
+    # consensus available with the remaining voices. gpt-5.5-pro restores
+    # cross-model dissent diversity per cycle-102 §G2 rationale.
+    # Original cycle-102 T1B.4 swap comment retained in git history.
+    model: gpt-5.5-pro
+    budget_cents: 200
+    timeout_seconds: 600
+    # KF-011 sub-mode (c) mitigation (2026-05-17): Gemini-3.1-pro empty-content
+    # on review-type prompts post cycle-109 T4.10. Adding claude-headless as a
+    # 4th-line voice so quorum is reachable when Gemini is silent. KF-011
+    # sub-mode (b) resolved by parser fix in d9ec8cb5; this entry covers (c).
+    fallback_chain:
+      - gpt-5.5
+      - gemini-3.1-pro
+      - claude-headless
+  security_audit:
+    enabled: true
+    # Same revert rationale as code_review (cycle-104 Sprint 2 T2.9).
+    # gpt-5.5-pro restored; chain absorbs KF-003 if it returns.
+    model: gpt-5.5-pro
+    budget_cents: 200
+    timeout_seconds: 600
+    # KF-011 sub-mode (c) mitigation — same as code_review above.
+    fallback_chain:
+      - gpt-5.5
+      - gemini-3.1-pro
+      - claude-headless
+  secret_scanning:
+    patterns:
+      - "AIzaSy[A-Za-z0-9_-]{33}"
+  knowledge:
+    local:
+      enabled: true
+      paths:
+        - grimoires/loa/
+        - .claude/protocols/
+    notebooklm:
+      enabled: false
+      notebook_id: ""
+  # Round-Robin Arbiter (cycle-070 FR-4)
+  # Autonomous decision-making for DISPUTED/BLOCKER findings.
+  # Replaces HITL prompts when SIMSTIM_AUTONOMOUS=1.
+  autonomous_arbiter:
+    enabled: true # Enabled cycle-070 — round-robin arbiter active in autonomous mode
+    rotation: # Model rotation per Flatline phase (most-powerful per family)
+      - opus # PRD arbiter
+      - gpt-5.5-pro # SDD arbiter (was gpt-5.3-codex)
+      - gemini-3.1-pro # Sprint arbiter — cheval bare-alias (resolves to gemini-3.1-pro-preview API id); was gemini-3.1-pro-preview which is not a valid cheval alias
+    fallback: "reject" # Conservative fallback when all models fail
+    max_arbiter_tokens: 4000 # Token budget for arbiter response
+# Red Team — Generative Adversarial Security Design (cycle-012)
+red_team:
+  enabled: true
+  mode: standard
+  models:
+    attacker_primary: opus
+    attacker_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
+    defender_primary: opus
+    defender_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
+    # cycle-102 sprint-1E: multi-model evaluator. Phase 2 (cross-validation)
+    # runs three parallel evaluator calls — one per provider — when
+    # evaluator_multi_model is true. First non-empty valid-JSON response
+    # becomes canonical for downstream Phase 3 consensus. All three outputs
+    # captured in phase2-multi-model.json sidecar for cross-model dissent
+    # visibility. Defaults below cover all 3 providers (anthropic + openai
+    # + google), so red team now invokes all 3 like Bridgebuilder + Flatline.
+    # See grimoires/loa/known-failures.md (post KF-001 resolution context).
+    evaluator_multi_model: true
+    evaluator_primary: claude-opus-5     # anthropic (cycle-124 floor; was 4-8)
+    evaluator_secondary: gpt-5.5-pro     # openai
+    evaluator_tertiary: gemini-3.1-pro   # google
+  defaults:
+    attacks_per_model: 10
+    depth: 1
+    focus: null
+  thresholds:
+    confirmed_attack: 700
+    theoretical: 400
+    human_review_gate: 800
+  budgets:
+    quick_max_tokens: 50000
+    standard_max_tokens: 200000
+    deep_max_tokens: 500000
+    max_attacks_total: 20
+  early_stopping:
+    saturation_threshold: 0.8
+    min_novel_per_iteration: 2
+  # #582: fail closed when the primary reviewer (Opus) scores a qualifying
+  # majority of attacks at 0 — signal that the domain extractor grounded
+  # poorly and the attacker model filled in from its prior rather than
+  # engaging the actual target document.
+  grounding_failure:
+    opus_zero_threshold: 0.8 # ≥80% of scored attacks at opus_score=0 trips the guard
+    min_attacks: 3 # small-N guard; don't trip on 1-2 attack runs
+  safety:
+    prohibited_content: true
+    mandatory_redaction: true
+    retention_days_restricted: 30
+    retention_days_internal: 90
+    ci_artifact_scrubbing: true
+  input_sanitization:
+    injection_detection: true
+    context_isolation: true
+    secret_filtering: true
+  surfaces_registry: .claude/data/attack-surfaces.yaml
+  simstim:
+    auto_trigger: true # Enabled for cycle-048
+    phase: post_sdd
+  bridge:
+    enabled: false
+  # Compliance Gate Profiles — parameterized keyword extraction (cycle-046 FR-4)
+  # The 'security' profile is the default. Additional profiles (accessibility,
+  # performance) can be added following the same schema.
+  compliance_gates:
+    security:
+      # Values are grep -E regex patterns. Use "." for single-char wildcard
+      # (e.g., "Error.Handling" matches "Error Handling" and "Error-Handling").
+      keywords:
+        - Security
+        - Authentication
+        - Authorization
+        - Validation
+        - Error.Handling
+        - Access.Control
+        - Secrets
+        - Encryption
+        - Input.Sanitiz
+      prompt_template: "security-comparison" # Maps to get_evaluation_context() in compliance-lib.sh
+  # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
+  code_vs_design:
+    enabled: false # Default off — opt-in per FR-3
+    max_cycles: 2 # Circuit breaker: max re-implementation cycles
+    skip_if_no_sdd: true # Skip silently when no SDD exists
+    severity_threshold: 700 # Only divergences >700 trigger re-implementation
+    token_budget: 150000 # 150K token ceiling per invocation
+
+# =============================================================================
+# Workload Tier Map (cycle-112 FR-3)
+# =============================================================================
+# Per-skill mapping to model dispatch tier (advisor / executor / headless).
+# Drift-gated in CI via .github/workflows/workload-tier-map-drift.yml — any
+# mutation must carry a `Tier-Change-Evidence:` or `Operator-Approval:`
+# trailer in the PR body. See grimoires/loa/runbooks/model-economy.md
+# §"How to justify a tier change in a PR body" for the format.
+#
+# Schema: .claude/data/schemas/workload-tier-map.schema.json
+# Audit:  tools/audit-workload-tier-map.sh (exhaustiveness check)
+workload_tier_map:
+  schema_version: "1.0"
+  defaults:
+    tier: advisor   # conservative default — quality floor protection
+  entries:
+    # ---- Empirically calibrated this cycle (from operator memory) ----
+    /review-sprint:
+      tier: advisor
+      rationale: "executor tier missed 1 HC + 60% fewer findings on PR #885 A/B"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    /audit-sprint:
+      tier: advisor
+      rationale: "executor tier missed 1 HC + 60% fewer findings on PR #885 A/B"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    bridgebuilder-review:
+      tier: advisor
+      rationale: "BB needs cross-model dissent diversity; executor tier degrades to single-model"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    adversarial-review:
+      tier: advisor
+      rationale: "dissenter needs to catch reviewer blind spots; quality floor non-negotiable"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+
+    # ---- Default-tier entries (exhaustive per FR-3 AC) ----
+    # Each dispatching skill listed below uses workload_tier_map.defaults.tier
+    # until empirically overridden. evidence_ref:"default" pins this state.
+    auditing-security:
+      tier: advisor
+      rationale: "security audit shares quality-floor requirement with /audit-sprint"
+      evidence_ref: "default"
+    autonomous-agent:
+      tier: advisor
+      rationale: "autonomous mode is long-running and amplifies model-quality differences"
+      evidence_ref: "default"
+    hitl-jury-panel:
+      tier: advisor
+      rationale: "jury panel requires diverse-perspective dissent; tier impacts diversity"
+      evidence_ref: "default"
+    managing-credentials:
+      tier: advisor
+      rationale: "credential lifecycle reasoning has security-floor sensitivity"
+      evidence_ref: "default"
+    red-teaming:
+      tier: advisor
+      rationale: "red-team adversarial generation benefits from advisor-tier creativity"
+      evidence_ref: "default"
+    reviewing-code:
+      tier: advisor
+      rationale: "code review is the same workload class as /review-sprint"
+      evidence_ref: "default"
+    run-bridge:
+      tier: advisor
+      rationale: "bridge review composes BB; same tier as bridgebuilder-review"
+      evidence_ref: "default"
+    simstim-workflow:
+      tier: advisor
+      rationale: "simstim orchestrates the same review+audit pipeline as /run"
+      evidence_ref: "default"
+
+# -----------------------------------------------------------------------------
+# Known Failures surface (cycle-115)
+# -----------------------------------------------------------------------------
+# The operational log at grimoires/loa/known-failures.md records degradation
+# patterns the framework has hit. Its ## Index is generated (drift-proof) by
+# .claude/scripts/grimoire-index.sh from the ## KF-NNN: headings.
+known_failures:
+  # When true, the .claude/hooks/loa-kf-surface.sh SessionStart hook surfaces a
+  # compact symptom -> KF table (with numeric recurrence) at session start so an
+  # agent sees the failure log before triaging. DEFAULT-OFF: the hook is
+  # observability only — it always exits 0, never blocks a session, and emits
+  # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
+  # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
+  # (known-failures.md unreadable or zero entries parsed).
+  surface_at_session_start: true
+
+# Skill registry / constructs integration.
+registry:
+  # Built-in framework skill names that a registry/pack skill MUST NOT shadow.
+  # is_reserved_skill_name() (constructs-lib.sh) reads this list; a registry
+  # skill matching one of these is filtered from `list`/`loadable` and blocked
+  # by `preload`. Mirrors the Golden-Path workflow skills in .claude/skills/.
+  reserved_skill_names:
+    - "discovering-requirements"
+    - "designing-architecture"
+    - "planning-sprints"
+    - "implementing-tasks"
+    - "reviewing-code"
+    - "auditing-security"
+    - "deploying-infrastructure"
+    - "translating-for-executives"
+
+# =============================================================================
+# Aleph (third-party, vendored) — OPT-IN (bug 20260922-13a3d1)
+# =============================================================================
+# Aleph was not authored by the Loa maintainers. Loa never verifies, installs,
+# tests or syncs it unless this is true (or LOA_ALEPH_ENABLED=1 is exported):
+# mount/update skip the Aleph refresh, check-loa skips its integrity check, the
+# tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
+aleph:
+  enabled: false

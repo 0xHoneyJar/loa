@@ -1,0 +1,22 @@
+name: pr-23
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-259 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 259
+base_commit: "4374c446393398c9f22f69750544d320f8378ca3"
+head_commit: "6be2318626f4b71d56713e16cfec7a46ea62e268"
+fix_commit: "05830914a7cf7be9e3c4525783a280795b1a5723"
+record_ref: "origin/record/cycle-130-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-259/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-259/auditor-sprint-feedback-r1.md"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-15 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-15; sandbox has network; egress scanned (grader class 9)"

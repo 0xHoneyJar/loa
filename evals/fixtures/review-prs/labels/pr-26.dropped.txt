@@ -1,0 +1,9 @@
+# pr-26 sprint-262: findings that did not become labels
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/engineer-feedback-r1.md#L11 [medium] first cited file is not part of this fixture (1.2.0): the batch-record grader-version tally can abort the whole report (DISS-001 + DISS-C-002;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/engineer-feedback-r1.md#L14 [medium] cites no file: the grader tally attributes every matching directory to every row (DISS-002;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/engineer-feedback-r1.md#L17 [medium] first cited file is not part of this fixture (2.1): treats a non-integer `suite_version` as absent (DISS-C-001;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/engineer-feedback-r1.md#L20 [low] cites no file: hard-fails on version-less rows that never reach a decision (DISS-C-003;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/auditor-sprint-feedback.md#L13 [medium] cites no file: ids were unconstrained: FIXED
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/auditor-sprint-feedback.md#L16 [low] cites no file: exception text copied verbatim into the published report: FIXED
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/auditor-sprint-feedback.md#L19 [low] cites no file: unguarded numeric conversions: FIXED
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-262/auditor-sprint-feedback.md#L22 [low] first cited file is not part of this fixture (rc-01-t1-r2.bak): arm and task grammar before filesystem access: FIXED (one sub-claim refuted)

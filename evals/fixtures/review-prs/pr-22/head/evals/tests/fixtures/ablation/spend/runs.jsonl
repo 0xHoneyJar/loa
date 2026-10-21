@@ -1,0 +1,2 @@
+{"schema_version":1,"run_id":"abl-smoke-a1_full-smoke-build-01-t1","arm":"a1_full","status":"completed","cost_usd":6.41}
+{"schema_version":1,"run_id":"abl-smoke-a0_bare-smoke-build-01-t1","arm":"a0_bare","status":"cap_failure","cost_usd":3.59}

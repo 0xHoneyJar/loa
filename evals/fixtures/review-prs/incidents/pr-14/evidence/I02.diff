@@ -1,0 +1,252 @@
+commit d12bdfabcec063a828518654ca711f1bf502ec2c
+Date: 2026-10-08T01:44:25+11:00
+
+fix(cycle-127): sprint-251 review dissent round r251-2 — one strict opt-in rule on both readers (only the YAML scalar whose source text is exactly `true`; bash and Python had split on yes/on/True), an agy-alone refusal lands in models_failed only (INVALID_CONFIG / opt_in_required; models_not_planned is for hops dropped before the walk; voices_dropped names the reason), run-preflight P3 judges an agy-routed voice by `command -v agy` when the opt-in is on (routes_to_agy → cli=agy; gemini-headless:<m> too), the dissent's lib-missing path keeps an inline name filter, the yq fallback is selected by flavour, Bridgebuilder's readError is fail-closed for google voices with messages that name the cause and the voices; the headless adapter maps the CLI's own pre-flight rejection ("Prompt is too long", "~N tokens (limit M)") to ProviderContextLimitError (not walked, no breaker count; it was ProviderUnavailableError); the probe's 429 lookahead accepts "429." and reads the throttle verdict from the CLI's own answer, checks catalog writability before spend, claims a write only after it lands, keeps a defect's traceback; vacuous bats assertions fixed, conformance rows for yes/on/True/TRUE/1/"true", concrete _lookup pin, provenance guard requires probed_headless for a foreign transport. Docs: two-case routing rule, Bridgebuilder budget 508,000 = (936,000 − 20,000) ÷ 1.8, --write-partial-as-operator-set in PRD FR-3.5 / SDD D-3.8, effort carry as existing behaviour, "only a dispatch whose sole hop is agy-routed refuses", the count_tokens gate scoped to the HTTP adapter, the refuted long-context sentence removed. Refuted with evidence: 30 of 76 (eight chunker mislabels — the chunker now keeps per-file headers). Beads bd-y49y (payload-schema drift), bd-c2rd note.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 58841120..539e257a 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -1298,6 +1298,8 @@ def _vq_map_reason(
+         return "ChainExhausted"
+     # Single-entry chain: use the last recorded error_class mapping.
+     last_class = str(models_failed[-1].get("error_class") or "UNKNOWN")
++    if models_failed[-1].get("failure_class") == "opt_in_required":
++        return "OptInRequired"   # (cycle-127 review r251-2 K2: the agy route refused by its opt-in, not "Other")
+     return _VQ_ERROR_CLASS_TO_REASON.get(last_class, "Other")
+ 
+ 
+@@ -2211,17 +2213,22 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+         from loa_cheval.redaction import sanitize_provider_error_message as _sanitize
+         _msg = _sanitize(str(_exc))
+         _obs = int(observed) if isinstance(observed, int) and observed > 0 else int(_walk_estimate or 0)
++        # cycle-127 review r251-2 K8: a CLI hop's size rejection is the CLI's own pre-flight against ITS window — it
++        # carries no HTTP ceiling, so it is not recorded as an observation (it would lower the HTTP route's bound).
++        _record = getattr(_entry, "adapter_kind", "http") != "cli"
+         try:
+-            _ceiling_record_observed(
+-                provider=_entry.provider, model=_entry.model_id, observed_input_tokens=_obs,
+-                error_class=error_class, estimated_input_tokens=_walk_estimate, provider_limit=provider_limit,
+-            )
++            if _record:
++                _ceiling_record_observed(
++                    provider=_entry.provider, model=_entry.model_id, observed_input_tokens=_obs,
++                    error_class=error_class, estimated_input_tokens=_walk_estimate, provider_limit=provider_limit,
++                )
+         except Exception as _rec_err:  # noqa: BLE001 — the record must never mask the typed exit
+             print(f"[preflight] observed-bound record failed: {type(_rec_err).__name__}", file=sys.stderr)
+         _calib = {
+             "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
+             "provider_limit": provider_limit, "error_class": error_class,
+             "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
++            "observation_recorded": _record,
+         }
+         if isinstance(_modelinv_state.get("capability_evaluation"), dict):
+             _modelinv_state["capability_evaluation"]["calibration_needed"] = _calib
+@@ -2622,9 +2629,17 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                 # Non-retryable typed cheval error — surface immediately.
+                 _fc = (getattr(_e, "context", None) or {}).get("failure_class")
+                 if _fc == "opt_in_required":
+-                    # cycle-127 review r251-1 G1/G5: agy asked for by name with the opt-in off — a refusal, not a
+-                    # failed voice: recorded as not planned, and the envelope names the failure class.
+-                    _models_not_planned.append({"model": _entry_target, "provider": _entry.provider, "reason": _fc})
++                    # cycle-127 review r251-1 G1/G5, r251-2 K2: agy asked for by name (the chain is agy alone) with the
++                    # opt-in off — dispatched to the adapter, which refused before any discovery or spawn. The operator
++                    # asked for it, so it stays in models_requested and is a failed hop with its typed class; it is NOT
++                    # models_not_planned (that list holds only the hops _plan_around_agy dropped before the walk).
++                    _modelinv_state["models_failed"].append({
++                        "model": _entry_target,
++                        "provider": _entry.provider,
++                        "error_class": "INVALID_CONFIG",
++                        "failure_class": _fc,
++                        "message_redacted": str(_e),
++                    })
+                 else:
+                     _modelinv_state["models_failed"].append({
+                         "model": _entry_target,
+diff --git a/.claude/adapters/tests/test_anthropic_catalog_floor.py b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+index 65acc255..792df478 100644
+--- a/.claude/adapters/tests/test_anthropic_catalog_floor.py
++++ b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+@@ -165,16 +165,32 @@ def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
+     transport (ceiling_calibration.transport ≠ api) must say how it was measured and what
+     the provider accepted — `method` and `measured_input_tokens` — so the cross-transport
+     trust is auditable, and an observed limit on this route may tighten it (routing.ceiling)."""
+-    for model_id, entry in http_entries.items():
+-        if not is_foreign_transport_calibration(entry):
+-            continue
++    foreign = [m for m, e in http_entries.items() if is_foreign_transport_calibration(e)]
++    # (review r251-2 K9 / n36: with zero foreign entries the loop would assert nothing — the live catalog has one)
++    assert "claude-opus-5-5" in foreign, foreign
++    for model_id in foreign:
++        entry = http_entries[model_id]
+         cal = entry["ceiling_calibration"]
+-        assert cal.get("method") in ("probed_api", "probed_headless"), (model_id, cal.get("method"))
++        # a bound measured on a non-API transport was measured headless — `probed_api` there is a mislabel (n36)
++        assert cal.get("method") == "probed_headless", (model_id, cal.get("transport"), cal.get("method"))
+         assert isinstance(cal.get("measured_input_tokens"), int) and cal["measured_input_tokens"] > 0, model_id
+         assert cal["measured_input_tokens"] >= entry["effective_input_ceiling"], (
+             f"{model_id}: the written bound may be clamped below the measured accept, never above it")
+ 
+ 
++def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
++    """review r251-2 K9 (n35): one concrete pin THROUGH `_lookup_max_input_tokens` — the other pins compare the policy
++    against itself. claude-opus-5-5 is calibrated (1M window − 64K default output = 936,000); claude-opus-5 is not, and
++    answers its probed value (the policy cap)."""
++    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
++    monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
++    monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
++    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == 936_000
++    uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
++    assert not uncal["ceiling_calibration"].get("calibrated_at")
++    assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP
++
++
+ @pytest.mark.parametrize("kill_switch", ["", "1"])
+ def test_input_gate_positive_with_and_without_streaming_kill_switch(catalog, http_entries, monkeypatch, kill_switch):
+     if kill_switch:
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index 238f0f36..d5404637 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-07T11:53:40Z",
+-  "source_hash": "4bd78108a00fa753166a889fa1b7e39000d3670bff993acc9379c8e70e7f5d9b",
++  "generated_at": "2026-10-07T14:38:21Z",
++  "source_hash": "3ba946ae6d2b0401b76f5c9a651849ab695ddb41493f72c5ead899c8225e48af",
+   "file_count": 42,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "f085193c1f4fda67a44f1eb402d804d57674173921994f81b6a8f1a123391a78"
++      "sha256": "bd01d514a061ae8288a8edf64b5c210d90d831430f9c94902f74fcbe47823d71"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+@@ -86,7 +86,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+-      "sha256": "8f91db5ba9a510fd3a6a4c6c4fb5e35f67b0267046d5bcc4c21c02cff9346b99"
++      "sha256": "1ca6ee3c40bbf5709a9d398bc02adbe4416cd0e71d940bfadf82f5720f962ef9"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
+@@ -138,7 +138,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
+-      "sha256": "55adde1c98115dfcd94c669fcf2e07c6b5977e2e60d24d1b8c3149c18dfc0a86"
++      "sha256": "054a9bd84fd8b668f9bf04ff792711b90d86ff7ecaa9ca25009e88b328777785"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index 8b1b23f7..2d373919 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -745,8 +745,9 @@ hounfour:
+     # Flatline tertiary, Bridgebuilder, /loa, run preflight) records the hop as not planned
+     # (reason opt_in_required), never as a failed voice — a host without agy plans no Google CLI voice.
+     # Set true only where agy is installed AND OAuth-authed: `agy -p` takes the whole prompt (the
+-    # redacted review diff) on argv, readable by every local account through /proc and ps. Only a
+-    # YAML boolean true counts; there is no environment override.
++    # redacted review diff) on argv, readable by every local account through /proc and ps. Only the
++    # lowercase scalar `true` counts (yes / on / True / "true" read off, with a WARN); there is no
++    # environment override.
+     agy_opt_in: false
+     # cli_paths: discovery hints. If unset, $PATH is searched.
+     # cli_paths:
+diff --git a/docs/migration/v2.0-model-generation-floor.md b/docs/migration/v2.0-model-generation-floor.md
+index c177b050..3a438512 100644
+--- a/docs/migration/v2.0-model-generation-floor.md
++++ b/docs/migration/v2.0-model-generation-floor.md
+@@ -286,19 +286,20 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   the hop as *not planned* (`reason: opt_in_required`) rather than failed — verdict
+   quality counts planned voices only. One predicate decides what the agy route is
+   (`.claude/scripts/lib/agy-gate-lib.sh`; Python twin in the loader): the literal
+-  `gemini-headless` hop, a Google voice under effective `cli-only`, or a Google voice
+-  under `prefer-api` with no Google key resolvable — and cheval's own chain walk skips
+-  such a hop inside a fallback chain (`planned: false, reason: opt_in_required`) and
+-  walks on; only a direct `--model gemini-headless` refuses. The key is read from
++  `gemini-headless` hop, or a Google voice under effective `cli-only` (under `prefer-api`
++  with no Google key the HTTP hop fails on credentials first, as before) — and cheval's
++  own chain walk skips such a hop inside a fallback chain (`planned: false, reason:
++  opt_in_required`) and walks on; a chain that is agy alone, like a direct `--model
++  gemini-headless`, refuses with `INVALID_CONFIG`. The key is read from
+   `.loa.config.yaml` alone (a framework defaults file cannot opt you in); a quoted
+   `"true"` stays off and WARNs once. Set it `true` only where `agy` is installed and
+   OAuth-authed, knowing the argv exposure. With it on, behaviour is exactly as before.
+ - **Opus 5.5 effort default.** See the cycle-126 bullet above: `claude-opus-5-5` carries
+-  `params.default_effort: high`; `--effort` overrides. A hop the chain walk reaches that
+-  declares no default inherits the effort resolved for the requested entry (`opus` →
+-  `claude-headless` keeps `high`); a CLI entry's own default is yours to declare
+-  (`params.default_effort` on that entry, or its legacy `extra.effort`) — the catalog
+-  does not know which model your CLI runs.
++  `params.default_effort: high`; `--effort` overrides. Effort is resolved once for the
++  requested entry and carried to every hop the walk reaches (`opus` → `claude-headless`
++  sends `--effort high`); a CLI entry's own default (`params.default_effort` on that
++  entry, or its legacy `extra.effort`) applies only when that entry is the one requested
++  — the catalog does not know which model your CLI runs.
+ - **Calibrating the ceiling through the headless CLI.** `tools/ceiling-probe-live.py
+   --transport claude-headless` measures the accepted input size through
+   `${CLAUDE_HEADLESS_BIN:-claude}` (the adapter's own argv plus `--effort low
+@@ -333,14 +334,17 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   `ceiling_calibration.transport`, a verified provider context-limit observation tightens
+   the bound (`.run/ceiling-observed.json`; `/loa` shows `calibrated 936000
+   (claude-headless); observed N below on this route`), so a narrower HTTP route self-heals.
+-  The bound is in provider-measured tokens; cheval's pre-dispatch estimate is a character
+-  heuristic that under-counts the Opus 4.7+ tokenizer by ≈1.4–1.8×, so on a calibrated
+-  entry cheval asks the provider's free `count_tokens` once the estimate passes half the
+-  bound and gates on the exact count; Bridgebuilder's budget for the entry is the bound
+-  divided by 1.8 (≈508,000 estimated tokens) because it builds the prompt before any
+-  count. Near the window a request that slips past the gate fails cleanly at the provider
+-  (`PROVIDER_CONTEXT_LIMIT`, one upload, not walked). The HTTP route's `account_limits`
+-  tier is still `unverified`. Downstream mounts inherit the value with the catalog;
++  The bound is in provider-measured tokens; every pre-dispatch estimate is a character
++  heuristic that under-counts the Opus 4.7+ tokenizer (cheval's chars/3.5 by ≈1.4×,
++  chars/4-class estimates by ≈1.8×). On the HTTP transport a calibrated entry asks the
++  provider's free `count_tokens` once the estimate passes half the bound and gates on the
++  exact count; Bridgebuilder, which builds the prompt before any count, budgets
++  (bound − 20,000 headroom) ÷ 1.8 = 508,000 estimated tokens for this entry. On the
++  `claude-headless` route there is no HTTP ceiling and no count: the CLI's pre-flight is
++  the backstop (no spend; the adapter maps it to the context-limit class — not walked, no
++  breaker count). Near the window a request that slips past the HTTP gate fails cleanly
++  at the provider (`PROVIDER_CONTEXT_LIMIT`, one upload, not walked). The HTTP route's
++  `account_limits` tier is still `unverified`. Downstream mounts inherit the value with the catalog;
+   HTTP-route callers and mounts with a different window or tier should run
+   `tools/ceiling-probe-live.py --transport api` before relying on 936,000 (bead bd-c2rd
+   tracks the estimator itself).
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+index c4809f2a..5585ae46 100644
+--- a/tests/unit/adversarial-review-companion.bats
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -6030,3 +6030,20 @@ PY
+     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+     ! grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log" || { echo "unexpected: grep -q 'hounfour.headless.agy_opt_in' '$T/stderr.log'"; return 1; }
+ }
++
++@test "CMP-287 (review r251-2 K4) with the agy gate lib missing the dissent planner still drops a literal gemini-headless hop (fail closed, reason opt_in_required)" {
++    local empty="$T/no-lib-root" cfg="$T/agy-off.yaml"
++    mkdir -p "$empty"
++    printf 'hounfour:\n  headless:\n    mode: prefer-api\n    agy_opt_in: true\n' > "$cfg"   # (even an on config: no lib, no opt-in read)
++    run bash -c '
++        exec 2>"$4"; source "$1"
++        unset -f routes_to_agy agy_opted_in agy_headless_mode agy_route_planned agy_gate_warn_once 2>/dev/null
++        PROJECT_ROOT="$2"; CONFIG_FILE="$3"; log() { echo "$*" >&2; }
++        _adv_agy_filter_chain code_review anthropic gemini-headless claude-headless google:gemini-headless gemini-headless:gemini-3-pro gemini-2.5-pro
++    ' _ "$ADVERSARIAL_REVIEW" "$empty" "$cfg" "$T/k4.err"
++    local stderr; stderr=$(cat "$T/k4.err")
++    [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
++    [ "$output" = "claude-headless gemini-2.5-pro" ] || { echo "out=$output stderr=$stderr"; return 1; }
++    grep -q 'agy-gate-lib.sh not loaded' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
++    grep -q 'gemini-headless not planned.*opt_in_required' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
++}

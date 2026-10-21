@@ -1,0 +1,9 @@
+name: kind-01
+version: "1.0.0"
+language: markdown
+runtime: none
+dependency_strategy: none
+description: "task-kind review axis (cycle-129 FR-10, AC-10.2): a kind: mechanical task (a script with a bats test) shipped as skill prose the model re-executes; the expected finding is a MEDIUM citing head/.claude/skills/run-status/SKILL.md:13-17 under the Karpathy ladder. Not part of any suite and not run in CI."
+difficulty: intermediate
+domain: framework
+deprecated: false

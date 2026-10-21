@@ -1,0 +1,23 @@
+commit 76ba937e696aece2f91825520230f360563f7191
+Date: 2026-10-19T00:07:49+11:00
+
+fix(cycle-130): CI and Bridgebuilder round on PR #1283 — the grader tests resolve bats and python3 from the environment (BB HIGH), CR-7's stale codex hop literal (CI red since the Sprint 258 repoint), the RAB-1 comment (BB LOW)
+
+evals/tests/ablation-grade.bats: BATS_BIN is LOA_EVAL_BATS_BIN, else the first PATH bats outside bats-core's libexec/ (inside a bats run PATH carries the libexec entry point, which must not be used as the grading bats), else the operator's checkout; the python3 wrapper execs the PATH python3 (actions/setup-python on CI) instead of /usr/bin/python3; the bats symlink is made only when the binary exists. tests/unit/cost-report.bats CR-7: resolved_model gpt-6.1-sol — Sprint 258 (05442536) repointed codex-headless's cli_model (KF-044) and moved the Python pricing-ladder test with it, but not this bats literal, so Shell Tests have been red on the branch since 2026-10-16 and the eval-harness CI step never ran. evals/tests/run-ablation.bats RAB-1: the stale "BARE stays 70 min" comment now states the DEC-0580 per-task bounds rule the assertion encodes.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/tests/unit/cost-report.bats b/tests/unit/cost-report.bats
+index 673e6fac..35fd79c4 100644
+--- a/tests/unit/cost-report.bats
++++ b/tests/unit/cost-report.bats
+@@ -163,7 +163,7 @@ ROWS
+   [ "$status" -eq 0 ]
+   [ "$(wc -l < "$RP")" -eq 5 ]
+   [ "$(stat -c %i "$RP")" = "$inode_before" ]   # rewritten in place under the writer's lock (audit F-1)
+-  grep '"u1"' "$RP" | jq -e '.pricing_source == "config" and .pricing_resolution == "hop" and .resolved_model == "gpt-5.5" and .cost_estimated == true and .cost_micro_usd > 0 and .repriced_from == {"pricing_source":"unknown","cost_micro_usd":0} and (.repriced_at|test("^2026")) and .request_id == "u1" and .tokens_in == 1000' >/dev/null
++  grep '"u1"' "$RP" | jq -e '.pricing_source == "config" and .pricing_resolution == "hop" and .resolved_model == "gpt-6.1-sol" and .cost_estimated == true and .cost_micro_usd > 0 and .repriced_from == {"pricing_source":"unknown","cost_micro_usd":0} and (.repriced_at|test("^2026")) and .request_id == "u1" and .tokens_in == 1000' >/dev/null
+   grep '"u2"' "$RP" | jq -e '.pricing_source == "config" and .cost_micro_usd > 0' >/dev/null
+   [ "$(sed -n '3p' "$RP")" = "$l3" ]; [ "$(sed -n '4p' "$RP")" = "$l4" ]; [ "$(sed -n '5p' "$RP")" = "$l5" ]
+   backup=$(ls "$RP.pre-reprice-"* | head -1); [ -n "$backup" ]

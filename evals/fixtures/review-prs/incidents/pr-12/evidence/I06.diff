@@ -1,0 +1,62 @@
+commit 3b0f8bf38bd7468326ed583ef68d539de2adc302
+Date: 2026-10-13T18:22:52+11:00
+
+fix(cycle-128): sprint-254 review round r254-1 and the cycle's docs — the Fable review's MEDIUM and seven LOWs closed with tests, Task 3.6 and Task 3.E2E delivered: the glossary gate can no longer be satisfied by an alias line (validate-artifact.sh --type glossary fails an entry with more than six aliases and WARNs on an alias that shares no word with its term or definition and is not the term's initials; the checker WARNs, advisory, when alias resolutions outnumber defined-term resolutions and keeps the alias column in --report; GV-20…24, GT-24/25); fences follow CommonMark through the new shared .claude/scripts/lib/md-fence.awk (an opener's character and length close it; code spans match backtick runs of equal length; GT-20/21/22/27/28, GV-23); the token shape admits one interior colon so the four decision: labels are checked (the kernel gained no token; GT-8b/8c); --json avoids jq 1.6-only features (GT-26); an orphan _Aliases_: line WARNs with its glossary line and no longer shadows a later alias (GT-23); RTC-9 builds its no-timeout shim from the entries of PATH (Homebrew, Nix and asdf hosts keep their tools) and red-test-check.sh prints (no output) inside an empty marker block (RTC-18); planning-sprints, reviewing-code and riding-codebase trimmed to 16,124 / 16,223 / 16,226 of 16,384 bytes without dropping a rule. Docs (Task 3.6, implementer H): CHANGELOG [Unreleased] reconciled into one release note for sprints 252–254 (Added / Changed / Fixed / Security grouped by FR, the review and audit rounds folded into the entries they correct, a Migration section for the pacing default, the Seams rule date, yq v4 and the operator-only commands); README what's-new block; hooks-reference.md "Decision surfaces" table (SessionStart decisions surface, ICE spike rule, fence SP-1, the FR-1.1 decided-spike unlock, the /chart interactive-only gate, the FR-8 lint, each with its accepted bypasses); scripts-reference.md rows for every new script; protocols-summary.md; grimoires/loa/sdd.md §10 Open Questions DEC column backfilled from the seeded ledger (DEC-0001…DEC-0016, DEC-0025, DEC-0030, DEC-0049, DEC-0051, DEC-0053; the validator WARN is gone); REPO-MAP.md regenerated with its checksum over the final .claude/ code (repo-map-gen.sh --validate exit 0); .claude/checksums.json refreshed for tracked files only; evals fixture copies of golden-path.sh and mount-loa.sh re-synced (sync-fixtures.sh --check exit 0). Task 3.E2E: grimoires/loa/a2a/sprint-254/e2e.md records G-1…G-7 with commands, artefacts and results (G-3 scored on a second rounds transcript, G-7 verified by one live harness run whose stream is saved; the archived cycle-127 plan fails two pre-existing required-section rules while the Seams rule adds only a WARN there). Sprint 3 tasks ticked in sprint.md; Sprint 3 implementer decisions seeded as proposed ledger rows. Verification on the final tree: the 22-suite run recorded in the review; check-prompt-budget exit 0; validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; sync-fixtures --check current; md-fence.awk parses under awk; bash -n on every changed script; shell-compat greps clean; check-glossary-terms.sh PASS on the live kernel (16 kept, 0 missing, 11/30 allowlisted, one advisory WARN); both glossaries, the sprint plan (seams + live beads cross-check), the PRD and the SDD validate.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index 549265ed..041d59f7 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -85,7 +85,7 @@ ## Pre-Execution Guardrails (mechanized)
+ # Senior Tech Lead Reviewer
+ 
+ <objective>
+-Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write detailed feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
++Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
+ </objective>
+ 
+ <permission_grants>
+@@ -125,8 +125,7 @@ ### Coverage
+ 
+ Entry format (the filter reads the first line of each entry): `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
+ 
+-You MAY approve when every remaining finding sits under `## Observations` — medium or low
+-severity, or a speculative low-confidence high recorded under `excluded` — each with a concrete
++You MAY approve when every remaining finding sits under `## Observations`, each with a concrete
+ failure scenario.
+ </adversarial_protocol>
+ 
+@@ -220,7 +219,7 @@ ## Phase 2: Code Review
+ 
+ **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
++**Fast-Gate Parity**: self-checks must match CI's fast gate — verify its formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+ 
+ ## Phase 2.5: Adversarial Cross-Model Review
+ 
+@@ -236,10 +235,10 @@ ## Phase 3: Previous Feedback Verification
+ 
+ ## Phase 4: Decision Making
+ 
+-**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
++**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a pile of medium/low is your call (rationale in Overall Assessment).
+ 
+ **Automatic CHANGES_REQUIRED** when
+-`reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
++`reviewer.md`'s `## AC Verification` section is missing, shows `✗ Not met` without a
+ scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
+ Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
+ ("implemented in src/", "done") instead of `file:line` + a specific symbol.
+@@ -256,7 +255,7 @@ ## Phase 5: Feedback Generation
+ NOT force APPROVED. `excluded` equals the demoted highs under `## Observations`; a critical
+ there is a violation.
+ 
+-**MUST self-check before finishing**: run
++**MUST self-check**: run
+ `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
+ and resolve any reported inconsistency before finishing.
+ </workflow>

@@ -582,3 +582,143 @@ synthetic_v2_fixture() {
   [ "$status" -eq 0 ]
   [ "$(jq -r '.record | has("incidents_meta")' "$C/manifests/pr-93.json")" = false ]
 }
+
+# --- cycle-132 Sprint 1 Task 1.1 (FR-1, SDD D-1.1): --feedback paths, --paths scope, exposure provenance ---
+
+# a record branch whose feedback sits outside a2a/sprint-<N>/ (the cycle-131 layout: a2a/sprint-1/ for sprint 901)
+record_with_local_label_dir() {
+  gc checkout -q record/cycle-901-a2a
+  mkdir -p "$G/grimoires/loa/a2a/sprint-1"
+  git -C "$G" mv grimoires/loa/a2a/sprint-901/engineer-feedback-r1.md grimoires/loa/a2a/sprint-1/engineer-feedback.md
+  gc commit -q -m "record: local sprint label"; gc checkout -q main
+}
+
+@test "SC-P1 --feedback takes record-branch paths outside a2a/sprint-<N>/; the bare-name shorthand still works; unsafe paths are refused" {
+  record_with_local_label_dir
+  local A=(--repo "$G" --corpus "$C" --tasks-dir "$K" --base "$BASE" --head "$HEAD_C" --fix "$FIX" --out "$C/pr-90")
+  run "$SEED" 901 record/cycle-901-a2a "${A[@]}" --feedback grimoires/loa/a2a/sprint-1/engineer-feedback.md
+  [ "$status" -eq 0 ]
+  [ "$(yq -r '.feedback_files[0]' "$C/pr-90/fixture.yaml")" = "grimoires/loa/a2a/sprint-1/engineer-feedback.md" ]
+  awk -F'\t' '$1 ~ /^L01-/ {print $6 "|" $7}' "$C/labels/pr-90.tsv" | grep -q '^review|record/cycle-901-a2a:grimoires/loa/a2a/sprint-1/engineer-feedback.md#L'
+  # the a2a/ shorthand resolves under grimoires/loa/
+  run "$SEED" 901 record/cycle-901-a2a "${A[@]}" --feedback a2a/sprint-1/engineer-feedback.md --dry-run
+  [ "$status" -eq 0 ]; grep -q 'KEEP L01' <<<"$output"
+  # a bare name still means grimoires/loa/a2a/sprint-<N>/<name>: here it is absent, so nothing is labelled
+  run "$SEED" 901 record/cycle-901-a2a "${A[@]}" --feedback engineer-feedback.md --dry-run
+  [ "$status" -eq 0 ]; grep -q 'engineer-feedback.md: not on record/cycle-901-a2a' <<<"$output"
+  local bad
+  for bad in ../x/engineer-feedback.md /etc/engineer-feedback.md grimoires/loa/a2a/sprint-1/../../x.md grimoires/loa/a2a/sprint-1/notes.txt; do
+    run "$SEED" 901 record/cycle-901-a2a "${A[@]}" --feedback "$bad" --dry-run
+    [ "$status" -eq 2 ]
+  done
+}
+
+@test "SC-P2 a seeded fixture carries the exposure block and contamination_note; the fields parse" {
+  run "$SEED" 901 record/cycle-901-a2a "${ARGS[@]}"
+  [ "$status" -eq 0 ]
+  local y="$C/pr-90/fixture.yaml" hd
+  hd="$(TZ=UTC git -C "$G" log -1 --date=format-local:%Y-%m-%d --format=%cd "$HEAD_C")"
+  [ "$(yq -r '.exposure.fable_5_1' "$y")" = "post-cutoff" ]
+  [ "$(yq -r '.exposure.opus_5_5' "$y")" = "unverified" ]
+  [ "$(yq -r '.exposure.retrieval' "$y")" = "public-repository" ]
+  [ "$(yq -r '.contamination_note' "$y")" = "fix commits on main since $hd; sandbox has network; egress scanned (grader class 9)" ]
+  # the provenance fields leave the existing keys intact
+  [ "$(yq -r '.head_commit' "$y")" = "$HEAD_C" ]
+  run "$SEED" --check --corpus "$C"
+  [ "$status" -eq 0 ]
+}
+
+@test "SC-P3 --stamp-exposure adds the block to an older fixture, is idempotent, replaces a stale block and touches no other line" {
+  local OLD y="$C/pr-92/fixture.yaml"
+  # a head committed before the Fable 5.1 knowledge cutoff (2026-06) is pre-cutoff
+  printf 'old\n' > "$G/old.txt"; gc add -A
+  GIT_COMMITTER_DATE="2026-03-01T12:00:00Z" GIT_AUTHOR_DATE="2026-03-01T12:00:00Z" gc commit -q -m "old head"
+  OLD="$(git -C "$G" rev-parse HEAD)"
+  mkdir -p "$C/pr-92/head"
+  printf 'name: pr-92\nsprint: 902\nhead_commit: "%s"\nfix_commit: "%s"\nrecord_ref: "record/cycle-901-a2a"\nfeedback_files:\n  - "grimoires/loa/a2a/sprint-902/engineer-feedback.md"\n' "$OLD" "$FIX" > "$y"
+  cp "$y" "$T/orig.yaml"
+  run "$SEED" --stamp-exposure pr-92 --repo "$G" --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(yq -r '.exposure.fable_5_1' "$y")" = "pre-cutoff" ]
+  [ "$(yq -r '.contamination_note' "$y")" = "fix commits on main since 2026-03-01; sandbox has network; egress scanned (grader class 9)" ]
+  # every original line is kept, in order, before the added block
+  [ "$(head -n "$(wc -l < "$T/orig.yaml")" "$y")" = "$(cat "$T/orig.yaml")" ]
+  cp "$y" "$T/once.yaml"
+  run "$SEED" --stamp-exposure pr-92 --repo "$G" --corpus "$C"
+  [ "$status" -eq 0 ]
+  cmp -s "$y" "$T/once.yaml"
+  # a stale block is replaced in place, never duplicated
+  sed -i 's/fable_5_1: pre-cutoff/fable_5_1: post-cutoff/; s/^contamination_note: .*/contamination_note: "stale"/' "$y"
+  run "$SEED" --stamp-exposure pr-92 --repo "$G" --corpus "$C"
+  [ "$status" -eq 0 ]
+  cmp -s "$y" "$T/once.yaml"
+  [ "$(grep -c '^exposure:' "$y")" -eq 1 ] && [ "$(grep -c '^contamination_note:' "$y")" -eq 1 ]
+  # refusals: a fixture without head_commit, an unknown fixture, a bad id
+  printf 'name: pr-93\n' > "$T/x.yaml"; mkdir -p "$C/pr-93"; cp "$T/x.yaml" "$C/pr-93/fixture.yaml"
+  run "$SEED" --stamp-exposure pr-93 --repo "$G" --corpus "$C"
+  [ "$status" -eq 1 ]; cmp -s "$C/pr-93/fixture.yaml" "$T/x.yaml"
+  run "$SEED" --stamp-exposure pr-94 --repo "$G" --corpus "$C"
+  [ "$status" -eq 1 ]
+  run "$SEED" --stamp-exposure ../pr-92 --repo "$G" --corpus "$C"
+  [ "$status" -eq 2 ]
+}
+
+@test "SC-P4 --paths scopes the fixture (an excluded file is in neither head/, base/ nor head.diff) and fixture.yaml records the scope" {
+  run "$SEED" 901 record/cycle-901-a2a "${ARGS[@]}" --paths '!scripts/c.sh'
+  [ "$status" -eq 0 ]
+  [ ! -e "$C/pr-90/head/scripts/c.sh" ]
+  ! grep -q 'scripts/c.sh' "$C/pr-90/head.diff"
+  [ -f "$C/pr-90/head/scripts/a.sh" ]
+  [ "$(yq -r '.scope_paths' "$C/pr-90/fixture.yaml")" = "!scripts/c.sh" ]
+  ! awk -F'\t' '{print $4}' "$C/labels/pr-90.tsv" | grep -qx 'scripts/c.sh'
+  # an include list keeps only matching paths
+  run "$SEED" 901 record/cycle-901-a2a "${ARGS[@]}" --paths 'scripts/a.sh'
+  [ "$status" -eq 0 ]
+  [ "$(cd "$C/pr-90/head" && find . -type f | sort | tr '\n' ,)" = "./scripts/a.sh," ]
+  # a scope that leaves nothing is refused
+  run "$SEED" 901 record/cycle-901-a2a "${ARGS[@]}" --paths 'nothing/*' --dry-run
+  [ "$status" -eq 1 ]
+}
+
+@test "SC-P5 findings written as '### HIGH-1 — …' headings or '**MEDIUM-A1 — ….**' paragraphs (cycle-129/130 feedback) are parsed; a Refuted section is not" {
+  gc checkout -q record/cycle-901-a2a
+  cat > "$G/grimoires/loa/a2a/sprint-901/engineer-feedback-r2style.md" <<'MD'
+# Sprint 901 review — round 1
+
+## Findings
+
+### HIGH-1 — the input check accepts an empty value (dissent DISS-C-001, confirmed)
+
+`scripts/a.sh:check_input` reports an empty value as accepted.
+
+**MEDIUM-A1 — the read loop never ends on a closed pipe (DISS-C-002, confirmed).** `scripts/b.sh:2` keeps reading.
+
+## Refuted or accepted without action
+
+### LOW-1 — a refuted item that must never be read
+
+`scripts/a.sh:check_input` is fine.
+MD
+  gc add -A; gc commit -q -m "record: heading-style feedback"; gc checkout -q main
+  run "$SEED" 901 record/cycle-901-a2a --repo "$G" --corpus "$C" --tasks-dir "$K" --base "$BASE" --head "$HEAD_C" --fix "$FIX" \
+    --feedback engineer-feedback-r2style.md --out "$C/pr-90" --dry-run
+  [ "$status" -eq 0 ]
+  grep -q 'KEEP L01-the-input-check-accepts-an-empty-value[-a-z]* \[high/review\] scripts/a.sh' <<<"$output"
+  grep -q 'DROP .*\[medium\] fix commit does not touch scripts/b.sh: the read loop never ends on a closed pipe' <<<"$output"
+  ! grep -q 'must never be read' <<<"$output"
+}
+
+@test "SC-P6 --allow-no-labels builds a fixture whose review-derived set is empty (manifest with no defect, fix regions kept); without it the gap is recorded" {
+  printf 'fixture\tlabel\taction\tvalue\treason\npr-90\tL01\tdrop\t-\ttest drop\n' > "$C/labels/curation.tsv"
+  run "$SEED" 901 record/cycle-901-a2a "${ARGS[@]}" --allow-no-labels
+  [ "$status" -eq 0 ]
+  [ -f "$C/pr-90/fixture.yaml" ] && [ -f "$C/pr-90/head.diff" ]
+  M="$C/manifests/pr-90.json"
+  [ "$(jq -r '.defects | length' "$M")" = "0" ]
+  [ "$(jq -r '.fix_regions | length' "$M")" = "2" ]
+  [ "$(jq -r '.approved' "$M")" = "false" ]
+  grep -q 'curated out (test drop)' "$C/labels/pr-90.dropped.txt"
+  grep -q "^pr-90	record	${HEAD_C:0:8}	labels/pr-90.tsv" "$C/corpus.tsv"
+  run "$SEED" --check --corpus "$C"
+  [ "$status" -eq 0 ]
+}

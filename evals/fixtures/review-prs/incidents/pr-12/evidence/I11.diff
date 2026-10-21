@@ -1,0 +1,92 @@
+commit 07110d7052ea531b190ec58a0f429e0718e2365c
+Date: 2026-10-14T21:29:39+11:00
+
+fix(cycle-129): sprint-257 security audit round a257-1 — a declared locality is enforced where the prompt is sent: under hounfour.locality local_voices cheval plans around every chain hop that fails the local-hop rule (one stderr line each, MODELINV models_not_planned reason locality_refused) and refuses an all-hosted chain before any dispatch (LocalityRefusedError, failure_class locality_refused, exit INVALID_CONFIG), the loader refuses a local model whose fallback_chain reaches a hosted or unresolvable hop, and Bridgebuilder walks the chain in the trusted view (MEDIUM-A1; one implementation endpoint_policy.hop_is_local serves cheval, the loader and MODELINV hop_locality); Bridgebuilder refuses trusted-config drift on a pull request — hounfour.providers, aliases, locality and the secret allowlist compared head vs trusted, exit 5 before any voice is planned, because cheval-delegate spawns cheval from the checkout (MEDIUM-A2); localhost is resolved and checked for loopback at request time (LOW-A1); metadata.locality.degraded_security_review is machine-readable on the audit envelope (LOW-A2); a zero price not marked open_weight warns in the budget gate (LOW-A3; metering guard → bd-yzzb9); DISS-001 RFC1918 opt-in accepted by design; tests test_locality_fallback_plan.py (13), test_local_dispatch_group_rule.py (+9), LOC-1/4/10, BUD-3/7, trusted-config.test.ts (35), dist rebuilt; cheval pytest 3277 passed (2 baseline), Sprint 3 bats 137/137, npm 881/882 (KF-036), corpus 99/99 · 184/184; CHANGELOG Fixed entry + two Migration rows; DEC-0340…DEC-0351 (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/adversarial-review.sh b/.claude/scripts/adversarial-review.sh
+index 751cec73..96187f19 100755
+--- a/.claude/scripts/adversarial-review.sh
++++ b/.claude/scripts/adversarial-review.sh
+@@ -3887,6 +3887,14 @@ _adv_budget_estimate() {  # <estimated input tokens> <role>=<hop>... → _ADV_BU
+       log "budget: no catalog price for $_bv_hop ($_bv_role) — the fixed 10 / 30 USD per Mtok applies to this voice"
+     elif (( _bv_in == 0 && _bv_out == 0 )); then
+       log "budget: $_bv_hop ($_bv_role) is zero-priced in the catalog — estimated 0c"
++      # audit a257-1 LOW-A3: a zero price is expected only on an open-weight (local) entry; on any other it is a pricing
++      # overlay that would zero both this estimate and the ledger — said by name (warning only: metering is unchanged).
++      # The open_weight flag is read from the same CLI's --json row; an unreadable answer warns (fail loud).
++      local _bv_ow=""
++      _bv_ow=$(PYTHONSAFEPATH=1 PYTHONPATH="$PROJECT_ROOT/.claude/adapters" python3 -W ignore::RuntimeWarning -m loa_cheval.metering.pricing \
++        --catalog "${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" --config "${CONFIG_FILE:-}" --json --alias "$_bv_hop" 2>/dev/null \
++        | jq -r --arg a "$_bv_hop" 'select(.alias == $a) | .open_weight' 2>/dev/null | head -n 1) || _bv_ow=""
++      [[ "$_bv_ow" == "true" ]] || log "budget: zero price on $_bv_hop ($_bv_role), not marked open_weight — check the pricing overlay"
+     elif [[ "$_bv_src" == "stale_catalog" ]]; then
+       log "budget: $_bv_hop ($_bv_role) has a stale catalog price (price_date older than 90 days) — used as given"
+     fi
+@@ -4842,12 +4850,17 @@ main() {
+   fi
+ 
+   # cycle-129 FR-8 (D-8.1): a local_voices envelope says so — the refused hops by name and, on the audit gate, the
+-  # DEGRADED sentence (absent under hosted: the default envelope is unchanged)
++  # DEGRADED sentence (absent under hosted: the default envelope is unchanged). Audit a257-1 LOW-A2: the one-family case
++  # is machine-readable — `degraded_security_review: true` on an audit whose companion is not an independent second
++  # voice (duplicate_voice, not planned, failed or the sole voice), with the sentence; `false` otherwise (a review, or
++  # an audit with an independent companion). verdict_quality, verdict-derive.sh and the artefact gate do not read it.
+   if [[ "$CONF_LOCALITY" == "local_voices" ]]; then
+     local _locj _locf="$_ADVERSARIAL_WORKDIR/locality-refused.json"
+     _adv_locality_refused_json > "$_locf" 2>/dev/null || printf '[]' > "$_locf"
+     if _locj=$(jq -c --slurpfile rf "$_locf" --arg t "$type" --arg s "$_ADV_LOC_DEGRADED_SENTENCE" \
+-        '.metadata.locality = ({mode: "local_voices", refused: $rf[0]} + (if $t == "audit" then {note: $s} else {} end))' <<<"$result" 2>/dev/null) \
++        '(($t == "audit") and ((.metadata.companion_voice.counted_as // null) != "independent_voice")) as $dsr
++         | .metadata.locality = ({mode: "local_voices", refused: $rf[0], degraded_security_review: $dsr}
++                                 + (if $dsr then {note: $s} else {} end))' <<<"$result" 2>/dev/null) \
+         && [[ -n "$_locj" ]]; then
+       result="$_locj"
+     fi
+diff --git a/.claude/skills/auditing-security/SKILL.md b/.claude/skills/auditing-security/SKILL.md
+index ab40379a..ca73bea8 100644
+--- a/.claude/skills/auditing-security/SKILL.md
++++ b/.claude/skills/auditing-security/SKILL.md
+@@ -178,10 +178,10 @@ ## Phase 1B: Investigate Pass
+ 
+ ## Phase 1C: Security Dissenter Analysis
+ 
+-Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
++Runs when `flatline_protocol.security_audit.enabled: true`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
+ 
+ Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+-Read `advisory_voices[].findings` as advisory input, never tallied.
++Read `advisory_voices[].findings` as advisory input, never tallied; `metadata.locality.degraded_security_review: true` ⇒ state DEGRADED_SECURITY_REVIEW.
+ 
+ ## Phase 1: Systematic Audit
+ 
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index 6fb0676c..68b7ee4a 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -1226,8 +1226,10 @@ hounfour:
+ # Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
+ # Threat model: plain http is admitted only to the one host named in
+ # allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
+-# range that is never resolved through DNS, so the prompt does not cross a
+-# public network unencrypted and the name cannot be rebound. For this provider
++# range. IP literals are never resolved, so the prompt does not cross a public
++# network unencrypted and the address cannot be rebound; localhost is resolved
++# and checked at request time, and any address that is not loopback (or a
++# resolver failure) refuses the request by name. For this provider
+ # cheval ignores proxy environment variables, refuses redirects and keeps every
+ # request under the declared endpoint path, while every other provider keeps the
+ # https, loopback and private-range refusals.
+@@ -2512,6 +2514,10 @@ bridgebuilder:
+   # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
+   # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
+   # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
++  # Trusted config drift: cheval reads the checkout's configuration for the dispatch, so a pull request whose
++  # head changes hounfour.providers, hounfour.aliases, hounfour.locality or the secret allowlist is refused by
++  # name before any voice is planned (exit 5): merge the base branch into the head, or set
++  # BRIDGEBUILDER_TRUSTED_CONFIG to the configuration you vouch for.
+   exit_on_degraded: 3
+ 
+ # =============================================================================

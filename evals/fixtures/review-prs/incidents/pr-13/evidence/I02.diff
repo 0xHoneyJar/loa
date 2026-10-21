@@ -1,0 +1,76 @@
+commit cbfccab2e30ef0364c24908bc4191064d1fdf736
+Date: 2026-10-08T04:26:27+11:00
+
+fix(cycle-127): sprint-251 audit round r251-4 — the audit dissent's verified items: Bridgebuilder's merge gate no longer fails open under a config read error (readError → mergeBlocked with the reason, strict mode throws; the quorum is never shrunk by unreadable config); cheval reads the agy opt-in from its own install root, never a cwd-ancestor config (a planted /tmp/.loa.config.yaml opted a host in), and refuses a foreign-owned or group/world-writable config (off, one WARN); one strict spelling rule across the three readers — the exact tag:yaml.org,2002:bool tag, and YAML alias / merge-key nodes read as off everywhere (conformance rows); the lib's include guard is shell-only (declare -F) so an exported variable cannot leave the predicates undefined, and run-preflight fails closed when the lib is missing; the catalog provider maps are never cached after a swallowed exception and both readers WARN once on the name-rule fallback (hostile-subscript test on the associative maps); the throttle-status regex needs non-word boundaries (a request id matched 529), the CLI-shape context-limit parse needs its sentence, the calibrate hint shell-quotes model ids; an implausible observed limit (< 10 % of the window or above it) is ignored with a WARN instead of wedging the route; _effort_on_wire is wrapped at the MODELINV emit site. Probe: --host-route / the resolved --cli-model / cli_version are refused on control characters or over 200 chars before the dry run (a newline rewrote effective_input_ceiling in the loaded YAML), the dry run uses the real write's kwargs, and the written catalog is re-parsed and its ceilings asserted before os.replace; CLI-reported numbers must be finite and bounded; the first step's budget estimate assumes the 1.8 tokenizer ratio until a step measures; the record stores the resolved binary ~-relative (the committed record too); the ceilingCalibration schema gains an if/then (probed_headless ⇒ claude-headless transport + probe_outcome) and maxLength on the cli_* fields; the effort dry-run test can never spawn the real CLI; AGC-6 prints its diagnostics on failure. The Fable review round 2 ticked the four acceptance criteria. Refuted or declined with evidence: 36 of the 60 run-1 findings and 6 of the 11 run-2 findings (audit-dissent-triage.md).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/loa-status.sh b/.claude/scripts/loa-status.sh
+index 4f039802..b85e6338 100755
+--- a/.claude/scripts/loa-status.sh
++++ b/.claude/scripts/loa-status.sh
+@@ -797,8 +797,18 @@ _providers_config_file() {  # the Loa config the Providers block reads (bats-gat
+   fi
+ }
+ # cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, routes_to_agy)
++# (r251-4: a partial install without the lib must not abort /loa under set -e — fail-closed stubs instead, as
++# adversarial-review.sh K4: the opt-in reads off and the gemini-headless hop is recognised by name only; said once on
++# stderr in human mode, never under --json)
+ # shellcheck source=lib/agy-gate-lib.sh
+-source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
++if ! { [[ -f "$SCRIPT_DIR/lib/agy-gate-lib.sh" ]] && source "$SCRIPT_DIR/lib/agy-gate-lib.sh"; } \
++   || ! declare -F routes_to_agy >/dev/null 2>&1; then
++  [[ "$JSON_OUTPUT" == "true" ]] || echo "WARN: $SCRIPT_DIR/lib/agy-gate-lib.sh not loaded — the agy opt-in reads off (fail closed); reinstall the framework (/update-loa)" >&2
++  AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
++  agy_opted_in() { return 1; }
++  routes_to_agy() { case "${1:-}" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac; return 1; }
++  agy_gate_warn_once() { return 0; }
++fi
+ _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+   agy_opted_in "$(_providers_config_file)"
+ }
+@@ -832,20 +842,26 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+   # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
+   # is tightened by an observation below it: basis observed, calibrated true,
+   # calibrated_value / calibration_transport / reprobe_suggested carried.
+-  local cfg model eff probed cal transport store obs=null
++  local cfg model eff probed cal transport cw store obs=null
+   cfg=$(_providers_model_config)
+   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
+   [[ -n "$model" ]] || { echo null; return 0; }
+-  eff=$(yq eval -r ".providers.anthropic.models.\"$model\".effective_input_ceiling // \"\"" "$cfg" 2>/dev/null)
+-  probed=$(yq eval -r ".providers.anthropic.models.\"$model\".probed_ceiling // \"\"" "$cfg" 2>/dev/null)
+-  cal=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.calibrated_at // \"\"" "$cfg" 2>/dev/null)
+-  transport=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.transport // \"\"" "$cfg" 2>/dev/null)
++  # (r251-4 S8, audit n11: the model reaches yq as a VALUE through strenv — never spliced into the expression text)
++  eff=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].effective_input_ceiling // ""' "$cfg" 2>/dev/null)
++  probed=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].probed_ceiling // ""' "$cfg" 2>/dev/null)
++  cal=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.calibrated_at // ""' "$cfg" 2>/dev/null)
++  transport=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.transport // ""' "$cfg" 2>/dev/null)
++  cw=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].context_window // ""' "$cfg" 2>/dev/null)
++  [[ "$cw" =~ ^[0-9]+$ ]] || cw=0
+   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
+   if [[ -f "$store" ]]; then
+-    obs=$(jq -r --arg m "$model" '[.entries[]? | select(.provider == "anthropic" and .model == $m
++    # (r251-4 S7 parity with routing.ceiling.observed_for: with a known window, a candidate outside
++    # [0.1 × context_window, context_window] is not a verdict this route acts on)
++    obs=$(jq -r --arg m "$model" --argjson cw "$cw" '[.entries[]? | select(.provider == "anthropic" and .model == $m
+             and (.error_class == "CEILING_UNVERIFIED_LIMIT" or .error_class == "PROVIDER_CONTEXT_LIMIT"))
+-            | ([.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end)] | min)] | min // null' "$store" 2>/dev/null)
++            | (.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end))
++            | select(type == "number" and . > 0 and ($cw == 0 or (. >= 0.1 * $cw and . <= $cw)))] | min // null' "$store" 2>/dev/null)
+     [[ "$obs" =~ ^[0-9]+$ ]] || obs=null
+   fi
+   jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --arg tr "$transport" --argjson obs "$obs" '
+@@ -860,7 +876,8 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+        elif $obs != null and ($p == null or ($obs - 1) < $p) then {basis: "observed", value: ($obs - 1)}
+        else {basis: "probed", value: ($p // $e)} end)
+     + {model: $m, observed: (if $obs == null then null else $obs - 1 end),
+-       calibrate: ("python3 tools/ceiling-probe-live.py --model " + $m + " --write-catalog")}' 2>/dev/null || echo null
++       calibrate: ("python3 tools/ceiling-probe-live.py --model "
++                   + (if ($m | test("^[A-Za-z0-9._:@+/-]+$")) then $m else ($m | @sh) end) + " --write-catalog")}' 2>/dev/null || echo null
+ }
+ get_providers_json() {
+   local snap provs p
