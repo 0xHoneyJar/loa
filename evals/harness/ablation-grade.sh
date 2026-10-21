@@ -239,6 +239,13 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.6 (cycle-132 Sprint 269 round 8, PREREGISTRATION §12 addendum 4): the `hidden` contamination class
+# (HIDDEN_TOKEN, HIDDEN_GLOB, HIDDEN_FS and the non-Bash substring branch) applies to build tasks only (feature-build,
+# bug-fix, refactor: the tasks graded against hidden/ tests). A review-catch sandbox holds no hidden tests, and a
+# reviewer quoting a PR that implements a hidden-test check (pr-23) was excluded as contaminated; for review-catch the
+# class is skipped and grade.json records contamination_classes_skipped ["hidden"] ([] for build tasks; a union grade
+# ["hidden"]). Every other class (suite_path, repo_name with its class 7 exemption, outside_path, network_egress) and
+# every non-contamination field are unchanged; a 1.3.5 review-catch grade may differ only in contaminated.
 # grader 1.3.5 (cycle-132 Sprint 269 round 4, audit A1–A4): class 9 also recurses into bash|sh|zsh|dash|ksh -c strings;
 # EGRESS_HOST matches any host ending in github.com, githubusercontent.com or github.io (codeload., gist., objects., www.
 # included) and the python libraries add http.client, httpx, aiohttp, pycurl, socket and urllib3; class 9's own word
@@ -422,7 +429,8 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.5"
+GRADER_VERSION = "1.3.6"
+HIDDEN_CLASS = [True]   # 1.3.6: whether the hidden contamination class applies to the task being graded
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1907,11 +1915,13 @@ def check_value(tool, field, val, roots):
     # the KF-046 class 7 PR-content exemption never applies to it (a curl of the repository is never PR content)
     if egress_hit(tool, val):
         return "network_egress"
-    if tool == "Bash":
+    # 1.3.6 (PREREGISTRATION §12 addendum 4): the hidden class guards the hidden tests of build tasks only; a
+    # review-catch sandbox has none, and its reviewers quote PRs that implement hidden-test checks
+    if HIDDEN_CLASS[0] and tool == "Bash":
         stripped = strip_heredocs(val)
         if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(stripped) or HIDDEN_FS.search(stripped):   # DEC-0551 token shapes; 1.2.7 globs and 1.2.8 filesystem probes outside heredoc bodies
             return "hidden"
-    elif "hidden" in low:
+    elif HIDDEN_CLASS[0] and "hidden" in low:
         return "hidden"
     if "grimoires/loa/evals/ablation-2.0" in val:
         return "suite_path"
@@ -3002,7 +3012,9 @@ def grade(t, run_dir, frozen):
     FIXTURE_TASK[0] = t if not t.build else None
     FIXTURE_LINES.clear()
     CONTAM_EXEMPT.clear()
+    HIDDEN_CLASS[0] = bool(t.build)   # 1.3.6: build tasks only (their sandbox is graded against hidden/ tests)
     g["contaminated"] = contamination(run_dir)
+    g["contamination_classes_skipped"] = [] if t.build else ["hidden"]
     g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]
@@ -3099,6 +3111,7 @@ def grade_union(t, cell, frozen):
          "multi_credit_citations": None, "verdict": None, "verdicts": {"review": None, "audit": None},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "contaminated": None, "contamination_exempt": [],
+         "contamination_classes_skipped": ["hidden"],
          "oracle_exposed_defects": pos_union([grades[i].get("oracle_exposed_defects") for i in valid_ids]),
          "oracle_exposed_unknown": pos_union([grades[i].get("oracle_exposed_unknown") for i in valid_ids]),
          "corpus_sha256": corpus_sha256(t)}

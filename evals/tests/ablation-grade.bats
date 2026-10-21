@@ -461,12 +461,14 @@ EOF
 # --- contamination (D-4.7, DEC-0493) --------------------------------------------------------------
 
 @test "AG-10 contamination: each pattern class, a WebFetch URL and a WebSearch query, first hit in phase order, ids only" {
-  local i=0 tool inp want
+  local i=0 tool inp want task
   while IFS=$'\t' read -r tool inp want; do
-    i=$((i + 1)); RD="$T/c$i"; make_run rc-x "$RD"
+    i=$((i + 1)); RD="$T/c$i"
+    task=rc-x; [ "$want" = hidden ] && task=bf-py   # grader 1.3.6: the hidden class guards build tasks only
+    make_run "$task" "$RD"
     tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
     tool_use "$RD" IMPLEMENT "$tool" "$inp"
-    grade "$RD" rc-x
+    grade "$RD" "$task"
     [ "$status" -eq 0 ]
     [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "IMPLEMENT $want IMPLEMENT:2" ]
     [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,pattern,phase" ]
@@ -554,6 +556,12 @@ EOF
   RD="$T/c122"   # the 1.2.2 run continues below
   tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nsee tests/hidden/ for the cases\nEOF"}'   # 1.2.4: a path-shaped hidden token in a heredoc is still a hit
   grade "$RD" rc-x
+  # grader 1.3.6: on a review-catch run the hidden class is skipped (recorded); on a build run the same command is a hit
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.contamination_classes_skipped | join(",")')" = hidden ]
+  RD="$T/c122h"; make_run bf-py "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "cat > notes.md <<EOF\nsee tests/hidden/ for the cases\nEOF"}'
+  grade "$RD" bf-py
   [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "REVIEW hidden" ]
   RD="$T/c122b"; make_run rc-x "$RD"
   tool_use "$RD" IMPLEMENT Bash '{"command": "cat > notes.md <<EOF\nx\nEOF\ncat /home/operator/notes"}'
@@ -1020,12 +1028,14 @@ exit 1'
 
 # --- grader 1.2.6 (Sprint 260 review round 1, DISS-C-001 … C-005) ------------------------------
 # bash_case <want> <command> — one Bash tool_use after an `ls`; <want> is the contamination
-# pattern (or null) the container-mode grade must report
+# pattern (or null) the container-mode grade must report. The task is $BC_TASK (default rc-x); grader 1.3.6 applies
+# the hidden class to build tasks only, so the hidden-shape cases set BC_TASK=bf-py
 bash_case() {
-  i=$((${i:-0} + 1)); RD="$T/b$i"; make_run rc-x "$RD"
+  local task="${BC_TASK:-rc-x}"
+  i=$((${i:-0} + 1)); RD="$T/b$i"; make_run "$task" "$RD"
   tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
   tool_use "$RD" IMPLEMENT Bash "$(jq -cn --arg c "$2" '{command: $c}')"
-  grade "$RD" rc-x
+  grade "$RD" "$task"
   [ "$status" -eq 0 ]
   if [ "$1" = null ]; then
     [ "$(G '.contaminated')" = null ] || { echo "expected clean: $2 → $(G '.contaminated')"; return 1; }
@@ -1079,6 +1089,7 @@ bash_case() {
 }
 
 @test "AG-32 HIDDEN_TOKEN (LOW-2): camelCase, any-case adjacency and glob shapes are hits; a bare hidden word is not" {
+  export BC_TASK=bf-py   # grader 1.3.6: hidden shapes are judged on a build task
   bash_case hidden 'ls hiddenTests/'
   bash_case hidden 'ls HiddenTests/'   # 1.2.7 (DISS-C-006): PascalCase
   bash_case hidden 'cat Hidden/x'
@@ -1095,6 +1106,7 @@ bash_case() {
 }
 
 @test "AG-34 audit round 1 (MEDIUM-A1, LOW-A1): dot segments, an empty quote and a glob never hide a sensitive root; a bare hidden after a filesystem command is a probe" {
+  export BC_TASK=bf-py   # grader 1.3.6: hidden shapes are judged on a build task
   bash_case outside_path 'cat /./root/.ssh/id_rsa'
   bash_case outside_path 'ls /../root/x'
   bash_case outside_path "cat ''/root/.ssh/id_rsa"
@@ -1151,7 +1163,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.6 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1421,7 +1433,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.6 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1515,7 +1527,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.3.6 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1810,7 +1822,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.5 ]
+  [ "$(U .grader_version)" = 1.3.6 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -1975,7 +1987,7 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.5 ]
+  [ "$(G '.grader_version')" = 1.3.6 ]
 }
 
 @test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
@@ -2108,14 +2120,56 @@ EOF
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.5,1.3.5,null" ]   # s3 is invalid: never read
+  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.6,1.3.6,null" ]   # s3 is invalid: never read
   jq '.grader_version = "1.3.4"' "$C/sessions/s2/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s2/grade.json"
   union "$C"
   [ "$status" -eq 2 ]
-  grep -q "session s2 was graded by grader '1.3.4', not 1.3.5" <<<"$output"
+  grep -q "session s2 was graded by grader '1.3.4', not 1.3.6" <<<"$output"
   # an invalid session's stale grade does not matter
   jq '.grader_version = "1.2.0"' "$C/sessions/s3/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s3/grade.json"
   grade "$C/sessions/s2" rc-x
   union "$C"
   [ "$status" -eq 0 ]
+}
+
+@test "AG-c132-10 grader 1.3.6 (addendum 4): on a review-catch run the hidden class is skipped and recorded — a reviewer heredoc quoting a hidden-test check and a grep for hidden are clean; a build run's ls hidden/ is still contaminated" {
+  RD="$T/rh"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+  tool_use "$RD" REVIEW Bash "$(jq -cn --arg c "$(printf 'cat > grimoires/loa/a2a/sprint-1/reviewer-concerns.md <<%sEOF%s\n11. any Bash command containing the substring "hidden" is contamination (HIDDEN_TOKEN)\nEOF' "'" "'")" '{command: $c}')"
+  tool_use "$RD" REVIEW Bash '{"command": "grep -rn hidden pr/head/evals/harness/"}'
+  tool_use "$RD" REVIEW Bash '{"command": "ls tests/HIDDEN_cases.py"}'
+  tool_use "$RD" REVIEW WebFetch '{"url": "https://example.com/hidden/answers", "prompt": "read"}'
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '.contamination_classes_skipped | join(",")')" = hidden ]
+  [ "$(G '.recall.defects_caught')" = 1 ]
+  # every other class still applies on review-catch
+  tool_use "$RD" REVIEW Bash '{"command": "cat /home/operator/notes.txt"}'
+  grade "$RD" rc-x
+  [ "$(G '.contaminated.pattern')" = outside_path ]
+  # a build task keeps the class
+  RD="$T/bh"; make_run bf-py "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "ls hidden/"}'
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated.pattern')" = hidden ]
+  [ "$(G '.contamination_classes_skipped | length')" = 0 ]
+}
+
+@test "AG-c132-11 grader 1.3.6 keeps the plan commit's (346dbb87) build-task grade: hidden tests, regressions, contaminated (hidden) equal on the same run" {
+  git -C "$REPO_ROOT" cat-file -e 346dbb87^{commit} 2>/dev/null || skip "the plan commit 346dbb87 is not in this clone"
+  mkdir -p "$T/old"
+  git -C "$REPO_ROOT" archive 346dbb87 evals/harness/ablation-grade.sh evals/harness/freeze.sh evals/harness/validate-suite.sh \
+    evals/harness/took-effect.sh evals/harness/lib evals/graders/recall-vs-defects.sh | tar -x -C "$T/old"
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
+  tool_use "$RD" IMPLEMENT Bash '{"command": "cat tests/HIDDEN_cases.py"}'
+  grade "$RD" bf-py
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  cp "$RD/grade.json" "$T/new.json"
+  run "$T/old/evals/harness/ablation-grade.sh" "$RD" bf-py --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --out "$T/old.json"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  for k in hidden_tests regressions contaminated verdict diff_lines files_changed; do
+    [ "$(jq -c --arg k "$k" '.[$k]' "$T/old.json")" = "$(jq -c --arg k "$k" '.[$k]' "$T/new.json")" ] || { echo "$k differs"; false; }
+  done
+  [ "$(jq -r '.contaminated.pattern' "$T/new.json")" = hidden ]
 }
