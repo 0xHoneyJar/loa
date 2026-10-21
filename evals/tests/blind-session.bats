@@ -262,3 +262,54 @@ EOF
   run "$BS" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/c2" --docker-bin "$T/docker"; [ "$status" -eq 0 ]
   diff -r "$T/c1" "$T/c2"
 }
+
+# --- round 2 (lead integration, DEC-0710): --spend-row puts a blind session on the cycle meter ---------------------
+rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("blind-" + hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
+
+@test "BS-10 --spend-row appends one valid JSONL row (cost = cost.json total_cost_usd, run_id from the out path and started); a failed and a tainted session row too; no flag, no file" {
+  local R="$T/meter/sub/rows.jsonl"
+  host --spend-row "$R"
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$R")" -eq 1 ]
+  jq -e . "$R" >/dev/null
+  [ "$(jq -r '"\(.kind) \(.model) \(.status) \(.cap_hit) \(.out)"' "$R")" = "blind_session m-test completed false $T/out" ]
+  [ "$(jq -r '.cost_usd' "$R")" = "$(jq -r '.total_cost_usd' "$T/out/cost.json")" ]
+  [[ "$(jq -r '.started' "$R")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+  [[ "$(jq -r '.finished' "$R")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+  [ "$(jq -r '.run_id' "$R")" = "$(rid "$T/out" "$(jq -r '.started' "$R")")" ]
+  # a failed session (no labels.json) rows as failed; a tainted one as tainted
+  unse STUB_WRITE_1
+  OUTD="$T/out-f" host --spend-row "$R"
+  [ "$status" -eq 1 ]
+  se STUB_WRITE_1 '{"hunks": {}, "incidents": {}}' labels.json
+  events "$T/t.jsonl" "$(tu Bash '{"command": "ls"}')"
+  OUTD="$T/out-t" host --spend-row "$R"
+  [ "$status" -eq 3 ]
+  [ "$(jq -sr 'map("\(.out | sub(".*/"; "")):\(.status):\(.cost_usd)") | join(" ")' "$R")" = "out:completed:0.0123 out-f:failed:0.0123 out-t:tainted:0.0123" ]
+  [ "$(jq -sr 'map(.run_id) | unique | length' "$R")" = 3 ]
+  # no flag: the outputs are the usual set and nothing else is written
+  unse STUB_EVENTS_FILE
+  OUTD="$T/out-n" host
+  [ "$status" -eq 0 ]
+  [ "$(ls "$T/out-n" | tr '\n' ,)" = "cost.json,labels.json,prompt.md,sandbox.sha256,session.json,stderr.log,taint.json,transcript.jsonl," ]
+  [ "$(wc -l < "$R")" -eq 3 ]
+}
+
+@test "BS-11 --spend-row: a cap stop rows as cap_hit; a relative path resolves from the caller's cwd; two sessions finishing together append two whole lines; a usage error rows nothing" {
+  jq -cn '{type: "assistant", message: {id: "m1", usage: {input_tokens: 10, output_tokens: 10}, content: []}}' > "$T/u.jsonl"
+  se STUB_EVENTS_FILE "$T/u.jsonl"
+  printf '#!/usr/bin/env bash\n"%s" "$@"\nsleep 20\n' "$T/claude" > "$T/slow"; chmod +x "$T/slow"
+  ( cd "$T" && LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets pk --prompt prompt.md --model m-test --out out-c \
+      --executor host --claude-bin "$T/slow" --spend-row rel/rows.jsonl ) || true
+  [ "$(jq -r '"\(.status) \(.cap_hit) \(.cost_usd)"' "$T/rel/rows.jsonl")" = "cap_hit true 20" ]
+  unse STUB_EVENTS_FILE
+  local R="$T/par.jsonl"
+  LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/p1" --executor host --claude-bin "$T/claude" --spend-row "$R" >/dev/null &
+  LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/p2" --executor host --claude-bin "$T/claude" --spend-row "$R" >/dev/null &
+  wait
+  [ "$(wc -l < "$R")" -eq 2 ]
+  [ "$(jq -sr 'map(.out | sub(".*/"; "")) | sort | join(",")' "$R")" = "p1,p2" ]
+  OUTD="$T/bad" host --model 'bad model' --spend-row "$T/none.jsonl"
+  [ "$status" -eq 2 ]
+  [ ! -e "$T/none.jsonl" ]
+}

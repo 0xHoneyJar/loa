@@ -8,6 +8,7 @@
 #   blind-session.sh --packets DIR --prompt FILE --model ID --out DIR
 #                    [--image loa-ablation:258] [--max-usd 6] [--executor container|host]
 #                    [--claude-bin B] [--docker-bin D] [--max-turns 120] [--timeout-min 60]
+#                    [--spend-row FILE]
 #
 # Options:
 #   --packets DIR      the role's packet files: regular files directly in DIR (no symlink, no
@@ -30,6 +31,7 @@
 #   --docker-bin D     docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --max-turns N      the CLI's --max-turns (default 120)
 #   --timeout-min M    the session deadline (default 60; timeout --signal=TERM --kill-after=15)
+#   --spend-row FILE   append one spend row to FILE (see Outputs); FILE and its parents are created
 #
 # Session: `claude -p <prompt> --output-format stream-json --verbose --model <id>
 # --permission-mode bypassPermissions --dangerously-skip-permissions --setting-sources ""
@@ -55,7 +57,9 @@
 # Outputs (--out; no timestamps; host paths appear only as <sandbox> / <home>):
 #   labels.json      the sandbox's labels.json (a regular file, ≤ 2 MiB, a JSON object), when written
 #   transcript.jsonl the stream-json transcript (the access log); stderr.log the CLI's stderr
-#   cost.json        {result_cost_usd, ledger_rows, ledger_cost_usd, total_cost_usd, num_turns,
+#   cost.json        {result_cost_usd, ledger_rows, ledger_cost_usd, total_cost_usd (the result event's
+#                     cost, or the watchdog estimate when no result event arrived: cost_source
+#                     result|estimate, plus the ledger), num_turns,
 #                     subtype, is_error, cap_usd, cap_hit, cap_turn, estimate_usd, watchdog,
 #                     timed_out, cli_exit, model}; cost-ledger.jsonl when the ledger has rows
 #   taint.json       {tainted, events: [{event, tool, reason, input}], allowed_tools, sandbox}:
@@ -65,6 +69,15 @@
 #   session.json     model, executor, image, image_id, tools, caps, packets, argv (the prompt as
 #                    <prompt.md>), env (secrets <set>), status, label_status, exit
 #   prompt.md        the prompt as sent; sandbox.sha256 the packet files as copied
+#   --spend-row FILE one JSON line appended once the CLI has run, on every exit path (labels written,
+#                    CLI failure, cap, timeout, taint, interrupt): {run_id, kind: "blind_session",
+#                    out (--out as given), model, started, finished (UTC ISO-8601 Z), cost_usd (cost.json
+#                    total_cost_usd; the watchdog estimate when cost.json could not be written),
+#                    status completed|failed|cap_hit|timeout|tainted, cap_hit}; run_id = "blind-" + the
+#                    first 12 hex of sha256(<absolute --out> + started); appended under flock on
+#                    FILE.lock when flock exists (the ablation-row.sh pattern). This row is how a blind
+#                    session reaches the cycle meter: pass a run-row file evals/harness/spend.sh counts
+#                    (DEC-0710). Without the flag nothing is appended.
 #
 # Exit: 0 labels written; 1 session failed (CLI error, timeout, cap, interrupted, no or an
 #       invalid labels.json); 2 usage (bad option, packet rule, missing CLI / docker / image);
@@ -80,7 +93,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PACKETS="" PROMPT="" MODEL="" OUT="" IMAGE="loa-ablation:258" MAX_USD="6"
 EXECUTOR="${LOA_EVAL_EXECUTOR:-container}" CLAUDE_BIN="${EVAL_CLAUDE_BIN:-claude}" DOCKER_BIN="${EVAL_DOCKER_BIN:-docker}"
-MAX_TURNS=120 TIMEOUT_MIN=60
+MAX_TURNS=120 TIMEOUT_MIN=60 SPEND_ROW=""
 TOOLS="Read,Grep,Glob,Write"
 LABEL_NAME="labels.json"
 
@@ -98,6 +111,7 @@ while [[ $# -gt 0 ]]; do
     --docker-bin)  DOCKER_BIN="${2:-}"; shift 2 ;;
     --max-turns)   MAX_TURNS="${2:-}"; shift 2 ;;
     --timeout-min) TIMEOUT_MIN="${2:-}"; shift 2 ;;
+    --spend-row)   [[ -n "${2:-}" ]] || die_usage "--spend-row needs a file"; SPEND_ROW="$2"; shift 2 ;;
     -h|--help)     sed -n '2,/^# =====/p' "$0" | sed '$d'; exit 0 ;;
     *) die_usage "unknown argument: $1" ;;
   esac
@@ -121,6 +135,11 @@ for t in jq python3 timeout; do command -v "$t" >/dev/null 2>&1 || die_usage "re
 [[ -d "$PACKETS" && ! -L "$PACKETS" ]] || die_usage "--packets is not a directory: $PACKETS"
 [[ -f "$PROMPT" && ! -L "$PROMPT" && -s "$PROMPT" ]] || die_usage "--prompt is not a non-empty regular file: $PROMPT"
 [[ "$(wc -c < "$PROMPT" | tr -d ' ')" -le 262144 ]] || die_usage "--prompt is larger than 256 KiB"
+if [[ -n "$SPEND_ROW" ]]; then
+  [[ ! -d "$SPEND_ROW" ]] || die_usage "--spend-row is a directory: $SPEND_ROW"
+  case "$SPEND_ROW" in /*) ;; *) SPEND_ROW="$PWD/$SPEND_ROW" ;; esac
+fi
+OUT_GIVEN="$OUT"
 if [[ -e "$OUT" || -L "$OUT" ]]; then
   [[ -d "$OUT" && ! -L "$OUT" && -z "$(ls -A "$OUT")" ]] || die_usage "--out exists and is not an empty directory: $OUT"
 fi
@@ -181,7 +200,31 @@ kill_session() {
   if [[ -n "$CUR_CONTAINER" ]]; then "$DOCKER_BIN" kill --signal TERM "$CUR_CONTAINER" >/dev/null 2>&1 || true; fi
   if [[ -n "$CUR_PID" ]]; then kill -TERM "$CUR_PID" 2>/dev/null || true; fi
 }
-on_exit() { kill_session; remove_tree "$SESS"; }
+SPEND_PENDING=0 STARTED=""
+# spend_row <status> <cap_hit> — append the meter row (once); called on the normal path and, when the
+# CLI ran but the driver stopped before that, from the exit trap with status failed
+spend_row() {
+  [[ -n "$SPEND_ROW" && "$SPEND_PENDING" -eq 1 ]] || return 0
+  SPEND_PENDING=0
+  local finished cost rid row
+  finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  cost="$(jq -r '.total_cost_usd // empty' "$OUT/cost.json" 2>/dev/null || true)"
+  [[ "$cost" =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] \
+    || { local _t m _x; read -r _t m _x <<<"${est:-0 0 0}"
+         [[ "$m" =~ ^[0-9]+$ ]] || m=0; cost="$(jq -n --argjson m "$m" '$m / 1000000')"; }
+  rid="blind-$(printf '%s%s' "$OUT" "$STARTED" | python3 -I -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])')"
+  row="$(jq -nc --arg run_id "$rid" --arg out "$OUT_GIVEN" --arg model "$MODEL" --arg started "$STARTED" \
+          --arg finished "$finished" --argjson cost "$cost" --arg status "$1" --argjson cap_hit "$2" \
+          '{run_id: $run_id, kind: "blind_session", out: $out, model: $model, started: $started,
+            finished: $finished, cost_usd: $cost, status: $status, cap_hit: $cap_hit}')"
+  mkdir -p "$(dirname "$SPEND_ROW")"
+  if command -v flock >/dev/null 2>&1; then
+    { flock -x 9; printf '%s\n' "$row" >> "$SPEND_ROW"; } 9>>"$SPEND_ROW.lock"
+  else
+    printf '%s\n' "$row" >> "$SPEND_ROW"
+  fi
+}
+on_exit() { kill_session; spend_row failed "${cap_hit:-false}" || true; remove_tree "$SESS"; }
 on_signal() { INTERRUPTED=1; kill_session; }
 trap on_exit EXIT
 trap on_signal TERM INT HUP
@@ -259,6 +302,7 @@ EVENTS="$OUT/transcript.jsonl" ERRF="$OUT/stderr.log"
 CAP_MICRO="$(jq -n --arg c "$MAX_USD" '($c|tonumber) * 1000000 | round')"
 prices="$(price_for "$MODEL")"
 rc=0 cap_hit=false cap_turn=0 est="0 0 0" start_s="$(date +%s)"
+STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" SPEND_PENDING=1
 ( cd "$WS" || exit 2
   if [[ "$EXECUTOR" == host ]]; then for kv in "${envkv[@]}"; do export "$kv"; done; fi
   exec "${full[@]}" ) < /dev/null > "$EVENTS" 2> "$ERRF" &
@@ -394,7 +438,8 @@ jq -n --argjson r "$result" --argjson l "$ledger_json" --arg model "$MODEL" --ar
       --argjson timed_out "$timed_out" --argjson rc "$rc" \
   '(if ($r.total_cost_usd | type) == "number" then $r.total_cost_usd else null end) as $rc_usd
    | {model: $model, result_cost_usd: $rc_usd, ledger_rows: $l.rows, ledger_cost_usd: ($l.micro / 1000000),
-      total_cost_usd: ((($rc_usd // 0) * 1000000 + $l.micro) | round / 1000000),
+      cost_source: (if $rc_usd != null then "result" else "estimate" end),
+      total_cost_usd: ((($rc_usd // ($est_micro / 1000000)) * 1000000 + $l.micro) | round / 1000000),
       num_turns: ($r.num_turns // null), subtype: ($r.subtype // null), is_error: ($r.is_error // null),
       cap_usd: $cap, cap_hit: $cap_hit, cap_turn: (if $cap_turn > 0 then $cap_turn else null end),
       estimate_usd: ($est_micro / 1000000), watchdog: $watchdog, timed_out: $timed_out, cli_exit: $rc}' \
@@ -409,6 +454,13 @@ elif [[ "$timed_out" == true ]]; then status=timed_out exit_code=1
 elif [[ "$LABEL_STATUS" != ok ]]; then status="labels_$LABEL_STATUS" exit_code=1
 elif [[ $rc -ne 0 && "$subtype" != error_max_turns ]]; then status=agent_error exit_code=1
 fi
+case "$status" in
+  completed|tainted) spend_status="$status" ;;
+  cap_failure) spend_status=cap_hit ;;
+  timed_out) spend_status=timeout ;;
+  *) spend_status=failed ;;
+esac
+spend_row "$spend_status" "$cap_hit"
 
 # session record: argv with the prompt as <prompt.md>, env with secrets <set>, host paths as placeholders
 BS_ARGV="$(printf '%s\0' "${full[@]}" | jq -Rs -c 'split("\u0000") | .[:-1]')" \
