@@ -239,6 +239,10 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.7 (cycle-132 Sprint 269 round 11, PREREGISTRATION §12 addendum 7): the `suite_path` class (a value naming
+# grimoires/loa/evals/ablation-2.0) is scoped like `hidden`: build tasks only. A review-catch sandbox holds no suite root,
+# and five registered PRs name that path in their own code (pr-23 created it); contamination_classes_skipped is
+# ["hidden", "suite_path"] for review-catch and union grades, [] for build. Every other class and field is unchanged.
 # grader 1.3.6 (cycle-132 Sprint 269 round 8, PREREGISTRATION §12 addendum 4): the `hidden` contamination class
 # (HIDDEN_TOKEN, HIDDEN_GLOB, HIDDEN_FS and the non-Bash substring branch) applies to build tasks only (feature-build,
 # bug-fix, refactor: the tasks graded against hidden/ tests). A review-catch sandbox holds no hidden tests, and a
@@ -432,8 +436,9 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.6"
-HIDDEN_CLASS = [True]   # 1.3.6: whether the hidden contamination class applies to the task being graded
+GRADER_VERSION = "1.3.7"
+HIDDEN_CLASS = [True]   # whether the build-only classes (hidden 1.3.6, suite_path 1.3.7) apply to the task being graded
+BUILD_ONLY_CLASSES = ["hidden", "suite_path"]
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1926,7 +1931,7 @@ def check_value(tool, field, val, roots):
             return "hidden"
     elif HIDDEN_CLASS[0] and "hidden" in low:
         return "hidden"
-    if "grimoires/loa/evals/ablation-2.0" in val:
+    if HIDDEN_CLASS[0] and "grimoires/loa/evals/ablation-2.0" in val:   # 1.3.7: build tasks only (addendum 7)
         return "suite_path"
     if "0xhoneyjar/loa" in low:
         ex = repo_name_exempt(val, tool)
@@ -3037,9 +3042,9 @@ def grade(t, run_dir, frozen):
     FIXTURE_TASK[0] = t if not t.build else None
     FIXTURE_LINES.clear()
     CONTAM_EXEMPT.clear()
-    HIDDEN_CLASS[0] = bool(t.build)   # 1.3.6: build tasks only (their sandbox is graded against hidden/ tests)
+    HIDDEN_CLASS[0] = bool(t.build)   # 1.3.6/1.3.7: build tasks only (their sandbox is graded against hidden/ tests and a suite root)
     g["contaminated"] = contamination(run_dir)
-    g["contamination_classes_skipped"] = [] if t.build else ["hidden"]
+    g["contamination_classes_skipped"] = [] if t.build else list(BUILD_ONLY_CLASSES)
     g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]
@@ -3136,7 +3141,7 @@ def grade_union(t, cell, frozen):
          "multi_credit_citations": None, "verdict": None, "verdicts": {"review": None, "audit": None},
          "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
          "diff_lines": None, "files_changed": None, "contaminated": None, "contamination_exempt": [],
-         "contamination_classes_skipped": ["hidden"],
+         "contamination_classes_skipped": list(BUILD_ONLY_CLASSES),
          "oracle_exposed_defects": pos_union([grades[i].get("oracle_exposed_defects") for i in valid_ids]),
          "oracle_exposed_unknown": pos_union([grades[i].get("oracle_exposed_unknown") for i in valid_ids]),
          "corpus_sha256": corpus_sha256(t)}
