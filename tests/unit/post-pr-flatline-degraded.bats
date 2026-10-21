@@ -233,3 +233,125 @@ SH
     [ "$(jq -r .previous.voices_completed "$SUMMARY")" = "1" ]
     [[ "$out" == *"DEGRADED Bridgebuilder review and a DEGRADED Flatline PR review"* ]]
 }
+
+# --- Round 2 (audit MEDIUM-1, LOW-1 … LOW-5) ---------------------------------
+
+# Enable the real Bridgebuilder phase (depth 1): bridge exits 0, triage
+# reports a DEGRADED convergence.
+_enable_bridgebuilder_degraded() {
+    printf 'flatline_protocol:\n  enabled: true\npost_pr_validation:\n  phases:\n    bridgebuilder_review:\n      enabled: true\n      depth: 1\n' \
+        > "$PROJ/.loa.config.yaml"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$PROJ/.claude/scripts/bridge-orchestrator.sh"
+    cat > "$PROJ/.claude/scripts/post-pr-triage.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' '{"state":"DEGRADED","reason":"corrupt_findings"}' > .run/bridge-triage-convergence.json
+exit 0
+SH
+    chmod +x "$PROJ/.claude/scripts/bridge-orchestrator.sh" "$PROJ/.claude/scripts/post-pr-triage.sh"
+}
+
+# A Flatline summary for PR <n> left in the slot, then state = FLATLINE_PR
+# (Flatline done, Bridgebuilder next).
+_seed_flatline_summary_then_resume_at_bridgebuilder() {
+    jq -n --arg pr "$1" '{state:"DEGRADED", phase:"flatline_pr", status:"DEGRADED",
+        voices_planned:3, voices_completed:1, degraded_models:[], pr_number:$pr,
+        reason:"verdict_quality_degraded"}' > "$SUMMARY"
+    bash .claude/scripts/post-pr-state.sh set state FLATLINE_PR 2>/dev/null
+}
+
+@test "PFD-10: two concatenated JSON documents, the first APPROVED, fail closed (no_verdict_quality)" {
+    _envelope APPROVED 3 3
+    printf '%s\n' '{"note":"second document"}' >> "$STUB_OUT"
+    export STUB_EXIT=0
+    _resume
+    _assert_failed_not_green "no_verdict_quality"
+}
+
+@test "PFD-11a: APPROVED with degraded:true is not green (verdict_quality_degraded)" {
+    _envelope APPROVED 3 3
+    jq '.degraded = true' "$STUB_OUT" > "$STUB_OUT.t" && mv "$STUB_OUT.t" "$STUB_OUT"
+    export STUB_EXIT=0
+    _resume
+    _assert_failed_not_green "verdict_quality_degraded"
+}
+
+@test "PFD-11b: APPROVED with non-empty degraded_models is not green (verdict_quality_degraded)" {
+    _envelope APPROVED 3 3
+    jq '.degraded_models = ["claude-headless"]' "$STUB_OUT" > "$STUB_OUT.t" && mv "$STUB_OUT.t" "$STUB_OUT"
+    export STUB_EXIT=0
+    _resume
+    _assert_failed_not_green "verdict_quality_degraded"
+    [ "$(jq -r '.degraded_models[0]' "$SUMMARY")" = "claude-headless" ]
+}
+
+@test "PFD-11c: APPROVED with blockers present is not green (blockers_present)" {
+    _envelope APPROVED 3 3
+    jq '.blockers = [{"id":"B1","severity":"critical"}]' "$STUB_OUT" > "$STUB_OUT.t" && mv "$STUB_OUT.t" "$STUB_OUT"
+    export STUB_EXIT=0
+    _resume
+    _assert_failed_not_green "blockers_present"
+}
+
+@test "PFD-12: a failed mktemp for the Flatline capture fails with reason tmp_failed" {
+    _envelope APPROVED 3 3
+    export STUB_EXIT=0
+    # A mktemp shim that refuses only the Flatline capture template.
+    mkdir -p "$BATS_TEST_TMPDIR/shim"
+    local real_mktemp
+    real_mktemp="$(command -v mktemp)"
+    cat > "$BATS_TEST_TMPDIR/shim/mktemp" <<SH
+#!/usr/bin/env bash
+case "\$*" in *post-pr-flatline-pr.json.*) echo "mktemp shim: refused" >&2; exit 1;; esac
+exec "$real_mktemp" "\$@"
+SH
+    chmod +x "$BATS_TEST_TMPDIR/shim/mktemp"
+    PATH="$BATS_TEST_TMPDIR/shim:$PATH" _resume
+    _assert_failed_not_green "tmp_failed"
+}
+
+@test "PFD-13: an odd-shaped envelope (voices_dropped not a list) still yields a parseable summary" {
+    jq -n '{phase:"pr", blockers:[],
+        verdict_quality:{status:"DEGRADED", voices_planned:3, voices_succeeded:1, voices_dropped:"oops"}}' > "$STUB_OUT"
+    export STUB_EXIT=0
+    _resume
+    _assert_failed_not_green "verdict_quality_degraded"
+    [ "$(jq -r .status "$SUMMARY")" = "DEGRADED" ]
+    [ "$(jq -c .degraded_models "$SUMMARY")" = "[]" ]
+}
+
+@test "PFD-14: an unparseable slot (two documents) never yields an empty Bridgebuilder summary" {
+    _enable_bridgebuilder_degraded
+    _seed_flatline_summary_then_resume_at_bridgebuilder 42
+    cat "$SUMMARY" "$SUMMARY" > "$SUMMARY.t" && mv "$SUMMARY.t" "$SUMMARY"
+    _resume
+    [ "$status" -eq 0 ]
+    [ "$(_get state)" = "READY_FOR_HITL" ]
+    [ -s "$SUMMARY" ]
+    [ "$(jq -r .phase "$SUMMARY")" = "bridgebuilder_review" ]
+    [ "$(jq -r '.previous // "none"' "$SUMMARY")" = "none" ]
+}
+
+@test "PFD-15a: a stale Flatline summary for PR 41 is not carried into a run for PR 42" {
+    _seed_flatline_summary_then_resume_at_bridgebuilder 41
+    _resume
+    [ "$status" -eq 0 ]
+    [ "$(_get state)" = "READY_FOR_HITL" ]
+    [ ! -e "$SUMMARY" ]
+    [[ "$output" != *"DEGRADED Flatline PR review"* ]]
+}
+
+@test "PFD-15b: a Flatline summary for this run's PR 42 is kept through the Bridgebuilder phase (control)" {
+    _seed_flatline_summary_then_resume_at_bridgebuilder 42
+    _resume
+    [ "$status" -eq 0 ]
+    [ "$(jq -r .phase "$SUMMARY")" = "flatline_pr" ]
+    [[ "$output" == *"DEGRADED Flatline PR review"* ]]
+}
+
+@test "PFD-15c: a new (non-resume) run clears an earlier run's summary at init" {
+    _seed_flatline_summary_then_resume_at_bridgebuilder 42
+    run bash .claude/scripts/post-pr-orchestrator.sh \
+        --pr-url "https://github.com/example/repo/pull/42" --skip-audit
+    [ "$status" -eq 0 ]
+    [ ! -e "$SUMMARY" ]
+}
