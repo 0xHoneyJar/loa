@@ -21224,3 +21224,179 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0656"
+    created_at: "2026-10-21T00:47:02Z"
+    updated_at: "2026-10-21T00:47:02Z"
+    phase: "operations"
+    category: "process"
+    summary: "cycle-132 runs the three /bug micro-sprints first on fix/cycle-132-bugs with their own PR, before the cycle's planning (O1)"
+    decision: "The archive-cycle.sh, bd-jm55c and bd-y4pqj micro-sprints run first, on branch fix/cycle-132-bugs, and merge through their own PR before /plan-and-analyze starts the cycle"
+    rationale: "bd-y4pqj's fix is used by Sprint 1's corpus work, the archive fix must land before this cycle's own archive, and a small fix PR reaches downstream mounts sooner than a measurement PR"
+    alternatives_considered:
+      - option: "fold the fixes into the cycle feature branch"
+        rejected_because: "ships the fixes only with the measurement PR and mixes two review surfaces"
+      - option: "run the bugs after the cycle"
+        rejected_because: "Sprint 1 rebuilds manifests with the drifted labels and the archive step would hit the same defaults again"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0657"
+    created_at: "2026-10-21T00:47:04Z"
+    updated_at: "2026-10-21T00:47:04Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "bd-jm55c: the prompt-transport half is fixed upstream since rc.3 (398859ad); only the orchestrator half is coded — DEGRADED reads failed + marker, no halt (O2)"
+    decision: "No adapter change: the reporter's mount is v2.0.0-rc.2 and main sends every claude-headless prompt on stdin. post-pr-orchestrator records a DEGRADED/FAILED or missing verdict-quality envelope as a failed phase with a degraded summary and the FLATLINE-PR-DEGRADED marker, never PR-VALIDATED, and continues to READY_FOR_HITL; timeout and failure read failed, not skipped"
+    rationale: "The observed E2BIG is absent on main (claude_headless_adapter._prepare_invocation stdin at every size, TestPromptTransport); the green-over-one-voice is present on main; KF-041 (recurrence 4) degrades most planning reviews, so halting on DEGRADED would stop every fleet post-PR run"
+    alternatives_considered:
+      - option: "re-implement a stdin transport for kind:cli Claude voices"
+        rejected_because: "already on main since 398859ad / 10436350; the fleet mount needs rc.3+"
+      - option: "halt the orchestrator on a DEGRADED verdict"
+        rejected_because: "KF-041 recurrence 4 makes DEGRADED common; a halt would block every run on a known cross-scoring degradation"
+      - option: "keep marking timeout/failure as skipped"
+        rejected_because: "skipped means not run on purpose; #1076 added failed for exactly this"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/a2a/bug-20261021-4439fd/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-4439fd/triage.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0658"
+    created_at: "2026-10-21T00:47:06Z"
+    updated_at: "2026-10-21T00:47:06Z"
+    phase: "sprint-planning"
+    category: "scope"
+    summary: "The grader/harness follow-up beads (bd-9zmfn, bd-56nn6, bd-jszcp, bd-st02i, bd-gdl5s) enter cycle-132 Sprint 1 as harness tasks, not /bug (O5)"
+    decision: "The five beads are review observations without an observed failure; they are planned as Sprint 1 tasks of the measurement harness and closed there"
+    rationale: "/bug eligibility requires an observed failure, regression or stack trace; these are design gaps found in review; the harness is this cycle's app, so the sprint plan is the right gate"
+    alternatives_considered:
+      - option: "a /bug micro-sprint per bead"
+        rejected_because: "no observed failure; would bypass PRD/SDD gates for harness design changes"
+      - option: "defer to a later cycle"
+        rejected_because: "bd-9zmfn and bd-jszcp affect fields the cycle-132 reads report (false_positives, dissent_absent_reason)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0659"
+    created_at: "2026-10-21T00:47:57Z"
+    updated_at: "2026-10-21T00:47:57Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "archive-cycle.sh: default cycle active-else-newest; retention keep-all by default; tracked dirs never deleted; #1263 ledger write + gate folded (O3)"
+    decision: "get_current_cycle derives the active or newest cycle number; retention defaults to 0 without a CLI or yaml value; a directory with any git-tracked file is never deleted; a real archive writes status/archived/archive_path and clears active_cycle through ledger-lib primitives; an incomplete cycle is refused unless --force"
+    rationale: "The observed defaults archived cycle-92 (a count, not a cycle) and would have deleted two tracked archives; the documented ledger contract (#1263) is the same script and the same contract section, with an open reproduction"
+    alternatives_considered:
+      - option: "keep retention 5 and only skip tracked directories"
+        rejected_because: "deleting local-only archives by default still surprises; keep-all is the safe default and --retention N remains available"
+      - option: "a separate /bug for #1263"
+        rejected_because: "same file, same contract, same test fixture; splitting doubles review for one change"
+      - option: "no completeness gate"
+        rejected_because: "ledger-lib.sh archive_cycle and the post-merge gate both refuse incomplete cycles; parity"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/a2a/bug-20261021-ba367a/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-ba367a/triage.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0660"
+    created_at: "2026-10-21T00:48:42Z"
+    updated_at: "2026-10-21T00:48:42Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "labels drift (bd-y4pqj): must_match gains @L<n>, --sync-labels regenerates rows from the manifest; manifests stay the truth, byte-identical rebuild pinned (O4)"
+    decision: "The TSV grammar gains one value form (@L<n>) used only where the head line text is not unique (11 of 221 anchors); --sync-labels appends the missing rows and the approval header from the manifest; a bats case pins byte-identical rebuilds for pr-11…18"
+    rationale: "Text anchors survive renumbering and stay the preferred form; the curated manifests graded every cycle-131 row and must not move; the generator must be able to express every curated anchor or the drift returns"
+    alternatives_considered:
+      - option: "make the manifests the only source and delete the labels files"
+        rejected_because: "the TSV is the human-curated, approvable artefact of the cycle-129 corpus design (approved-by header, curation.tsv)"
+      - option: "hand-edit the TSV rows"
+        rejected_because: "221 anchors, 11 inexpressible as unique text; hand edits drift again"
+      - option: "accept the first occurrence of a non-unique text"
+        rejected_because: "silent mis-anchoring when the file changes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "0746a9b6"
+    source: "grimoires/loa/a2a/bug-20261021-7240bc/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:48:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-7240bc/triage.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
