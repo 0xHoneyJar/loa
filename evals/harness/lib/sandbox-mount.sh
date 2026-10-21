@@ -91,11 +91,17 @@
 #       paths; only under .claude/, never .claude/checksums.json) gets the mode's version
 #       in the sandbox (head: the PR's pr/head/ copy, the default, DEC-0622; base: pr/base/;
 #       fix-commit paths outside the PR: `git show <head_commit>:X`); a path without that
-#       version is removed. Cycle-132 PREREGISTRATION §12 addendum 5 (KF-050): an answer path under
-#       .claude/adapters/ is never overlaid — the sandbox keeps the pinned cheval adapters, so the
-#       dissent's importers meet the loa_cheval they were written for; the PR's own versions stay under
-#       pr/; evidence overlay_excluded=<n>:<comma list> (overlay_excluded=0 when none), and
-#       mount_overlay counts the overlaid paths only. <source-tree> (default $EVAL_PROMPT_TREE, else this repository)
+#       version is removed. Cycle-132 PREREGISTRATION §12 addendum 5 (KF-050) left .claude/adapters/
+#       pinned; addendum 9 (KF-050, smoke3 review-r14: the PR-era .claude/defaults/ catalog planned the
+#       dissent) widens that to every answer path under .claude/ — adapters, defaults, scripts, hooks,
+#       skills, rules, the whole runtime and its prompts. The pipeline under test is the pinned
+#       framework in full; as the answer set holds only .claude/ paths, the overlay writes nothing
+#       (mount_overlay=<mode>:0) and the PR's own versions stay visible under pr/head/, pr/base/ and
+#       pr/head.diff. Evidence overlay_excluded=<exact n>:<the first 20 paths, then ",…" when n > 20>
+#       (overlay_excluded=0 when none); mount_overlay counts the overlaid paths only. Test-only:
+#       SM_TEST_MODE=1 with a bats marker and SM_TEST_EXCLUDED_PREFIX=<a prefix under .claude/>
+#       narrows the exclusion (recorded as overlay_test_excluded_prefix=) so the suites still exercise
+#       the overlay mechanics. <source-tree> (default $EVAL_PROMPT_TREE, else this repository)
 #       is the copy source and the git repository the fix and head commits are read from.
 #       Evidence: copy_source=<HEAD sha, "-dirty" suffix when .claude/ has changes>,
 #       mount_overlay=<mode>:<n>, overlay_sha256=<path>=<sha|absent> per path,
@@ -111,9 +117,10 @@
 #       the pre-launch form of took-effect.sh oracle_closed: clauses (a)-(d) (see
 #       _sm_oracle_py) against the fixture, the evidence file (default $ARM_EVIDENCE_FILE:
 #       mount_overlay, overlay_sha256, base_commit, copy_source) and the copy source's
-#       pinned versions; since addendum 5 the answer set leaves out the .claude/adapters/ paths, the
-#       evidence's overlay_excluded must name exactly those, and each must still be at its pinned
-#       version (absent when the pin has none). Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
+#       pinned versions; since addendum 9 the answer set leaves out every .claude/ path (addendum 5:
+#       .claude/adapters/ only), the evidence's overlay_excluded must equal the computed value (exact
+#       count, list capped at 20), and each excluded path must still be at its pinned version (absent
+#       when the pin has none); clauses (a)-(d) judge the remaining paths. Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
 #       first violated clause and path.
 #   apply_eval_config_variant <ws>
 #       the cycle-131 evaluation config in the sandbox .loa.config.yaml:
@@ -836,10 +843,30 @@ def in_scope(p):
 # cycle-132 PREREGISTRATION §12 addendum 5 (KF-050): the pinned cheval adapters stay in the sandbox. An answer path under
 # .claude/adapters/ is never overlaid (pinned importers meeting an older loa_cheval break every dissent); the PR's own
 # versions stay visible under pr/. The reopened oracle on exactly those files is the grader detector's to report.
-EXCLUDED_PREFIX = ".claude/adapters/"
+# Cycle-132 PREREGISTRATION §12 addendum 9 (KF-050, smoke3 review-r14): the whole pinned .claude/ runtime stays. pr-14's
+# overlay wrote the PR's .claude/defaults/ model catalog and .claude/scripts/ at the PR's head with the adapters pinned,
+# and the pinned pipeline planned its dissent from the PR-era catalog (voices_planned 1, both gates api_failure). The
+# pipeline under test is the pinned framework in full, so no answer path under .claude/ is overlaid; the answer set holds
+# no other paths (in_scope), so the overlay writes nothing and records every PR .claude path in overlay_excluded.
+EXCLUDED_PREFIX = ".claude/"
+EXCLUDED_LIST_CAP = 20
+# test-only: the bats suites exercise the cycle-131 overlay mechanics (which still run, on an empty set, in every arm)
+# under addendum 5's narrower prefix. Honoured only with SM_TEST_MODE=1 AND a bats marker (BATS_TEST_FILENAME), and
+# only for a prefix under .claude/; when active the evidence says so (overlay_test_excluded_prefix=<prefix>).
+TEST_PREFIX = None
+if os.environ.get("SM_TEST_MODE") == "1" and os.environ.get("BATS_TEST_FILENAME") \
+        and os.environ.get("SM_TEST_EXCLUDED_PREFIX", "").startswith(".claude/") and ".." not in os.environ["SM_TEST_EXCLUDED_PREFIX"]:
+    TEST_PREFIX = EXCLUDED_PREFIX = os.environ["SM_TEST_EXCLUDED_PREFIX"]
 
 def excluded(p):
     return p.startswith(EXCLUDED_PREFIX)
+
+def excluded_evidence(ex):
+    """overlay_excluded value: 0, or <exact count>:<the first 20 paths>[,…]"""
+    if not ex:
+        return "0"
+    s = ",".join(ex[:EXCLUDED_LIST_CAP])
+    return "%d:%s%s" % (len(ex), s, ",\u2026" if len(ex) > EXCLUDED_LIST_CAP else "")
 
 def answer_set(fixture, repo):
     """{path: "pr"|"fix"}, notes, meta"""
@@ -1004,7 +1031,9 @@ def cmd_overlay(ws, fixture, mode, repo):
         lines.append("overlay_sha256=%s=%s" % (p, state(ws, p)))
     print("mount_overlay=%s:%d" % (mode, len(entries)))
     ex = meta["excluded"]
-    print("overlay_excluded=%s" % ("%d:%s" % (len(ex), ",".join(ex)) if ex else "0"))
+    print("overlay_excluded=%s" % excluded_evidence(ex))
+    if TEST_PREFIX is not None:
+        print("overlay_test_excluded_prefix=%s" % TEST_PREFIX)
     for l in lines:
         print(l)
     print("overlay_removed=%d" % removed)
@@ -1042,9 +1071,9 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
     fails = []
     if n != len(entries):
         fails.append(("a", "-", "mount_overlay names %d paths, the fixture's answer set has %d" % (n, len(entries))))
-    # addendum 5: the excluded adapter paths are the recorded ones, each still at its pinned version (or absent there)
+    # addenda 5 and 9: the excluded .claude paths are the recorded ones, each still at its pinned version (or absent there)
     ex = meta["excluded"]
-    want_ex = "%d:%s" % (len(ex), ",".join(ex)) if ex else "0"
+    want_ex = excluded_evidence(ex)
     if ev.get("overlay_excluded", "0") != want_ex:
         fails.append(("a", "-", "overlay_excluded=%s, the answer set excludes %s" % (ev.get("overlay_excluded", "<missing>"), want_ex)))
     for p in ex:
@@ -1052,7 +1081,7 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
         want = sha(tb[0]) if tb else "absent"
         got = state(ws, p)
         if got != want:
-            fails.append(("a", p, "an excluded adapter path is %s, want the pinned %s" % (got[:12], want[:12])))
+            fails.append(("a", p, "an excluded .claude path is %s, want the pinned %s" % (got[:12], want[:12])))
     rec = ev["overlay_sha256"]
     present = 0
     for p in sorted(entries):
@@ -1140,7 +1169,7 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
         print("FAIL (%s) %s: %s%s" % (c, p, d, " (+%d more)" % (len(fails) - 1) if len(fails) > 1 else ""))
         sys.exit(1)
     print("ok %s:%d answer paths (%d present), %d later-only pinned versions, sandbox git = base commit only%s"
-          % (mode, len(entries), present, len(later), "; %d adapter path(s) left pinned" % len(ex) if ex else ""))
+          % (mode, len(entries), present, len(later), "; %d .claude path(s) left pinned" % len(ex) if ex else ""))
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
 if cmd == "answer-set" and len(sys.argv) == 4:

@@ -1121,7 +1121,7 @@ fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -m
   [ "$(jq -r '.phases[0].model_requested' "$T/run/meta/pipeline.json")" = global.anthropic.claude-opus-5-5 ]
 }
 
-@test "closed mount (real library): the overlaid gate script runs at the PR's version, the evidence is on disk before the first phase, and took-effect oracle_closed passes on the run" {
+@test "closed mount (real library; addendum 9): the gate script the PR touches stays at the pinned version (the whole .claude/ runtime is pinned), the evidence is on disk before the first phase, and took-effect oracle_closed passes on the run" {
   # the real mount library at the literal path; a source tree whose pinned gate script is LATER than the PR
   cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
   cp "$REPO_ROOT/evals/harness/took-effect.sh" "$H/"
@@ -1153,21 +1153,23 @@ EOF
   run "$PR" --task-yaml "$r/task.yaml" --arm a1_full --run-dir "$T/run" --run-id r-rl --trial 1 \
     --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude-ev"
   [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log"; false; }
-  [ "$(cat "$T/log/gate-at-first-phase.txt")" = "gate head" ]
+  [ "$(cat "$T/log/gate-at-first-phase.txt")" = "gate LATER fixed" ]   # addendum 9: the pinned runtime, not the PR's script
   local E="$T/log/evidence-at-first-phase.txt"
-  grep -qx 'mount_overlay=head:1' "$E"
-  grep -qx "overlay_sha256=.claude/scripts/gate.sh=$(printf 'gate head\n' | python3 -I -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')" "$E"
-  grep -qx 'gate_scripts_at_pr_version=.claude/scripts/gate.sh' "$E"
+  grep -qx 'mount_overlay=head:0' "$E"
+  grep -qx 'overlay_excluded=1:.claude/scripts/gate.sh' "$E"
+  ! grep -q '^overlay_sha256=' "$E" || false
+  grep -qx 'gate_scripts_at_pr_version=' "$E"
+  [ "$(cat "$T/run/sandbox/pr/head/.claude/scripts/gate.sh")" = "gate head" ]   # the PR's version stays under pr/
   grep -qx "copy_source=$(git -C "$T/src" rev-parse HEAD)" "$E"
   grep -qx 'config_variant=eval' "$E"
-  grep -q '^mount_closed=pre-launch head:1 answer paths (1 present), 1 later-only pinned versions' "$E"
+  grep -q '^mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 1 .claude path(s) left pinned' "$E"
   # the manifest is written before the closed check: the checked surface is the launched one
   [ "$(grep -n '^manifest_sha256=' "$E" | cut -d: -f1)" -lt "$(grep -n '^mount_closed=' "$E" | cut -d: -f1)" ]
   cp "$T/suite.yaml" "$T/suite-oc.yaml"
   yq -i '(.arms[] | select(.id == "a1_full") | .took_effect) += ["oracle_closed"]' "$T/suite-oc.yaml"
   run "$H/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-oc.yaml" --task-yaml "$r/task.yaml"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  grep -q 'oracle_closed OK ok head:1 answer paths (1 present)' <<<"$output"
+  grep -q 'oracle_closed OK ok head:0 answer paths (0 present).*1 .claude path(s) left pinned' <<<"$output"
 }
 
 # --- cycle-131 Sprint 264 Task 2.1: the four arms' dry-run plans, the eval_only refusal ------------
@@ -1436,7 +1438,7 @@ arm_named_pr() {
   [ ! -e "$T/log/call-1.argv" ]
 }
 
-@test "PR-c132-11 (addendum 5, KF-050) real library: a PR whose head version of .claude/adapters/loa_cheval/providers/__init__.py no longer imports is overlaid without that path — the pinned adapters stay, mount_cheval=ok, the run completes, overlay_excluded names the path" {
+@test "PR-c132-11 (addenda 5 and 9, KF-050) real library: a PR whose head version of .claude/adapters/loa_cheval/providers/__init__.py no longer imports, and which touches .claude/scripts/gate.sh, overlays nothing — the pinned adapters and script stay, mount_cheval=ok, the run completes, overlay_excluded names both paths" {
   cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
   # the pinned tree: an importable cheval (make_source_tree) plus a gate script; the PR fixture rewrites providers to an
   # import its sandbox neighbours lack (the KF-050 shape)
@@ -1458,10 +1460,11 @@ arm_named_pr() {
     --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude"
   [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log" 2>/dev/null; false; }
   [ "$(evline mount_cheval)" = ok ]
-  [ "$(evline overlay_excluded)" = "1:.claude/adapters/loa_cheval/providers/__init__.py" ]
-  [ "$(evline mount_overlay)" = "head:1" ]
+  [ "$(evline overlay_excluded)" = "2:.claude/adapters/loa_cheval/providers/__init__.py,.claude/scripts/gate.sh" ]
+  [ "$(evline mount_overlay)" = "head:0" ]
   [ ! -s "$T/run/sandbox/.claude/adapters/loa_cheval/providers/__init__.py" ]   # the pinned (empty) providers module
-  [ "$(cat "$T/run/sandbox/.claude/scripts/gate.sh")" = "gate head" ]
+  [ "$(cat "$T/run/sandbox/.claude/scripts/gate.sh")" = "gate pinned" ]   # addendum 9: the PR's script is not overlaid
+  [ "$(cat "$T/run/sandbox/pr/head/.claude/scripts/gate.sh")" = "gate head" ]
   grep -q private_workspace_base "$T/run/sandbox/pr/head/.claude/adapters/loa_cheval/providers/__init__.py"
   [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
 }

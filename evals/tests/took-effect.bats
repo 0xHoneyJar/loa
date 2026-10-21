@@ -16,6 +16,10 @@ setup() {
   SUITE="$FX/suite.yaml"
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/te.XXXXXX")"
   cp -a "$FX/runs" "$T/runs"
+  # cycle-132 addendum 9: production leaves every .claude/ path pinned (the overlay writes nothing); the cycle-131
+  # oracle_closed cases run the overlay mechanics under addendum 5's prefix through the bats-gated test override,
+  # and TE-c132-8 unsets it to judge the production default
+  export SM_TEST_MODE=1 SM_TEST_EXCLUDED_PREFIX=.claude/adapters/
 }
 
 teardown() {
@@ -622,7 +626,8 @@ tedp() { run "$TE" --run-dir "$1" --suite-file "$SDP" --arm a1_dp; }
   [ "$status" -eq 1 ]; line dissent_present | grep -q 'FAIL no gate phase ran'
 }
 
-@test "TE-c132-8 oracle_closed (addendum 5, KF-050): a PR touching .claude/adapters/ passes with the adapter left pinned and overlay_excluded recorded; it FAILs when a non-adapter path is not overlaid or the adapter is not the pinned version" {
+@test "TE-c132-8 oracle_closed (addendum 9, KF-050): with the production default every .claude/ answer path (the PR's script, the fix commit's helper, the adapter) stays pinned and overlay_excluded names them all; OK; it FAILs when a .claude path is at the PR's version or the recorded exclusion differs" {
+  unset SM_TEST_MODE SM_TEST_EXCLUDED_PREFIX
   c131_suite; make_closed_run
   # add an adapter path to the source (pinned), the fixture and its diff; re-materialise the sandbox and overlay again
   mkdir -p "$CSRC/.claude/adapters/loa_cheval" "$CFX/head/.claude/adapters/loa_cheval" "$CFX/base/.claude/adapters/loa_cheval"
@@ -640,18 +645,25 @@ tedp() { run "$TE" --run-dir "$1" --suite-file "$SDP" --arm a1_dp; }
   ARM_EVIDENCE_FILE="$CRD/meta/arm-evidence.txt" bash -c 'source "$1"; overlay_answer_paths "$2" "$3" head "$4" "$5"' _ \
     "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$w" "$CFX" "$CSRC" "$pin" 2>/dev/null
   jq --arg p "$pin" '.source_commit = $p' "$CRD/meta/pipeline.json" > "$T/p" && mv "$T/p" "$CRD/meta/pipeline.json"
-  grep -qx 'overlay_excluded=1:.claude/adapters/loa_cheval/types.py' "$CRD/meta/arm-evidence.txt"
+  grep -qx 'mount_overlay=head:0' "$CRD/meta/arm-evidence.txt"
+  grep -qx 'overlay_excluded=3:.claude/adapters/loa_cheval/types.py,.claude/scripts/gate.sh,.claude/scripts/helper.sh' "$CRD/meta/arm-evidence.txt"
   [ "$(cat "$w/.claude/adapters/loa_cheval/types.py")" = 'EFFORT_LEVELS = ("low",)' ]
+  [ "$(cat "$w/.claude/scripts/gate.sh")" = 'gate LATER fixed' ]   # the pinned runtime, not the PR's script
   te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  line oracle_closed | grep -q 'OK ok head:2 answer paths (2 present).*1 adapter path(s) left pinned'
-  # a non-adapter answer path left at its pinned (later) version: FAIL
-  git -C "$CSRC" show "$pin:.claude/scripts/gate.sh" > "$w/.claude/scripts/gate.sh"
-  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
-  [ "$status" -eq 1 ] || { echo "$output"; false; }; line oracle_closed | grep -qE 'FAIL \([abc]\) .claude/scripts/gate.sh' || { echo "$output"; false; }
+  line oracle_closed | grep -q 'OK ok head:0 answer paths (0 present).*3 .claude path(s) left pinned'
+  # the PR's script written over the pinned one (the smoke3 review-r14 shape): FAIL
   printf 'gate head\n' > "$w/.claude/scripts/gate.sh"
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 1 ] || { echo "$output"; false; }; line oracle_closed | grep -q 'FAIL (a) .claude/scripts/gate.sh: an excluded .claude path' || { echo "$output"; false; }
+  git -C "$CSRC" show "$pin:.claude/scripts/gate.sh" > "$w/.claude/scripts/gate.sh"
   # the adapter overwritten with the PR's version: FAIL
   cp "$CFX/head/.claude/adapters/loa_cheval/types.py" "$w/.claude/adapters/loa_cheval/types.py"
   te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
-  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL (a) .claude/adapters/loa_cheval/types.py: an excluded adapter path'
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL (a) .claude/adapters/loa_cheval/types.py: an excluded .claude path'
+  printf 'EFFORT_LEVELS = ("low",)\n' > "$w/.claude/adapters/loa_cheval/types.py"
+  # evidence recorded under addendum 5's narrower prefix: FAIL
+  sed -i 's|^overlay_excluded=.*|overlay_excluded=1:.claude/adapters/loa_cheval/types.py|' "$CRD/meta/arm-evidence.txt"
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'overlay_excluded=1:.claude/adapters/loa_cheval/types.py, the answer set excludes 3:'
 }
