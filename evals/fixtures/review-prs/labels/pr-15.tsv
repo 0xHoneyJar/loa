@@ -1,4 +1,4 @@
-# approved-by: lead 2026-10-14
+# approved-by: lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)
 # fixture pr-15 | sprint-251 | record origin/record/cycle-127-a2a | base 6f6cc8a6b749 | head 8ad37c5518ed | fix 263a8d4c469b
 # seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
 # L01 low review: `is_throttle_message` adds `please wait`, `throttl`, `rate_limit` and `tokens per min` to the words that used to trigger the rate-limit branch, and that branch… [fix hunk near cited line 577]
@@ -9,6 +9,10 @@ L01-adds-and-to-the-words-that-used-to-trigg	low	security	.claude/adapters/loa_c
 L02-the-owner-mode-refusal-of-the-opt-in-con	medium	security	.claude/adapters/loa_cheval/config/loader.py	agy_opt_in_enabled	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L48
 L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	# Rate-limit / overload — Anthropic returns 429 + "rate limit" or	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
 L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	or "unauthorized" in diag_lower	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
+L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	or "429" in full_diag	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
+L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	or "quota" in diag_lower	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
+L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	raise RateLimitError(self.provider)	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
+L03-a-throttle-marker-still-precedes-the-sta	low	security	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	raise ConfigError(	audit	record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82
 F001	-	fix	.claude/adapters/cheval.py	import logging	fix	fix/263a8d4c469b:18-18
 F002	-	fix	.claude/adapters/cheval.py	from loa_cheval.types import (	fix	fix/263a8d4c469b:32-32
 F003	-	fix	.claude/adapters/cheval.py	from loa_cheval.providers import cli_adapter_types, get_adapter	fix	fix/263a8d4c469b:71-71
