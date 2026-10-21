@@ -44,7 +44,7 @@ teardown() {
   [ "$(jq -r '.runs_files | length' <<<"$output")" = "2" ]
 }
 
-@test "SP-3 --since filters the ledger only (a date, a timestamp, the full history); --cap and --reserve override; headroom goes negative" {
+@test "SP-3 --since filters the ledger (a date, a timestamp, the full history); --cap and --reserve override; headroom goes negative" {
   run "$SPEND" --since 2026-10-15 --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   [ "$(jq -r '.ledger_usd' <<<"$output")" = "0.5" ]
@@ -76,8 +76,8 @@ teardown() {
 }
 
 @test "SP-8 a run rowed twice counts its larger cost, whichever row comes first" {
-  printf '%s\n' '{"run_id":"r1","cost_usd":3}' '{"run_id":"r1","cost_usd":5}' > "$T/a.jsonl"
-  printf '%s\n' '{"run_id":"r1","cost_usd":5}' '{"run_id":"r1","cost_usd":3}' > "$T/b.jsonl"
+  printf '%s\n' '{"run_id":"r1","cost_usd":3,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":5,"started":"2026-10-15T01:00:00Z"}' > "$T/a.jsonl"
+  printf '%s\n' '{"run_id":"r1","cost_usd":5,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":3,"started":"2026-10-15T01:00:00Z"}' > "$T/b.jsonl"
   for f in a b; do
     run "$SPEND" --runs "$T/$f.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
     [ "$status" -eq 0 ]
@@ -88,7 +88,7 @@ teardown() {
 }
 
 @test "SP-9 rows without a run_id each count once, with one warning naming the file" {
-  printf '%s\n' '{"cost_usd":1}' '{"run_id":"","cost_usd":2}' '{"run_id":"r1","cost_usd":4}' > "$T/anon.jsonl"
+  printf '%s\n' '{"cost_usd":1,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"","cost_usd":2,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":4,"started":"2026-10-15T01:00:00Z"}' > "$T/anon.jsonl"
   run "$SPEND" --runs "$T/anon.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   json="$(grep '^{' <<<"$output")"
@@ -119,4 +119,19 @@ teardown() {
   run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   [ "$(jq -r '.reserve_usd' <<<"$output")" = "250" ]
+}
+
+@test "SP-10 (cycle-132) --since applies to run rows too: a row started before it is excluded, one with only finished after it counts, one without a timestamp counts with a note" {
+  printf '%s\n' '{"run_id":"old","cost_usd":100,"started":"2026-10-20T23:00:00Z","finished":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"new","cost_usd":3,"started":"2026-10-21T00:30:00Z"}' '{"run_id":"fin","cost_usd":2,"finished":"2026-10-21T02:00:00Z"}' \
+    '{"run_id":"nodate","cost_usd":5}' '{"run_id":"bad","cost_usd":7,"started":"yesterday"}' > "$T/r.jsonl"
+  : > "$T/ledger.jsonl"
+  run "$SPEND" --since 2026-10-21T00:23:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  json="$(grep '^{' <<<"$output")"
+  [ "$(jq -r '"\(.runs_usd) \(.runs_rows) \(.runs_rows_before_since) \(.runs_rows_undated) \(.complete)"' <<<"$json")" = "17 4 1 2 true" ]
+  [ "$(grep -c 'r.jsonl: 2 row(s) with no started/finished timestamp counted' <<<"$output")" -eq 1 ]
+  # an earlier kickoff counts the old row again
+  run "$SPEND" --since 2026-10-20T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$(grep '^{' <<<"$output" | jq -r '.runs_usd')" = "117" ]
 }

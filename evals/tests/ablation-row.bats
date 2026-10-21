@@ -784,3 +784,32 @@ make_cell_rows() {
   run "$ROW" --validate "$T/one.jsonl"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
+
+@test "RW15-5 took_effect (round 1): the run's meta/took-effect.json record becomes {rule: bool} — a FAIL rule false; no record null; an unreadable record fails closed; --validate wants booleans" {
+  TE="$REPO_ROOT/evals/harness/took-effect.sh"
+  "$TE" --run-dir "$T/runs/a3-review" --suite-file "$FX/suite.yaml" --json-out "$T/runs/a3-review/meta/took-effect.json" >/dev/null
+  row a3-review "$REVIEW_TASK"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -c '.took_effect' <<<"$(last)")" = "$(jq -c 'reduce .rules[] as $r ({}; .[$r.rule] = $r.ok)' "$T/runs/a3-review/meta/took-effect.json")" ]
+  [ "$(jq -r '.took_effect | to_entries | all(.value == true)' <<<"$(last)")" = true ]
+  # tamper the mount: integrity_clean FAILs and reads false
+  CK="$T/runs/a3-review/sandbox/.claude/checksums.json"
+  jq '.files[] |= "0000000000000000000000000000000000000000000000000000000000000000"' "$CK" > "$T/c"
+  cat "$T/c" > "$CK"
+  "$TE" --run-dir "$T/runs/a3-review" --suite-file "$FX/suite.yaml" --json-out "$T/runs/a3-review/meta/took-effect.json" >/dev/null || true
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -r '.took_effect.integrity_clean' <<<"$(last)")" = false ]
+  rm "$T/runs/a3-review/meta/took-effect.json"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.took_effect' <<<"$(last)")" = null ]
+  echo '{not json' > "$T/runs/a3-review/meta/took-effect.json"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.took_effect' <<<"$(last)")" = '{"took_effect_record":false}' ]
+  jq -c '.took_effect = {"integrity_clean": "pass"}' <<<"$(last)" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"took_effect values must be booleans"* ]]
+  jq -c 'del(.took_effect)' <<<"$(last)" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"missing field took_effect"* ]]
+}

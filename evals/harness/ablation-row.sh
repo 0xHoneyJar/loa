@@ -113,6 +113,10 @@
 #   batch_context       meta/arm-evidence.txt batch_context= (a cell: its first session's), else null
 #   mount_cheval        meta/arm-evidence.txt mount_cheval= (ok | none | broken:<reason>), else null
 #   registration_sha256 the batch MANIFEST.json registration_sha256, else null
+#   took_effect         {<rule>: true|false, …} from <run-dir>/meta/took-effect.json (the took-effect.sh --json-out
+#                       record run-ablation.sh writes for the run or the cell); null when took-effect did not run
+#                       (no record: a smoke or override path, a timeout); a record that does not parse reads
+#                       {took_effect_record: false}, so a validity filter fails it rather than passing it
 #   attempts            1 … 3 on a 1.5 row (the attempt limit: 2 re-runs, D-7.3); a cell, its sessions' maximum
 #   dissent_absent_reason  bd-jszcp: "disabled" comes from harness-owned evidence only — meta/arm-evidence.txt
 #                       dissent=false (the review gate), gates= or flatline= (both gates), the lines the mount library
@@ -285,8 +289,11 @@ if [[ -n "$VALIDATE" ]]; then
               need("session_costs"; ["array","null"]), need("all_spend_usd"; num), need("dollar_match"; booln),
               need("recall_session1"; numn), need("recall_pm3_session1"; numn), need("precision_session1"; numn),
               need("label_set"; strn), need("batch_context"; strn), need("mount_cheval"; strn),
-              need("registration_sha256"; strn) ][0]
+              need("registration_sha256"; strn), need("took_effect"; objn) ][0]
           else empty end)
+      // (if (.row_writer_version // null) == "1.5" and (.took_effect | type) == "object"
+             and any(.took_effect[]; type != "boolean")
+           then "took_effect values must be booleans" else empty end)
       // (if (.row_writer_version // null) == "1.5" and ((.attempts | type) != "number" or .attempts < 1 or .attempts > 3 or .attempts != (.attempts | floor))
            then "attempts \(.attempts | tojson) is not 1 … 3 (the attempt limit: 2 re-runs, D-7.3)" else empty end)
       // (if (.row_writer_version // null) == "1.5" and (.bare_sessions != null) and
@@ -358,6 +365,14 @@ echo null > "$WORK/grade.json"
 if [[ -n "$GRADE" ]]; then
   [[ -f "$GRADE" ]] || usage "grade file not found: $GRADE"
   jq -c '.' "$GRADE" > "$WORK/grade.json" || usage "grade file does not parse: $GRADE"
+fi
+# row writer 1.5: the took-effect record of this run (or cell), {rule: ok}; null without one
+echo null > "$WORK/took.json"
+if [[ -f "$RUN_DIR/meta/took-effect.json" && ! -L "$RUN_DIR/meta/took-effect.json" ]]; then
+  jq -c 'if type == "object" and (.rules | type) == "array" and all(.rules[]; (.rule | type) == "string" and (.ok | type) == "boolean")
+         then (reduce .rules[] as $r ({}; .[$r.rule] = $r.ok)) else {took_effect_record: false} end' "$RUN_DIR/meta/took-effect.json" > "$WORK/took.tmp" 2>/dev/null \
+    && mv "$WORK/took.tmp" "$WORK/took.json" \
+    || echo '{"took_effect_record": false}' > "$WORK/took.json"   # check-no-swallowed-jq: ok — an unreadable record fails the filter, never passes
 fi
 echo '{}' > "$WORK/manifest.json"
 if [[ -n "$MANIFEST" ]]; then
@@ -531,7 +546,7 @@ ROW="$(jq -n -c \
   --slurpfile m_f "$WORK/manifest.json" --slurpfile minv_f "$WORK/minv.json" \
   --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
   --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
-  --slurpfile cx_f "$WORK/cellx.json" --rawfile ev_raw "$WORK/evidence.txt" --arg prior "$PRIOR_SPEND" \
+  --slurpfile cx_f "$WORK/cellx.json" --rawfile ev_raw "$WORK/evidence.txt" --arg prior "$PRIOR_SPEND" --slurpfile te_f "$WORK/took.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
   --arg retry_reason "$RETRY_REASON" "$MISSED_RULES"'
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
@@ -696,6 +711,7 @@ ROW="$(jq -n -c \
       batch_context: evkv("batch_context"),
       mount_cheval: evkv("mount_cheval"),
       registration_sha256: ($m.registration_sha256 // null | if type == "string" then . else null end),
+      took_effect: $te_f[0],
       diff_lines: ($g.diff_lines // null),
       files_changed: ($g.files_changed // null),
       cost_usd: (if $cx != null then $cx.cost_usd else ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0) end),

@@ -563,3 +563,14 @@ make_cell_te() {
   line bare_model_fable | grep -q 'FAIL s1: BARE models_used'
   line bare_sessions_matched | grep -q 'OK k 3 = the task'"'"'s bare_sessions_matched_fable|bare_sessions_matched'
 }
+
+@test "TE-c132-4 --json-out writes the run's JSON record beside an unchanged text report; it refuses --batch-dir" {
+  te a1-build
+  local text="$output"
+  te a1-build --json-out "$T/rec.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$text" ]
+  [ "$(jq -r '"\(.arm) \(.ok) \(.rules | length)"' "$T/rec.json")" = "a1_full true $(yq -o=json . "$SUITE" | jq '[.arms[] | select(.id == "a1_full") | .took_effect[]] | length')" ]
+  run "$TE" --batch-dir "$T/runs" --suite-file "$SUITE" --json-out "$T/x.json"
+  [ "$status" -eq 2 ]
+}

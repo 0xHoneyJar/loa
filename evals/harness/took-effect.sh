@@ -94,7 +94,7 @@
 # A refusal record is evaluated on applicability_refused alone.
 #
 # Usage:
-#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json] [--task-yaml F] [--source-repo DIR]
+#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json] [--json-out F] [--task-yaml F] [--source-repo DIR]
 #   took-effect.sh --batch-dir D --suite-file F [--arm ID] [--json] [--source-repo DIR]
 #   --task-yaml F     the run's task (oracle_closed's fixture; run-ablation.sh passes it)
 #   --source-repo DIR a git repository holding the run's source_commit (oracle_closed)
@@ -102,6 +102,8 @@
 # Output: `arm <id>: <rule> OK|FAIL <evidence>` per rule, then `arm <id>: OK` or
 # `arm <id>: FAIL (<n> of <m> rules)`; --batch-dir adds `took-effect: <runs> runs, <k> failed`.
 # --json prints one object per run ({run_dir, arm, ok, rules: [{rule, ok, evidence}]}).
+# --json-out F (cycle-132, --run-dir only) also writes that object to F (the text output is unchanged);
+# run-ablation.sh writes <run>/meta/took-effect.json with it, the record ablation-row.sh 1.5 rows as took_effect.
 #
 # Exit codes:
 #   0  every rule OK
@@ -120,7 +122,7 @@ export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false TASK_YAML_OPT="" SOURCE_REPO_OPT=""
+RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false TASK_YAML_OPT="" SOURCE_REPO_OPT="" JSON_OUT=""
 usage() { echo "took-effect.sh: $*" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -129,6 +131,7 @@ while [[ $# -gt 0 ]]; do
     --suite-file) SUITE_FILE="${2:-}"; shift 2 ;;
     --arm)        ARM_OPT="${2:-}"; shift 2 ;;
     --json)       JSON=true; shift ;;
+    --json-out)   JSON_OUT="${2:-}"; [[ -n "$JSON_OUT" ]] || usage "--json-out needs a file"; shift 2 ;;
     --task-yaml)  TASK_YAML_OPT="${2:-}"; shift 2 ;;
     --source-repo) SOURCE_REPO_OPT="${2:-}"; shift 2 ;;
     -h|--help)    sed -n "2,$(awk 'NR > 2 && /^# =====/ {print NR - 1; exit}' "$0")p" "$0"; exit 0 ;;
@@ -141,6 +144,7 @@ done
 SUITE_JSON="$(yq -o=json '.' "$SUITE_FILE")" || usage "suite file does not parse"
 [[ -z "$TASK_YAML_OPT" || -f "$TASK_YAML_OPT" ]] || usage "task yaml not found: $TASK_YAML_OPT"
 [[ -z "$TASK_YAML_OPT" || -z "$BATCH_DIR" ]] || usage "--task-yaml names one run's task (use it with --run-dir)"
+[[ -z "$JSON_OUT" || -z "$BATCH_DIR" ]] || usage "--json-out writes one run's record (use it with --run-dir)"
 [[ -z "$SOURCE_REPO_OPT" || -d "$SOURCE_REPO_OPT" ]] || usage "source repo not found: $SOURCE_REPO_OPT"
 
 # the closed-mount comparison (oracle_closed) is the mount library's; a literal in-tree path
@@ -566,12 +570,17 @@ check_run() {  # check_run <run-dir> → prints lines; returns 0/1; 2 on usage p
       if cell_rule "$rule"; then ok=true; else ok=false; fi
     elif "rule_$rule"; then ok=true; else ok=false; fi
     [[ "$ok" == true ]] || fails=$((fails + 1))
-    if [[ "$JSON" == true ]]; then
+    if [[ "$JSON" == true || -n "$JSON_OUT" ]]; then
       results="$(jq -c --arg r "$rule" --argjson ok "$ok" --arg e "$EVID" '. + [{rule: $r, ok: $ok, evidence: $e}]' <<<"$results")"
-    else
+    fi
+    if [[ "$JSON" != true ]]; then
       printf 'arm %s: %s %s %s\n' "$arm" "$rule" "$([[ "$ok" == true ]] && echo OK || echo FAIL)" "$EVID"
     fi
   done <<<"$rules"
+  if [[ -n "$JSON_OUT" ]]; then
+    jq -nc --arg d "$R" --arg arm "$arm" --argjson rules "$results" --argjson ok "$([[ $fails -eq 0 ]] && echo true || echo false)" \
+      '{run_dir: $d, arm: $arm, ok: $ok, rules: $rules}' > "$JSON_OUT.tmp" && mv "$JSON_OUT.tmp" "$JSON_OUT"
+  fi
   if [[ "$JSON" == true ]]; then
     jq -nc --arg d "$R" --arg arm "$arm" --argjson rules "$results" --argjson ok "$([[ $fails -eq 0 ]] && echo true || echo false)" \
       '{run_dir: $d, arm: $arm, ok: $ok, rules: $rules}'

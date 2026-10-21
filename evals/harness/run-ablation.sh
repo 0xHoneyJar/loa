@@ -226,7 +226,8 @@
 #      (default 120) into a fresh run dir: attempts 2, retry_reason; the first attempt writes
 #      no row and its spent_usd counts in spend; a second transport failure is rowed
 #      transport_error. agent_error without the signature is never retried (DEC-0417)
-#   3. took-effect.sh --run-dir D --suite-file F --task-yaml <task.yaml> (completed, agent_error and
+#   3. took-effect.sh --run-dir D --suite-file F --task-yaml <task.yaml> --json-out D/meta/took-effect.json
+#      (cycle-132: the record ablation-row.sh rows as took_effect; a --took-effect-bin must accept it) (completed, agent_error and
 #      cap_failure runs; --task-yaml gives oracle_closed the PR fixture):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
 #      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418).
@@ -1415,7 +1416,9 @@ post_checks() {
     case "$st" in
       completed|agent_error|cap_failure)
         local trc=0 tout dout id
-        tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" --task-yaml "$tyaml" 2>&1)" || trc=$?
+        rm -f "$rd/meta/took-effect.json"   # cycle-132: the row's took_effect comes from this call's record only
+        tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" --task-yaml "$tyaml" \
+          --json-out "$rd/meta/took-effect.json" 2>&1)" || trc=$?
         printf '%s\n' "$tout" >> "$plog"
         if [[ $trc -eq 0 ]]; then PR_TE=ok
         elif [[ ${#TOOK_TMO[@]} -gt 0 && ( $trc -eq 124 || $trc -eq 137 ) ]]; then
@@ -1658,7 +1661,9 @@ with open(tmp, "w", encoding="utf-8") as f:
     f.write("\n")
 os.replace(tmp, os.path.join(cell, "meta", "cell.json"))
 PY
-  tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$cell" --suite-file "$SUITE_FILE" --task-yaml "$tyaml" 2>&1)" || trc=$?
+  rm -f "$cell/meta/took-effect.json"
+  tout="$(${TOOK_TMO[@]+"${TOOK_TMO[@]}"} "$TOOK_BIN" --run-dir "$cell" --suite-file "$SUITE_FILE" --task-yaml "$tyaml" \
+    --json-out "$cell/meta/took-effect.json" 2>&1)" || trc=$?
   printf '%s\n' "$tout" >> "$clog"
   if [[ $trc -ne 0 ]]; then
     override=infrastructure_error

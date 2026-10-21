@@ -1259,6 +1259,9 @@ CELL_OF() { printf '%s/%s/a0_bare_matched/review-01-t1' "$RES" "$1"; }
   r="$(row mk-a0_bare_matched-review-01-t1)"
   [ "$(jq -r '"\(.status) \(.degraded) \(.bare_sessions) \(.sessions_valid) \(.cost_usd) \(.all_spend_usd) \(.batch_context)"' <<<"$r")" = "completed false 3 3 7.5 7.5 mk" ]
   [ "$(jq -r '[.phases[].label] | join(",")' <<<"$r")" = "BARE-s1,BARE-s2,BARE-s3" ]
+  # round 1: the cell row carries the cell's took-effect record
+  [ "$(jq -c '.took_effect' <<<"$r")" = '{"no_dot_claude":true,"no_system_prompt":true,"no_audit_rows":true,"integrity_clean":true,"bare_sessions_matched":true}' ]
+  [ -f "$C/sessions/s1/meta/took-effect.json" ]
   S="$RES/mk/STATUS.json"
   [ "$(jq -r '.state, .spend.spent_usd, .spend.sessions_usd, .per_arm.a0_bare_matched.launched, .per_arm.a0_bare_matched.completed' "$S" | tr '\n' ' ')" = "complete 7.5 7.5 1 1 " ]
 }
@@ -1346,6 +1349,8 @@ CELL_OF() { printf '%s/%s/a0_bare_matched/review-01-t1' "$RES" "$1"; }
   [ "$status" -eq 1 ]
   [ "$(row mc-a1_full-review-01-t1 | jq -r '.status, .mount_cheval' | tr '\n' ' ')" = "infrastructure_error broken:ImportError: cannot import name 'x' " ]
   jq -e '.paused_arms.a1_full | test("mount_cheval_ok")' "$RES/mc/STATUS.json" >/dev/null
+  # round 1: the row records the FAIL rule false (the analysis filter reads it)
+  [ "$(row mc-a1_full-review-01-t1 | jq -r '.took_effect.mount_cheval_ok, .took_effect.integrity_clean' | tr '\n' ' ')" = "false true " ]
 }
 
 # a registration matching the batch's inputs (the shape registration.py writes; jq here, the module has its own tests)

@@ -2,15 +2,19 @@
 # =============================================================================
 # spend.sh — cycle-130 cycle spend (SDD §5.11, PRD FR-2, DEC-0363)
 #
-# Prints what the cycle has spent: the run rows' cost_usd plus the operator
-# cost ledger's cost_micro_usd since the kickoff timestamp, against the cap.
+# Prints what the cycle has spent: the run rows' cost_usd and the operator
+# cost ledger's cost_micro_usd, both since the kickoff timestamp, against the cap.
 #
 # Usage:
 #   spend.sh [--since TS] [--runs FILE…] [--ledger FILE] [--cap USD]
 #            [--reserve USD] [--json]
 #
 #   --since TS     ledger rows with ts >= TS count (default 2026-10-14T13:50:00Z,
-#                  the cycle-130 kickoff); run rows are the cycle's own and all count
+#                  the cycle-130 kickoff), and so do run rows whose `started` (else
+#                  `finished`) is >= TS (cycle-132: the run-row files hold every
+#                  earlier cycle's rows too); a run row with neither timestamp, or one
+#                  that does not parse, counts (the conservative side) with one stderr
+#                  note per file naming the count
 #   --runs FILE…   run-row files (JSONL, `cost_usd` per row); repeatable, and every
 #                  following non-option argument is a file too. Default:
 #                  grimoires/loa/reports/ablation-2.0/runs.jsonl plus every
@@ -25,7 +29,8 @@
 #   --reserve USD  reserve (default caps.reserve_usd in the suite file, else 250)
 #   --json         one JSON object: total_usd, runs_usd, ledger_usd, since, cap_usd,
 #                  headroom_usd, reserve_usd, runs_files, ledger_file, runs_rows,
-#                  runs_rows_deduped, runs_rows_no_run_id, ledger_rows, skipped_lines,
+#                  runs_rows_deduped, runs_rows_no_run_id, runs_rows_before_since,
+#                  runs_rows_undated, ledger_rows, skipped_lines,
 #                  complete (false when any line was skipped)
 #
 # Output: cycle spend USD T (runs R + ledger L since S); cap C; headroom H; reserve V
@@ -126,9 +131,19 @@ def ts(s):
 since = ts(since_s)
 skipped = 0
 dedup, anon_rows, anon_usd = 0, 0, 0.0
+before_since, undated = 0, 0
 best = {}  # run_id -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
+def row_ts(r):   # started, else finished; None when neither parses
+    for k in ("started", "finished"):
+        v = r.get(k)
+        if isinstance(v, str) and v.strip():
+            try:
+                return ts(v)
+            except ValueError:
+                return None
+    return None
 for f in runs_files:
-    anon_here = 0
+    anon_here = undated_here = 0
     for line in open(f, encoding="utf-8", errors="replace"):
         if not line.strip():
             continue
@@ -137,6 +152,13 @@ for f in runs_files:
             c = float(r.get("cost_usd") or 0)
         except (ValueError, TypeError, AttributeError):
             skipped += 1
+            continue
+        t = row_ts(r)
+        if t is None:
+            undated += 1
+            undated_here += 1
+        elif t < since:
+            before_since += 1
             continue
         rid = r.get("run_id")
         if not (isinstance(rid, str) and rid):
@@ -151,6 +173,8 @@ for f in runs_files:
             best[rid] = c
     if anon_here:
         print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (no dedup possible)", file=sys.stderr)
+    if undated_here:
+        print(f"spend: {f}: {undated_here} row(s) with no started/finished timestamp counted (no date to compare with --since)", file=sys.stderr)
 runs_usd = sum(best.values()) + anon_usd
 runs_rows = len(best) + anon_rows
 
@@ -180,7 +204,8 @@ if as_json:
         "total_usd": n(total), "runs_usd": n(runs_usd), "ledger_usd": n(ledger_usd),
         "since": since_s, "cap_usd": n(cap), "headroom_usd": n(headroom), "reserve_usd": n(reserve),
         "runs_files": runs_files, "ledger_file": ledger or None, "runs_rows": runs_rows,
-        "runs_rows_deduped": dedup, "runs_rows_no_run_id": anon_rows, "ledger_rows": ledger_rows,
+        "runs_rows_deduped": dedup, "runs_rows_no_run_id": anon_rows, "runs_rows_before_since": before_since,
+        "runs_rows_undated": undated, "ledger_rows": ledger_rows,
         "skipped_lines": skipped, "complete": skipped == 0}, sort_keys=True))
 else:
     def money(x): return f"{x:,.2f}"

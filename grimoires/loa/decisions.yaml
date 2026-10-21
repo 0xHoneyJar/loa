@@ -23274,3 +23274,77 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0718"
+    created_at: "2026-10-21T05:34:41Z"
+    updated_at: "2026-10-21T05:34:41Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Power run: no N meets both powers; N = 14 (whole eligible corpus), cap USD 3,800, groups 6/4/4, looks 6/10/14, constant 1.00, achieved 0.82 YES / 0.78 NO"
+    decision: "N = 14, every eligible fixture in seeded order (pr-27, 28, 23, 14, 15, 25, 16, 26, 21, 19, 24, 20, 22, pr-11 flagged last); groups [6, 4, 4] with looks after 6, 10 and 14 valid PRs; boundary constant 1.00 (calibration needed no inflation: P(YES | 0) = 0.034); planned final SE 0.0286; MDE 0.10; cap USD 3,800 from the SDD §5.3 formula, binding on the cycle meter; the registration states the achieved powers P(YES | MDE) = 0.82 and P(NO | 0) = 0.78, the correlated-sessions sensitivity (ρ 0.3/0.6 → 0.70/0.59 and 0.64/0.55) and the ceiling flag: the clipped share at the MDE is 0.26 (> 0.10), so a YES at the MDE may be unreachable on this corpus; k per PR from the cost fits (Opus 9–18, Fable 3–4). The planning envelope USD 2,500 (DEC-0669) is superseded: the operator set the cap to come from the power simulation"
+    rationale: "DEC-0713: when no N satisfies both criteria the lead decides openly. The ceiling N = 14 is the only N near the bar (0.82 / 0.78); every smaller N is worse on both powers, and an N inside the old envelope (N = 8, cap USD 2,400) would run at 0.56 / 0.48 — an inconclusive design by construction. Admin approved the budget and asked for the cap to be set from the simulation, not from the planning guess"
+    alternatives_considered:
+      - option: "N = 8 within the USD 2,500 envelope (affordable-N rule)"
+        rejected_because: "P(YES | MDE) 0.56 and P(NO | 0) 0.48: more likely inconclusive than not; the envelope was the lead planning assumption, not the operator cap"
+      - option: "N = 12 (cap USD 3,350)"
+        rejected_because: "0.73 / 0.71 — strictly worse than the ceiling for USD 450 less; two unseen fixtures left unused"
+      - option: "declare the study exploratory"
+        rejected_because: "SDD §5.3 reserves that for achieved power below 0.50; 0.82 / 0.78 is a near-powered design whose shortfall is stated, not hidden"
+    consequences:
+      positive:
+        - "Every unseen fixture is used; the type I rate stays 0.034 at constant 1.00"
+      negative:
+        - "A true null ends inconclusive (CONTINUE at the final look) about 15 % of the time; the registration says so"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "7df89208"
+    source: "grimoires/loa/reports/ablation-2.0/power-c132/power.md (Task 1.9, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:34:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/reports/ablation-2.0/power-c132/power.json (inputs sha256 01740b25…)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0719"
+    created_at: "2026-10-21T05:40:55Z"
+    updated_at: "2026-10-21T05:40:55Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Adjudication refinement: the same flaw on another code path is a member site of its group; a helper, wiring or compiled copy is a follow-on; doc text is docs"
+    decision: "Applied to every verdict and class dispute across the 14 fixtures: (1) a hunk that corrects another code path carrying the same wrong behaviour (a second pinned key, a second computation with the same missing guard, a second emitter with the same typing) is a defect member of the group — it adds anchors, never a defect; (2) a hunk that adds a helper, constants, wiring, a caller update, a compiled or generated copy, or a regenerated artefact for a group's fix is that group's follow-on; (3) documentation, comments and help-text ranges are class docs even when they follow a fix; (4) extraction with the same behaviour is refactor; (5) when both annotators call a hunk's intent unclear it takes the conservative class (refactor)"
+    rationale: "Annotator B read repeated corrections as follow-ons and A as members; the codebook's follow-on covers mechanical consequences and literal second copies, not independent code paths with the same flaw. The rule is symmetric across arms (anchors only), keeps the defect count unchanged, and was applied identically to every fixture"
+    alternatives_considered:
+      - option: "B reading: every repeated correction is a follow-on"
+        rejected_because: "loses the anchors of real sites a reviewer could cite; credits only one site per behaviour"
+      - option: "every repeated correction is its own defect"
+        rejected_because: "inflates the defect count with copies of one behaviour; the codebook says the same wrong behaviour shares a group"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "6f5be83c"
+    source: "grimoires/loa/a2a/sprint-269/annotation/result.md (Task 1.6, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:40:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "pr-26 (κ 0.55), pr-20, pr-21, pr-15 adjudication.json records"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
