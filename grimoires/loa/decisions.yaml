@@ -22768,3 +22768,137 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0703"
+    created_at: "2026-10-21T02:27:17Z"
+    updated_at: "2026-10-21T02:27:17Z"
+    phase: "review"
+    category: "scope"
+    summary: "sprint-bug-266 rounds: no-arg run refuses when the newest cycle is archived but an older is open; an existing archive dir is never overwritten (R1)"
+    decision: "Accepted the implementer's refusal rule over the literal 'highest unarchived' pick (on this ledger it would have archived stale cycle-121), and option (b) — fail closed on an existing archive directory — over holding the ledger flock across the run"
+    rationale: "A no-argument archive must never pick a stale cycle or re-archive history; holding the flock while generate-changelog.sh and trajectory-export.sh run would block every ledger reader"
+    alternatives_considered:
+      - option: "highest unarchived cycle regardless of the newest being archived"
+        rejected_because: "53 stale active cycles on this ledger make it pick cycle-121"
+      - option: "hold the ledger lock across gate, copy and mutation"
+        rejected_because: "long-running helpers inside the lock; readers blocked"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-review/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "5b840b01"
+    source: "grimoires/loa/a2a/bug-20261021-ba367a/engineer-feedback.md, auditor-sprint-feedback.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-review"
+        evidence: "grimoires/loa/a2a/bug-20261021-ba367a/engineer-feedback.md, auditor-sprint-feedback.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0704"
+    created_at: "2026-10-21T02:27:19Z"
+    updated_at: "2026-10-21T02:27:19Z"
+    phase: "review"
+    category: "scope"
+    summary: "sprint-bug-267 rounds: green = APPROVED + no blockers + not degraded; blockers_present on exit 0 reads failed without a halt; Flatline summary kept per PR (R2)"
+    decision: "Non-green outcomes never halt the post-PR flow (KF-041 makes DEGRADED common); every non-APPROVED shape reads failed with a reason and the marker; a stale Flatline summary from another PR is never carried"
+    rationale: "The hand-off must name a degraded review without blocking fleet runs; cross-PR state leakage would mislabel a healthy PR"
+    alternatives_considered:
+      - option: "halt on blockers_present at exit 0"
+        rejected_because: "the exit-1 flatline_blocker halt already covers real blockers; an exit-0 envelope with blockers is a producer inconsistency, reported not halted"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-review/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "5b840b01"
+    source: "grimoires/loa/a2a/bug-20261021-4439fd/engineer-feedback.md, auditor-sprint-feedback.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:27:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-review"
+        evidence: "grimoires/loa/a2a/bug-20261021-4439fd/engineer-feedback.md, auditor-sprint-feedback.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0705"
+    created_at: "2026-10-21T02:27:21Z"
+    updated_at: "2026-10-21T02:27:21Z"
+    phase: "review"
+    category: "scope"
+    summary: "sprint-bug-268 rounds: exact @L<digits> only is the grammar; --sync-labels verifies the rebuild before writing, on every run; head paths contained (R3)"
+    decision: "Text starting with @L that is not the exact form stays text; the sync writes only after the in-memory rebuild matches the manifest byte for byte, also on no-op runs; the labels file column is contained under head/ by realpath"
+    rationale: "Java/Kotlin annotations begin with @L; a half-synced labels file would break --check; the file column is operator data that must not read outside the fixture"
+    alternatives_considered:
+      - option: "any @L-prefixed value is the grammar"
+        rejected_because: "legitimate text could not be anchored"
+      - option: "verify only when the file changed"
+        rejected_because: "a curator edit to a non-anchor column would pass silently"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-review/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "5b840b01"
+    source: "grimoires/loa/a2a/bug-20261021-7240bc/engineer-feedback.md, auditor-sprint-feedback.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-review"
+        evidence: "grimoires/loa/a2a/bug-20261021-7240bc/engineer-feedback.md, auditor-sprint-feedback.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0706"
+    created_at: "2026-10-21T02:27:48Z"
+    updated_at: "2026-10-21T02:27:48Z"
+    phase: "review"
+    category: "process"
+    summary: "Decision rows written off the cycle branch collided with its ids; from now on side-branch rows use dec-write-lib --pending and are imported (P1)"
+    decision: "The three /bug review-round rows first landed on fix/cycle-132-bugs as DEC-0661…0663, colliding with the PRD rows of the same ids on the cycle branch; the fix-branch commit was reverted before merge and the rows re-recorded here as DEC-0703…0705; any row written off the cycle branch goes through --pending and import"
+    rationale: "dec-write-lib allocates ids from the file on the current branch; two branches appending in parallel produce the same ids; --pending exists for exactly this"
+    alternatives_considered:
+      - option: "renumber the rows by editing the YAML"
+        rejected_because: "the ledger is append-only and the writer refuses content edits"
+      - option: "let main carry the colliding ids until the cycle PR replaces them"
+        rejected_because: "three ids would change content on main between two merges"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-review/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "5b840b01"
+    source: "grimoires/loa/NOTES.md 2026-10-21 (decision-ledger id collision)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:27:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-review"
+        evidence: "grimoires/loa/NOTES.md 2026-10-21 (decision-ledger id collision)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
