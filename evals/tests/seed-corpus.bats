@@ -412,3 +412,56 @@ json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
   [ "$status" -eq 0 ]
   [ "$(awk -F'\t' '$1 == "L03-kotlin" {print $5}' "$C/labels/pr-93.tsv" | tr '\n' ,)" = "@Lazy foo,@Lob bar," ]
 }
+
+# --- audit round (MEDIUM-1 / LOW-1 / LOW-2) ---
+
+@test "SC-16 a labels file column outside head/ (../.., absolute, a symlink out) is refused by --build-manifest and --sync-labels, nothing written" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  M="$C/manifests/pr-93.json"; L="$C/labels/pr-93.tsv"
+  mkdir -p "$C/etc"; printf 'outside dotdot line\n' > "$C/etc/hostname"
+  printf 'outside absolute line\n' > "$T/outside.txt"
+  ln -s "$T/outside.txt" "$C/pr-93/head/src/link.txt"
+  cp "$L" "$T/ok.tsv"; cp "$M" "$T/ok.json"
+  local f mm
+  for f in '../../etc/hostname' "$T/outside.txt" 'src/link.txt'; do
+    case "$f" in ../*) mm='outside dotdot line' ;; *) mm='outside absolute line' ;; esac
+    { cat "$T/ok.tsv"; printf 'L02-second\tlow\tstyle\t%s\t%s\taudit\taudit:auditor-sprint-feedback.md\n' "$f" "$mm"; } > "$L"
+    cp "$L" "$T/bad.tsv"
+    run "$SEED" --build-manifest pr-93 --corpus "$C"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"L02-second: file '$f' is not a path inside head/"* ]]
+    cmp -s "$M" "$T/ok.json"
+    run "$SEED" --sync-labels pr-93 --corpus "$C"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"L02-second: file '$f' is not a path inside head/"* ]]
+    cmp -s "$L" "$T/bad.tsv"
+    cmp -s "$M" "$T/ok.json"
+  done
+}
+
+@test "SC-17 --sync-labels refuses an approved_by holding a Unicode line separator (U+2028) and leaves the labels unchanged" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  curate_manifest "$C/manifests/pr-93.json" $'lead 2026-10-19 # forged' 0 '[1, 4]'
+  L="$C/labels/pr-93.tsv"; cp "$L" "$T/before.tsv"
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"approved_by must be a one-line"* ]]
+  cmp -s "$L" "$T/before.tsv"
+}
+
+@test "SC-18 --sync-labels replaces the labels file atomically (a new inode, no temp file left behind)" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  curate_manifest "$C/manifests/pr-93.json" "lead 2026-10-19 (curated)" 0 '[1, 4]'
+  L="$C/labels/pr-93.tsv"
+  local before; before="$(stat -c %i "$L")"
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(stat -c %i "$L")" != "$before" ]
+  [ "$(ls -A "$C/labels" | tr '\n' ,)" = "pr-93.tsv," ]
+}
