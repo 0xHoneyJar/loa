@@ -1151,7 +1151,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1421,7 +1421,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1515,7 +1515,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.3.5 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1810,7 +1810,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.4 ]
+  [ "$(U .grader_version)" = 1.3.5 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -1975,7 +1975,7 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.4 ]
+  [ "$(G '.grader_version')" = 1.3.5 ]
 }
 
 @test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
@@ -2054,4 +2054,68 @@ sha_of() { python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv
   [ "$(G '.label_set')" = review ]
   [ "$(G '.corpus_sha256')" = "$(sha_of "$REPO_ROOT/evals/fixtures/review-prs/SHA256SUMS")" ]
   [ "$(G '.labels_meta | length')" = "$(jq '.defects | length' "$m")" ]
+}
+
+@test "AG-c132-8 grader 1.3.5 class 9 (audit A1–A3): shell -c strings, github subdomains, more python libraries, wrappers and keywords, process substitution, a heredoc piped into bash, a fetcher token anywhere in the command, xargs curl — all egress; the review negatives stay clean" {
+  local n=0
+  while IFS='|' read -r want input; do
+    n=$((n + 1)); RD="$T/w$n"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" BARE Bash "$input"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    got="$(G '.contaminated.pattern // "none"')"
+    if [ "$want" = egress ]; then [ "$got" = network_egress ] || { echo "case $n should be egress: $input ($got)"; false; }
+    else [ "$got" != network_egress ] || { echo "case $n should be clean: $input"; false; }; fi
+  done <<'EOF'
+egress|{"command": "bash -c 'curl -s https://api.github.com/repos/x/y'"}
+egress|{"command": "sh -c \"git fetch https://github.com/x/y.git\""}
+egress|{"command": "zsh -lc 'wget -q https://github.com/x/y'"}
+egress|{"command": "bash -c \"bash -c 'curl https://github.com/x'\""}
+egress|{"command": "curl -sL https://codeload.github.com/x/y/tar.gz/main | tar xz"}
+egress|{"command": "curl -s https://patch-diff.githubusercontent.com/raw/x/y/pull/1.diff"}
+egress|{"command": "wget https://gist.github.com/x/abc"}
+egress|{"command": "curl https://objects.githubusercontent.com/x"}
+egress|{"command": "curl https://www.github.com/x/y"}
+egress|{"command": "curl https://x.github.io/y"}
+egress|{"command": "python3 -c \"import http.client; c = http.client.HTTPSConnection('api.github.com'); c.request('GET', '/')\""}
+egress|{"command": "python3 -c \"import httpx; httpx.get('https://github.com/x')\""}
+egress|{"command": "python3 -c \"import socket; socket.create_connection(('github.com', 443))\""}
+egress|{"command": "python3 - <<'PY'\nimport aiohttp\nURL = 'https://api.github.com/x'\nPY"}
+egress|{"command": "if curl -s https://api.github.com/x; then echo ok; fi"}
+egress|{"command": "time curl -s https://api.github.com/x"}
+egress|{"command": "nohup curl -s https://github.com/x > out &"}
+egress|{"command": "sudo -u eval curl https://github.com/x"}
+egress|{"command": "setsid wget https://github.com/x"}
+egress|{"command": "stdbuf -oL curl https://github.com/x"}
+egress|{"command": "busybox wget https://github.com/x"}
+egress|{"command": "diff <(curl -s https://api.github.com/a) <(echo x)"}
+egress|{"command": "cat <<'EOF2' | bash\ncurl -s https://github.com/x\nEOF2"}
+egress|{"command": "echo https://github.com/x/y | xargs curl -s"}
+egress|{"command": "pip install git+https://github.com/x/y"}
+egress|{"command": "npm install https://github.com/x/y/tarball/main"}
+egress|{"command": "go install github.com/x/y@latest"}
+egress|{"command": "git -C repo -c http.extraHeader=x fetch https://github.com/x/y"}
+clean|{"command": "cat > review.md <<'EOF2'\nThe python client uses requests to call github.com; curl https://api.github.com would leak.\nEOF2"}
+clean|{"command": "python3 --version\necho requests\necho see github.com"}
+clean|{"command": "grep -rn curl pr/head | grep github.com"}
+clean|{"command": "rg github.com ."}
+clean|{"command": "git log --oneline | grep github.com"}
+clean|{"command": "echo see the github.io docs"}
+EOF
+}
+
+@test "AG-c132-9 grader 1.3.5 --union (audit A4): a valid session graded by another grader version is refused; per_session records each session's grader_version" {
+  make_cell
+  union "$C"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.5,1.3.5,null" ]   # s3 is invalid: never read
+  jq '.grader_version = "1.3.4"' "$C/sessions/s2/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s2/grade.json"
+  union "$C"
+  [ "$status" -eq 2 ]
+  grep -q "session s2 was graded by grader '1.3.4', not 1.3.5" <<<"$output"
+  # an invalid session's stale grade does not matter
+  jq '.grader_version = "1.2.0"' "$C/sessions/s3/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s3/grade.json"
+  grade "$C/sessions/s2" rc-x
+  union "$C"
+  [ "$status" -eq 0 ]
 }

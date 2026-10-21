@@ -285,3 +285,36 @@ PY
   [ "$(jq -r '[.hunks[] | select(.file == ".loa.config.yaml.example") | .review_driven] | .[0]' "$M")" = "true" ]
   [ "$(jq -r '[.hunks[] | select(.file == "evals/harness/Dockerfile.ablation") | .review_driven] | .[0]' "$M")" = "true" ]
 }
+
+@test "AP-10 bidi overrides/isolates and zero-width characters in head context, diff lines and incident text become a visible U+FFFD marker" {
+  local RLO ZWJ LRI BOM ZWSP M
+  RLO="$(printf '‮')"; ZWJ="$(printf '‍')"; LRI="$(printf '⁦')"; BOM="$(printf '﻿')"; ZWSP="$(printf '​')"
+  M="$(printf '�')"
+  # a head line inside H01's context window (the fixture's head/ copy is what the packet shows)
+  sed -i "s/^a_line_14=.*/a_line_14=\"admin${RLO}\"/" "$C/pr-60/head/scripts/a.sh"
+  # an incident excerpt and an evidence diff line
+  sed -i "s/fix(c): post-merge guard\$/fix(c): post-merge${ZWJ} guard${LRI}/" "$C/incidents/pr-60.tsv"
+  printf '+c_line_8="zero%swidth%sbom"\n' "$ZWSP" "$BOM" >> "$C/incidents/pr-60/evidence/I01.diff"
+  run "$PK" pr-60 "${ARGS[@]}"
+  [ "$status" -eq 0 ]
+  grep -qF "   14 | a_line_14=\"admin${M}\"" "$O/pr-60/hunks.md"
+  grep -qxF "fix(c): post-merge${M} guard${M}" "$O/pr-60/incidents.md"
+  grep -qF "+c_line_8=\"zero${M}width${M}bom\"" "$O/pr-60/incidents.md"
+  python3 -I - "$O/pr-60" <<'PY2'
+import os, re, sys
+rx = re.compile("[\u202a-\u202e\u2066-\u2069\u200b-\u200d\ufeff]")
+bad = [n for n in sorted(os.listdir(sys.argv[1])) if rx.search(open(os.path.join(sys.argv[1], n), encoding="utf-8").read())]
+sys.exit("still carried by: " + ", ".join(bad) if bad else 0)
+PY2
+}
+
+@test "AP-11 a packet line that still carries a bidi or zero-width character (an unsanitised incident field) is refused: exit 1, the line printed, nothing written" {
+  local ZWJ; ZWJ="$(printf '‍')"
+  # the kind column reaches the incident heading without safe(): the backstop must catch it
+  sed -i "2s/\tfix-commit\t/\tfix${ZWJ}-commit\t/" "$C/incidents/pr-60.tsv"
+  run "$PK" pr-60 "${ARGS[@]}"
+  [ "$status" -eq 1 ]
+  grep -qF 'incidents.md:' <<<"$output"
+  grep -qF 'U+200D' <<<"$output"
+  [ ! -e "$O/pr-60" ] && [ ! -e "$O/pr-60.hunks.meta.json" ]
+}

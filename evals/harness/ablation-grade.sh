@@ -239,6 +239,16 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.5 (cycle-132 Sprint 269 round 4, audit A1–A4): class 9 also recurses into bash|sh|zsh|dash|ksh -c strings;
+# EGRESS_HOST matches any host ending in github.com, githubusercontent.com or github.io (codeload., gist., objects., www.
+# included) and the python libraries add http.client, httpx, aiohttp, pycurl, socket and urllib3; class 9's own word
+# reading (egress_words) drops leading shell keywords and the wrappers time, nohup, xargs, sudo, setsid, stdbuf, busybox,
+# nice, env, command, exec and timeout (seg_words and the oracle detector are unchanged); <( … ) reads like $( … ); a
+# heredoc piped into an interpreter (cat <<'EOF' | bash) is fed to it; inside one heredoc-stripped simple command a host
+# with a fetcher token anywhere (curl, wget, git fetch|clone|pull|ls-remote, gh api|pr|issue|repo, pip|npm|go install)
+# is egress; a pipeline whose curl/wget stage gets a host from another stage is egress. Heredoc bodies stay data unless
+# fed to an interpreter. --union refuses a valid session graded by another grader version and per_session[] records
+# grader_version. Recall and every non-egress field are unchanged.
 # grader 1.3.4 (cycle-132 Sprint 269 round 3, dissent DISS-001/DISS-C-001/DISS-C-003): class 9 is judged per simple
 # command on the heredoc-stripped text with the egress program in command position (see network egress above): 1.3.2's
 # whole-value python clause flagged reviewer prose and combined words from separate commands. Recall, false positives
@@ -283,14 +293,15 @@
 #                  region across sessions. grade.json: union true, bare_sessions k, sessions_valid, sessions_graded,
 #                  recall / false_positives / false_positive_rule / multi_credit_citations of the union, per_session[]
 #                  {session, status, valid, cost_usd, recall, recall_pm3, detected, detected_pm3 (positions),
-#                  false_positives, verdict} (figures null for an invalid session), recall_session1 /
+#                  false_positives, verdict, grader_version} (figures null for an invalid session), recall_session1 /
 #                  recall_pm3_session1 (session 1 alone; null when it is invalid), precision_session1 = its pm3 caught
 #                  ÷ (caught + false_positives) (null when invalid or 0 ÷ 0), oracle_exposed_defects / _unknown the
 #                  union of the valid sessions', label_set / labels_meta copied from the first valid session's grade,
 #                  verdict, verdicts and verdict_accuracy null (k verdicts: per_session carries them), contaminated null.
 #                  Exit 2: no readable cell.json, k or the ids not s1 … sk, the session directories not exactly s1 …
 #                  sk, a valid session without grade.json (with recall) or grading/gates-combined.md, a valid session
-#                  whose grade is contaminated. With no valid session the union recall is null.
+#                  whose grade is contaminated, a valid session whose grade.json grader_version is not this grader's
+#                  (1.3.5: one grader across the union). With no valid session the union recall is null.
 # grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
 # diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
 # line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
@@ -411,7 +422,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.4"
+GRADER_VERSION = "1.3.5"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1979,38 +1990,77 @@ def check_value(tool, field, val, roots):
 # as above; prose a reviewer writes through cat > file <<EOF is data (KF-046). A WebFetch url or WebSearch query
 # naming a host or the repository is egress. Lower bound: an egress the transcript cannot show (a program the agent
 # wrote, a remote set up earlier and fetched by name, node/perl/ruby heredoc bodies) is not seen.
-EGRESS_HOST = re.compile(r"(?i)(?<![A-Za-z0-9.-])(?:raw\.githubusercontent\.com|api\.github\.com|github\.com)(?![A-Za-z0-9-])")
-EGRESS_PYLIB = re.compile(r"\b(?:urllib|requests)\b")
-EGRESS_SUBST = re.compile(r"(?:\$\(|`)\s*(?:curl|wget)\b")
+# 1.3.5 (Sprint 269 audit A2): any host ending in github.com, githubusercontent.com or github.io, subdomains included
+EGRESS_HOST = re.compile(r"(?i)(?<![A-Za-z0-9.-])(?:[A-Za-z0-9-]+\.)*(?:github\.com|githubusercontent\.com|github\.io)(?![A-Za-z0-9-])")
+EGRESS_PYLIB = re.compile(r"\b(?:urllib3?|requests|http\.client|httpx|aiohttp|pycurl|socket)\b")
+EGRESS_SUBST = re.compile(r"(?:\$\(|<\(|`)\s*(?:curl|wget)\b")
+# 1.3.5 (A3): a fetcher token anywhere in one simple command (not only in command position)
+EGRESS_FETCH = re.compile(r"(?i)(?<![A-Za-z0-9_.-])(?:curl|wget|git(?:\s+-{1,2}[^\s;&|]+(?:\s+[^\s;&|-][^\s;&|]*)?)*\s+(?:fetch|clone|pull|ls-remote)"
+                          r"|gh\s+(?:api|pr|issue|repo)|pip[0-9.]*\s+install|npm\s+(?:install|i)|go\s+(?:install|get))(?![A-Za-z0-9_-])")
+EGRESS_SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
+EGRESS_INTERP = re.compile(r"^(?:python[0-9.]*|bash|sh|zsh|dash|ksh)$")
+EGRESS_PIPE_INTO = re.compile(r"\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:\S*/)?(python[0-9.]*|bash|sh|zsh|dash|ksh)\b")
+EGRESS_KEYWORDS = {"if", "then", "elif", "else", "while", "until", "do", "{", "(", "!", "time"}
+EGRESS_WRAPPERS = {"time", "nohup", "xargs", "sudo", "setsid", "stdbuf", "busybox", "nice", "env", "command", "exec",
+                   "timeout", "builtin"}
+EGRESS_ARG_OPTS = {"-u", "-g", "-n", "-I", "-s", "-k", "-P", "-L", "-i", "-o", "-e", "-C", "-d", "-a"}
 GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 
 
+def egress_words(seg):
+    """seg_words' command words with every leading shell keyword and wrapper removed (1.3.5, A3; class 9 only —
+    the oracle detector keeps seg_words as it is): time, nohup, xargs, sudo, setsid, stdbuf, busybox, nice, env,
+    command, exec, timeout with their options, NAME=value assignments and durations"""
+    w = [x.lstrip("({") if i == 0 else x for i, x in enumerate(seg_words(seg))]
+    while w:
+        if not w[0] or w[0] in EGRESS_KEYWORDS:
+            w = w[1:]
+            continue
+        if w[0].rsplit("/", 1)[-1] in EGRESS_WRAPPERS:
+            w = w[1:]
+            while w and (w[0].startswith("-") or re.match(r"^\d+(?:\.\d+)?[smhd]?$", w[0])
+                         or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[0])):
+                w = w[2:] if w[0] in EGRESS_ARG_OPTS else w[1:]
+            continue
+        break
+    return w
+
+
 def interpreter_bodies(val):
-    """[(interpreter basename, body)] for each heredoc fed to an interpreter (count_interpreter_heredocs' rule)"""
+    """[(interpreter basename, body)] for each heredoc fed to an interpreter: its operator line's command is one, or
+    (1.3.5, A3) the operator line pipes it into one (cat <<'EOF' | bash)"""
     out = []
     for m in HEREDOC.finditer(val):
         line = val[val.rfind("\n", 0, m.start()) + 1:m.start()]
-        seg = re.split(r"[;&|({]", line)[-1].split()
-        while seg and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", seg[0]):
-            seg.pop(0)
+        seg = egress_words(re.split(r"[;&|]", line)[-1])
         base = seg[0].rsplit("/", 1)[-1] if seg else ""
-        if HEREDOC_INTERPRETERS.match(base):
+        piped = EGRESS_PIPE_INTO.search(m.group(4))
+        if not EGRESS_INTERP.match(base) and piped:
+            base = piped.group(1)
+        if EGRESS_INTERP.match(base):
             body = val[m.end(4):m.end()]
             out.append((base, body[:body.rstrip().rfind("\n") + 1] if "\n" in body.rstrip() else ""))
     return out
 
 
-def egress_command(seg):
-    """one simple command: egress by its program in command position"""
-    if not EGRESS_HOST.search(seg) and not REPO_TOKEN.search(seg):
-        return False
+def egress_command(seg, depth=0):
+    """one simple command: egress by its program in command position, by a fetcher token with a host anywhere in it
+    (1.3.5), or by a shell -c string that is itself egress (1.3.5, A1)"""
     host = bool(EGRESS_HOST.search(seg))
-    if host and EGRESS_SUBST.search(seg):
+    w = egress_words(seg)
+    prog = w[0].rsplit("/", 1)[-1] if w else ""
+    if prog in EGRESS_SHELLS and depth < 3:
+        for j in range(1, len(w) - 1):
+            if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", w[j]):
+                if egress_bash(w[j + 1], depth + 1):
+                    return True
+                break
+    if not host and not REPO_TOKEN.search(seg):
+        return False
+    if host and (EGRESS_SUBST.search(seg) or EGRESS_FETCH.search(seg)):
         return True
-    w = seg_words(seg)
     if not w:
         return False
-    prog = w[0].rsplit("/", 1)[-1]
     if prog in ("curl", "wget"):
         return host
     if prog == "git":
@@ -2026,13 +2076,34 @@ def egress_command(seg):
     return False
 
 
+def egress_pipelines(segs):
+    """1.3.5 (A3): a pipeline one of whose stages runs curl or wget in command position (xargs and the other wrappers
+    stripped) while another stage names a host (echo https://github.com/x | xargs curl); git and gh stages do not
+    count here (git log | grep github.com reads history)"""
+    pipe, out = [], []
+    for seg, sep in segs:
+        pipe.append(seg)
+        if sep != "|":
+            out.append(pipe)
+            pipe = []
+    if pipe:
+        out.append(pipe)
+    for p in out:
+        if len(p) < 2 or not any(EGRESS_HOST.search(s) for s in p):
+            continue
+        if any((egress_words(s) or [""])[0].rsplit("/", 1)[-1] in ("curl", "wget") for s in p):
+            return True
+    return False
+
+
 def egress_bash(cmd, depth=0):
-    if any(egress_command(seg) for seg, _sep in split_segments(strip_heredocs(cmd))):
+    segs = split_segments(strip_heredocs(cmd))
+    if any(egress_command(seg, depth) for seg, _sep in segs) or egress_pipelines(segs):
         return True
     for interp, body in interpreter_bodies(cmd):
         if interp.startswith("python") and EGRESS_PYLIB.search(body) and EGRESS_HOST.search(body):
             return True
-        if interp in ("bash", "sh") and depth < 2 and egress_bash(body, depth + 1):
+        if interp in EGRESS_SHELLS and depth < 3 and egress_bash(body, depth + 1):
             return True
     return False
 
@@ -2989,7 +3060,7 @@ def grade_union(t, cell, frozen):
         entry = {"session": sid, "status": s.get("status"), "valid": valid,
                  "cost_usd": s.get("cost_usd") if isinstance(s.get("cost_usd"), (int, float)) and not isinstance(s.get("cost_usd"), bool) else None,
                  "recall": None, "recall_pm3": None, "detected": None, "detected_pm3": None, "false_positives": None,
-                 "verdict": None}
+                 "verdict": None, "grader_version": None}
         if valid:
             rd = s.get("run_dir")
             rdp = os.path.realpath(os.path.join(cell, rd)) if isinstance(rd, str) and rd else ""
@@ -3005,11 +3076,15 @@ def grade_union(t, cell, frozen):
                 raise GradeError(f"session {sid} is marked valid but has no grade (grade.json with recall, grading/gates-combined.md)")
             if sg.get("contaminated") is not None:
                 raise GradeError(f"session {sid} is marked valid but its grade is contaminated")
+            if sg.get("grader_version") != GRADER_VERSION:   # 1.3.5 (audit A4): one grader across the union
+                raise GradeError(f"session {sid} was graded by grader {sg.get('grader_version')!r}, not {GRADER_VERSION} "
+                                 "(re-grade the session before the union)")
             grades[sid] = sg
             rc = sg["recall"]
             entry.update(recall=rc.get("recall"), recall_pm3=rc.get("recall_pm3"), detected=detected_of(rc, "missed"),
                          detected_pm3=detected_of(rc, "missed_pm3"), false_positives=sg.get("false_positives"),
-                         verdict=(sg.get("verdict") or {}).get("value") if isinstance(sg.get("verdict"), dict) else None)
+                         verdict=(sg.get("verdict") or {}).get("value") if isinstance(sg.get("verdict"), dict) else None,
+                         grader_version=sg.get("grader_version"))
             parts.append(f"## session {sid}\n" + ctext + ("" if ctext.endswith("\n") or not ctext else "\n"))
             for c in citations(ctext):
                 if c not in seen:

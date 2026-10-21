@@ -50,7 +50,10 @@
 # files above and every text file under each --deny-dir. A match exits 1, prints
 # the packet line and its source, and writes nothing. Lines of the fixture's own
 # code (head/, base/ and the diffs shown) are exempt: a feedback file may quote code.
-# Every written file must also pass evals/graders/no-secrets.sh.
+# Every written file must also pass evals/graders/no-secrets.sh. Text shown from the fixture and the
+# incidents passes safe(): C0/C1 controls and U+2028/U+2029 become spaces, and the Trojan Source code points
+# (bidi U+202A–U+202E, U+2066–U+2069; zero-width U+200B–U+200D, U+FEFF) become U+FFFD; any packet line that
+# still carries one of those (a field that bypassed safe()) is refused (exit 1, the line printed).
 #
 # Deterministic: sorted paths, fixed formats, no timestamps, no absolute paths.
 # Exit: 0 written, 1 refused (fixture/commit/incidents missing, leak, secret), 2 usage
@@ -161,8 +164,11 @@ def redact(t):
         t = r.sub("REDACTED-TEST-SECRET", t)
     return t
 CTRL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
+# Trojan Source (DISS-C-004 audit): bidi embeddings/overrides U+202A–U+202E, isolates U+2066–U+2069 and the
+# zero-width U+200B–U+200D, U+FEFF reorder or hide text for a reader; each becomes a visible U+FFFD marker
+TROJAN = re.compile("[\u202a-\u202e\u2066-\u2069\u200b-\u200d\ufeff]")
 def safe(t):
-    return CTRL.sub(" ", redact(t))
+    return CTRL.sub(" ", redact(TROJAN.sub("\ufffd", t)))
 
 def fence(text_lines, info):
     n = max([3] + [len(m) for l in text_lines for m in re.findall(r"~{3,}", l)]) + 1
@@ -389,6 +395,13 @@ for d in args.deny_dir:
                 add_source(os.path.relpath(p, os.path.dirname(os.path.abspath(d))), open(p, encoding="utf-8", errors="replace").read())
             except OSError:
                 pass
+# backstop: a field that reached the packet without safe() must not carry a Trojan Source character
+trojan = [f"{name}:{i}: U+{ord(TROJAN.search(l).group()):04X} in {TROJAN.sub(chr(0xFFFD), l)[:200]}"
+          for name in sorted(packet) for i, l in enumerate(packet[name], 1) if TROJAN.search(l)]
+if trojan:
+    for x in trojan[:50]:
+        print("trojan: " + x, file=sys.stderr)
+    fail(f"{fx}: {len(trojan)} packet line(s) carry a bidi or zero-width character; nothing written")
 leaks = []
 for name in sorted(packet):
     for i, l in enumerate(packet[name], 1):
