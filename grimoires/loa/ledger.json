@@ -3100,7 +3100,7 @@
       "id": "cycle-bug-20261021-7240bc",
       "label": "Bug Fix — seed-corpus-from-record.sh --build-manifest regresses the curated multi-site manifests (labels drift, bd-y4pqj)",
       "type": "bugfix",
-      "status": "active",
+      "status": "completed",
       "source_issue": null,
       "created_at": "2026-10-21T00:42:14Z",
       "sprints": [
@@ -3108,7 +3108,8 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20261021-7240bc/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20261021-7240bc/sprint.md",
-      "bead": "bd-y4pqj"
+      "bead": "bd-y4pqj",
+      "completed_at": "2026-10-21T02:11:45Z"
     }
   ],
   "bugfixes": [
@@ -3127,5 +3128,5 @@
     }
   ],
   "next_sprint_number": 266,
-  "last_updated": "2026-10-21T02:07:16Z"
+  "last_updated": "2026-10-21T02:11:45Z"
 }
