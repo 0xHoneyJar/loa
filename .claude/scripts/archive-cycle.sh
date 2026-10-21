@@ -9,8 +9,11 @@
 #
 # Options:
 #   --cycle N          Cycle to archive (default: the ledger's active_cycle
-#                      number; else the highest cycle number among
-#                      .cycles[].id; else 1 when there is no ledger)
+#                      number; else the highest-numbered cycle whose status
+#                      is not "archived"; exit 1 when every cycle is
+#                      archived, or when the newest cycle is archived but an
+#                      older one is not; 1 when there is no ledger or no
+#                      cycle-N id)
 #   --retention N      Keep the newest N archives (default: 0 = keep all).
 #                      Precedence: --retention, then the yaml key
 #                      compound_learning.archive.retention_cycles, then 0.
@@ -22,6 +25,8 @@
 # Behaviour (bug 20261021-ba367a, issue #1263):
 #   - Completeness gate: a cycle with any sprint not "completed" is refused
 #     (exit 1, nothing written) unless --force; checked before any write.
+#   - The cycle's ledger entry needs ledger-lib.sh next to this script; when
+#     it is missing the run is refused (exit 1) before anything is written.
 #   - After a real archive, the live ledger gets, under the ledger-lib.sh
 #     lock and through _write_ledger: the cycle's status "archived",
 #     archived (RFC 3339 UTC), archive_path (relative to the repo root), and
@@ -29,12 +34,15 @@
 #     into the archive is the pre-update ledger. --dry-run never writes.
 #   - Retention never deletes a directory holding a git-tracked file: it is
 #     kept with "[WARN] tracked archive kept: <path>; prune it with git".
+#     A yq failure reading the retention key WARNs and keeps all archives.
 #     Outside a git work tree (or without git) the mtime rule alone applies.
 #
 # Exit codes:
 #   0  success (including dry-run)
-#   1  invalid argument, incomplete cycle without --force, unreadable
-#      ledger, or ledger update failure (the archive directory then exists)
+#   1  invalid argument, no safe default cycle (every cycle archived, or the
+#      newest archived with an older one open; no --cycle), incomplete cycle
+#      without --force, unreadable ledger, ledger-lib.sh missing, or ledger
+#      update failure (the archive directory then exists)
 # =============================================================================
 
 set -euo pipefail
@@ -99,7 +107,10 @@ load_config() {
   # bug 20261021-ba367a: an absent key means keep-all (0), never a silent 5.
   if [[ -f "$CONFIG_FILE" ]] && [[ "$RETENTION_FROM_CLI" != "true" ]]; then
     local yaml_retention=""
-    yaml_retention=$(yq '.compound_learning.archive.retention_cycles // ""' "$CONFIG_FILE" 2>/dev/null) || yaml_retention=""
+    if ! yaml_retention=$(yq '.compound_learning.archive.retention_cycles // ""' "$CONFIG_FILE" 2>/dev/null); then
+      echo "[WARN] could not read compound_learning.archive.retention_cycles (yq failed); keeping all archives" >&2
+      yaml_retention=""
+    fi
     if [[ -n "$yaml_retention" ]] && [[ "$yaml_retention" != "null" ]]; then
       if [[ ! "$yaml_retention" =~ ^[0-9]+$ ]]; then
         echo "ERROR: compound_learning.archive.retention_cycles must be a non-negative integer (got: $yaml_retention)" >&2
@@ -167,7 +178,12 @@ _resolve_cycle_artifact_root() {
 }
 
 # bug 20261021-ba367a: the default cycle is the active cycle's number, else the
-# highest cycle number among .cycles[].id (cycle-8, cycle-098-foo, ...), else 1.
+# highest-numbered cycle whose status is not "archived" (ids cycle-8,
+# cycle-098-foo, ...); when every numbered cycle is archived, exit 1 so a
+# second no-argument run never re-archives the cycle just archived; with no
+# ledger or no cycle-N ids, 1. When the newest cycle is archived but an older
+# one is not (a stale "active" entry), exit 1 too: picking the stale cycle
+# would snapshot today's root artifacts under an old cycle's name.
 # Previously `.cycles | length` — the entry count, which names no cycle once
 # ids are renumbered. A ledger jq cannot read is an error, not a silent 1.
 get_current_cycle() {
@@ -181,9 +197,30 @@ get_current_cycle() {
       def cnum: capture("^cycle-(?<n>[0-9]+)") | .n | tonumber;
       if ((.active_cycle | type) == "string") and (.active_cycle | test("^cycle-[0-9]+"))
       then .active_cycle | cnum
-      else ([.cycles[]?.id | strings | select(test("^cycle-[0-9]+")) | cnum] | max // 1)
+      else
+        [.cycles[]? | select((.id | type) == "string" and (.id | test("^cycle-[0-9]+")))] as $numbered
+        | if ($numbered | length) == 0 then 1
+          else
+            [$numbered[] | {n: (.id | cnum), id: .id, open: (.status != "archived")}] as $c
+            | ($c | max_by(.n)) as $newest
+            | ([$c[] | select(.open)] | max_by(.n)) as $latest_open
+            | if $latest_open == null then "all-archived"
+              elif $latest_open.n == $newest.n then $latest_open.n
+              else "stale \($newest.id) \($latest_open.id)"
+              end
+          end
       end' "$ledger"); then
     echo "ERROR: cannot derive the default cycle from $ledger; pass --cycle N" >&2
+    return 1
+  fi
+  if [[ "$n" == "all-archived" ]]; then
+    echo "ERROR: every cycle in the ledger is archived; pass --cycle N to re-archive one" >&2
+    return 1
+  fi
+  if [[ "$n" == stale\ * ]]; then
+    local newest_id open_id
+    read -r _ newest_id open_id <<< "$n"
+    echo "ERROR: the newest cycle (${newest_id}) is archived but an older cycle (${open_id}) is not; pass --cycle N" >&2
     return 1
   fi
   echo "$n"
@@ -245,7 +282,18 @@ create_archive() {
   else
     archive_path="${ARCHIVE_DIR}/cycle-${cycle}"
   fi
-  local rel_archive_path="${archive_path#"${PROJECT_ROOT}"/}"
+  # Relative to the repo root, compared on pwd -P-resolved paths; an archive
+  # outside the root keeps its absolute path.
+  local root_real archive_dir_real real_archive_path rel_archive_path
+  root_real=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P) || root_real="$PROJECT_ROOT"
+  archive_dir_real=$(cd "$ARCHIVE_DIR" 2>/dev/null && pwd -P) || archive_dir_real="$ARCHIVE_DIR"
+  real_archive_path="${archive_dir_real}/${archive_path##*/}"
+  if [[ "$real_archive_path" == "$root_real"/* ]]; then
+    rel_archive_path="${real_archive_path#"$root_real"/}"
+  else
+    rel_archive_path="$archive_path"
+    echo "[WARN] archive path is outside the repo root; the ledger records it absolute: $archive_path" >&2
+  fi
 
   # bug 20261021-ba367a: completeness gate, before anything is written
   local incomplete
@@ -264,7 +312,9 @@ create_archive() {
         echo "[DRY-RUN] Completeness gate: ${incomplete} incomplete sprint(s); a real run would refuse (pass --force to override)"
       fi
     fi
-    if [[ -n "$cycle_id" ]]; then
+    if [[ -n "$cycle_id" ]] && [[ ! -f "$SCRIPT_DIR/ledger-lib.sh" ]]; then
+      echo "[DRY-RUN] ledger-lib.sh not found next to archive-cycle.sh; a real run would refuse"
+    elif [[ -n "$cycle_id" ]]; then
       echo "[DRY-RUN] Would update ledger: ${cycle_id} status=archived, archived=<now>, archive_path=${rel_archive_path}$(jq -r --arg id "$cycle_id" 'if .active_cycle == $id then ", active_cycle=null" else "" end' "${GRIMOIRE_DIR}/ledger.json")"
     else
       echo "[DRY-RUN] Would not update ledger (cycle ${cycle} has no ledger entry)"
@@ -293,6 +343,10 @@ create_archive() {
       exit 1
     fi
     echo "[WARN] Cycle ${cycle_id} has ${incomplete} incomplete sprint(s); archiving anyway (--force)" >&2
+  fi
+  if [[ -n "$cycle_id" ]] && [[ ! -f "$SCRIPT_DIR/ledger-lib.sh" ]]; then
+    echo "ERROR: ledger-lib.sh not found next to archive-cycle.sh; cannot record the archive in the ledger" >&2
+    exit 1
   fi
 
   mkdir -p "$archive_path"
@@ -344,9 +398,7 @@ EOF
 
   # bug 20261021-ba367a / #1263: record the archive in the live ledger
   # (after the pre-update ledger.json was copied into the archive above).
-  if [[ -n "$cycle_id" ]] && [[ ! -f "$SCRIPT_DIR/ledger-lib.sh" ]]; then
-    echo "[WARN] ledger-lib.sh not found next to archive-cycle.sh; live ledger NOT updated for ${cycle_id}" >&2
-  elif [[ -n "$cycle_id" ]]; then
+  if [[ -n "$cycle_id" ]]; then
     if ! _update_ledger_archived "$cycle_id" "$rel_archive_path"; then
       echo "ERROR: archive created at $archive_path but the ledger update for ${cycle_id} failed" >&2
       exit 1
@@ -365,7 +417,8 @@ EOF
 # tracked directory into a false "untracked".
 _archive_dir_tracked() {
   local rc=0
-  git -C "$ARCHIVE_DIR" ls-files --error-unmatch -- "$1" >/dev/null 2>&1 || rc=$?
+  # :(literal) so [ ] * ? in a directory name are not pathspec glob magic
+  git -C "$ARCHIVE_DIR" ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 || rc=$?
   [[ "$rc" -ne 1 ]]
 }
 

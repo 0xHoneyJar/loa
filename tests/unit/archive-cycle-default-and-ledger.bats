@@ -102,8 +102,10 @@ _set_ledger() {
     [[ "$output" != *"archive/cycle-5"* ]]
 }
 
-@test "ACL-2: no --cycle with active_cycle null archives the newest cycle by number" {
-    _set_ledger '.active_cycle = null | (.cycles[] | select(.id == "cycle-120-active")).status = "archived"'
+@test "ACL-2: no --cycle with active_cycle null archives the newest unarchived cycle by number" {
+    _set_ledger '.active_cycle = null
+        | (.cycles[] | select(.id == "cycle-120-active")).status = "archived"
+        | (.cycles[] | select(.id == "cycle-131-done")).status = "completed"'
     run "$SCRIPT" --dry-run --retention 0
     [ "$status" -eq 0 ]
     [[ "$output" == *"Would create archive at: "*"/grimoires/loa/archive/cycle-131-done"* ]]
@@ -188,4 +190,38 @@ _set_ledger() {
     [ "$status" -eq 0 ]
     [ -d grimoires/loa/archive/cycle-120-active ]
     [ "$(jq -r '.cycles[] | select(.id == "cycle-120-active") | .status' grimoires/loa/ledger.json)" = "archived" ]
+}
+
+@test "ACL-8: no --cycle with every cycle archived is refused (exit 1, nothing written)" {
+    _set_ledger '.active_cycle = null | (.cycles[] | select(.id == "cycle-120-active")).status = "archived"'
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+
+    run "$SCRIPT" --retention 0
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: every cycle in the ledger is archived; pass --cycle N to re-archive one"* ]]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
+    [ -z "$(ls -A grimoires/loa/archive)" ]
+}
+
+@test "ACL-10: no --cycle refuses when the newest cycle is archived but an older one is still open" {
+    # cycle-120-active stays "active" (a stale entry); the newest, cycle-131-done, is archived.
+    _set_ledger '.active_cycle = null'
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+
+    run "$SCRIPT" --retention 0
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: the newest cycle (cycle-131-done) is archived but an older cycle (cycle-120-active) is not; pass --cycle N"* ]]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
+    [ -z "$(ls -A grimoires/loa/archive)" ]
+}
+
+@test "ACL-9: a missing ledger-lib.sh is refused before anything is written" {
+    rm -f "$WORKDIR/.claude/scripts/ledger-lib.sh"
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+
+    run "$SCRIPT" --cycle 120 --retention 0
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: ledger-lib.sh not found next to archive-cycle.sh; cannot record the archive in the ledger"* ]]
+    [ ! -d grimoires/loa/archive/cycle-120-active ]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
 }
