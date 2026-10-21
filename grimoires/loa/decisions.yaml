@@ -23348,3 +23348,1891 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0720"
+    created_at: "2026-10-21T05:59:04Z"
+    updated_at: "2026-10-21T05:59:04Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): pairs (base/head/fix) follow the 247–254 convention, from each PR's `merge^1..merge^2` log and the round-1 headers:"
+    decision: "pairs (base/head/fix) follow the 247–254 convention, from each PR's `merge^1..merge^2` log and the round-1 headers: 255 ee1625a0^/ee1625a0/b6802e4f; 256 40df53ed^/40df53ed/9c4ed319; 257 163656ff^/163656ff/2fb03b5c; 258 05442536^/05442536/ffe162ef; 259 a293df09^/6be23186/05830914; 260 c02d12bb^/4c279606/53600ea3; 261 4434d450/4af3294b/e95139fe; 262 0fda13a0^/82c5cd7d/56ce0b8f; 263 bb03e931^/bb03e931/cddec367; 264 0281ea57^/0281ea57/798d88cf."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0721"
+    created_at: "2026-10-21T05:59:06Z"
+    updated_at: "2026-10-21T05:59:06Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): feedback is the round-1 review plus the round-1 audit (`-r1` where present)."
+    decision: "feedback is the round-1 review plus the round-1 audit (`-r1` where present). Later rounds read trees after head."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0722"
+    created_at: "2026-10-21T05:59:08Z"
+    updated_at: "2026-10-21T05:59:08Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): 257 carries its PR's Bridgebuilder triage (bb-triage.md, fix 2fb03b5c), as 254 did."
+    decision: "257 carries its PR's Bridgebuilder triage (bb-triage.md, fix 2fb03b5c), as 254 did. The BB rounds of PR #1283/#1286 (76ba937e, aac80f4c) have no triage file and are left out; no file means their hunks could not be tagged review_driven."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0723"
+    created_at: "2026-10-21T05:59:10Z"
+    updated_at: "2026-10-21T05:59:10Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): 261/262 share base 4434d450 and interleave, so a new `--paths` scope splits them on disjoint files."
+    decision: "261/262 share base 4434d450 and interleave, so a new `--paths` scope splits them on disjoint files. 262 gets its row writer, report, their bats and fixtures (unchanged between 4af3294b and 82c5cd7d). 261 gets the rest minus README.md"
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "one merged fixture (one fewer cluster), overlapping fixtures (double counting)"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0724"
+    created_at: "2026-10-21T05:59:12Z"
+    updated_at: "2026-10-21T05:59:12Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): scope exclusions."
+    decision: "scope exclusions. 255 and 263 drop `evals/fixtures/review-prs/*` (other fixtures' hidden keys). 263 drops `evals/tests/fixtures/c131-oracle/*` (arm transcripts). 258 drops `evals/tests/fixtures/ablation-runs/runs/*` (341 dirs regen.sh generates)."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0725"
+    created_at: "2026-10-21T05:59:14Z"
+    updated_at: "2026-10-21T05:59:14Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): 265 is skipped."
+    decision: "265 is skipped. Its change lives under grimoires/, which the seeder scopes out, so it has no in-scope file."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0726"
+    created_at: "2026-10-21T05:59:16Z"
+    updated_at: "2026-10-21T05:59:16Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): the parser gained the `### SEV-n —` / `**SEV-n — …**` forms."
+    decision: "the parser gained the `### SEV-n —` / `**SEV-n — …**` forms. Without them 6 of 10 sprints parsed zero findings and would not build. `--allow-no-labels` builds pr-26, the one fixture still at zero; annotation supplies the key."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0727"
+    created_at: "2026-10-21T05:59:18Z"
+    updated_at: "2026-10-21T05:59:18Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): seeding wrote tasks to a scratch `--tasks-dir`."
+    decision: "seeding wrote tasks to a scratch `--tasks-dir`. `evals/tasks/` is not mine, and the c132 suite root defines its own tasks (Task 1.11)."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0728"
+    created_at: "2026-10-21T05:59:20Z"
+    updated_at: "2026-10-21T05:59:20Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): exposure uses the head commit's committer date (UTC);"
+    decision: "exposure uses the head commit's committer date (UTC); after 2026-06 is post-cutoff; Opus is always unverified."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0729"
+    created_at: "2026-10-21T05:59:22Z"
+    updated_at: "2026-10-21T05:59:22Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): `--window-days` is an optional cap with no default (D-7.8's merge→scan window wins over §5.2's \"30\")."
+    decision: "`--window-days` is an optional cap with no default (D-7.8's merge→scan window wins over §5.2's \"30\"). Merge = oldest first-parent commit containing fix. Source (a) uses the range merge..main, bounded by the window."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0730"
+    created_at: "2026-10-21T05:59:24Z"
+    updated_at: "2026-10-21T05:59:24Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): gh queries OR up to 5 basenames with `created:>=` the merge day;"
+    decision: "gh queries OR up to 5 basenames with `created:>=` the merge day; a hit must name a full changed path; PRs count as `issue`."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0731"
+    created_at: "2026-10-21T05:59:27Z"
+    updated_at: "2026-10-21T05:59:27Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): a BB round counts only when the PR number is in its file name or first heading;"
+    decision: "a BB round counts only when the PR number is in its file name or first heading; a body mention is not enough. Dated by its `bridgebuilder-<ts>` run id; `bb-triage*` included."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0732"
+    created_at: "2026-10-21T05:59:29Z"
+    updated_at: "2026-10-21T05:59:29Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): incident ids I01… come from the scan (sorted by date, kind, ref);"
+    decision: "incident ids I01… come from the scan (sorted by date, kind, ref); packets reuse them."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0733"
+    created_at: "2026-10-21T05:59:31Z"
+    updated_at: "2026-10-21T05:59:31Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): hunks come from `git diff -U0 --inter-hunk-context=3`, matching the seeder's ≤ 3-line merge."
+    decision: "hunks come from `git diff -U0 --inter-hunk-context=3`, matching the seeder's ≤ 3-line merge. Context is from the fixture's head/ copy so anchors resolve there. Fix messages never enter a packet."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0734"
+    created_at: "2026-10-21T05:59:33Z"
+    updated_at: "2026-10-21T05:59:33Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): `hunks.meta.json` is written beside the packet directory (`<out>/pr-NN.hunks.meta.json`), not inside it."
+    decision: "`hunks.meta.json` is written beside the packet directory (`<out>/pr-NN.hunks.meta.json`), not inside it. The brief says outside; SDD §1.4 says inside."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0735"
+    created_at: "2026-10-21T05:59:35Z"
+    updated_at: "2026-10-21T05:59:35Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): review_driven reads every feedback-family file in the feedback directories:"
+    decision: "review_driven reads every feedback-family file in the feedback directories: engineer/auditor/bridgebuilder/bb-triage plus `adversarial-review*`/`adversarial-audit*` JSON. Cycle-131's round-1 findings live in the dissent envelopes. A snippet needs ≥ 8 chars and the basename within 1,500 chars. Over-tagging only shrinks the pipeline-independent set."
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0736"
+    created_at: "2026-10-21T05:59:37Z"
+    updated_at: "2026-10-21T05:59:37Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl A (Tasks 1.1–1.3): the leak check compares whole lines (normalised, ≥ 20 chars, raw and prefix-stripped)."
+    decision: "the leak check compares whole lines (normalised, ≥ 20 chars, raw and prefix-stripped). The fixture's own code lines are exempt. Incident summaries sit on their own line"
+    rationale: "Implementer A's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "substring containment (cost, and the spec says lines)"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-a.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0737"
+    created_at: "2026-10-21T05:59:39Z"
+    updated_at: "2026-10-21T05:59:39Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): pipeline-run.sh is untouched."
+    decision: "pipeline-run.sh is untouched. Its bats harness copies only the libs it sources today, so a new `source` would turn pipeline-run.bats red. The lib holds verbatim copies, and BS-8 fails on drift."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0738"
+    created_at: "2026-10-21T05:59:41Z"
+    updated_at: "2026-10-21T05:59:41Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): the blind HOME holds no credential file (no codex copies)."
+    decision: "the blind HOME holds no credential file (no codex copies). Host mode also uses the per-session HOME. Host mode needs LOA_EVAL_ALLOW_HOST_SESSION=1."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0739"
+    created_at: "2026-10-21T05:59:43Z"
+    updated_at: "2026-10-21T05:59:43Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): taint also covers Write outside the sandbox, `~` paths, absolute or `..` Glob patterns and Grep globs."
+    decision: "taint also covers Write outside the sandbox, `~` paths, absolute or `..` Glob patterns and Grep globs. A tainted role keeps its labels.json. Exit 3 wins over 1."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0740"
+    created_at: "2026-10-21T05:59:45Z"
+    updated_at: "2026-10-21T05:59:45Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): the prompt's `{{LABELS_PATH}}` is substituted, or one closing line is appended."
+    decision: "the prompt's `{{LABELS_PATH}}` is substituted, or one closing line is appended. A max-turns stop with a valid labels.json counts as completed."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0741"
+    created_at: "2026-10-21T05:59:47Z"
+    updated_at: "2026-10-21T05:59:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): recall-vs-defects.sh and the grader's v1 and corpus lookups resolve a manifests/c131/ key against manifests/v1/ and the corpus root."
+    decision: "recall-vs-defects.sh and the grader's v1 and corpus lookups resolve a manifests/c131/ key against manifests/v1/ and the corpus root. Without that, the c131 re-grade loses v1_manifest. The grader version is not bumped (C's 1.3.2)."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0742"
+    created_at: "2026-10-21T05:59:49Z"
+    updated_at: "2026-10-21T05:59:49Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): label_set comes from the resolved key's directory (c131 or v1 directly under manifests/), else v2."
+    decision: "label_set comes from the resolved key's directory (c131 or v1 directly under manifests/), else v2. labels_meta is by position only."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0743"
+    created_at: "2026-10-21T05:59:51Z"
+    updated_at: "2026-10-21T05:59:51Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): HEADER_V2 has the four columns from the brief (the SDD says three)."
+    decision: "HEADER_V2 has the four columns from the brief (the SDD says three). Exactly 7 or 11 columns are accepted. A manifest is v2 only when an annotated row exists, and then every defect gets the four fields. annotators is a list, and `-` becomes null. label_set comes after fixture. incidents_meta holds only main_sha."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0744"
+    created_at: "2026-10-21T05:59:53Z"
+    updated_at: "2026-10-21T05:59:53Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): there is no seeder flag for the c131 rebuild (argparse is A's area)."
+    decision: "there is no seeder flag for the c131 rebuild (argparse is A's area). Tests rebuild on a scratch corpus."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0745"
+    created_at: "2026-10-21T05:59:55Z"
+    updated_at: "2026-10-21T05:59:55Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): smoke-c131's five task.yaml files were also repointed and refrozen, since they would otherwise dangle."
+    decision: "smoke-c131's five task.yaml files were also repointed and refrozen, since they would otherwise dangle. REVIEW.md prose, corpus.tsv, dropped.txt and curation.tsv were left as they are."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0746"
+    created_at: "2026-10-21T05:59:57Z"
+    updated_at: "2026-10-21T05:59:57Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): description text never counts as a disagreement (it never matches);"
+    decision: "description text never counts as a disagreement (it never matches); A's text is taken. Groups are compared by co-membership, and adjudication group ids live in A's namespace."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0747"
+    created_at: "2026-10-21T05:59:59Z"
+    updated_at: "2026-10-21T05:59:59Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): an incident-only defect without a category is listed for adjudication."
+    decision: "an incident-only defect without a category is listed for adjudication. A cross-file group is split by file. Severity takes the highest member, category the first member's. Ids are V01 and up."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:59:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0748"
+    created_at: "2026-10-21T06:00:00Z"
+    updated_at: "2026-10-21T06:00:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): --manifest-c131 is optional (new fixtures have none)."
+    decision: "--manifest-c131 is optional (new fixtures have none). --hunks-meta is required with --adjudication. labels.rows.tsv is a complete v2 labels file. --fix-rows carries the fix regions. --pool sums the tables."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0749"
+    created_at: "2026-10-21T06:00:02Z"
+    updated_at: "2026-10-21T06:00:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl B (Tasks 1.4–1.5): the schema validator lives in annotation_merge.py --validate, because the rest of the package is D's."
+    decision: "the schema validator lives in annotation_merge.py --validate, because the rest of the package is D's. Unsupported keywords are refused."
+    rationale: "Implementer B's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-b.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-b.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0750"
+    created_at: "2026-10-21T06:00:04Z"
+    updated_at: "2026-10-21T06:00:04Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): trials keep their one in-line transport retry (the a1_full path is unchanged);"
+    decision: "trials keep their one in-line transport retry (the a1_full path is unchanged); the 3-attempt limit binds reruns (a replacement counts the old row's attempts; `--rerun` refuses a row at 3, `--rerun-status` skips it)"
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "in-line re-runs of cap_failure/interrupted trials. RAB-19 updated"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0751"
+    created_at: "2026-10-21T06:00:06Z"
+    updated_at: "2026-10-21T06:00:06Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): validate-suite checks `bare_sessions_matched(_fable)` only when present;"
+    decision: "validate-suite checks `bare_sessions_matched(_fable)` only when present; run-ablation refuses to plan a matched arm on a task without it"
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "requiring it on every review-catch task (the frozen c131 root would fail)"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0752"
+    created_at: "2026-10-21T06:00:08Z"
+    updated_at: "2026-10-21T06:00:08Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): `--union` reads `<cell>/meta/cell.json`, the grader's one meta/ read;"
+    decision: "`--union` reads `<cell>/meta/cell.json`, the grader's one meta/ read; cell.json holds no arm id and no run_id (it embeds the arm); the row writer takes the run_id from session 1."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0753"
+    created_at: "2026-10-21T06:00:10Z"
+    updated_at: "2026-10-21T06:00:10Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): union verdict fields are null (per_session carries each);"
+    decision: "union verdict fields are null (per_session carries each); label_set/labels_meta come from the first valid session's grade."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0754"
+    created_at: "2026-10-21T06:00:12Z"
+    updated_at: "2026-10-21T06:00:12Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): recall_session1 uses the union recall's rule;"
+    decision: "recall_session1 uses the union recall's rule; recall_pm3_session1 sits beside it; precision_session1 = pm3 caught ÷ (caught + false_positives)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0755"
+    created_at: "2026-10-21T06:00:14Z"
+    updated_at: "2026-10-21T06:00:14Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): bd-9zmfn — false_positives already used ±3 on the manifest, the rule of recall_pm3 (decision statistic, DEC-0638);"
+    decision: "bd-9zmfn — false_positives already used ±3 on the manifest, the rule of recall_pm3 (decision statistic, DEC-0638); `false_positive_rule: \"pm3\"` states it and the numbers stay"
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "recomputing under pm3_or_same_function (a non-decision rule)"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0756"
+    created_at: "2026-10-21T06:00:15Z"
+    updated_at: "2026-10-21T06:00:15Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): class 9 is read first;"
+    decision: "class 9 is read first; gh naming the repository counts (it reaches api.github.com unnamed); heredoc bodies only when fed to an interpreter (KF-046). curl/gh of the repo now read network_egress, not repo_name (AG-51/54 updated)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0757"
+    created_at: "2026-10-21T06:00:17Z"
+    updated_at: "2026-10-21T06:00:17Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): the mount_cheval probe is host `python3 -I -B` importing `loa_cheval` and `loa_cheval.providers` (KF-050) before any agent runs"
+    decision: "the mount_cheval probe is host `python3 -I -B` importing `loa_cheval` and `loa_cheval.providers` (KF-050) before any agent runs"
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "a docker probe (shifts every container test's calls)"
+        rejected_because: "named in the implementer's DECISION; the chosen reading is the decision text"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0758"
+    created_at: "2026-10-21T06:00:19Z"
+    updated_at: "2026-10-21T06:00:19Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): dissent-enabled = mounted, gates not false, and AUDIT, or REVIEW without dissent:"
+    decision: "dissent-enabled = mounted, gates not false, and AUDIT, or REVIEW without dissent: false; `mount_cheval_ok` added to a1_full, a2, a3, a5, a6, a7, a1_review_only, a1_no_dissent, a1_full_openmount."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0759"
+    created_at: "2026-10-21T06:00:21Z"
+    updated_at: "2026-10-21T06:00:21Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): bd-jszcp — \"disabled\" comes from the harness evidence lines dissent=false (review), gates= and flatline= (both gates);"
+    decision: "bd-jszcp — \"disabled\" comes from the harness evidence lines dissent=false (review), gates= and flatline= (both gates); the brief named dissent=false only, but the other two are the same harness evidence and keep A4/A5 reading disabled."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0760"
+    created_at: "2026-10-21T06:00:23Z"
+    updated_at: "2026-10-21T06:00:23Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): the vocabulary has three columns (key, values, config edits) so config_edits derive from it;"
+    decision: "the vocabulary has three columns (key, values, config edits) so config_edits derive from it; the mount stub's copy is pinned byte-equal (AT-c132-1)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0761"
+    created_at: "2026-10-21T06:00:25Z"
+    updated_at: "2026-10-21T06:00:25Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): a refused launch (exit 3) is status infrastructure_error (excluded, never re-run)."
+    decision: "a refused launch (exit 3) is status infrastructure_error (excluded, never re-run)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0762"
+    created_at: "2026-10-21T06:00:27Z"
+    updated_at: "2026-10-21T06:00:27Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): a cell is completed with ≥ 1 valid session, degraded below ⌈k/2⌉;"
+    decision: "a cell is completed with ≥ 1 valid session, degraded below ⌈k/2⌉; with none, infrastructure_error (contaminated when a session was). A clean agent_error session is valid."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0763"
+    created_at: "2026-10-21T06:00:28Z"
+    updated_at: "2026-10-21T06:00:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): each session is charged when it ends (every attempt;"
+    decision: "each session is charged when it ends (every attempt; the trial charge rules); the cell row adds counters only; STATUS spend gains `sessions_usd` for plans with cells; --resume recharges from the records."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0764"
+    created_at: "2026-10-21T06:00:30Z"
+    updated_at: "2026-10-21T06:00:30Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): `--batch-context` defaults to the batch name;"
+    decision: "`--batch-context` defaults to the batch name; another id on --resume is refused."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0765"
+    created_at: "2026-10-21T06:00:32Z"
+    updated_at: "2026-10-21T06:00:32Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): the spend gate is derived at launch only (`--spend-since`, else the registration's `kickoff`;"
+    decision: "the spend gate is derived at launch only (`--spend-since`, else the registration's `kickoff`; the smaller of it and a given --max-usd); --resume keeps the MANIFEST cap. registration.py gained optional `--kickoff` and `--image-digest`."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0766"
+    created_at: "2026-10-21T06:00:34Z"
+    updated_at: "2026-10-21T06:00:34Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): the registration pre-flight refuses a mismatched suite manifest, corpus sums, pin or image digest."
+    decision: "the registration pre-flight refuses a mismatched suite manifest, corpus sums, pin or image digest."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0767"
+    created_at: "2026-10-21T06:00:36Z"
+    updated_at: "2026-10-21T06:00:36Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): registration.py canonicalises through `lib/jcs.sh` (rfc8785, on CI);"
+    decision: "registration.py canonicalises through `lib/jcs.sh` (rfc8785, on CI); paths relative to `--repo`; k_by_task over the grouped tasks; analysis_tree_sha256 is the git tree id (SDD name kept)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0768"
+    created_at: "2026-10-21T06:00:38Z"
+    updated_at: "2026-10-21T06:00:38Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): MANIFEST `bare_sessions_by_task` is {arm:"
+    decision: "MANIFEST `bare_sessions_by_task` is {arm: {task: k}} (the arms' k differ)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0769"
+    created_at: "2026-10-21T06:00:40Z"
+    updated_at: "2026-10-21T06:00:40Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): report 1.4 keeps matched arms out of the components (still 9);"
+    decision: "report 1.4 keeps matched arms out of the components (still 9); new sections render only when they have content."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0770"
+    created_at: "2026-10-21T06:00:42Z"
+    updated_at: "2026-10-21T06:00:42Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl C (Tasks 1.7a–c): edited fixtures outside the listed test files:"
+    decision: "edited fixtures outside the listed test files: `evals/tests/fixtures/{ablation-pipeline-stub.sh, ablation-grade-stub.sh, mount-lib-stub.sh}` (they reject unknown flags)."
+    rationale: "Implementer C's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-c.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0771"
+    created_at: "2026-10-21T06:00:45Z"
+    updated_at: "2026-10-21T06:00:45Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): the t interval uses SE_boot without the √(P/(P−1)) inflation of my round-0 diagnostic (the lead's formula;"
+    decision: "the t interval uses SE_boot without the √(P/(P−1)) inflation of my round-0 diagnostic (the lead's formula; coverage above)."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0772"
+    created_at: "2026-10-21T06:00:46Z"
+    updated_at: "2026-10-21T06:00:46Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): under t, the boundaries convert by equal upper-tail mass, b_t = t_sf⁻¹(1 − Φ(b), df = valid PRs − 1), in reads and power alike;"
+    decision: "under t, the boundaries convert by equal upper-tail mass, b_t = t_sf⁻¹(1 − Φ(b), df = valid PRs − 1), in reads and power alike; conditional power stays on the normal Brownian model."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0773"
+    created_at: "2026-10-21T06:00:48Z"
+    updated_at: "2026-10-21T06:00:48Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): the placebo exclusion share uses the primary interval;"
+    decision: "the placebo exclusion share uses the primary interval; percentile, t and mean |Δ| are diagnostics."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0774"
+    created_at: "2026-10-21T06:00:50Z"
+    updated_at: "2026-10-21T06:00:50Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): \"exploratory\" now flags when either power is below 0.50;"
+    decision: "\"exploratory\" now flags when either power is below 0.50; the affordable-N rule applies only when an N meets both powers."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0775"
+    created_at: "2026-10-21T06:00:52Z"
+    updated_at: "2026-10-21T06:00:52Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): `--validity c131` drops only the oracle_exposed clause, and power.py gets the same flag."
+    decision: "`--validity c131` drops only the oracle_exposed clause, and power.py gets the same flag."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0776"
+    created_at: "2026-10-21T06:00:54Z"
+    updated_at: "2026-10-21T06:00:54Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): keyed labels_meta entries (`defect`, then `id`) take precedence;"
+    decision: "keyed labels_meta entries (`defect`, then `id`) take precedence; the positional fallback never overwrites a keyed entry."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0777"
+    created_at: "2026-10-21T06:00:56Z"
+    updated_at: "2026-10-21T06:00:56Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): the exact-dollar trim reads `detected_pm3` like BARE-1, so both sides of every pair use the decision statistic."
+    decision: "the exact-dollar trim reads `detected_pm3` like BARE-1, so both sides of every pair use the decision statistic."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0778"
+    created_at: "2026-10-21T06:00:58Z"
+    updated_at: "2026-10-21T06:00:58Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Impl D (Task 1.8): boundary caches are unbounded (pure functions;"
+    decision: "boundary caches are unbounded (pure functions; tens of MB at the largest grid) and the recursion keeps its arithmetic and its order, so every output is byte-identical."
+    rationale: "Implementer D's recorded DECISION, lodged by the lead at sprint close (Task 1.12) so every judgment call has a ledger row with its rejected alternative"
+    alternatives_considered:
+      - option: "the brief's or SDD's literal reading where it differs"
+        rejected_because: "the DECISION text states the reason the implementer departed from or specialised it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "caf88c33"
+    source: "grimoires/loa/a2a/sprint-269/reviewer-d.md § DECISIONS (Sprint 269, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:00:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-d.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
