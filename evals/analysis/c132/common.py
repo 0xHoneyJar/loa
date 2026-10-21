@@ -142,16 +142,20 @@ def is_matched_row(row):
 
 def labels_meta_map(grade, defect_ids):
     """{defect id: {label_source, agreement, review_driven}} from grade.json labels_meta[]
-    (by each entry's `id`, else by position d1 … dN)"""
+    (by each entry's `defect` — grader 1.3.2 — or `id`, else by position d1 … dN)"""
     meta = (grade or {}).get("labels_meta")
     out = {}
     if isinstance(meta, list):
+        # keyed entries first; the positional fallback only fills ids no entry names
+        for m in meta:
+            if isinstance(m, dict):
+                did = next((m[k] for k in ("defect", "id") if isinstance(m.get(k), str) and m[k]), None)
+                if did:
+                    out[did] = m
         for i, m in enumerate(meta):
-            if not isinstance(m, dict):
-                continue
-            did = m.get("id") if isinstance(m.get("id"), str) else (defect_ids[i] if i < len(defect_ids) else None)
-            if did:
-                out[did] = m
+            if isinstance(m, dict) and not any(isinstance(m.get(k), str) and m[k] for k in ("defect", "id")):
+                if i < len(defect_ids):
+                    out.setdefault(defect_ids[i], m)
     elif isinstance(meta, dict):
         out = {k: v for k, v in meta.items() if isinstance(v, dict)}
     return out
@@ -225,6 +229,16 @@ def validity(c, rules="c132"):
     return (not reasons), reasons, te
 
 
+def session_detected(s):
+    """a per_session entry's detected ids under the decision statistic: `detected_pm3` (grader
+    1.3.2 union grade; DEC-0638 recall_pm3), else `detected` — the rule the union side uses"""
+    det = s.get("detected_pm3")
+    if isinstance(det, list):
+        return det
+    det = s.get("detected")
+    return det if isinstance(det, list) else None
+
+
 def session1(c):
     """BARE-1 alone on a matched cell: {caught, cost} from grade per_session[0] (detected list
     or recall × defects) else the row's recall_session1 × defects and session_costs[0]"""
@@ -236,7 +250,7 @@ def session1(c):
         s = ps[0]
         if s.get("status") not in (None, "completed", "valid"):
             return None
-        det = s.get("detected")
+        det = session_detected(s)
         if isinstance(det, list):
             caught = len(set(det) & set(c["defect_ids"]))
         elif isinstance(s.get("recall"), (int, float)) and c["defects"]:

@@ -113,7 +113,7 @@ def t_sf(x, df):
     return ib if x >= 0 else 1.0 - ib
 
 
-@functools.lru_cache(maxsize=65536)
+@functools.lru_cache(maxsize=None)
 def t_boundary(b, df):
     """the Student-t (df) boundary with the same upper-tail mass as the normal boundary b:
     t_sf(b_t) = 1 − Φ(b) — the group-sequential boundaries on the cluster-t scale (round 1)"""
@@ -450,75 +450,97 @@ def _grid(lo, hi, m):
     return pts, w
 
 
-@functools.lru_cache(maxsize=4096)
-def _gs_cached(fractions, alpha, one_sided, grid):
-    K = len(fractions)
-    bounds = []
-    prev_t = 0.0
-    prev_spent = 0.0
-    dens = None          # (points, weights·density) on the S = Z√t scale at the previous look
-    for k, t in enumerate(fractions):
-        t = min(max(t, 0.0), 1.0)
-        # two-sided symmetric: α/2 per tail, each tail on the OBF function of level α/2
-        # (Jennison & Turnbull 2000 §7.2; gsDesign test.type 2) — this reproduces the
-        # published 3.710 / 2.511 / 1.993 at (1/3, 2/3, 1) for α = 0.05
-        spent = obf_spending(t, alpha) if one_sided else 2.0 * obf_spending(t, alpha / 2.0)
-        inc = spent - prev_spent
-        dt = t - prev_t
-        if dt <= 1e-12 or inc <= 0.0:
-            bounds.append(math.inf)
-            # no new information: the continuation density is unchanged
-            continue
-        sdt = math.sqrt(dt)
-        if dens is None:
-            # first look: the fixed-sample quantile
-            # the upper-tail quantile from the tail mass itself (1 − inc rounds to 1 at small t)
-            tail = inc if one_sided else inc / 2.0
-            b = -phi_inv(tail) if tail > 0.0 else math.inf
-            if math.isinf(b):
-                bounds.append(math.inf)
-                continue
-        else:
-            pts, wd = dens
+_SQRT2 = math.sqrt(2.0)
 
-            def cross(c):
-                tot = 0.0
-                for u, w in zip(pts, wd):
-                    p = phi_sf((c - u) / sdt)
-                    if not one_sided:
-                        p += phi_cdf((-c - u) / sdt)
-                    tot += w * p
-                return tot
 
-            lo_c, hi_c = 0.0, 40.0 * math.sqrt(t)
-            for _ in range(80):
-                mid = (lo_c + hi_c) / 2.0
-                if cross(mid) > inc:
-                    lo_c = mid
-                else:
-                    hi_c = mid
-            b = ((lo_c + hi_c) / 2.0) / math.sqrt(t)
-        bounds.append(b)
-        if k < K - 1:
-            c = b * math.sqrt(t)
-            lower = -c if not one_sided else -8.0 * math.sqrt(t) - 1.0
-            pts_new, w_new = _grid(lower, c, grid)
-            if dens is None:
-                st = math.sqrt(t)
-                vals = [phi_pdf(s / st) / st for s in pts_new]
+def _density(dens, b, t, sdt, one_sided, grid):
+    """the continuation density after a look with boundary b at fraction t (S = Z√t scale)"""
+    c = b * math.sqrt(t)
+    lower = -c if not one_sided else -8.0 * math.sqrt(t) - 1.0
+    pts_new, w_new = _grid(lower, c, grid)
+    if dens is None:
+        st = math.sqrt(t)
+        vals = [phi_pdf(s / st) / st for s in pts_new]
+    else:
+        pts, wd = dens
+        inv = 1.0 / sdt
+        vals = []
+        for s in pts_new:
+            acc = 0.0
+            for u, w in zip(pts, wd):
+                z = (s - u) * inv
+                acc += w * math.exp(-0.5 * z * z)
+            vals.append(acc * inv / math.sqrt(2.0 * math.pi))
+    return (pts_new, [w * v for w, v in zip(w_new, vals)])
+
+
+def _advance(state, t, alpha, one_sided):
+    """one look of the Armitage–McPherson–Rowe recursion from a resolved state
+    (bounds, prev_t, prev_spent, dens, None) → (bounds + (b,), …, pending density step)"""
+    bounds, prev_t, prev_spent, dens, _ = state
+    t = min(max(t, 0.0), 1.0)
+    # two-sided symmetric: α/2 per tail, each tail on the OBF function of level α/2
+    # (Jennison & Turnbull 2000 §7.2; gsDesign test.type 2) — this reproduces the
+    # published 3.710 / 2.511 / 1.993 at (1/3, 2/3, 1) for α = 0.05
+    spent = obf_spending(t, alpha) if one_sided else 2.0 * obf_spending(t, alpha / 2.0)
+    inc = spent - prev_spent
+    dt = t - prev_t
+    if dt <= 1e-12 or inc <= 0.0:
+        # no new information: the continuation density is unchanged
+        return (bounds + (math.inf,), prev_t, prev_spent, dens, None)
+    sdt = math.sqrt(dt)
+    if dens is None:
+        # first look: the upper-tail quantile from the tail mass itself (1 − inc rounds to 1 at small t)
+        tail = inc if one_sided else inc / 2.0
+        b = -phi_inv(tail) if tail > 0.0 else math.inf
+        if math.isinf(b):
+            return (bounds + (math.inf,), prev_t, prev_spent, dens, None)
+    else:
+        pts, wd = dens
+        erfc, erf = math.erfc, math.erf
+
+        def cross(c):
+            # phi_sf / phi_cdf inlined (the same expressions, the same order of operations)
+            tot = 0.0
+            for u, w in zip(pts, wd):
+                p = 0.5 * erfc(((c - u) / sdt) / _SQRT2)
+                if not one_sided:
+                    p += 0.5 * (1.0 + erf(((-c - u) / sdt) / _SQRT2))
+                tot += w * p
+            return tot
+
+        lo_c, hi_c = 0.0, 40.0 * math.sqrt(t)
+        for _ in range(80):
+            mid = (lo_c + hi_c) / 2.0
+            if cross(mid) > inc:
+                lo_c = mid
             else:
-                pts, wd = dens
-                inv = 1.0 / sdt
-                vals = []
-                for s in pts_new:
-                    acc = 0.0
-                    for u, w in zip(pts, wd):
-                        z = (s - u) * inv
-                        acc += w * math.exp(-0.5 * z * z)
-                    vals.append(acc * inv / math.sqrt(2.0 * math.pi))
-            dens = (pts_new, [w * v for w, v in zip(w_new, vals)])
-        prev_t, prev_spent = t, spent
-    return tuple(bounds)
+                hi_c = mid
+        b = ((lo_c + hi_c) / 2.0) / math.sqrt(t)
+    return (bounds + (b,), t, spent, dens, (b, t, sdt))
+
+
+@functools.lru_cache(maxsize=None)
+def _gs_resolved(prefix, alpha, one_sided, grid):
+    """the recursion state after `prefix`, its continuation density computed (memoized, so
+    every extension of a prefix — (t1), (t1, t2), (t1, t2, 1) … — shares it)"""
+    st = _gs_state(prefix, alpha, one_sided, grid)
+    if st[4] is None:
+        return st
+    return (st[0], st[1], st[2], _density(st[3], st[4][0], st[4][1], st[4][2], one_sided, grid), None)
+
+
+@functools.lru_cache(maxsize=None)
+def _gs_state(prefix, alpha, one_sided, grid):
+    if not prefix:
+        return ((), 0.0, 0.0, None, None)
+    return _advance(_gs_resolved(prefix[:-1], alpha, one_sided, grid), prefix[-1], alpha, one_sided)
+
+
+def _gs_cached(fractions, alpha, one_sided, grid):
+    """boundaries for a fraction tuple (round 2: unbounded memo with shared prefix states; the
+    arithmetic is the round-1 recursion unchanged, so every output is identical)"""
+    return _gs_state(fractions, alpha, one_sided, grid)[0]
 
 
 def gs_boundaries(fractions, alpha=0.05, constant=1.0, one_sided=False, grid=2000):

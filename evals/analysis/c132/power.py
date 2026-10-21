@@ -9,6 +9,7 @@ Usage:
       [--mde 0.10] [--exclusion 0.05] [--partial-prob 0.10] [--se-method bootstrap|linear]
       [--se-boot 200] [--no-sensitivities] [--interval t|percentile]
       [--validity c132|c131]   (the profiles' validity rules, as reads-c132.py --validity)
+      [--quiet]                (no progress lines on stderr; outputs are unaffected)
 
 Model (sdd.md §5.3, D-5.3, D-7.7; prd.md FR-6, D18):
   * Rows → cells (common.py: the decision statistic's missed set, the validity filter). Profiles:
@@ -394,9 +395,20 @@ def calibrate(null_results, se_plan, mde, n_looks, interval="t"):
     c = 1.0
     while c < 3.0:
         if evaluate(null_results, se_plan, c, mde, n_looks, interval)["yes"] <= 0.05:
+            progress("calibrated constant %.2f" % c)
             return round(c, 2)
         c = round(c + 0.01, 2)
     return 3.0
+
+
+def progress(msg):
+    """a progress line on stderr (round 2; never in the outputs)"""
+    if not QUIET:
+        sys.stderr.write("power: %s\n" % msg)
+        sys.stderr.flush()
+
+
+QUIET = False
 
 
 def simulate_n(model, n, mde, studies, seed, r, partial_prob, se_method, se_boot, tag):
@@ -405,6 +417,7 @@ def simulate_n(model, n, mde, studies, seed, r, partial_prob, se_method, se_boot
         sol = model.solve_delta(target, "%s:%s:%s" % (seed, tag, name))
         rng = random.Random("%s:%s:%d:%s" % (seed, tag, n, name))
         res = [study(model, rng, n, sol["delta_logit"], r, partial_prob, se_method, se_boot) for _ in range(studies)]
+        progress("simulated %s N=%d Δ=%s (%d studies)" % (tag, n, name, studies))
         out[name] = {"solve": sol, "results": res}
     finals = sorted(x[0][-1][1] for x in out["mde"]["results"] if x[0][-1][1])
     se_plan = stats.quantile(finals, 0.5) if finals else None
@@ -742,6 +755,7 @@ def parse(argv):
     ap.add_argument("--no-sensitivities", action="store_true")
     ap.add_argument("--interval", choices=("t", "percentile"), default="t")
     ap.add_argument("--validity", choices=common.VALIDITY_RULES, default="c132")
+    ap.add_argument("--quiet", action="store_true", help="no progress lines on stderr")
     a = ap.parse_args(argv)
     try:
         a.grid = [int(x) for x in a.grid.split(",") if x.strip()]
@@ -757,6 +771,8 @@ def main(argv=None):
         a = parse(sys.argv[1:] if argv is None else argv)
     except SystemExit as e:
         return 2 if e.code else 0
+    global QUIET
+    QUIET = a.quiet
     try:
         doc = run(a)
     except InputError as e:

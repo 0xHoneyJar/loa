@@ -166,6 +166,21 @@ class InputValidationTest(Base):
         self.assertEqual(run(["--rows", "x", "--inputs", "i", "--placebo", "--out", "y", "--name", "../z"])[0], 2)
 
 
+class ExactDollarPm3Test(unittest.TestCase):
+    def test_trim_reads_detected_pm3(self):
+        row = {"batch": "b", "arm": "a0_bare_matched", "task_id": "t", "trial": 1, "status": "completed",
+               "defects_seeded": 3, "defects_missed_pm3": ["d3"], "bare_sessions": 2, "sessions_valid": 2, "cost_usd": 4.0}
+        g = {"per_session": [{"session": "s1", "detected": ["d1", "d2"], "detected_pm3": ["d1"], "cost_usd": 2.0},
+                             {"session": "s2", "detected": ["d2"], "detected_pm3": ["d2"], "cost_usd": 2.0}]}
+        cb = common.build_cell(row, g)
+        p = {"pr": "t", "trial": 1, "full": {"caught": 3, "defects": 3, "cost": 2.0, "key": "f"},
+             "matched": {"caught": 2, "defects": 3, "cost": 4.0, "key": cb["key"]}}
+        out, missing = reads.exact_dollar_pairs([p], {cb["key"]: cb})
+        self.assertEqual(missing, 0)
+        self.assertEqual(out[0]["matched"]["caught"], 1)      # s1 only fits the full cell's USD 2, pm3 = {d1}
+        self.assertEqual(out[0]["matched"]["m"], 1)
+
+
 class Round1OptionsTest(Base):
     def read(self, s, *extra):
         o = os.path.join(self.tmp, "o")
@@ -238,6 +253,36 @@ class ValidityTest(unittest.TestCase):
         m = dict(arm="a0_bare_matched", bare_sessions=5, phases=[{"refusal_fallbacks": ["x"]}])
         self.assertTrue(self.cell(sessions_valid=3, **m)["valid"])
         self.assertIn("sessions_valid<ceil(k/2)", self.cell(sessions_valid=2, **m)["reasons"])
+
+    def test_labels_meta_defect_key(self):
+        # grader 1.3.2 writes {defect: "d<n>", …}; `id` and the position remain fallbacks
+        ids = ["d1", "d2", "d3"]
+        g = {"labels_meta": [{"defect": "d3", "review_driven": False}, {"id": "d1", "review_driven": True},
+                             {"review_driven": True}]}
+        m = common.labels_meta_map(g, ids)
+        self.assertEqual(m["d3"]["review_driven"], False)
+        self.assertEqual(m["d1"]["review_driven"], True)
+        self.assertIn("d3", m)
+        self.assertEqual(sorted(m), ["d1", "d3"])          # the third entry falls back to position d3: already taken
+        self.assertEqual(common.labels_meta_map({"labels_meta": [{"x": 1}, {"x": 2}]}, ids), {"d1": {"x": 1}, "d2": {"x": 2}})
+
+    def test_session1_prefers_detected_pm3(self):
+        row = {"batch": "b", "arm": "a0_bare_matched", "task_id": "t", "trial": 1, "status": "completed",
+               "defects_seeded": 4, "defects_missed_pm3": ["d4"], "bare_sessions": 2, "sessions_valid": 2}
+        both = {"per_session": [{"session": "s1", "detected": ["d1", "d2", "d3"], "detected_pm3": ["d1"],
+                                 "cost_usd": 2.5, "status": "completed"}]}
+        c = common.build_cell(row, both)
+        self.assertEqual(c["session1"], {"caught": 1, "cost": 2.5})
+        plain = {"per_session": [{"session": "s1", "detected": ["d1", "d2"], "cost_usd": 2.5, "status": "completed"}]}
+        self.assertEqual(common.build_cell(row, plain)["session1"]["caught"], 2)
+        self.assertEqual(common.session_detected({"detected_pm3": [], "detected": ["d1"]}), [])
+
+    def test_took_effect_shapes(self):
+        # implementer C's row field: {rule: bool, …} | null
+        self.assertTrue(self.cell(took_effect=None)["valid"])
+        self.assertEqual(self.cell(took_effect=None)["took_effect"], "not_recorded")
+        self.assertTrue(self.cell(took_effect={"a": True, "b": True})["valid"])
+        self.assertFalse(self.cell(took_effect={"a": True, "b": False})["valid"])
 
     def test_statistic_source_order(self):
         c = common.build_cell({"batch": "b", "arm": "a", "task_id": "t", "trial": 1, "status": "completed",

@@ -73,6 +73,20 @@ class OBFBoundaryTest(unittest.TestCase):
         b = stats.gs_boundaries([0.5, 0.5, 1.0], alpha=0.05)
         self.assertTrue(math.isinf(b[1]))
 
+    def test_prefix_cache_is_order_independent(self):
+        # round 2: memoized prefix states give the same boundaries as a fresh recursion
+        stats._gs_state.cache_clear()
+        stats._gs_resolved.cache_clear()
+        fresh = stats.gs_boundaries([0.37, 0.71, 1.0], alpha=0.05, grid=400)
+        stats._gs_state.cache_clear()
+        stats._gs_resolved.cache_clear()
+        stats.gs_boundaries([0.37], alpha=0.05, grid=400)
+        stats.gs_boundaries([0.37, 0.71], alpha=0.05, grid=400)
+        stats.gs_boundaries([0.37, 0.52, 1.0], alpha=0.05, grid=400)
+        self.assertEqual(stats.gs_boundaries([0.37, 0.71, 1.0], alpha=0.05, grid=400), fresh)
+        # the published values hold through the cache
+        self.assertAlmostEqual(stats.gs_boundaries([1 / 3, 2 / 3, 1.0])[1], 2.511, delta=0.01)
+
     def test_tiny_first_fraction(self):
         # α*(0.01) underflows 1 − α/2 in double precision: the boundary is still finite and huge
         b = stats.gs_boundaries([0.01, 1.0], alpha=0.05)

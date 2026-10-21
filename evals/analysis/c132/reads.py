@@ -442,7 +442,7 @@ def exact_dollar_pairs(pairs, cells_by_key):
                 break
             spent += cost
             m += 1
-            got |= set(s.get("detected") or [])
+            got |= set(common.session_detected(s) or [])
         got &= set(cb["defect_ids"])
         out.append({"pr": p["pr"], "trial": p["trial"], "full": p["full"],
                     "matched": {"caught": len(got), "defects": p["matched"]["defects"], "cost": spent, "m": m}})
