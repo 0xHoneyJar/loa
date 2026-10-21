@@ -21,12 +21,19 @@
 #                      status is not "completed"
 #   --dry-run          Preview without creating archive or touching the ledger
 #   --help             Show this help
+#   Any other option is an error (exit 1, usage on stderr).
 #
 # Behaviour (bug 20261021-ba367a, issue #1263):
 #   - Completeness gate: a cycle with any sprint not "completed" is refused
 #     (exit 1, nothing written) unless --force; checked before any write.
 #   - The cycle's ledger entry needs ledger-lib.sh next to this script; when
 #     it is missing the run is refused (exit 1) before anything is written.
+#   - A ledger cycle id must be a plain slug (^cycle-N(-[A-Za-z0-9._-]+)?$,
+#     no "..") or the run is refused. The archive directory is created with
+#     a non -p mkdir: an existing archive directory is refused (exit 1),
+#     never overwritten. This, not a lock held across the run, is what stops
+#     two concurrent runs from writing the same archive; the ledger write
+#     itself is locked.
 #   - After a real archive, the live ledger gets, under the ledger-lib.sh
 #     lock and through _write_ledger: the cycle's status "archived",
 #     archived (RFC 3339 UTC), archive_path (relative to the repo root), and
@@ -35,11 +42,13 @@
 #   - Retention never deletes a directory holding a git-tracked file: it is
 #     kept with "[WARN] tracked archive kept: <path>; prune it with git".
 #     A yq failure reading the retention key WARNs and keeps all archives.
-#     Outside a git work tree (or without git) the mtime rule alone applies.
+#     Outside a git work tree (or without git) the mtime rule alone applies;
+#     any other git failure (e.g. dubious ownership) keeps every archive.
 #
 # Exit codes:
 #   0  success (including dry-run)
-#   1  invalid argument, no safe default cycle (every cycle archived, or the
+#   1  invalid or unknown argument, unsafe ledger cycle id, archive
+#      directory already exists, no safe default cycle (every cycle archived, or the
 #      newest archived with an older one open; no --cycle), incomplete cycle
 #      without --force, unreadable ledger, ledger-lib.sh missing, or ledger
 #      update failure (the archive directory then exists)
@@ -62,7 +71,7 @@ FORCE=false
 
 usage() {
   sed -n '/^# Usage:/,/^# =====/p' "$0" | grep -v "^# =====" | sed -e 's/^# //' -e 's/^#$//'
-  exit 0
+  exit "${1:-0}"
 }
 
 parse_args() {
@@ -93,7 +102,11 @@ parse_args() {
       --dry-run) DRY_RUN=true; shift ;;
       --force) FORCE=true; shift ;;
       --help|-h) usage ;;
-      *) shift ;;
+      *)
+        # bug 20261021-ba367a: a typo (--dryrun) must not run a real archive
+        echo "ERROR: unknown option: $1" >&2
+        usage 1 >&2
+        ;;
     esac
   done
 }
@@ -257,6 +270,18 @@ _update_ledger_archived() {
   )
 }
 
+# Print the archive path relative to the repo root when its real path is under
+# the real root; else print the given absolute path and WARN.
+# Args: real archive path, real repo root, archive path as computed.
+_archive_rel_path() {
+  if [[ "$1" == "$2"/* ]]; then
+    echo "${1#"$2"/}"
+  else
+    echo "[WARN] archive path is outside the repo root; the ledger records it absolute: $3" >&2
+    echo "$3"
+  fi
+}
+
 create_archive() {
   local cycle
   if [[ -n "$CYCLE_NUM" ]]; then
@@ -274,6 +299,12 @@ create_archive() {
   # cycle-104 Sprint 1 T1.1: resolve cycle id + per-cycle-subdir source
   local cycle_id artifact_root archive_path
   cycle_id=$(_resolve_cycle_id "$cycle")
+  # bug 20261021-ba367a: the id becomes a path component; refuse anything but
+  # a plain slug (no "/", no "..") before it is used for any path.
+  if [[ -n "$cycle_id" ]] && { [[ ! "$cycle_id" =~ ^cycle-[0-9]+(-[A-Za-z0-9._-]+)?$ ]] || [[ "$cycle_id" == *..* ]]; }; then
+    echo "ERROR: ledger cycle id is not a safe slug: ${cycle_id}; refusing to archive" >&2
+    exit 1
+  fi
   artifact_root=$(_resolve_cycle_artifact_root "$cycle_id")
 
   # Archive dest preserves slug for modern cycles, falls back to numeric for legacy
@@ -283,17 +314,12 @@ create_archive() {
     archive_path="${ARCHIVE_DIR}/cycle-${cycle}"
   fi
   # Relative to the repo root, compared on pwd -P-resolved paths; an archive
-  # outside the root keeps its absolute path.
-  local root_real archive_dir_real real_archive_path rel_archive_path
+  # outside the root keeps its absolute path. The dry run resolves the
+  # would-be path; a real run re-resolves the directory it actually created.
+  local root_real archive_dir_real rel_archive_path
   root_real=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P) || root_real="$PROJECT_ROOT"
   archive_dir_real=$(cd "$ARCHIVE_DIR" 2>/dev/null && pwd -P) || archive_dir_real="$ARCHIVE_DIR"
-  real_archive_path="${archive_dir_real}/${archive_path##*/}"
-  if [[ "$real_archive_path" == "$root_real"/* ]]; then
-    rel_archive_path="${real_archive_path#"$root_real"/}"
-  else
-    rel_archive_path="$archive_path"
-    echo "[WARN] archive path is outside the repo root; the ledger records it absolute: $archive_path" >&2
-  fi
+  rel_archive_path=$(_archive_rel_path "${archive_dir_real}/${archive_path##*/}" "$root_real" "$archive_path")
 
   # bug 20261021-ba367a: completeness gate, before anything is written
   local incomplete
@@ -304,6 +330,9 @@ create_archive() {
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY-RUN] Would create archive at: $archive_path"
+    if [[ -e "$archive_path" ]] || [[ -L "$archive_path" ]]; then
+      echo "[DRY-RUN] Archive already exists; a real run would refuse (exit 1)"
+    fi
     echo "[DRY-RUN] Cycle id: ${cycle_id:-(not found in ledger; using legacy fallback)}"
     if [[ "$incomplete" -gt 0 ]]; then
       if [[ "$FORCE" == "true" ]]; then
@@ -349,7 +378,26 @@ create_archive() {
     exit 1
   fi
 
-  mkdir -p "$archive_path"
+  # Fail closed on an existing archive: create the parent with -p, the
+  # archive itself without, so a second run (or a concurrent one) can never
+  # copy over an earlier archive.
+  mkdir -p "$ARCHIVE_DIR"
+  if ! mkdir "$archive_path" 2>/dev/null; then
+    if [[ -e "$archive_path" ]] || [[ -L "$archive_path" ]]; then
+      echo "ERROR: archive already exists: $archive_path; remove it (git rm if tracked) or pass another --cycle" >&2
+    else
+      echo "ERROR: cannot create archive directory: $archive_path" >&2
+    fi
+    exit 1
+  fi
+  local created_real
+  archive_dir_real=$(cd "$ARCHIVE_DIR" && pwd -P)
+  if ! created_real=$(cd "$archive_path" && pwd -P) || [[ "$created_real" != "$archive_dir_real/${archive_path##*/}" ]]; then
+    rmdir "$archive_path" 2>/dev/null || true
+    echo "ERROR: archive directory resolves outside ${ARCHIVE_DIR}: $archive_path; refusing" >&2
+    exit 1
+  fi
+  rel_archive_path=$(_archive_rel_path "$created_real" "$root_real" "$archive_path")
 
   # Copy artifacts from per-cycle subdir (modern) or grimoire root (legacy)
   [[ -f "${artifact_root}/prd.md" ]] && cp "${artifact_root}/prd.md" "$archive_path/"
@@ -464,10 +512,23 @@ cleanup_old_archives() {
   # bug 20261021-ba367a: never delete git-tracked history. Inside a git work
   # tree, candidates holding a tracked file are kept with a WARN; outside one
   # (or without git) the mtime rule alone applies, as before.
+  # Only "git absent" or "not a git repository" fall back to the mtime rule;
+  # any other git failure (dubious ownership, corrupt .git, ...) keeps all.
   local in_git=false
-  if command -v git >/dev/null 2>&1 && \
-     git -C "$ARCHIVE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    in_git=true
+  if command -v git >/dev/null 2>&1; then
+    local git_out git_rc=0
+    git_out=$(git -C "$ARCHIVE_DIR" rev-parse --is-inside-work-tree 2>&1) || git_rc=$?
+    if [[ "$git_rc" -eq 0 ]] && [[ "$git_out" == "true" ]]; then
+      in_git=true
+    elif [[ "$git_rc" -eq 128 ]] && [[ "$git_out" == *"not a git repository"* ]]; then
+      in_git=false
+    else
+      echo "[WARN] git could not report whether ${ARCHIVE_DIR} is tracked (${git_out%%$'\n'*}); keeping every archive" >&2
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "[DRY-RUN] Nothing to delete (git state unknown)"
+      fi
+      return 0
+    fi
   fi
   local candidates=() kept=() cand
   candidates=(${archives[@]+"${archives[@]}"})

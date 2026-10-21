@@ -225,3 +225,68 @@ _set_ledger() {
     [ ! -d grimoires/loa/archive/cycle-120-active ]
     cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
 }
+
+@test "ACL-11: a ledger cycle id with a traversal component is refused before anything is written" {
+    # Matches ^cycle-0*140(-|$) but would resolve to grimoires/escape.
+    _set_ledger '.cycles += [{"id": "cycle-140-../../../../escape", "status": "active",
+                              "sprints": [{"global_id": 400, "status": "completed"}]}]'
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+
+    run "$SCRIPT" --cycle 140 --retention 0
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: ledger cycle id is not a safe slug"* ]]
+    [ ! -e grimoires/escape ]
+    [ -z "$(ls -A grimoires/loa/archive)" ]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
+
+    run "$SCRIPT" --cycle 140 --dry-run
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: ledger cycle id is not a safe slug"* ]]
+}
+
+@test "ACL-12: a git failure other than 'not a work tree' keeps every archive (fail safe)" {
+    _seed_archives
+    _age_archives
+    # Stub git: --is-inside-work-tree fails like a dubious-ownership repo; all else is real git.
+    local stub="$BATS_TEST_TMPDIR/stubbin" real_git
+    real_git="$(command -v git)"
+    mkdir -p "$stub"
+    printf '#!/usr/bin/env bash\ncase " $* " in *" --is-inside-work-tree "*) echo "fatal: detected dubious ownership in repository at %s" >&2; exit 128;; esac\nexec %s "$@"\n' "'$WORKDIR'" "$real_git" > "$stub/git"
+    chmod +x "$stub/git"
+
+    run env PATH="$stub:$PATH" "$SCRIPT" --cycle 131 --retention 2 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[WARN] git could not report whether"*"keeping every archive"* ]]
+    if _listed_for_deletion 0; then false; fi
+    [[ "$output" != *"Would delete"* ]]
+
+    run env PATH="$stub:$PATH" "$SCRIPT" --cycle 131 --retention 2
+    [ "$status" -eq 0 ]
+    local i
+    for i in 0 1 2 3 4 5 6 7 8 9; do
+        [ -d "grimoires/loa/archive/cycle-test-${i}" ]
+    done
+}
+
+@test "ACL-13: an unknown option exits 1 with usage and writes nothing" {
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+    run "$SCRIPT" --dryrun
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: unknown option: --dryrun"* ]]
+    [[ "$output" == *"Usage:"* ]]
+    [ -z "$(ls -A grimoires/loa/archive)" ]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
+}
+
+@test "ACL-14: an existing archive directory is refused, never overwritten (fail closed)" {
+    mkdir -p grimoires/loa/archive/cycle-120-active
+    echo "earlier archive" > grimoires/loa/archive/cycle-120-active/prd.md
+    cp grimoires/loa/ledger.json "$BATS_TEST_TMPDIR/ledger.before"
+
+    run "$SCRIPT" --cycle 120 --retention 0
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ERROR: archive already exists: "*"/grimoires/loa/archive/cycle-120-active"* ]]
+    [ "$(cat grimoires/loa/archive/cycle-120-active/prd.md)" = "earlier archive" ]
+    [ ! -f grimoires/loa/archive/cycle-120-active/ledger.json ]
+    cmp -s "$BATS_TEST_TMPDIR/ledger.before" grimoires/loa/ledger.json
+}
