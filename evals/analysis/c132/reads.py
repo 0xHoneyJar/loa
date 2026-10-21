@@ -5,6 +5,7 @@ Usage:
                 [--registration REGISTRATION.json] (--look N | --final | --placebo) --out DIR
                 [--power power.json] [--sensitivity-grades DIR] [--judge DIR]
                 [--arm-a ARM] [--arm-b ARM] [--seed N] [--name STEM] [--placebo-n 200]
+                [--interval t|percentile] [--validity c132|c131]
   reads-c132.py --rows F --results-root DIR … --make-inputs --out DIR
                 [--pin SHA] [--label-set v2] [--planned FILE] [--suite-root DIR …]
 
@@ -25,9 +26,17 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                void), missingness with the two bounds, the 25 % guard), then the sensitivities in the
                registration's order.
   --placebo    200 seeded within-PR arm-label shuffles through the primary read (1,000 resamples
-               each): pass when ≤ 8 % of the 95 % intervals exclude 0 and the mean |Δ| < 0.03.
+               each): pass when |mean Δ| < 0.03 (bias) and ≤ 8 % of the 95 % intervals exclude 0
+               (calibration); mean |Δ| and the other interval's share are diagnostics (round 1).
                --registration is optional here (the Phase 0 placebo precedes it; the output says
                "unregistered"); --arm-a/--arm-b pick the contrast (default a1_full, a0_bare_matched).
+  --interval t (default; round 1) the primary 95 % / 90 % intervals are the cluster-t intervals
+               Δ̂ ± t_{P−1, 0.975 | 0.95}·SE_boot and the group-sequential boundaries move to the t
+               scale (same upper-tail mass, df = valid PRs − 1) for the crossing rule and the RCI; the
+               percentile interval is printed beside as a diagnostic. `percentile` swaps the roles
+               (normal-scale boundaries). Conditional power stays on the normal Brownian model.
+  --validity c132 (default; sdd.md §5.2) or c131 (no oracle_exposed clause — the Phase 0 placebo
+               on the 63 existing rows, whose cycle-130 a1_full runs all ran under the open mount)
   --sensitivity-grades DIR  re-grades for the label-set sensitivities:
                DIR/<c131|v1>/<batch>/<arm>/<task>-t<n>/grade.json (absent → "not_provided")
   --judge DIR  the judge's result.json (judge_agree.py): judge-corrected figures and the
@@ -71,6 +80,8 @@ DEFAULT_SENSITIVITIES = [
     "degraded_contaminated_excluded", "pr_weighted", "matched_fable_contrast",
 ]
 BOOT = 10000
+INTERVAL = "t"          # --interval (round 1: cluster-t primary, percentile beside)
+VALIDITY = "c132"       # --validity
 PLACEBO_N, PLACEBO_BOOT = 200, 1000
 DOLLAR_TOL = 0.25
 GUARD = 0.25
@@ -129,11 +140,12 @@ def iv(pair):
 def primary_read(pairs, seed, n=BOOT, min_prs=MIN_PRS):
     if not pairs:
         return {"status": "no_valid_pairs", "n_prs": 0, "n_pairs": 0}
-    b = stats.cluster_bootstrap(pairs, n=n, seed=seed)
+    b = stats.cluster_bootstrap(pairs, n=n, seed=seed, interval=INTERVAL)
     if b["n_prs"] < min_prs:
         return {"status": "too_few_prs", "n_prs": b["n_prs"], "n_pairs": b["n_pairs"],
                 "n_defects": b["n_defects"], "min_prs": min_prs}
-    keep = ("status", "delta", "se", "ci95", "ci90", "ci95_t", "n_prs", "n_pairs", "n_defects",
+    keep = ("status", "delta", "se", "ci95", "ci90", "ci95_t", "ci90_t", "ci95_percentile", "ci90_percentile",
+            "interval", "df", "n_prs", "n_pairs", "n_defects",
             "caught_full", "caught_matched", "recall_full", "recall_matched", "resamples", "pr_weighted")
     out = {k: b[k] for k in keep if k in b}
     if b["status"] == "zero_se":
@@ -183,7 +195,7 @@ def look_table(cells, reg, upto, seed, planned_se, arm_a=PRIMARY_A, arm_b=PRIMAR
             rows.append(rec)
             ts.append(ts[-1] if ts else 0.0)
             continue
-        b = stats.cluster_bootstrap(pairs, n=n, seed=seed)
+        b = stats.cluster_bootstrap(pairs, n=n, seed=seed, interval=INTERVAL)
         rec.update(delta=b["delta"], se=b["se"])
         if b["se"] <= 0:
             rec.update(status="zero_se", decision="CONTINUE", reason="zero SE")
@@ -203,8 +215,13 @@ def look_table(cells, reg, upto, seed, planned_se, arm_a=PRIMARY_A, arm_b=PRIMAR
         if "t" not in rec:
             continue
         fr = ts[:j]
-        b_yes = stats.gs_boundaries(fr, alpha=0.05, constant=c)[-1]
-        b_no = stats.gs_boundaries(fr, alpha=0.025, constant=c, one_sided=True)[-1]
+        b_yes_z = stats.gs_boundaries(fr, alpha=0.05, constant=c)[-1]
+        b_no_z = stats.gs_boundaries(fr, alpha=0.025, constant=c, one_sided=True)[-1]
+        # --interval t: the boundaries move to the cluster-t scale with df = valid PRs − 1 (the
+        # same upper-tail mass), so the crossing rule and the RCI match the primary interval
+        df = max(rec["n_prs"] - 1, 1)
+        b_yes = stats.t_boundary(b_yes_z, df) if INTERVAL == "t" else b_yes_z
+        b_no = stats.t_boundary(b_no_z, df) if INTERVAL == "t" else b_no_z
         fr_final = fr if fr[-1] >= 1.0 else fr + [1.0]
         b_yes_f = stats.gs_boundaries(fr_final, alpha=0.05, constant=c)[-1]
         b_no_f = stats.gs_boundaries(fr_final, alpha=0.025, constant=c, one_sided=True)[-1]
@@ -214,6 +231,7 @@ def look_table(cells, reg, upto, seed, planned_se, arm_a=PRIMARY_A, arm_b=PRIMAR
         cp_no = stats.conditional_power(z_no, rec["t"], b_no_f)
         lo, hi = stats.rci(rec["delta"], rec["se"], b_yes) if not math.isinf(b_yes) else (None, None)
         rec.update(z_yes=z_yes, b_yes=b_yes, z_no=z_no, b_no=b_no, cp_yes=cp_yes, cp_no=cp_no,
+                   b_yes_normal=b_yes_z, b_no_normal=b_no_z, df=df, interval=INTERVAL,
                    rci=[lo, hi], b_yes_final=b_yes_f, b_no_final=b_no_f, status="ok")
         if rec["n_prs"] < MIN_PRS or rec["n_defects"] < MIN_DEFECTS:
             rec["decision"] = "CONTINUE"
@@ -257,7 +275,7 @@ def positive_control(cells, reg, seed):
     if not pairs:
         out.update(status="no_valid_pairs", outcome="control not exercised" if not exposed else "inconclusive")
         return out
-    b = stats.cluster_bootstrap(pairs, n=BOOT, seed=seed)
+    b = stats.cluster_bootstrap(pairs, n=BOOT, seed=seed, interval=INTERVAL)
     out.update(status="ok", delta=b["delta"], ci90=b["ci90"], se=b["se"], n_prs=b["n_prs"])
     if not exposed:
         out["outcome"] = "control not exercised"
@@ -398,7 +416,7 @@ def regrade_cells(cells, grades_dir, label):
             g = common.load_json(p, "sensitivity grade")
         row = {k: v for k, v in c["row"].items()
                if k not in ("defects_seeded", "defects_missed", "defects_missed_pm3", "defects_caught")}
-        nc = common.build_cell(row, g, c["run_dir"], p if g else None)
+        nc = common.build_cell(row, g, c["run_dir"], p if g else None, VALIDITY)
         nc["pair_trial"] = c["pair_trial"]
         out.append(nc)
     return out
@@ -587,26 +605,29 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
 def md_primary(title, r):
     if r.get("status") not in ("ok",):
         return "| %s | status `%s` | PRs %s |\n" % (title, r.get("status"), r.get("n_prs", "—"))
-    return "| %s | Δ %s | 95 %% %s | 90 %% %s | SE %s | PRs %d, pairs %d, defects %d |\n" % (
-        title, f4(r["delta"]), iv(r["ci95"]), iv(r["ci90"]), f4(r["se"]), r["n_prs"], r["n_pairs"], r["n_defects"])
+    alt = "percentile" if r.get("interval", "t") == "t" else "t"
+    return "| %s | Δ %s | 95 %% %s | 90 %% %s | SE %s | PRs %d, pairs %d, defects %d | diag 95 %% %s %s |\n" % (
+        title, f4(r["delta"]), iv(r["ci95"]), iv(r["ci90"]), f4(r["se"]), r["n_prs"], r["n_pairs"], r["n_defects"],
+        alt, iv(r.get("ci95_" + alt)))
 
 
 def render_md(doc):
     L = ["# cycle-132 reads — mode `%s`\n" % doc["mode"], "\n"]
     inp = doc["inputs"]
-    L.append("Inputs: rows sha256 `%s`; grades sha256 `%s`; INPUTS.json sha256 `%s`; registration `%s`; seed %d.\n\n"
+    L.append("Inputs: rows sha256 `%s`; grades sha256 `%s`; INPUTS.json sha256 `%s`; registration `%s`; seed %d; "
+             "interval %s; validity rules %s.\n\n"
              % (inp["rows_sha256"], inp["grades_sha256"], inp["inputs_sha256"], inp.get("registration_sha256") or "unregistered",
-                doc["seed"]))
+                doc["seed"], doc["interval"], doc["validity"]))
     if doc["mode"] == "placebo":
         p = doc["placebo"]
         L.append("Contrast `%s` − `%s`; %s.\n\n" % (doc["arm_a"], doc["arm_b"], "PASS" if p.get("pass") else "FAIL"))
-        L.append("| shuffles | resamples | share of 95 % intervals excluding 0 | mean abs Δ | mean Δ | Δ q05 / q50 / q95 | band |\n|---|---|---|---|---|---|---|\n")
+        L.append("Pass rule: |mean Δ| < 0.03 (bias) and ≤ 0.08 of the 95 %% %s intervals exclude 0 (calibration).\n\n" % doc["interval"])
+        L.append("| shuffles | resamples | share excluding 0 | mean Δ | Δ q05 / q50 / q95 | diag: mean abs Δ | diag: share (t) | diag: share (percentile) |\n|---|---|---|---|---|---|---|---|\n")
         if p.get("status") == "ok":
-            L.append("| %d | %d | %s | %s | %s | %s / %s / %s | ≤ 0.08 and < 0.03 |\n\n" % (
-                p["n"], p["boot"], f4(p["share_excluding_zero"]), f4(p["mean_abs_delta"]), f4(p["mean_delta"]),
-                f4(p["delta_q05"]), f4(p["delta_q50"]), f4(p["delta_q95"])))
-            L.append("Diagnostic (not pre-registered): share excluding 0 under Δ ± t(P−1)·SE·√(P/(P−1)) = %s.\n\n"
-                     % f4(p["diagnostic_share_excluding_zero_t"]))
+            L.append("| %d | %d | %s | %s | %s / %s / %s | %s | %s | %s |\n\n" % (
+                p["n"], p["boot"], f4(p["share_excluding_zero"]), f4(p["mean_delta"]), f4(p["delta_q05"]), f4(p["delta_q50"]),
+                f4(p["delta_q95"]), f4(p["diagnostic_mean_abs_delta"]), f4(p["diagnostic_share_excluding_zero_t"]),
+                f4(p["diagnostic_share_excluding_zero_percentile"])))
         else:
             L.append("| status `%s` |\n\n" % p.get("status"))
         L.append("Primary read on the unshuffled pairs (descriptive):\n\n")
@@ -769,6 +790,8 @@ def parse(argv):
     ap.add_argument("--planned")
     ap.add_argument("--suite-root", action="append", default=[])
     ap.add_argument("--placebo-n", type=int, default=PLACEBO_N)
+    ap.add_argument("--interval", choices=("t", "percentile"), default="t")
+    ap.add_argument("--validity", choices=common.VALIDITY_RULES, default="c132")
     a = ap.parse_args(argv)
     if not re.match(r"^[A-Za-z0-9._-]+$", a.name):
         ap.error("--name must be a bare file stem")
@@ -784,9 +807,11 @@ def main(argv=None):
         a = parse(sys.argv[1:] if argv is None else argv)
     except SystemExit as e:
         return 2 if e.code else 0
+    global INTERVAL, VALIDITY
+    INTERVAL, VALIDITY = a.interval, a.validity
     try:
         rows = common.load_rows(a.rows)
-        cells = common.load_cells(rows, a.results_root)
+        cells = common.load_cells(rows, a.results_root, VALIDITY)
         if a.make_inputs:
             planned = None
             if a.planned:
@@ -809,11 +834,11 @@ def main(argv=None):
         doc = {"inputs": {"rows_sha256": common.sha256_file(a.rows), "grades_sha256": _grades_sha(cells),
                           "inputs_sha256": common.sha256_file(a.inputs), "registration_sha256": reg_sha,
                           "n_rows": len(rows)},
-               "seed": seed}
+               "seed": seed, "interval": INTERVAL, "validity": VALIDITY}
         if a.placebo:
             pairs, lost = common.make_pairs(cells, a.arm_a, a.arm_b)
             doc.update(mode="placebo", arm_a=a.arm_a, arm_b=a.arm_b, pairs_lost=len(lost),
-                       placebo=stats.placebo(pairs, seed=seed, n=a.placebo_n, boot=PLACEBO_BOOT),
+                       placebo=stats.placebo(pairs, seed=seed, n=a.placebo_n, boot=PLACEBO_BOOT, interval=INTERVAL),
                        unshuffled=primary_read(pairs, seed))
         else:
             planned_se = _planned_se(reg, a.registration, a.power)

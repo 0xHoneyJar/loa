@@ -16,7 +16,7 @@ the run directory is found under a results root) and the derived fields
     matched        a row with an integer bare_sessions k ≥ 2 (row writer 1.5)
     valid, reasons the validity filter below
 
-Validity (sdd.md §5.2): status completed; every took-effect rule true (row `took_effect`:
+Validity (sdd.md §5.2; rules "c132", or "c131" without the oracle_exposed clause): status completed; every took-effect rule true (row `took_effect`:
 "pass"/true/{rule: true…}; absent = not recorded, counted); contaminated null on the row and the
 grade; oracle_exposed_defects empty except on a1_full_openmount; no refusal_fallbacks in any
 phase of a non-matched cell; a matched cell needs sessions_valid ≥ ⌈k/2⌉ (D-7.3).
@@ -157,7 +157,10 @@ def labels_meta_map(grade, defect_ids):
     return out
 
 
-def build_cell(row, grade, run_dir=None, grade_path=None):
+VALIDITY_RULES = ("c132", "c131")
+
+
+def build_cell(row, grade, run_dir=None, grade_path=None, rules="c132"):
     n = _n_defects(row, grade)
     missed, src = _missed(row, grade)
     ids = ["d%d" % i for i in range(1, n + 1)] if n is not None else []
@@ -180,12 +183,17 @@ def build_cell(row, grade, run_dir=None, grade_path=None):
         "per_session": (grade or {}).get("per_session") if matched else None,
         "labels_meta": labels_meta_map(grade, ids),
     }
-    c["valid"], c["reasons"], c["took_effect"] = validity(c)
+    c["valid"], c["reasons"], c["took_effect"] = validity(c, rules)
     c["session1"] = session1(c)
     return c
 
 
-def validity(c):
+def validity(c, rules="c132"):
+    """rules "c132" (sdd.md §5.2) or "c131" (round 1: the cycle-131 rules for the Phase 0 placebo
+    on the 63 existing rows — no oracle_exposed filter, since every cycle-130 a1_full ran under
+    the open mount; every other clause unchanged)"""
+    if rules not in VALIDITY_RULES:
+        raise ValueError("validity rules must be c132 or c131")
     row, grade = c["row"], c["grade"] or {}
     reasons = []
     if row.get("status") != "completed":
@@ -195,7 +203,7 @@ def validity(c):
         reasons.append("took_effect")
     if row.get("contaminated") is not None or grade.get("contaminated") is not None:
         reasons.append("contaminated")
-    if c["arm"] not in OPEN_MOUNT_ARMS:
+    if c["arm"] not in OPEN_MOUNT_ARMS and rules == "c132":
         ox = row.get("oracle_exposed_defects")
         if ox is None:
             ox = grade.get("oracle_exposed_defects")
@@ -252,12 +260,12 @@ def session1(c):
     return {"caught": caught, "cost": cost}
 
 
-def load_cells(rows, results_roots):
+def load_cells(rows, results_roots, rules="c132"):
     cells = []
     for r in rows:
         rd = run_dir_for(r, results_roots)
         g, gp = load_grade(rd)
-        cells.append(build_cell(r, g, rd, gp))
+        cells.append(build_cell(r, g, rd, gp, rules))
     assign_pair_trials(cells)
     return cells
 

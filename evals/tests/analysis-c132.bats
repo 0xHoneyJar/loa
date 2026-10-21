@@ -29,7 +29,7 @@ PY
 @test "AC-1 the unit tests pass and the case count is pinned" {
   run python3 -m unittest discover -s "$A/tests"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Ran 76 tests"* ]]
+  [[ "$output" == *"Ran 83 tests"* ]]
   [[ "$output" == *$'\nOK'* ]]
 }
 
@@ -76,8 +76,11 @@ PY
   done
   cmp "$T/p1/power.json" "$T/p2/power.json"
   cmp "$T/p1/power.md" "$T/p2/power.md"
-  run jq -r '.chosen_n' "$T/p1/power.json"
+  run jq -r '.reference_n' "$T/p1/power.json"
   [ "$output" = 6 ]
+  # round 1: chosen only when P(YES | MDE) and P(NO | 0) both reach 0.80, else null + decision_required
+  run jq -r 'if .per_n[0].meets_both then (.chosen_n == 6 and (.decision_required | not)) else (.chosen_n == null and .decision_required) end' "$T/p1/power.json"
+  [ "$output" = true ]
   grep -q 'pr-11 (flagged)' "$T/p1/power.md"
 }
 

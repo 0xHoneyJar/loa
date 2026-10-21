@@ -107,6 +107,31 @@ def t_cdf(x, df):
     return 1.0 - 0.5 * ib if x >= 0 else 0.5 * ib
 
 
+def t_sf(x, df):
+    """1 − F_t(x), accurate in the upper tail"""
+    ib = 0.5 * betainc(df / 2.0, 0.5, df / (df + x * x))
+    return ib if x >= 0 else 1.0 - ib
+
+
+@functools.lru_cache(maxsize=65536)
+def t_boundary(b, df):
+    """the Student-t (df) boundary with the same upper-tail mass as the normal boundary b:
+    t_sf(b_t) = 1 − Φ(b) — the group-sequential boundaries on the cluster-t scale (round 1)"""
+    if math.isinf(b):
+        return b
+    tail = phi_sf(b)
+    if tail <= 0.0:
+        return math.inf
+    lo, hi = -1e3, 1e3
+    for _ in range(120):
+        mid = (lo + hi) / 2.0
+        if t_sf(mid, df) > tail:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
 def t_inv(p, df):
     """Student-t quantile by bisection on t_cdf"""
     lo, hi = -1e3, 1e3
@@ -175,11 +200,18 @@ def linear_se(cells):
     return math.sqrt(sum(((a[0] - a[1]) - d * a[2]) ** 2 for a in aggs)) / sd
 
 
-def cluster_bootstrap(cells, n=10000, seed=0, level=0.95, keep_draws=False):
+def cluster_bootstrap(cells, n=10000, seed=0, level=0.95, keep_draws=False, interval="t"):
     """PR-cluster bootstrap (all of a PR's pairs travel together) of the defect-weighted
     Δ = Σcaught_full/Σdefects − Σcaught_matched/Σdefects. Percentile intervals at `level`
     and at 0.90; SE = the bootstrap SD; the PR-weighted Δ (mean over PRs of the PR's mean
-    per-pair Δ) beside with its own percentile interval."""
+    per-pair Δ) beside.
+
+    interval "t" (default, round 1): ci95 / ci90 = Δ̂ ± t_{P−1, 0.975 | 0.95}·SE_boot (the cluster-t
+    interval); the percentile interval is reported beside as ci95_percentile / ci90_percentile.
+    interval "percentile": the percentile interval is primary and the t-interval the diagnostic.
+    Both sets are always present (ci95_t, ci90_t, ci95_percentile, ci90_percentile)."""
+    if interval not in ("t", "percentile"):
+        raise ValueError("interval must be t or percentile")
     by = _by_pr(cells)
     aggs = list(by.values())
     n_pairs = sum(a[4] for a in aggs)
@@ -200,14 +232,31 @@ def cluster_bootstrap(cells, n=10000, seed=0, level=0.95, keep_draws=False):
     wse = math.sqrt(sum((x - wmean) ** 2 for x in wdraws) / (n - 1)) if n > 1 else 0.0
     sd_sorted, wd_sorted = sorted(draws), sorted(wdraws)
     a = (1.0 - level) / 2.0
+
+    def tci(est, sd, q):
+        if P < 2:
+            return [est, est]
+        h = t_inv(q, P - 1) * sd
+        return [est - h, est + h]
+
+    p95 = [quantile(sd_sorted, 0.025), quantile(sd_sorted, 0.975)]
+    p90 = [quantile(sd_sorted, 0.05), quantile(sd_sorted, 0.95)]
+    t95, t90 = tci(point, se, 0.975), tci(point, se, 0.95)
+    w_p95 = [quantile(wd_sorted, 0.025), quantile(wd_sorted, 0.975)]
+    w_p90 = [quantile(wd_sorted, 0.05), quantile(wd_sorted, 0.95)]
+    w_t95, w_t90 = tci(prw, wse, 0.975), tci(prw, wse, 0.95)
+    use_t = interval == "t"
     out = {
         "status": "ok",
+        "interval": interval,
+        "df": P - 1,
         "delta": point,
         "se": se,
-        "ci95": [quantile(sd_sorted, 0.025), quantile(sd_sorted, 0.975)],
+        "ci95": t95 if use_t else p95,
+        "ci90": t90 if use_t else p90,
+        "ci95_t": t95, "ci90_t": t90, "ci95_percentile": p95, "ci90_percentile": p90,
         "ci_level": [quantile(sd_sorted, a), quantile(sd_sorted, 1 - a)],
         "level": level,
-        "ci90": [quantile(sd_sorted, 0.05), quantile(sd_sorted, 0.95)],
         "n_prs": P,
         "n_pairs": n_pairs,
         "n_defects": sum(x[2] for x in aggs),
@@ -216,18 +265,9 @@ def cluster_bootstrap(cells, n=10000, seed=0, level=0.95, keep_draws=False):
         "recall_full": sum(x[0] for x in aggs) / sum(x[2] for x in aggs),
         "recall_matched": sum(x[1] for x in aggs) / sum(x[2] for x in aggs),
         "resamples": n,
-        "pr_weighted": {"delta": prw, "se": wse,
-                        "ci95": [quantile(wd_sorted, 0.025), quantile(wd_sorted, 0.975)],
-                        "ci90": [quantile(wd_sorted, 0.05), quantile(wd_sorted, 0.95)]},
+        "pr_weighted": {"delta": prw, "se": wse, "ci95": w_t95 if use_t else w_p95, "ci90": w_t90 if use_t else w_p90,
+                        "ci95_percentile": w_p95, "ci95_t": w_t95},
     }
-    # DIAGNOSTIC, not the pre-registered interval: Δ̂ ± t_{P−1, 0.975}·SE·√(P/(P−1)) — the
-    # percentile interval undercovers at 6–12 PRs (placebo on synthetic nulls; report s1-d)
-    if P >= 2:
-        tq = t_inv(0.975, P - 1)
-        half = tq * se * math.sqrt(P / (P - 1.0))
-        out["ci95_t"] = [point - half, point + half]
-    else:
-        out["ci95_t"] = None
     if keep_draws or n <= 1000:
         out["_draws"] = draws
     if se == 0.0:
@@ -526,15 +566,19 @@ def shuffle_within_pr(cells, rng):
     return out
 
 
-def placebo(cells, seed=0, n=200, boot=1000, statistic=None):
+def placebo(cells, seed=0, n=200, boot=1000, statistic=None, interval="t"):
     """n within-PR arm-label shuffles, each through the primary read (`statistic`, default
-    cluster_bootstrap with `boot` resamples — 1,000 pre-registered for speed). Pass when
-    ≤ 8 % of the 95 % intervals exclude 0 and the mean |Δ| < 0.03 (PRD D17)."""
+    cluster_bootstrap with `boot` resamples — 1,000 pre-registered for speed — and `interval`).
+    Pass (round 1, replaces "mean |Δ| < 0.03"): |mean Δ over the shuffles| < 0.03 (bias) AND
+    ≤ 8 % of the shuffles' 95 % intervals (the primary interval, cluster-t by default) exclude 0
+    (calibration). Mean |Δ| — which a real paired effect inflates under random swaps — and the
+    percentile / t exclusion shares are printed as diagnostics."""
     if statistic is None:
         def statistic(cs, s):
-            return cluster_bootstrap(cs, n=boot, seed=s)
+            return cluster_bootstrap(cs, n=boot, seed=s, interval=interval)
     rng = random.Random(seed)
-    deltas, excl, excl_t, statuses = [], 0, 0, {}
+    deltas, statuses = [], {}
+    excl = {"primary": 0, "t": 0, "percentile": 0}
     for _ in range(n):
         shuffled = shuffle_within_pr(cells, rng)
         r = statistic(shuffled, rng.randrange(1 << 31))
@@ -542,24 +586,26 @@ def placebo(cells, seed=0, n=200, boot=1000, statistic=None):
             statuses[r.get("status")] = statuses.get(r.get("status"), 0) + 1
             continue
         deltas.append(r["delta"])
-        lo, hi = r["ci95"]
-        if lo > 0 or hi < 0:
-            excl += 1
-        ct = r.get("ci95_t")
-        if ct and (ct[0] > 0 or ct[1] < 0):
-            excl_t += 1
+        for name, keyname in (("primary", "ci95"), ("t", "ci95_t"), ("percentile", "ci95_percentile")):
+            ci = r.get(keyname)
+            if ci and ci[0] is not None and (ci[0] > 0 or ci[1] < 0):
+                excl[name] += 1
     if not deltas:
         return {"status": "no_valid_pairs", "n": n, "boot": boot}
-    share = excl / float(len(deltas))
-    mabs = sum(abs(d) for d in deltas) / len(deltas)
+    m = float(len(deltas))
+    share = excl["primary"] / m
+    mean = sum(deltas) / m
+    mabs = sum(abs(d) for d in deltas) / m
     ds = sorted(deltas)
     return {
-        "status": "ok", "n": n, "boot": boot, "seed": seed, "n_valid": len(deltas),
-        "share_excluding_zero": share, "mean_abs_delta": mabs, "mean_delta": sum(deltas) / len(deltas),
+        "status": "ok", "n": n, "boot": boot, "seed": seed, "n_valid": len(deltas), "interval": interval,
+        "share_excluding_zero": share, "mean_delta": mean, "abs_mean_delta": abs(mean),
         "delta_q05": quantile(ds, 0.05), "delta_q50": quantile(ds, 0.5), "delta_q95": quantile(ds, 0.95),
-        "band": {"max_share_excluding_zero": 0.08, "max_mean_abs_delta": 0.03},
-        "pass": share <= 0.08 and mabs < 0.03, "degenerate": statuses,
-        "diagnostic_share_excluding_zero_t": excl_t / float(len(deltas)),
+        "band": {"max_share_excluding_zero": 0.08, "max_abs_mean_delta": 0.03},
+        "pass": share <= 0.08 and abs(mean) < 0.03, "degenerate": statuses,
+        "diagnostic_mean_abs_delta": mabs,
+        "diagnostic_share_excluding_zero_t": excl["t"] / m,
+        "diagnostic_share_excluding_zero_percentile": excl["percentile"] / m,
     }
 
 

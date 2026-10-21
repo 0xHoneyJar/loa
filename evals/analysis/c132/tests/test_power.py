@@ -70,7 +70,8 @@ class PiecesTest(unittest.TestCase):
                 p = rng.betavariate(6.0, 2.0)
                 counts.append((sum(rng.random() < p for _ in range(3)), 3))
         f = power.fit_arm(counts)
-        self.assertGreater(f["pi0"], 0.08)
+        self.assertAlmostEqual(f["pi0"], 0.20, delta=0.03)          # the fixed point recovers the truth
+        self.assertLess(f["pi0_literal"], 0.08)                      # the literal form absorbs blind spots
         self.assertLessEqual(f["pi0"], f["share_never"])
         clean = power.fit_arm([(2, 3), (1, 3), (3, 3), (2, 3)])
         self.assertEqual(clean["pi0"], 0.0)
@@ -130,7 +131,7 @@ class ProcedureTest(unittest.TestCase):
     def test_evaluate_partition_single_look(self):
         res = [self.looks(0.3, 0.05), self.looks(0.0, 0.05), self.looks(0.05, 0.01), self.looks(0.1, 0.2),
                self.looks(0.3, 0.05, nprs=5)]
-        ev = power.evaluate(res, 0.05, 1.0, 0.10, 1)
+        ev = power.evaluate(res, 0.05, 1.0, 0.10, 1, "percentile")
         # YES, NO (z_no = 2 ≥ 1.96), SMALL (both cross), inconclusive, inconclusive (minimum information)
         self.assertAlmostEqual(ev["yes"], 0.2)
         self.assertAlmostEqual(ev["no"], 0.2)
@@ -141,10 +142,20 @@ class ProcedureTest(unittest.TestCase):
         rng = random.Random(9)
         # null studies with an anti-conservative SE: z ~ N(0, 1.3²)
         res = [self.looks(rng.gauss(0, 1.3) * 0.05, 0.05) for _ in range(2000)]
-        c = power.calibrate(res, 0.05, 0.10, 1)
-        self.assertGreater(c, 1.0)
-        self.assertLessEqual(power.evaluate(res, 0.05, c, 0.10, 1)["yes"], 0.05)
-        self.assertGreater(power.evaluate(res, 0.05, round(c - 0.01, 2), 0.10, 1)["yes"], 0.05)
+        for iv_ in ("percentile", "t"):
+            c = power.calibrate(res, 0.05, 0.10, 1, iv_)
+            self.assertLessEqual(power.evaluate(res, 0.05, c, 0.10, 1, iv_)["yes"], 0.05)
+            if c > 1.0:
+                self.assertGreater(power.evaluate(res, 0.05, round(c - 0.01, 2), 0.10, 1, iv_)["yes"], 0.05)
+        self.assertGreater(power.calibrate(res, 0.05, 0.10, 1, "percentile"), 1.0)
+        # the t scale (df 5) is wider: it needs no more inflation than the normal scale
+        self.assertLessEqual(power.calibrate(res, 0.05, 0.10, 1, "t"), power.calibrate(res, 0.05, 0.10, 1, "percentile"))
+
+    def test_t_scale_is_stricter(self):
+        # z = 2.3 crosses 1.96 (normal) but not t_{5}(1.96) = 2.57 at a single look with 6 PRs
+        res = [self.looks(0.115, 0.05)]
+        self.assertEqual(power.evaluate(res, 0.05, 1.0, 0.10, 1, "percentile")["yes"], 1.0)
+        self.assertEqual(power.evaluate(res, 0.05, 1.0, 0.10, 1, "t")["yes"], 0.0)
 
 
 class TinyRunTest(unittest.TestCase):
@@ -163,7 +174,21 @@ class TinyRunTest(unittest.TestCase):
             outs.append((slurp(os.path.join(o, "power.json")), slurp(os.path.join(o, "power.md"))))
         self.assertEqual(outs[0], outs[1])
         doc = json.loads(outs[0][0])
-        self.assertEqual(doc["chosen_n"], 6)
+        self.assertEqual(doc["reference_n"], 6)
+        row = doc["per_n"][0]
+        for k in ("power_no_at_null", "small_at_null", "expected_recall_matched_null", "expected_recall_matched_mde",
+                  "clipped_share_null", "clipped_share_mde", "meets_both"):
+            self.assertIn(k, row)
+        # round 1: N is chosen only when both powers reach 0.80; otherwise nothing is picked
+        if row["meets_both"]:
+            self.assertEqual(doc["chosen_n"], 6)
+            self.assertFalse(doc["decision_required"])
+        else:
+            self.assertIsNone(doc["chosen_n"])
+            self.assertTrue(doc["decision_required"])
+            self.assertIn("DECISION REQUIRED", outs[0][1].decode())
+        self.assertIn("pi0_literal", doc["arm_fits"]["bare"])
+        self.assertEqual(doc["validity"], "c132")
         self.assertEqual(doc["evaluated"], [6])
         self.assertEqual(len(doc["per_n"]), 1)
         self.assertIn("planned_final_se", doc)

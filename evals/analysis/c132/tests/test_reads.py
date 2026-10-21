@@ -166,6 +166,45 @@ class InputValidationTest(Base):
         self.assertEqual(run(["--rows", "x", "--inputs", "i", "--placebo", "--out", "y", "--name", "../z"])[0], 2)
 
 
+class Round1OptionsTest(Base):
+    def read(self, s, *extra):
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + list(extra) + ["--out", o])
+        self.assertEqual(rc, 0, err)
+        return jload(os.path.join(o, "reads.json"))
+
+    def test_interval_t_default_and_percentile(self):
+        s = self.batch()
+        t = self.read(s, "--final")
+        self.assertEqual(t["interval"], "t")
+        self.assertEqual(t["primary"]["ci95"], t["primary"]["ci95_t"])
+        self.assertIn("ci95_percentile", t["primary"])
+        lk = t["looks"][0]
+        self.assertGreater(lk["b_yes"], lk["b_yes_normal"])          # t scale, df = 5
+        self.assertEqual(lk["df"], 5)
+        self.assertAlmostEqual(lk["rci"][1] - lk["delta"], lk["b_yes"] * lk["se"], places=3)
+        p = self.read(s, "--final", "--interval", "percentile")
+        self.assertEqual(p["primary"]["ci95"], p["primary"]["ci95_percentile"])
+        self.assertEqual(p["looks"][0]["b_yes"], p["looks"][0]["b_yes_normal"])
+
+    def test_validity_c131_keeps_oracle_exposed_full_cells(self):
+        def exposed(row, grade):
+            if row["arm"] == "a1_full":
+                row["oracle_exposed_defects"] = ["d1"]
+        s = self.batch(mutate=exposed)
+        o = os.path.join(self.tmp, "p")
+        base = ["--rows", s["rows"], "--results-root", s["results"], "--inputs", s["inputs"], "--placebo", "--placebo-n", "5"]
+        rc, err = run(base + ["--out", o])
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(jload(os.path.join(o, "reads.json"))["placebo"]["status"], "no_valid_pairs")
+        rc, err = run(base + ["--out", o, "--validity", "c131"])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        self.assertEqual(doc["validity"], "c131")
+        self.assertEqual(doc["placebo"]["status"], "ok")
+        self.assertIn("|mean Δ| < 0.03", slurp(os.path.join(o, "reads.md")))
+
+
 class ValidityTest(unittest.TestCase):
     def cell(self, **row):
         base = {"batch": "b", "arm": "a1_full", "task_id": "t", "trial": 1, "status": "completed",
@@ -186,6 +225,10 @@ class ValidityTest(unittest.TestCase):
         self.assertTrue(self.cell(took_effect={"no_dot_claude": True})["valid"])
         self.assertIn("contaminated", self.cell(contaminated={"pattern": "network_egress"})["reasons"])
         self.assertIn("oracle_exposed", self.cell(oracle_exposed_defects=["d1"])["reasons"])
+        row = {"batch": "b", "arm": "a1_full", "task_id": "t", "trial": 1, "status": "completed", "defects_seeded": 2,
+               "defects_missed_pm3": [], "oracle_exposed_defects": ["d1"]}
+        self.assertTrue(common.build_cell(row, None, rules="c131")["valid"])
+        self.assertFalse(common.build_cell(dict(row, contaminated={"p": 1}), None, rules="c131")["valid"])
         self.assertTrue(self.cell(arm="a1_full_openmount", oracle_exposed_defects=["d1"])["valid"])
         self.assertIn("refusal_fallbacks", self.cell(phases=[{"refusal_fallbacks": ["x"]}])["reasons"])
         self.assertIn("no_defect_record", self.cell(defects_missed_pm3=None)["reasons"])

@@ -263,40 +263,90 @@ class PermutationTest(unittest.TestCase):
         self.assertAlmostEqual(exact["p"], mc["p"], delta=0.02)
 
 
+def null_cells(seed, n_prs=20):
+    rng = random.Random(seed)
+    out = []
+    for p in range(n_prs):
+        d = rng.randint(10, 25)
+        q = rng.uniform(0.2, 0.9)
+        for t in (1, 2):
+            cf = sum(rng.random() < q for _ in range(d))
+            cm = sum(rng.random() < q for _ in range(d))
+            out.append(pair("pr-%02d" % p, t, cf, cm, d))
+    return out
+
+
+class IntervalCoverageTest(unittest.TestCase):
+    """Round 1: the cluster-t interval Δ̂ ± t_{P−1}·SE_boot is primary. Coverage on independent
+    synthetic null datasets (400 per size, 300 resamples, seeded): the share of 95 % intervals
+    excluding 0 lies in [0.03, 0.08] for the t interval; the percentile interval (still reported)
+    undercovers at 6 and 8 PRs."""
+
+    def shares(self, P):
+        ex_t = ex_p = 0
+        for s in range(400):
+            r = stats.cluster_bootstrap(null_cells(1000 + s, P), n=300, seed=s)
+            self.assertEqual(r["interval"], "t")
+            self.assertEqual(r["ci95"], r["ci95_t"])
+            ex_t += r["ci95"][0] > 0 or r["ci95"][1] < 0
+            ex_p += r["ci95_percentile"][0] > 0 or r["ci95_percentile"][1] < 0
+        return ex_t / 400.0, ex_p / 400.0
+
+    def test_t_interval_coverage_6_8_12(self):
+        got = {}
+        for P in (6, 8, 12):
+            t, pc = self.shares(P)
+            got[P] = (t, pc)
+            self.assertGreaterEqual(t, 0.03, (P, t))
+            self.assertLessEqual(t, 0.08, (P, t))
+        self.assertGreater(got[6][1], 0.08)      # the percentile diagnostic undercovers at 6 PRs
+        self.assertGreater(got[8][1], 0.08)
+
+    def test_t_formula_and_percentile_choice(self):
+        c = null_cells(3, 7)
+        r = stats.cluster_bootstrap(c, n=500, seed=2)
+        h95, h90 = stats.t_inv(0.975, 6) * r["se"], stats.t_inv(0.95, 6) * r["se"]
+        self.assertAlmostEqual(r["ci95"][0], r["delta"] - h95, places=12)
+        self.assertAlmostEqual(r["ci90"][1], r["delta"] + h90, places=12)
+        rp = stats.cluster_bootstrap(c, n=500, seed=2, interval="percentile")
+        self.assertEqual(rp["ci95"], rp["ci95_percentile"])
+        self.assertEqual(rp["ci95_percentile"], r["ci95_percentile"])
+
+    def test_t_boundary(self):
+        # same upper-tail mass: 1.95996 (normal) → t_{5, 0.975} = 2.570582; large df → the normal value
+        self.assertAlmostEqual(stats.t_boundary(1.959963984540054, 5), 2.570582, delta=1e-5)
+        self.assertAlmostEqual(stats.t_boundary(1.959963984540054, 100000), 1.95996, delta=1e-3)
+        self.assertGreater(stats.t_boundary(3.7103, 5), 3.7103)
+        self.assertTrue(math.isinf(stats.t_boundary(math.inf, 5)))
+
+
 class PlaceboTest(unittest.TestCase):
-    def null_cells(self, seed, n_prs=20):
-        rng = random.Random(seed)
-        out = []
-        for p in range(n_prs):
-            d = rng.randint(10, 25)
-            q = rng.uniform(0.2, 0.9)
-            for t in (1, 2):
-                cf = sum(rng.random() < q for _ in range(d))
-                cm = sum(rng.random() < q for _ in range(d))
-                out.append(pair("pr-%02d" % p, t, cf, cm, d))
-        return out
-
     def test_calibrated_on_synthetic_nulls(self):
-        r = stats.placebo(self.null_cells(1), seed=20261021, n=200, boot=1000)
+        r = stats.placebo(null_cells(1), seed=20261021, n=200, boot=1000)
         self.assertEqual(r["n"], 200)
+        self.assertEqual(r["interval"], "t")
         self.assertLessEqual(r["share_excluding_zero"], 0.08)
-        self.assertLess(r["mean_abs_delta"], 0.03)
+        self.assertLess(r["abs_mean_delta"], 0.03)
         self.assertTrue(r["pass"])
-        self.assertEqual(r, stats.placebo(self.null_cells(1), seed=20261021, n=200, boot=1000))
+        self.assertIn("diagnostic_mean_abs_delta", r)
+        self.assertEqual(r, stats.placebo(null_cells(1), seed=20261021, n=200, boot=1000))
 
-    def test_small_cluster_undercoverage_is_visible(self):
-        # at 6 PRs the percentile interval excludes 0 on more than 8 % of null shuffles while
-        # the t diagnostic stays near nominal (the s1-d finding; the band is the lead's call)
-        shares, tshares = [], []
-        for s in range(4):
-            r = stats.placebo(self.null_cells(s, n_prs=6), seed=s, n=100, boot=500)
-            shares.append(r["share_excluding_zero"])
-            tshares.append(r["diagnostic_share_excluding_zero_t"])
-        self.assertGreater(sum(shares) / 4, 0.08)
-        self.assertLess(sum(tshares) / 4, 0.08)
+    def test_small_n_nulls_pass_under_t(self):
+        # 6, 8 and 12 PRs: the t-based placebo stays calibrated on null data (pooled over datasets)
+        for P in (6, 8, 12):
+            shares = [stats.placebo(null_cells(s, n_prs=P), seed=s, n=100, boot=500)["share_excluding_zero"] for s in range(8)]
+            self.assertLessEqual(sum(shares) / 8, 0.08, P)
+
+    def test_real_effect_bias_rule(self):
+        # a real paired effect: random swaps spread Δ with random signs — mean |Δ| is large, the mean Δ
+        # is near 0, and the pass rule reads the bias, not the spread
+        c = [pair("p%d" % i, t, 9 if t == 1 else 8, 3, 10) for i in range(10) for t in (1, 2)]
+        r = stats.placebo(c, seed=4, n=200, boot=300)
+        self.assertGreater(r["diagnostic_mean_abs_delta"], 0.03)    # the old rule would fail
+        self.assertLess(r["abs_mean_delta"], 0.03)                  # the bias rule does not
 
     def test_shuffle_preserves_pr_totals(self):
-        c = self.null_cells(2)
+        c = null_cells(2, 10)
         rng = random.Random(4)
         s = stats.shuffle_within_pr(c, rng)
         for pr in {x["pr"] for x in c}:
@@ -304,8 +354,7 @@ class PlaceboTest(unittest.TestCase):
             b = sorted([x["full"]["caught"] for x in s if x["pr"] == pr] + [x["matched"]["caught"] for x in s if x["pr"] == pr])
             self.assertEqual(a, b)
 
-    def test_a_real_effect_fails_the_band_only_when_not_shuffled(self):
-        # sanity: the primary read on an effect excludes 0, the placebo does not
+    def test_a_real_effect_is_read_unshuffled(self):
         c = [pair("p%d" % i, t, 9, 3, 10) for i in range(8) for t in (1, 2)]
         self.assertGreater(stats.cluster_bootstrap(c, n=500, seed=1)["ci95"][0], 0)
 

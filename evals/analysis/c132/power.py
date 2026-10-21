@@ -7,7 +7,8 @@ Usage:
       --candidates F --seed N --out DIR
       [--labels-dir DIR] [--grid 6,8,10,12] [--studies 2000] [--ceiling N] [--envelope 2500]
       [--mde 0.10] [--exclusion 0.05] [--partial-prob 0.10] [--se-method bootstrap|linear]
-      [--se-boot 200] [--no-sensitivities]
+      [--se-boot 200] [--no-sensitivities] [--interval t|percentile]
+      [--validity c132|c131]   (the profiles' validity rules, as reads-c132.py --validity)
 
 Model (sdd.md §5.3, D-5.3, D-7.7; prd.md FR-6, D18):
   * Rows → cells (common.py: the decision statistic's missed set, the validity filter). Profiles:
@@ -40,9 +41,14 @@ Model (sdd.md §5.3, D-5.3, D-7.7; prd.md FR-6, D18):
     partition, no decision below 6 valid PRs or 30 labelled defects. SE_plan(N) = the median final-
     look SE of the Δ = MDE studies. Boundaries in the simulation use t rounded to 0.01 and a
     400-point grid (cached; within 0.005 of the 2,000-point recursion — test_stats).
+  * --interval t (default, round 1): the look's boundaries move to the cluster-t scale with
+    df = valid PRs − 1, exactly as reads.py --interval t; `percentile` keeps the normal scale.
   * Calibration: c from 1.00 in steps of 0.01 until P(YES | Δ = 0) ≤ 0.05; chosen N = the smallest
-    grid N (≤ the corpus ceiling) with P(YES | Δ = MDE) ≥ 0.80 under its calibrated c; when none
-    reaches 0.80 the largest evaluated N. A chosen N above the ceiling becomes the ceiling.
+    evaluated N (≤ the corpus ceiling) with P(YES | Δ = MDE) ≥ 0.80 AND P(NO | Δ = 0) ≥ 0.80 under its
+    calibrated c (round 1). When no N satisfies both, nothing is chosen (chosen_n null,
+    decision_required true): the figures are reported at the largest evaluated N (reference_n) and
+    the lead decides. The per-N table carries P(NO | 0), P(SMALL | 0), the clipped share and the
+    expected matched / full recall beside each Δ row; the arm fits carry the literal π0 diagnostic.
   * Cap (sdd.md §5.3): (N × (2·22 + 2·22 + 2·22 + 2·12 + 24) + |G1| × 2 × 20 + 2·N·3 + 30 + 80 + 60)
     × 1.25, rounded up to USD 50; affordable-N: a cap above --envelope moves N to the largest
     evaluated N whose cap fits, with its power stated (< 0.50 → exploratory).
@@ -180,6 +186,12 @@ def fit_arm(defects, rounds=200):
     f["share_never"] = never
     f["chance_never"] = chance
     f["pi0"] = pi0
+    # DIAGNOSTIC (round 1): the literal "never − chance" under the one-pass Beta fitted to every
+    # defect (blind spots included), which absorbs blind spots into the chance term
+    f0 = beta_mom(defects)
+    chance0 = sum(bb_zero(n, f0["alpha"], f0["beta"]) for _, n in defects) / float(len(defects))
+    f["pi0_literal"] = max(0.0, never - chance0)
+    f["chance_never_literal"] = chance0
     return f
 
 
@@ -333,7 +345,7 @@ def study(model, rng, n, shift, r, partial_prob, se_method, se_boot):
     return looks, len(sizes) == len(groups_for(n))
 
 
-def evaluate(results, se_plan, c, mde, n_looks_planned):
+def evaluate(results, se_plan, c, mde, n_looks_planned, interval="t"):
     """reads.py's look procedure over stored studies → outcome shares"""
     counts = {"YES": 0, "NO": 0, "SMALL": 0, "FUTILE": 0, "INCONCLUSIVE": 0}
     stop_looks = 0
@@ -355,6 +367,9 @@ def evaluate(results, se_plan, c, mde, n_looks_planned):
             fr = ts[:]
             b_yes = stats.gs_boundaries(fr, alpha=0.05, constant=c, grid=400)[-1]
             b_no = stats.gs_boundaries(fr, alpha=0.025, constant=c, one_sided=True, grid=400)[-1]
+            if interval == "t":     # reads.py --interval t: the cluster-t scale, df = valid PRs − 1
+                df = max(nprs - 1, 1)
+                b_yes, b_no = stats.t_boundary(round(b_yes, 6), df), stats.t_boundary(round(b_no, 6), df)
             z_yes = delta / se
             z_no = (mde - delta) / se
             cp_y = cp_n = 1.0
@@ -375,10 +390,10 @@ def evaluate(results, se_plan, c, mde, n_looks_planned):
     return out
 
 
-def calibrate(null_results, se_plan, mde, n_looks):
+def calibrate(null_results, se_plan, mde, n_looks, interval="t"):
     c = 1.0
     while c < 3.0:
-        if evaluate(null_results, se_plan, c, mde, n_looks)["yes"] <= 0.05:
+        if evaluate(null_results, se_plan, c, mde, n_looks, interval)["yes"] <= 0.05:
             return round(c, 2)
         c = round(c + 0.01, 2)
     return 3.0
@@ -396,16 +411,21 @@ def simulate_n(model, n, mde, studies, seed, r, partial_prob, se_method, se_boot
     return out, se_plan
 
 
-def summarise(sim, se_plan, c, mde, n):
+def summarise(sim, se_plan, c, mde, n, interval="t"):
     nl = len(groups_for(n))
     row = {"n": n, "groups": groups_for(n), "se_plan": se_plan, "constant": c}
     for name in ("null", "mde"):
-        ev = evaluate(sim[name]["results"], se_plan, c, mde, nl)
+        ev = evaluate(sim[name]["results"], se_plan, c, mde, nl, interval)
         row[name] = ev
         row["clipped_share_" + name] = sim[name]["solve"]["clipped_share"]
         row["solve_status_" + name] = sim[name]["solve"]["status"]
+        row["expected_recall_matched_" + name] = sim[name]["solve"]["expected_recall_matched"]
+        row["expected_recall_full_" + name] = sim[name]["solve"]["expected_recall_full"]
     row["power_at_mde"] = row["mde"]["yes"]
     row["type1"] = row["null"]["yes"]
+    row["power_no_at_null"] = row["null"]["no"]      # round 1: the power to conclude "no actionable lift"
+    row["small_at_null"] = row["null"]["small"]
+    row["meets_both"] = row["power_at_mde"] >= 0.80 and row["power_no_at_null"] >= 0.80
     row["mc_se_power"] = math.sqrt(max(row["power_at_mde"] * (1 - row["power_at_mde"]), 0.0) / len(sim["mde"]["results"]))
     row["unreliable"] = max(row["clipped_share_null"], row["clipped_share_mde"]) > 0.10
     return row
@@ -505,7 +525,7 @@ def run(a):
                 raise InputError("duplicate cell key across --rows files: %s" % k)
             seen.add(k)
             rows.append(r)
-    cells = common.load_cells(rows, a.runs_root)
+    cells = common.load_cells(rows, a.runs_root, a.validity)
     tf = task_fixture(a.suite_root)
     L = {}
     for t in sorted({c["task"] for c in cells}):
@@ -556,16 +576,20 @@ def run(a):
     per_n, sims = [], {}
     for n in evaluated:
         sim, se_plan = simulate_n(base, n, a.mde, a.studies, a.seed, a.exclusion, a.partial_prob, a.se_method, a.se_boot, "main")
-        c = calibrate(sim["null"]["results"], se_plan, a.mde, len(groups_for(n)))
-        row = summarise(sim, se_plan, c, a.mde, n)
+        c = calibrate(sim["null"]["results"], se_plan, a.mde, len(groups_for(n)), a.interval)
+        row = summarise(sim, se_plan, c, a.mde, n, a.interval)
         row["cap_usd"], row["cap_raw_usd"] = cap_usd(n)
         per_n.append(row)
         sims[n] = (sim, se_plan, c)
-    powered = [r for r in per_n if r["power_at_mde"] >= 0.80]
-    chosen = (powered[0] if powered else per_n[-1])
-    reason = "smallest N with P(YES | MDE) >= 0.80" if powered else "no evaluated N reaches 0.80: the largest evaluated N"
-    affordable = None
-    if chosen["cap_usd"] > a.envelope:
+    # round 1: N must give both P(YES | MDE) ≥ 0.80 and P(NO | Δ = 0) ≥ 0.80 under its calibrated c;
+    # when none does, nothing is picked: both powers are reported at the ceiling and the lead decides
+    powered = [r for r in per_n if r["meets_both"]]
+    decision_required = not powered
+    chosen = powered[0] if powered else per_n[-1]
+    reason = ("smallest N with P(YES | MDE) >= 0.80 and P(NO | 0) >= 0.80" if powered else
+              "NO N satisfies P(YES | MDE) >= 0.80 and P(NO | 0) >= 0.80: nothing is chosen; the figures below are "
+              "at the largest evaluated N (the ceiling) and the lead decides")
+    if chosen["cap_usd"] > a.envelope and not decision_required:
         fits_env = [r for r in per_n if r["cap_usd"] <= a.envelope]
         if fits_env:
             affordable = fits_env[-1]
@@ -573,7 +597,7 @@ def run(a):
             chosen = affordable
         else:
             reason += "; no evaluated N fits the envelope"
-    exploratory = chosen["power_at_mde"] < 0.50
+    exploratory = chosen["power_at_mde"] < 0.50 or chosen["power_no_at_null"] < 0.50
     sens = {}
     if not a.no_sensitivities:
         n = chosen["n"]
@@ -586,12 +610,14 @@ def run(a):
             r = kw.pop("r", a.exclusion)
             m = Model(profiles, arm_fit, ks, **kw)
             sim, se_plan = simulate_n(m, n, a.mde, a.studies, a.seed, r, a.partial_prob, a.se_method, a.se_boot, name)
-            at_main = summarise(sim, se_plan_main, c_main, a.mde, n)
-            c_own = calibrate(sim["null"]["results"], se_plan, a.mde, len(groups_for(n)))
-            own = summarise(sim, se_plan, c_own, a.mde, n)
+            at_main = summarise(sim, se_plan_main, c_main, a.mde, n, a.interval)
+            c_own = calibrate(sim["null"]["results"], se_plan, a.mde, len(groups_for(n)), a.interval)
+            own = summarise(sim, se_plan, c_own, a.mde, n, a.interval)
             sens[name] = {"main_constant": {"power_at_mde": at_main["power_at_mde"], "type1": at_main["type1"],
+                                            "power_no_at_null": at_main["power_no_at_null"],
                                             "clipped_share_mde": at_main["clipped_share_mde"]},
-                          "recalibrated": {"constant": c_own, "power_at_mde": own["power_at_mde"], "type1": own["type1"]}}
+                          "recalibrated": {"constant": c_own, "power_at_mde": own["power_at_mde"], "type1": own["type1"],
+                                           "power_no_at_null": own["power_no_at_null"]}}
     inputs_sha = hashlib.sha256()
     for p in a.rows:
         inputs_sha.update(common.sha256_file(p).encode())
@@ -603,7 +629,9 @@ def run(a):
         "exclusion_rate": a.exclusion, "partial_prob": a.partial_prob, "se_method": a.se_method,
         "se_boot": a.se_boot if a.se_method == "bootstrap" else None,
         "grid": grid, "evaluated": evaluated, "corpus_ceiling": ceiling, "envelope_usd": a.envelope,
-        "per_n": per_n, "chosen_n": chosen["n"], "chosen_reason": reason, "groups": groups_for(chosen["n"]),
+        "interval": a.interval, "validity": a.validity, "per_n": per_n, "chosen_n": None if decision_required else chosen["n"],
+        "reference_n": chosen["n"], "decision_required": decision_required, "chosen_reason": reason,
+        "power_no_at_reference": chosen["power_no_at_null"], "groups": groups_for(chosen["n"]),
         "looks": [sum(groups_for(chosen["n"])[:j + 1]) for j in range(len(groups_for(chosen["n"])))],
         "boundary_constant": chosen["constant"], "planned_final_se": chosen["se_plan"],
         "power_at_chosen": chosen["power_at_mde"], "exploratory": exploratory,
@@ -630,36 +658,50 @@ def render_md(doc):
          "Seed %d; inputs sha256 `%s`; %d studies per N and Δ; MDE %s; exclusion rate %s; partial-group probability %s; SE %s%s.\n\n"
          % (doc["seed"], doc["inputs_sha256"], doc["studies"], f4(doc["mde"]), f4(doc["exclusion_rate"]), f4(doc["partial_prob"]),
             doc["se_method"], (" (%d resamples)" % doc["se_boot"]) if doc["se_boot"] else ""),
-         "## Per N\n\n| N | groups | constant | SE plan | Δ | YES | NO | SMALL | FUTILE | inconclusive | void | clipped | cap USD |\n"
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"]
+         "Interval %s. Selection: the smallest N with P(YES | MDE) ≥ 0.80 and P(NO | 0) ≥ 0.80 under its calibrated constant.\n\n" % doc["interval"],
+         "## Per N\n\n| N | groups | constant | SE plan | Δ | YES | NO | SMALL | FUTILE | inconclusive | void | clipped | E recall matched | E recall full | cap USD |\n"
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"]
     for r in doc["per_n"]:
         for name, lab in (("null", "0"), ("mde", "MDE")):
             e = r[name]
-            L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s%s | %d |\n" % (
+            L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s%s | %s | %s | %d |\n" % (
                 r["n"], "+".join(str(g) for g in r["groups"]), f4(r["constant"]), f4(r["se_plan"]), lab,
                 f4(e["yes"]), f4(e["no"]), f4(e["small"]), f4(e["futile"]), f4(e["inconclusive"]), f4(e["void"]),
-                f4(r["clipped_share_" + name]), " (unreliable)" if r["unreliable"] else "", r["cap_usd"]))
-    L.append("\n**Chosen N = %d** (%s); groups %s, looks %s; calibrated boundary constant %s; planned final SE %s; "
-             "power %s; cap USD %d (envelope USD %d)%s; corpus ceiling %d.\n\n" % (
-                 doc["chosen_n"], doc["chosen_reason"], doc["groups"], doc["looks"], f4(doc["boundary_constant"]),
-                 f4(doc["planned_final_se"]), f4(doc["power_at_chosen"]), doc["cap_usd"], doc["envelope_usd"],
-                 "; EXPLORATORY (power < 0.50)" if doc["exploratory"] else "", doc["corpus_ceiling"]))
+                f4(r["clipped_share_" + name]), " (unreliable)" if r["unreliable"] else "",
+                f4(r["expected_recall_matched_" + name]), f4(r["expected_recall_full_" + name]), r["cap_usd"]))
+    L.append("\n| N | P(YES · MDE) | P(NO · 0) | P(SMALL · 0) | type I | both ≥ 0.80 |\n|---|---|---|---|---|---|\n")
+    for r in doc["per_n"]:
+        L.append("| %d | %s | %s | %s | %s | %s |\n" % (r["n"], f4(r["power_at_mde"]), f4(r["power_no_at_null"]),
+                                                     f4(r["small_at_null"]), f4(r["type1"]), "yes" if r["meets_both"] else "no"))
+    if doc["decision_required"]:
+        L.append("\n**No N chosen — DECISION REQUIRED** (%s). At the reference N = %d: P(YES | MDE) %s, P(NO | 0) %s; groups %s, "
+                 "looks %s; calibrated constant %s; planned final SE %s; cap USD %d (envelope USD %d); corpus ceiling %d.\n\n" % (
+                     doc["chosen_reason"], doc["reference_n"], f4(doc["power_at_chosen"]), f4(doc["power_no_at_reference"]),
+                     doc["groups"], doc["looks"], f4(doc["boundary_constant"]), f4(doc["planned_final_se"]), doc["cap_usd"],
+                     doc["envelope_usd"], doc["corpus_ceiling"]))
+    else:
+        L.append("\n**Chosen N = %d** (%s); groups %s, looks %s; calibrated boundary constant %s; planned final SE %s; "
+                 "P(YES | MDE) %s, P(NO | 0) %s; cap USD %d (envelope USD %d)%s; corpus ceiling %d.\n\n" % (
+                     doc["chosen_n"], doc["chosen_reason"], doc["groups"], doc["looks"], f4(doc["boundary_constant"]),
+                     f4(doc["planned_final_se"]), f4(doc["power_at_chosen"]), f4(doc["power_no_at_reference"]), doc["cap_usd"],
+                     doc["envelope_usd"], "; EXPLORATORY (a power < 0.50)" if doc["exploratory"] else "", doc["corpus_ceiling"]))
     if doc["sensitivities"]:
-        L.append("## Sensitivities at the chosen N\n\n| variant | power (main c) | type I (main c) | recalibrated c | power | type I |\n|---|---|---|---|---|---|\n")
+        L.append("## Sensitivities at N = %d\n\n| variant | P(YES · MDE) main c | P(NO · 0) main c | type I main c | recalibrated c | P(YES · MDE) | P(NO · 0) | type I |\n|---|---|---|---|---|---|---|---|\n" % doc["reference_n"])
         for k in sorted(doc["sensitivities"]):
             s = doc["sensitivities"][k]
-            L.append("| %s | %s | %s | %s | %s | %s |\n" % (k, f4(s["main_constant"]["power_at_mde"]), f4(s["main_constant"]["type1"]),
-                                                        f4(s["recalibrated"]["constant"]), f4(s["recalibrated"]["power_at_mde"]),
-                                                        f4(s["recalibrated"]["type1"])))
+            m, o = s["main_constant"], s["recalibrated"]
+            L.append("| %s | %s | %s | %s | %s | %s | %s | %s |\n" % (k, f4(m["power_at_mde"]), f4(m["power_no_at_null"]), f4(m["type1"]),
+                                                                  f4(o["constant"]), f4(o["power_at_mde"]), f4(o["power_no_at_null"]), f4(o["type1"])))
         L.append("\n")
     L.append("## Model inputs\n\n| profile | defects | bare runs | full runs | diff lines | k |\n|---|---|---|---|---|---|\n")
     for p in doc["profiles"]:
         L.append("| %s | %d | %d | %d | %d | %d |\n" % (p["task"], p["defects"], p["n_bare"], p["n_full"], p["diff_lines"], p["k"]))
-    L.append("\n| arm | α | β | mean | ρ | never caught | chance | π0 |\n|---|---|---|---|---|---|---|---|\n")
+    L.append("\n| arm | α | β | mean | ρ | never caught | chance | π0 (fixed point) | diag: chance (one pass) | diag: π0 literal |\n|---|---|---|---|---|---|---|---|---|---|\n")
     for arm in ("bare", "full"):
         f = doc["arm_fits"][arm]
-        L.append("| %s | %s | %s | %s | %s | %s | %s | %s |\n" % (arm, f4(f["alpha"]), f4(f["beta"]), f4(f["mean"]), f4(f["rho"]),
-                                                             f4(f["share_never"]), f4(f["chance_never"]), f4(f["pi0"])))
+        L.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n" % (arm, f4(f["alpha"]), f4(f["beta"]), f4(f["mean"]), f4(f["rho"]),
+                                                                       f4(f["share_never"]), f4(f["chance_never"]), f4(f["pi0"]),
+                                                                       f4(f["chance_never_literal"]), f4(f["pi0_literal"])))
     L.append("\n| cost fit | intercept | slope per line | rows |\n|---|---|---|---|\n")
     for arm in sorted(doc["cost_fits"]):
         v = doc["cost_fits"][arm]
@@ -673,7 +715,8 @@ def render_md(doc):
             c["head_date"] or "—", c["defects"] if c["defects"] is not None else "—", c["exposure_fable_5_1"] or "—",
             c["diff_lines"] if c["diff_lines"] is not None else "—", c["k_opus"] or "—", c["k_fable"] or "—",
             c["contamination_note"] or "—"))
-    L.append("\nSelected (first N in order): %s.\n" % ", ".join(doc["selected"]))
+    L.append("\nSelected (first N in order%s): %s.\n" % (", reference N — not chosen" if doc["decision_required"] else "",
+                                                      ", ".join(doc["selected"])))
     return "".join(L)
 
 
@@ -697,6 +740,8 @@ def parse(argv):
     ap.add_argument("--se-method", choices=("bootstrap", "linear"), default="bootstrap")
     ap.add_argument("--se-boot", type=int, default=200)
     ap.add_argument("--no-sensitivities", action="store_true")
+    ap.add_argument("--interval", choices=("t", "percentile"), default="t")
+    ap.add_argument("--validity", choices=common.VALIDITY_RULES, default="c132")
     a = ap.parse_args(argv)
     try:
         a.grid = [int(x) for x in a.grid.split(",") if x.strip()]
