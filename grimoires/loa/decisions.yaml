@@ -21400,3 +21400,1017 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0661"
+    created_at: "2026-10-21T00:51:59Z"
+    updated_at: "2026-10-21T00:51:59Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-132 PRD planned unattended from the operator's instruction and the inventoried harness; no /ride (reality stale, harness read directly) (D1)"
+    decision: "The PRD is authored from the operator's verbatim instruction (cycle-132-brief.md), the cycle-131 archive and a direct read of the harness, grader, fixtures and record branches; /ride is not run"
+    rationale: "grimoires/loa/reality is from May 2026 and describes the framework at large; the cycle's app is the evals harness, which the lead inventoried file by file this session; a /ride run costs 20 minutes and model spend for no added grounding"
+    alternatives_considered:
+      - option: "run /ride first"
+        rejected_because: "adds a broad framework analysis the cycle does not use and spends models before Phase 0"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:51:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0662"
+    created_at: "2026-10-21T00:52:00Z"
+    updated_at: "2026-10-21T00:52:00Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "Primary statistic: Δ recall(full − bare compute-matched) on re-derived labels, 95 % cluster-by-PR bootstrap; MDE 0.10; α 0.05; power 0.80 (D2)"
+    decision: "The decision statistic is the difference in defect recall between a1_full and a0_bare_matched at matched spend on the re-derived labels, with a 95 % percentile interval from a paired bootstrap that resamples PRs (clusters); the minimum detectable effect is 0.10 absolute, two-sided α 0.05, power 0.80"
+    rationale: "The question is per-dollar, so the comparison is at equal dollars; PRs are the independent units; ten recall points is what the consortium would act on (the suite's mde_cut); 95 % is the conventional decision interval, 90 % is reported beside for cycle-130/131 comparability"
+    alternatives_considered:
+      - option: "full vs single bare with cost per extra defect as the primary"
+        rejected_because: "answers a different question (is the pipeline better at any price); kept as a secondary read"
+      - option: "90 % interval as in cycle-130/131"
+        rejected_because: "a decision interval for a shipped default should be the conventional 95 %; 90 % stays a sensitivity"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0663"
+    created_at: "2026-10-21T00:52:02Z"
+    updated_at: "2026-10-21T00:52:02Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "Compute-matched bare = harness arm a0_bare_matched: k independent BARE sessions per run, concatenated before grading; BARE-1 is the single-bare read (D3)"
+    decision: "a0_bare_matched runs k independent bare Opus 5.5 sessions in one run directory (BARE-1 … BARE-k), the grader grades the concatenated outputs under its cited_region dedupe, k per PR is fixed before the batch from the smoke's cost ratio and recorded in the MANIFEST; the first session of every matched run is the single-bare read"
+    rationale: "A pre-registered, mechanical arm with one row per cell is reproducible and took-effect-checkable; assembling unions after the fact from separate trials would be an analysis-time construction; reading single bare from BARE-1 avoids paying for the same sessions twice"
+    alternatives_considered:
+      - option: "analysis-level unions of separately rowed a0_bare trials"
+        rejected_because: "the arm would be assembled after the data exist; no took-effect rule can check it"
+      - option: "a separate a0_bare arm beside the matched arm"
+        rejected_because: "pays twice for identical sessions"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0664"
+    created_at: "2026-10-21T00:52:03Z"
+    updated_at: "2026-10-21T00:52:03Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "Ground truth from fix hunks + incidents by two blind Opus annotators, hunk-level kappa, lead adjudicates; cycle-131 and v1 labels frozen as sensitivities (D4)"
+    decision: "Each fixture's defects are re-derived from the hunks of head..fix (unit = fix hunk) and from post-merge incidents (issues, Bridgebuilder rounds, KF entries, later fix commits on the same files) by two Opus 5.5 annotators blind to the review feedback, to each other and to every arm output; Cohen's kappa on hunk-level defect/not-defect is reported; the lead adjudicates disagreements with a written reason; each defect stores label_source (fix-commit | incident) and the annotator ids; the cycle-131 curated manifests and the v1 originals are frozen as sensitivity sets"
+    rationale: "The old labels come from the pipeline's own review feedback, which favours the pipeline by construction; fix commits and incidents are what was actually wrong; blind double annotation with kappa makes the label quality measurable"
+    alternatives_considered:
+      - option: "keep the review-derived labels as the primary"
+        rejected_because: "the labels are the pipelines own findings; recall against them is circular"
+      - option: "one annotator"
+        rejected_because: "no agreement figure; the operator asked for two blind annotators and kappa"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0665"
+    created_at: "2026-10-21T00:52:05Z"
+    updated_at: "2026-10-21T00:52:05Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "Stopping rule: 3 looks by PR group, Lan–DeMets OBF boundaries for YES/NO, non-binding futility; halt at a boundary or on spend above the cap (D5)"
+    decision: "The batches run in three pre-registered PR groups with an interim read after each; a Lan–DeMets O'Brien–Fleming α-spending boundary (two-sided 0.05) decides YES (Δ above 0) and NO (the upper bound below the MDE); a non-binding futility stop fires when conditional power for either answer at the final look is below 0.20; the batch also halts on spend above the pre-registered cap; the report states whether a rule fired and why"
+    rationale: "Interim looks save spend when the answer is clear early; OBF spends almost no α early so a late answer keeps its strength; the futility boundary is non-binding so a stop is a choice, not a forced one"
+    alternatives_considered:
+      - option: "fixed-N design, no interim looks"
+        rejected_because: "wastes spend when the answer is clear after one group; the operator asked for yes/no/futile boundaries"
+      - option: "Pocock boundaries"
+        rejected_because: "spend too much α early for a decision that drives shipped defaults"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0666"
+    created_at: "2026-10-21T00:52:07Z"
+    updated_at: "2026-10-21T00:52:07Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "Open-mount positive control runs on the first PR group only and must read Δ > 0, else the apparatus read is void (D6)"
+    decision: "a1_full_openmount runs 2 trials per PR of the first PR group only; its read against a1_full on those cells must be above 0 (point estimate and the interval's lower bound not below 0 at 90 %); otherwise the apparatus cannot detect a known effect and every other read is reported as void"
+    rationale: "The open mount peeked in 3 of 3 cycle-131 runs, so it is a known positive; running it on every PR would cost a third of the budget for a control"
+    alternatives_considered:
+      - option: "open mount on every PR"
+        rejected_because: "≈ USD 40 per PR for a control whose answer is known"
+      - option: "no positive control"
+        rejected_because: "the operator asked for it; without it a null read cannot be distinguished from a broken apparatus"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0667"
+    created_at: "2026-10-21T00:52:09Z"
+    updated_at: "2026-10-21T00:52:09Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "Grader 1.3.1 primary; blind Opus judge rates a stratified sample of credits and strays; agreement and kappa reported; judge-corrected recall = sensitivity (D7)"
+    decision: "ablation-grade.sh / recall-vs-defects.sh 1.3.1 (rule pm3) is the mechanical primary; a blind Opus 5.5 judge rates a stratified sample (arm × PR × grader decision) of finding–defect pairs and of stray findings with the cycle-130 codebook; agreement and Cohen's kappa with the grader are reported; recall and precision corrected by the judge are sensitivities, never the primary"
+    rationale: "A mechanical grader is reproducible byte for byte; the judge measures how often it is wrong without replacing it; the operator asked for agreement on a stratified sample"
+    alternatives_considered:
+      - option: "judge every finding"
+        rejected_because: "cost and the judge becomes the ruler"
+      - option: "no judge"
+        rejected_because: "the graders error rate would stay unmeasured on the new labels"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0668"
+    created_at: "2026-10-21T00:52:11Z"
+    updated_at: "2026-10-21T00:52:11Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "Corpus: unseen record fixtures first (post-cutoff, pr-11 flagged), new fixtures seeded from sprints 255–265; N PRs from the power simulation (D8)"
+    decision: "The corpus is the unseen record fixtures pr-14, pr-15, pr-16 (and pr-11 flagged borderline by date) plus new record fixtures seeded from sprints 255–265 on the record branches; the number of PRs is the power simulation's N; every fixture records post_cutoff and a contamination note; selection order is a seeded shuffle written in the pre-registration"
+    rationale: "PRs the pipeline has not been evaluated on, dated after the models' availability, with real fix commits and review records exist on the record branches; the power simulation, not habit, sets N"
+    alternatives_considered:
+      - option: "re-use pr-17/pr-18"
+        rejected_because: "both were read in cycle-130 and cycle-131; not unseen"
+      - option: "synthetic planted-defect fixtures"
+        rejected_because: "not real defects; the question is about real defects"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0669"
+    created_at: "2026-10-21T00:52:13Z"
+    updated_at: "2026-10-21T00:52:13Z"
+    phase: "discovery"
+    category: "budget"
+    summary: "Budget: planning envelope ≤ USD 2,500; the pre-registration sets the binding cap from the power simulation before any Phase 1 spend; halt only above it (D9)"
+    decision: "The PRD carries a planning envelope of USD 2,500 (smoke, five arms over N PRs, judge, reproduction rerun, dissents); the binding cap is computed in Sprint 1 from the power simulation's N and written in the hashed pre-registration before any Phase 1 row; the batches halt only on spend above that cap"
+    rationale: "The operator approved the budget and asked for the cap to come from the power simulation and to be stated before spending"
+    alternatives_considered:
+      - option: "fix the cap now at USD 1,500"
+        rejected_because: "would pre-empt the power simulation the operator asked for"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0670"
+    created_at: "2026-10-21T00:52:15Z"
+    updated_at: "2026-10-21T00:52:15Z"
+    phase: "discovery"
+    category: "process"
+    summary: "rc.7 held until the cycle-132 reads land (CHANGELOG says so); cut at ship only after the reads and the Phase 3 proof (D10)"
+    decision: "CHANGELOG [Unreleased] states that v2.0.0-rc.7 is held until the cycle-132 measurement reads; the ship step converts the heading to [2.0.0-rc.7] only after the reads and the reproduction proof are recorded"
+    rationale: "The operator asked to hold rc.7 until the measurement reads and to say so in the changelog"
+    alternatives_considered:
+      - option: "cut rc.7 with the bug fixes now"
+        rejected_because: "contradicts the operators hold"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0671"
+    created_at: "2026-10-21T00:52:17Z"
+    updated_at: "2026-10-21T00:52:17Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "Results ship as a standalone report grimoires/loa/reports/review-catch-c132/ with a pointer from analysis.md; the cycle-130/131 reads are not rewritten (D11)"
+    decision: "The cycle writes a new report directory (report.md with an ELI5, rows, reads, judge agreement, reproduction and dissent records) and adds a short pointer section to reports/ablation-2.0/analysis.md; earlier reads stand as recorded"
+    rationale: "The question and corpus are new; appending a third addendum to analysis.md would bury the answer"
+    alternatives_considered:
+      - option: "analysis.md §11 addendum"
+        rejected_because: "a conclusive answer deserves its own document; the addendum chain is already two deep"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0672"
+    created_at: "2026-10-21T00:52:20Z"
+    updated_at: "2026-10-21T00:52:20Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "One pin for every cycle-132 arm = the Sprint 2 start commit; cycle-130/131 rows feed only the power simulation and the placebo, never a pooled read (D12)"
+    decision: "Every Phase 1 cell runs the same source commit (the commit that opens Sprint 2, after the harness changes land); the 63 earlier runs are inputs to the power simulation and the Phase 0 placebo only"
+    rationale: "Harness changes (matched arm, new manifests) make earlier rows incomparable; one pin keeps every arm on the same framework"
+    alternatives_considered:
+      - option: "pool cycle-131 a1_full/a0_bare rows into the new reads"
+        rejected_because: "different labels, different pin, different arms"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:52:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix E (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0673"
+    created_at: "2026-10-21T01:05:40Z"
+    updated_at: "2026-10-21T01:05:40Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.1: seed-corpus-from-record.sh gains --feedback record-branch paths and fixture.yaml provenance fields (post_cutoff, model_availability, contamination_note)"
+    decision: "Extend the existing seeder rather than write a second one; the cycle-131 sprints' feedback lives under a2a/sprint-1..3 so --feedback takes explicit paths; provenance fields are additive"
+    rationale: "One seeder, one label grammar, one freeze; the new sprints differ only in where their feedback files sit"
+    alternatives_considered:
+      - option: "a new seeder for the cycle-131 sprints"
+        rejected_because: "duplicates the label rule and the freeze"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0674"
+    created_at: "2026-10-21T01:05:41Z"
+    updated_at: "2026-10-21T01:05:41Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-2.2: the annotation unit is the fix hunk; kappa on hunk verdicts; the lead adjudicates; rows are one per anchor line with text or @L<n>"
+    decision: "Annotators label every hunk of head..fix defect|not-defect (with a defect group) and every incident defect-at-head|not-at-head; Cohen's kappa on each verdict set; disagreements adjudicated by the lead with reasons; merged defects become one TSV row per anchor"
+    rationale: "Hunks are the mechanical unit the fix commit gives; a group id lets several hunks be one defect; kappa needs a shared unit"
+    alternatives_considered:
+      - option: "free-form defect lists per annotator, matched by the lead"
+        rejected_because: "no shared unit, no clean kappa"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0675"
+    created_at: "2026-10-21T01:05:43Z"
+    updated_at: "2026-10-21T01:05:43Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.1: a matched cell is k independent pipeline-run sessions under sessions/s<i>/, union-graded from their outputs only; never k sessions in one sandbox"
+    decision: "Each session is a full pipeline-run.sh a0_bare run with its own sandbox, transcript and cost; the union grader reads only the sessions' gates-combined.md and grade.json"
+    rationale: "Independence of the k reads is the premise of the compute-matched arm; a shared sandbox lets a later session read an earlier output"
+    alternatives_considered:
+      - option: "k BARE phases inside one pipeline-run sandbox"
+        rejected_because: "shared sandbox breaks independence; the grader would need a new layout"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0676"
+    created_at: "2026-10-21T01:05:45Z"
+    updated_at: "2026-10-21T01:05:45Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.2: sessions are runner work units for --concurrency and --resume; the cell row is written once all k sessions have landed"
+    decision: "run-ablation.sh plans each session as a unit, re-runs only missing or failed sessions on resume, writes meta/cell.json, then grades the union and rows the cell once"
+    rationale: "A cell of 13 sequential sessions would take over an hour; as units they fill the concurrency slots and resume safely"
+    alternatives_considered:
+      - option: "sequential sessions inside one unit"
+        rejected_because: "wall clock; a mid-cell failure re-runs the whole cell"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0677"
+    created_at: "2026-10-21T01:05:47Z"
+    updated_at: "2026-10-21T01:05:47Z"
+    phase: "architecture"
+    category: "process"
+    summary: "D-5.2: the pre-registration hash binds the batch — run-ablation --pre-registration-file records the sha256 in MANIFEST.json and --resume refuses a changed text"
+    decision: "The batch manifest carries the hash of the text it was registered under; a resume with a different file hash exits 2"
+    rationale: "The operator asked for the hash in the manifest; binding the resume closes the edit-after-the-fact gap"
+    alternatives_considered:
+      - option: "hash in NOTES only"
+        rejected_because: "not machine-checked against the batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0678"
+    created_at: "2026-10-21T01:05:49Z"
+    updated_at: "2026-10-21T01:05:49Z"
+    phase: "architecture"
+    category: "scope"
+    summary: "D-5.4: the report directory grimoires/loa/reports/review-catch-c132/ carries report.md, reads, power, the pre-registration hash and the tracked rows.jsonl"
+    decision: "One tracked directory holds everything a reader needs; batch run directories stay on the record branch"
+    rationale: "Standalone, as DEC-0671 decided; rows beside the report so the reads are re-runnable from the tree"
+    alternatives_considered:
+      - option: "rows only under evals/results (gitignored)"
+        rejected_because: "the reproduction from a fresh clone needs the rows tracked or on the record branch; tracked is simpler"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0679"
+    created_at: "2026-10-21T01:05:51Z"
+    updated_at: "2026-10-21T01:05:51Z"
+    phase: "architecture"
+    category: "process"
+    summary: "D-6.1: the cycle's sprints take global ids past the bug sprints — next_sprint_number set to 269 at sprint planning (two ledger counters diverge; follow-up bead)"
+    decision: "Set next_sprint_number to 269 before registering the cycle's sprints so no cycle sprint shares a number with sprint-bug-266…268"
+    rationale: "The helper that allocates bug ids reads global_sprint_counter while cycle sprints read next_sprint_number; collisions by number already exist in history and confuse readers"
+    alternatives_considered:
+      - option: "let the ledger allocate 266…268"
+        rejected_because: "same numbers as the bug sprints"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:05:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0680"
+    created_at: "2026-10-21T01:06:22Z"
+    updated_at: "2026-10-21T01:06:22Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.1: incident-scan.sh compiles incidents with a recorded snapshot — 30-day fix commits, issues citing the files, Bridgebuilder rounds, KF entries"
+    decision: "A scanner script gathers the four incident sources per fixture into incidents/pr-NN.tsv with a meta file recording the origin/main SHA and gh query time; the reproduction re-uses the recorded TSV"
+    rationale: "gh results change over time; a recorded snapshot keeps the ground truth reproducible; a 30-day window bounds the scan"
+    alternatives_considered:
+      - option: "the lead hand-compiles incidents"
+        rejected_because: "not mechanical, not reproducible"
+      - option: "no window"
+        rejected_because: "every later fix on a hot file would be an incident"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:06:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0681"
+    created_at: "2026-10-21T01:06:23Z"
+    updated_at: "2026-10-21T01:06:23Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.3: labels TSV v2 header (3 optional columns); label_source gains fix-commit|incident; frozen sets move to manifests/c131 and labels/review"
+    decision: "The 7-column header stays accepted; v2 rows add three optional trailing columns (annotators, agreement, adjudication); the curated cycle-131 manifests move byte-identical to manifests/c131/ and the review-derived labels to labels/review/ so both frozen sets rebuild"
+    rationale: "Additive and backward-compatible; the frozen sets must stay rebuildable for the sensitivities and the cycle-131 re-grade equality"
+    alternatives_considered:
+      - option: "a sidecar annotation JSON merged at build"
+        rejected_because: "two files per fixture to keep in step; the TSV is the approved artefact"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:06:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0682"
+    created_at: "2026-10-21T01:06:25Z"
+    updated_at: "2026-10-21T01:06:25Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-4.1: grader 1.3.2 adds label_set, --union mode and false_positive_rule (bd-9zmfn); the ±3 citation rule is unchanged (recall_pm3 stays the statistic)"
+    decision: "No change to the ±3 rule; the grader names the label set it graded against and computes false positives under the same rule as the recall"
+    rationale: "DEC-0638 fixed the ruler; the new fields make the label set and the FP rule explicit"
+    alternatives_considered:
+      - option: "revisit the same-function rule"
+        rejected_because: "adjudicated 2 of 7 in cycle-131; settled"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:06:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0683"
+    created_at: "2026-10-21T01:06:27Z"
+    updated_at: "2026-10-21T01:06:27Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-5.1: primary Δ defect-weighted (Σ caught / Σ defects over valid pairs); PR-weighted beside; REML LMM on cell recall; permutation within PR × trial pairs"
+    decision: "The primary pools defects across PRs; the PR-weighted mean is a sensitivity; the linear mixed model on cell recall with a PR random intercept is the model read; the permutation swaps arms within pairs"
+    rationale: "More defects carry more information; a 2-defect PR should not weigh as much as a 20-defect one in the primary; the PR-weighted figure guards against one PR dominating"
+    alternatives_considered:
+      - option: "PR-weighted primary"
+        rejected_because: "a 2-defect PR gets the weight of a 20-defect PR"
+      - option: "defect-level logistic GLMM"
+        rejected_because: "not reliably fit in stdlib; named as a limitation"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:06:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0684"
+    created_at: "2026-10-21T01:06:28Z"
+    updated_at: "2026-10-21T01:06:28Z"
+    phase: "architecture"
+    category: "metric"
+    summary: "D-5.3: power model — Beta(1,1)-smoothed per-defect catch rates from the 63 runs, matched = 1 − (1 − p)^k, 2,000 studies per N, N = smallest with power ≥ 0.80"
+    decision: "As specified in sdd.md §5.3, with sensitivities on the between-PR spread and on k; the cap formula is stated there"
+    rationale: "The existing runs are the only empirical base; the model is simple enough to audit and reproduce by seed"
+    alternatives_considered:
+      - option: "a rule of thumb N = 10"
+        rejected_because: "the operator asked for a simulation-derived N"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sdd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:06:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sdd"
+        evidence: "grimoires/loa/sdd.md § 11.D (cycle-132)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0685"
+    created_at: "2026-10-21T01:09:59Z"
+    updated_at: "2026-10-21T01:09:59Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Flatline PRD blockers integrated by judgment (KF-041 shape, 24 blockers, agreement 0 %): D13–D18 below; the rest answered in Appendix F (F1)"
+    decision: "Cross-scoring degraded again (gpt_score null, 0 % agreement); the raw gpt and opus reviews were read in full and integrated by judgment as DEC-0686 … DEC-0691 and the FR amendments listed in Appendix F; items not adopted carry a reason there"
+    rationale: "KF-041 recurrence: the review content is sound, only the consensus layer is missing; re-running to chase consensus is the documented dead end"
+    alternatives_considered:
+      - option: "re-run Flatline for consensus"
+        rejected_because: "KF-041 reading guide: do not re-run to chase consensus"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:09:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0686"
+    created_at: "2026-10-21T01:10:01Z"
+    updated_at: "2026-10-21T01:10:01Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "D13: a0_bare_fable_matched (k Fable 5.1 bare sessions at matched dollars) runs as a secondary arm on every PR — same model, same dollars (SKP-002 opus) (F2)"
+    decision: "a1_full runs the shipped gates on Fable 5.1 with the codex dissent; a0_bare_matched runs Opus 5.5 (the stronger bare model per cycle-131 R5); a0_bare_fable_matched adds the same-model comparison as a secondary pre-registered read; it is the first cut after the open-mount second trial if the cap binds"
+    rationale: "The primary answers the operational question (the shipped pipeline vs the best bare option at equal dollars); the model confound is removed by the same-model secondary; R5 showed bare-Fable below bare-Opus, so the primary is conservative"
+    alternatives_considered:
+      - option: "no same-model arm"
+        rejected_because: "the model confound would stay the largest unexplained term, as in cycle-130"
+      - option: "run the pipeline on Opus instead"
+        rejected_because: "not the shipped pipeline; changes the object under test"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0687"
+    created_at: "2026-10-21T01:10:03Z"
+    updated_at: "2026-10-21T01:10:03Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "D17: the placebo is a distribution — 200 seeded within-PR arm shuffles; pass when ≤ 8 % of shuffles exclude 0 at 95 % and the mean |Δ| < 0.03 (SKP-008) (F6)"
+    decision: "One shuffle can exclude zero by chance; the placebo checks interval calibration over 200 shuffles and the mean absolute Δ"
+    rationale: "A single-shuffle criterion fails about 5 % of the time by construction"
+    alternatives_considered:
+      - option: "one shuffle"
+        rejected_because: "5 % false-failure rate by construction"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0688"
+    created_at: "2026-10-21T01:10:52Z"
+    updated_at: "2026-10-21T01:10:52Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "D14: ground truth = fix- or incident-confirmed defects (stated construct); incidents to the scan date; judge-confirmed strays = sensitivity (F3)"
+    decision: "The report names the construct (confirmed defects, a lower bound on real defects); the incident window runs from the fix commit to the scan date; strays any arm cited that the blind judge rates real enter a sensitivity read where they count as defects for every arm"
+    rationale: "Fix hunks respond to the pipeline's own findings; incidents and judge-confirmed strays are the two channels independent of the round-1 review; the sensitivity is post hoc, so it cannot be primary"
+    alternatives_considered:
+      - option: "a separate model-driven defect hunt as a label source"
+        rejected_because: "labels from a model reading the PR favour that model; another arm in disguise"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0689"
+    created_at: "2026-10-21T01:10:54Z"
+    updated_at: "2026-10-21T01:10:54Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "D15: network-egress contamination class (git fetch/clone, gh api, curl/wget to github hosts; WebFetch/WebSearch inputs, bd-eriso) (F4)"
+    decision: "The grader scans Bash tool_use commands and WebFetch/WebSearch inputs for network reads of the public repository; any hit is class 9 contamination; the residual risk (an egress the transcript cannot show) is named in the report"
+    rationale: "The sandbox needs network for the model CLIs; a transcript-level egress scan is the control available now; bd-eriso already asked for the WebFetch half"
+    alternatives_considered:
+      - option: "an egress proxy allowlist"
+        rejected_because: "a new infrastructure component this cycle cannot build and validate before Phase 1"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0690"
+    created_at: "2026-10-21T01:10:55Z"
+    updated_at: "2026-10-21T01:10:55Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "D16: outcomes YES / NO / SMALL / FUTILE / CONTINUE; repeated confidence intervals beside naive; boundaries simulation-calibrated (F5)"
+    decision: "YES = Δ > 0 crossed and the interval not entirely below the MDE; NO = Δ < MDE crossed and Δ > 0 not crossed; SMALL = both crossed (real but sub-actionable); FUTILE by conditional power; the final report prints the naive interval and the repeated confidence interval at the stopping look; the power simulation runs the complete procedure under Δ = 0 and reports the empirical type-I error, inflating the boundaries until it is ≤ 0.05"
+    rationale: "The original YES and NO tests overlapped for 0 < Δ < 0.10; asymptotic OBF boundaries on bootstrap z at PR-count fractions are a claim to verify by simulation, not assume"
+    alternatives_considered:
+      - option: "keep YES/NO as written"
+        rejected_because: "a true Δ in (0, 0.10) satisfies both"
+      - option: "fixed-sample design"
+        rejected_because: "the operator asked for a stopping rule"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0691"
+    created_at: "2026-10-21T01:10:57Z"
+    updated_at: "2026-10-21T01:10:57Z"
+    phase: "discovery"
+    category: "metric"
+    summary: "D18: k per PR fixed from the 63 existing runs (cost vs diff lines) before the hash; the smoke verifies; realized ratio + exact-dollar trim reported (F7)"
+    decision: "k_p = round(predicted cost(a1_full)/cost(a0_bare) from a least-squares fit of per-run cost on diff lines over the 63 runs), floor 2, cap 30, written in the hashed pre-registration; the Phase 1 smoke reports the realized ratio and does not change k; the primary is matched at the pre-registered k, the exact-dollar trim is a sensitivity"
+    rationale: "Setting k from a Phase 1 smoke would spend before the hash and let the lead see the new corpus; the existing runs predict the ratio well enough and the realized ratio is reported"
+    alternatives_considered:
+      - option: "k from the Phase 1 smoke"
+        rejected_because: "spend before the hash; a look at a1_full on the new corpus before locking the plan"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-prd/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "70330e48"
+    source: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T01:10:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-prd"
+        evidence: "grimoires/loa/prd.md § Appendix F (Flatline PRD review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-132-conclusive-review-catch",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2682,6 +2682,17 @@
         }
       ],
       "archived_at": "2026-10-20T12:27:38Z"
+    },
+    {
+      "id": "cycle-132-conclusive-review-catch",
+      "label": "cycle-132 — the conclusive review-catch answer (does the review pipeline catch more real defects per dollar than a bare model at the same dollars, on unseen PRs)",
+      "status": "active",
+      "created": "2026-10-21T00:48:44Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": []
     }
   ],
   "global_sprint_counter": 268,
@@ -3125,5 +3136,5 @@
     }
   ],
   "next_sprint_number": 266,
-  "last_updated": "2026-10-21T00:43:25Z"
+  "last_updated": "2026-10-21T00:48:44Z"
 }
