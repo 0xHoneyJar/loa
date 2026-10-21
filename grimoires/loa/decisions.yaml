@@ -22902,3 +22902,131 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0707"
+    created_at: "2026-10-21T02:40:10Z"
+    updated_at: "2026-10-21T02:40:10Z"
+    phase: "sprint-planning"
+    category: "scope"
+    summary: "Release-metadata files (.loa-version.json, README pin, release notes) are authorized for the ship step beside evals/, grimoires/ and CHANGELOG.md (S3)"
+    decision: "The PRD's allowed-path list gains the three release-metadata files for Task 3.5 only; .claude/ stays untouched"
+    rationale: "The rc.7 cut needs them; they are not System Zone; the scope conflict the review found is resolved in the PRD rather than by dropping the release step"
+    alternatives_considered:
+      - option: "drop the version bump from the cycle"
+        rejected_because: "an rc without its version metadata is not a release"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sprint-plan/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "4fb6c57d"
+    source: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:40:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sprint-plan"
+        evidence: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0708"
+    created_at: "2026-10-21T02:40:54Z"
+    updated_at: "2026-10-21T02:40:54Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Flatline sprint blockers integrated by judgment (KF-041 shape, 12 blockers, 0 % agreement): task text amended per sprint.md Appendix D (S1)"
+    decision: "Cross-scoring degraded; the twelve blockers were read in full; the task text was amended as listed in sprint.md Appendix D; three carry their own rows"
+    rationale: "KF-041 recurrence: integrate by judgment, never re-run for consensus"
+    alternatives_considered:
+      - option: "re-run Flatline"
+        rejected_because: "KF-041 reading guide"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sprint-plan/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "4fb6c57d"
+    source: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:40:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sprint-plan"
+        evidence: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0709"
+    created_at: "2026-10-21T02:40:57Z"
+    updated_at: "2026-10-21T02:40:57Z"
+    phase: "sprint-planning"
+    category: "architecture"
+    summary: "Two-stage record branch: evidence commit pushed before the reproduction (3.3a), proof appended after merge (3.6); later fixes re-trigger it (S2)"
+    decision: "Stage 1 holds the tree, batch records, packets, transcripts, labels, judge files, rows and the registration; the reproducer clones that exact SHA; stage 2 adds the reproduction report and the a2a records; any later change to the analysis, grader, rows or manifests re-runs the reproduction against a new stage 1 before merge"
+    rationale: "The reproducer cannot clone a branch that does not exist yet, and a Bridgebuilder fix after the proof would silently invalidate its hashes"
+    alternatives_considered:
+      - option: "one record branch built at ship"
+        rejected_because: "the reproduction has nothing to clone; the proof could be invalidated by later fixes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sprint-plan/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "4fb6c57d"
+    source: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:40:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sprint-plan"
+        evidence: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0710"
+    created_at: "2026-10-21T02:41:01Z"
+    updated_at: "2026-10-21T02:41:01Z"
+    phase: "sprint-planning"
+    category: "budget"
+    summary: "The binding cap is total cycle spend since kickoff (metered rows + arm rows); the arm allowance is a sub-cap; reserves set before affordable-N (S4)"
+    decision: "spend.sh --since 2026-10-21T00:23:00Z is the meter; planning dissents, Flatline runs, blind sessions, the judge, the reproduction rerun and retries count; Task 1.9 sets reserves for them before comparing arm cost to the envelope"
+    rationale: "Phase 0 spends real money before the cap is set; an arm-only cap would understate the cycle's cost"
+    alternatives_considered:
+      - option: "cap the arms only"
+        rejected_because: "blind sessions, judge and reproduction are a third of the spend and would be unbounded"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-sprint-plan/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "4fb6c57d"
+    source: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T02:41:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-sprint-plan"
+        evidence: "grimoires/loa/sprint.md § Appendix D (Flatline sprint review 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

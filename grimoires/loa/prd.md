@@ -281,7 +281,7 @@ The maintainer reads one report whose first 300 words answer the question in pla
 - New: `evals/harness/annotation-packets.sh`, `evals/harness/judge-sample.sh`, `evals/analysis/c132/{reads-c132.py, power.py, stats.py, tests/}`, `grimoires/loa/evals/ablation-2.0-c132/{PREREGISTRATION.md, tasks/, MANIFEST.sha256, README.md}`, `grimoires/loa/reports/review-catch-c132/`, `evals/harness/schemas/review-manifest.schema.json`.
 
 ### System Zone authorization (explicit, cycle-level)
-None. The cycle edits `evals/`, `grimoires/`, `CHANGELOG.md` only. If a `.claude/` change becomes necessary (for example `adversarial-review.sh`), it needs a PRD amendment with its own DEC row before any implementer touches it.
+None. The cycle edits `evals/`, `grimoires/`, `CHANGELOG.md` and, at the ship step only, the release-metadata files `.loa-version.json`, the README version pin and `grimoires/loa/reports/release-notes-2.0.0-rc.7.md` (Flatline sprint review SKP-001; DEC-0707). If a `.claude/` change becomes necessary (for example `adversarial-review.sh`), it needs a PRD amendment with its own DEC row before any implementer touches it.
 
 ### Pin
 One pin for every arm: the first commit of Sprint 2 (after Sprint 1's harness changes land and are reviewed). Cycle-130/131 rows feed the power simulation and the Phase 0 placebo only (DEC-0672).
