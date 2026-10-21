@@ -19,7 +19,7 @@ Options:
                         description, severity, category, reason}}: one per disagreement (more are
                         allowed: an override of an agreed item); every key present, nulls allowed
                         only for a not-defect / not-at-head verdict; reason one line
-  --hunks-meta FILE     packets/pr-NN/hunks.meta.json (outside the blind packet): review_driven per
+  --hunks-meta FILE     <packets out>/pr-NN.hunks.meta.json (beside the blind packet): review_driven per
                         hunk id, as {"H01": {"review_driven": true}}, {"hunks": {…}} or {"H01": true};
                         required with --adjudication
   --manifest-c131 PATH  the frozen review-derived key (manifests/c131/pr-NN.json), when the fixture
@@ -50,7 +50,7 @@ one made only of incidents whose anchors lie within ±3 lines in one file are on
 anchors = the members' union, severity the highest, category and description the first member's
 (hunks before incidents, by id), label_source fix-commit | incident | fix-commit+incident, agreement
 adjudicated when any member was, adjudication the members' reasons ("; ") or "-", review_driven true
-when any member hunk is review-driven (an incident never is), source "hunk:H01,H02;incident:I01".
+when any member hunk or follow-on hunk of its group is review-driven (an incident never is), source "hunk:H01,H02;incident:I01".
 Defects are ordered by (file, first anchor, first member) and named V01, V02, …. labels.rows.tsv is
 a complete labels v2 file (`# approved-by: pending`, the v2 header, one row per anchor line;
 must_match the head line's stripped text when that text is on exactly one line and is not
@@ -496,9 +496,16 @@ def merge(final, items, meta, require_category=True):
                 if any(abs(p - q) <= DEDUPE_LINES for p in hx for q in iy):
                     uf.union(x[0], y[0])
                     changed = True
+    # a not-defect hunk with a group (a follow-on) belongs to that group's defect: it counts for review_driven
+    follow = {}
+    for i in items:
+        r = final[i]["rec"]
+        if kind_of(i) == "hunk" and not is_defect(r, "hunk") and r.get("group") is not None:
+            follow.setdefault(r["group"], []).append(i)
     out = []
     for c in comps():
         recs = [final[i]["rec"] for i in c]
+        fol = [h for g in sorted({r.get("group") for r in recs if r.get("group") is not None}) for h in follow.get(g, [])]
         kinds = {kind_of(i) for i in c}
         cat = next((r.get("category") for r in recs if r.get("category")), None)
         if cat is None and require_category:
@@ -518,7 +525,7 @@ def merge(final, items, meta, require_category=True):
                             ("fix-commit" if kinds == {"hunk"} else "incident"),
             "agreement": "adjudicated" if any(final[i]["adjudicated"] for i in c) else "agreed",
             "adjudication": "; ".join(reasons) if reasons else "-",
-            "review_driven": any((meta or {}).get(h, False) for h in hunks),
+            "review_driven": any((meta or {}).get(h, False) for h in hunks + fol),
             "source": ";".join(p for p in ((("hunk:" + ",".join(hunks)) if hunks else ""),
                                            (("incident:" + ",".join(incs)) if incs else "")) if p)})
     out.sort(key=lambda d: (d["file"], d["anchors"][0], d["members"][0][0] != "H", int(d["members"][0][1:])))

@@ -316,6 +316,20 @@ class AdjudicationTest(Case):
         self.assertEqual(rc, 3, err)
         self.assertIn("### I03: category", self.read(out, "adjudication.md"))
 
+    def test_follow_on_hunk_carries_review_driven(self):
+        a = copy.deepcopy(A_LABELS)
+        a["hunks"]["H03"] = hunk("not-defect", "D2", "src/b.sh", [], "the test for H04", None, None, cls="follow-on")
+        self.a = self.write("A.json", a)
+        self.meta = self.write("hunks.meta.json", {"hunks": {"H01": {"review_driven": False}, "H02": {"review_driven": False},
+                                                             "H03": {"review_driven": True}, "H04": {"review_driven": False}}})
+        out = os.path.join(self.t, "out")
+        rc, err = self.run_main(self.write("B2.json", a), out, self.write("adj.json", {}))
+        self.assertEqual(rc, 0, err)
+        rows = [dict(zip(am.HEADER_V2, l.split("\t"))) for l in self.read(out, "labels.rows.tsv").splitlines()[2:]]
+        rd = {r["defect_id"]: (r["source"], r["review_driven"]) for r in rows}
+        self.assertEqual(rd["V02"], ("hunk:H04", "true"))      # H04's group D2 holds the review-driven follow-on H03
+        self.assertEqual(rd["V01"][1], "false")
+
     def test_fix_rows_carried(self):
         fixrows = os.path.join(self.t, "review.tsv")
         put(fixrows, "# approved-by: lead\n" + "\t".join(am.HEADER_V2[:7]) + "\n"
