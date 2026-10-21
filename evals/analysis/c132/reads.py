@@ -44,6 +44,9 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                class counted valid (recall as graded), plus one read re-including every class; the cells
                are counted per arm, group and class. The round-4 name "class9_nonrepo_egress_reincluded"
                is still accepted in a registration's order and runs the network_egress:nonrepo member.
+               Round 6 (addendum 9) adds the member "oracle_exposed": cells whose ONLY invalidity is
+               oracle exposure, re-included by form — `read_only`, `diff` (with or without read) and
+               `all` — with counts per arm, group, PR and form (grade.json oracle_exposed_by_form).
   --sensitivity-grades DIR  re-grades for the label-set sensitivities:
                DIR/<c131|v1>/<batch>/<arm>/<task>-t<n>/grade.json (absent → "not_provided")
   --judge DIR  the judge's result.json (judge_agree.py): judge-corrected figures and the
@@ -495,10 +498,11 @@ def _group_of(reg, task):
     return next(("G%d" % j for j, g in enumerate(reg.get("groups") or [], 1) if task in g), "ungrouped")
 
 
-def reinclude(cells, reg, seed, cls):
+def reinclude(cells, reg, seed, cls, pred=None):
     """the primary read with the cells whose only invalidity is a contamination of class `cls`
-    (None: any class) counted valid; their count per arm and group, and their keys"""
-    sel = [c for c in cells if common.only_contamination(c, cls)]
+    (None: any class) — or that satisfy `pred` when given — counted valid; their count per arm and
+    group, and their keys"""
+    sel = [c for c in cells if (pred(c) if pred else common.only_contamination(c, cls))]
     keys = {c["key"] for c in sel}
     back = [dict(c, valid=True) if c["key"] in keys else c for c in cells]
     r, _ = contrast(back, PRIMARY_A, PRIMARY_B, seed)
@@ -523,7 +527,26 @@ def reincluded_family(cells, reg, seed):
             g[c["contamination"]] = g.get(c["contamination"], 0) + 1
     return {"status": "ok" if observed else "no_contaminated_cells", "observed": observed, "counts": counts,
             "classes": {cls: reinclude(cells, reg, seed, cls) for cls in observed},
-            "all_classes": reinclude(cells, reg, seed, None) if observed else {"status": "no_contaminated_cells"}}
+            "all_classes": reinclude(cells, reg, seed, None) if observed else {"status": "no_contaminated_cells"},
+            "oracle_exposed": oracle_family(cells, reg, seed)}
+
+
+def oracle_family(cells, reg, seed):
+    """round 6 (addendum 9): oracle-exposed cells re-included — cells whose ONLY invalidity is oracle
+    exposure of form `read` only, of form `diff` (with or without read), and every oracle-exposed
+    cell (any form, incl. an unrecorded one); recall as graded (the detector does not change the
+    grade); counts per arm, group, PR and form"""
+    exposed = [c for c in cells if common.only_oracle(c)]
+    counts = {}
+    for c in exposed:
+        g = counts.setdefault(c["arm"], {}).setdefault(_group_of(reg, c["task"]), {}).setdefault(c["task"], {})
+        g[c["oracle_form"]] = g.get(c["oracle_form"], 0) + 1
+    if not any(c.get("oracle_form") for c in cells):
+        return {"status": "no_oracle_exposed_cells", "counts": {}}
+    return {"status": "ok", "counts": counts,
+            "read_only": reinclude(cells, reg, seed, None, lambda c: common.only_oracle(c, "read")),
+            "diff": reinclude(cells, reg, seed, None, lambda c: common.only_oracle(c, "diff")),
+            "all": reinclude(cells, reg, seed, None, common.only_oracle)}
 
 
 def pipeline_independent_fn(ca, cb):
@@ -777,6 +800,19 @@ def render_md(doc):
                 for pr in sorted(v):
                     L.append(md_primary("leave out %s" % pr, v[pr]))
             elif name == "contaminated_reincluded_per_class":
+                ox = v.get("oracle_exposed") or {}
+                if ox.get("status") == "ok":
+                    for k, lab in (("read_only", "oracle-exposed, read form only"), ("diff", "oracle-exposed, diff form"),
+                                   ("all", "oracle-exposed, every form")):
+                        L.append(md_primary("re-included: %s" % lab, ox[k]))
+                        if ox[k].get("status") == "ok":
+                            L.append("| recall per arm (%s) | %s %s, %s %s |\n" % (
+                                lab, PRIMARY_A, f4(ox[k].get("recall_full")), PRIMARY_B, f4(ox[k].get("recall_matched"))))
+                    L.append("| oracle-exposed cells (arm / group / PR: form n) | %s |\n" % ("; ".join(
+                        "%s / %s / %s: %s" % (arm, g, pr, ", ".join("%s %d" % (f, ox["counts"][arm][g][pr][f]) for f in sorted(ox["counts"][arm][g][pr])))
+                        for arm in sorted(ox["counts"]) for g in sorted(ox["counts"][arm]) for pr in sorted(ox["counts"][arm][g])) or "none"))
+                else:
+                    L.append("| oracle-exposed re-inclusion | status `%s` |\n" % ox.get("status", "not_computed"))
                 if v.get("status") != "ok":
                     L.append("| %s | status `%s` |\n" % (name, v.get("status")))
                 else:

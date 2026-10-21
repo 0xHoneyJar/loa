@@ -426,6 +426,61 @@ class ContaminationFamilyTest(Base):
         fam = jload(os.path.join(o, "reads.json"))["sensitivities"]["reads"]["contaminated_reincluded_per_class"]
         self.assertEqual(fam["status"], "no_contaminated_cells")
         self.assertEqual(fam["observed"], [])
+        self.assertEqual(fam["oracle_exposed"]["status"], "no_oracle_exposed_cells")
+
+
+ORACLE = [  # (task, by_form) on a1_full trial 1
+    ("review-s01", {"diff": [], "read": ["d1"]}),
+    ("review-s02", {"diff": ["d1"], "read": []}),
+    ("review-s03", {"diff": ["d2"], "read": ["d1"]}),
+    ("review-s04", None),                                    # exposed, no form record
+]
+
+
+class OracleFamilyTest(Base):
+    def test_by_form(self):
+        def mut(row, grade):
+            if row["arm"] != "a1_full" or row["trial"] != 1:
+                return
+            for task, form in ORACLE:
+                if row["task_id"] == task:
+                    row["oracle_exposed_defects"] = ["d1"]
+                    grade["oracle_exposed_defects"] = ["d1"]
+                    grade["oracle_exposed_by_form"] = form
+            if row["task_id"] == "review-s07":                    # exposed AND contaminated: never re-included
+                row["oracle_exposed_defects"] = ["d1"]
+                grade["oracle_exposed_by_form"] = {"diff": [], "read": ["d1"]}
+                row["contaminated"] = {"pattern": "outside_path"}
+                row["status"] = "contaminated"
+        s = self.batch(mutate=mut)
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        self.assertEqual(doc["primary"]["n_pairs"], 11)
+        ox = doc["sensitivities"]["reads"]["contaminated_reincluded_per_class"]["oracle_exposed"]
+        self.assertEqual(ox["status"], "ok")
+        self.assertEqual(ox["read_only"]["reincluded_keys"], ["c132-g1/a1_full/review-s01/1"])
+        self.assertEqual(ox["read_only"]["n_pairs"], 12)
+        self.assertEqual(ox["diff"]["reincluded_keys"], ["c132-g1/a1_full/review-s02/1", "c132-g1/a1_full/review-s03/1"])
+        self.assertEqual(ox["diff"]["n_pairs"], 13)
+        self.assertEqual(len(ox["all"]["reincluded_keys"]), 4)           # s01–s04; s07 stays out
+        self.assertEqual(ox["all"]["n_pairs"], 15)
+        self.assertEqual(ox["counts"]["a1_full"]["G1"],
+                         {"review-s01": {"read": 1}, "review-s02": {"diff": 1}, "review-s03": {"diff": 1},
+                          "review-s04": {"unknown": 1}})
+        self.assertIn("recall_full", ox["all"])
+        # the primary filter is unchanged and the contamination members do not pick up oracle cells
+        fam = doc["sensitivities"]["reads"]["contaminated_reincluded_per_class"]
+        self.assertEqual(fam["classes"]["outside_path"]["reincluded_keys"], [])
+        md = slurp(os.path.join(o, "reads.md"))
+        self.assertIn("re-included: oracle-exposed, read form only", md)
+        self.assertIn("a1_full / G1 / review-s01: read 1", md)
+
+    def test_form(self):
+        self.assertEqual(common.oracle_form({"diff": [], "read": ["d1"]}), "read")
+        self.assertEqual(common.oracle_form({"diff": ["d1"], "read": ["d1"]}), "diff")
+        self.assertEqual(common.oracle_form(None), "unknown")
 
 
 class PartitionTest(unittest.TestCase):

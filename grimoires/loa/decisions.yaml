@@ -25624,3 +25624,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0790"
+    created_at: "2026-10-21T15:02:10Z"
+    updated_at: "2026-10-21T15:02:10Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 9 (§12): the overlay leaves all of .claude/ pinned so the pipeline runs its own runtime; oracle-exposed cells re-included as sensitivity rows"
+    decision: "overlay_answer_paths excludes every path under .claude/ (not only adapters); oracle_closed judges the rest; the section-10 family gains oracle-exposed cells re-included by form (read, diff, all) with per-arm, group, PR and form counts; the primary keeps every oracle-exposed cell invalid as registered; filed as REGISTRATION-8.json superseding a31e5942; the structural limitation (a pipeline cannot review a PR that modifies its own runtime under a fully closed mount) is stated in the addendum and heads the final report limitations"
+    rationale: "smoke3 a1_full review-r14 ran 32 minutes with no dissent voice planned or succeeding because the overlaid PR-era catalog and scripts drove the pinned pipeline; nine registered PRs touch .claude/; the pinned pipeline is the arm the question names, and the detector plus the sensitivity rows make the price visible rather than hidden"
+    alternatives_considered:
+      - option: "run the PR-era framework for those PRs (keep .claude overlaid)"
+        rejected_because: "measures a different and often broken pipeline on exactly those PRs; smoke2 and smoke3 showed import skew, a mis-planned dissent and provider failures"
+      - option: "exempt the pipeline arm from the oracle read form on its own instruction files"
+        rejected_because: "a detector loosening tailored to one arm; the bare arm gets no such exemption"
+      - option: "drop the nine PRs"
+        rejected_because: "leaves five fixtures; the unseen record corpus is the framework own recent sprints"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "c57a5315"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-9.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T15:02:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke3/a1_full/review-r14-t1 (api_failure both gates, voices_planned 1, exit 126)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

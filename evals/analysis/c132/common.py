@@ -188,6 +188,7 @@ def build_cell(row, grade, run_dir=None, grade_path=None, rules="c132"):
         "labels_meta": labels_meta_map(grade, ids),
     }
     c["contamination"] = None
+    c["oracle_form"] = None
     c["valid"], c["reasons"], c["took_effect"] = validity(c, rules)
     c["session1"] = session1(c)
     return c
@@ -219,6 +220,24 @@ def only_contamination(c, cls=None):
         set(c["reasons"]) <= set(CONTAMINATION_REASONS) and (cls is None or c["contamination"] == cls)
 
 
+def oracle_form(by_form):
+    """the oracle exposure's form (round 6) from grade.json oracle_exposed_by_form {diff, read}:
+    "read" (read exposures only), "diff" (any diff exposure, with or without read), "unknown"
+    (exposed defects but no form record)"""
+    if isinstance(by_form, dict):
+        if by_form.get("diff"):
+            return "diff"
+        if by_form.get("read"):
+            return "read"
+    return "unknown"
+
+
+def only_oracle(c, form=None):
+    """the cell's only invalidity is oracle exposure (of `form`, or of any form when None)"""
+    return (not c["valid"]) and c.get("oracle_form") is not None and set(c["reasons"]) == {"oracle_exposed"} and \
+        (form is None or c["oracle_form"] == form)
+
+
 def only_nonrepo_egress(c):
     """round 4's member of the family: a class-9 egress that names no repository"""
     return only_contamination(c, "network_egress:nonrepo")
@@ -246,6 +265,7 @@ def validity(c, rules="c132"):
             ox = grade.get("oracle_exposed_defects")
         if ox:
             reasons.append("oracle_exposed")
+            c["oracle_form"] = oracle_form(grade.get("oracle_exposed_by_form") or row.get("oracle_exposed_by_form"))
     if not c["matched"]:
         for ph in row.get("phases") or []:
             if isinstance(ph, dict) and ph.get("refusal_fallbacks"):
