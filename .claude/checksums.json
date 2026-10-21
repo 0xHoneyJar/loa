@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-19T07:12:36Z",
+  "generated": "2026-10-21T01:41:25Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -499,7 +499,7 @@
     ".claude/cache/full/.gitkeep": "7e0b7b284394c9693d0c73f7caf6dc4a5928e76a054ec1e3ed09498d90b6b304",
     ".claude/cache/results/.gitkeep": "556fe183f3e68c0f3646a3a1748a1bf774946291cc8bf9edac85d18fb9a45b2e",
     ".claude/commands/architect.md": "cc795a87a3fa580c19ffeabdccb6b02e2b77b04fd978e778713a3d4f7df8dfe6",
-    ".claude/commands/archive-cycle.md": "e9912bd07defcf557cad009a65c81a19373f14b44c8e924db64964ce7dfe4a27",
+    ".claude/commands/archive-cycle.md": "756fab33faadd549fa60e3064890ffe9165eb020685ab11ba8ecd01b719ec9aa",
     ".claude/commands/audit-deployment.md": "906ce2e23ba3e68acbda950b4a2e026bbf192fcb26942f55cd284524cfa1f34f",
     ".claude/commands/audit-sprint.md": "e6c537be042542084f17150603f10e636f735108a0e000cedac75b37f0acc2aa",
     ".claude/commands/audit.md": "d5a3d02bc8a80a5e187e1572c17995e4d8fc3fd8329ccf0b4753b6416e75d35e",
@@ -919,7 +919,7 @@
     ".claude/scripts/anonymize-proposal.sh": "62fff7fed9942e861a48cb468d6751baa9ed210e0d5f04557e16f3ef4c94913a",
     ".claude/scripts/anthropic-oracle.sh": "738d30b992b989b7abe178cd2eb7d3188f6e3a0ac9d2c0cb944d0f06de506583",
     ".claude/scripts/archetype-resolver.sh": "e8811be6903bbc29412d05651df24ec53733fe8d225405d782d32bc8478f41ce",
-    ".claude/scripts/archive-cycle.sh": "3d8454bf63d2db3ab8b0c84e12b3908eddca79fd36842b34bce3f22d9c2d4fe8",
+    ".claude/scripts/archive-cycle.sh": "9e1e6226fc44b36385797d8d849b490d1faec1d805ff12bd5d2912a2eda229bf",
     ".claude/scripts/assess-discovery-context.sh": "3b3a4b3647a2e3595522a691ad0ccd8ffbb6b05f10b9bedb86239b4733e00c0f",
     ".claude/scripts/audit-envelope.sh": "edea0b3963d0d502f60fd832c8b475220f87867a20c1d9fc3761003c77912d41",
     ".claude/scripts/audit-secret-redaction-scan.sh": "37b1c8e4c695619c22422d4cb5e8b71a1e8b9c2468b867f840fd869177edfba8",
@@ -1197,7 +1197,7 @@
     ".claude/scripts/post-pr-audit.sh": "80db891ebe06f9cc991b98c4d1e1e2668192be83cb3352f29be23f9c4c8a17af",
     ".claude/scripts/post-pr-context-clear.sh": "6fd99e8fc2b822e9f89ab35e74c3f857a217868f8aac9a5b8cd6df3b8e7037ea",
     ".claude/scripts/post-pr-e2e.sh": "b171c127f49e155f349519209745e7fbee6905a29988b1622121313315b20eda",
-    ".claude/scripts/post-pr-orchestrator.sh": "47e85fe4e51754bd18dd8500f1e9a51b910bd96163b70d2d31241bbbabe89c14",
+    ".claude/scripts/post-pr-orchestrator.sh": "e116b2ceec354d29fbadab6fe72f32f5e73ce9ba3a72eb7c412909d1791be713",
     ".claude/scripts/post-pr-state.sh": "fcfd3f26fd3e99487cfc944718393c326ef8ba555c9cc6da7970d296efe934fb",
     ".claude/scripts/post-pr-triage.sh": "e0a7f8a65dba12545226f7173c6b9cf934c6981952470ae42ebbf0be366063bd",
     ".claude/scripts/post-retrospective-hook.sh": "741c129440b8aa2c4a411ed2918c29748c80b9641cbf26f561dd4596cba25651",
