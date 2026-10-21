@@ -331,18 +331,59 @@ class PositiveControlTest(Base):
 
 
 class PartitionTest(unittest.TestCase):
-    def test_partition(self):
-        d = reads.decide
-        # z_yes crosses, z_no does not, interval reaches the MDE → YES
-        self.assertEqual(d(3.0, 2.5, 0.5, 2.5, 0.30, 0.10, 0.9, 0.1, False), "YES")
-        # both cross → SMALL
-        self.assertEqual(d(3.0, 2.5, 3.0, 2.5, 0.08, 0.10, 0.9, 0.9, False), "SMALL")
-        # z_yes crosses but the RCI lies entirely below the MDE → SMALL
-        self.assertEqual(d(3.0, 2.5, 1.0, 2.5, 0.09, 0.10, 0.9, 0.9, False), "SMALL")
-        self.assertEqual(d(0.5, 2.5, 3.0, 2.5, 0.05, 0.10, 0.1, 0.9, False), "NO")
-        self.assertEqual(d(0.5, 2.5, 0.5, 2.5, 0.5, 0.10, 0.1, 0.1, False), "FUTILE")
-        self.assertEqual(d(0.5, 2.5, 0.5, 2.5, 0.5, 0.10, 0.5, 0.1, False), "CONTINUE")
-        self.assertEqual(d(0.5, 2.0, 0.5, 2.0, 0.5, 0.10, 0.1, 0.1, True), "INCONCLUSIVE")
+    """reads.decide — the ordered, exhaustive table (round 3; Flatline SKP-003/SKP-006).
+    Arguments: delta, z_yes, b_yes, z_no, b_no, rci_hi, mde, cp_yes, cp_no, final."""
+
+    def d(self, delta, se, b=2.5, mde=0.10, cp=(0.5, 0.5), final=False, b_no=None):
+        z_yes, z_no = delta / se, (mde - delta) / se
+        b_no = b if b_no is None else b_no
+        return reads.decide(delta, z_yes, b, z_no, b_no, delta + b * se, mde, cp[0], cp[1], final)
+
+    def test_rule1_negative(self):
+        # a significantly negative Δ̂: |z_yes| = 4 ≥ 2.5 and Δ̂ < 0 → NEGATIVE (z_no also crosses; rule 1 wins)
+        self.assertEqual(self.d(-0.20, 0.05), "NEGATIVE")
+        self.assertEqual(self.d(-0.20, 0.05, final=True), "NEGATIVE")
+        # a negative Δ̂ that does not cross is NO when z_no crosses (rule 4), not NEGATIVE
+        self.assertEqual(self.d(-0.05, 0.05), "NO")
+
+    def test_rule2_yes_and_its_boundary_with_small(self):
+        # Δ̂ 0.30, SE 0.05: z_yes 6 crosses, z_no −4 does not, RCI upper 0.425 ≥ MDE → YES
+        self.assertEqual(self.d(0.30, 0.05), "YES")
+        # Δ̂ 0.13, SE 0.05 with b 2.5: z_yes 2.6 crosses; RCI upper 0.255 ≥ 0.10; z_no −0.6 → YES
+        self.assertEqual(self.d(0.13, 0.05), "YES")
+
+    def test_rule3_small(self):
+        # z_yes crosses and z_no crosses: Δ̂ 0.05, SE 0.01 → z_yes 5, z_no 5 → SMALL
+        self.assertEqual(self.d(0.05, 0.01), "SMALL")
+        # z_yes crosses, z_no does not, but the RCI upper bound is below the MDE → SMALL
+        self.assertEqual(reads.decide(0.05, 3.0, 2.5, 1.0, 2.5, 0.09, 0.10, 0.9, 0.9, False), "SMALL")
+        # the edge: RCI upper exactly at the MDE is YES (≥), just below is SMALL
+        self.assertEqual(reads.decide(0.05, 3.0, 2.5, 1.0, 2.5, 0.10, 0.10, 0.9, 0.9, False), "YES")
+        self.assertEqual(reads.decide(0.05, 3.0, 2.5, 1.0, 2.5, 0.0999, 0.10, 0.9, 0.9, False), "SMALL")
+
+    def test_rule4_to_6(self):
+        self.assertEqual(self.d(0.0, 0.03), "NO")                                   # z_no 3.33 ≥ 2.5
+        self.assertEqual(self.d(0.05, 0.05, cp=(0.1, 0.1)), "FUTILE")
+        self.assertEqual(self.d(0.05, 0.05, cp=(0.5, 0.1)), "CONTINUE")
+        self.assertEqual(self.d(0.05, 0.05, cp=(0.1, 0.1), final=True), "INCONCLUSIVE")
+
+    def test_exhaustive_and_ordered(self):
+        seen = set()
+        for delta in (-0.3, -0.1, -0.01, 0.0, 0.01, 0.05, 0.1, 0.2, 0.4):
+            for se in (0.01, 0.03, 0.06, 0.2):
+                for final in (False, True):
+                    for cp in ((0.1, 0.1), (0.5, 0.5)):
+                        out = self.d(delta, se, cp=cp, final=final)
+                        self.assertIn(out, reads.OUTCOMES)
+                        seen.add(out)
+                        if out == "NEGATIVE":
+                            self.assertLess(delta, 0)
+                        if out in ("YES", "SMALL"):
+                            self.assertGreaterEqual(delta, 0)
+        self.assertEqual(seen, set(reads.OUTCOMES))
+
+    def test_legend_in_look_output(self):
+        self.assertIn("NEGATIVE", reads.PARTITION_LEGEND)
 
 
 class DegenerateTest(Base):

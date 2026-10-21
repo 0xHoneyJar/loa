@@ -15,8 +15,8 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                t_j = SE²_planned-final / SE²_j (capped at 1, made non-decreasing; the registration's
                last look uses t = 1), the YES boundary (two-sided α 0.05 OBF) and the NO boundary
                (one-sided α 0.025 OBF on z_no = (MDE − Δ̂)/SE), both × boundary_constant, the
-               conditional powers and the decision under the PRD D16 partition (YES / NO / SMALL /
-               FUTILE / CONTINUE; INCONCLUSIVE at the final look). No decision with fewer than 6
+               conditional powers and the decision under the ordered table of PARTITION_LEGEND
+               (round 3: NEGATIVE / YES / SMALL / NO / INCONCLUSIVE / FUTILE / CONTINUE). No decision with fewer than 6
                valid PRs or 30 labelled defects (CONTINUE with the reason).
   --final      the pre-registered reads (primary Δ with 95 % / 90 % intervals and the RCI at the
                stopping look, PR-weighted Δ, REML, PR-level permutation, defects per USD, cost per
@@ -160,14 +160,30 @@ def labelled_defects(pairs):
     return sum(seen.values()), len(seen)
 
 
-def decide(z_yes, b_yes, z_no, b_no, rci_hi, mde, cp_yes, cp_no, final):
-    cy = z_yes >= b_yes
-    cn = z_no >= b_no
-    if cy and (cn or rci_hi < mde):
-        return "SMALL"
-    if cy:
+OUTCOMES = ("NEGATIVE", "YES", "SMALL", "NO", "INCONCLUSIVE", "FUTILE", "CONTINUE")
+PARTITION_LEGEND = (
+    "Decision table (ordered, exhaustive; round 3). The YES boundary is two-sided: "
+    "\"z_yes crosses\" means |z_yes| ≥ b_yes. "
+    "1. z_yes crosses and Δ̂ < 0 → NEGATIVE. "
+    "2. z_yes crosses and Δ̂ > 0 and z_no < b_no and RCI upper ≥ MDE → YES. "
+    "3. z_yes crosses and Δ̂ ≥ 0 and (z_no ≥ b_no or RCI upper < MDE) → SMALL. "
+    "4. z_yes does not cross and z_no ≥ b_no → NO. "
+    "5. neither crossed, final look → INCONCLUSIVE. "
+    "6. neither crossed, interim look: both conditional powers < 0.20 → FUTILE (non-binding), else CONTINUE.")
+
+
+def decide(delta, z_yes, b_yes, z_no, b_no, rci_hi, mde, cp_yes, cp_no, final):
+    """the ordered decision table of PARTITION_LEGEND (round 3; Flatline SKP-003/SKP-006). `delta`
+    is the signed Δ̂; z_yes = Δ̂/SE crosses its two-sided boundary when |z_yes| ≥ b_yes."""
+    crossed_yes = abs(z_yes) >= b_yes
+    crossed_no = z_no >= b_no
+    if crossed_yes and delta < 0:
+        return "NEGATIVE"
+    if crossed_yes and delta > 0 and not crossed_no and rci_hi >= mde:
         return "YES"
-    if cn:
+    if crossed_yes:          # Δ̂ ≥ 0 and (z_no crossed or the RCI lies below the MDE)
+        return "SMALL"
+    if crossed_no:
         return "NO"
     if final:
         return "INCONCLUSIVE"
@@ -238,7 +254,7 @@ def look_table(cells, reg, upto, seed, planned_se, arm_a=PRIMARY_A, arm_b=PRIMAR
             rec["reason"] = "minimum information not reached (%d valid PRs < %d or %d labelled defects < %d)" % (
                 rec["n_prs"], MIN_PRS, rec["n_defects"], MIN_DEFECTS)
         else:
-            rec["decision"] = decide(z_yes, b_yes, z_no, b_no, hi if hi is not None else math.inf, mde,
+            rec["decision"] = decide(rec["delta"], z_yes, b_yes, z_no, b_no, hi if hi is not None else math.inf, mde,
                                      cp_yes, cp_no, rec["final_look"])
             rec["reason"] = None
     return rows
@@ -642,6 +658,7 @@ def render_md(doc):
                 f4(r.get("z_yes")), f4(r.get("b_yes")), f4(r.get("z_no")), f4(r.get("b_no")), f4(r.get("cp_yes")),
                 f4(r.get("cp_no")), iv(r.get("rci")), r.get("decision"),
                 (" (%s)" % r["reason"]) if r.get("reason") else ""))
+        L.append("\n" + PARTITION_LEGEND + "\n")
         L.append("\nBoundary constant %s; MDE %s; planned final SE %s.\n\n" % (
             f4(doc["boundary_constant"]), f4(doc["mde"]), f4(doc["planned_final_se"])))
     if doc["mode"] == "final":

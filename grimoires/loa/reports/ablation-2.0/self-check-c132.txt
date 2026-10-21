@@ -1,0 +1,43 @@
+self-check base review-r11: PASS recall 0.0 (0/5), false_positives 0
+self-check reference review-r11: PASS recall 1.0 (5/5), false_positives 0
+self-check noisy review-r11: PASS recall 1.0 (5/5), false_positives 75 vs reference 0
+self-check base review-r14: PASS recall 0.0 (0/17), false_positives 0
+self-check reference review-r14: PASS recall 1.0 (17/17), false_positives 0
+self-check noisy review-r14: PASS recall 1.0 (17/17), false_positives 105 vs reference 0
+self-check base review-r15: PASS recall 0.0 (0/45), false_positives 0
+self-check reference review-r15: PASS recall 1.0 (45/45), false_positives 0
+self-check noisy review-r15: PASS recall 1.0 (45/45), false_positives 107 vs reference 0
+self-check base review-r16: PASS recall 0.0 (0/6), false_positives 0
+self-check reference review-r16: PASS recall 1.0 (6/6), false_positives 0
+self-check noisy review-r16: PASS recall 1.0 (6/6), false_positives 47 vs reference 0
+self-check base review-r19: PASS recall 0.0 (0/15), false_positives 0
+self-check reference review-r19: PASS recall 1.0 (15/15), false_positives 0
+self-check noisy review-r19: PASS recall 1.0 (15/15), false_positives 96 vs reference 0
+self-check base review-r20: PASS recall 0.0 (0/10), false_positives 0
+self-check reference review-r20: PASS recall 1.0 (10/10), false_positives 0
+self-check noisy review-r20: PASS recall 1.0 (10/10), false_positives 88 vs reference 0
+self-check base review-r21: PASS recall 0.0 (0/16), false_positives 0
+self-check reference review-r21: PASS recall 1.0 (16/16), false_positives 0
+self-check noisy review-r21: PASS recall 0.875 (14/16), false_positives 73 vs reference 0
+self-check base review-r22: PASS recall 0.0 (0/20), false_positives 0
+self-check reference review-r22: PASS recall 1.0 (20/20), false_positives 0
+self-check noisy review-r22: PASS recall 1.0 (20/20), false_positives 97 vs reference 0
+self-check base review-r23: PASS recall 0.0 (0/13), false_positives 0
+self-check reference review-r23: PASS recall 1.0 (13/13), false_positives 0
+self-check noisy review-r23: PASS recall 1.0 (13/13), false_positives 40 vs reference 0
+self-check base review-r24: PASS recall 0.0 (0/9), false_positives 0
+self-check reference review-r24: PASS recall 1.0 (9/9), false_positives 0
+self-check noisy review-r24: PASS recall 1.0 (9/9), false_positives 25 vs reference 0
+self-check base review-r25: PASS recall 0.0 (0/4), false_positives 0
+self-check reference review-r25: PASS recall 1.0 (4/4), false_positives 0
+self-check noisy review-r25: PASS recall 1.0 (4/4), false_positives 17 vs reference 0
+self-check base review-r26: PASS recall 0.0 (0/9), false_positives 0
+self-check reference review-r26: PASS recall 1.0 (9/9), false_positives 0
+self-check noisy review-r26: PASS recall 1.0 (9/9), false_positives 26 vs reference 0
+self-check base review-r27: PASS recall 0.0 (0/13), false_positives 0
+self-check reference review-r27: PASS recall 1.0 (13/13), false_positives 0
+self-check noisy review-r27: PASS recall 1.0 (13/13), false_positives 50 vs reference 0
+self-check base review-r28: PASS recall 0.0 (0/3), false_positives 0
+self-check reference review-r28: PASS recall 1.0 (3/3), false_positives 0
+self-check noisy review-r28: PASS recall 1.0 (3/3), false_positives 14 vs reference 0
+lines=42 pass=42 fail=0

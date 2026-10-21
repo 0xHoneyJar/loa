@@ -29,7 +29,7 @@ PY
 @test "AC-1 the unit tests pass and the case count is pinned" {
   run python3 -m unittest discover -s "$A/tests"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Ran 117 tests"* ]]
+  [[ "$output" == *"Ran 123 tests"* ]]
   [[ "$output" == *$'\nOK'* ]]
 }
 

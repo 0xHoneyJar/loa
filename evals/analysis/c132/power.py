@@ -48,7 +48,8 @@ Model (sdd.md §5.3, D-5.3, D-7.7; prd.md FR-6, D18):
     evaluated N (≤ the corpus ceiling) with P(YES | Δ = MDE) ≥ 0.80 AND P(NO | Δ = 0) ≥ 0.80 under its
     calibrated c (round 1). When no N satisfies both, nothing is chosen (chosen_n null,
     decision_required true): the figures are reported at the largest evaluated N (reference_n) and
-    the lead decides. The per-N table carries P(NO | 0), P(SMALL | 0), the clipped share and the
+    the lead decides. The per-N table carries P(NO | 0), P(SMALL | 0), P(NEGATIVE | 0 and | MDE)
+    (round 3: reads.decide's ordered table; a significantly negative Δ̂ is NEGATIVE, no longer NO), the clipped share and the
     expected matched / full recall beside each Δ row; the arm fits carry the literal π0 diagnostic.
   * Cap (sdd.md §5.3): (N × (2·22 + 2·22 + 2·22 + 2·12 + 24) + |G1| × 2 × 20 + 2·N·3 + 30 + 80 + 60)
     × 1.25, rounded up to USD 50; affordable-N: a cap above --envelope moves N to the largest
@@ -78,7 +79,7 @@ if __package__ in (None, ""):
 
 from c132 import common, stats  # noqa: E402
 from c132.common import InputError  # noqa: E402
-from c132.reads import dumps, f4, MIN_PRS, MIN_DEFECTS, decide  # noqa: E402
+from c132.reads import dumps, f4, MIN_PRS, MIN_DEFECTS, decide, PARTITION_LEGEND  # noqa: E402
 
 K_FLOOR, K_CAP = 2, 30
 UNIT = {"full": 22, "matched_opus": 22, "matched_fable": 22, "review_only": 12, "smoke": 24,
@@ -348,7 +349,7 @@ def study(model, rng, n, shift, r, partial_prob, se_method, se_boot):
 
 def evaluate(results, se_plan, c, mde, n_looks_planned, interval="t"):
     """reads.py's look procedure over stored studies → outcome shares"""
-    counts = {"YES": 0, "NO": 0, "SMALL": 0, "FUTILE": 0, "INCONCLUSIVE": 0}
+    counts = {"NEGATIVE": 0, "YES": 0, "NO": 0, "SMALL": 0, "FUTILE": 0, "INCONCLUSIVE": 0}
     stop_looks = 0
     for looks, _complete in results:
         ts, outcome = [], "INCONCLUSIVE"
@@ -379,7 +380,7 @@ def evaluate(results, se_plan, c, mde, n_looks_planned, interval="t"):
                 cp_y = stats.conditional_power(z_yes, t, stats.gs_boundaries(frf, alpha=0.05, constant=c, grid=400)[-1])
                 cp_n = stats.conditional_power(z_no, t, stats.gs_boundaries(frf, alpha=0.025, constant=c, one_sided=True, grid=400)[-1])
             hi = delta + b_yes * se if not math.isinf(b_yes) else math.inf
-            dcs = decide(z_yes, b_yes, z_no, b_no, hi, mde, cp_y, cp_n, final)
+            dcs = decide(delta, z_yes, b_yes, z_no, b_no, hi, mde, cp_y, cp_n, final)
             if dcs != "CONTINUE":
                 outcome = dcs
                 stop_looks += j
@@ -438,6 +439,8 @@ def summarise(sim, se_plan, c, mde, n, interval="t"):
     row["type1"] = row["null"]["yes"]
     row["power_no_at_null"] = row["null"]["no"]      # round 1: the power to conclude "no actionable lift"
     row["small_at_null"] = row["null"]["small"]
+    row["negative_at_null"] = row["null"]["negative"]     # round 3: the NEGATIVE outcome
+    row["negative_at_mde"] = row["mde"]["negative"]
     row["meets_both"] = row["power_at_mde"] >= 0.80 and row["power_no_at_null"] >= 0.80
     row["mc_se_power"] = math.sqrt(max(row["power_at_mde"] * (1 - row["power_at_mde"]), 0.0) / len(sim["mde"]["results"]))
     row["unreliable"] = max(row["clipped_share_null"], row["clipped_share_mde"]) > 0.10
@@ -672,20 +675,23 @@ def render_md(doc):
          % (doc["seed"], doc["inputs_sha256"], doc["studies"], f4(doc["mde"]), f4(doc["exclusion_rate"]), f4(doc["partial_prob"]),
             doc["se_method"], (" (%d resamples)" % doc["se_boot"]) if doc["se_boot"] else ""),
          "Interval %s. Selection: the smallest N with P(YES | MDE) ≥ 0.80 and P(NO | 0) ≥ 0.80 under its calibrated constant.\n\n" % doc["interval"],
-         "## Per N\n\n| N | groups | constant | SE plan | Δ | YES | NO | SMALL | FUTILE | inconclusive | void | clipped | E recall matched | E recall full | cap USD |\n"
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"]
+         "## Per N\n\n| N | groups | constant | SE plan | Δ | YES | NO | SMALL | NEGATIVE | FUTILE | inconclusive | void | clipped | E recall matched | E recall full | cap USD |\n"
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"]
     for r in doc["per_n"]:
         for name, lab in (("null", "0"), ("mde", "MDE")):
             e = r[name]
-            L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s%s | %s | %s | %d |\n" % (
+            L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s%s | %s | %s | %d |\n" % (
                 r["n"], "+".join(str(g) for g in r["groups"]), f4(r["constant"]), f4(r["se_plan"]), lab,
-                f4(e["yes"]), f4(e["no"]), f4(e["small"]), f4(e["futile"]), f4(e["inconclusive"]), f4(e["void"]),
+                f4(e["yes"]), f4(e["no"]), f4(e["small"]), f4(e["negative"]), f4(e["futile"]), f4(e["inconclusive"]), f4(e["void"]),
                 f4(r["clipped_share_" + name]), " (unreliable)" if r["unreliable"] else "",
                 f4(r["expected_recall_matched_" + name]), f4(r["expected_recall_full_" + name]), r["cap_usd"]))
-    L.append("\n| N | P(YES · MDE) | P(NO · 0) | P(SMALL · 0) | type I | both ≥ 0.80 |\n|---|---|---|---|---|---|\n")
+    L.append("\n| N | P(YES · MDE) | P(NO · 0) | P(SMALL · 0) | P(NEGATIVE · 0) | P(NEGATIVE · MDE) | type I | both ≥ 0.80 |\n|---|---|---|---|---|---|---|---|\n")
     for r in doc["per_n"]:
-        L.append("| %d | %s | %s | %s | %s | %s |\n" % (r["n"], f4(r["power_at_mde"]), f4(r["power_no_at_null"]),
-                                                     f4(r["small_at_null"]), f4(r["type1"]), "yes" if r["meets_both"] else "no"))
+        L.append("| %d | %s | %s | %s | %s | %s | %s | %s |\n" % (r["n"], f4(r["power_at_mde"]), f4(r["power_no_at_null"]),
+                                                               f4(r["small_at_null"]), f4(r["negative_at_null"]),
+                                                               f4(r["negative_at_mde"]), f4(r["type1"]),
+                                                               "yes" if r["meets_both"] else "no"))
+    L.append("\n" + PARTITION_LEGEND + "\n")
     if doc["decision_required"]:
         L.append("\n**No N chosen — DECISION REQUIRED** (%s). At the reference N = %d: P(YES | MDE) %s, P(NO | 0) %s; groups %s, "
                  "looks %s; calibrated constant %s; planned final SE %s; cap USD %d (envelope USD %d); corpus ceiling %d.\n\n" % (

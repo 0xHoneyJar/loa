@@ -137,6 +137,16 @@ class ProcedureTest(unittest.TestCase):
         self.assertAlmostEqual(ev["no"], 0.2)
         self.assertAlmostEqual(ev["small"], 0.2)
         self.assertAlmostEqual(ev["inconclusive"], 0.4)
+        self.assertAlmostEqual(ev["negative"], 0.0)
+
+    def test_negative_outcome_is_tallied(self):
+        # round 3: a significantly negative Δ̂ (z_yes −4) is NEGATIVE, no longer NO
+        res = [self.looks(-0.2, 0.05), self.looks(-0.2, 0.05), self.looks(0.3, 0.05), self.looks(-0.03, 0.05)]
+        for iv_ in ("percentile", "t"):
+            ev = power.evaluate(res, 0.05, 1.0, 0.10, 1, iv_)
+            self.assertAlmostEqual(ev["negative"], 0.5)
+            self.assertAlmostEqual(ev["yes"], 0.25)
+            self.assertAlmostEqual(sum(v for k, v in ev.items() if k != "void"), 1.0)
 
     def test_calibration_inflates_until_type1(self):
         rng = random.Random(9)
@@ -176,7 +186,7 @@ class TinyRunTest(unittest.TestCase):
         doc = json.loads(outs[0][0])
         self.assertEqual(doc["reference_n"], 6)
         row = doc["per_n"][0]
-        for k in ("power_no_at_null", "small_at_null", "expected_recall_matched_null", "expected_recall_matched_mde",
+        for k in ("power_no_at_null", "small_at_null", "negative_at_null", "negative_at_mde", "expected_recall_matched_null", "expected_recall_matched_mde",
                   "clipped_share_null", "clipped_share_mde", "meets_both"):
             self.assertIn(k, row)
         # round 1: N is chosen only when both powers reach 0.80; otherwise nothing is picked
@@ -189,6 +199,8 @@ class TinyRunTest(unittest.TestCase):
             self.assertIn("DECISION REQUIRED", outs[0][1].decode())
         self.assertIn("pi0_literal", doc["arm_fits"]["bare"])
         self.assertEqual(doc["validity"], "c132")
+        self.assertIn("negative", row["null"])
+        self.assertIn("| NEGATIVE |", outs[0][1].decode())
         self.assertEqual(doc["evaluated"], [6])
         self.assertEqual(len(doc["per_n"]), 1)
         self.assertIn("planned_final_se", doc)
