@@ -475,3 +475,91 @@ make_closed_run() {
   te131 "$rd"
   [ "$status" -eq 1 ]; line oracle_closed | grep -q 'loa_mount: false but the sandbox has .claude/'
 }
+
+# --- cycle-132 Sprint 269 Tasks 1.7a / 1.7b: mount_cheval_ok, bare_sessions_matched (matched cells) -----------------
+
+c132_suite() {
+  S132="$T/suite-c132.yaml"
+  cp "$SUITE" "$S132"
+  yq -i '.arms += [
+    {"id": "a1_cheval", "task_types": ["all"], "toggles": {}, "took_effect": ["mount_cheval_ok"]},
+    {"id": "a0_bare_matched", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_sessions": "matched"}, "phases": ["BARE"],
+     "took_effect": ["no_dot_claude", "no_system_prompt", "no_audit_rows", "integrity_clean", "bare_sessions_matched"]},
+    {"id": "a0_bare_fable_matched", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_model": "fable", "bare_sessions": "matched"},
+     "phases": ["BARE"], "took_effect": ["bare_model_fable", "bare_sessions_matched"]}]' "$S132"
+  TY="$T/task-k.yaml"
+  cp "$FX/tasks/rc-01/task.yaml" "$TY"
+  yq -i '.review_catch.bare_sessions_matched = 2 | .review_catch.bare_sessions_matched_fable = 3' "$TY"
+}
+te132() { local run="$1"; shift; run "$TE" --run-dir "$run" --suite-file "$S132" "$@"; }
+# make_cell_te <cell> <arm> <k> <valid…> — sessions s1 … sk copied from the A0 fixture run; meta/cell.json and meta/arm
+make_cell_te() {
+  local c="$1" arm="$2" k="$3" i; shift 3
+  mkdir -p "$c/meta" "$c/sessions"; echo "$arm" > "$c/meta/arm"
+  for i in $(seq 1 "$k"); do cp -a "$T/runs/a0-build" "$c/sessions/s$i"; echo "$arm" > "$c/sessions/s$i/meta/arm"; done
+  printf '%s\n' "$@" | jq -R -s -c --argjson k "$k" '[split("\n")[] | select(length > 0)] as $v
+    | {schema_version: 1, k: $k, sessions: [range(0; $k) as $j | {id: ("s\($j + 1)"), valid: ($v[$j] == "true"), status: "completed",
+       run_dir: ("sessions/s\($j + 1)")}]}' > "$c/meta/cell.json"
+}
+
+@test "TE-c132-1 mount_cheval_ok: OK on mount_cheval=ok in the arm evidence; broken, none and absent FAIL" {
+  c132_suite
+  echo 'mount_cheval=ok' >> "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 0 ]
+  line mount_cheval_ok | grep -q ' OK mount_cheval=ok$'
+  sed -i 's/^mount_cheval=ok$/mount_cheval=broken:ImportError: cannot import name x/' "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 1 ]
+  line mount_cheval_ok | grep -q 'FAIL mount_cheval=broken:ImportError: cannot import name x in arm_evidence (want ok; KF-050)'
+  sed -i '/^mount_cheval=/d' "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 1 ]
+  line mount_cheval_ok | grep -q 'mount_cheval=<absent>'
+}
+
+@test "TE-c132-2 bare_sessions_matched on a cell: k equals the task's value, s1 … sk attempted and nothing beyond, every valid session passes the bare rules; an invalid session is not read" {
+  c132_suite
+  C="$T/cell"; make_cell_te "$C" a0_bare_matched 2 true true
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line bare_sessions_matched | grep -q 'OK k 2 = the task'"'"'s bare_sessions_matched; s1 … s2 attempted; 2 valid session(s) pass'
+  line no_dot_claude | grep -q ' OK 2 valid session(s) pass'
+  # a valid session that broke a bare rule fails both the rule and the cell rule, naming it
+  echo x > "$C/sessions/s2/sandbox/CLAUDE.md"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]
+  line bare_sessions_matched | grep -q 'FAIL valid sessions failing: s2:no_dot_claude'
+  line no_dot_claude | grep -q 'FAIL s2: sandbox has .claude/ or CLAUDE.md'
+  # the same session marked invalid is never read
+  jq '.sessions[1].valid = false' "$C/meta/cell.json" > "$T/c" && mv "$T/c" "$C/meta/cell.json"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 0 ]
+  # k against the task, the session directories, the ids, and --task-yaml
+  yq -i '.review_catch.bare_sessions_matched = 3' "$TY"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'cell k 2, the task'"'"'s review_catch.bare_sessions_matched is 3'
+  yq -i '.review_catch.bare_sessions_matched = 2' "$TY"
+  cp -a "$C/sessions/s1" "$C/sessions/s3"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'sessions/s3 exists beyond k 2'
+  find "$C/sessions/s3" -depth -delete; find "$C/sessions/s2" -depth -delete
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'session s2 was never attempted'
+  te132 "$C"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'k 2 unverified: --task-yaml'
+}
+
+@test "TE-c132-3 bare_sessions_matched on a session's own run dir reads OK (the cell decides); on an ordinary run it FAILs; the Fable cell reads its own k and checks bare_model_fable on every valid session" {
+  c132_suite
+  C="$T/cell"; make_cell_te "$C" a0_bare_matched 2 true true
+  te132 "$C/sessions/s1" --arm a0_bare_matched
+  line bare_sessions_matched | grep -q 'OK session s1 of a matched cell'
+  te132 "$T/runs/a0-build" --arm a0_bare_matched
+  line bare_sessions_matched | grep -q 'FAIL not a matched cell'
+  F="$T/cellf"; make_cell_te "$F" a0_bare_fable_matched 3 true true false
+  te132 "$F" --task-yaml "$TY"
+  [ "$status" -eq 1 ]   # the A0 fixture's BARE ran on Opus: bare_model_fable fails on s1
+  line bare_model_fable | grep -q 'FAIL s1: BARE models_used'
+  line bare_sessions_matched | grep -q 'OK k 3 = the task'"'"'s bare_sessions_matched_fable|bare_sessions_matched'
+}

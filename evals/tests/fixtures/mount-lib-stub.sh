@@ -16,6 +16,9 @@
 # cycle-131 (Sprint 263 Task 1.1): overlay_answer_paths, check_mount_closed and
 # apply_eval_config_variant are stubbed with their evidence shapes; the toggles
 # bare_model, dissent and oracle_open print their evidence lines.
+# cycle-132 (Sprint 269 Task 1.7a): bare_sessions prints bare_sessions=matched; print_toggle_vocabulary
+# is the real library's table (pipeline-run.sh --dry-run derives config_edits from it; arm-toggles.bats
+# pins this copy byte-equal to evals/harness/lib/sandbox-mount.sh's).
 
 _stub_fail() {
   [[ -n "${STUB_MOUNT_CALLS:-}" ]] && printf '%s\n' "$1" >> "$STUB_MOUNT_CALLS"
@@ -72,8 +75,27 @@ apply_arm_toggles() {  # <ws> <toggles_json> <arm>
     yq -i '.flatline_protocol.code_review.enabled = false' "$cfg"; echo "dissent=false"
   fi
   [[ "$(jq -r '.oracle_open' <<<"$tg")" == true ]] && echo "oracle_open=true"
+  [[ "$(jq -r '.bare_sessions // empty' <<<"$tg")" == matched ]] && echo "bare_sessions=matched"
   [[ -n "${STUB_ARM_ENV_EXTRA:-}" && -n "${ARM_ENV_FILE:-}" ]] && printf '%s\n' "$STUB_ARM_ENV_EXTRA" >> "$ARM_ENV_FILE"
   return 0
+}
+
+print_toggle_vocabulary() {
+  printf '%s\t%s\t%s\n' \
+    companion_voice false "flatline_protocol.code_review.companion_voice=false,flatline_protocol.security_audit.companion_voice=false" \
+    karpathy_block false - \
+    rule_files false - \
+    audit_delta_instruction false - \
+    loa_mount false - \
+    effort "low|medium|high|xhigh|max" - \
+    gates false "flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false" \
+    dissent false "flatline_protocol.code_review.enabled=false" \
+    flatline false "flatline_protocol.enabled=false" \
+    sprint_plan false - \
+    context_resets false - \
+    bare_model fable - \
+    oracle_open true - \
+    bare_sessions matched -
 }
 
 regen_sandbox_manifest() {  # <ws>

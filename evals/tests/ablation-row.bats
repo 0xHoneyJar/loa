@@ -574,7 +574,7 @@ envset() {  # envset <run> <gate> <jq filter on the envelope>
   run "$ROW" --validate "$T/rows.jsonl"
   [ "$status" -eq 0 ]
   local r; r="$(last)"
-  [ "$(jq -r '"\(.row_writer_version) \(.defect_catch_rate) \(.defect_catch_rate_pm3) \(.defect_catch_rate_pm3_v1)"' <<<"$r")" = "1.4 0.6667 0.3333 0.3333" ]
+  [ "$(jq -r '"\(.row_writer_version) \(.defect_catch_rate) \(.defect_catch_rate_pm3) \(.defect_catch_rate_pm3_v1)"' <<<"$r")" = "1.5 0.6667 0.3333 0.3333" ]   # cycle-132: row writer 1.5 (additive)
   [ "$(jq -c '[.defects_missed, .defects_missed_pm3, .defects_missed_pm3_v1, .credits_function_only, .oracle_exposed_defects, .oracle_exposed_unknown]' <<<"$r")" = '[["d3"],["d2","d3"],["d2","d3"],["d2"],["d1"],[]]' ]
   [ "$(jq -r '"\(.grader_rule) \(.grader_version) \(.corpus_sha256)"' <<<"$r")" = "pm3_or_same_function 1.3.0 c0ffee" ]
   # a 1.2.x grade names no rule: grader_rule pm3, the new rates null
@@ -613,15 +613,21 @@ envset() {  # envset <run> <gate> <jq filter on the envelope>
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '.dissent_absent_reason' <<<"$(last)")" = '{"review":"preflight","audit":"preflight"}' ]
   rm -f "$T/runs/a3-review/eval/adversarial-audit.json" "$T/runs/a3-review/sandbox/grimoires/loa/a2a/sprint-1/adversarial-audit.json"
-  printf 'flatline_protocol:\n  enabled: true\n  code_review:\n    enabled: false\n' > "$T/runs/a3-review/sandbox/.loa.config.yaml"
+  printf 'flatline_protocol:\n  enabled: false\n  code_review:\n    enabled: false\n' > "$T/runs/a3-review/sandbox/.loa.config.yaml"
   row a3-review "$REVIEW_TASK"
-  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"disabled","audit":"error"},["review","audit"]]' ]
+  # row writer 1.5 (bd-jszcp): the agent-writable sandbox config never reads "disabled"; the envelopes decide
+  [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"preflight","audit":"error"},["review","audit"]]' ]
   rm "$T/runs/a3-review/sandbox/.loa.config.yaml"; echo 'dissent=false' >> "$T/runs/a3-review/meta/arm-evidence.txt"
   row a3-review "$REVIEW_TASK"
   [ "$(jq -r '.dissent_absent_reason.review' <<<"$(last)")" = disabled ]
   edit_pipe a3-review '.phases |= map(if .label == "AUDIT" then .skipped = true else . end)'
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '[.dissent_absent_reason, .dissent_absent_gates]' <<<"$(last)")" = '[{"review":"disabled","audit":null},["review"]]' ]
+  # the harness lines for gates: false / flatline: false disable both gates' dissent
+  edit_pipe a3-review '.phases |= map(.skipped = false)'
+  echo 'gates=flatline_protocol.{code_review,security_audit}.enabled=false' >> "$T/runs/a3-review/meta/arm-evidence.txt"
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.dissent_absent_reason' <<<"$(last)")" = '{"review":"disabled","audit":"disabled"}' ]
   run "$ROW" --validate "$T/rows.jsonl"
   [ "$status" -eq 0 ]
 }
@@ -661,4 +667,120 @@ CASES
     <<<"$good" > "$T/legacy.jsonl"
   run "$ROW" --validate "$T/legacy.jsonl"
   [ "$status" -eq 0 ]
+}
+
+# --- cycle-132 Sprint 269 Task 1.7b: row writer 1.5 (matched cells, all_spend_usd, the cycle-132 provenance fields) ---
+
+# make_cell_rows <cell> <s1-valid:status:cost:attempt-costs> … — sessions/<s>/meta/pipeline.json with one BARE record
+# (an invalid session's record carries a refusal fallback), meta/cell.json, meta/arm and a union grade.json
+make_cell_rows() {
+  local c="$1" spec i=0 id valid st cost acs att fb; shift
+  mkdir -p "$c/meta"; echo a0_bare_matched > "$c/meta/arm"
+  local sessions='[]'
+  for spec in "$@"; do
+    i=$((i + 1)); id="s$i"; IFS=: read -r valid st cost acs <<<"$spec"
+    mkdir -p "$c/sessions/$id/meta" "$c/sessions/$id/transcripts"
+    fb='[]'; [[ "$valid" == true ]] || fb='[{"from":"global.anthropic.claude-opus-5-5","to":"x","category":"cyber","scope":"session"}]'
+    jq -n --arg id "$id" --arg st "$st" --argjson c "$cost" --argjson fb "$fb" '
+      {schema_version: 1, run_id: ("cellb-a0_bare_matched-rc-01-t1-" + $id), arm: "a0_bare_matched", task_id: "rc-01",
+       task_type: "review-catch", trial: 1, source_commit: "abc123", suite_version: 2, status: $st, spent_usd: $c,
+       fingerprint: "fp:cell", image_digest: "sha256:cell", started: "2026-10-21T01:00:00Z", finished: "2026-10-21T01:05:00Z",
+       phases: [{name: "BARE", label: "BARE", skipped: false, session_id: ("sess-" + $id),
+                 model_requested: "global.anthropic.claude-opus-5-5", models_used: {"global.anthropic.claude-opus-5-5": 100},
+                 effort_requested: "high", tokens_in: 10, tokens_out: 100, cache_read_tokens: 0, cache_creation_tokens: 0,
+                 cost_usd: $c, ledger_cost_usd: 0, duration_ms: 1000, num_turns: 2, exit: 0, timed_out: false,
+                 refusal_fallbacks: $fb, modelinv_lines: {from: 1, to: 0}}]}' > "$c/sessions/$id/meta/pipeline.json"
+    printf 'loa_mount=none\nbatch_context=cellb\nmount_cheval=none\nbare_sessions=matched\n' > "$c/sessions/$id/meta/arm-evidence.txt"
+    echo '{"type":"system","subtype":"init"}' > "$c/sessions/$id/transcripts/events-BARE.jsonl"
+    att="$(tr ',' '\n' <<<"$acs" | grep -c .)"
+    sessions="$(jq -c --arg id "$id" --argjson v "$valid" --arg st "$st" --argjson c "$cost" --argjson att "$att" \
+      --argjson acs "[$acs]" '. + [{id: $id, valid: $v, status: $st, cost_usd: $c, attempts: $att, attempt_costs: $acs, run_dir: ("sessions/" + $id)}]' <<<"$sessions")"
+  done
+  jq -n --argjson s "$sessions" --argjson k "$i" '{schema_version: 1, run_id: "cellb-a0_bare_matched-rc-01-t1", task_id: "rc-01", trial: 1,
+     k: $k, sessions: $s, sessions_valid: ([$s[] | select(.valid)] | length)}' > "$c/meta/cell.json"
+  jq -n --argjson k "$i" '{grader_version: "1.3.2", union: true, bare_sessions: $k, label_set: "v2",
+     recall: {defects_seeded: 2, defects_caught: 1, recall: 0.5, recall_pm3: 0.5, missed: ["d2"], missed_pm3: ["d2"], rule: "pm3_or_same_function"},
+     false_positives: 1, false_positive_rule: "pm3", recall_session1: 0.5, recall_pm3_session1: 0.5, precision_session1: 0.5,
+     verdict: null, contaminated: null, oracle_exposed_defects: [], oracle_exposed_unknown: []}' > "$c/grade.json"
+}
+
+@test "RW15-1 an ordinary row carries the 1.5 fields: all_spend_usd = cost_usd + --prior-spend, batch_context and mount_cheval from the evidence, registration_sha256 from the manifest, label_set from the grade; it validates" {
+  printf 'batch_context=batch-x\nmount_cheval=ok\n' >> "$T/runs/a3-review/meta/arm-evidence.txt"
+  jq '.registration_sha256 = "'"$(printf 'a%.0s' $(seq 1 64))"'"' "$T/MANIFEST.json" > "$T/m.json" && mv "$T/m.json" "$T/MANIFEST.json"
+  jq '.label_set = "v2"' "$T/runs/a3-review/grade.json" > "$T/g.json" && mv "$T/g.json" "$T/runs/a3-review/grade.json"
+  row a3-review "$REVIEW_TASK" --prior-spend 2.25 --attempts 2
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  local r; r="$(last)"
+  [ "$(jq -r .row_writer_version <<<"$r")" = 1.5 ]
+  [ "$(jq -r '[.bare_sessions, .sessions_valid, .sessions_attempted, .session_costs, .dollar_match, .recall_session1] | map(tostring) | join(" ")' <<<"$r")" = "null null null null null null" ]
+  [ "$(jq -r '(.all_spend_usd - .cost_usd) * 100 | round' <<<"$r")" = 225 ]
+  [ "$(jq -r '"\(.batch_context) \(.mount_cheval) \(.label_set) \(.attempts)"' <<<"$r")" = "batch-x ok v2 2" ]
+  [ "$(jq -r '.registration_sha256 | length' <<<"$r")" = 64 ]
+  run "$ROW" --run-dir "$T/runs/a3-review" --task-yaml "$REVIEW_TASK" --prior-spend x
+  [ "$status" -eq 2 ]
+}
+
+@test "RW15-2 a matched cell row: k BARE records, cost_usd over the valid sessions, all_spend_usd over every attempt, session_costs, the union's session-1 figures; an invalid session's refusal fallback does not degrade the cell" {
+  C="$T/runs/cell1"
+  make_cell_rows "$C" true:completed:1.5:1.5 true:completed:2:0.75,2 false:completed:1.25:1.25
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  local r; r="$(last)"
+  [ "$(jq -r '"\(.run_id) \(.arm) \(.status) \(.degraded)"' <<<"$r")" = "cellb-a0_bare_matched-rc-01-t1 a0_bare_matched completed false" ]
+  [ "$(jq -r '[.phases[].label] | join(",")' <<<"$r")" = "BARE-s1,BARE-s2,BARE-s3" ]
+  [ "$(jq -r '"\(.bare_sessions) \(.sessions_valid) \(.sessions_attempted) \(.attempts)"' <<<"$r")" = "3 2 3 2" ]
+  [ "$(jq -r '.cost_usd' <<<"$r")" = 3.5 ]
+  [ "$(jq -r '.all_spend_usd' <<<"$r")" = 5.5 ]
+  [ "$(jq -c '[.session_costs[] | [.session, .valid, .attempts, .attempt_costs]]' <<<"$r")" = '[["s1",true,1,[1.5]],["s2",true,2,[0.75,2]],["s3",false,1,[1.25]]]' ]
+  [ "$(jq -r '"\(.recall_session1) \(.precision_session1) \(.defect_catch_rate) \(.label_set) \(.batch_context) \(.mount_cheval)"' <<<"$r")" = "0.5 0.5 0.5 v2 cellb none" ]
+  [ "$(jq -r '.dollar_match' <<<"$r")" = null ]
+}
+
+@test "RW15-3 a matched cell under ⌈k/2⌉ valid sessions is degraded with the reason; none valid is infrastructure_error (contaminated when a session was)" {
+  C="$T/runs/cell2"
+  make_cell_rows "$C" true:completed:1:1 false:transport_error:0:0,0,0 false:completed:1:1
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  [ "$(jq -r '"\(.status) \(.degraded) \(.degraded_reason)"' <<<"$(last)")" = "completed true sessions_valid < k/2 (1 of 3)" ]
+  [ "$(jq -r '.attempts' <<<"$(last)")" = 3 ]
+  C="$T/runs/cell3"
+  make_cell_rows "$C" false:transport_error:0:0 false:interrupted:0:0
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  [ "$(jq -r '.status' <<<"$(last)")" = infrastructure_error ]
+  C="$T/runs/cell4"
+  make_cell_rows "$C" false:contaminated:1:1 false:transport_error:0:0
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  [ "$(jq -r '.status' <<<"$(last)")" = contaminated ]
+  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "RW15-4 --validate on 1.5 rows: every 1.5 field, attempts 1 … 3, consistent cell counts, a 64-hex registration_sha256" {
+  C="$T/runs/cell1"
+  make_cell_rows "$C" true:completed:1:1 true:completed:1:1
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  local good f; good="$(last)"
+  for f in bare_sessions sessions_valid sessions_attempted session_costs all_spend_usd dollar_match recall_session1 \
+           recall_pm3_session1 precision_session1 label_set batch_context mount_cheval registration_sha256; do
+    jq -c --arg f "$f" 'del(.[$f])' <<<"$good" > "$T/one.jsonl"
+    run "$ROW" --validate "$T/one.jsonl"
+    [ "$status" -eq 1 ] || { echo "field $f: status $status"; return 1; }
+    [[ "$output" == *"missing field $f"* ]] || { echo "field $f: $output"; return 1; }
+  done
+  jq -c '.attempts = 4' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"attempts 4 is not 1 … 3"* ]]
+  jq -c '.sessions_valid = 3' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"matched cell fields inconsistent"* ]]
+  jq -c '.registration_sha256 = "abc"' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"registration_sha256 is not 64 lowercase hex"* ]]
+  # a 1.4 row (no 1.5 fields, attempts unbounded) still validates
+  jq -c '.row_writer_version = "1.4" | del(.bare_sessions, .sessions_valid, .sessions_attempted, .session_costs, .all_spend_usd,
+         .dollar_match, .recall_session1, .recall_pm3_session1, .precision_session1, .label_set, .batch_context, .mount_cheval,
+         .registration_sha256)' <<<"$good" > "$T/one.jsonl"
+  run "$ROW" --validate "$T/one.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
 }

@@ -53,6 +53,17 @@
 #                                 the caller skips overlay_answer_paths and writes mount_overlay=none;
 #                                 refused when ARM_EVIDENCE_FILE already holds a head|base overlay;
 #                                 evidence oracle_open=true
+#         bare_sessions: matched  (cycle-132 FR-3, SDD D-3.1) the compute-matched bare arm: one
+#                                 session of a matched cell (run-ablation.sh plans k sessions per
+#                                 cell); refused unless the same toggles set loa_mount: false;
+#                                 evidence bare_sessions=matched
+#   print_toggle_vocabulary
+#       (cycle-132, bd-gdl5s) the toggle vocabulary, one line per toggle in a fixed order:
+#       `<key>\t<allowed values, |-joined>\t<sandbox .loa.config.yaml edits, ,-joined, or ->`
+#       (values: false | true | a word; the edits are the yq paths apply_arm_toggles sets, as
+#       `<path>=false`). validate-suite.sh and pipeline-run.sh --dry-run (config_edits: the
+#       arm's edits in this order, a repeated path once) read it instead of hand-kept copies;
+#       evals/tests/arm-toggles.bats pins it against apply_arm_toggles' case labels.
 #   regen_sandbox_manifest <ws>
 #       writes <ws>/.claude/checksums.json {generated, algorithm: sha256, files} over
 #       every regular file under <ws>/.claude except overrides/ and the manifest
@@ -195,6 +206,27 @@ mount_prompt_surface() {
 }
 
 # ---------------------------------------------------------------------------
+# The toggle vocabulary (bd-gdl5s): key, allowed values, sandbox config edits. The order is
+# the order of the dry run's config_edits (companion_voice, gates, dissent, flatline).
+print_toggle_vocabulary() {
+  printf '%s\t%s\t%s\n' \
+    companion_voice false "flatline_protocol.code_review.companion_voice=false,flatline_protocol.security_audit.companion_voice=false" \
+    karpathy_block false - \
+    rule_files false - \
+    audit_delta_instruction false - \
+    loa_mount false - \
+    effort "low|medium|high|xhigh|max" - \
+    gates false "flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false" \
+    dissent false "flatline_protocol.code_review.enabled=false" \
+    flatline false "flatline_protocol.enabled=false" \
+    sprint_plan false - \
+    context_resets false - \
+    bare_model fable - \
+    oracle_open true - \
+    bare_sessions matched -
+}
+
+# ---------------------------------------------------------------------------
 resolve_arm_toggles() {
   local arm="$1" suite_file="${2:-}"
   [[ "$arm" =~ ^[a-z][a-z0-9_]{0,63}$ ]] || { _sm_err "invalid arm id '$arm'"; return 2; }
@@ -305,6 +337,8 @@ apply_arm_toggles() {
       [[ "$val" == "fable" ]] || { _sm_err "arm '$arm' toggle bare_model=$val (only fable is defined)"; return 2; }
     elif [[ "$key" == "oracle_open" ]]; then
       [[ "$val" == "true" ]] || { _sm_err "arm '$arm' toggle oracle_open=$val (only true is defined)"; return 2; }
+    elif [[ "$key" == "bare_sessions" ]]; then
+      [[ "$val" == "matched" ]] || { _sm_err "arm '$arm' toggle bare_sessions=$val (only matched is defined)"; return 2; }
     elif [[ "$val" != "false" ]]; then
       _sm_err "arm '$arm' toggle $key=$val (only false is defined)"; return 2
     fi
@@ -425,6 +459,12 @@ apply_arm_toggles() {
           _sm_err "oracle_open toggle: the sandbox was overlaid (mount_overlay evidence present)"; return 2
         fi
         _sm_evidence oracle_open "true"
+        ;;
+      bare_sessions)
+        # one session of a compute-matched cell (cycle-132 D-3.1): no mount, the runner plans k sessions
+        [[ "$(jq -r '.loa_mount' <<<"$toggles")" == "false" ]] \
+          || { _sm_err "arm '$arm' toggle bare_sessions=matched needs loa_mount: false in the same toggles"; return 2; }
+        _sm_evidence bare_sessions "matched"
         ;;
       *) _sm_err "arm '$arm' declares unknown toggle '$key'"; return 2 ;;
     esac

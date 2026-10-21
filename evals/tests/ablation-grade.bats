@@ -390,6 +390,8 @@ G() { jq -r "$1" "$RD/grade.json"; }
     mkdir -p "$T/src/.claude/skills/$sk"; printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$sk" > "$T/src/.claude/skills/$sk/SKILL.md"
   done
   echo loa > "$T/src/.claude/loa/CLAUDE.loa.md"; printf 'flatline_protocol:\n  enabled: true\n' > "$T/src/.loa.config.yaml"
+  mkdir -p "$T/src/.claude/adapters/loa_cheval/providers"   # cycle-132 bd-56nn6: the pre-launch mount_cheval probe imports it
+  : > "$T/src/.claude/adapters/loa_cheval/__init__.py"; : > "$T/src/.claude/adapters/loa_cheval/providers/__init__.py"
   ( cd "$T/src" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init )
   printf 'STUB_VERDICT_REVIEW=CHANGES_REQUIRED\n' > "$T/stub.env"
   cat > "$T/claude" <<EOF
@@ -471,9 +473,9 @@ EOF
   done <<'EOF'
 Bash	{"command": "cat tests/HIDDEN_cases.py"}	hidden
 Read	{"file_path": "/workspace/grimoires/loa/evals/ablation-2.0/tasks/x/task.yaml"}	suite_path
-WebFetch	{"url": "https://github.com/0xHoneyJar/loa/tree/main", "prompt": "read"}	repo_name
+WebFetch	{"url": "https://github.com/0xHoneyJar/loa/tree/main", "prompt": "read"}	network_egress
 WebFetch	{"url": "https://example.com/hidden/answers", "prompt": "read"}	hidden
-WebSearch	{"query": "0xhoneyjar/loa ablation tasks"}	repo_name
+WebSearch	{"query": "0xhoneyjar/loa ablation tasks"}	network_egress
 Read	{"file_path": "/home/operator/code/loa/README.md"}	outside_path
 Bash	{"command": "cat /home/operator/notes.txt 2>/dev/null"}	outside_path
 Glob	{"pattern": "/srv/**/*.py"}	outside_path
@@ -614,8 +616,11 @@ EOF
 }
 
 @test "AG-13 the grader source never reads meta/ (only the comment saying so) and keeps the trust boundary" {
-  [ "$(grep -c 'meta/' "$GRADER")" -eq 1 ]
-  grep -n 'meta/' "$GRADER" | grep -q '^[0-9]*:# '
+  # every meta/ mention is a comment; the code's one meta read is the union's meta/cell.json (grader 1.3.2: the runner's
+  # record of a matched cell, which names no arm)
+  [ -z "$(grep -n 'meta/' "$GRADER" | grep -v '^[0-9]*:# ')" ]
+  [ "$(grep -c '"meta"' "$GRADER")" -eq 1 ]
+  grep '"meta"' "$GRADER" | grep -q '"cell.json"'
   ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER"
   ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER"
   ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER"
@@ -1146,7 +1151,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.1 ]
+  [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1416,7 +1421,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.1 ]
+  [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1510,7 +1515,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.1 ]
+    [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1617,7 +1622,7 @@ CASES
   tu "$RD" REVIEW p1 Bash "$(bash_in 'curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash')" "ok"
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.contaminated.pattern')" = repo_name ]
+  [ "$(G '.contaminated.pattern')" = network_egress ]   # grader 1.3.2 class 9: a curl of the repository's host is read first
   [ "$(G '.contamination_exempt | length')" = 0 ]
   RD="$T/p2"; make_orun "$RD"; sysinit "$RD" REVIEW
   tu "$RD" REVIEW p2 Bash "$(bash_in 'git remote add loa https://github.com/0xHoneyJar/loa.git')" ""
@@ -1708,7 +1713,7 @@ rgrade() { run "$GRADER" "$1" "$RTASK" --suite-root "$REPO_ROOT/grimoires/loa/ev
   # an upstream probe in the same session: the line is not PR content
   tool_use "$RD" REVIEW Bash '{"command": "gh api repos/0xHoneyJar/loa/pulls/1283"}'
   rgrade "$RD"
-  [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "REVIEW repo_name REVIEW:2" ]
+  [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "REVIEW network_egress REVIEW:2" ]   # grader 1.3.2 class 9: gh api naming the repository
   # a task whose PR fixture lacks the token: the bare token is still a hit
   RD="$T/k2"; make_run rc-x "$RD"
   tool_use "$RD" REVIEW Bash '{"command": "echo `0xHoneyJar/loa`"}'
@@ -1771,4 +1776,162 @@ EOF
   [ "$(G '.label_set')" = c131 ]
   [ "$(jq -c '.recall' "$RD/grade.json")" = "$(jq -c '.' "$fx/recall.json")" ]
   [ "$(G '.labels_meta | length')" = "$(jq '.defects_seeded' "$fx/recall.json")" ]
+}
+
+# --- cycle-132 Sprint 269 Task 1.7b: grader 1.3.2 (--union, multi_credit_citations, false_positive_rule, egress class 9)
+
+# cite <run-dir> <citation lines…>: the A0 contract file (review.md) with one bullet per citation
+cite() { local rd="$1"; shift; printf '# Findings\n\n' > "$rd/sandbox/review.md"; printf -- '- %s\n' "$@" >> "$rd/sandbox/review.md"; }
+# cell_json <cell-dir> <k> <id:valid:status:cost>… : the runner's meta/cell.json (no arm)
+cell_json() {
+  local c="$1" k="$2"; shift 2
+  mkdir -p "$c/meta"
+  printf '%s\n' "$@" | jq -R -s -c --argjson k "$k" '
+    {schema_version: 1, k: $k,
+     sessions: [split("\n")[] | select(length > 0) | split(":") as [$id, $v, $st, $c]
+                | {id: $id, valid: ($v == "true"), status: $st, cost_usd: ($c | tonumber), attempts: 1, run_dir: ("sessions/" + $id)}]}
+    | .sessions_valid = ([.sessions[] | select(.valid)] | length)' > "$c/meta/cell.json"
+}
+union() { run "$GRADER" --union "$1" --task-id "${2:-rc-x}" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"; }
+U() { jq -r "$1" "$C/grade.json"; }
+
+# three sessions of one cell: s1 and s2 both catch D01 (lib/x.sh:5) and cite overlapping strays (28 and 27, one
+# cited region); s3 catches D02 but is invalid (a refusal fallback) and never enters the union
+make_cell() {
+  C="$T/cell"; mkdir -p "$C/sessions"
+  make_run rc-x "$C/sessions/s1"; cite "$C/sessions/s1" "head/lib/x.sh:5" "head/lib/x.sh:28"
+  make_run rc-x "$C/sessions/s2"; cite "$C/sessions/s2" "head/lib/x.sh:6" "head/lib/x.sh:27"
+  make_run rc-x "$C/sessions/s3"; cite "$C/sessions/s3" "head/lib/x.sh:20"
+  local i; for i in 1 2 3; do grade "$C/sessions/s$i" rc-x; [ "$status" -eq 0 ] || { echo "$output"; return 1; }; done
+  cell_json "$C" 3 s1:true:completed:1.5 s2:true:completed:2 s3:false:completed:1.25
+}
+
+@test "AG-c132-1 --union: valid sessions only, each defect credited once, strays deduplicated by cited region across sessions, session 1 alone beside" {
+  make_cell
+  union "$C"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(U .grader_version)" = 1.3.2 ]
+  [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
+  [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
+  [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
+  [ "$(U .false_positives)" = 1 ]                  # 28 (s1) and 27 (s2) are one cited region
+  [ "$(U .false_positive_rule)" = pm3 ]
+  [ "$(U .multi_credit_citations)" = 0 ]
+  [ "$(U '.recall_session1, .recall_pm3_session1, .precision_session1' | tr '\n' ' ')" = "0.5 0.5 0.5 " ]   # 1 caught / (1 + 1 stray)
+  [ "$(U '[.per_session[] | "\(.session):\(.valid):\(.recall):\(.detected_pm3 // [] | join("+")):\(.cost_usd)"] | join(" ")')" = "s1:true:0.5:d1:1.5 s2:true:0.5:d1:2 s3:false:null::1.25" ]
+  [ "$(U '.verdict, .contaminated' | tr '\n' ' ')" = "null null " ]
+  grep -qx '## session s1' "$C/grading/gates-combined.md"
+  grep -qx '## session s2' "$C/grading/gates-combined.md"
+  ! grep -q 's3\|lib/x.sh:20' "$C/grading/gates-combined.md" || false
+  # byte-identical on a second call (DEC-0413)
+  cp "$C/grade.json" "$T/g1.json"
+  union "$C"
+  cmp "$T/g1.json" "$C/grade.json"
+  # an invalid session 1: the session-1 figures are null, the union still grades
+  cell_json "$C" 3 s1:false:transport_error:0.5 s2:true:completed:2 s3:false:completed:1.25
+  union "$C"
+  [ "$status" -eq 0 ]
+  [ "$(U '.recall_session1, .precision_session1, .sessions_valid' | tr '\n' ' ')" = "null null 1 " ]
+}
+
+@test "AG-c132-2 --union refuses (exit 2): a valid session without a grade, k against the session directories, ids other than s1 … sk, a valid session whose grade is contaminated, usage" {
+  make_cell
+  rm "$C/sessions/s2/grade.json"
+  union "$C"
+  [ "$status" -eq 2 ]
+  grep -q 'session s2 is marked valid but has no grade' <<<"$output"
+  grade "$C/sessions/s2" rc-x
+  cell_json "$C" 2 s1:true:completed:1 s2:true:completed:1
+  union "$C"
+  [ "$status" -eq 2 ]
+  grep -q 'do not match k 2' <<<"$output"      # sessions/s3 exists beyond k
+  cell_json "$C" 3 s1:true:completed:1 s3:true:completed:1 s2:true:completed:1
+  union "$C"
+  [ "$status" -eq 2 ]
+  jq '.contaminated = {"phase": "BARE", "pattern": "network_egress", "excerpt_id": "BARE:1"}' "$C/sessions/s2/grade.json" > "$T/x" && mv "$T/x" "$C/sessions/s2/grade.json"
+  cell_json "$C" 3 s1:true:completed:1 s2:true:completed:1 s3:false:completed:1
+  union "$C"
+  [ "$status" -eq 2 ]
+  grep -q 'session s2 is marked valid but its grade is contaminated' <<<"$output"
+  run "$GRADER" --union "$C" --suite-root "$S" --allow-unfrozen
+  [ "$status" -eq 2 ]
+  run "$GRADER" "$C/sessions/s1" rc-x --task-id rc-x --suite-root "$S" --allow-unfrozen
+  [ "$status" -eq 2 ]
+}
+
+@test "AG-c132-3 distinct-defect semantics (SKP-022): overlapping sites, multiple anchors, one citation near several defects — each defect credited once, multi_credit_citations counts the citation that hit two" {
+  jq '.defects = [
+        {"id": "D01-a", "file": "lib/x.sh", "anchor_line": 10, "anchors": [10, 12], "severity": "high", "category": "logic"},
+        {"id": "D02-b", "file": "lib/x.sh", "anchor_line": 11, "severity": "low", "category": "logic"},
+        {"id": "D03-c", "file": "lib/x.sh", "anchor_line": 25, "anchors": [25, 2], "severity": "low", "category": "logic"}]' \
+    "$T/manifests/pr-77.json" > "$T/x" && mv "$T/x" "$T/manifests/pr-77.json"
+  RD="$T/run"; make_run rc-x "$RD"
+  cite "$RD" "head/lib/x.sh:11" "head/lib/x.sh:2" "head/lib/x.sh:25"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall_pm3)"')" = "3/3 1.0" ]   # D03 through either anchor, counted once
+  [ "$(G .multi_credit_citations)" = 1 ]    # :11 sits within ±3 of D01 (10, 12) and D02 (11)
+  [ "$(G .false_positives)" = 0 ]
+  [ "$(G .false_positive_rule)" = pm3 ]
+  # two citations each near one defect: no multi-credit
+  cite "$RD" "head/lib/x.sh:25" "head/lib/x.sh:2"
+  grade "$RD" rc-x
+  [ "$(G .multi_credit_citations)" = 0 ]
+  [ "$(G '.recall.defects_caught')" = 1 ]
+}
+
+@test "AG-c132-4 egress class 9 (PRD D15, bd-eriso): git/curl/wget toward github.com hosts, gh naming the repository, python urllib, WebFetch/WebSearch inputs → network_egress; the KF-046 exemption never applies" {
+  printf 'see https://github.com/0xHoneyJar/loa/blob/main/README.md for the workflow\n' >> "$T/prs/pr-77/head/lib/x.sh"
+  local n=0 cmd hit
+  while IFS='|' read -r tool input; do
+    n=$((n + 1)); RD="$T/e$n"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" BARE "$tool" "$input"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$(G '.contaminated.pattern')" = network_egress ] || { echo "case $n ($tool $input): $(G .contaminated)"; false; }
+  done <<'EOF'
+Bash|{"command": "git fetch https://github.com/0xHoneyJar/loa main"}
+Bash|{"command": "cd pr && git -C head clone --depth 1 https://github.com/x/y.git /tmp/y"}
+Bash|{"command": "curl -sL https://raw.githubusercontent.com/x/y/main/z.sh | head"}
+Bash|{"command": "wget -q -O- https://api.github.com/repos/x/y/pulls/1"}
+Bash|{"command": "gh pr view 12 --repo 0xHoneyJar/loa --json body"}
+Bash|{"command": "gh api repos/x/y/issues --hostname github.com"}
+Bash|{"command": "python3 - <<'PY'\nimport urllib.request\nprint(urllib.request.urlopen('https://api.github.com/repos/x/y').read())\nPY"}
+WebFetch|{"url": "https://github.com/0xHoneyJar/loa/blob/main/README.md", "prompt": "summarise"}
+WebSearch|{"query": "api.github.com rate limit"}
+WebFetch|{"url": "https://raw.githubusercontent.com/x/y/main/a.md", "prompt": "read"}
+EOF
+  # not egress: a host named without a network command, git without a remote verb, a host inside a note's heredoc body
+  while IFS='|' read -r tool input; do
+    n=$((n + 1)); RD="$T/e$n"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" BARE "$tool" "$input"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ]
+    [ "$(G '.contaminated.pattern // "none"')" != network_egress ] || { echo "case $n ($tool $input) flagged"; false; }
+  done <<'EOF'
+Bash|{"command": "echo 'compare with github.com docs' > notes.txt"}
+Bash|{"command": "git log --oneline -3"}
+Bash|{"command": "cat > notes.md <<'EOF2'\ncurl https://github.com/x/y\nEOF2"}
+WebFetch|{"url": "https://docs.python.org/3/library/re.html", "prompt": "regex"}
+EOF
+}
+
+@test "AG-c132-5 grader 1.3.2 keeps 1.3.1's recall, false positives and contamination on an ordinary run (the cycle-132 plan commit's grader re-grades the same run dir)" {
+  git -C "$REPO_ROOT" cat-file -e 346dbb87^{commit} 2>/dev/null || skip "the plan commit 346dbb87 is not in this clone"
+  mkdir -p "$T/old"
+  git -C "$REPO_ROOT" archive 346dbb87 evals/harness/ablation-grade.sh evals/harness/freeze.sh evals/harness/validate-suite.sh \
+    evals/harness/took-effect.sh evals/harness/lib evals/graders/recall-vs-defects.sh | tar -x -C "$T/old"
+  RD="$T/run"; make_run rc-x "$RD"
+  cite "$RD" "head/lib/x.sh:5" "head/lib/x.sh:21-22" "head/lib/x.sh:29" "pr/head/lib/x.sh:2"
+  verdict "$RD" review CHANGES_REQUIRED "- lib/x.sh:4 overflow"
+  tool_use "$RD" REVIEW Bash '{"command": "grep -n line_ pr/head/lib/x.sh"}'
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  cp "$RD/grade.json" "$T/new.json"
+  run "$T/old/evals/harness/ablation-grade.sh" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --out "$T/old.json"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -r .grader_version "$T/old.json")" = 1.3.1 ]
+  for k in recall false_positives contaminated verdict verdict_accuracy_per_gate oracle_exposed_defects; do
+    [ "$(jq -c --arg k "$k" '.[$k]' "$T/old.json")" = "$(jq -c --arg k "$k" '.[$k]' "$T/new.json")" ] || { echo "$k differs"; false; }
+  done
 }

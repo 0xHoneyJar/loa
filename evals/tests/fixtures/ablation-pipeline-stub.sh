@@ -7,8 +7,12 @@
 # mounted arm) and, for review-catch, the two dissent envelopes under eval/. No model call.
 #   STUB_LOG       append "<run_id> <arm> <task> <trial> <run-dir basename>" per invocation
 #   STUB_ARGV_LOG  append "<run_id> max-run-usd <amount|none>" per invocation (DEC-0567 cases)
-#   STUB_ENV_LOG   append "<run_id> LOA_ABLATION_BATCH_CONTEXT=<value|<unset>>" per invocation
-#                  (cycle-131 Sprint 264: the batch context run-ablation.sh exports to a trial)
+#   STUB_ENV_LOG   append "<run_id> LOA_ABLATION_BATCH_CONTEXT=<value|<unset>> batch_context=<id|<none>>" per
+#                  invocation (cycle-132 bd-st02i: the --batch-context argv flag run-ablation.sh passes; the
+#                  variable is logged to show it is no longer set)
+#   (cycle-132) --batch-context ID is accepted and written as batch_context=ID to meta/arm-evidence.txt; a
+#                  mounted arm records mount_cheval=ok, an unmounted one mount_cheval=none (pipeline-run.sh's
+#                  pre-launch probe), a bare_sessions: matched arm bare_sessions=matched
 #   STUB_COST      USD per run (default 2.5), on the first phase record
 #   STUB_CLI       the init event's claude_code_version (default 2.1.299)
 #   STUB_RULES     file of "<run_id glob> <mode>" lines; the first match wins. Modes:
@@ -25,13 +29,15 @@
 #                  hang_norecord (sleeps before writing anything) | zero_cost (cost 0) |
 #                  agent_error_nocost (agent_error as above, reporting cost 0)
 #                  | bad_overlay (an oracle_closed arm's review-catch run gets no overlay:
-#                  took-effect.sh oracle_closed FAILs)
+#                  took-effect.sh oracle_closed FAILs) | refusal (cycle-132: the phase records carry a
+#                  refusal fallback, KF-051) | crash (cycle-132: pipeline.json interrupted, exit 4, at once)
+#                  | cheval_broken (cycle-132: mount_cheval=broken:ImportError … in the evidence)
 #   STUB_HANG=1    every run hangs (mode hang)
 # A review-catch run of an arm whose took_effect lists oracle_closed (cycle-131) gets the real
 # lib/sandbox-mount.sh overlay over its corpus fixture and a one-commit sandbox repository.
 set -euo pipefail
 export LC_ALL=C
-TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE="" MAX_RUN_USD=none
+TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE="" DOCKER_BIN=docker EXECUTOR=container IMAGE="" MAX_RUN_USD=none BATCH_CONTEXT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --task-yaml) TASK_YAML="$2"; shift 2 ;;
@@ -45,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --executor) EXECUTOR="$2"; shift 2 ;;
     --image) IMAGE="$2"; shift 2 ;;
     --max-run-usd) MAX_RUN_USD="$2"; shift 2 ;;
+    --batch-context) BATCH_CONTEXT="$2"; shift 2 ;;
     *) echo "stub: unknown flag $1" >&2; exit 2 ;;
   esac
 done
@@ -52,7 +59,7 @@ done
 TASK_ID="$(yq -r '.id' "$TASK_YAML")" TYPE="$(yq -r '.type' "$TASK_YAML")"
 [[ -n "${STUB_LOG:-}" ]] && printf '%s %s %s %s %s\n' "$RUN_ID" "$ARM" "$TASK_ID" "$TRIAL" "$(basename "$RUN_DIR")" >> "$STUB_LOG"
 [[ -n "${STUB_ARGV_LOG:-}" ]] && printf '%s max-run-usd %s\n' "$RUN_ID" "$MAX_RUN_USD" >> "$STUB_ARGV_LOG"
-[[ -n "${STUB_ENV_LOG:-}" ]] && printf '%s LOA_ABLATION_BATCH_CONTEXT=%s\n' "$RUN_ID" "${LOA_ABLATION_BATCH_CONTEXT-<unset>}" >> "$STUB_ENV_LOG"
+[[ -n "${STUB_ENV_LOG:-}" ]] && printf '%s LOA_ABLATION_BATCH_CONTEXT=%s batch_context=%s\n' "$RUN_ID" "${LOA_ABLATION_BATCH_CONTEXT-<unset>}" "${BATCH_CONTEXT:-<none>}" >> "$STUB_ENV_LOG"
 
 MODE=ok
 if [[ -n "${STUB_RULES:-}" && -f "${STUB_RULES:-}" ]]; then
@@ -101,6 +108,11 @@ if [[ "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != false ]]; then
   mkdir -p "$RUN_DIR/sandbox/grimoires/loa"; echo "# sprint" > "$RUN_DIR/sandbox/grimoires/loa/sprint.md"
 fi
 printf 'mount=stub\n' > "$RUN_DIR/meta/arm-evidence.txt"
+[[ -n "$BATCH_CONTEXT" ]] && printf 'batch_context=%s\n' "$BATCH_CONTEXT" >> "$RUN_DIR/meta/arm-evidence.txt"
+if [[ "$(jq -r '.toggles.loa_mount' <<<"$DEF")" == false ]]; then printf 'mount_cheval=none\n' >> "$RUN_DIR/meta/arm-evidence.txt"
+elif [[ "$MODE" == cheval_broken ]]; then printf "mount_cheval=broken:ImportError: cannot import name 'x'\n" >> "$RUN_DIR/meta/arm-evidence.txt"
+else printf 'mount_cheval=ok\n' >> "$RUN_DIR/meta/arm-evidence.txt"; fi
+[[ "$(jq -r '.toggles.bare_sessions // ""' <<<"$DEF")" == matched ]] && printf 'bare_sessions=matched\n' >> "$RUN_DIR/meta/arm-evidence.txt"
 # cycle-131 closed mount: a review-catch arm whose took_effect lists oracle_closed gets the real
 # overlay (lib/sandbox-mount.sh) over the corpus fixture and a one-commit sandbox repository, as
 # pipeline-run.sh materialises it, so took-effect.sh oracle_closed reads a genuine run
@@ -157,11 +169,12 @@ while IFS=$'\t' read -r name label; do
   env='{}'; [[ "$(jq -r '.toggles.gates' <<<"$DEF")" == false ]] && env='{"LOA_ADVERSARIAL_REVIEW_ENFORCE":"false"}'
   jq -n --arg n "$name" --arg l "$label" --arg m "$model" --argjson env "$env" \
     '{name: $n, label: $l, argv: ["claude", "-p", "x", "--model", $m], env: $env, resume: null}' > "$RUN_DIR/meta/phase-$label.argv.json"
-  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --argjson mu "$mu" --argjson c "$PCOST" --argjson ex "$ex" --argjson eff "$EFF" \
+  RFB='[]'; [[ "$MODE" == refusal ]] && RFB='[{"from":"global.anthropic.claude-opus-5-5","to":"global.anthropic.claude-opus-5-5","category":"cyber","scope":"session"}]'
+  records="$(jq -c --arg n "$name" --arg l "$label" --arg sid "$sid" --arg m "$model" --argjson mu "$mu" --argjson c "$PCOST" --argjson ex "$ex" --argjson eff "$EFF" --argjson rfb "$RFB" \
     '. + [{name: $n, label: $l, skipped: false, session_id: $sid, model_requested: $m, models_used: $mu,
            effort_requested: $eff, tokens_in: 10, tokens_out: 100, cache_read_tokens: 0, cache_creation_tokens: 0,
            cost_usd: $c, ledger_cost_usd: 0, duration_ms: 1000, num_turns: 2, exit: $ex, timed_out: false,
-           refusal_fallbacks: [], modelinv_lines: {from: 1, to: 0}}]' <<<"$records")"
+           refusal_fallbacks: $rfb, modelinv_lines: {from: 1, to: 0}}]' <<<"$records")"
 done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$PHASES")
 
 if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != false ]]; then
@@ -173,7 +186,7 @@ if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != fa
 fi
 
 status=completed rc=0
-case "$MODE" in agent_error|transport) status=agent_error rc=1 ;; cap_failure) status=cap_failure rc=3 ;; hang) status=running ;; esac
+case "$MODE" in agent_error|transport) status=agent_error rc=1 ;; cap_failure) status=cap_failure rc=3 ;; hang) status=running ;; crash) status=interrupted rc=4 ;; esac
 write_pipe() {
   jq -n --arg r "$RUN_ID" --arg a "$ARM" --arg t "$TASK_ID" --arg ty "$TYPE" --argjson n "$TRIAL" \
     --arg src "$(git -C "$SOURCE_TREE" rev-parse HEAD)" --arg st "$1" --argjson ph "$2" --argjson ev "$EVIDENCE" \

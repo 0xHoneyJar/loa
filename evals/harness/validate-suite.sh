@@ -27,8 +27,11 @@
 #      under fixture/tests/, Sprint 259), structural_check (hidden/… | null;
 #      refactor: regression_command must be null — test_command is the regression check),
 #      required for refactor), bounds {max_turns{}, timeout_min{}} (phase → positive
-#      int), review_catch (null, or {fixture, manifest, labels?} for review-catch,
-#      both present), suite_version (= the suite file's), TASK.md present
+#      int), review_catch (null, or {fixture, manifest, labels?, bare_sessions_matched?,
+#      bare_sessions_matched_fable?} for review-catch, fixture and manifest present; cycle-132
+#      FR-3: each bare_sessions_matched* value, when present, an integer 2 … 30 — the k of the
+#      matched arms; run-ablation.sh refuses to plan a matched arm on a task without it),
+#      suite_version (= the suite file's), TASK.md present
 #   2. counts: four tasks of each type under tasks/ (unless --allow-partial)
 #   3. allowlist: test_command[0] and regression_command[0] in python3 | pytest |
 #      bats | bash | node | npx
@@ -44,10 +47,12 @@
 #   7. suite file: every non-absent arm's task_types are known (all | build |
 #      review-catch | feature-build | bug-fix | refactor)
 #   8. suite file arms (cycle-131 FR-5): `toggles` is a mapping whose every key is in
-#      the vocabulary of lib/sandbox-mount.sh apply_arm_toggles with a value it defines
-#      (companion_voice, karpathy_block, rule_files, audit_delta_instruction, loa_mount,
-#      gates, flatline, sprint_plan, context_resets, dissent: false; effort:
-#      low|medium|high|xhigh|max; bare_model: fable; oracle_open: true); `took_effect`
+#      the vocabulary with a value it defines — read from lib/sandbox-mount.sh
+#      print_toggle_vocabulary (cycle-132 bd-gdl5s; no copy here): companion_voice,
+#      karpathy_block, rule_files, audit_delta_instruction, loa_mount, gates, flatline,
+#      sprint_plan, context_resets, dissent: false; effort: low|medium|high|xhigh|max;
+#      bare_model: fable; oracle_open: true; bare_sessions: matched (only with
+#      loa_mount: false); `took_effect`
 #      is a list whose every id is a rule took-effect.sh defines (its `rule_<id>()`
 #      functions, read from the script beside this one); `eval_only`, when present, is
 #      a boolean; an arm whose toggles set oracle_open: true carries eval_only: true
@@ -119,10 +124,12 @@ done
 
 # Python does the schema, counts, allowlist, manifest, leakage and suite checks;
 # it prints violations, and `FIXTURE\t<id>\t<dir>` lines for the path rule below.
-python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" "$RULE_IDS" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
+VOCAB="$(print_toggle_vocabulary)" || die "lib/sandbox-mount.sh print_toggle_vocabulary failed"
+[[ -n "$VOCAB" ]] || die "lib/sandbox-mount.sh print_toggle_vocabulary printed nothing"
+python3 -I - "$WORK/tasks.tsv" "$WORK/suite.json" "$ROOT" "$REPO_ROOT" "$ALLOW_PARTIAL" "$PROMPTS_DIR" "$RULE_IDS" "$VOCAB" > "$WORK/out.txt" <<'PY' || { cat "$WORK/out.txt" >&2 2>/dev/null; die "validator crashed"; }
 import json, os, re, sys
 
-tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir, rule_ids = sys.argv[1:8]
+tasks_tsv, suite_json, root, repo, allow_partial, prompts_dir, rule_ids, vocab = sys.argv[1:9]
 RULE_IDS = set(r for r in rule_ids.split(",") if r)
 allow_partial = allow_partial == "true"
 suite = json.load(open(suite_json))
@@ -133,10 +140,13 @@ TYPES = ["feature-build", "bug-fix", "refactor", "review-catch"]
 BUILD = {"feature-build", "bug-fix", "refactor"}
 ALLOW = {"python3", "pytest", "bats", "bash", "node", "npx"}
 KNOWN_TASK_TYPES = {"all", "build", "review-catch", "feature-build", "bug-fix", "refactor"}
-# lib/sandbox-mount.sh apply_arm_toggles: the toggle vocabulary and each toggle's defined values
-TOGGLE_VALUES = {k: [False] for k in ("companion_voice", "karpathy_block", "rule_files", "audit_delta_instruction",
-                                      "loa_mount", "gates", "flatline", "sprint_plan", "context_resets", "dissent")}
-TOGGLE_VALUES.update({"effort": ["low", "medium", "high", "xhigh", "max"], "bare_model": ["fable"], "oracle_open": [True]})
+# the toggle vocabulary and each toggle's defined values: lib/sandbox-mount.sh print_toggle_vocabulary
+# (bd-gdl5s), `key<TAB>v1|v2…<TAB>edits`; false / true are the JSON booleans, any other value a string
+TOGGLE_VALUES = {}
+for vline in vocab.splitlines():
+    vk, vv = (vline.split("\t") + ["", ""])[:2]
+    if vk:
+        TOGGLE_VALUES[vk] = [False if x == "false" else True if x == "true" else x for x in vv.split("|") if x]
 MOUNT_OWNED = (".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run")
 REQUIRED = ["id", "schema_version", "type", "source", "post_cutoff", "fixture", "criterion",
             "success_criterion", "test_command", "regression_command", "reference_patch",
@@ -178,6 +188,8 @@ for a in arms:
         bad("suite", f"arm {aid} eval_only must be a boolean (true|false)")
     if tg.get("oracle_open") is True and a.get("eval_only") is not True:
         bad("suite", f"arm {aid} sets oracle_open: true without eval_only: true (the open mount is evaluation-only)")
+    if "bare_sessions" in tg and tg.get("loa_mount") is not False:
+        bad("suite", f"arm {aid} sets bare_sessions without loa_mount: false (a matched cell is k bare sessions)")
 suite_version = suite.get("suite_version")
 
 def rel_ok(p):
@@ -352,8 +364,11 @@ for line in open(tasks_tsv, encoding="utf-8"):
             bad(tid, "schema: review_catch {fixture, manifest} is required for review-catch")
         else:
             for k in rc:
-                if k not in ("fixture", "manifest", "labels"):
+                if k not in ("fixture", "manifest", "labels", "bare_sessions_matched", "bare_sessions_matched_fable"):
                     bad(tid, f"schema: review_catch.{k} is not a known key")
+            for k in ("bare_sessions_matched", "bare_sessions_matched_fable"):   # cycle-132 FR-3: the matched arms' k
+                if k in rc and not (isinstance(rc[k], int) and not isinstance(rc[k], bool) and 2 <= rc[k] <= 30):
+                    bad(tid, f"schema: review_catch.{k} must be an integer 2 … 30 (got {json.dumps(rc[k])})")
             rf, rm = rc.get("fixture"), rc.get("manifest")
             if not rel_ok(rf) or not os.path.isdir(os.path.join(repo, "evals", "fixtures", rf)):
                 bad(tid, f"schema: review_catch.fixture not found under evals/fixtures: {rf}")

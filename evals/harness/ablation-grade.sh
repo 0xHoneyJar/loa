@@ -15,6 +15,8 @@
 #   ablation-grade.sh --self-check base|reference|noisy --task-yaml F [--suite-root DIR]
 #                     [--executor …] [--image …] [--docker-bin D] [--json]
 #                     [--allow-unfrozen] [--allow-partial]
+#   ablation-grade.sh --union <cell-dir> --task-id T [--suite-root DIR] [--tasks-dir T]
+#                     [--out FILE] [--json] [--allow-unfrozen] [--allow-partial]
 #
 # Options:
 #   --suite-root DIR   suite root (default grimoires/loa/evals/ablation-2.0; with
@@ -34,6 +36,7 @@
 #   --allow-partial    passed to freeze.sh --check (fewer than four tasks per type)
 #   --self-check MODE  base | reference | noisy (noisy: review-catch only), see below
 #   --task-yaml F      the task to self-check (<root>/<tasks|smoke>/<id>/task.yaml)
+#   --union DIR        (1.3.2) grade a matched cell (see "Union" below); --task-id names its task
 #
 # Environment: LOA_EVAL_ALLOW_HOST_GRADING=1 (see --executor); LOA_EVAL_GRADE_TIMEOUT_S
 # (1-9999, default 120: the per-command deadline; tests shorten it).
@@ -236,6 +239,43 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.2 (cycle-132 Sprint 269 Task 1.7b; SDD D-4.1, D-7.3; PRD FR-3, FR-5 (g), FR-11): additive; recall,
+# the citation rule (DEC-0638: recall_pm3 is the decision statistic), false_positives, verdicts and every 1.3.1 field
+# keep their 1.3.1 values on any run without a class 9 hit (evals/tests/ablation-grade.bats AG-c132-5 re-grades a run
+# with the plan commit's 1.3.1 grader and compares).
+#   false_positive_rule  "pm3" on every review-catch grade (null for build): false_positives counts citations within
+#                  ±3 of no anchor of the task's manifest, deduplicated by cited region — the rule of recall_pm3, the
+#                  decision statistic, so a precision read pairs recall_pm3's caught count with false_positives under one
+#                  rule (bd-9zmfn). recall-vs-defects.sh's findings_refuted (details only) uses the same ±3 windows
+#                  plus the fix regions. recall (pm3_or_same_function) is reported, never paired with false_positives.
+#   multi_credit_citations  the distinct citations that credited two or more distinct defects under pm3 (a defect is
+#                  distinct by id with its anchor set, credited at most once per run; one citation may credit every
+#                  defect whose sites it hits; SKP-022); null for build tasks
+#   network egress (class 9, PRD D15, bd-eriso): read FIRST for every tool input, so the KF-046 class 7 PR-content
+#                  exemption never applies to it: a Bash logical line running git fetch|clone|pull|ls-remote, curl or
+#                  wget that names github.com, raw.githubusercontent.com or api.github.com; gh api|pr|issue|repo naming
+#                  those hosts or 0xHoneyJar/loa; python with urllib or requests in a command naming a host; a WebFetch
+#                  url or WebSearch query naming a host or the repository → contaminated {pattern: "network_egress"}.
+#                  Heredoc bodies are read only in a command that feeds one to an interpreter. A lower bound: an
+#                  egress the transcript cannot show (a program the agent wrote, a remote fetched by name) is not seen.
+#   Union (--union <cell-dir> --task-id T; SDD D-3.1): a matched cell is k independent BARE sessions under
+#                  <cell>/sessions/s<i>/ (first attempt; re-runs in s<i>-r<n>), each already graded on its own. The
+#                  union reads <cell>/meta/cell.json (the runner's record: k, sessions [{id, valid, status, cost_usd,
+#                  run_dir}], no arm id — the one meta/ file this grader reads, so it stays blind to the arm) and, for
+#                  the sessions it marks valid only, their grading/gates-combined.md and grade.json; it writes
+#                  <cell>/grading/gates-combined.md (each valid session's citations under a `## session s<i>` line) and
+#                  grades it with the same reduction: each defect credited at most once, strays deduplicated by cited
+#                  region across sessions. grade.json: union true, bare_sessions k, sessions_valid, sessions_graded,
+#                  recall / false_positives / false_positive_rule / multi_credit_citations of the union, per_session[]
+#                  {session, status, valid, cost_usd, recall, recall_pm3, detected, detected_pm3 (positions),
+#                  false_positives, verdict} (figures null for an invalid session), recall_session1 /
+#                  recall_pm3_session1 (session 1 alone; null when it is invalid), precision_session1 = its pm3 caught
+#                  ÷ (caught + false_positives) (null when invalid or 0 ÷ 0), oracle_exposed_defects / _unknown the
+#                  union of the valid sessions', label_set / labels_meta copied from the first valid session's grade,
+#                  verdict, verdicts and verdict_accuracy null (k verdicts: per_session carries them), contaminated null.
+#                  Exit 2: no readable cell.json, k or the ids not s1 … sk, the session directories not exactly s1 …
+#                  sk, a valid session without grade.json (with recall) or grading/gates-combined.md, a valid session
+#                  whose grade is contaminated. With no valid session the union recall is null.
 # grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
 # diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
 # line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
@@ -356,7 +396,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.1"
+GRADER_VERSION = "1.3.2"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -398,6 +438,8 @@ ap.add_argument("--allow-unfrozen", action="store_true")
 ap.add_argument("--allow-partial", action="store_true")
 ap.add_argument("--self-check", choices=["base", "reference", "noisy"])
 ap.add_argument("--task-yaml")
+ap.add_argument("--union")      # 1.3.2 (cycle-132 FR-3): a matched cell directory, graded as the union of its sessions
+ap.add_argument("--task-id", dest="union_task_id")    # the task of --union
 try:
     A = ap.parse_args(sys.argv[4:])
 except SystemExit:
@@ -1629,11 +1671,38 @@ def false_positives(cites, defects):
     return n
 
 
+def sites_of(d):
+    return [s for s in (d.get("anchors") or [d.get("anchor_line")]) if isinstance(s, int) and not isinstance(s, bool)]
+
+
+def multi_credit_citations(cites, defects):
+    """1.3.2 (SKP-022): distinct-defect semantics. Defects are distinct by id with their anchor sets; a defect is
+    credited at most once per run (recall-vs-defects.sh's detected set); one citation may credit every defect whose
+    anchor set it hits. Under the decision rule pm3 (±3 of any site, DEC-0638) this counts the distinct citations
+    that hit the sites of two or more distinct defects."""
+    n = 0
+    for p, a, b in sorted(set(cites)):
+        hit = {d.get("id") for d in defects
+               if path_matches(p, d.get("file", "")) and any(not (b < s - 3 or a > s + 3) for s in sites_of(d))}
+        n += 1 if len(hit) >= 2 else 0
+    return n
+
+
+def cite_lines(cites):
+    return "".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites)
+
+
 def grade_recall(t, run_dir, grading):
     cites = combined_findings(run_dir)
+    return score_recall(t, grading, cites, cite_lines(cites))
+
+
+def score_recall(t, grading, cites, text):
+    """the citation reduction's scoring: <grading>/gates-combined.md = text, recall-vs-defects.sh over it, the
+    stray count under pm3 and the multi-credit count → (recall, false_positives, multi_credit_citations)"""
     combined = os.path.join(grading, "gates-combined.md")
     with open(combined, "w", encoding="utf-8") as f:
-        f.write("".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites))
+        f.write(text)
     env = dict(os.environ, EVAL_MANIFEST_DIR=os.path.dirname(t.key_path), LC_ALL="C")
     # 1.3.0: the same-scope clause reads the PR fixture's head/ tree (immutable; never the sandbox pr/)
     # the sentinel keeps recall-vs-defects.sh off its $workspace/pr/head fallback (the sandbox copy; review r1 DISS-C-003)
@@ -1677,7 +1746,7 @@ def grade_recall(t, run_dir, grading):
               "v1_manifest": bool(det.get("v1_manifest")),
               "credits_function_only": positions(det.get("credits_function_only")),
               "rule": det.get("rule")}
-    return recall, false_positives(cites, defects)
+    return recall, false_positives(cites, defects), multi_credit_citations(cites, defects)
 
 
 # ------------------------------------------------------------------ contamination
@@ -1808,6 +1877,10 @@ def home_word_outside():
 
 def check_value(tool, field, val, roots):
     low = val.lower()
+    # 1.3.2 class 9 (PRD D15, bd-eriso): network egress toward the upstream repository's host is read first and
+    # the KF-046 class 7 PR-content exemption never applies to it (a curl of the repository is never PR content)
+    if egress_hit(tool, val):
+        return "network_egress"
     if tool == "Bash":
         stripped = strip_heredocs(val)
         if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(stripped) or HIDDEN_FS.search(stripped):   # DEC-0551 token shapes; 1.2.7 globs and 1.2.8 filesystem probes outside heredoc bodies
@@ -1878,6 +1951,35 @@ def check_value(tool, field, val, roots):
         if outside(c, roots):
             return "outside_path"
     return None
+
+
+# 1.3.2 class 9 (PRD D15, bd-eriso): a Bash logical line that runs git fetch|clone|pull|ls-remote, curl or wget and
+# names github.com, raw.githubusercontent.com or api.github.com; gh api|pr|issue|repo naming those hosts or the
+# repository (gh reaches api.github.com without naming it); python with urllib or requests in a command that names a
+# host (the program may sit in a heredoc body); a WebFetch url or WebSearch query naming a host or the repository.
+# Heredoc bodies are read only when the command feeds one to an interpreter (written prose stays data, KF-046).
+# Lower bound: an egress the transcript cannot show (a program the agent wrote, a remote set up earlier and fetched
+# by name in another command) is not seen.
+EGRESS_HOST = re.compile(r"(?i)(?<![A-Za-z0-9.-])(?:raw\.githubusercontent\.com|api\.github\.com|github\.com)(?![A-Za-z0-9-])")
+EGRESS_GIT = re.compile(r"(?i)(?:^|[\s;&|(`])git\b[^;&|\n]*?\s(?:fetch|clone|pull|ls-remote)\b")
+EGRESS_TOOL = re.compile(r"(?i)(?:^|[\s;&|(`=/])(?:curl|wget)\b")
+EGRESS_GH = re.compile(r"(?i)(?:^|[\s;&|(`])gh\s+(?:[^\s;&|]+\s+)*?(?:api|pr|issue|repo)\b")
+EGRESS_PY = re.compile(r"(?i)\bpython[0-9.]*\b")
+EGRESS_PYLIB = re.compile(r"\b(?:urllib|requests)\b")
+
+
+def egress_hit(tool, val):
+    if tool in ("WebFetch", "WebSearch"):
+        return bool(EGRESS_HOST.search(val) or REPO_TOKEN.search(val))
+    if tool != "Bash":
+        return False
+    text = val if count_interpreter_heredocs(val) > 0 else strip_heredocs(val)
+    for line in text.replace("\\\n", " ").split("\n"):
+        if EGRESS_HOST.search(line) and (EGRESS_GIT.search(line) or EGRESS_TOOL.search(line)):
+            return True
+        if EGRESS_GH.search(line) and (EGRESS_HOST.search(line) or REPO_TOKEN.search(line)):
+            return True
+    return bool(EGRESS_PY.search(val) and EGRESS_PYLIB.search(val) and EGRESS_HOST.search(val))
 
 
 def transcripts(run_dir):
@@ -2739,7 +2841,8 @@ def grade(t, run_dir, frozen):
     else:
         if os.path.isdir(os.path.join(sb, "pr")) and not os.path.islink(os.path.join(sb, "pr")):
             g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
-        g["recall"], g["false_positives"] = grade_recall(t, run_dir, grading)
+        g["recall"], g["false_positives"], mc = grade_recall(t, run_dir, grading)
+        g["false_positive_rule"], g["multi_credit_citations"] = "pm3", mc   # 1.3.2: bd-9zmfn, SKP-022
         g["corpus_sha256"] = corpus_sha256(t)
         ORACLE_SKIPPED.clear()
         (g["oracle_exposed_defects"], g["oracle_exposed_unknown"], g["oracle_exposed_events"],
@@ -2751,6 +2854,7 @@ def grade(t, run_dir, frozen):
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
     g["oversized_files_skipped"] = OVERSIZED[0]
     g["colliding_tests_removed"] = COLLIDING[0]
+    g.setdefault("false_positive_rule", None); g.setdefault("multi_credit_citations", None)   # 1.3.2: build tasks
     g["collision_rule"] = collision_rule(t) if t.build else None
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
@@ -2764,6 +2868,116 @@ def grade(t, run_dir, frozen):
     g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]
+    return g
+
+
+# ------------------------------------------------------------------ union (1.3.2, cycle-132 FR-3, SDD D-3.1, D-7.3)
+def pos_list(v):
+    return [x for x in v if isinstance(x, str) and re.fullmatch(r"d[1-9][0-9]*", x)] if isinstance(v, list) else None
+
+
+def detected_of(rc, key):
+    """the defect positions a session caught under the rule of recall[key] (missed / missed_pm3)"""
+    n, missed = rc.get("defects_seeded"), pos_list(rc.get(key))
+    if not isinstance(n, int) or isinstance(n, bool) or missed is None:
+        return None
+    return [f"d{i}" for i in range(1, n + 1) if f"d{i}" not in missed]
+
+
+def pos_union(lists):
+    vals = [v for v in lists if isinstance(v, list)]
+    if not vals:
+        return None
+    return sorted({x for v in vals for x in v}, key=lambda x: (len(x), x))
+
+
+def grade_union(t, cell, frozen):
+    """A matched cell: k sessions, each graded on its own (DEC-0413 invariants per session); the union reads only the
+    sessions the cell record (cell.json) marks valid — their grading/gates-combined.md and grade.json — never a
+    sandbox, a transcript or a session's runner files. cell.json is the runner's record of the cell (k, session ids, status,
+    validity, cost) and names no arm, so the grader stays blind to the arm."""
+    cell = os.path.abspath(cell)
+    if ":" in cell or "," in cell:
+        raise GradeError("the cell directory path must not contain ':' or ','")
+    text = read_regular(os.path.join(cell, "meta", "cell.json"), READ_CAP, whole=True, root=cell)
+    try:
+        cj = json.loads(text) if text is not None else None
+    except ValueError:
+        cj = None
+    if not isinstance(cj, dict):
+        raise GradeError(f"no readable cell.json under {cell}")
+    k, sess = cj.get("k"), cj.get("sessions")
+    if not isinstance(k, int) or isinstance(k, bool) or k < 1 or not isinstance(sess, list):
+        raise GradeError("cell.json has no integer k >= 1 and sessions list")
+    if len(sess) != k or [s.get("id") if isinstance(s, dict) else None for s in sess] != [f"s{i}" for i in range(1, k + 1)]:
+        raise GradeError(f"cell.json lists sessions that are not s1 … s{k} (k {k})")
+    sroot = os.path.join(cell, "sessions")
+    if any(not os.path.isdir(os.path.join(sroot, f"s{i}")) for i in range(1, k + 1)) or os.path.lexists(os.path.join(sroot, f"s{k + 1}")):
+        raise GradeError(f"the session directories under sessions/ do not match k {k} of cell.json")
+    grading = os.path.join(cell, "grading")
+    fresh_dir(grading)
+    parts, cites, seen, per, grades = [], [], set(), [], {}
+    for s in sess:
+        sid, valid = s["id"], s.get("valid") is True
+        entry = {"session": sid, "status": s.get("status"), "valid": valid,
+                 "cost_usd": s.get("cost_usd") if isinstance(s.get("cost_usd"), (int, float)) and not isinstance(s.get("cost_usd"), bool) else None,
+                 "recall": None, "recall_pm3": None, "detected": None, "detected_pm3": None, "false_positives": None,
+                 "verdict": None}
+        if valid:
+            rd = s.get("run_dir")
+            rdp = os.path.realpath(os.path.join(cell, rd)) if isinstance(rd, str) and rd else ""
+            if not (rdp.startswith(os.path.realpath(sroot) + os.sep) and os.path.isdir(rdp)):
+                raise GradeError(f"session {sid}: run_dir is not a directory under sessions/")
+            gtext = read_regular(os.path.join(rdp, "grade.json"), READ_CAP, whole=True, root=rdp)
+            ctext = read_regular(os.path.join(rdp, "grading", "gates-combined.md"), READ_CAP, whole=True, root=rdp)
+            try:
+                sg = json.loads(gtext) if gtext is not None else None
+            except ValueError:
+                sg = None
+            if not isinstance(sg, dict) or not isinstance(sg.get("recall"), dict) or ctext is None:
+                raise GradeError(f"session {sid} is marked valid but has no grade (grade.json with recall, grading/gates-combined.md)")
+            if sg.get("contaminated") is not None:
+                raise GradeError(f"session {sid} is marked valid but its grade is contaminated")
+            grades[sid] = sg
+            rc = sg["recall"]
+            entry.update(recall=rc.get("recall"), recall_pm3=rc.get("recall_pm3"), detected=detected_of(rc, "missed"),
+                         detected_pm3=detected_of(rc, "missed_pm3"), false_positives=sg.get("false_positives"),
+                         verdict=(sg.get("verdict") or {}).get("value") if isinstance(sg.get("verdict"), dict) else None)
+            parts.append(f"## session {sid}\n" + ctext + ("" if ctext.endswith("\n") or not ctext else "\n"))
+            for c in citations(ctext):
+                if c not in seen:
+                    seen.add(c)
+                    cites.append(c)
+        per.append(entry)
+    valid_ids = [s["id"] for s in sess if s.get("valid") is True]
+    g = {"schema_version": 1, "grader_version": GRADER_VERSION, "task_id": t.id, "task_type": t.type,
+         "suite_frozen": frozen, "union": True, "bare_sessions": k, "sessions_valid": len(valid_ids),
+         "sessions_graded": valid_ids, "hidden_tests": None, "structural": None, "regressions": None,
+         "snapshot_tests": None, "recall": None, "false_positives": None, "false_positive_rule": "pm3",
+         "multi_credit_citations": None, "verdict": None, "verdicts": {"review": None, "audit": None},
+         "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
+         "diff_lines": None, "files_changed": None, "contaminated": None, "contamination_exempt": [],
+         "oracle_exposed_defects": pos_union([grades[i].get("oracle_exposed_defects") for i in valid_ids]),
+         "oracle_exposed_unknown": pos_union([grades[i].get("oracle_exposed_unknown") for i in valid_ids]),
+         "corpus_sha256": corpus_sha256(t)}
+    if valid_ids:
+        g["recall"], g["false_positives"], g["multi_credit_citations"] = score_recall(t, grading, cites, "".join(parts))
+        first = grades[valid_ids[0]]
+        for key in ("label_set", "labels_meta"):   # the task's label set (implementer B's fields), one per task
+            if key in first:
+                g[key] = first[key]
+    else:
+        with open(os.path.join(grading, "gates-combined.md"), "w", encoding="utf-8") as f:
+            f.write("")
+    g["per_session"] = per
+    s1 = per[0]
+    g["recall_session1"] = s1["recall"] if s1["valid"] else None
+    g["recall_pm3_session1"] = s1["recall_pm3"] if s1["valid"] else None
+    prec = None
+    if s1["valid"] and isinstance(s1["detected_pm3"], list) and isinstance(s1["false_positives"], int):
+        den = len(s1["detected_pm3"]) + s1["false_positives"]
+        prec = round(len(s1["detected_pm3"]) / den, 4) if den > 0 else None
+    g["precision_session1"] = prec
     return g
 
 
@@ -2893,6 +3107,32 @@ def main():
             print(json.dumps({"mode": A.self_check, "task_id": t.id, "result": "PASS" if ok else "FAIL",
                               "evidence": ev, "grade": g}, indent=2))
         return 0 if ok else 1
+    if A.union:
+        if A.run_dir or A.task_id or not A.union_task_id:
+            raise GradeError("usage: ablation-grade.sh --union <cell-dir> --task-id T [options] (see --help)")
+        if not re.match(r"^[a-z0-9][a-z0-9-]{0,63}$", A.union_task_id):
+            raise GradeError(f"invalid task id: {A.union_task_id}")
+        if not os.path.isdir(A.union):
+            raise GradeError(f"cell directory not found: {A.union}")
+        suite_root = os.path.abspath(A.suite_root or os.path.join(REPO_ROOT, "grimoires", "loa", "evals", "ablation-2.0"))
+        ty = os.path.join(suite_root, A.tasks_dir or "tasks", A.union_task_id, "task.yaml")
+        if not os.path.isfile(ty):
+            raise GradeError(f"task not found: {ty}")
+        t = load_task(ty, suite_root)
+        if t.id != A.union_task_id or t.build:
+            raise GradeError(f"--union grades a review-catch task; {A.union_task_id!r} is not one")
+        g = grade_union(t, A.union, freeze_check(suite_root))
+        out = A.out or os.path.join(os.path.abspath(A.union), "grade.json")
+        text = write_grade(g, out)
+        if A.json:
+            sys.stdout.write(text)
+        else:
+            rc = g["recall"] or {}
+            print(f"graded {t.id} (union of {g['sessions_valid']}/{g['bare_sessions']} sessions): recall {rc.get('recall')} "
+                  f"false_positives {g['false_positives']}; session 1 recall {g['recall_session1']} → {out}")
+        return 0
+    if A.union_task_id:
+        raise GradeError("--task-id goes with --union (the run mode takes <run-dir> <task-id>)")
     if not A.run_dir or not A.task_id:
         raise GradeError("usage: ablation-grade.sh <run-dir> <task-id> [options] (see --help)")
     if not re.match(r"^[a-z0-9][a-z0-9-]{0,63}$", A.task_id):

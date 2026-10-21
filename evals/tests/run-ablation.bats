@@ -610,10 +610,11 @@ print(",".join(out))')"
   [ "$(wc -l < "$T/stub.log")" -eq 2 ]
   grep -q "^$x a1_full bugfix-v2-05 1 bugfix-v2-05-t1-r3$" "$T/stub.log"
   grep -q "^$y a1_full bugfix-v2-07 1 bugfix-v2-07-t1-r3$" "$T/stub.log"
-  # one row per run_id, in the old file order, every one completed with the new run's own attempts
+  # one row per run_id, in the old file order, every one completed; cycle-132 D-7.3: the replacement counts the old
+  # row's 2 attempts and its own (3, the attempt limit)
   [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
   [ "$(jq -r '.status' "$RES/runs.jsonl" | sort -u)" = completed ]
-  [ "$(row "$x" | jq -r '(.attempts | tostring) + " " + (.retry_reason | tostring)')" = "1 null" ]
+  [ "$(row "$x" | jq -r '(.attempts | tostring) + " " + (.retry_reason | tostring)')" = "3 null" ]
   "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
   [ "$(jq -c '.rerun | map({run_id, from, to, old_cost_usd}) | sort_by(.run_id)' "$S")" = \
     "[{\"run_id\":\"$x\",\"from\":\"transport_error\",\"to\":\"completed\",\"old_cost_usd\":0},{\"run_id\":\"$y\",\"from\":\"transport_error\",\"to\":\"completed\",\"old_cost_usd\":0}]" ]
@@ -627,15 +628,15 @@ print(",".join(out))')"
   grep -qF "rerun $x: transport_error → completed (row replaced in place)" "$B/run.log"
   grep -q 'resume: 2 trial(s) flagged for a rerun' "$B/run.log"
   ! ls "$RES"/runs.jsonl.rerow.* >/dev/null 2>&1 || false
-  # a rerun that hits transport again is replaced by the new transport row (still excluded)
+  # cycle-132 D-7.3: the row is at 3 attempts — a further --rerun is refused (the rows file unchanged)
   export STUB_RULES="$T/rules"; printf '%s\n' "$x transport" > "$T/rules"
   jq -c --arg x "$x" 'if .run_id == $x then .status = "interrupted" else . end' "$RES/runs.jsonl" > "$T/rows" && mv "$T/rows" "$RES/runs.jsonl"
+  cp "$RES/runs.jsonl" "$T/rows.before"
   ra --batch rn1 --resume --rerun "$x"
-  [ "$status" -eq 1 ]
-  [ "$(row "$x" | jq -r '.status + " " + (.attempts | tostring)')" = "transport_error 2" ]
-  [ "$(jq -r '.run_id' "$RES/runs.jsonl")" = "$order" ]
-  [ "$(jq -c '.rerun[-1] | [.run_id, .from, .to]' "$S")" = "[\"$x\",\"interrupted\",\"transport_error\"]" ]
-  [ -d "$B/a1_full/bugfix-v2-05-t1-r4" ] && [ -d "$B/a1_full/bugfix-v2-05-t1-r5" ]
+  [ "$status" -eq 2 ]
+  grep -q "the row is at 3 attempts; the attempt limit is 3" <<<"$output"
+  cmp "$RES/runs.jsonl" "$T/rows.before"
+  [ ! -e "$B/a1_full/bugfix-v2-05-t1-r4" ]
 }
 
 @test "RAB-19b --rerow and --rerun in one resume: an infrastructure_error row left by the old drift rule is rowed again and a transport row is launched again; each lands in its own STATUS array" {
@@ -1186,13 +1187,13 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
 
 # --- cycle-131 Sprint 264 Task 2.1: the eval_only batch context ---------------------------------
 
-@test "RAB-c131-5 every trial a batch or a smoke launches gets LOA_ABLATION_BATCH_CONTEXT=1 (the eval_only arms' context); the runner's own environment is unchanged" {
+@test "RAB-c131-5 every trial a batch or a smoke launches gets --batch-context <batch> (the eval_only arms' context; cycle-132 bd-st02i: an argv flag, the variable is never set); the runner's own environment is unchanged" {
   export STUB_ENV_LOG="$T/env.log"
   [ -z "${LOA_ABLATION_BATCH_CONTEXT+x}" ]
   ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch bc1 --concurrency 2
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(wc -l < "$T/env.log")" -eq 2 ]
-  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=bc1$' "$T/env.log")" -eq 2 ]
   S="$T/suite"; cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$S"
   : > "$T/env.log"
   run "$RA" --source-commit "$SHA" --results-root "$RES" --self-check-log "$T/nope.log" --suite-root "$S" \
@@ -1200,10 +1201,261 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
     --smoke --arms a1_full --batch smoke-bc2 --max-usd 100
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(wc -l < "$T/env.log")" -eq 2 ]
-  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=1$' "$T/env.log")" -eq 2 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=smoke-bc2$' "$T/env.log")" -eq 2 ]
   # the stub reports an absent variable as <unset> (the assertion above is not vacuous)
   : > "$T/env.log"
   "$FX/ablation-pipeline-stub.sh" --task-yaml "$S/tasks/review-01/task.yaml" --arm a1_full --run-dir "$T/manual" \
     --run-id manual-1 --trial 1 --source-tree "$T/src" --suite-file "$REPO_ROOT/evals/suites/ablation-2.0.yaml" >/dev/null 2>&1 || true
-  grep -qx 'manual-1 LOA_ABLATION_BATCH_CONTEXT=<unset>' "$T/env.log"
+  grep -qx 'manual-1 LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=<none>' "$T/env.log"
+}
+
+# --- cycle-132 Sprint 269 Tasks 1.7a / 1.7c: matched cells, the attempt limit, --batch-context, --registration, the spend gate
+
+# msuite — a copy of the frozen suite root whose review-01 carries k 3 (the Fable arm's k 2), refrozen; review-02 has none
+msuite() {
+  MS="$T/suite-m"
+  cp -r "$REPO_ROOT/grimoires/loa/evals/ablation-2.0" "$MS"
+  yq -i '.review_catch.bare_sessions_matched = 3 | .review_catch.bare_sessions_matched_fable = 2' "$MS/tasks/review-01/task.yaml"
+  "$REPO_ROOT/evals/harness/freeze.sh" --root "$MS" --smoke >/dev/null
+}
+ram() { ra --suite-root "$MS" "$@"; }
+sha_of() { python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"; }
+CELL_OF() { printf '%s/%s/a0_bare_matched/review-01-t1' "$RES" "$1"; }
+
+@test "RAB-c132-1 dry run of the matched arms: one line per cell with sessions k, the plan line counts the session units, MANIFEST bare_sessions_by_task, overshoot_bound_usd and batch_context; a matched arm on a task without k is refused" {
+  msuite
+  ram --arms a0_bare_matched,a0_bare_fable_matched,a1_full --tasks review-01 --trials-review 2 --batch md1 --concurrency 3 --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '^plan: 3 arms, 1 tasks, 6 trials (10 session units in 4 matched cells), shuffle seed 20261015' <<<"$output"
+  grep -qx 'a0_bare_matched review-01 review-catch 1 md1-a0_bare_matched-review-01-t1 sessions 3' <<<"$output"
+  grep -qx 'a0_bare_fable_matched review-01 review-catch 2 md1-a0_bare_fable_matched-review-01-t2 sessions 2' <<<"$output"
+  grep -qx 'a1_full review-01 review-catch 1 md1-a1_full-review-01-t1' <<<"$output"   # an ordinary trial's line is unchanged
+  M="$RES/md1/MANIFEST.json"
+  [ "$(jq -c '.bare_sessions_by_task' "$M")" = '{"a0_bare_fable_matched":{"review-01":2},"a0_bare_matched":{"review-01":3}}' ]
+  [ "$(jq -r '.overshoot_bound_usd, .batch_context, .registration_sha256, .spend_gate' "$M" | tr '\n' ' ')" = "60 md1 null null " ]
+  [ "$(jq -r '[.plan[] | select(.arm == "a0_bare_matched")][0] | "\(.bare_sessions) \(.watchdog_s)"' "$M")" = "3 8400" ]
+  ram --arms a0_bare_matched --tasks review-01,review-02 --trials-review 1 --batch md2 --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'matched arm a0_bare_matched needs review_catch.bare_sessions_matched (an integer 2 … 30) on task review-02' <<<"$output"
+}
+
+@test "RAB-c132-2 a matched cell with k = 3 under the stub CLI: three session dirs and transcripts, every session with --batch-context, one cell.json, one union grade, one validated row with the summed cost" {
+  msuite
+  export STUB_ENV_LOG="$T/env.log"
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mk --concurrency 3
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  C="$(CELL_OF mk)"
+  for i in 1 2 3; do
+    [ -f "$C/sessions/s$i/transcripts/events-BARE.jsonl" ] && [ -f "$C/sessions/s$i/grade.json" ] && [ -f "$C/meta/sessions/s$i.json" ]
+  done
+  [ ! -e "$C/sessions/s4" ]
+  [ "$(grep -c 'mk-a0_bare_matched-review-01-t1-s[123] a0_bare_matched review-01 1 s[123]$' "$T/stub.log")" -eq 3 ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=mk$' "$T/env.log")" -eq 3 ]
+  [ "$(grep -c '^union review-01-t1 review-01 --tasks-dir tasks$' "$T/grade.log")" -eq 1 ]
+  [ "$(jq -r '"\(.k) \(.sessions_valid) \(.sessions_attempted) \([.sessions[].id] | join(","))"' "$C/meta/cell.json")" = "3 3 3 s1,s2,s3" ]
+  ! jq -e 'tostring | test("a0_bare_matched")' "$C/meta/cell.json" >/dev/null || false   # the grader reads it: no arm id
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 1 ]
+  "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$RES/runs.jsonl"
+  r="$(row mk-a0_bare_matched-review-01-t1)"
+  [ "$(jq -r '"\(.status) \(.degraded) \(.bare_sessions) \(.sessions_valid) \(.cost_usd) \(.all_spend_usd) \(.batch_context)"' <<<"$r")" = "completed false 3 3 7.5 7.5 mk" ]
+  [ "$(jq -r '[.phases[].label] | join(",")' <<<"$r")" = "BARE-s1,BARE-s2,BARE-s3" ]
+  S="$RES/mk/STATUS.json"
+  [ "$(jq -r '.state, .spend.spent_usd, .spend.sessions_usd, .per_arm.a0_bare_matched.launched, .per_arm.a0_bare_matched.completed' "$S" | tr '\n' ' ')" = "complete 7.5 7.5 1 1 " ]
+}
+
+@test "RAB-c132-3 --resume of a cell with one interrupted session re-runs only that session (its interrupted attempt counts), rows the cell once, and recomputes spent from the session records" {
+  msuite
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mr --concurrency 3
+  [ "$status" -eq 0 ]
+  C="$(CELL_OF mr)"
+  # the state a killed driver leaves: s3 still running, no record, no cell row
+  : > "$RES/runs.jsonl"; rm -f "$C/meta/sessions/s3.json" "$C/meta/cell.json" "$C/grade.json"
+  jq '.status = "running"' "$C/sessions/s3/meta/pipeline.json" > "$T/p" && mv "$T/p" "$C/sessions/s3/meta/pipeline.json"
+  jq '.state = "partial"' "$RES/mr/STATUS.json" > "$T/s" && mv "$T/s" "$RES/mr/STATUS.json"
+  : > "$T/stub.log"
+  ram --batch mr --resume
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(cat "$T/stub.log")" = "mr-a0_bare_matched-review-01-t1-s3 a0_bare_matched review-01 1 s3-r2" ]
+  [ "$(jq -r '"\(.attempts) \(.attempt_statuses | join(",")) \(.valid)"' "$C/meta/sessions/s3.json")" = "2 interrupted,completed true" ]
+  [ "$(wc -l < "$RES/runs.jsonl")" -eq 1 ]
+  r="$(row mr-a0_bare_matched-review-01-t1)"
+  [ "$(jq -r '"\(.cost_usd) \(.all_spend_usd) \(.attempts)"' <<<"$r")" = "7.5 10 2" ] || { echo "$r"; false; }
+  [ "$(jq -r '.sessions[2].run_dir' "$C/meta/cell.json")" = sessions/s3-r2 ]
+  # spent: s1 2.5 + s2 2.5 (their records) + s3's interrupted attempt 2.5 + its re-run 2.5
+  [ "$(jq -r '.spend.spent_usd, .state' "$RES/mr/STATUS.json" | tr '\n' ' ')" = "10 complete " ]
+}
+
+@test "RAB-c132-4 the attempt limit: a session failing on infrastructure every time ends after 3 attempts (s2, s2-r2, s2-r3), is kept invalid, every attempt is charged; the cell follows sessions_valid (2 of 3 completed; 1 of 3 degraded)" {
+  msuite
+  rules '*-t1-s2 transport'
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch ma --concurrency 3
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  C="$(CELL_OF ma)"
+  [ -d "$C/sessions/s2-r3" ] && [ ! -e "$C/sessions/s2-r4" ]
+  [ "$(grep -c -- '-s2 ' "$T/stub.log")" -eq 3 ]
+  [ "$(jq -r '"\(.status) \(.valid) \(.attempts) \(.attempt_statuses | join(","))"' "$C/meta/sessions/s2.json")" = "transport_error false 3 transport_error,transport_error,transport_error" ]
+  r="$(row ma-a0_bare_matched-review-01-t1)"
+  [ "$(jq -r '"\(.status) \(.degraded) \(.sessions_valid) \(.cost_usd) \(.all_spend_usd)"' <<<"$r")" = "completed false 2 5 12.5" ]  || { echo "$r"; false; }
+  [ "$(jq -r '.spend.spent_usd' "$RES/ma/STATUS.json")" = 12.5 ]
+  rules '*-t1-s2 transport' '*-t1-s3 cap_failure'
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mb --concurrency 3
+  C="$(CELL_OF mb)"
+  [ -d "$C/sessions/s3-r3" ] && [ ! -e "$C/sessions/s3-r4" ]
+  r="$(row mb-a0_bare_matched-review-01-t1)"
+  [ "$(jq -r '"\(.status) \(.degraded) \(.degraded_reason) \(.sessions_valid)"' <<<"$r")" = "completed true sessions_valid < k/2 (1 of 3) 1" ]
+  # the cap failures are charged max(cost, the review-catch cap 20) each
+  [ "$(jq -r '.spend.spent_usd' "$RES/mb/STATUS.json")" = 70 ]
+}
+
+@test "RAB-c132-5 a refusal-fallback session and a contaminated session are kept invalid and never re-run; the session-1 figures go null when s1 is the invalid one" {
+  msuite
+  rules '*-t1-s1 refusal'
+  export STUB_GRADE_CONTAM='*-t1-s2'
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mf --concurrency 3
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  C="$(CELL_OF mf)"
+  [ ! -e "$C/sessions/s1-r2" ] && [ ! -e "$C/sessions/s2-r2" ]
+  [ "$(jq -r '"\(.valid) \(.attempts) \(.invalid_reason)"' "$C/meta/sessions/s1.json")" = "false 1 refusal fallback (KF-051)" ]
+  [ "$(jq -r '"\(.status) \(.valid) \(.invalid_reason)"' "$C/meta/sessions/s2.json")" = "contaminated false contaminated: network_egress" ]
+  r="$(row mf-a0_bare_matched-review-01-t1)"
+  [ "$(jq -r '"\(.sessions_valid) \(.degraded) \(.recall_session1) \(.cost_usd)"' <<<"$r")" = "1 true null 2.5" ]
+}
+
+@test "RAB-c132-6 --batch-context (bd-st02i): every trial gets the batch name as an argv flag (the variable is never set); a given id is passed and kept on --resume; another id on --resume is refused" {
+  export STUB_ENV_LOG="$T/env.log"
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch bx1
+  [ "$status" -eq 0 ]
+  grep -qx 'bx1-a1_full-review-01-t1 LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=bx1' "$T/env.log"
+  grep -qx 'batch_context=bx1' "$RES/bx1/a1_full/review-01-t1/meta/arm-evidence.txt"
+  [ "$(row bx1-a1_full-review-01-t1 | jq -r '.batch_context')" = bx1 ]
+  rules '*-review-02-* transport'
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch bx2 --batch-context c132-g1 --concurrency 1
+  [ "$(jq -r '.batch_context' "$RES/bx2/MANIFEST.json")" = c132-g1 ]
+  [ "$(grep -c 'batch_context=c132-g1$' "$T/env.log")" -ge 3 ]
+  ra --batch bx2 --resume --batch-context other
+  [ "$status" -eq 2 ]; grep -q -- '--batch-context other differs from the batch'"'"'s c132-g1' <<<"$output"
+  unset STUB_RULES; : > "$T/env.log"
+  ra --batch bx2 --resume --rerun-status transport_error
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'batch_context=c132-g1$' "$T/env.log"
+}
+
+@test "RAB-c132-7 mount_cheval (bd-56nn6): a mounted run whose probe reads broken fails took-effect mount_cheval_ok — the row is infrastructure_error and the arm pauses" {
+  rules '*-a1_full-review-01-* cheval_broken'
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch mc --concurrency 1 --seed 3
+  [ "$status" -eq 1 ]
+  [ "$(row mc-a1_full-review-01-t1 | jq -r '.status, .mount_cheval' | tr '\n' ' ')" = "infrastructure_error broken:ImportError: cannot import name 'x' " ]
+  jq -e '.paused_arms.a1_full | test("mount_cheval_ok")' "$RES/mc/STATUS.json" >/dev/null
+}
+
+# a registration matching the batch's inputs (the shape registration.py writes; jq here, the module has its own tests)
+make_reg() {
+  jq -n --arg s "$(sha_of "$REPO_ROOT/grimoires/loa/evals/ablation-2.0/MANIFEST.sha256")" \
+        --arg c "$(sha_of "$REPO_ROOT/evals/fixtures/review-prs/SHA256SUMS")" --arg p "$SHA" \
+    '{schema_version: 1, cycle: "cycle-132", preregistration_path: "x/PREREGISTRATION.md", preregistration_sha256: ("e" * 64),
+      corpus_sha256sums_sha256: $c, suite_root: "x", suite_manifest_sha256: $s, analysis_tree_sha256: ("f" * 40), pin: $p,
+      label_set: "v2", seed: 1, arms: [], groups: [], looks: [], boundary_constant: 1, cap_usd: 2500,
+      kickoff: "2026-10-21T00:23:00Z", addenda: []}' > "$T/REGISTRATION.json"
+  printf '%s\n' '#!/usr/bin/env bash' 'echo "{\"total_usd\": ${STUB_SPEND_TOTAL:-100}, \"complete\": ${STUB_SPEND_COMPLETE:-true}}"; [[ "${STUB_SPEND_COMPLETE:-true}" == true ]]' > "$T/bin/spend"
+  chmod +x "$T/bin/spend"
+}
+
+@test "RAB-c132-8 --registration: the dry run records the sha256, path and bound hashes; the spend gate derives --max-usd from the registered cap minus the cycle meter; a mismatched binding, a failed meter and an exhausted cap are refused" {
+  make_reg
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg1 --registration "$T/REGISTRATION.json" --spend-bin "$T/bin/spend" --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  M="$RES/rg1/MANIFEST.json"
+  [ "$(jq -r .registration_sha256 "$M")" = "$(sha_of "$T/REGISTRATION.json")" ]
+  [ "$(jq -r .registration_path "$M")" = "$T/REGISTRATION.json" ]
+  [ "$(jq -r .preregistration_sha256 "$M")" = "$(printf 'e%.0s' $(seq 1 64))" ]
+  [ "$(jq -r '.registration | "\(.pin) \(.cap_usd) \(.kickoff)"' "$M")" = "$SHA 2500 2026-10-21T00:23:00Z" ]
+  [ "$(jq -c '.spend_gate' "$M")" = '{"cap_usd":2500,"since":"2026-10-21T00:23:00Z","cycle_spent_usd":100,"derived_max_usd":2400,"max_usd_given":null,"max_usd":2400}' ] || { jq -c .spend_gate "$M"; false; }
+  [ "$(jq -r '.caps.max_usd' "$M")" = 2400 ]
+  grep -q 'spend gate: registered cap USD 2500 − cycle spend USD 100 since 2026-10-21T00:23:00Z = USD 2400; batch --max-usd 2400' <<<"$output"
+  # a smaller --max-usd wins; --spend-since overrides the kickoff
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg2 --registration "$T/REGISTRATION.json" --spend-bin "$T/bin/spend" --max-usd 50 --spend-since 2026-10-22T00:00:00Z --dry-run
+  [ "$(jq -c '.spend_gate | [.since, .max_usd_given, .max_usd]' "$RES/rg2/MANIFEST.json")" = '["2026-10-22T00:00:00Z",50,50]' ]
+  # refusals
+  STUB_SPEND_COMPLETE=false ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg3 --registration "$T/REGISTRATION.json" --spend-bin "$T/bin/spend" --dry-run
+  [ "$status" -eq 2 ]; grep -q 'did not give a complete total' "$RES/rg3/REFUSED.txt"
+  STUB_SPEND_TOTAL=2600 ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg4 --registration "$T/REGISTRATION.json" --spend-bin "$T/bin/spend" --dry-run
+  [ "$status" -eq 2 ]; grep -q 'leaves USD -100: no batch budget' "$RES/rg4/REFUSED.txt"
+  jq '.suite_manifest_sha256 = ("0" * 64)' "$T/REGISTRATION.json" > "$T/bad.json"
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg5 --registration "$T/bad.json" --spend-bin "$T/bin/spend" --dry-run
+  [ "$status" -eq 2 ]; grep -q 'registration binds suite_manifest_sha256 0000' "$RES/rg5/REFUSED.txt"
+  jq '.pin = "abcdef1"' "$T/REGISTRATION.json" > "$T/bad.json"
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg6 --registration "$T/bad.json" --spend-bin "$T/bin/spend" --dry-run
+  [ "$status" -eq 2 ]; grep -q 'registration binds pin abcdef1' "$RES/rg6/REFUSED.txt"
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rg7 --spend-since 2026-10-21T00:23:00Z --dry-run
+  [ "$status" -eq 2 ]; grep -q -- '--spend-since goes with --registration' <<<"$output"
+}
+
+@test "RAB-c132-9 --resume is bound to the registration: an edited file is refused (registration changed: old ≠ new), so is a removed one, another --registration, or one given to a batch that started without" {
+  make_reg
+  rules '*-review-02-* transport'
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch rr1 --concurrency 1 --registration "$T/REGISTRATION.json" --spend-bin "$T/bin/spend"
+  [ "$status" -eq 1 ]
+  old="$(sha_of "$T/REGISTRATION.json")"
+  unset STUB_RULES
+  jq '.seed = 2' "$T/REGISTRATION.json" > "$T/r2" && mv "$T/r2" "$T/REGISTRATION.json"
+  ra --batch rr1 --resume --rerun-status transport_error
+  [ "$status" -eq 2 ]
+  grep -q "registration changed: $old ≠ $(sha_of "$T/REGISTRATION.json")" <<<"$output"
+  cp "$T/REGISTRATION.json" "$T/other.json"
+  ra --batch rr1 --resume --registration "$T/other.json"
+  [ "$status" -eq 2 ]; grep -q 'differs from the batch' <<<"$output"
+  rm "$T/REGISTRATION.json"
+  ra --batch rr1 --resume
+  [ "$status" -eq 2 ]; grep -q 'registration changed: .* (.* is gone)' <<<"$output"
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch rr2
+  [ "$status" -eq 0 ]
+  make_reg
+  ra --batch rr2 --resume --registration "$T/REGISTRATION.json"
+  [ "$status" -eq 2 ]; grep -q 'started without a registration' <<<"$output"
+  # the rows carry the registration they ran under
+  [ "$(row rr1-a1_full-review-01-t1 | jq -r '.registration_sha256')" = "$old" ]
+}
+
+@test "RAB-c132-10 the reservation rule over session units (SKP-003b): k = 3 sessions at concurrency 3 reserve 20 each — max 47.99 holds the third session until one ends, 48 launches it at once; the session spend lands in spent" {
+  msuite
+  export STUB_COST=1
+  # third gate: spent 0 + 2 running x 20 + the review-catch hint 8 = 48
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mv1 --concurrency 3 --max-usd 47.99
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  L="$RES/mv1/run.log"
+  [ "$(logline 'done mv1-a0_bare_matched-review-01-t1-s1 ' "$L")" -lt "$(logline 'launch mv1-a0_bare_matched-review-01-t1-s3 ' "$L")" ]
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mv2 --concurrency 3 --max-usd 48
+  [ "$status" -eq 0 ]
+  L="$RES/mv2/run.log"
+  [ "$(logline 'launch mv2-a0_bare_matched-review-01-t1-s3 ' "$L")" -lt "$(logline 'done mv2-a0_bare_matched-review-01-t1-s1 ' "$L")" ]
+  [ "$(jq -r '.spend.spent_usd, .spend.sessions_usd' "$RES/mv2/STATUS.json" | tr '\n' ' ')" = "3 3 " ]
+  # a cut: max 5 lets s1 launch (0 + 0 + 8 > 5 cuts at once? no: the first gate cuts when spent + est > max)
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch mv3 --concurrency 3 --max-usd 7
+  [ "$status" -eq 1 ]
+  [ "$(jq -r '.cuts | length' "$RES/mv3/STATUS.json")" = 1 ]
+  [ ! -e "$(CELL_OF mv3)/meta/cell.json" ]
+}
+
+@test "RAB-c132-11 the attempt limit on reruns (D-7.3): a replacement row counts the old row's attempts; a row at 3 attempts is refused by --rerun and skipped by --rerun-status; a matched cell is never rerun or rerowed" {
+  export LOA_ABLATION_OUTAGE_BREAKER=0
+  rules '*-review-01-* transport'
+  ra --arms a1_full --tasks review-01 --trials-review 1 --batch at1
+  x=at1-a1_full-review-01-t1
+  [ "$(row "$x" | jq -r '.attempts')" = 2 ]
+  ra --batch at1 --resume --rerun-status transport_error
+  [ "$(row "$x" | jq -r '"\(.status) \(.attempts)"')" = "transport_error 3" ]   # one more attempt, no in-line retry past 3
+  [ "$(grep -c "^$x " "$T/stub.log")" -eq 3 ]
+  ra --batch at1 --resume --rerun "$x"
+  [ "$status" -eq 2 ]; grep -q 'the row is at 3 attempts; the attempt limit is 3' <<<"$output"
+  ra --batch at1 --resume --rerun-status transport_error
+  grep -q "resume: --rerun-status transport_error skips $x (at 3 attempts, the limit of 3)" "$RES/at1/run.log"
+  [ "$(grep -c "^$x " "$T/stub.log")" -eq 3 ]
+  msuite
+  unset STUB_RULES
+  ram --arms a0_bare_matched --tasks review-01 --trials-review 1 --batch at2
+  jq -c 'if .run_id == "at2-a0_bare_matched-review-01-t1" then .status = "infrastructure_error" else . end' "$RES/runs.jsonl" > "$T/r" && mv "$T/r" "$RES/runs.jsonl"
+  ram --batch at2 --resume --rerun at2-a0_bare_matched-review-01-t1
+  [ "$status" -eq 2 ]; grep -q 'a matched cell is never rerun as a whole' <<<"$output"
+  ram --batch at2 --resume --rerow at2-a0_bare_matched-review-01-t1
+  [ "$status" -eq 2 ]; grep -q 'never rowed again' <<<"$output"
 }
