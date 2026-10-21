@@ -157,6 +157,15 @@
 # trial it launches (batch and smoke); --dry-run honours the same flag, so the operator dry-runs
 # the open-mount arm with `pipeline-run.sh … --batch-context <id> --dry-run`.
 #
+# Arm-id leak guard (AC-4.2; cycle-132 round 5, PREREGISTRATION §12 addendum 1): before the first phase the running
+# arm's id may appear nowhere in the sandbox, with one exception — an id the PR content itself names
+# (arm_ids_pr_native=<sorted comma list>|none in arm-evidence: the suite's arm ids found under pr/) may appear in a
+# PR-derived file: anything under pr/, grimoires/loa/a2a/<sprint>/reviewer.md (written from pr/PR.md), and each
+# closed-mount overlay path (an overlay_sha256= line: the PR's own version of a .claude/ file). Anywhere else, or for
+# an id the PR does not name, the launch is refused as before (exit 2, infrastructure_error). The task brief and every
+# phase prompt stay fully strict: any arm id there is a leak (leak_scan). A PR that built the arms names them all, so
+# its text says nothing about which arm runs.
+#
 # mount_cheval (cycle-132 bd-56nn6, KF-050): after materialisation and before the first phase of a
 # mounted arm, `python3 -I -B -c 'import loa_cheval, loa_cheval.providers'` runs on the host with
 # sandbox/.claude/adapters first on sys.path (no bytecode is written into the sandbox; the tree is
@@ -710,8 +719,37 @@ mkdir -p "$WS/.eval/tmp" "$WS/.eval/gh-empty"
 hidden_hit="$(cd "$WS" && find . -path ./.git -prune -o -path ./.claude -prune -o \
   \( -iname hidden -o -iname 'hidden-tests' -o -iname 'hidden.*' \) -print | sed -n '1p')"
 [[ -z "$hidden_hit" ]] || infra "sandbox contains a hidden path: ${hidden_hit#./}"
-arm_hit="$(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | sed -n '1p' || true)"
-[[ -z "$arm_hit" ]] || infra "arm id appears in the sandbox: ${arm_hit#"$WS"/}"
+# cycle-132 round 5 (PREREGISTRATION §12 addendum 1): the arm ids the PR content itself names. A PR that built the
+# ablation arms names them in its own diff and description; such text tells the agent nothing about which arm it is
+# PR_NATIVE: every id of the suite that occurs in pr/ (PR.md, head.diff, base/, head/ — copied from the fixture,
+# before any agent ran)
+PR_NATIVE=""
+if [[ -d "$WS/pr" ]]; then
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    if grep -rIqF -e "$id" "$WS/pr" 2>/dev/null; then PR_NATIVE="$PR_NATIVE$id"$'\n'; fi
+  done <<<"$ALL_ARM_IDS"
+fi
+pr_native_csv="$(printf '%s' "$PR_NATIVE" | sed '/^$/d' | LC_ALL=C sort -u | paste -sd, - || true)"
+printf 'arm_ids_pr_native=%s\n' "${pr_native_csv:-none}" >> "$ARM_EVIDENCE_FILE"
+# the PR-derived files: anything under pr/; the review skill's report the mount library writes from pr/PR.md
+# (write_sandbox_grimoire: grimoires/loa/a2a/<sprint>/reviewer.md); the closed-mount overlay's answer paths
+# (overlay_answer_paths: each path of an overlay_sha256= evidence line, the PR's own version of a .claude/ file).
+# grimoires/loa/sprint.md is template text plus the task criterion (no PR text), so it is not PR-derived
+OVERLAY_PATHS="$(sed -n 's/^overlay_sha256=\(.*\)=[^=]*$/\1/p' "$ARM_EVIDENCE_FILE")"
+pr_derived() {  # pr_derived <path relative to the sandbox>
+  case "$1" in pr/*|"grimoires/loa/a2a/$SPRINT/reviewer.md") return 0 ;; esac
+  [[ -n "$OVERLAY_PATHS" ]] && grep -qxF -e "$1" <<<"$OVERLAY_PATHS"
+}
+ARM_PR_NATIVE=false
+grep -qxF -e "$ARM" <<<"$PR_NATIVE" && ARM_PR_NATIVE=true
+# the running arm's id in the sandbox refuses the launch, except a PR-native id in a PR-derived file
+while IFS= read -r arm_hit; do
+  [[ -n "$arm_hit" ]] || continue
+  rel="${arm_hit#"$WS"/}"
+  if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
+  infra "arm id appears in the sandbox: $rel"
+done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
 
 leak_scan() {  # leak_scan <file> — `hidden`, a defect key or any arm id → non-zero
   local f="$1" id

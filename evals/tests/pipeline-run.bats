@@ -1383,3 +1383,55 @@ broken_cheval() {
   [ "$(evline bare_sessions)" = matched ]
   [ "$(evline mount_cheval)" = none ]
 }
+
+# --- cycle-132 round 5 (PREREGISTRATION §12 addendum 1): arm ids the PR itself names ---------------------------------
+
+# arm_named_pr — the review-catch fixture's head.diff and PR.md name a1_full and a0_bare (a PR that built the arms)
+arm_named_pr() {
+  local p="$T/prs/pr-x"
+  printf -- '--- a/lib/x.sh\n+++ b/lib/x.sh\n@@ -1 +1 @@\n-a=1\n+a=2  # run a1_full against a0_bare\n' > "$p/head.diff"
+  printf '# PR\nAdds the a1_full and a0_bare arms.\n' > "$p/PR.md"
+}
+
+@test "PR-c132-7 arm ids the PR names (head.diff, PR.md) are PR-native: the review-catch run completes with arm_ids_pr_native=a0_bare,a1_full although the id is in pr/ and in the reviewer.md the mount writes from PR.md" {
+  arm_named_pr
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_pr_native)" = "a0_bare,a1_full" ]
+  grep -q a1_full "$T/run/sandbox/pr/head.diff"
+  grep -q a1_full "$T/run/sandbox/grimoires/loa/a2a/sprint-1/reviewer.md"
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+}
+
+@test "PR-c132-8 a PR-native arm id planted outside the PR-derived files (.claude/x.md) still refuses the launch (exit 2)" {
+  arm_named_pr
+  mkdir -p "$T/src/.claude"
+  printf 'notes for a1_full\n' > "$T/src/.claude/x.md"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm x )
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"arm id appears in the sandbox: .claude/x.md"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+}
+
+@test "PR-c132-9 pr/ content is PR-derived by definition: an arm id planted only in pr/head.diff is PR-native and passes; a build task records arm_ids_pr_native=none and its sandbox guard is unchanged" {
+  printf -- '--- a/lib/x.sh\n+++ b/lib/x.sh\n@@ -1 +1 @@\n-a=1\n+a=2  # a1_review_only\n' > "$T/prs/pr-x/head.diff"
+  c131_arms
+  run_pr a1_review_only "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_pr_native)" = "a1_review_only" ]
+  fresh_run
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 0 ]
+  [ "$(evline arm_ids_pr_native)" = none ]
+}
+
+@test "PR-c132-10 the task brief stays fully strict: an arm id in the brief refuses even when the PR names the same id" {
+  arm_named_pr
+  export STUB_BRIEF_EXTRA="as a1_full"
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  # the sandbox guard reaches the brief first (it is not PR-derived); either guard names the brief
+  [[ "$output" == *"arm id appears in the sandbox: grimoires/loa/context/task-brief.md"* || "$output" == *"task-brief.md leaks arm id a1_full"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+}
