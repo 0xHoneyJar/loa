@@ -25236,3 +25236,75 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0779"
+    created_at: "2026-10-21T06:12:15Z"
+    updated_at: "2026-10-21T06:12:15Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Cap amended to USD 4,200 (raw 3,334 × 1.25): the positive control runs on all 14 PRs (open mount 560), not G1 only; arm allowance 3,080"
+    decision: "The binding cycle cap is USD 4,200: raw 3,334 = N × 180 (2,520) + N × 2 × 20 open mount (560) + annotation 84 + judge 30 + reproduction 80 + dissents 60, × 1.25 contingency, rounded up to 50; arm allowance 3,080; reserves unchanged; the registration binds this figure. Everything else of DEC-0718 (N = 14, groups, looks, constant, achieved powers, ceiling flag) stands"
+    rationale: "The Flatline spec review's critical blocker: a G1-only control (2–4 eligible PRs after the headroom exclusion) with a sign test cannot separate the expected +0.07 from zero; running the open-mount arm on every group gives the control the primary's precision (SE ≈ 0.03) for +USD 400 under contingency"
+    alternatives_considered:
+      - option: "keep cap 3,800 with the control on G1"
+        rejected_because: "the control would fail or pass by noise about a quarter of the time either way"
+      - option: "drop the void consequence and keep G1"
+        rejected_because: "removes the only mechanical check that the closed mount is the binding difference"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "e689788b"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION.md §7 (Task 1.11, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:12:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/flatline-prereg.json SKP-001 (critical, 800)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0780"
+    created_at: "2026-10-21T06:13:27Z"
+    updated_at: "2026-10-21T06:13:27Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Flatline spec review integrated: NEGATIVE outcome + ordered table, control on all groups, conditional YES, looks by completed groups, stratified reads"
+    decision: "Adopted into the text before hashing: SKP-003/006 an ordered exhaustive decision table with a NEGATIVE outcome (z_yes crossing with Δ̂ < 0) and SMALL restricted to Δ̂ ≥ 0 (reads.decide changes, D round 3); SKP-001 (critical) the positive control runs on every group with an interval-based void rule and a 'not demonstrated' tier (cap 3,800 → 4,200, DEC-0779); SKP-002 the bias direction stated, reads stratified by label_source/review_driven at every look, a YES reported conditional on the sign of the pipeline-independent Δ, conclusions restricted to the frozen key; SKP-007 looks defined by completed scheduled groups with monotone t ≤ 1 and the budget-stop final look; SKP-013 the all-assigned-pairs operational read and whole-pair bounds; SKP-015 'unseen' = never evaluated by the pipeline, runtime leakage separated from prior exposure with the public-fix timeline; SKP-001 (gpt) the cost-matched exact-dollar Δ as the per-dollar co-read; SKP-003 (gpt) the primary labelled anchor-proximity detection with the judge as the semantic audit; SKP-009 the sharp null stated, permutation corroborating only; SKP-005/011 the simulation named as the fallback's size validation, MC uncertainty, achieved MDE after clipping, inconclusive rates. Medium items folded: session contribution, isolation, per-arm contract, precision dedupe, trim algorithm, cost-per-extra-defect cases, overshoot semantics, arm execution order (primary batches first), positive-control outcome table, judge estimator and augmented key"
+    rationale: "Each adopted point tightens the text without changing the pre-specified primary; the critical blocker (a sign test on 2–4 clusters declaring every read void) was a real design flaw; the review preceded the hash as FR-7 requires"
+    alternatives_considered:
+      - option: "equal weighting of review-driven and independent defects in the primary (SKP-002)"
+        rejected_because: "changes the primary after the power run; the independent set holds 37 defects — a conditional YES and the stratified reads carry the same information honestly"
+      - option: "semantic agreement required for primary credit (SKP-003 gpt)"
+        rejected_because: "untested grading machinery before the hash; the judge protocol is the pre-registered semantic audit"
+      - option: "an independent head-code audit this cycle (SKP-002 gpt)"
+        rejected_because: "a third labelling source is a cycle of its own; conclusions are restricted to the frozen key and the follow-up is named"
+      - option: "keep the control on G1 and only soften void"
+        rejected_because: "a control that cannot discriminate +0.07 from 0 is wasted spend; USD 400 buys ~14 PRs"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "e689788b"
+    source: "grimoires/loa/a2a/sprint-269/flatline-prereg.json (2 voices, consensus; Task 1.11, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T06:13:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/flatline-prereg.json; PREREGISTRATION.md §§1, 2, 4–9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

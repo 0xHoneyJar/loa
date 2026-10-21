@@ -239,6 +239,10 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.3 (cycle-132 Sprint 269 round 2, recall-vs-defects.sh 1.3.1): the citation parser (CITE) and a numeric
+# dissent anchor's path part accept an extension of up to 12 characters (was 6): a finding on .loa.config.yaml.example
+# or Dockerfile.ablation is credited (the image self-check's reference read 0 on review-r16/r20/r22). A citation that
+# parsed under 1.3.2 parses the same; the oracle detector's FILEISH token rule is unchanged.
 # grader 1.3.2 (cycle-132 Sprint 269 Task 1.7b; SDD D-4.1, D-7.3; PRD FR-3, FR-5 (g), FR-11): additive; recall,
 # the citation rule (DEC-0638: recall_pm3 is the decision statistic), false_positives, verdicts and every 1.3.1 field
 # keep their 1.3.1 values on any run without a class 9 hit (evals/tests/ablation-grade.bats AG-c132-5 re-grades a run
@@ -396,7 +400,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.2"
+GRADER_VERSION = "1.3.3"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1537,7 +1541,7 @@ def review_md_verdict(path, root):
 # ------------------------------------------------------------------ citations (recall-vs-defects 1.1.2 parser)
 RNG = r'(\d{1,6})(?:[-–](\d{1,6}))?(?![A-Za-z0-9]|[-–]\d)'
 CITE = re.compile(
-    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,12})[`*)]{0,3}:(?P<first>' + RNG
     + r'(?:[ \t]*,[ \t]*' + RNG + r')*)'
     r'|(?:(?<![A-Za-z0-9_./:])(?:head|base)|(?<![A-Za-z0-9_./:"\'{}\[\]*])(?<![A-Za-z0-9_"\'}\]]`)):(?P<bare>' + RNG + r')')
 ONE = re.compile(RNG)
@@ -1619,7 +1623,7 @@ def envelope_texts(path):
         if isinstance(al, int) and not isinstance(al, bool) and al >= 1:
             anc = f.get("anchor") if isinstance(f.get("anchor"), str) else ""
             ap = anc.split(":", 1)[0].strip() if ":" in anc else ""
-            ap = ap if re.search(r"\.[A-Za-z0-9]{1,6}$", ap) else (fp if isinstance(fp, str) else "")
+            ap = ap if re.search(r"\.[A-Za-z0-9]{1,12}$", ap) else (fp if isinstance(fp, str) else "")
             if ap:
                 ok_end = isinstance(ae, int) and not isinstance(ae, bool) and ae > al
                 out.append(f"{ap}:{al}-{ae}" if ok_end else f"{ap}:{al}")

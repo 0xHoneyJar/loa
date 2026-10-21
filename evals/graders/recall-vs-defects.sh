@@ -47,6 +47,11 @@
 # findings_cited, findings_refuted and refuted_share (refuted / cited; null
 # when nothing is cited).
 #
+# Grader 1.3.1 (cycle-132 Sprint 269 round 2): a cited path's extension may run to 12 characters (was 6), so
+#   head/.loa.config.yaml.example:127 and head/evals/harness/Dockerfile.ablation:19 cite; every other boundary rule
+#   (the range and date guards, the bare :N rules, the URL exclusion) is unchanged, and a text that parsed under
+#   1.3.0 parses to the same citations (the path still splits at its last dot before the colon).
+#
 # Grader 1.3.0 (cycle-131 FR-2, SDD §5.2, D-2.1; rule "pm3_or_same_function"):
 #   Citation validity first (both clauses of the new rule): a cited line is positive;
 #   a cited range is ordered (a <= b, the parser orders it); when the defect's file
@@ -112,7 +117,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.3.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.3.1"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -124,7 +129,7 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.3.0"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.3.1"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
@@ -162,7 +167,7 @@ text = open(review_path, encoding="utf-8", errors="replace").read()
 # parse; an open `:369-...` still cites 369) — sprint-250 review run 2, #13
 RNG = r'(\d{1,6})(?:[-–](\d{1,6}))?(?![A-Za-z0-9]|[-–]\d)'
 CITE = re.compile(
-    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,12})[`*)]{0,3}:(?P<first>' + RNG
     + r'(?:[ \t]*,[ \t]*' + RNG + r')*)'
     # head:N / base:N keep the 1.1.0 boundary set ("head:40" binds); the JSON
     # punctuation set, plus a CLOSING backtick (one after a token character:
@@ -523,7 +528,7 @@ out = {
         "findings_cited": len(findings), "findings_refuted": len(refuted),
         "refuted_share": refuted_share,
     },
-    "grader_version": "1.3.0",
+    "grader_version": "1.3.1",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)

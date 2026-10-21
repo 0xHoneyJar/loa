@@ -1151,7 +1151,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1421,7 +1421,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1515,7 +1515,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.2 ]   # cycle-132: 1.3.2 is additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1810,7 +1810,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.2 ]
+  [ "$(U .grader_version)" = 1.3.3 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -1934,4 +1934,46 @@ EOF
   for k in recall false_positives contaminated verdict verdict_accuracy_per_gate oracle_exposed_defects; do
     [ "$(jq -c --arg k "$k" '.[$k]' "$T/old.json")" = "$(jq -c --arg k "$k" '.[$k]' "$T/new.json")" ] || { echo "$k differs"; false; }
   done
+}
+
+@test "AG-c132-6 grader 1.3.3: --self-check reference passes on a task whose manifest anchors long-extension files (.loa.config.yaml.example, Dockerfile.ablation); a findings file citing them is credited" {
+  local d="$S/tasks/rc-long" p="$T/prs/pr-78" i
+  mkdir -p "$d" "$p/base/evals/harness" "$p/head/evals/harness"
+  for i in $(seq 1 140); do echo "key_$i: 1"; done > "$p/base/.loa.config.yaml.example"
+  for i in $(seq 1 140); do echo "key_$i: 2"; done > "$p/head/.loa.config.yaml.example"
+  for i in $(seq 1 30); do echo "RUN step $i"; done > "$p/base/evals/harness/Dockerfile.ablation"
+  for i in $(seq 1 30); do echo "RUN step $i v2"; done > "$p/head/evals/harness/Dockerfile.ablation"
+  printf -- '--- a/.loa.config.yaml.example\n+++ b/.loa.config.yaml.example\n' > "$p/head.diff"
+  printf '# PR\n' > "$p/PR.md"
+  cat > "$T/manifests/pr-78.json" <<'EOF'
+{"fixture": "pr-78", "defects": [
+  {"id": "D01-budget-key", "file": ".loa.config.yaml.example", "anchor_line": 127, "severity": "high", "category": "config"},
+  {"id": "D02-unpinned-base", "file": "evals/harness/Dockerfile.ablation", "anchor_line": 19, "severity": "high", "category": "build"}]}
+EOF
+  printf 'Review the pull request.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<YAML
+id: rc-long
+schema_version: 1
+type: review-catch
+fixture: null
+criterion: "review the change"
+test_command: null
+regression_command: null
+reference_patch: null
+grader_protected: []
+structural_check: null
+review_catch: {fixture: "$p", manifest: "$T/manifests/pr-78.json"}
+suite_version: 1
+YAML
+  run "$GRADER" --self-check reference --task-yaml "$d/task.yaml" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '^self-check reference rc-long: PASS recall 1.0 (2/2)' <<<"$output"
+  # an envelope's numeric anchor on a long-extension path is cited on that path too
+  RD="$T/run"; mkdir -p "$RD/sandbox/pr" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"
+  : > "$RD/sandbox/review.md"
+  jq -n '{findings: [{anchor: "evals/harness/Dockerfile.ablation:19", anchor_line: 19, file: "x.sh"}]}' > "$RD/eval/adversarial-review.json"
+  grade "$RD" rc-long
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.recall.missed | join(",")')" = d1 ]
+  [ "$(G '.grader_version')" = 1.3.3 ]
 }
