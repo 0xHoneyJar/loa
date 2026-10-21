@@ -10,7 +10,7 @@ The suite root for the cycle-132 "conclusive review-catch answer" batches (PRD F
 | `tasks/review-rNN/task.yaml` | `…/ablation-2.0-c131/tasks/review-r18/task.yaml` | `id`, `source.origin`, `source.date` (the head commit's UTC date), the fixture id and the expected verdict in `success_criterion` (CHANGES_REQUIRED when the v2 key holds a high or critical defect, else APPROVED: pr-11, pr-24), `review_catch.manifest` → the v2 manifest `evals/fixtures/review-prs/manifests/pr-NN.json`, and the two matched-arm fields `bare_sessions_matched` (k, Opus 5.5) and `bare_sessions_matched_fable` (k′) from the power run's cost fits (`grimoires/loa/reports/ablation-2.0/power-c132/power.json`, PRD D18) |
 | `candidates.tsv` | implementer A's Task 1.1 candidate table | the eligibility proxy and the exclusions documented in its header |
 
-`bounds: {max_turns: {}, timeout_min: {REVIEW: 50, AUDIT: 40}}` and `suite_version: 2` are the cycle-131 values (DEC-0640). No REVIEW.md fairness review is written per task: the tasks differ from the reviewed cycle-131 template only in the fields listed above, and the blind key is the two-annotator v2 label set (`grimoires/loa/a2a/sprint-269/annotation/result.md`).
+`bounds: {max_turns: {}, timeout_min: {REVIEW: 50, AUDIT: 40}}` and `suite_version: 2` are the cycle-131 values (DEC-0640). Each task carries a `REVIEW.md` fairness review produced by the lead with the three mechanical checks of the cycle-131 fairness sessions (no solution leak; red then green from the image self-check; criterion mechanical) run as a script; the blind key is the two-annotator v2 label set (`grimoires/loa/a2a/sprint-269/annotation/result.md`). The runner refuses a task without one (DEC-0435).
 
 ## How the batches run this root
 
