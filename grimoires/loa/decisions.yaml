@@ -25342,3 +25342,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0782"
+    created_at: "2026-10-21T08:37:51Z"
+    updated_at: "2026-10-21T08:37:51Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 1 (§12): PR-native arm ids exempt from the sandbox leak guard inside PR-derived files; REGISTRATION-1.json supersedes 7d520011… at pin 664c4516"
+    decision: "pipeline-run.sh records arm_ids_pr_native (the suite arm ids occurring under pr/) and the sandbox-wide guard ignores a hit on such an id inside PR-derived files (pr/**, the mount-generated a2a/<sprint>/reviewer.md); every other hit, and the strict leak scan of the task brief and every phase prompt, is unchanged. Filed under PREREGISTRATION §12 as addendum 1 with REGISTRATION-1.json (supersedes 7d520011…, pin moved, every other bound input identical); the aborted smoke attempt is kept as the only artefact of the superseded registration"
+    rationale: "Seven of the fourteen unseen fixtures are the cycle-130/131 PRs that built the arms; their diffs name a1_full/a0_bare, which tells the agent nothing about which arm it runs as. Without the exemption half the corpus cannot run; the §12 route keeps the change auditable and no graded row existed"
+    alternatives_considered:
+      - option: "drop the seven fixtures"
+        rejected_because: "halves the registered corpus and biases it away from PRs about the evaluation harness; N = 14 is the ceiling"
+      - option: "disable the arm-id guard entirely"
+        rejected_because: "a prompt or framework file naming the arm would still be a real leak; the guard stays strict outside PR-derived files"
+      - option: "rebuild REGISTRATION.json in place as if pre-registration"
+        rejected_because: "the registration had been hashed and a batch launched; §12 says an addendum, so an addendum"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "f209c566"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-1.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T08:37:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke-aborted-20261021T0814Z/; pipeline-run.bats PR-c132-7…10"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
