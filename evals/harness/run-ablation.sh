@@ -233,6 +233,8 @@
 #      cap_failure runs; --task-yaml gives oracle_closed the PR fixture):
 #      a FAIL rows the trial infrastructure_error and pauses the arm (STATUS.json
 #      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418).
+#      Since cycle-132 addendum 2, a1_full, a1_review_only and a1_full_openmount list dissent_present: a gate
+#      that skipped its dissent (budget_exceeded, a refusal, no eval/ envelope, no voice) is such a FAIL.
 #      It runs under timeout -s TERM -k 30 $LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S
 #      (default 300; unwrapped when timeout is absent): exit 124 or 137 rows the trial
 #      infrastructure_error with `run-ablation: took-effect timed out after Ns` in the trial

@@ -37,6 +37,9 @@
 #   refuses it (exit 2) unless it is given --batch-context <id> (cycle-132 bd-st02i; the argv flag
 #   run-ablation.sh passes to every trial it launches replaced the LOA_ABLATION_BATCH_CONTEXT
 #   variable); validate-suite.sh requires it on an arm whose toggles set oracle_open: true.
+# dissent_present (cycle-132 PREREGISTRATION §12 addendum 2): on a1_full, a1_review_only and a1_full_openmount — every
+#   gate that ran had its dissent (envelope, ≥ 1 voice, not budget_exceeded or refused); a dissent skipped on budget is
+#   a took-effect FAIL (infrastructure_error, the arm pauses), never a silently single-voice row.
 # mount_cheval_ok (cycle-132 bd-56nn6): on every mounted arm whose gates run a dissent;
 #   pipeline-run.sh probes the sandbox's loa_cheval import before the first phase and refuses a
 #   broken mount on such an arm (KF-050).
@@ -85,7 +88,7 @@ phase_sets:   # D-4.1: A1's phases per task type; FIX runs only after a CHANGES_
 arms:
   - {id: a0_bare, label: A0, task_types: [all], toggles: {loa_mount: false}, phases: [BARE], effort: high,
      took_effect: [no_dot_claude, no_system_prompt, no_audit_rows, integrity_clean]}
-  - {id: a1_full, label: A1, task_types: [all], toggles: {}, took_effect: [all_phases_present, oracle_closed, integrity_clean, mount_cheval_ok]}   # oracle_closed: cycle-131 FR-1 (DEC-0615); review-catch runs only, a build run passes it vacuously
+  - {id: a1_full, label: A1, task_types: [all], toggles: {}, took_effect: [all_phases_present, oracle_closed, integrity_clean, mount_cheval_ok, dissent_present]}   # oracle_closed: cycle-131 FR-1 (DEC-0615); review-catch runs only, a build run passes it vacuously; dissent_present: cycle-132 addendum 2
   - {id: a2_no_sprint_plan, label: A2, task_types: [build], toggles: {sprint_plan: false},
      phases: [IMPLEMENT, REVIEW, FIX, AUDIT, FIX],
      took_effect: [no_plan_phase, applicability_refused, integrity_clean, mount_cheval_ok]}
@@ -106,11 +109,11 @@ arms:
   - {id: a0_bare_fable, label: A0F, task_types: [review-catch], toggles: {loa_mount: false, bare_model: fable}, phases: [BARE], effort: high,
      took_effect: [no_dot_claude, no_system_prompt, no_audit_rows, bare_model_fable, integrity_clean]}
   - {id: a1_review_only, label: A1R, task_types: [review-catch], toggles: {}, phases: [REVIEW],
-     took_effect: [review_only_phases, oracle_closed, integrity_clean, mount_cheval_ok]}
+     took_effect: [review_only_phases, oracle_closed, integrity_clean, mount_cheval_ok, dissent_present]}
   - {id: a1_no_dissent, label: A1N, task_types: [review-catch], toggles: {dissent: false},
      took_effect: [all_phases_present, no_review_dissent_envelope, oracle_closed, integrity_clean, mount_cheval_ok]}
   - {id: a1_full_openmount, label: A1O, task_types: [review-catch], toggles: {oracle_open: true}, eval_only: true,
-     took_effect: [all_phases_present, oracle_open_recorded, integrity_clean, mount_cheval_ok]}
+     took_effect: [all_phases_present, oracle_open_recorded, integrity_clean, mount_cheval_ok, dissent_present]}
   # cycle-132 FR-3 (SDD D-3.1, D-3.2, D-7.3; PRD D13): the compute-matched bare arms, review-catch only. A cell is
   # k independent a0_bare-shaped BARE sessions (run-ablation.sh session units under <cell>/sessions/s<i>/), union-
   # graded (ablation-grade.sh --union); bare_sessions_matched checks k and every valid session's bare rules

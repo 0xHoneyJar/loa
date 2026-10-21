@@ -25378,3 +25378,42 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0783"
+    created_at: "2026-10-21T09:31:06Z"
+    updated_at: "2026-10-21T09:31:06Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Addendum 2 (§12): the eval variant's dissent cap 600 → 1,200 cents and a dissent_present took-effect rule, after the smoke's a1_full ran both gates single-voice"
+    decision: "budget_cents_max 1200 for both gates in apply_eval_config_variant (budget_scale diff kept); took-effect rule dissent_present (every executed gate has its envelope with ≥ 1 voice succeeded and no refused/budget_exceeded status) on a1_full, a1_full_openmount, a1_review_only; k table unchanged (the fits already carry the dissent); filed as REGISTRATION-2.json superseding 277a6eff…; the smoke is re-run under batch c132-smoke2"
+    rationale: "The smoke's first a1_full row (review-r19, 6,794-line diff) skipped the dissent on both gates at estimate 627c > 600c and still counted as a valid full-arm cell; four registered diffs exceed 5,800 lines, so the full arm would degenerate to no-dissent exactly on the hardest PRs — a silent arm substitution the registration must forbid"
+    alternatives_considered:
+      - option: "keep 600c and treat dissent-less runs as the registered arm"
+        rejected_because: "contradicts the registered arm text; the hardest quarter of the corpus would measure the no-dissent pipeline"
+      - option: "mark dissent-less cells invalid without raising the cap"
+        rejected_because: "the largest PRs would be excluded by construction, biasing the corpus toward small PRs"
+      - option: "raise the cap without the took-effect rule"
+        rejected_because: "a dissent failure for any other reason (KF-048 credential, transport) would again pass as the arm; the rule makes the definition enforceable"
+    consequences:
+      positive: []
+      negative:
+        - "a1_full costs up to ≈ USD 12 more on the largest PRs; the cost-matched co-read and dollar-matching flags carry it"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "be948217"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-2.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T09:31:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-smoke/a1_full/review-r19-t1 (eval/adversarial-audit.json status budget_exceeded; no review envelope)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

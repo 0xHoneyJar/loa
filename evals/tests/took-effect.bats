@@ -574,3 +574,50 @@ make_cell_te() {
   run "$TE" --batch-dir "$T/runs" --suite-file "$SUITE" --json-out "$T/x.json"
   [ "$status" -eq 2 ]
 }
+
+# --- cycle-132 PREREGISTRATION §12 addendum 2: dissent_present ----------------------------------------------------------
+dp_suite() {
+  SDP="$T/suite-dp.yaml"; cp "$SUITE" "$SDP"
+  yq -i '.arms += [{"id": "a1_dp", "task_types": ["all"], "toggles": {}, "took_effect": ["dissent_present"]}]' "$SDP"
+}
+tedp() { run "$TE" --run-dir "$1" --suite-file "$SDP" --arm a1_dp; }
+
+@test "TE-c132-5 dissent_present: both gates ran with their eval/ envelopes and voices >= 1 → PASS; a REVIEW without an envelope → FAIL" {
+  dp_suite
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line dissent_present | grep -q 'OK dissent ran at review audit'
+  rm "$T/runs/a1-review/eval/adversarial-review.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]
+  line dissent_present | grep -q 'FAIL dissent missing: review:no-envelope'
+}
+
+@test "TE-c132-6 dissent_present: an AUDIT envelope with status budget_exceeded, a refusal or 0 voices → FAIL; the sandbox copy never stands in for eval/" {
+  dp_suite
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "budget_exceeded"'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:status=budget_exceeded'
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "refused: preflight"'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:status=refused: preflight'
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "reviewed" | .verdict_quality.voices_succeeded = 0'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:voices_succeeded=0'
+  mkdir -p "$T/runs/a1-review/sandbox/grimoires/loa/a2a/sprint-1"
+  cp "$T/runs/a1-build/eval/adversarial-review.json" "$T/runs/a1-review/sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json"
+  rm "$T/runs/a1-review/eval/adversarial-review.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'review:no-envelope'
+}
+
+@test "TE-c132-7 dissent_present: a skipped AUDIT (the APPROVED path) is judged on REVIEW alone → PASS; a run with no gate phase FAILs" {
+  dp_suite
+  edit_json "$T/runs/a1-review/meta/pipeline.json" '.phases |= map(if .label == "AUDIT" then .skipped = true else . end)'
+  rm "$T/runs/a1-review/eval/adversarial-audit.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line dissent_present | grep -q 'OK dissent ran at review '
+  tedp "$T/runs/a0-build"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'FAIL no gate phase ran'
+}

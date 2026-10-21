@@ -112,7 +112,9 @@
 #   apply_eval_config_variant <ws>
 #       the cycle-131 evaluation config in the sandbox .loa.config.yaml:
 #       flatline_protocol.{code_review,security_audit}.budget_scale = "diff" and
-#       .budget_cents_max = 600 (verified); evidence config_variant=eval.
+#       .budget_cents_max = 1200 (verified; cycle-132 PREREGISTRATION §12 addendum 2: 600 refused both
+#       gates' dissent on the largest registered diffs, est. ≈ 627–660c; 1200 leaves headroom and budget_scale
+#       diff still scales small PRs down); evidence config_variant=eval.
 #   init_sandbox_beads <ws> <task_title>
 #       `br init --prefix bd --no-daemon` in <ws> plus one task bead with the title
 #       when br ($LOA_EVAL_BR_BIN, default br) is on PATH → beads=br; else the opt-out
@@ -1182,16 +1184,16 @@ check_mount_closed() {
 }
 
 # apply_eval_config_variant <ws> — the cycle-131 evaluation config (FR-4, DEC-0618): both
-# gates' budget scales with the diff up to USD 6.00. Evidence config_variant=eval.
+# gates' budget scales with the diff up to USD 12.00 (cycle-132 addendum 2; was 6.00). Evidence config_variant=eval.
 apply_eval_config_variant() {
   local ws="$1" cfg="$1/.loa.config.yaml" g
   [[ -d "$ws" ]] || { _sm_err "apply_eval_config_variant: workspace not found: $ws"; return 2; }
   [[ -f "$cfg" ]] || : > "$cfg"
   for g in code_review security_audit; do
-    G="$g" yq -i '.flatline_protocol[strenv(G)].budget_scale = "diff" | .flatline_protocol[strenv(G)].budget_cents_max = 600' "$cfg" 2>/dev/null \
+    G="$g" yq -i '.flatline_protocol[strenv(G)].budget_scale = "diff" | .flatline_protocol[strenv(G)].budget_cents_max = 1200' "$cfg" 2>/dev/null \
       || { _sm_err "apply_eval_config_variant: yq failed on $cfg"; return 2; }
     [[ "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_scale' "$cfg" 2>/dev/null)" == diff \
-       && "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$cfg" 2>/dev/null)" == 600 ]] \
+       && "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$cfg" 2>/dev/null)" == 1200 ]] \
       || { _sm_err "apply_eval_config_variant: $g budget keys did not take effect"; return 2; }
   done
   _sm_evidence config_variant "eval"

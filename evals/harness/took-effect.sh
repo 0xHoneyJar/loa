@@ -74,6 +74,12 @@
 #                              copy), the sandbox .loa.config.yaml has
 #                              flatline_protocol.code_review.enabled false, and the audit envelope
 #                              exists with verdict_quality.voices_succeeded >= 1
+#   dissent_present            (cycle-132 PREREGISTRATION §12 addendum 2) every executed gate phase (a non-skipped
+#                              REVIEW record, and AUDIT when it ran) has its dissent envelope at the harness copy
+#                              eval/adversarial-<gate>.json (never the agent-writable sandbox copy) with
+#                              verdict_quality.voices_succeeded >= 1 (or metadata.verdict_quality) and a status
+#                              (metadata.status, else status) that is not budget_exceeded and names no refusal; a
+#                              run with no gate phase FAILs (the rule is listed on arms whose gates are the task)
 #   mount_cheval_ok            (cycle-132 bd-56nn6) arm_evidence has mount_cheval=ok: pipeline-run.sh's
 #                              pre-launch probe imported the mounted loa_cheval (KF-050); listed on every
 #                              mounted arm whose gates run a dissent
@@ -431,6 +437,23 @@ rule_bare_model_fable() {
   [[ "$fable" -eq 1 && "$opus" -eq 0 ]] || { EVID="BARE models_used ${keys:-<none>} (want exactly one global.anthropic.claude-fable* and no opus)"; return 1; }
   [[ "$eff" == high ]] || { EVID="BARE effort_requested $eff (want high)"; return 1; }
   EVID="BARE models_used $keys, effort_requested high"
+}
+rule_dissent_present() {
+  local gate label f vs st ran="" bad=""
+  for gate in review audit; do
+    label=REVIEW; [[ "$gate" == audit ]] && label=AUDIT
+    [[ "$(jq --arg l "$label" '[.phases // [] | .[] | select(.name == $l and .skipped != true)] | length' "$R/meta/pipeline.json")" -gt 0 ]] || continue
+    ran="$ran $gate"
+    f="$R/eval/adversarial-$gate.json"
+    if [[ ! -f "$f" || -L "$f" ]] || ! jq -e 'type == "object"' "$f" >/dev/null 2>&1; then bad="$bad $gate:no-envelope"; continue; fi
+    vs="$(jq -r '(.verdict_quality.voices_succeeded // .metadata.verdict_quality.voices_succeeded // 0) | tostring' "$f")"
+    st="$(jq -r '(.metadata.status // .status // "") | tostring' "$f")"
+    if [[ "$st" == budget_exceeded ]] || grep -qi 'refus' <<<"$st"; then bad="$bad $gate:status=$st"
+    elif ! [[ "$vs" =~ ^[0-9]+$ && "$vs" -ge 1 ]]; then bad="$bad $gate:voices_succeeded=$vs"; fi
+  done
+  [[ -n "$ran" ]] || { EVID="no gate phase ran"; return 1; }
+  [[ -z "$bad" ]] || { EVID="dissent missing:${bad}"; return 1; }
+  EVID="dissent ran at${ran} (eval/ envelopes, voices_succeeded >= 1)"
 }
 rule_mount_cheval_ok() {
   local v; v="$(evidence_line mount_cheval)"

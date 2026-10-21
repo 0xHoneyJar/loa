@@ -322,12 +322,12 @@ content() { cat "$W/$1"; }
   [ "$status" -eq 0 ]
 }
 
-@test "eval config variant: budget_scale diff and budget_cents_max 600 for both gates, enabled flags untouched, config_variant=eval" {
+@test "eval config variant: budget_scale diff and budget_cents_max 1200 for both gates (cycle-132 addendum 2: 600 refused the dissent on the largest registered diffs, est. ≈ 660c), enabled flags untouched, config_variant=eval" {
   lib apply_eval_config_variant "$W"
   [ "$status" -eq 0 ]
   for gate in code_review security_audit; do
     [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_scale' "$W/.loa.config.yaml")" = diff ]
-    [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$W/.loa.config.yaml")" = 600 ]
+    [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$W/.loa.config.yaml")" = 1200 ]
     [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].enabled' "$W/.loa.config.yaml")" = true ]
   done
   [ "$(ev config_variant)" = eval ]

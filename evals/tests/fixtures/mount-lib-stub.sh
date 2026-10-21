@@ -169,6 +169,6 @@ apply_eval_config_variant() {  # <ws>
   local cfg="$1/.loa.config.yaml"
   [[ -f "$cfg" ]] || : > "$cfg"
   yq -i '.flatline_protocol.code_review.budget_scale = "diff" | .flatline_protocol.security_audit.budget_scale = "diff"
-         | .flatline_protocol.code_review.budget_cents_max = 600 | .flatline_protocol.security_audit.budget_cents_max = 600' "$cfg"
+         | .flatline_protocol.code_review.budget_cents_max = 1200 | .flatline_protocol.security_audit.budget_cents_max = 1200' "$cfg"
   echo "config_variant=eval"
 }

@@ -32,6 +32,8 @@
 #                  took-effect.sh oracle_closed FAILs) | refusal (cycle-132: the phase records carry a
 #                  refusal fallback, KF-051) | crash (cycle-132: pipeline.json interrupted, exit 4, at once)
 #                  | cheval_broken (cycle-132: mount_cheval=broken:ImportError … in the evidence)
+#                  | dissent_budget (cycle-132 addendum 2: every envelope reads budget_exceeded with 0 voices)
+#   (cycle-132 addendum 2) a mounted build run writes an envelope for each gate phase it planned
 #   STUB_HANG=1    every run hangs (mode hang)
 # A review-catch run of an arm whose took_effect lists oracle_closed (cycle-131) gets the real
 # lib/sandbox-mount.sh overlay over its corpus fixture and a one-commit sandbox repository.
@@ -182,6 +184,18 @@ if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != fa
   for g in review audit; do
     jq -n --argjson cv "$cv" '{metadata: {companion_voice: {planned: $cv}}, verdict_quality: {status: "OK", voices_planned: 1, voices_succeeded: 1}}' \
       > "$RUN_DIR/eval/adversarial-$g.json"
+  done
+elif [[ "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != false ]]; then
+  # cycle-132 addendum 2: a mounted build run's gates write their envelopes too (took-effect dissent_present)
+  for g in review audit; do
+    jq -e --arg n "$(tr 'a-z' 'A-Z' <<<"$g")" 'map(.name) | index($n) != null' >/dev/null <<<"$PHASES" || continue
+    jq -n '{metadata: {companion_voice: {planned: true}}, verdict_quality: {status: "OK", voices_planned: 1, voices_succeeded: 1}}' \
+      > "$RUN_DIR/eval/adversarial-$g.json"
+  done
+fi
+if [[ "$MODE" == dissent_budget ]]; then   # cycle-132 addendum 2: the gates skipped their dissent on budget
+  for f in "$RUN_DIR"/eval/adversarial-*.json; do
+    [[ -f "$f" ]] && jq '.metadata.status = "budget_exceeded" | .verdict_quality.voices_succeeded = 0' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   done
 fi
 

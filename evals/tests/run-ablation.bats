@@ -1464,3 +1464,11 @@ make_reg() {
   ram --batch at2 --resume --rerow at2-a0_bare_matched-review-01-t1
   [ "$status" -eq 2 ]; grep -q 'never rowed again' <<<"$output"
 }
+
+@test "RAB-c132-12 (addendum 2) an a1_full run whose gates skipped the dissent on budget fails took-effect dissent_present: the row is infrastructure_error with took_effect.dissent_present false and the arm pauses" {
+  rules '*-a1_full-review-01-* dissent_budget'
+  ra --arms a1_full --tasks review-01,review-02 --trials-review 1 --batch db --concurrency 1 --seed 3
+  [ "$status" -eq 1 ]
+  [ "$(row db-a1_full-review-01-t1 | jq -r '.status, .took_effect.dissent_present, .took_effect.mount_cheval_ok' | tr '\n' ' ')" = "infrastructure_error false true " ]
+  jq -e '.paused_arms.a1_full | test("dissent_present")' "$RES/db/STATUS.json" >/dev/null
+}

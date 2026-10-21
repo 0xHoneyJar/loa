@@ -138,7 +138,7 @@
 # the clause and path, and no phase runs). An arm whose toggles set oracle_open: true (the
 # eval-only open-mount arm) skips the overlay and the check and records mount_overlay=none.
 # Every mounted arm runs the cycle-131 eval config variant (both gates' budget_scale: diff,
-# budget_cents_max 600; evidence config_variant=eval). Toggle bare_model: fable runs the BARE
+# budget_cents_max 1200 since cycle-132 addendum 2; evidence config_variant=eval). Toggle bare_model: fable runs the BARE
 # phase on global.anthropic.claude-fable-5-1 (it wins over --phase-models and the suite's
 # phase_defaults for BARE). All evidence reaches meta/arm-evidence.txt before the first phase.
 # Mount integrity (audit LOW-A2): after materialisation the sha256 of sandbox/CLAUDE.md
