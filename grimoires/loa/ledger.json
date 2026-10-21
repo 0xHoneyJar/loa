@@ -2696,14 +2696,14 @@
         {
           "global_id": 269,
           "local_label": "sprint-1",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-21T02:27:50Z",
-          "completed": null
+          "completed": "2026-10-21T08:13:56Z"
         },
         {
           "global_id": 270,
           "local_label": "sprint-2",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-21T02:27:51Z",
           "completed": null
         },
@@ -3161,5 +3161,5 @@
     }
   ],
   "next_sprint_number": 272,
-  "last_updated": "2026-10-21T02:41:54Z"
+  "last_updated": "2026-10-21T08:13:57Z"
 }
