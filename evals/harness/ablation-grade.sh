@@ -228,14 +228,14 @@
 #    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated,
 #    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7),
+#    label_set (cycle-132 FR-2, D-2.3: c131 for a key in manifests/c131/, v1 in manifests/v1/, else v2; a c131
+#    key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
+#    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
+#    null where the key has none); both null for build tasks,
 #    oracle_exposed_defects, oracle_exposed_unknown, oracle_exposed_events, oracle_exposed_by_form
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
-#    label_set (cycle-132 FR-2, D-2.3: c131 for a key in manifests/c131/, v1 in manifests/v1/, else v2; a c131
-#    key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
-#    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
-#    null where the key has none); both null for build tasks
 # grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
 # diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
 # line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
@@ -2749,14 +2749,14 @@ def grade(t, run_dir, frozen):
         for gate, v in (("review", v_review), ("audit", v_audit)):
             if v is not None:
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
-    # cycle-132 FR-2 (D-2.3): the key's label set and per-defect provenance; null for build tasks
-    g["label_set"] = label_set(t) if t.rc else None
-    g["labels_meta"] = labels_meta(t) if t.rc else None
     g["oversized_files_skipped"] = OVERSIZED[0]
     g["colliding_tests_removed"] = COLLIDING[0]
     g["collision_rule"] = collision_rule(t) if t.build else None
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
+    # cycle-132 FR-2 (D-2.3): the key's label set and per-defect provenance; null for build tasks
+    g["label_set"] = label_set(t) if t.rc else None
+    g["labels_meta"] = labels_meta(t) if t.rc else None
     FIXTURE_TASK[0] = t if not t.build else None
     FIXTURE_LINES.clear()
     CONTAM_EXEMPT.clear()
