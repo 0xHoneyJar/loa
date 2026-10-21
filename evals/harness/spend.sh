@@ -18,8 +18,12 @@
 #   --runs FILE…   run-row files (JSONL; a row counts its numeric `all_spend_usd` — row writer
 #                  1.5: every attempt, every session of a matched cell — else its `cost_usd`); repeatable, and every
 #                  following non-option argument is a file too. Default:
-#                  grimoires/loa/reports/ablation-2.0/runs.jsonl plus every
-#                  evals/results/ablation-2.0/*/rows.jsonl that exists. Each run_id
+#                  grimoires/loa/reports/ablation-2.0/runs.jsonl, the live
+#                  evals/results/ablation-2.0/runs.jsonl (where run-ablation.sh rows a
+#                  batch run with --results-root evals/results/ablation-2.0; cycle-132
+#                  addendum 3) and every evals/results/ablation-2.0/*/rows.jsonl that
+#                  exists. A batch rowed under another results root is metered only
+#                  through --runs. Each run_id
 #                  counts once across files: a run rowed twice counts its larger cost
 #                  (a smoke row, then the graded row). A row with an empty or missing
 #                  run_id cannot be deduplicated and counts on its own (one stderr
@@ -99,6 +103,9 @@ num_ok "$RESERVE" || die "--reserve must be a non-negative number"
 # Explicit files must be readable; defaults are optional (absent = zero).
 if [[ ${#RUNS[@]} -eq 0 ]]; then
   [[ -e "$REPO_ROOT/grimoires/loa/reports/ablation-2.0/runs.jsonl" ]] && RUNS+=("$REPO_ROOT/grimoires/loa/reports/ablation-2.0/runs.jsonl")
+  # cycle-132 PREREGISTRATION §12 addendum 3: the live rows of a batch run with --results-root evals/results/ablation-2.0
+  # (run-ablation.sh rows into <results-root>/runs.jsonl); the run_id dedup absorbs its overlap with the tracked copy
+  [[ -e "$REPO_ROOT/evals/results/ablation-2.0/runs.jsonl" ]] && RUNS+=("$REPO_ROOT/evals/results/ablation-2.0/runs.jsonl")
   for f in "$REPO_ROOT"/evals/results/ablation-2.0/*/rows.jsonl; do [[ -e "$f" ]] && RUNS+=("$f"); done
 fi
 EXPLICIT_LEDGER=true

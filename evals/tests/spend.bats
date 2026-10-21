@@ -149,3 +149,28 @@ teardown() {
   run "$SPEND" --since 2026-10-21T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
   [ "$(jq -r '.runs_usd, .runs_rows_deduped' <<<"$output" | tr '\n' ' ')" = "31.5 1 " ]
 }
+
+# a copy of spend.sh in a throwaway repository layout, so its DEFAULT run-row files can be exercised
+spend_tree() {
+  R="$T/repo"; mkdir -p "$R/evals/harness" "$R/evals/results/ablation-2.0/smoke-x" "$R/grimoires/loa/reports/ablation-2.0" "$R/.run"
+  cp "$SPEND" "$R/evals/harness/spend.sh"
+  : > "$R/.run/cost-ledger.jsonl"
+}
+
+@test "SP-12 (cycle-132 addendum 3) the default run-row files include the live evals/results/ablation-2.0/runs.jsonl: a row only there counts; a row in it and in the tracked copy counts once at the larger cost" {
+  spend_tree
+  printf '%s\n' '{"run_id":"live-1","cost_usd":7.3,"started":"2026-10-21T08:00:00Z"}' \
+    '{"run_id":"both","cost_usd":10,"started":"2026-10-21T08:00:00Z"}' > "$R/evals/results/ablation-2.0/runs.jsonl"
+  printf '%s\n' '{"run_id":"both","cost_usd":4,"started":"2026-10-21T08:00:00Z"}' > "$R/grimoires/loa/reports/ablation-2.0/runs.jsonl"
+  printf '%s\n' '{"run_id":"smoke-1","cost_usd":1,"started":"2026-10-21T08:00:00Z"}' > "$R/evals/results/ablation-2.0/smoke-x/rows.jsonl"
+  run "$R/evals/harness/spend.sh" --since 2026-10-21T00:23:00Z --json
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -r '.runs_usd' <<<"$output")" = "18.3" ]   # 7.3 + max(10, 4) + 1
+  [ "$(jq -r '"\(.runs_rows) \(.runs_rows_deduped) \(.runs_files | length)"' <<<"$output")" = "3 1 3" ]
+  jq -e '.runs_files | any(endswith("evals/results/ablation-2.0/runs.jsonl"))' <<<"$output" >/dev/null
+  # absent, the live file is simply not read (no error)
+  rm "$R/evals/results/ablation-2.0/runs.jsonl"
+  run "$R/evals/harness/spend.sh" --since 2026-10-21T00:23:00Z --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.runs_usd) \(.runs_files | length)"' <<<"$output")" = "5 2" ]
+}

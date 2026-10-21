@@ -25417,3 +25417,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0784"
+    created_at: "2026-10-21T09:59:01Z"
+    updated_at: "2026-10-21T09:59:01Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 3 (§12): spend.sh reads the live results-root runs.jsonl — the first real rows (USD 17.30) were invisible to the cap gate"
+    decision: "spend.sh's default run-row files gain evals/results/ablation-2.0/runs.jsonl (the runner's live rows file), deduplicated by run_id against the tracked reports copy; filed as REGISTRATION-3.json superseding 857669e7…; nothing else in the cap or its scope changes"
+    rationale: "The §7 meter definition already counts every run row since the kickoff; the implementation read only the tracked copy and the per-batch files, so a live batch could pass the gate on stale totals — the gate must see the money as it is spent"
+    alternatives_considered:
+      - option: "copy runs.jsonl into reports/ before every launch (cycle-130 practice)"
+        rejected_because: "a manual step between batches that the registration cannot verify; the gate must read the live file"
+      - option: "pass --runs explicitly from the batch driver"
+        rejected_because: "run-ablation.sh calls spend.sh with defaults; the fix belongs in the meter so every caller agrees"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "9ee9ad15"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-3.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T09:59:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "spend.sh --since 2026-10-21T00:23:00Z --json at 10:00Z: runs_files lacks evals/results/ablation-2.0/runs.jsonl; runs_usd 25.99 vs two smoke rows worth 17.30"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
