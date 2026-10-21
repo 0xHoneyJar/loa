@@ -5,6 +5,10 @@
 # Executes validation phases after PR creation:
 #   PR_CREATED → POST_PR_AUDIT → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR → READY_FOR_HITL
 #
+# FLATLINE_PR is green (completed + PR-VALIDATED) only when the Flatline
+# verdict_quality.status is APPROVED; otherwise the phase is `failed` with the
+# FLATLINE-PR-DEGRADED marker and the flow continues (see phase_flatline_pr).
+#
 # Usage:
 #   post-pr-orchestrator.sh --pr-url <url> [options]
 #
@@ -367,8 +371,79 @@ phase_e2e_testing() {
   return 3
 }
 
+# Record a non-green Flatline PR outcome: phase failed, marker, summary.
+# Best-effort like _update_phase: always returns 0.
+_flatline_pr_not_green() {
+  local reason="$1"
+  local output_file="$2"
+  local summary="$3"
+
+  _update_phase flatline_pr failed
+  "$STATE_SCRIPT" add-marker "FLATLINE-PR-DEGRADED" \
+    || log_error "add-marker FLATLINE-PR-DEGRADED FAILED (continuing best-effort)"
+
+  local pr_number vq='{}' degraded_models='[]'
+  pr_number=$("$STATE_SCRIPT" get pr_number 2>/dev/null || echo "")
+  # sprint-bug-267 r2 (audit LOW-3): read only a single-object envelope; a
+  # failed or odd-shaped read falls back to the empty defaults, validated
+  # before --argjson.
+  if [[ -s "$output_file" ]] \
+      && jq -es 'length == 1 and (.[0] | type == "object") and (.[0].verdict_quality | type == "object")' \
+        "$output_file" >/dev/null 2>&1; then
+    vq=$(jq -c '.verdict_quality' "$output_file" 2>/dev/null) || vq='{}'
+    degraded_models=$(jq -c '(.degraded_models // [(.verdict_quality.voices_dropped // [])[] | .voice? // empty])
+      | if type == "array" then . else [.] end' "$output_file" 2>/dev/null) || degraded_models='[]'
+  fi
+  jq -es 'length == 1 and (.[0] | type == "object")' <<<"$vq" >/dev/null 2>&1 || vq='{}'
+  jq -es 'length == 1 and (.[0] | type == "array")' <<<"$degraded_models" >/dev/null 2>&1 || degraded_models='[]'
+
+  local summary_tmp
+  if summary_tmp=$(mktemp "${summary}.XXXXXX"); then
+    if jq -n --arg pr "$pr_number" --arg reason "$reason" \
+        --argjson vq "$vq" --argjson dm "$degraded_models" \
+        '{state:"DEGRADED", phase:"flatline_pr", status:($vq.status // null),
+          voices_planned:($vq.voices_planned // null),
+          voices_completed:($vq.voices_succeeded // $vq.voices_completed // null),
+          degraded_models:$dm, pr_number:$pr, reason:$reason}' > "$summary_tmp"; then
+      mv -f "$summary_tmp" "$summary"
+    else
+      rm -f "$summary_tmp"
+      log_error "Could not write the Flatline PR degraded summary ($summary)"
+    fi
+  else
+    log_error "Could not create a temp file for the Flatline PR degraded summary"
+  fi
+
+  log_error "Flatline PR review is NOT green (reason: ${reason}); phase flatline_pr=failed, marker FLATLINE-PR-DEGRADED, summary ${summary}. Continuing to READY_FOR_HITL — human review required."
+  return 0
+}
+
+# ============================================================================
+# Phase: Flatline PR review
+# ============================================================================
+#
+# sprint-bug-267 (bug 20261021-4439fd): the phase runs flatline-orchestrator.sh
+# with --json, captures its stdout to .run/post-pr-flatline-pr.json and reads
+# the verdict_quality envelope. Only an `ok` exit whose capture is exactly one
+# JSON object with verdict_quality.status APPROVED, `degraded` not true, no
+# degraded_models and no blockers records `completed` + PR-VALIDATED. A DEGRADED or FAILED verdict,
+# a missing or unparseable envelope (fail closed, reason no_verdict_quality),
+# a timeout or any other non-blocker failure records the phase `failed`,
+# writes .run/post-pr-degraded-summary.json (phase flatline_pr, status, voices
+# planned/completed, degraded_models, reason), adds the non-green marker
+# FLATLINE-PR-DEGRADED and never PR-VALIDATED; the flow continues to
+# READY_FOR_HITL (no halt: KF-041) and the handoff names the degraded review.
+# `skipped` is reserved for flatline_protocol.enabled: false. The blocker and
+# orchestrator-error exits keep their halt behaviour.
 phase_flatline_pr() {
   log_phase "FLATLINE_PR"
+
+  # sprint-bug-267: this run's Flatline output and summary start clean (the
+  # Flatline phase runs before Bridgebuilder, so any summary here is stale).
+  local flatline_output="$(pwd)/.run/post-pr-flatline-pr.json"
+  local degraded_summary="$(pwd)/.run/post-pr-degraded-summary.json"
+  mkdir -p "$(pwd)/.run"
+  rm -f "$flatline_output" "$degraded_summary"
 
   # Check if Flatline is enabled
   local flatline_enabled
@@ -406,13 +481,28 @@ phase_flatline_pr() {
     local prd_path="grimoires/loa/prd.md"
     local sdd_path="grimoires/loa/sdd.md"
 
+    # sprint-bug-267: --json stdout is captured (temp + mv) for the
+    # verdict_quality read below.
+    local flatline_output_tmp
+    if ! flatline_output_tmp=$(mktemp "${flatline_output}.XXXXXX"); then
+      log_error "Could not create a temp file for the Flatline PR output (${flatline_output}.XXXXXX)"
+      rm -f "$flatline_stderr"
+      _flatline_pr_not_green "tmp_failed" "$flatline_output" "$degraded_summary"
+      return 0
+    fi
     run_with_timeout "$TIMEOUT_FLATLINE_PR" \
-      "${SCRIPT_DIR}/flatline-orchestrator.sh" --doc "$prd_path" --doc "$sdd_path" --phase pr "$flatline_mode" \
+      "${SCRIPT_DIR}/flatline-orchestrator.sh" --doc "$prd_path" --doc "$sdd_path" --phase pr "$flatline_mode" --json \
+      > "$flatline_output_tmp" \
       2> >(tee "$flatline_stderr" >&2) \
       || flatline_result=$?
+    mv -f "$flatline_output_tmp" "$flatline_output"
   else
-    log_info "Flatline orchestrator not found, skipping"
-    flatline_result=0
+    # sprint-bug-267 r1 (DISS-C-002): an enabled phase with no reviewer is
+    # not green, and the reason says so.
+    log_error "Flatline PR review is enabled but the Flatline orchestrator was not found at ${SCRIPT_DIR}/flatline-orchestrator.sh"
+    rm -f "$flatline_stderr"
+    _flatline_pr_not_green "orchestrator_missing" "$flatline_output" "$degraded_summary"
+    return 0
   fi
 
   # Classify the exit regime — distinguishes validation errors from blockers
@@ -422,9 +512,47 @@ phase_flatline_pr() {
 
   case "$exit_class" in
     ok)
-      log_success "Flatline PR review completed"
-      _update_phase flatline_pr completed
-      "$STATE_SCRIPT" add-marker "PR-VALIDATED"
+      # sprint-bug-267: exit 0 is not a verdict — read verdict_quality.status
+      # from the captured envelope; anything but APPROVED is not green.
+      # r2 (audit MEDIUM-1): the capture must be exactly one JSON object;
+      # several documents or a non-object is no_verdict_quality.
+      local vq_status=""
+      if [[ -s "$flatline_output" ]] \
+          && jq -es 'length == 1 and (.[0] | type == "object")' "$flatline_output" >/dev/null 2>&1 \
+          && vq_status=$(jq -er '.verdict_quality.status | strings' "$flatline_output" 2>/dev/null); then
+        :
+      else
+        vq_status=""
+      fi
+      # r2 (audit LOW-1): APPROVED is green only with no degraded flag, no
+      # degraded models and no blockers in the same envelope.
+      if [[ "$vq_status" == "APPROVED" ]]; then
+        if ! jq -e '((.blockers // []) | type == "array" and length == 0)' "$flatline_output" >/dev/null 2>&1; then
+          vq_status="BLOCKERS_PRESENT"
+        elif ! jq -e '(.degraded != true) and ((.degraded_models // []) | type == "array" and length == 0)' \
+            "$flatline_output" >/dev/null 2>&1; then
+          vq_status="DEGRADED"
+        fi
+      fi
+      case "$vq_status" in
+        APPROVED)
+          log_success "Flatline PR review completed (verdict_quality APPROVED)"
+          _update_phase flatline_pr completed
+          "$STATE_SCRIPT" add-marker "PR-VALIDATED"
+          ;;
+        BLOCKERS_PRESENT)
+          _flatline_pr_not_green "blockers_present" "$flatline_output" "$degraded_summary"
+          ;;
+        DEGRADED)
+          _flatline_pr_not_green "verdict_quality_degraded" "$flatline_output" "$degraded_summary"
+          ;;
+        FAILED)
+          _flatline_pr_not_green "verdict_quality_failed" "$flatline_output" "$degraded_summary"
+          ;;
+        *)
+          _flatline_pr_not_green "no_verdict_quality" "$flatline_output" "$degraded_summary"
+          ;;
+      esac
       return 0
       ;;
     flatline_blocker)
@@ -446,13 +574,13 @@ phase_flatline_pr() {
       return 4
       ;;
     timeout)
-      log_info "Flatline PR review timed out, continuing"
-      _update_phase flatline_pr skipped
+      log_error "Flatline PR review timed out after ${TIMEOUT_FLATLINE_PR}s"
+      _flatline_pr_not_green "timeout" "$flatline_output" "$degraded_summary"
       return 0
       ;;
     *)
-      log_info "Flatline PR review failed (exit: $flatline_result, class: $exit_class), continuing"
-      _update_phase flatline_pr skipped
+      log_error "Flatline PR review failed (exit: $flatline_result, class: $exit_class)"
+      _flatline_pr_not_green "exit_${flatline_result}" "$flatline_output" "$degraded_summary"
       return 0
       ;;
   esac
@@ -479,7 +607,36 @@ phase_flatline_pr() {
 phase_bridgebuilder_review() {
   log_phase "BRIDGEBUILDER_REVIEW"
   local degraded_summary="$(pwd)/.run/post-pr-degraded-summary.json"
-  rm -f "$degraded_summary"
+  # sprint-bug-267: keep a Flatline PR summary written earlier in this run
+  # for this PR (also when an earlier Bridgebuilder pass carried it under
+  # .previous); clear any other stale summary (r2, audit LOW-5).
+  # The filter yields the Flatline summary (the file itself, or one carried
+  # under .previous) only when it belongs to PR $pr, else null. Kept inline so
+  # this phase stays self-contained (bridge-issue-sweep.bats evals it alone).
+  local kept_filter='(if .phase == "flatline_pr" then .
+      elif (.previous | type) == "object" and .previous.phase == "flatline_pr" then .previous
+      else null end)
+    | if type == "object" and ((.pr_number // "") | tostring) == $pr then . else null end'
+  local this_pr kept_flatline_summary="null"
+  this_pr=$("$STATE_SCRIPT" get pr_number 2>/dev/null || echo "")
+  if [[ -n "$this_pr" && -f "$degraded_summary" ]] \
+      && jq -es 'length == 1 and (.[0] | type == "object")' "$degraded_summary" >/dev/null 2>&1; then
+    kept_flatline_summary=$(jq -c --arg pr "$this_pr" "$kept_filter" "$degraded_summary" 2>/dev/null) \
+      || kept_flatline_summary="null"
+    [[ -n "$kept_flatline_summary" ]] || kept_flatline_summary="null"
+  fi
+  if [[ "$kept_flatline_summary" == "null" ]]; then
+    rm -f "$degraded_summary"
+  else
+    local kept_tmp
+    if kept_tmp=$(mktemp "${degraded_summary}.XXXXXX") \
+        && printf '%s\n' "$kept_flatline_summary" > "$kept_tmp"; then
+      mv -f "$kept_tmp" "$degraded_summary"
+    else
+      [[ -n "${kept_tmp:-}" ]] && rm -f "$kept_tmp"
+      log_error "Could not restore the Flatline PR degraded summary ($degraded_summary)"
+    fi
+  fi
 
   # Feature flag check (default OFF per progressive rollout plan)
   local enabled
@@ -591,12 +748,28 @@ phase_bridgebuilder_review() {
       actionable_high=$(jq -r '.actionable_high // 0' "$convergence_file" 2>/dev/null || echo "0")
       log_info "Iteration $iter: state=$convergence_state actionable_high=$actionable_high"
       if [[ "$convergence_state" == "DEGRADED" ]]; then
+        # sprint-bug-267 r1 (DISS-C-003): a DEGRADED Flatline PR summary
+        # already in the slot rides along under .previous.
+        # r2 (audit LOW-4, LOW-5): only a parsed Flatline summary for this
+        # PR is carried; a failed write never replaces the slot.
+        local previous_summary="null"
+        if [[ -n "$pr_number" && -f "$degraded_summary" ]] \
+            && jq -es 'length == 1 and (.[0] | type == "object")' "$degraded_summary" >/dev/null 2>&1; then
+          previous_summary=$(jq -c --arg pr "$pr_number" "$kept_filter" "$degraded_summary" 2>/dev/null) \
+            || previous_summary="null"
+          [[ -n "$previous_summary" ]] || previous_summary="null"
+        fi
         local summary_tmp
         summary_tmp=$(mktemp "${degraded_summary}.XXXXXX") || return 1
-        jq -n --arg pr "$pr_number" --argjson iteration "$iter" \
-          --arg evidence "$convergence_file" \
-          '{state:"DEGRADED", pr_number:$pr, iteration:$iteration, evidence:$evidence}' > "$summary_tmp"
-        mv -f "$summary_tmp" "$degraded_summary"
+        if jq -n --arg pr "$pr_number" --argjson iteration "$iter" \
+            --arg evidence "$convergence_file" --argjson previous "$previous_summary" \
+            '{state:"DEGRADED", phase:"bridgebuilder_review", pr_number:$pr, iteration:$iteration, evidence:$evidence}
+             + (if $previous == null then {} else {previous:$previous} end)' > "$summary_tmp"; then
+          mv -f "$summary_tmp" "$degraded_summary"
+        else
+          rm -f "$summary_tmp"
+          log_error "Could not write the Bridgebuilder degraded summary ($degraded_summary)"
+        fi
       fi
     fi
   done
@@ -652,7 +825,13 @@ phase_bridgebuilder_review() {
 surface_degraded_handoff() {
   local summary="$(pwd)/.run/post-pr-degraded-summary.json"
   if [[ -s "$summary" ]]; then
-    log_error "READY_FOR_HITL includes a DEGRADED Bridgebuilder review. Inspect $summary before deciding."
+    local label="Bridgebuilder review"
+    if jq -e '.phase == "flatline_pr"' "$summary" >/dev/null 2>&1; then
+      label="Flatline PR review (marker FLATLINE-PR-DEGRADED)"
+    elif jq -e '(.previous | type) == "object" and .previous.phase == "flatline_pr"' "$summary" >/dev/null 2>&1; then
+      label="Bridgebuilder review and a DEGRADED Flatline PR review (marker FLATLINE-PR-DEGRADED; see .previous)"
+    fi
+    log_error "READY_FOR_HITL includes a DEGRADED ${label}. Inspect $summary before deciding."
   fi
 }
 
@@ -750,6 +929,7 @@ run_orchestration() {
           phase_flatline_pr || return $?
         else
           log_info "Skipping Flatline phase"
+          rm -f "$(pwd)/.run/post-pr-degraded-summary.json"  # sprint-bug-267: no stale Flatline summary
           "$STATE_SCRIPT" update-phase flatline_pr skipped
         fi
       fi
@@ -893,6 +1073,9 @@ main() {
   if [[ "$RESUME" != "true" ]]; then
     log_info "Initializing post-PR validation state..."
     "$STATE_SCRIPT" init --pr-url "$PR_URL" --mode "$MODE" || exit $?
+    # sprint-bug-267 r2 (audit LOW-5): a new run starts with no degraded
+    # summary or Flatline capture from an earlier run.
+    rm -f "$(pwd)/.run/post-pr-degraded-summary.json" "$(pwd)/.run/post-pr-flatline-pr.json"
   else
     log_info "Resuming from checkpoint..."
     if [[ ! -f "${STATE_DIR:-.run}/post-pr-state.json" ]]; then

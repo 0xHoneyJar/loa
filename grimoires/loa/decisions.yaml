@@ -19518,7 +19518,7 @@ decisions:
     prior_requests: []
   - id: "DEC-0610"
     created_at: "2026-10-19T04:59:48Z"
-    updated_at: "2026-10-19T04:59:48Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "discovery"
     category: "planning"
     summary: "cycle-131 planning unattended on the templates: interview answered from the brief and the tree, no /ride (reality from May; harness-internal cycle) (D1)"
@@ -19529,8 +19529,8 @@ decisions:
         rejected_because: "20 minutes for a tree the analysis just read file by file; the harness scripts, not the framework surface, are what this cycle changes"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19538,19 +19538,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T04:59:48Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0611"
     created_at: "2026-10-19T04:59:50Z"
-    updated_at: "2026-10-19T04:59:50Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "discovery"
     category: "planning"
     summary: "cycle-131 budget assumption: cycle cap USD 500, experiments (Sprint 2 batches) <= USD 250, review-catch run cap 20; halt only above the cap (D2)"
@@ -19561,8 +19566,8 @@ decisions:
         rejected_because: "the implement/review/audit gates of three sprints alone cost more than that in cycle-130"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19570,19 +19575,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T04:59:50Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D2)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0612"
     created_at: "2026-10-19T04:59:52Z"
-    updated_at: "2026-10-19T04:59:52Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "discovery"
     category: "planning"
     summary: "cycle-131 arms pin the Sprint 2 completion commit (closed mount, grader rule, dissent anchors landed); cycle-130 rows are re-graded, never pooled (D3)"
@@ -19593,8 +19603,8 @@ decisions:
         rejected_because: "the dissent anchor change is a framework change; two pins in one cycle would make the arms non-comparable"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19602,19 +19612,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T04:59:52Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#appendix-e-decisions-taken-on-the-operators-behalf (D3)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0613"
     created_at: "2026-10-19T05:13:19Z"
-    updated_at: "2026-10-19T05:13:19Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-1.1: review-catch sandboxes overlay the PR's pr/base copy of every PR-touched framework path (added paths removed); head mode is the recorded fallback (D-1.1)"
@@ -19625,8 +19640,8 @@ decisions:
         rejected_because: "changes the pipeline version under test per PR; the arms would no longer share one pin"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19634,19 +19649,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:13:19Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0614"
     created_at: "2026-10-19T05:13:23Z"
-    updated_at: "2026-10-19T05:13:23Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-7.1: the Sprint 1 smoke (seven corpus PRs under the closed mount, ≈ USD 90) counts against the USD 500 cap, not the ≤ 250 batch allowance (D-7.1)"
@@ -19657,8 +19677,8 @@ decisions:
         rejected_because: "a mode that breaks a gate on one PR class would surface only inside a pre-registered batch"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19666,19 +19686,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:13:23Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-7.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0615"
     created_at: "2026-10-19T05:14:24Z"
-    updated_at: "2026-10-19T05:14:24Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-1.2/1.3: oracle_closed is a took-effect rule; the grader scans transcripts for a head-vs-workspace diff covering a planted site (D-1.2)"
@@ -19689,8 +19714,8 @@ decisions:
         rejected_because: "a batch would keep spending on a leaked mount"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19698,19 +19723,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:14:24Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-1.2)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0616"
     created_at: "2026-10-19T05:14:26Z"
-    updated_at: "2026-10-19T05:14:26Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-2.1-2.3: grader rule ±3 OR same enclosing function (400-line cap, ±20 fallback); multi-site anchors; both rules reported; report partitions by pin (D-2.1)"
@@ -19721,8 +19751,8 @@ decisions:
         rejected_because: "credits unrelated findings; the gap shrank monotonically with the window in the analysis, which is leniency, not truth"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19730,19 +19760,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:14:26Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-2.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0617"
     created_at: "2026-10-19T05:14:28Z"
-    updated_at: "2026-10-19T05:14:28Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-3.1-3.3: run-ablation --allow-partial in MANIFEST; KF-046 class 7 exempts a repo-name token present in the PR fixture; dissent_absent_gates row field (D-3.1)"
@@ -19753,8 +19788,8 @@ decisions:
         rejected_because: "the four-per-type count is the suite freeze contract; partial must be explicit"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19762,19 +19797,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:14:28Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-3.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0618"
     created_at: "2026-10-19T05:15:09Z"
-    updated_at: "2026-10-19T05:15:09Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-4.1/4.2: dissent gets optional numeric anchors (symbol anchor stays); budget_scale fixed|diff, max 600 c, diff only in the eval config (D-4.1)"
@@ -19785,8 +19825,8 @@ decisions:
         rejected_because: "anchor_stability and the hallucination filter key on the symbol; the companion contract (cycle-126) would change"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19794,19 +19834,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:15:09Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-4.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0619"
     created_at: "2026-10-19T05:15:11Z"
-    updated_at: "2026-10-19T05:15:11Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "D-5.1-5.4: arms a0_bare_fable, a1_review_only, a1_no_dissent with one took-effect rule per toggle (D-5.1)"
@@ -19817,8 +19862,8 @@ decisions:
         rejected_because: "one voice still produces an uncreditable envelope; the question is the gate with no dissent at all"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19826,19 +19871,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:15:11Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#d-decisions-taken-on-the-operators-behalf (D-5.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0620"
     created_at: "2026-10-19T05:17:48Z"
-    updated_at: "2026-10-19T05:17:48Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "discovery"
     category: "planning"
     summary: "Batch allowance raised to USD 275 of the 500 cap (amends DEC-0611): the within-pin oracle A/B needs an open-mount arm on pr-17 (≈ 105) beside B2 (≈ 155) (F2)"
@@ -19849,8 +19899,8 @@ decisions:
         rejected_because: "B1 would then compare across pins and could not attribute a difference to the oracle"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19858,19 +19908,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:17:48Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F2)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0621"
     created_at: "2026-10-19T05:23:16Z"
-    updated_at: "2026-10-19T05:23:16Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "discovery"
     category: "planning"
     summary: "Flatline PRD blockers integrated by judgment (KF-041 shape): within-pin oracle A/B, fix-commit paths, read detector, 3-way re-grade, interval rules (F1)"
@@ -19881,8 +19936,8 @@ decisions:
         rejected_because: "KF-041: the review content is sound; the scorer is the degraded part"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19890,19 +19945,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:23:16Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#appendix-f-flatline-integration (F1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0622"
     created_at: "2026-10-19T05:25:06Z"
-    updated_at: "2026-10-19T05:25:06Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "Overlay default is head mode (mounted copy = pr/head for answer paths), scoped to .claude/; base is the fallback — amends DEC-0613 after the SDD review (E1)"
@@ -19913,8 +19973,8 @@ decisions:
         rejected_because: "coordinate mismatch with the grader and added-line defects absent from the mounted copy"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19922,19 +19982,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:25:06Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0623"
     created_at: "2026-10-19T05:29:16Z"
-    updated_at: "2026-10-19T05:29:16Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "architecture"
     category: "design"
     summary: "Flatline SDD blockers integrated (KF-041): immutable verifier source, pristine pinned copy, dissent_absent_reason, no pooling across rules (E2)"
@@ -19945,8 +20010,8 @@ decisions:
         rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19954,19 +20019,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:29:16Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sdd.md#e-flatline-integration-sdd-review-2026-10-19 (E2)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0624"
     created_at: "2026-10-19T05:47:24Z"
-    updated_at: "2026-10-19T05:47:24Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "sprint-planning"
     category: "planning"
     summary: "Flatline sprint blockers integrated (KF-041): E2E before PR, record secret scan, fsck closure, exposed_unknown excluded, adjudication fallbacks (D1)"
@@ -19977,8 +20047,8 @@ decisions:
         rejected_because: "KF-041: the content is sound; the scorer is the degraded part"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e9a66e16"
@@ -19986,19 +20056,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T05:47:24Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/sprint.md#d-flatline-integration-sprint-run-2026-10-19 (D1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0625"
     created_at: "2026-10-19T06:00:23Z"
-    updated_at: "2026-10-19T06:00:23Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "process"
     summary: "System Zone authorization extended to the two dissent wire schemas for optional anchor_line/anchor_line_end (SZ-1)"
@@ -20009,8 +20084,8 @@ decisions:
         rejected_because: "the companion voice is the one most often enforced; the metric would silently exclude it"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20018,19 +20093,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:00:23Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/prd.md#technical-considerations (SZ-1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0626"
     created_at: "2026-10-19T06:52:00Z"
-    updated_at: "2026-10-19T06:52:00Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Task 1.5 curation rules accepted: review-cited lines mapped to head by content, HEAD-ABSENT skipped, cap 6, blinding held (D-T1.5)"
@@ -20041,8 +20121,8 @@ decisions:
         rejected_because: "the TSV labels hold one row per anchor and were not extended; keeping them in step is the follow-up bead"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20050,19 +20130,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:52:00Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/a2a/sprint-1/anchors-curation.md#blinding-statement (D-T1.5)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0627"
     created_at: "2026-10-19T06:57:40Z"
-    updated_at: "2026-10-19T06:57:40Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Overlay refuses a dirty or non-git copy source (copy_source ends -dirty); oracle_closed passes with stated evidence on build and unmounted runs (A-T1.1/1.2)"
@@ -20073,8 +20158,8 @@ decisions:
         rejected_because: "the suite declares the rule per arm, not per task type; a per-type skip would need a second rule list"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20082,19 +20167,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:57:40Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0628"
     created_at: "2026-10-19T06:57:43Z"
-    updated_at: "2026-10-19T06:57:43Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "bare_model: fable overrides --phase-models and suite phase_defaults for BARE; drift guard expects Fable; exactly one claude-fable key, no opus key (A-T1.1/1.2)"
@@ -20105,8 +20195,8 @@ decisions:
         rejected_because: "the toggle lives in the arm declaration and leaves evidence in the run; a CLI flag leaves none"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20114,19 +20204,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:57:43Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0629"
     created_at: "2026-10-19T06:57:47Z"
-    updated_at: "2026-10-19T06:57:47Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "--allow-partial recorded as MANIFEST.json.allow_partial; on --resume the manifest value wins and a conflicting flag is a usage error (A-T1.7)"
@@ -20137,8 +20232,8 @@ decisions:
         rejected_because: "a late flag would let a batch started as a full suite be graded as partial, silently changing what its rows mean"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20146,19 +20241,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:57:47Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1/1.2/1.7)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0630"
     created_at: "2026-10-19T06:58:15Z"
-    updated_at: "2026-10-19T06:58:15Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Closed-mount answer set: PR-touched + fix-commit .claude/ paths; checksums.json excluded; symlinks removed; fix-only paths at head_commit (A-T1.1)"
@@ -20169,8 +20269,8 @@ decisions:
         rejected_because: "it is regenerated by the harness and would make every mount fail the pre-launch check on a hash line that carries no fix content"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20178,19 +20278,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T06:58:15Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-a.md#decision-bullets (A-T1.1)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0631"
     created_at: "2026-10-19T07:04:25Z"
-    updated_at: "2026-10-19T07:04:25Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "pr-12 under the closed mount: mounted cheval cannot import (private_workspace_base skew); expected dissent absent on both gates, recorded, re-grade-only"
@@ -20201,8 +20306,8 @@ decisions:
         rejected_because: "a design change outside Sprint 263 scope; pr-12 is re-grade-only so no measurement depends on it this cycle"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20210,19 +20315,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:04:25Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/NOTES.md#pre-smoke-expectation-amendment-pr-12 (lead probe, overlay-probe.sh)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0632"
     created_at: "2026-10-19T07:06:20Z"
-    updated_at: "2026-10-19T07:06:20Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "FR-1 AC4 ruling: oracle_exposed_defects stays the diff+read union as specified; by-form split reported; diff-only is a labelled sensitivity (B-T1.3)"
@@ -20233,8 +20343,8 @@ decisions:
         rejected_because: "changes the pre-specified exclusion after seeing its effect on the cells; the diff-only read is kept as a labelled sensitivity instead"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20242,19 +20352,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:06:20Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#findings (B-T1.3 detector validation; lead ruling on FR-1 AC4)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0633"
     created_at: "2026-10-19T07:12:10Z"
-    updated_at: "2026-10-19T07:12:10Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Dissent wire schemas take anchor_line/anchor_line_end as nullable-required integers; normaliser bounds 1..10,000,000, drops strings, end without start (C-T1.8)"
@@ -20265,8 +20380,8 @@ decisions:
         rejected_because: "an optional key is rejected by the closed wire schema when present and unlisted, and absent when the voice is strict; the nullable-required form is the only one both voices can satisfy"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20274,19 +20389,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:12:10Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0634"
     created_at: "2026-10-19T07:12:33Z"
-    updated_at: "2026-10-19T07:12:33Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "budget_scale: envelope names the scaling only when the key is set; literal formula capped by budget_cents_max; malformed values fall back to fixed (C-T1.8)"
@@ -20297,8 +20417,8 @@ decisions:
         rejected_because: "changes every existing envelope and the fixtures that pin them for a field that carries no information under fixed"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20306,19 +20426,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:12:33Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-c.md#decision-bullets (C-T1.8)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0635"
     created_at: "2026-10-19T07:22:45Z"
-    updated_at: "2026-10-19T07:22:45Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Grader 1.3.0: _pm3/_pm3_v1 keep the 1.2.0 rule; validity and 25-line cap bind recall only; scope = enclosing definition <= 400 lines (B-T1.4)"
@@ -20329,8 +20454,8 @@ decisions:
         rejected_because: "two stored grades would no longer reproduce, so the versioned re-grade could not show the rule change alone"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20338,19 +20463,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:22:45Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0636"
     created_at: "2026-10-19T07:22:47Z"
-    updated_at: "2026-10-19T07:22:47Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Oracle detector: head-side ranges by operand order; byte-equal paths skipped; later-only line >= 8 chars; corroboration rule; BARE scanned (B-T1.3)"
@@ -20361,8 +20491,8 @@ decisions:
         rejected_because: "either-side over-flags r18 t1 by a coordinate coincidence and whole-line equality clears neither genuinely PR-quoted replication row"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20370,19 +20500,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:22:47Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0637"
     created_at: "2026-10-19T07:22:49Z"
-    updated_at: "2026-10-19T07:22:49Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Row 1.4 / report 1.3: legacy rows grader_rule pm3 with null new rates; dissent precedence; partitions version x pin x rule; min_valid_cells 4 (B-T1.6)"
@@ -20393,8 +20528,8 @@ decisions:
         rejected_because: "the default would silently change the shipped cycle-130 report; the pre-registration names the flag instead"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead-seed/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20402,19 +20537,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:22:49Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "~/.cache/loa/cycle-131/reports/s1-b.md#decision-bullets (B-T1.3/1.4/1.6)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0638"
     created_at: "2026-10-19T07:38:27Z"
-    updated_at: "2026-10-19T07:38:27Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Task 1.10 adjudication: same-scope rule NOT adopted (2 of 7 credits are the labelled defect, kappa 1.0); recall_pm3 is the decision statistic"
@@ -20425,8 +20565,8 @@ decisions:
         rejected_because: "the adoption rule named the denominator (all (a) packets sampled) before sampling; the interval upper bound 0.641 is itself below 0.8"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20434,19 +20574,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:38:27Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-1/adjudication/result.md (Task 1.10; pre-registration NOTES 2026-10-19T06:08:48Z)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0639"
     created_at: "2026-10-19T07:40:02Z"
-    updated_at: "2026-10-19T07:40:02Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "process"
     summary: "Re-grade rows ship under grimoires/loa/reports/ablation-2.0/regrade-c131/rows.jsonl (evals/results/* is gitignored); the PRD path stays the working copy"
@@ -20457,8 +20602,8 @@ decisions:
         rejected_because: "breaks the ignore rule that keeps run outputs out of the tree and leaves a path nobody else can regenerate into"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "7600bd7d"
@@ -20466,19 +20611,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T07:40:02Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "git check-ignore (.gitignore:288 evals/results/*); Task 1.9"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0640"
     created_at: "2026-10-19T08:29:49Z"
-    updated_at: "2026-10-19T08:29:49Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Smoke fallback: review-catch REVIEW timeout 50 min / AUDIT 40 min on pr-17 and pr-18 (task bounds, pre-registered); pr-17 re-smoked once before Sprint 264"
@@ -20489,8 +20639,8 @@ decisions:
         rejected_because: "changes every arm and task; the two large PRs are the only ones that need it and a task bound is read in the row"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "bb03e931"
@@ -20498,19 +20648,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T08:29:49Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/NOTES.md#smoke-reading-partial (smoke-c131-20261019T075011Z, review-r17-t1 agent_error)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0641"
     created_at: "2026-10-19T09:18:12Z"
-    updated_at: "2026-10-19T09:18:12Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Closed-mount smoke read: oracle_closed OK 7/7, both voices under budget_scale diff on 5 PRs, anchor_line share 0.94; pr-12 KF-050, pr-17 timed out (DEC-0640)"
@@ -20521,8 +20676,8 @@ decisions:
         rejected_because: "the expectation was aggregate per gate type and the aggregate is 0.94; a prompt change after the smoke would be an unmeasured intervention before the batches"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "bb03e931"
@@ -20530,19 +20685,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-19T09:18:12Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/NOTES.md#smoke-complete (smoke-c131-20261019T075011Z); a2a/sprint-1/reviewer.md § Smoke"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0642"
     created_at: "2026-10-20T01:10:50Z"
-    updated_at: "2026-10-20T01:10:50Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "Review round r1a: detector keeps redirections in their segment, scans grep flags, stat-only git diff silent; class 7 bare-line tokens never exempt"
@@ -20553,8 +20713,8 @@ decisions:
         rejected_because: "the exclusion set the Sprint 264 reads depend on would be computed by a known-wrong detector"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "bb03e931"
@@ -20562,19 +20722,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T01:10:50Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 1); round r1a"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0643"
     created_at: "2026-10-20T01:37:10Z"
-    updated_at: "2026-10-20T01:37:10Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "Review round r1b: python one-liner defs end on their line, fences close by length, stat-only git diff needs no patch flag, |& is a pipe, -L/egrep/rg silent"
@@ -20585,8 +20750,8 @@ decisions:
         rejected_because: "the sprint cap is three runs and the audit gate needs one; the r1b edges are covered by tests and the lead read"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "596627f4"
@@ -20594,19 +20759,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T01:37:10Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-263/adversarial-review.json (review dissent run 2 on bb03e931..596627f4); round r1b"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0644"
     created_at: "2026-10-20T02:00:59Z"
-    updated_at: "2026-10-20T02:00:59Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "security"
     summary: "Audit round r1c: executed probe lines never class-7 exempt; no workspace pr/head fallback; detector work bounded; corpus hash from one validated open"
@@ -20617,8 +20787,8 @@ decisions:
         rejected_because: "a denylist of fixture lines is the whack-a-mole the ledger warns about; executed network text is the class, not the lines"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "baea8024"
@@ -20626,19 +20796,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T02:00:59Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md (audit dissent run 1); round r1c"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0645"
     created_at: "2026-10-20T02:15:07Z"
-    updated_at: "2026-10-20T02:15:07Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "sprint-planning"
     category: "process"
     summary: "Sprint 264 budget re-derived: B1 ≈ 66 + B2 ≈ 228 (R3/R4 on pr-17 only) ≈ 294 under a USD 300 batch allowance; arm smoke on pr-05; cycle cap 500 holds"
@@ -20649,8 +20824,8 @@ decisions:
         rejected_because: "it would leave no room under the USD 500 cycle cap for the gates and a single re-run"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "e93a040a"
@@ -20658,19 +20833,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T02:15:07Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/NOTES.md (smoke readings 2026-10-19/20; sprint.md § Sprint 2 cell matrix); Sprint 264 planning"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0646"
     created_at: "2026-10-20T02:58:39Z"
-    updated_at: "2026-10-20T02:58:39Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Report components exclude eval_only arms (nine components with the cycle-131 control arms); expected-false-positive figures at two decimals"
@@ -20681,8 +20861,8 @@ decisions:
         rejected_because: "three of the four are genuine component contrasts whose decisions the report now prints"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "0281ea57"
@@ -20690,19 +20870,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T02:58:39Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "evals/harness/ablation-report.py components; AR-12/AR-23/AT-13 (Sprint 264 integration)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0647"
     created_at: "2026-10-20T03:37:01Z"
-    updated_at: "2026-10-20T03:37:01Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "design"
     summary: "Arm smoke read: all four arms pass every took-effect rule and the batch-entry gates; refusal-fallback rows excluded from the model contrast, degraded elsewhere"
@@ -20713,8 +20898,8 @@ decisions:
         rejected_because: "conditioning on the absence of a refusal biases the Fable sample toward content the classifier accepts"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "0281ea57"
@@ -20722,19 +20907,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T03:37:01Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-2/reviewer.md § Arm smoke (smoke-c131-arms-20261020T025808Z); KF-051"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0648"
     created_at: "2026-10-20T04:02:27Z"
-    updated_at: "2026-10-20T04:02:27Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "process"
     summary: "Sprint 264 pre-registration: B1/B2a/B2b cells, pin 798d88cf, recall_pm3 decision statistic, interval reads R1/R5/R3/R4, exclusions incl. refusal fallbacks"
@@ -20745,8 +20935,8 @@ decisions:
         rejected_because: "that is the post-hoc move the cycle exists to stop"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "798d88cf"
@@ -20754,19 +20944,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T04:02:27Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/NOTES.md § Pre-registration — cycle-131 Sprint 264 batches B1 (c131-b1-oracle-ab) and B2 (c131-b2-control-prices) — 2026-10-20T04:02:26Z (section sha256 2ed2bfee66c613f742d107799f71261af6a689c67d0b7e51adb85dc4bd1c58bb)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0649"
     created_at: "2026-10-20T05:45:55Z"
-    updated_at: "2026-10-20T05:45:55Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "process"
     summary: "B2a completes all 18 planned cells (resume with --max-usd 190 if its 160 cap cuts); the shortfall comes out of B2b in the pre-registered cut order"
@@ -20777,8 +20972,8 @@ decisions:
         rejected_because: "it trades the shared baseline for the two lowest-priority reads, the reverse of the pre-registered priority"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "bdabbab6"
@@ -20786,19 +20981,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T05:45:55Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "evals/results/ablation-2.0/c131-b2-control-prices-a/STATUS.json (spent 79.41 after 8 of 18 trials); DEC-0645 cut order; DEC-0648"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0650"
     created_at: "2026-10-20T07:26:39Z"
-    updated_at: "2026-10-20T07:26:39Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "implementation"
     category: "process"
     summary: "Pre-registration inconsistency: min_valid_cells 4 makes R1/R3/R4 insufficient by construction; main read as written, trial-level sensitivity beside"
@@ -20809,8 +21009,8 @@ decisions:
         rejected_because: "editing a hashed pre-registration after seeing rows is the move this cycle exists to stop, even for a defensible correction"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "bdabbab6"
@@ -20818,19 +21018,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T07:26:39Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "DEC-0648 pre-registration text (min_valid_cells 4) vs the Sprint 264 cell matrix (3 trials per arm on one PR for R1, R3, R4); declared before any B2b row"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0651"
     created_at: "2026-10-20T09:37:41Z"
-    updated_at: "2026-10-20T09:37:41Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "R1 (oracle A/B, pr-17): main read insufficient (3 cells < 4 as written); trial-level: investigate — Δ +0.067 [−0.017, +0.150], open mount peeked in 3/3 runs"
@@ -20841,8 +21046,8 @@ decisions:
         rejected_because: "the interval upper bound 0.150 is outside ±0.05; the written rule says investigate"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "f1176336"
@@ -20850,19 +21055,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T09:37:41Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0652"
     created_at: "2026-10-20T09:37:43Z"
-    updated_at: "2026-10-20T09:37:43Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "R3 (audit gate, pr-17): main read insufficient (3 cells); trial-level: inconclusive — Δ −0.033 [−0.133, +0.067], cost ratio 0.53"
@@ -20873,8 +21083,8 @@ decisions:
         rejected_because: "the pre-registered branch requires the catch interval inside ±0.05 as well"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "f1176336"
@@ -20882,19 +21092,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T09:37:43Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0653"
     created_at: "2026-10-20T09:37:44Z"
-    updated_at: "2026-10-20T09:37:44Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "R4 (dissent, pr-17): insufficient under every read — 2 valid a1_no_dissent cells (the third contaminated by a scratch-dir reproduction outside S3's path shapes)"
@@ -20905,8 +21120,8 @@ decisions:
         rejected_because: "S3 was declared with named path shapes before the reads; widening it after seeing which cell it rescues is the post-hoc move"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "f1176336"
@@ -20914,19 +21129,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T09:37:44Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules; DEC-0650 threshold note)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0654"
     created_at: "2026-10-20T09:39:07Z"
-    updated_at: "2026-10-20T09:39:07Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "R5 (model): between — bare-Fable 0.226 vs full 0.685 (Δ −0.458) and vs bare-Opus 0.393 (Δ −0.167); the model does not explain the lift"
@@ -20937,8 +21157,8 @@ decisions:
         rejected_because: "that branch required bare-Fable within ±0.05 of bare-Opus; bare-Fable is 0.167 below it"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "f1176336"
@@ -20946,19 +21166,24 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T09:39:07Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "grimoires/loa/a2a/sprint-3/reads.md (pin 798d88cf; DEC-0648 rules)"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0655"
     created_at: "2026-10-20T10:43:12Z"
-    updated_at: "2026-10-20T10:43:12Z"
+    updated_at: "2026-10-21T00:23:54Z"
     phase: "review"
     category: "design"
     summary: "PR #1286 BB round r4: overlay refuses an unavailable fix_commit (F001); grader 1.3.1 scans error-marked results (F002); 63/63 re-grades unchanged"
@@ -20975,8 +21200,8 @@ decisions:
         rejected_because: "DEC-0648 pins the main read to the pre-registered 1.3.0 rows; the 63 re-grades are identical, so a labelled sensitivity records the check without moving the pin"
     consequences: null
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-21T00:23:54Z"
     evidence_sha256: null
     recorded_by: "lead/715c1592-bc92-427a-bdc5-4444317f56af"
     commit: "a3289c2b"
@@ -20984,13 +21209,194 @@ decisions:
     cycle: "cycle-131"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-20T10:43:12Z"
         from: null
         to: "proposed"
         by: "agent:lead"
         evidence: "PR #1286 Bridgebuilder review comment 6288566518 (gpt-5.5-pro voice; claude-headless incomplete): F001 HIGH, F002 MEDIUM, F003 PRAISE; bead bd-cxdsm"
+      - at: "2026-10-21T00:23:54Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-21T00:23:54Z"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0656"
+    created_at: "2026-10-21T00:47:02Z"
+    updated_at: "2026-10-21T00:47:02Z"
+    phase: "operations"
+    category: "process"
+    summary: "cycle-132 runs the three /bug micro-sprints first on fix/cycle-132-bugs with their own PR, before the cycle's planning (O1)"
+    decision: "The archive-cycle.sh, bd-jm55c and bd-y4pqj micro-sprints run first, on branch fix/cycle-132-bugs, and merge through their own PR before /plan-and-analyze starts the cycle"
+    rationale: "bd-y4pqj's fix is used by Sprint 1's corpus work, the archive fix must land before this cycle's own archive, and a small fix PR reaches downstream mounts sooner than a measurement PR"
+    alternatives_considered:
+      - option: "fold the fixes into the cycle feature branch"
+        rejected_because: "ships the fixes only with the measurement PR and mixes two review surfaces"
+      - option: "run the bugs after the cycle"
+        rejected_because: "Sprint 1 rebuilds manifests with the drifted labels and the archive step would hit the same defaults again"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0657"
+    created_at: "2026-10-21T00:47:04Z"
+    updated_at: "2026-10-21T00:47:04Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "bd-jm55c: the prompt-transport half is fixed upstream since rc.3 (398859ad); only the orchestrator half is coded — DEGRADED reads failed + marker, no halt (O2)"
+    decision: "No adapter change: the reporter's mount is v2.0.0-rc.2 and main sends every claude-headless prompt on stdin. post-pr-orchestrator records a DEGRADED/FAILED or missing verdict-quality envelope as a failed phase with a degraded summary and the FLATLINE-PR-DEGRADED marker, never PR-VALIDATED, and continues to READY_FOR_HITL; timeout and failure read failed, not skipped"
+    rationale: "The observed E2BIG is absent on main (claude_headless_adapter._prepare_invocation stdin at every size, TestPromptTransport); the green-over-one-voice is present on main; KF-041 (recurrence 4) degrades most planning reviews, so halting on DEGRADED would stop every fleet post-PR run"
+    alternatives_considered:
+      - option: "re-implement a stdin transport for kind:cli Claude voices"
+        rejected_because: "already on main since 398859ad / 10436350; the fleet mount needs rc.3+"
+      - option: "halt the orchestrator on a DEGRADED verdict"
+        rejected_because: "KF-041 recurrence 4 makes DEGRADED common; a halt would block every run on a known cross-scoring degradation"
+      - option: "keep marking timeout/failure as skipped"
+        rejected_because: "skipped means not run on purpose; #1076 added failed for exactly this"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/a2a/bug-20261021-4439fd/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-4439fd/triage.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0658"
+    created_at: "2026-10-21T00:47:06Z"
+    updated_at: "2026-10-21T00:47:06Z"
+    phase: "sprint-planning"
+    category: "scope"
+    summary: "The grader/harness follow-up beads (bd-9zmfn, bd-56nn6, bd-jszcp, bd-st02i, bd-gdl5s) enter cycle-132 Sprint 1 as harness tasks, not /bug (O5)"
+    decision: "The five beads are review observations without an observed failure; they are planned as Sprint 1 tasks of the measurement harness and closed there"
+    rationale: "/bug eligibility requires an observed failure, regression or stack trace; these are design gaps found in review; the harness is this cycle's app, so the sprint plan is the right gate"
+    alternatives_considered:
+      - option: "a /bug micro-sprint per bead"
+        rejected_because: "no observed failure; would bypass PRD/SDD gates for harness design changes"
+      - option: "defer to a later cycle"
+        rejected_because: "bd-9zmfn and bd-jszcp affect fields the cycle-132 reads report (false_positives, dissent_absent_reason)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/context/cycle-132-brief.md § Bugs"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0659"
+    created_at: "2026-10-21T00:47:57Z"
+    updated_at: "2026-10-21T00:47:57Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "archive-cycle.sh: default cycle active-else-newest; retention keep-all by default; tracked dirs never deleted; #1263 ledger write + gate folded (O3)"
+    decision: "get_current_cycle derives the active or newest cycle number; retention defaults to 0 without a CLI or yaml value; a directory with any git-tracked file is never deleted; a real archive writes status/archived/archive_path and clears active_cycle through ledger-lib primitives; an incomplete cycle is refused unless --force"
+    rationale: "The observed defaults archived cycle-92 (a count, not a cycle) and would have deleted two tracked archives; the documented ledger contract (#1263) is the same script and the same contract section, with an open reproduction"
+    alternatives_considered:
+      - option: "keep retention 5 and only skip tracked directories"
+        rejected_because: "deleting local-only archives by default still surprises; keep-all is the safe default and --retention N remains available"
+      - option: "a separate /bug for #1263"
+        rejected_because: "same file, same contract, same test fixture; splitting doubles review for one change"
+      - option: "no completeness gate"
+        rejected_because: "ledger-lib.sh archive_cycle and the post-merge gate both refuse incomplete cycles; parity"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "03e77312"
+    source: "grimoires/loa/a2a/bug-20261021-ba367a/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:47:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-ba367a/triage.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0660"
+    created_at: "2026-10-21T00:48:42Z"
+    updated_at: "2026-10-21T00:48:42Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "labels drift (bd-y4pqj): must_match gains @L<n>, --sync-labels regenerates rows from the manifest; manifests stay the truth, byte-identical rebuild pinned (O4)"
+    decision: "The TSV grammar gains one value form (@L<n>) used only where the head line text is not unique (11 of 221 anchors); --sync-labels appends the missing rows and the approval header from the manifest; a bats case pins byte-identical rebuilds for pr-11…18"
+    rationale: "Text anchors survive renumbering and stay the preferred form; the curated manifests graded every cycle-131 row and must not move; the generator must be able to express every curated anchor or the drift returns"
+    alternatives_considered:
+      - option: "make the manifests the only source and delete the labels files"
+        rejected_because: "the TSV is the human-curated, approvable artefact of the cycle-129 corpus design (approved-by header, curation.tsv)"
+      - option: "hand-edit the TSV rows"
+        rejected_because: "221 anchors, 11 inexpressible as unique text; hand edits drift again"
+      - option: "accept the first occurrence of a non-unique text"
+        rejected_because: "silent mis-anchoring when the file changes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-bug-triage/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "0746a9b6"
+    source: "grimoires/loa/a2a/bug-20261021-7240bc/triage.md"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T00:48:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-bug-triage"
+        evidence: "grimoires/loa/a2a/bug-20261021-7240bc/triage.md"
     rejection_rationale: null
     follow_up: null
     prior_requests: []

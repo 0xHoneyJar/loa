@@ -1,4 +1,4 @@
-# approved-by: lead 2026-10-14
+# approved-by: lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)
 # fixture pr-11 | sprint-247 | record origin/record/cycle-126-a2a | base a775f14ddc63 | head 7246ae55a4fe | fix 4b289413cc23
 # seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
 # L01 high review: the unverified-zone flag is computed once for the head entry and reused for every hop, so an ordinary 429 on a fallback hop ends the chain as `RATE_LIMIT_UNVER… [quoted snippet + fix hunk inside cmd_invoke()]
@@ -9,14 +9,26 @@
 defect_id	severity	category	file	must_match	label_source	source
 L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	RATE_LIMIT_UNVERIFIED	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
 L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	_last_walk_extra: Dict[str, Any] = {}	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
+L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	_ceiling_unverified = _preflight_outcome.unverified	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
+L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	error_class=("CEILING_UNVERIFIED_LIMIT" if _ceiling_unverified else "PROVIDER_CONTEXT_LIMIT"),	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
+L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	if _ceiling_unverified:	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
 L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	record_observed	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
 L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	fresh mount)."""	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
 L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	directory = os.path.dirname(os.path.abspath(path)) or "."	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	data = load_observed(path)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	data.setdefault("entries", []).append(row)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	os.replace(tmp, path)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
 L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	# traffic; output-side: output + reasoning).	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
 L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	inp_cost = int(inp_cost * im)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	cr_cost = int(cr_cost * im)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	cw_cost = int(cw_cost * im)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	out_cost = int(out_cost * om)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	reas_cost = int(reas_cost * om)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
 L04-store-and-catalog-paths-are-read-through	low	security	.claude/adapters/loa_cheval/routing/ceiling.py	def load_observed(path: Optional[str] = None)	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L59
+L04-store-and-catalog-paths-are-read-through	low	security	.claude/adapters/loa_cheval/routing/ceiling.py	with open(path, "r", encoding="utf-8") as fh:	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L59
 L05-local-filesystem-path-in-the-envelope	low	logic	.claude/adapters/cheval.py	nonlocal _last_walk_exit_code	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65
 L05-local-filesystem-path-in-the-envelope	low	logic	.claude/adapters/cheval.py	"message_redacted": str(_exc), "observed_input_tokens": _obs, "provider_limit": provider_limit,	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65
+L05-local-filesystem-path-in-the-envelope	low	logic	.claude/adapters/cheval.py	"calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65
 F001	-	fix	.claude/adapters/cheval.py	_last_walk_extra: Dict[str, Any] = {}	fix	fix/4b289413cc23:1992-1992
 F002	-	fix	.claude/adapters/cheval.py	nonlocal _last_walk_exit_code	fix	fix/4b289413cc23:2004-2004
 F003	-	fix	.claude/adapters/cheval.py	"message_redacted": str(_exc), "observed_input_tokens": _obs, "provider_limit": provider_limit,	fix	fix/4b289413cc23:2022-2022

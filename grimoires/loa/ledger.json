@@ -2684,7 +2684,7 @@
       "archived_at": "2026-10-20T12:27:38Z"
     }
   ],
-  "global_sprint_counter": 250,
+  "global_sprint_counter": 268,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -3065,6 +3065,51 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260924-1f9d91/sprint.md",
       "bead": "bd-n7v3",
       "completed_at": "2026-09-24T01:57:49Z"
+    },
+    {
+      "id": "cycle-bug-20261021-ba367a",
+      "label": "Bug Fix — archive-cycle.sh archives the wrong cycle by default, deletes git-tracked archives by default, and never updates the live ledger",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1263",
+      "created_at": "2026-10-21T00:37:56Z",
+      "sprints": [
+        "sprint-bug-266"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-ba367a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-ba367a/sprint.md",
+      "bead": "bd-okk61",
+      "completed_at": "2026-10-21T02:07:16Z"
+    },
+    {
+      "id": "cycle-bug-20261021-4439fd",
+      "label": "Bug Fix — post-pr-orchestrator marks a degraded or failed Flatline PR review green; kind:cli prompt-size failure fixed upstream since rc.3 (bd-jm55c)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-21T00:42:14Z",
+      "sprints": [
+        "sprint-bug-267"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-4439fd/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-4439fd/sprint.md",
+      "bead": "bd-jm55c",
+      "completed_at": "2026-10-21T02:07:16Z"
+    },
+    {
+      "id": "cycle-bug-20261021-7240bc",
+      "label": "Bug Fix — seed-corpus-from-record.sh --build-manifest regresses the curated multi-site manifests (labels drift, bd-y4pqj)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-21T00:42:14Z",
+      "sprints": [
+        "sprint-bug-268"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-7240bc/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-7240bc/sprint.md",
+      "bead": "bd-y4pqj",
+      "completed_at": "2026-10-21T02:11:45Z"
     }
   ],
   "bugfixes": [
@@ -3083,5 +3128,5 @@
     }
   ],
   "next_sprint_number": 266,
-  "last_updated": "2026-10-20T12:27:38Z"
+  "last_updated": "2026-10-21T02:11:45Z"
 }

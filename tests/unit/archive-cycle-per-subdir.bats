@@ -35,6 +35,9 @@ setup() {
     cp "$LOA_REPO_ROOT/.claude/scripts/archive-cycle.sh" .claude/scripts/
     cp "$LOA_REPO_ROOT/.claude/scripts/bootstrap.sh" .claude/scripts/
     [[ -f "$LOA_REPO_ROOT/.claude/scripts/path-lib.sh" ]] && cp "$LOA_REPO_ROOT/.claude/scripts/path-lib.sh" .claude/scripts/
+    # bug 20261021-ba367a: a real archive records itself in the ledger via
+    # ledger-lib.sh (sources bootstrap.sh -> path-lib.sh, both copied above)
+    cp "$LOA_REPO_ROOT/.claude/scripts/ledger-lib.sh" .claude/scripts/
     SCRIPT="$WORKDIR/.claude/scripts/archive-cycle.sh"
 
     # Mirror the minimum layout archive-cycle.sh expects:
