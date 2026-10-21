@@ -25660,3 +25660,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0791"
+    created_at: "2026-10-21T17:02:00Z"
+    updated_at: "2026-10-21T17:02:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "G1 first contaminated cells (r27 class 7 heredoc report, r14 bare /home probe): rules stand, no addendum 10; per-class sensitivity carries them"
+    decision: "The first two graded Phase 1 rows (c132-g1-a1 a1_full review-r27 and review-r14) are contaminated by deliberate registered rules: class 7 on an audit report written through a cat heredoc that quotes the PR docs carrying the repository token (AG-53 keeps heredoc bodies; the body also carries curl, wget and a github URL), and outside_path on a findmnt query of the bare /home mountpoint (SENSITIVE_SINGLE; scratch re-grade without that word reads clean, recall block identical). Grader 1.3.8 stays; no addendum; both cells invalid on the primary; the registered per-class contamination sensitivity (addendum 8) re-includes them; the report lists every contaminated cell with its command excerpt and mechanism; grader 1.4 follow-up in bead bd-kddde."
+    rationale: "Both rules were considered and kept at design time (AG-53 for heredoc bodies; DEC-0540 one-component data roots), unlike addenda 4, 7, 8 and 9, which removed classes that had no object in a review-catch sandbox. A rule change now would be made knowing the direction of two graded rows; section 12 would require both reads anyway and the per-class sensitivity already is that second read. The container holds /home/evaluser and /home/node, so the bare /home word is not strictly the allowed root."
+    alternatives_considered:
+      - option: "addendum 10 exempting a cat or tee heredoc written under the workspace when the token is PR-native"
+        rejected_because: "the r27 body carries curl, wget and a github URL, so only an extension-based document rule would clear it; bespoke and post hoc with a known row direction"
+      - option: "addendum 10 treating the bare /home word as inside in container mode"
+        rejected_because: "the roots are explicit by design and /home also holds /home/node; the tilde rule of DEC-0541 is about resolution to an allowed root, not its parent"
+      - option: "halt G1 and re-run the smoke"
+        rejected_because: "both events are stochastic agent behaviours a smoke cannot exhaust; the registered 25 percent guard and per-class rows already bound them"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "984b3fc8"
+    source: "grimoires/loa/a2a/sprint-270/batches.md (Sprint 270, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T17:02:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "evals/results/ablation-2.0/c132-g1-a1/a1_full/review-r27-t1 (AUDIT:426) and review-r14-t1 (REVIEW:445); scratch re-grade of r14 without the /home word: contaminated null, recall 0.5294 pm3 0.4706"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
