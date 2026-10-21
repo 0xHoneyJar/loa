@@ -1,79 +1,224 @@
 {
   "fixture": "pr-24",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "260",
     "record_ref": "origin/record/cycle-130-a2a",
     "head_commit": "4c2796067e8b9b65c66a8843328b5abae06bd9ca",
-    "fix_commit": "53600ea3168adfba0745ae5c1c461ab4d24a342e"
+    "fix_commit": "53600ea3168adfba0745ae5c1c461ab4d24a342e",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-the-heredoc-stripper-removes-the-operato",
+      "id": "V01",
       "file": "evals/harness/ablation-grade.sh",
-      "anchor_line": 1383,
-      "anchors": [
-        1369,
-        1382,
-        1383
-      ],
-      "must_match": "<<HEREDOC",
-      "severity": "medium",
-      "category": "docs",
-      "label_source": "review",
-      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-260/engineer-feedback-r1.md#L13",
-      "source_commit": "4c279606",
-      "synthetic": false
-    },
-    {
-      "id": "L02-decides-by-the-parity-of-every-quote-cha",
-      "file": "evals/harness/ablation-grade.sh",
-      "anchor_line": 1374,
-      "anchors": [
-        1369,
-        1374,
-        1382
-      ],
-      "must_match": "return seg.count(\"'\") % 2 == 1 or seg.count('\"') % 2 == 1",
+      "anchor_line": 256,
+      "must_match": "import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time",
       "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-260/engineer-feedback-r1.md#L17",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H04",
       "source_commit": "4c279606",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
     },
     {
-      "id": "L03-is-case-sensitive-on-its-adjacency-branc",
+      "id": "V02",
       "file": "evals/harness/ablation-grade.sh",
       "anchor_line": 1329,
       "anchors": [
-        1328,
-        1329
+        1329,
+        1395
       ],
-      "must_match": "HIDDEN|(?<=[/._=-])hidden\\b|\\bhidden(?=[/_=-]|\\.[A-Za-z0-9])",
-      "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-260/engineer-feedback-r1.md#L19",
+      "must_match": "HIDDEN_TOKEN = re.compile(r\"HIDDEN|(?<=[/._=-])hidden\\b|\\bhidden(?=[/_=-]|\\.[A-Za-z0-9])\")",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H08",
       "source_commit": "4c279606",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity/category: codebook medium and security (B) \u2014 the contamination detector misses probe shapes; a missing validation with bounded impact; as H05 (same group D5)",
+      "review_driven": true
     },
     {
-      "id": "L04-three-of-the-contamination-scan-s-skip-r",
+      "id": "V03",
       "file": "evals/harness/ablation-grade.sh",
-      "anchor_line": 1395,
+      "anchor_line": 1369,
       "anchors": [
-        1395,
-        1404
+        1369,
+        1372,
+        1373,
+        1374,
+        1377
       ],
-      "must_match": "if HIDDEN_TOKEN.search(val):   # DEC-0551: token shapes only in command text",
+      "must_match": "return not (before.isspace() or before in \"=(<>|;&,\")",
       "severity": "medium",
       "category": "logic",
-      "label_source": "audit",
-      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-260/auditor-sprint-feedback-r1.md#L11",
+      "label_source": "fix-commit",
+      "source": "hunk:H06",
       "source_commit": "4c279606",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) \u2014 A's attribution kept; both behaviours are in the key (D2, D3)",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1372,
+      "anchors": [
+        1372,
+        1373,
+        1374,
+        1444
+      ],
+      "must_match": "def in_quotes(body, pos):   # DEC-0551: odd count of unescaped quotes before pos \u2192 inside a literal",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) \u2014 defect member of D3 (A)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1377,
+      "anchors": [
+        1377,
+        1383
+      ],
+      "must_match": "HEREDOC = re.compile(r\"<<-?\\s*(['\\\"]?)([A-Za-z_][A-Za-z0-9_]*)\\1[^\\n]*\\n(?:.*?\\n)*?\\s*\\2[ \\t]*(?=\\n|$)\", re.S)",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1401,
+      "anchors": [
+        1401,
+        1402
+      ],
+      "must_match": "if \"0xhoneyjar/loa\" in low:",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "incident",
+      "source": "incident:I01",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D10 = B's D8 (namespace only); category: logic (an incident record carries none; the scan misclassifies quoted PR text)",
+      "review_driven": false
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1422,
+      "anchors": [
+        1422,
+        1423
+      ],
+      "must_match": "one = re.match(r\"^/([^/]+)/?$\", w)",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity: codebook medium (A) \u2014 a detector bypass with bounded impact",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1438,
+      "must_match": "if w.startswith(\"/.\"):",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/run-ablation.sh",
+      "anchor_line": 976,
+      "anchors": [
+        976,
+        978,
+        980,
+        996,
+        997
+      ],
+      "must_match": "tout=\"$(\"$TOOK_BIN\" --run-dir \"$rd\" --suite-file \"$SUITE_FILE\" 2>&1)\" || trc=$?",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H25,H26",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
     }
   ],
   "fix_regions": [

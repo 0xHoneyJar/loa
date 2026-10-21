@@ -1,0 +1,266 @@
+{
+  "fixture": "pr-11",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "247",
+    "record_ref": "origin/record/cycle-126-a2a",
+    "head_commit": "7246ae55a4fea334e1c0a6163b064f20fa14cf2e",
+    "fix_commit": "4b289413cc23c72e76e607b9fb4e38d0398d2455",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2022,
+      "anchors": [
+        2022,
+        2032
+      ],
+      "must_match": "\"message_redacted\": str(_exc), \"observed_input_tokens\": _obs, \"provider_limit\": provider_limit,",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03,H04",
+      "source_commit": "7246ae55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2110,
+      "anchors": [
+        2110,
+        2256,
+        2297
+      ],
+      "must_match": "@L2110",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H06,H07",
+      "source_commit": "7246ae55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity: codebook medium (A) \u2014 a wrong result on an uncommon path (a fallback hop after the head fails); severity: codebook medium, as H05",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "anchor_line": 171,
+      "anchors": [
+        171,
+        172,
+        173,
+        174,
+        175
+      ],
+      "must_match": "inp_cost = int(inp_cost * im)",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "7246ae55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "anchor_line": 292,
+      "anchors": [
+        292,
+        295
+      ],
+      "must_match": "m = float(value)",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "7246ae55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "anchor_line": 278,
+      "anchors": [
+        278,
+        279,
+        290,
+        299
+      ],
+      "must_match": "@L278",
+      "severity": "medium",
+      "category": "concurrency",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "7246ae55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1992,
+      "end": 1992,
+      "source": "fix/4b289413cc23:1992-1992"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2004,
+      "end": 2004,
+      "source": "fix/4b289413cc23:2004-2004"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2022,
+      "end": 2022,
+      "source": "fix/4b289413cc23:2022-2022"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2032,
+      "end": 2032,
+      "source": "fix/4b289413cc23:2032-2032"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2110,
+      "end": 2110,
+      "source": "fix/4b289413cc23:2110-2110"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2256,
+      "end": 2256,
+      "source": "fix/4b289413cc23:2256-2256"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2297,
+      "end": 2297,
+      "source": "fix/4b289413cc23:2297-2297"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 111,
+      "end": 111,
+      "source": "fix/4b289413cc23:111-111"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 165,
+      "end": 165,
+      "source": "fix/4b289413cc23:165-165"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 171,
+      "end": 175,
+      "source": "fix/4b289413cc23:171-175"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 290,
+      "end": 290,
+      "source": "fix/4b289413cc23:290-290"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+      "start": 295,
+      "end": 295,
+      "source": "fix/4b289413cc23:295-295"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 30,
+      "end": 30,
+      "source": "fix/4b289413cc23:30-30"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 278,
+      "end": 278,
+      "source": "fix/4b289413cc23:278-278"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+      "start": 292,
+      "end": 293,
+      "source": "fix/4b289413cc23:292-293"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/adapters/tests/test_ceiling_e2e.py",
+      "start": 267,
+      "end": 267,
+      "source": "fix/4b289413cc23:267-267"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/adapters/tests/test_ceiling_policy.py",
+      "start": 272,
+      "end": 272,
+      "source": "fix/4b289413cc23:272-272"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/adapters/tests/test_long_context_pricing.py",
+      "start": 66,
+      "end": 66,
+      "source": "fix/4b289413cc23:66-66"
+    }
+  ]
+}

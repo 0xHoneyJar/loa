@@ -1,0 +1,20 @@
+# approved-by: pending
+# fixture pr-28 | sprint-264 | record origin/record/cycle-131-honest-measurement | base e93a040a5414 | head 0281ea57ad2b | fix 798d88cfc920
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor: text on exactly one head line, or @L<n> for head line n), then --approve
+# L01 low review: `LOA_ABLATION_BATCH_CONTEXT=1` keeps the open-mount arm off any by-hand `pipeline-run.sh` invocation; [the file's fix hunks (file-level finding)]
+# L02 low review: nine components with the cycle-131 control arms; [the file's fix hunks (file-level finding)]
+defect_id	severity	category	file	must_match	label_source	source
+L01-keeps-the-open-mount-arm-off-any-by-hand	low	logic	evals/harness/pipeline-run.sh	# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is	review	record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L28
+L01-keeps-the-open-mount-arm-off-any-by-hand	low	logic	evals/harness/pipeline-run.sh	EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true	review	record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L28
+L02-nine-components-with-the-cycle-131-contr	low	logic	evals/harness/ablation-report.py	components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and a.get("eval_only") is not True]	review	record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L42
+L02-nine-components-with-the-cycle-131-contr	low	logic	evals/harness/ablation-report.py	k = len(components)	review	record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L42
+L02-nine-components-with-the-cycle-131-contr	low	logic	evals/harness/ablation-report.py	L(efp_line)	review	record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L42
+F001	-	fix	evals/harness/ablation-report.py	components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and a.get("eval_only") is not True]	fix	fix/798d88cfc920:1913-1913
+F002	-	fix	evals/harness/ablation-report.py	k = len(components)	fix	fix/798d88cfc920:1927-1927
+F003	-	fix	evals/harness/ablation-report.py	L(efp_line)	fix	fix/798d88cfc920:1998-1998
+F004	-	fix	evals/harness/ablation-report.py	"expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line},	fix	fix/798d88cfc920:2174-2174
+F005	-	fix	evals/harness/pipeline-run.sh	# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is	fix	fix/798d88cfc920:141-141
+F006	-	fix	evals/harness/pipeline-run.sh	EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true	fix	fix/798d88cfc920:258-258
+F007	-	fix	evals/tests/ablation-report.bats	grep -qF 'Expected false positives at level 0.90 over 9 components: 9 × (1 − 0.90) / 2 = 0.45 one-sided per direction (0.90 in either direction); no multiple-comparison correction is applied (multiple_comparisons: none).' "$FX/main/report.md"   # 9 = a2 … a7 + the three cycle-131 control arms; a1_full_openmount is eval_only and not a component	fix	fix/798d88cfc920:189-189
+F008	-	fix	evals/tests/ablation-report.bats	@test "AR-23 two suite_versions are never pooled: main sections on v2 (catch-rate H1, pass rate and A4 not testable), v1 in its own section; --suite-version 1 flips the primary" {	fix	fix/798d88cfc920:325-325
+F009	-	fix	evals/tests/pipeline-run.bats	@test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {	fix	fix/798d88cfc920:1245-1245

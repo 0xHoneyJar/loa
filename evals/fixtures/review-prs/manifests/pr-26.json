@@ -1,14 +1,269 @@
 {
   "fixture": "pr-26",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "262",
     "record_ref": "origin/record/cycle-130-a2a",
     "head_commit": "82c5cd7d5f677e6c5211696e5a1d0f63b8f339af",
-    "fix_commit": "56ce0b8f78cc762279d9fb1553f5e812d4014311"
+    "fix_commit": "56ce0b8f78cc762279d9fb1553f5e812d4014311",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
-  "defects": [],
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 549,
+      "anchors": [
+        549,
+        550,
+        551
+      ],
+      "must_match": "if isinstance(missed, list) and all(isinstance(x, str) for x in missed):",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 595,
+      "anchors": [
+        595,
+        596,
+        597,
+        598,
+        757,
+        758,
+        773,
+        776,
+        778,
+        797,
+        798,
+        965,
+        968,
+        1321
+      ],
+      "must_match": "\"arm_cost\": mean([float(r.get(\"cost_usd\") or 0) for r in va]),",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H14,H15,H16,H17,H20,H25",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo \u2014 defect (A); group D3",
+      "review_driven": false
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 825,
+      "anchors": [
+        825,
+        827,
+        831,
+        832,
+        833,
+        835,
+        836,
+        839,
+        840
+      ],
+      "must_match": "def version_key(v):",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H18",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 847,
+      "anchors": [
+        847,
+        848,
+        849,
+        850,
+        851,
+        1403
+      ],
+      "must_match": "if len(keys) > 1 and missing:",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H28",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1054,
+      "anchors": [
+        1054,
+        1062,
+        1063,
+        1064,
+        1065,
+        1066,
+        1067,
+        1068,
+        1069,
+        1070,
+        1080,
+        1081,
+        1082
+      ],
+      "must_match": "ad = os.path.join(d, r[\"arm\"])",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H22",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace; severity: codebook high \u2014 wrong counts and a crash on a common path (reruns, version strings)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1117,
+      "anchors": [
+        1117,
+        1339,
+        1351,
+        1592,
+        1611
+      ],
+      "must_match": "return {k: (j6(x) if isinstance(x, float) else",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H23,H26,H27,H30,H31",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo \u2014 defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1552,
+      "anchors": [
+        1552,
+        1553
+      ],
+      "must_match": "recs = batch_record(mans, rows)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H29",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1675,
+      "anchors": [
+        1675,
+        1676,
+        1677
+      ],
+      "must_match": "write_out(args.out, text)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H34",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 165,
+      "anchors": [
+        165,
+        166,
+        167,
+        168,
+        412,
+        413
+      ],
+      "must_match": "// (if has(\"defects_missed\") and .defects_missed != null",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H40,H42",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    }
+  ],
   "fix_regions": [
     {
       "id": "F001",

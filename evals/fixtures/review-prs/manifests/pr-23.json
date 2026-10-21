@@ -1,31 +1,398 @@
 {
   "fixture": "pr-23",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "259",
     "record_ref": "origin/record/cycle-130-a2a",
     "head_commit": "6be2318626f4b71d56713e16cfec7a46ea62e268",
-    "fix_commit": "05830914a7cf7be9e3c4525783a280795b1a5723"
+    "fix_commit": "05830914a7cf7be9e3c4525783a280795b1a5723",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-the-grader-follows-agent-controlled-dire",
+      "id": "V01",
       "file": "evals/harness/ablation-grade.sh",
-      "anchor_line": 242,
+      "anchor_line": 238,
       "anchors": [
-        242,
-        282,
-        295,
-        710
+        238,
+        239,
+        240,
+        241,
+        242
       ],
-      "must_match": "os.chmod(os.path.join(r, d), 0o700)",
+      "must_match": "elif os.path.isdir(p):",
       "severity": "high",
       "category": "security",
-      "label_source": "review",
-      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-259/engineer-feedback-r1.md#L13",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
       "source_commit": "6be23186",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B \u2282 A)",
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 271,
+      "anchors": [
+        271,
+        272,
+        273,
+        282,
+        283,
+        293,
+        294,
+        296,
+        713,
+        714
+      ],
+      "must_match": "def copy_tree(src, dst, top_exclude=frozenset()):",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H15,H16,H17,H31",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B \u2282 A)",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 493,
+      "anchors": [
+        493,
+        673,
+        674
+      ],
+      "must_match": "return pre + [\"-m\", \"pytest\", \"-p\", \"no:cacheprovider\", \"-q\", \"--rootdir\", root, \"-rA\"] + rest, \"pytest\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H20,H28",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's D3 = B's D4 (namespace only); agreed otherwise",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 502,
+      "anchors": [
+        502,
+        503,
+        504,
+        505,
+        506,
+        507,
+        508,
+        514,
+        516,
+        517,
+        518,
+        519,
+        520,
+        521,
+        524
+      ],
+      "must_match": "def exec_in_tree(tree, cmd):",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H21,H22",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D4 = B's D5 (namespace only); anchors: union; group: as H21",
+      "review_driven": false
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 533,
+      "anchors": [
+        533,
+        534,
+        535,
+        536,
+        537,
+        538,
+        575,
+        576,
+        577
+      ],
+      "must_match": "def def_line(tree, path, func, cache):",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H23,H24",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D8 = B's D6 (namespace only); anchors: union; group: as H23",
+      "review_driven": false
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 652,
+      "anchors": [
+        652,
+        653,
+        1091,
+        1092,
+        1093,
+        1095,
+        1209,
+        1211,
+        1214,
+        1216,
+        1219,
+        1222,
+        1224
+      ],
+      "must_match": "def all_pass(res):",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H27,H48",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A's 1091\u20131095 are the regression-log sites of the same behaviour); group D5 with H48 \u2014 the same counts-only green test at two sites; severity: codebook high (a wrong grading result on a common path); anchors: union; group D5 \u2014 the counts-only green test is the same wrong behaviour as H27's; B's refactor-split reading is the secondary change of the hunk",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 705,
+      "anchors": [
+        705,
+        706,
+        707,
+        708,
+        710,
+        729,
+        730,
+        731,
+        732
+      ],
+      "must_match": "def keep(member, path):",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H30,H33",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 710); group: A's D9 = B's D3 (namespace only)",
+      "review_driven": false
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 766,
+      "anchors": [
+        766,
+        767,
+        769,
+        783,
+        786,
+        855,
+        877,
+        878,
+        881
+      ],
+      "must_match": "@L766",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H35,H36,H37,H38",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D10 = B's D7 (namespace only); severity: codebook medium (a missing validation with bounded impact), consistent with H35/H38 of the same group; anchors: union (A adds 881); group: namespace only",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 939,
+      "anchors": [
+        939,
+        940,
+        950,
+        953,
+        958,
+        959,
+        974,
+        976,
+        977,
+        978,
+        979,
+        980,
+        982
+      ],
+      "must_match": "GIT_HIST = re.compile(r\"\\bgit\\b[^;&|\\n]*\\blog\\b[^;&|\\n]*--all\\b|\\bgit\\b[^;&|\\n]*\\breflog\\b\")",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit+incident",
+      "source": "hunk:H39,H40,H41,H42;incident:I01",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the missing scan patterns are the wrong behaviour itself (a missing check), not a consequence of another hunk \u2014 defect (A); anchors: union; group: A's D15 = B's D14 (namespace only); category: logic (an incident record carries none; the heuristic misclassifies ordinary text)",
+      "review_driven": false
+    },
+    {
+      "id": "V10",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1080,
+      "anchors": [
+        1080,
+        1083,
+        1089,
+        1090,
+        1091,
+        1092,
+        1093,
+        1099,
+        1100,
+        1101,
+        1102,
+        1105,
+        1121,
+        1122,
+        1129
+      ],
+      "must_match": "res = run_suite(final, t.test_command, t.static_cases)",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H45,H46",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 1089\u20131093); group: A's D6 = B's D8 (namespace only); group: namespace only; agreed otherwise",
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1240,
+      "anchors": [
+        1240,
+        1241
+      ],
+      "must_match": "def main():",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H49",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 1241); group: A's D11 = B's D12 (namespace only)",
+      "review_driven": false
+    },
+    {
+      "id": "V12",
+      "file": "evals/harness/validate-suite.sh",
+      "anchor_line": 261,
+      "anchors": [
+        261,
+        262
+      ],
+      "must_match": "bad(tid, f\"allowlist: {key}[0] '{v[0]}' not in {'|'.join(sorted(ALLOW))}\")",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H52",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: the validator accepting an inconsistent field is a distinct wrong behaviour from the grader's refactor check (D6) \u2014 own group (A)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": "evals/harness/validate-suite.sh",
+      "anchor_line": 276,
+      "anchors": [
+        276,
+        279,
+        280
+      ],
+      "must_match": "for p in gp:",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H53",
+      "source_commit": "6be23186",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 276)",
+      "review_driven": true
     }
   ],
   "fix_regions": [

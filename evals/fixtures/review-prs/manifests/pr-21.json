@@ -1,46 +1,425 @@
 {
   "fixture": "pr-21",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "257",
     "record_ref": "origin/record/cycle-129-a2a",
     "head_commit": "163656ff763d56cc1f1fd6fed92ad78c2acc8dd6",
-    "fix_commit": "2fb03b5c0a7dedfbc6ee144c7184e47ac443aaa7"
+    "fix_commit": "2fb03b5c0a7dedfbc6ee144c7184e47ac443aaa7",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-a-declared-is-trusted-not-enforced-disse",
-      "file": ".claude/scripts/lib/hop-locality.py",
-      "anchor_line": 2,
+      "id": "V01",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 420,
       "anchors": [
-        2,
-        23,
-        118
+        420,
+        422,
+        1813,
+        1814,
+        1815,
+        1817
       ],
-      "must_match": "locality: local_voices",
+      "must_match": "return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped",
       "severity": "high",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L12",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H01,H02",
       "source_commit": "163656ff",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
     },
     {
-      "id": "L02-the-locality-fixtures-declare-a-provider",
-      "file": "tests/unit/adversarial-review-locality.bats",
-      "anchor_line": 18,
+      "id": "V02",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "anchor_line": 474,
       "anchors": [
-        18,
-        26
+        474,
+        475,
+        476
       ],
-      "must_match": "# one hosted provider (openai, the catalog's) and one local provider (localbox, declared here)",
-      "severity": "low",
-      "category": "test",
-      "label_source": "review",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L24",
+      "must_match": "\"\"\"`local` when the hop's model declares dispatch_group `local` (D-8.0), else `hosted`.\"\"\"",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
       "source_commit": "163656ff",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: security (B) \u2014 the locality label feeds a trust decision",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 138,
+      "anchors": [
+        138,
+        139,
+        140
+      ],
+      "must_match": "auth = prov.get(\"auth\")",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 153,
+      "anchors": [
+        153,
+        156,
+        157,
+        159
+      ],
+      "must_match": "if not _is_cli_provider(prov) and endpoint not in (None, \"\"):",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 221,
+      "anchors": [
+        221,
+        222,
+        223,
+        224,
+        225,
+        230,
+        231,
+        232,
+        233
+      ],
+      "must_match": "@L221",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H11,H12",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "anchor_line": 704,
+      "must_match": "validate_providers(merged)",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "anchor_line": 128,
+      "anchors": [
+        128,
+        136,
+        137,
+        138,
+        139,
+        140
+      ],
+      "must_match": "def check_url(self, url: str) -> None:",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H16",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "anchor_line": 128,
+      "anchors": [
+        128,
+        140,
+        145
+      ],
+      "must_match": "def check_url(self, url: str) -> None:",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 3888,
+      "anchors": [
+        3888,
+        3889
+      ],
+      "must_match": "elif (( _bv_in == 0 && _bv_out == 0 )); then",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H26",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: input-validation (A) \u2014 a value accepted without a check",
+      "review_driven": false
+    },
+    {
+      "id": "V10",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 4849,
+      "anchors": [
+        4849,
+        4850
+      ],
+      "must_match": "if _locj=$(jq -c --slurpfile rf \"$_locf\" --arg t \"$type\" --arg s \"$_ADV_LOC_DEGRADED_SENTENCE\" \\",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H28",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "anchor_line": 116,
+      "anchors": [
+        116,
+        117,
+        118,
+        119
+      ],
+      "must_match": "group = entry.get(\"dispatch_group\") or block.get(\"dispatch_group\") or \"\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H32",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 484,
+      "anchors": [
+        484,
+        485,
+        486,
+        487,
+        488
+      ],
+      "must_match": "if (e.models !== null && typeof e.models === \"object\" && !Array.isArray(e.models)) {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H73",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the site where the fallback chains are ignored is D1's wrong behaviour \u2014 defect (A); B's follow-on reading would leave D1 without a site",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 671,
+      "anchors": [
+        671,
+        672,
+        673,
+        676,
+        678,
+        679,
+        681
+      ],
+      "must_match": "if (mode === \"pull-request\") {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H80",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V14",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 722,
+      "anchors": [
+        722,
+        723,
+        724,
+        725,
+        726,
+        727,
+        728,
+        729,
+        730,
+        731,
+        732
+      ],
+      "must_match": "@L722",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H82",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V15",
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "anchor_line": 464,
+      "anchors": [
+        464,
+        465,
+        466
+      ],
+      "must_match": "config.trusted = trusted;",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H89",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "anchor_line": 78,
+      "anchors": [
+        78,
+        79,
+        80,
+        85,
+        88,
+        89
+      ],
+      "must_match": "@L78",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H90",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; category: error-handling (A) \u2014 a failure masked as a completed degraded run",
+      "review_driven": true
     }
   ],
   "fix_regions": [

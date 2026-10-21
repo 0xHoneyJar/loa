@@ -1,66 +1,257 @@
 {
   "fixture": "pr-20",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "256",
     "record_ref": "origin/record/cycle-129-a2a",
     "head_commit": "40df53ed837858b6026c7da7b80feb8bdec96d89",
-    "fix_commit": "9c4ed3198c7891882ca77847e37bd10475885779"
+    "fix_commit": "9c4ed3198c7891882ca77847e37bd10475885779",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-knob-off-replay-reads-the-right-config-d",
-      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
-      "anchor_line": 43,
+      "id": "V01",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 190,
       "anchors": [
-        31,
-        43,
-        49
+        190,
+        191
       ],
-      "must_match": "LOA_REPO_ROOT=\"$work\"",
-      "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L22",
+      "must_match": "_bdb_hd_re_sys='(^|/)(\\.claude/hooks(/|$)|\\.claude/settings[^/]*\\.json$|\\.git/hooks(/|$)|\\.git/config$|\\.gitconfig$|\\.ssh/rc$|\\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$)'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
       "source_commit": "40df53ed",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
     },
     {
-      "id": "L02-gnu-only-in-ks-5-dissent-diss-c-004",
-      "file": "tests/unit/karpathy-surgical-diff.bats",
-      "anchor_line": 112,
-      "must_match": "touch -d",
-      "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L26",
+      "id": "V02",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 548,
+      "anchors": [
+        548,
+        550,
+        551
+      ],
+      "must_match": "@L548",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
       "source_commit": "40df53ed",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
     },
     {
-      "id": "L03-is-an-ungated-seam",
+      "id": "V03",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 1049,
+      "anchors": [
+        1049,
+        1050,
+        1051,
+        1052,
+        1053,
+        1054,
+        1061,
+        1067,
+        1068
+      ],
+      "must_match": "# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H06",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V04",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 1206,
+      "anchors": [
+        1206,
+        1217
+      ],
+      "must_match": "@L1206",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V05",
       "file": ".claude/scripts/lib/profile-lib.sh",
       "anchor_line": 61,
       "must_match": "_LOA_PL_CFG=\"${LOA_PROFILE_CONFIG_FILE:-${status_cfg:-$default_cfg}}\"",
       "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/engineer-feedback-r1.md#L34",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
       "source_commit": "40df53ed",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
     },
     {
-      "id": "L04-dead-negated-assertions-in-the-new-surgi",
-      "file": "tests/unit/karpathy-surgical-diff.bats",
-      "anchor_line": 173,
-      "must_match": "! grep -rqF \"$secret\"",
-      "severity": "medium",
-      "category": "test",
-      "label_source": "audit",
-      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-256/auditor-sprint-feedback-r1.md#L18",
+      "id": "V06",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 958,
+      "must_match": "printf '%s (%sexplicit overrides: %s)' \"${name:-standard}\" \"$note\" \"${ov:-none}\"",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
       "source_commit": "40df53ed",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V07",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "anchor_line": 6,
+      "anchors": [
+        6,
+        34,
+        35
+      ],
+      "must_match": "allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V08",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "anchor_line": 6,
+      "anchors": [
+        6,
+        297
+      ],
+      "must_match": "allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H16",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo \u2014 defect (A); group D7",
+      "review_driven": false
+    },
+    {
+      "id": "V09",
+      "file": ".loa.config.yaml.example",
+      "anchor_line": 312,
+      "anchors": [
+        312,
+        325,
+        1358,
+        1404,
+        1432,
+        2932,
+        2950,
+        2962
+      ],
+      "must_match": "@L312",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H20,H21,H22,H23,H24,H25,H26,H27",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed; verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo \u2014 defect (A); group D8",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": "tools/check-knob-readers.sh",
+      "anchor_line": 40,
+      "anchors": [
+        40,
+        41,
+        43,
+        44,
+        45
+      ],
+      "must_match": "alt=$(printf '%s\\n' \"$keys\" | sed 's/\\./\\\\./g' | paste -sd'|' -)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H56",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": true
     }
   ],
   "fix_regions": [

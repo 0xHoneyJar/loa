@@ -1,0 +1,1099 @@
+{
+  "fixture": "pr-14",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "250",
+    "record_ref": "origin/record/cycle-126-a2a",
+    "head_commit": "d785fc9a20aeaddc4bc98ae52907d77a20582c01",
+    "fix_commit": "e170de3d275832105058105357845ccac704f1b3",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 35,
+      "anchors": [
+        35,
+        36
+      ],
+      "must_match": "PROJECT_ROOT=\"${PROJECT_ROOT:-$(pwd)}\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 52,
+      "anchors": [
+        52,
+        53,
+        55,
+        56,
+        57
+      ],
+      "must_match": "# Extract file path from tool input (Write or Edit)",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; severity: codebook high (a gate that fails open is a security weakness with a plausible path to harm)",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 73,
+      "anchors": [
+        73,
+        76,
+        77,
+        78,
+        81,
+        89,
+        90,
+        97,
+        99
+      ],
+      "must_match": "@L73",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B \u2282 A); otherwise agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 123,
+      "anchors": [
+        123,
+        127,
+        128,
+        129,
+        134,
+        135
+      ],
+      "must_match": "active_skill=$(echo \"$input\" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=\"\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 134,
+      "anchors": [
+        134,
+        228
+      ],
+      "must_match": "echo \"[AUTHORITATIVE] App Zone write to '$file_path' detected during /$active_skill (not an implementation skill).\" >&2",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 135,
+      "anchors": [
+        135,
+        228,
+        230
+      ],
+      "must_match": "echo '{\"decision\":\"ask\",\"reason\":\"[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional.\"}'",
+      "severity": "high",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 228, inside the hunk)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 200,
+      "anchors": [
+        200,
+        202,
+        203,
+        209,
+        211,
+        212
+      ],
+      "must_match": "if [[ -f \"$RUN_DIR/simstim-state.json\" ]]; then",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H15,H16",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: security \u2014 the gate's staleness gap weakens an enforcement boundary; logic rejected; category: security, as H15 (same group D7)",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": ".claude/scripts/check-permissions.sh",
+      "anchor_line": 164,
+      "anchors": [
+        164,
+        167,
+        168,
+        169,
+        238,
+        239,
+        242,
+        246
+      ],
+      "must_match": "[[ \"$b\" == \"Bash(\"*\")\" ]] || return 1",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H21,H22,H23",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": ".claude/scripts/detect-platform-features.sh",
+      "anchor_line": 35,
+      "anchors": [
+        35,
+        36,
+        62,
+        66
+      ],
+      "must_match": "evidence=$(jq -r 'if (.active_skill_seen_at // \"\") != \"\" then \"seen \\(.active_skill_seen_at) via \\(.active_skill_source // \"unknown\")\" else empty end' \\",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H25,H26",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 62, the refresh's read site)",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 582,
+      "anchors": [
+        582,
+        583
+      ],
+      "must_match": "PYTHONPATH=\"$SCRIPT_DIR/../adapters\" python3 - \"$PROJECT_ROOT\" \"$1\" <<'PY' 2>/dev/null",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H27",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; severity: codebook medium (missing validation, bounded impact); group D10 = this script's own site",
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": ".claude/scripts/lib-content.sh",
+      "anchor_line": 295,
+      "must_match": "local top_path_log; top_path_log=$(printf '%s' \"$top_path\" | LC_ALL=C tr -d '\\000-\\037\\177')   # stderr never gets a header's raw controls (bd-pw7e LOW-003)",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H30",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": ".claude/scripts/model-adapter.sh",
+      "anchor_line": 655,
+      "anchors": [
+        655,
+        656,
+        657,
+        659
+      ],
+      "must_match": "local result exit_code=0 err_file",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H32",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; category: error-handling (an unhandled mktemp failure); severity: codebook medium (uncommon path, wrong result)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "anchor_line": 110,
+      "must_match": "AGENT_TYPES_FILE=\"${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}\"",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H35",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V14",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "anchor_line": 19,
+      "anchors": [
+        19,
+        52,
+        53
+      ],
+      "must_match": "export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H44",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 52)",
+      "review_driven": true
+    },
+    {
+      "id": "V15",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 61,
+      "anchors": [
+        61,
+        62
+      ],
+      "must_match": "python3 - \"$manifest\" \"$review\" \"$executor\" <<'PY'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H51",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: a separate site (another script) is its own group \u2014 one wrong behaviour per script, B's reading; anchors: union; severity medium for consistency with D10",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 71,
+      "anchors": [
+        71,
+        73,
+        74,
+        78
+      ],
+      "must_match": "RNG = r'(\\d{1,6})(?:\\s*[-\u2013]\\s*(\\d{1,6}))?'",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H52",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V17",
+      "file": "tools/check-prompt-budget.sh",
+      "anchor_line": 50,
+      "anchors": [
+        50,
+        51
+      ],
+      "must_match": "python3 - \"$ROOT\" \"$JSON\" \"$QUIET\" <<'PY'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H95",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: a separate script, own group (as H51); anchors: union; severity medium",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/adapters/tests/test_trust_scopes.py",
+      "start": 349,
+      "end": 351,
+      "source": "fix/e170de3d2758:349-351"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/adapters/tests/test_trust_scopes.py",
+      "start": 357,
+      "end": 357,
+      "source": "fix/e170de3d2758:357-357"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/adapters/tests/test_trust_scopes.py",
+      "start": 362,
+      "end": 366,
+      "source": "fix/e170de3d2758:362-366"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/adapters/tests/test_trust_scopes.py",
+      "start": 373,
+      "end": 373,
+      "source": "fix/e170de3d2758:373-373"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/defaults/model-config.yaml",
+      "start": 478,
+      "end": 478,
+      "source": "fix/e170de3d2758:478-478"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 13,
+      "end": 13,
+      "source": "fix/e170de3d2758:13-13"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 19,
+      "end": 20,
+      "source": "fix/e170de3d2758:19-20"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 35,
+      "end": 35,
+      "source": "fix/e170de3d2758:35-35"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 52,
+      "end": 55,
+      "source": "fix/e170de3d2758:52-55"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 69,
+      "end": 82,
+      "source": "fix/e170de3d2758:69-82"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 86,
+      "end": 99,
+      "source": "fix/e170de3d2758:86-99"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 103,
+      "end": 103,
+      "source": "fix/e170de3d2758:103-103"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 109,
+      "end": 109,
+      "source": "fix/e170de3d2758:109-109"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 123,
+      "end": 128,
+      "source": "fix/e170de3d2758:123-128"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 132,
+      "end": 152,
+      "source": "fix/e170de3d2758:132-152"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 160,
+      "end": 160,
+      "source": "fix/e170de3d2758:160-160"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 199,
+      "end": 203,
+      "source": "fix/e170de3d2758:199-203"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 208,
+      "end": 212,
+      "source": "fix/e170de3d2758:208-212"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "start": 228,
+      "end": 230,
+      "source": "fix/e170de3d2758:228-230"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/rules/skill-invariants.md",
+      "start": 29,
+      "end": 29,
+      "source": "fix/e170de3d2758:29-29"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 26,
+      "end": 26,
+      "source": "fix/e170de3d2758:26-26"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 159,
+      "end": 159,
+      "source": "fix/e170de3d2758:159-159"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 163,
+      "end": 163,
+      "source": "fix/e170de3d2758:163-163"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 167,
+      "end": 169,
+      "source": "fix/e170de3d2758:167-169"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 238,
+      "end": 239,
+      "source": "fix/e170de3d2758:238-239"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/scripts/check-permissions.sh",
+      "start": 246,
+      "end": 246,
+      "source": "fix/e170de3d2758:246-246"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/scripts/detect-platform-features.sh",
+      "start": 12,
+      "end": 12,
+      "source": "fix/e170de3d2758:12-12"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/scripts/detect-platform-features.sh",
+      "start": 35,
+      "end": 36,
+      "source": "fix/e170de3d2758:35-36"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/scripts/detect-platform-features.sh",
+      "start": 66,
+      "end": 66,
+      "source": "fix/e170de3d2758:66-66"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "start": 580,
+      "end": 583,
+      "source": "fix/e170de3d2758:580-583"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "start": 588,
+      "end": 591,
+      "source": "fix/e170de3d2758:588-591"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/scripts/lib-content.sh",
+      "start": 169,
+      "end": 169,
+      "source": "fix/e170de3d2758:169-169"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/scripts/lib-content.sh",
+      "start": 295,
+      "end": 295,
+      "source": "fix/e170de3d2758:295-295"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/scripts/model-adapter.sh",
+      "start": 147,
+      "end": 147,
+      "source": "fix/e170de3d2758:147-147"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/scripts/model-adapter.sh",
+      "start": 655,
+      "end": 659,
+      "source": "fix/e170de3d2758:655-659"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "start": 33,
+      "end": 33,
+      "source": "fix/e170de3d2758:33-33"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "start": 47,
+      "end": 52,
+      "source": "fix/e170de3d2758:47-52"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "start": 56,
+      "end": 57,
+      "source": "fix/e170de3d2758:56-57"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "start": 108,
+      "end": 110,
+      "source": "fix/e170de3d2758:108-110"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "start": 14,
+      "end": 14,
+      "source": "fix/e170de3d2758:14-14"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "start": 53,
+      "end": 53,
+      "source": "fix/e170de3d2758:53-53"
+    },
+    {
+      "id": "F051",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 230,
+      "end": 230,
+      "source": "fix/e170de3d2758:230-230"
+    },
+    {
+      "id": "F052",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 247,
+      "end": 248,
+      "source": "fix/e170de3d2758:247-248"
+    },
+    {
+      "id": "F053",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 262,
+      "end": 263,
+      "source": "fix/e170de3d2758:262-263"
+    },
+    {
+      "id": "F054",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 22,
+      "end": 22,
+      "source": "fix/e170de3d2758:22-22"
+    },
+    {
+      "id": "F055",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 44,
+      "end": 44,
+      "source": "fix/e170de3d2758:44-44"
+    },
+    {
+      "id": "F056",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 56,
+      "end": 56,
+      "source": "fix/e170de3d2758:56-56"
+    },
+    {
+      "id": "F057",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 61,
+      "end": 61,
+      "source": "fix/e170de3d2758:61-61"
+    },
+    {
+      "id": "F058",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 71,
+      "end": 74,
+      "source": "fix/e170de3d2758:71-74"
+    },
+    {
+      "id": "F059",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 78,
+      "end": 79,
+      "source": "fix/e170de3d2758:78-79"
+    },
+    {
+      "id": "F060",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 113,
+      "end": 113,
+      "source": "fix/e170de3d2758:113-113"
+    },
+    {
+      "id": "F061",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 155,
+      "end": 155,
+      "source": "fix/e170de3d2758:155-155"
+    },
+    {
+      "id": "F062",
+      "file": "evals/tests/eval-recall-grader.bats",
+      "start": 180,
+      "end": 185,
+      "source": "fix/e170de3d2758:180-185"
+    },
+    {
+      "id": "F063",
+      "file": "tests/fixtures/ensure_license_fixtures.sh",
+      "start": 38,
+      "end": 38,
+      "source": "fix/e170de3d2758:38-38"
+    },
+    {
+      "id": "F064",
+      "file": "tests/fixtures/ensure_license_fixtures.sh",
+      "start": 46,
+      "end": 47,
+      "source": "fix/e170de3d2758:46-47"
+    },
+    {
+      "id": "F065",
+      "file": "tests/fixtures/ensure_license_fixtures.sh",
+      "start": 54,
+      "end": 54,
+      "source": "fix/e170de3d2758:54-54"
+    },
+    {
+      "id": "F066",
+      "file": "tests/fixtures/pretooluse-payloads/expected.tsv",
+      "start": 5,
+      "end": 13,
+      "source": "fix/e170de3d2758:5-13"
+    },
+    {
+      "id": "F067",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 628,
+      "end": 628,
+      "source": "fix/e170de3d2758:628-628"
+    },
+    {
+      "id": "F068",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 1178,
+      "end": 1178,
+      "source": "fix/e170de3d2758:1178-1178"
+    },
+    {
+      "id": "F069",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 2696,
+      "end": 2696,
+      "source": "fix/e170de3d2758:2696-2696"
+    },
+    {
+      "id": "F070",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 4248,
+      "end": 4248,
+      "source": "fix/e170de3d2758:4248-4248"
+    },
+    {
+      "id": "F071",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 4440,
+      "end": 4440,
+      "source": "fix/e170de3d2758:4440-4440"
+    },
+    {
+      "id": "F072",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 4824,
+      "end": 4824,
+      "source": "fix/e170de3d2758:4824-4824"
+    },
+    {
+      "id": "F073",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 5669,
+      "end": 5669,
+      "source": "fix/e170de3d2758:5669-5669"
+    },
+    {
+      "id": "F074",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 5816,
+      "end": 5816,
+      "source": "fix/e170de3d2758:5816-5816"
+    },
+    {
+      "id": "F075",
+      "file": "tests/unit/check-permissions.bats",
+      "start": 227,
+      "end": 227,
+      "source": "fix/e170de3d2758:227-227"
+    },
+    {
+      "id": "F076",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 45,
+      "end": 49,
+      "source": "fix/e170de3d2758:45-49"
+    },
+    {
+      "id": "F077",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 53,
+      "end": 57,
+      "source": "fix/e170de3d2758:53-57"
+    },
+    {
+      "id": "F078",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 69,
+      "end": 69,
+      "source": "fix/e170de3d2758:69-69"
+    },
+    {
+      "id": "F079",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 147,
+      "end": 147,
+      "source": "fix/e170de3d2758:147-147"
+    },
+    {
+      "id": "F080",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 151,
+      "end": 151,
+      "source": "fix/e170de3d2758:151-151"
+    },
+    {
+      "id": "F081",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 155,
+      "end": 155,
+      "source": "fix/e170de3d2758:155-155"
+    },
+    {
+      "id": "F082",
+      "file": "tests/unit/compliance-hook.bats",
+      "start": 185,
+      "end": 185,
+      "source": "fix/e170de3d2758:185-185"
+    },
+    {
+      "id": "F083",
+      "file": "tests/unit/flatline-max-tokens.bats",
+      "start": 10,
+      "end": 10,
+      "source": "fix/e170de3d2758:10-10"
+    },
+    {
+      "id": "F084",
+      "file": "tests/unit/flatline-max-tokens.bats",
+      "start": 80,
+      "end": 80,
+      "source": "fix/e170de3d2758:80-80"
+    },
+    {
+      "id": "F085",
+      "file": "tests/unit/gen-bb-registry-codegen.bats",
+      "start": 527,
+      "end": 527,
+      "source": "fix/e170de3d2758:527-527"
+    },
+    {
+      "id": "F086",
+      "file": "tests/unit/hook-guard.bats",
+      "start": 11,
+      "end": 11,
+      "source": "fix/e170de3d2758:11-11"
+    },
+    {
+      "id": "F087",
+      "file": "tests/unit/hook-guard.bats",
+      "start": 152,
+      "end": 152,
+      "source": "fix/e170de3d2758:152-152"
+    },
+    {
+      "id": "F088",
+      "file": "tests/unit/implement-gate.bats",
+      "start": 17,
+      "end": 17,
+      "source": "fix/e170de3d2758:17-17"
+    },
+    {
+      "id": "F089",
+      "file": "tests/unit/implement-gate.bats",
+      "start": 35,
+      "end": 35,
+      "source": "fix/e170de3d2758:35-35"
+    },
+    {
+      "id": "F090",
+      "file": "tests/unit/implement-gate.bats",
+      "start": 151,
+      "end": 153,
+      "source": "fix/e170de3d2758:151-153"
+    },
+    {
+      "id": "F091",
+      "file": "tests/unit/instruction-diet-revert.bats",
+      "start": 38,
+      "end": 38,
+      "source": "fix/e170de3d2758:38-38"
+    },
+    {
+      "id": "F092",
+      "file": "tests/unit/license-fixture-freshness.bats",
+      "start": 35,
+      "end": 35,
+      "source": "fix/e170de3d2758:35-35"
+    },
+    {
+      "id": "F093",
+      "file": "tests/unit/license-fixture-freshness.bats",
+      "start": 51,
+      "end": 51,
+      "source": "fix/e170de3d2758:51-51"
+    },
+    {
+      "id": "F094",
+      "file": "tests/unit/model-adapter.bats",
+      "start": 94,
+      "end": 94,
+      "source": "fix/e170de3d2758:94-94"
+    },
+    {
+      "id": "F095",
+      "file": "tests/unit/model-config-v3-schema.bats",
+      "start": 487,
+      "end": 487,
+      "source": "fix/e170de3d2758:487-487"
+    },
+    {
+      "id": "F096",
+      "file": "tests/unit/model-config-v3-schema.bats",
+      "start": 499,
+      "end": 499,
+      "source": "fix/e170de3d2758:499-499"
+    },
+    {
+      "id": "F097",
+      "file": "tests/unit/model-residue.bats",
+      "start": 10,
+      "end": 10,
+      "source": "fix/e170de3d2758:10-10"
+    },
+    {
+      "id": "F098",
+      "file": "tests/unit/model-residue.bats",
+      "start": 60,
+      "end": 63,
+      "source": "fix/e170de3d2758:60-63"
+    },
+    {
+      "id": "F099",
+      "file": "tests/unit/model-residue.bats",
+      "start": 69,
+      "end": 69,
+      "source": "fix/e170de3d2758:69-69"
+    },
+    {
+      "id": "F100",
+      "file": "tests/unit/protocol-refs-resolve.bats",
+      "start": 12,
+      "end": 12,
+      "source": "fix/e170de3d2758:12-12"
+    },
+    {
+      "id": "F101",
+      "file": "tests/unit/protocol-refs-resolve.bats",
+      "start": 58,
+      "end": 58,
+      "source": "fix/e170de3d2758:58-58"
+    },
+    {
+      "id": "F102",
+      "file": "tests/unit/skill-capabilities.bats",
+      "start": 876,
+      "end": 879,
+      "source": "fix/e170de3d2758:876-879"
+    },
+    {
+      "id": "F103",
+      "file": "tests/unit/skill-capabilities.bats",
+      "start": 885,
+      "end": 892,
+      "source": "fix/e170de3d2758:885-892"
+    },
+    {
+      "id": "F104",
+      "file": "tools/check-prompt-budget.sh",
+      "start": 50,
+      "end": 50,
+      "source": "fix/e170de3d2758:50-50"
+    }
+  ]
+}

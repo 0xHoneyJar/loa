@@ -1,46 +1,86 @@
 {
   "fixture": "pr-28",
-  "approved": false,
-  "approved_by": "pending",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "264",
     "record_ref": "origin/record/cycle-131-honest-measurement",
     "head_commit": "0281ea57ad2bcc755f302dc2863f251fa3a9088e",
-    "fix_commit": "798d88cfc920a95ce896a527145b21ca72d0ab18"
+    "fix_commit": "798d88cfc920a95ce896a527145b21ca72d0ab18",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-keeps-the-open-mount-arm-off-any-by-hand",
-      "file": "evals/harness/pipeline-run.sh",
-      "anchor_line": 141,
-      "anchors": [
-        141,
-        258
-      ],
-      "must_match": "# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is",
-      "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L28",
-      "source_commit": "0281ea57",
-      "synthetic": false
-    },
-    {
-      "id": "L02-nine-components-with-the-cycle-131-contr",
+      "id": "V01",
       "file": "evals/harness/ablation-report.py",
       "anchor_line": 1913,
-      "anchors": [
-        1913,
-        1927,
-        1998
-      ],
       "must_match": "components = [a[\"id\"] for a in arms if a[\"id\"] not in (CONTROL, BARE) and not a.get(\"absent\") and a.get(\"eval_only\") is not True]",
-      "severity": "low",
+      "severity": "high",
       "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L42",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
       "source_commit": "0281ea57",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1927,
+      "anchors": [
+        1927,
+        1928,
+        1929,
+        1930,
+        1931,
+        1932
+      ],
+      "must_match": "k = len(components)",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "0281ea57",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (insertion after 1927; B's 1930\u20131932 are the lines that drop the arms without disclosure, inside the context 1916\u20131939); verdict, group, severity, category agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 258,
+      "anchors": [
+        258,
+        259
+      ],
+      "must_match": "EVAL_ONLY=false; [[ \"$(jq -r '.eval_only // false' <<<\"$ARM_DEF\")\" == true ]] && EVAL_ONLY=true",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H06",
+      "source_commit": "0281ea57",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
     }
   ],
   "fix_regions": [
