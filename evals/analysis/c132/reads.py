@@ -37,10 +37,13 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                (normal-scale boundaries). Conditional power stays on the normal Brownian model.
   --validity c132 (default; sdd.md §5.2) or c131 (no oracle_exposed clause — the Phase 0 placebo
                on the 63 existing rows, whose cycle-130 a1_full runs all ran under the open mount)
-  Sensitivity "class9_nonrepo_egress_reincluded" (round 4; PREREGISTRATION §12 addendum, after
-               "degraded and contaminated rows excluded"): cells whose only invalidity is contaminated
-               {pattern: network_egress, repo_named: false} count as valid (recall as graded); the
-               re-included cells are counted per arm and group.
+  Sensitivity "contaminated_reincluded_per_class" (round 5, replacing round 4's single item; after
+               "degraded and contaminated rows excluded"): for every contamination class observed in the
+               rows (the grade's pattern; class 9 split by repo_named into network_egress:repo / :nonrepo /
+               :unstated), the primary read with the cells whose ONLY invalidity is a contamination of that
+               class counted valid (recall as graded), plus one read re-including every class; the cells
+               are counted per arm, group and class. The round-4 name "class9_nonrepo_egress_reincluded"
+               is still accepted in a registration's order and runs the network_egress:nonrepo member.
   --sensitivity-grades DIR  re-grades for the label-set sensitivities:
                DIR/<c131|v1>/<batch>/<arm>/<task>-t<n>/grade.json (absent → "not_provided")
   --judge DIR  the judge's result.json (judge_agree.py): judge-corrected figures and the
@@ -81,7 +84,7 @@ DEFAULT_SEED = 20261021
 DEFAULT_SENSITIVITIES = [
     "frozen_c131_labels", "v1_labels", "judge_corrected", "judge_strays_as_defects",
     "exact_dollar_trim", "pair_level_permutation", "ci90", "leave_one_pr_out", "pr11_in_out",
-    "degraded_contaminated_excluded", "class9_nonrepo_egress_reincluded", "pr_weighted", "matched_fable_contrast",
+    "degraded_contaminated_excluded", "contaminated_reincluded_per_class", "pr_weighted", "matched_fable_contrast",
 ]
 BOOT = 10000
 INTERVAL = "t"          # --interval (round 1: cluster-t primary, percentile beside)
@@ -488,6 +491,41 @@ def strays_pairs(pairs, strays):
     return out
 
 
+def _group_of(reg, task):
+    return next(("G%d" % j for j, g in enumerate(reg.get("groups") or [], 1) if task in g), "ungrouped")
+
+
+def reinclude(cells, reg, seed, cls):
+    """the primary read with the cells whose only invalidity is a contamination of class `cls`
+    (None: any class) counted valid; their count per arm and group, and their keys"""
+    sel = [c for c in cells if common.only_contamination(c, cls)]
+    keys = {c["key"] for c in sel}
+    back = [dict(c, valid=True) if c["key"] in keys else c for c in cells]
+    r, _ = contrast(back, PRIMARY_A, PRIMARY_B, seed)
+    counts = {}
+    for c in sel:
+        a = counts.setdefault(c["arm"], {})
+        g = _group_of(reg, c["task"])
+        a[g] = a.get(g, 0) + 1
+    r["reincluded_cells"] = counts
+    r["reincluded_keys"] = sorted(keys)
+    return r
+
+
+def reincluded_family(cells, reg, seed):
+    """{observed, counts: {arm: {group: {class: n}}}, classes: {class: read}, all_classes: read};
+    classes are those observed on any contaminated cell, in sorted order"""
+    observed = sorted({c["contamination"] for c in cells if c.get("contamination")})
+    counts = {}
+    for c in cells:
+        if common.only_contamination(c):
+            g = counts.setdefault(c["arm"], {}).setdefault(_group_of(reg, c["task"]), {})
+            g[c["contamination"]] = g.get(c["contamination"], 0) + 1
+    return {"status": "ok" if observed else "no_contaminated_cells", "observed": observed, "counts": counts,
+            "classes": {cls: reinclude(cells, reg, seed, cls) for cls in observed},
+            "all_classes": reinclude(cells, reg, seed, None) if observed else {"status": "no_contaminated_cells"}}
+
+
 def pipeline_independent_fn(ca, cb):
     meta = dict(ca["labels_meta"])
     meta.update(cb["labels_meta"])
@@ -612,27 +650,14 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
         elif name == "degraded_contaminated_excluded":
             strict = [dict(c, valid=c["valid"] and not c["row"].get("degraded")) for c in cells]
             res[name], _ = contrast(strict, PRIMARY_A, PRIMARY_B, seed)
-        elif name == "class9_nonrepo_egress_reincluded":
-            # round 4 (PREREGISTRATION §12 addendum): a cell whose ONLY invalidity is a class-9
-            # network egress naming no repository (repo_named false: a tool download, not
-            # answer-key retrieval) counts as valid with its recall as graded; the main filter
-            # stays unchanged
-            groups = reg.get("groups") or []
-
-            def group_of(task):
-                return next(("G%d" % j for j, g in enumerate(groups, 1) if task in g), "ungrouped")
-
-            back = [dict(c, valid=True) if common.only_nonrepo_egress(c) else c for c in cells]
-            r, sens_pairs = contrast(back, PRIMARY_A, PRIMARY_B, seed)
-            counts = {}
-            for c in cells:
-                if common.only_nonrepo_egress(c):
-                    a = counts.setdefault(c["arm"], {})
-                    g = group_of(c["task"])
-                    a[g] = a.get(g, 0) + 1
-            r["reincluded_cells"] = counts
-            r["reincluded_keys"] = sorted(c["key"] for c in cells if common.only_nonrepo_egress(c))
-            res[name] = r
+        elif name in ("contaminated_reincluded_per_class", "class9_nonrepo_egress_reincluded"):
+            # rounds 4–5 (PREREGISTRATION §12 addenda): per contamination class observed in the rows, the
+            # primary read with the cells whose ONLY invalidity is a contamination of that class counted
+            # valid (recall as graded), plus every class at once; the main filter stays unchanged.
+            # The round-4 name runs only its class-9 non-repository member (same semantics).
+            fam = reincluded_family(cells, reg, seed)
+            res[name] = fam["classes"].get("network_egress:nonrepo", reinclude(cells, reg, seed, "network_egress:nonrepo")) \
+                if name == "class9_nonrepo_egress_reincluded" else fam
         elif name == "pr_weighted":
             res[name] = prim.get("pr_weighted") or {"status": prim.get("status")}
         elif name == "matched_fable_contrast":
@@ -751,15 +776,23 @@ def render_md(doc):
             if name == "leave_one_pr_out":
                 for pr in sorted(v):
                     L.append(md_primary("leave out %s" % pr, v[pr]))
+            elif name == "contaminated_reincluded_per_class":
+                if v.get("status") != "ok":
+                    L.append("| %s | status `%s` |\n" % (name, v.get("status")))
+                else:
+                    for cls in v["observed"]:
+                        L.append(md_primary("re-included: %s" % cls, v["classes"][cls]))
+                    L.append(md_primary("re-included: every class", v["all_classes"]))
+                    for cls in v["observed"] + [None]:
+                        r = v["classes"][cls] if cls else v["all_classes"]
+                        if r.get("status") == "ok":
+                            L.append("| recall per arm (%s) | %s %s, %s %s |\n" % (
+                                cls or "every class", PRIMARY_A, f4(r.get("recall_full")), PRIMARY_B, f4(r.get("recall_matched"))))
+                    L.append("| re-included cells (arm / group: class n) | %s |\n" % ("; ".join(
+                        "%s / %s: %s" % (arm, g, ", ".join("%s %d" % (k, v["counts"][arm][g][k]) for k in sorted(v["counts"][arm][g])))
+                        for arm in sorted(v["counts"]) for g in sorted(v["counts"][arm])) or "none"))
             elif name == "class9_nonrepo_egress_reincluded":
                 L.append(md_primary(name, v))
-                cnt = v.get("reincluded_cells") or {}
-                L.append("| re-included cells (arm: group n) | %s |\n" % (
-                    "; ".join("%s: %s" % (arm, ", ".join("%s %d" % (g, cnt[arm][g]) for g in sorted(cnt[arm])))
-                              for arm in sorted(cnt)) or "none"))
-                if v.get("status") == "ok":
-                    L.append("| recall per arm | %s %s, %s %s |\n" % (PRIMARY_A, f4(v.get("recall_full")),
-                                                                    PRIMARY_B, f4(v.get("recall_matched"))))
             elif name == "pr11_in_out" and "pr11_out" in v:
                 L.append(md_primary("pr-11 out", v["pr11_out"]))
             elif name in ("pair_level_permutation",):

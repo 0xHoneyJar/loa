@@ -330,43 +330,102 @@ class PositiveControlTest(Base):
         self.assertEqual(self.final(self.batch())["secondary"]["positive_control"], {"status": "not_run"})
 
 
-class NonRepoEgressTest(Base):
-    def test_class9_nonrepo_cell_reincluded_only_in_the_sensitivity(self):
-        def egress(row, grade):
-            if row["arm"] == "a0_bare_matched" and row["task_id"] == "review-s02" and row["trial"] == 1:
-                row["contaminated"] = {"pattern": "network_egress", "repo_named": False, "host": "github.com",
-                                       "url": "https://github.com/jqlang/jq/releases"}
+CLASSES = [  # (task, trial, contamination dict) — one matched cell per class
+    ("review-s01", 1, {"pattern": "outside_path"}),
+    ("review-s02", 1, {"pattern": "git_history"}),
+    ("review-s03", 1, {"pattern": "repo_name"}),
+    ("review-s04", 1, {"pattern": "network_egress", "repo_named": True, "host": "github.com"}),
+    ("review-s05", 1, {"pattern": "network_egress", "repo_named": False, "host": "github.com"}),
+    ("review-s06", 1, {"pattern": "suite_path"}),
+    ("review-s07", 1, {"pattern": "hidden"}),
+    ("review-s08", 1, {"pattern": "something_new"}),
+]
+
+
+class ContaminationFamilyTest(Base):
+    def batch_with_classes(self):
+        def mut(row, grade):
+            for task, trial, cont in CLASSES:
+                if row["arm"] == "a0_bare_matched" and row["task_id"] == task and row["trial"] == trial:
+                    row["contaminated"] = dict(cont)
+                    row["status"] = "contaminated"
+                    grade["contaminated"] = dict(cont)
+            # a contaminated cell with a second invalidity never comes back
+            if row["arm"] == "a0_bare_matched" and row["task_id"] == "review-s08" and row["trial"] == 2:
+                row["contaminated"] = {"pattern": "outside_path"}
                 row["status"] = "contaminated"
-                grade["contaminated"] = row["contaminated"]
-            if row["arm"] == "a0_bare_matched" and row["task_id"] == "review-s07" and row["trial"] == 2:
-                row["contaminated"] = {"pattern": "network_egress", "repo_named": True, "host": "github.com"}
-                row["status"] = "contaminated"
-                grade["contaminated"] = row["contaminated"]
-        s = self.batch(mutate=egress)
+                row["oracle_exposed_defects"] = ["d1"]
+        return self.batch(mutate=mut)
+
+    def test_per_class_and_all_classes(self):
+        s = self.batch_with_classes()
         o = os.path.join(self.tmp, "o")
         rc, err = run(self.common_args(s) + ["--final", "--out", o])
         self.assertEqual(rc, 0, err)
         doc = jload(os.path.join(o, "reads.json"))
-        prim = doc["primary"]
-        sens = doc["sensitivities"]["reads"]["class9_nonrepo_egress_reincluded"]
-        self.assertEqual(prim["n_pairs"], 14)                    # both contaminated pairs excluded by the main filter
-        self.assertEqual(sens["n_pairs"], 15)                    # the non-repo one comes back; the repo one stays out
-        self.assertEqual(sens["reincluded_cells"], {"a0_bare_matched": {"G1": 1}})
-        self.assertEqual(sens["reincluded_keys"], ["c132-g1/a0_bare_matched/review-s02/1"])
-        self.assertIn("recall_matched", sens)
+        self.assertEqual(doc["primary"]["n_pairs"], 7)          # 16 pairs − 9 contaminated matched cells
+        fam = doc["sensitivities"]["reads"]["contaminated_reincluded_per_class"]
+        want = sorted(["outside_path", "git_history", "repo_name", "network_egress:repo", "network_egress:nonrepo",
+                       "suite_path", "hidden", "something_new"])
+        self.assertEqual(fam["observed"], want)
+        for task, trial, cont in CLASSES:
+            cls = common.contamination_detail(cont)
+            r = fam["classes"][cls]
+            self.assertEqual(r["n_pairs"], 8, cls)               # exactly one pair comes back per class
+            self.assertEqual(r["reincluded_keys"], ["c132-g1/a0_bare_matched/%s/%d" % (task, trial)], cls)
+            self.assertIn("recall_matched", r)
+        # the all-classes row: all eight come back; the outside_path cell that is also oracle-exposed stays out
+        self.assertEqual(fam["all_classes"]["n_pairs"], 15)
+        self.assertEqual(len(fam["all_classes"]["reincluded_keys"]), 8)
+        self.assertEqual(fam["counts"]["a0_bare_matched"]["G1"]["outside_path"], 1)
+        self.assertEqual(fam["counts"]["a0_bare_matched"]["G2"], {"hidden": 1, "something_new": 1})
         order = doc["sensitivities"]["order"]
-        self.assertEqual(order.index("class9_nonrepo_egress_reincluded"), order.index("degraded_contaminated_excluded") + 1)
-        # the main filter's reasons are unchanged; the detail is a separate field
-        ms = doc["missingness"]["cells_by_arm"]["a0_bare_matched"]["excluded"]
-        self.assertEqual(ms.get("contaminated"), 2)
+        self.assertEqual(order.index("contaminated_reincluded_per_class"), order.index("degraded_contaminated_excluded") + 1)
+        self.assertEqual(doc["missingness"]["cells_by_arm"]["a0_bare_matched"]["excluded"]["contaminated"], 9)
         md = slurp(os.path.join(o, "reads.md"))
-        self.assertIn("re-included cells (arm: group n) | a0_bare_matched: G1 1", md)
+        self.assertIn("re-included: network_egress:nonrepo", md)
+        self.assertIn("re-included: every class", md)
+        self.assertIn("a0_bare_matched / G2: hidden 1, something_new 1", md)
+
+    def test_round4_name_still_runs_its_member(self):
+        s = self.batch_with_classes()
+        with open(s["registration"]) as f:
+            reg = json.load(f)
+        reg["sensitivities"] = ["class9_nonrepo_egress_reincluded"]
+        with open(s["registration"], "w") as f:
+            f.write(json.dumps(reg, sort_keys=True, separators=(",", ":")))
+        import hashlib
+        with open(s["registration"], "rb") as f:
+            h = hashlib.sha256(f.read()).hexdigest()
+        rows = [json.loads(l) for l in slurp(s["rows"]).splitlines()]
+        with open(s["rows"], "w") as f:
+            for r in rows:
+                r["registration_sha256"] = h
+                f.write(json.dumps(r, sort_keys=True) + "\n")
+        rc, err = run(["--rows", s["rows"], "--results-root", s["results"], "--make-inputs", "--out", s["inputs_dir"]])
+        self.assertEqual(rc, 0, err)
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        r = jload(os.path.join(o, "reads.json"))["sensitivities"]["reads"]["class9_nonrepo_egress_reincluded"]
+        self.assertEqual(r["reincluded_keys"], ["c132-g1/a0_bare_matched/review-s05/1"])
 
     def test_detail(self):
-        self.assertEqual(common.contamination_detail({"pattern": "network_egress", "repo_named": False}), "network_egress:nonrepo")
-        self.assertEqual(common.contamination_detail({"pattern": "network_egress"}), "network_egress:repo")
-        self.assertEqual(common.contamination_detail(None, {"pattern": "outside_path"}), "outside_path")
-        self.assertEqual(common.contamination_detail(None, None), "unknown")
+        d = common.contamination_detail
+        self.assertEqual(d({"pattern": "network_egress", "repo_named": False}), "network_egress:nonrepo")
+        self.assertEqual(d({"pattern": "network_egress", "repo_named": True}), "network_egress:repo")
+        self.assertEqual(d({"pattern": "network_egress"}), "network_egress:unstated")
+        self.assertEqual(d(None, {"pattern": "outside_path"}), "outside_path")
+        self.assertEqual(d(None, None), "unknown")
+
+    def test_no_contamination(self):
+        s = self.batch()
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        fam = jload(os.path.join(o, "reads.json"))["sensitivities"]["reads"]["contaminated_reincluded_per_class"]
+        self.assertEqual(fam["status"], "no_contaminated_cells")
+        self.assertEqual(fam["observed"], [])
 
 
 class PartitionTest(unittest.TestCase):

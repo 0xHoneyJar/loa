@@ -197,24 +197,31 @@ CONTAMINATION_REASONS = ("contaminated", "status:contaminated")
 
 
 def contamination_detail(*objs):
-    """the contamination's detail string (round 4): "network_egress:nonrepo" when the class-9
-    pattern names no repository (repo_named explicitly false — grader 1.3.2), "network_egress:repo"
-    when it does or does not say, else the pattern ("unknown" when absent). The main filter's
-    reason stays "contaminated"; the detail only selects cells for a sensitivity."""
+    """the contamination class of a cell (rounds 4–5): the grade's `pattern` (outside_path,
+    git_history, repo_name, suite_path, hidden, …); class 9 splits by `repo_named` into
+    "network_egress:repo" (true), "network_egress:nonrepo" (false) and "network_egress:unstated"
+    (absent). "unknown" when no object carries a pattern. The main filter's reason stays
+    "contaminated"; the class only selects cells for the per-class sensitivity."""
     for o in objs:
         if isinstance(o, dict):
             pat = o.get("pattern")
             if pat == "network_egress":
-                return "network_egress:nonrepo" if o.get("repo_named") is False else "network_egress:repo"
+                rn = o.get("repo_named")
+                return "network_egress:" + ("repo" if rn is True else "nonrepo" if rn is False else "unstated")
             if isinstance(pat, str) and pat:
                 return pat
     return "unknown"
 
 
+def only_contamination(c, cls=None):
+    """the cell's only invalidity is a contamination (of class `cls`, or of any class when None)"""
+    return (not c["valid"]) and c.get("contamination") is not None and \
+        set(c["reasons"]) <= set(CONTAMINATION_REASONS) and (cls is None or c["contamination"] == cls)
+
+
 def only_nonrepo_egress(c):
-    """the cell's only invalidity is a class-9 egress that names no repository"""
-    return (not c["valid"]) and c.get("contamination") == "network_egress:nonrepo" and \
-        set(c["reasons"]) <= set(CONTAMINATION_REASONS)
+    """round 4's member of the family: a class-9 egress that names no repository"""
+    return only_contamination(c, "network_egress:nonrepo")
 
 
 def validity(c, rules="c132"):
