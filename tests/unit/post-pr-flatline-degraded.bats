@@ -195,3 +195,41 @@ _assert_failed_not_green() {
     [[ "$doc" == *"FLATLINE-PR-DEGRADED"* ]]
     [[ "$doc" == *"failed"* ]]
 }
+
+# --- Round 1 (DISS-C-002, DISS-C-003) ---------------------------------------
+
+@test "PFD-8: Flatline enabled but the orchestrator is missing fails with reason orchestrator_missing" {
+    rm -f "$PROJ/.claude/scripts/flatline-orchestrator.sh"
+    _resume
+    local out="$output"
+    _assert_failed_not_green "orchestrator_missing"
+    [[ "$out" == *"Flatline orchestrator was not found at"* ]]
+}
+
+@test "PFD-9: Flatline and Bridgebuilder both DEGRADED — the Flatline summary rides under .previous and the hand-off names both" {
+    _envelope DEGRADED 3 1
+    export STUB_EXIT=0
+    # Enable the real Bridgebuilder phase (depth 1) with stubs: the bridge
+    # exits 0, triage reports a DEGRADED convergence.
+    printf 'flatline_protocol:\n  enabled: true\npost_pr_validation:\n  phases:\n    bridgebuilder_review:\n      enabled: true\n      depth: 1\n' \
+        > "$PROJ/.loa.config.yaml"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$PROJ/.claude/scripts/bridge-orchestrator.sh"
+    cat > "$PROJ/.claude/scripts/post-pr-triage.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' '{"state":"DEGRADED","reason":"corrupt_findings"}' > .run/bridge-triage-convergence.json
+exit 0
+SH
+    chmod +x "$PROJ/.claude/scripts/bridge-orchestrator.sh" "$PROJ/.claude/scripts/post-pr-triage.sh"
+    _resume
+    local out="$output"
+    [ "$status" -eq 0 ]
+    [ "$(_get state)" = "READY_FOR_HITL" ]
+    [ "$(_get phases.flatline_pr)" = "failed" ]
+    _markers | grep -qx 'FLATLINE-PR-DEGRADED'
+    [ "$(jq -r .phase "$SUMMARY")" = "bridgebuilder_review" ]
+    [ "$(jq -r .state "$SUMMARY")" = "DEGRADED" ]
+    [ "$(jq -r .previous.phase "$SUMMARY")" = "flatline_pr" ]
+    [ "$(jq -r .previous.reason "$SUMMARY")" = "verdict_quality_degraded" ]
+    [ "$(jq -r .previous.voices_completed "$SUMMARY")" = "1" ]
+    [[ "$out" == *"DEGRADED Bridgebuilder review and a DEGRADED Flatline PR review"* ]]
+}

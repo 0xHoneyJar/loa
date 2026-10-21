@@ -483,8 +483,12 @@ phase_flatline_pr() {
       || flatline_result=$?
     mv -f "$flatline_output_tmp" "$flatline_output"
   else
-    log_info "Flatline orchestrator not found, skipping"
-    flatline_result=0
+    # sprint-bug-267 r1 (DISS-C-002): an enabled phase with no reviewer is
+    # not green, and the reason says so.
+    log_error "Flatline PR review is enabled but the Flatline orchestrator was not found at ${SCRIPT_DIR}/flatline-orchestrator.sh"
+    rm -f "$flatline_stderr"
+    _flatline_pr_not_green "orchestrator_missing" "$flatline_output" "$degraded_summary"
+    return 0
   fi
 
   # Classify the exit regime — distinguishes validation errors from blockers
@@ -573,10 +577,23 @@ phase_flatline_pr() {
 phase_bridgebuilder_review() {
   log_phase "BRIDGEBUILDER_REVIEW"
   local degraded_summary="$(pwd)/.run/post-pr-degraded-summary.json"
-  # sprint-bug-267: keep a Flatline PR summary written earlier in this run.
-  if [[ ! -f "$degraded_summary" ]] \
-      || ! jq -e '.phase == "flatline_pr"' "$degraded_summary" >/dev/null 2>&1; then
+  # sprint-bug-267: keep a Flatline PR summary written earlier in this run
+  # (also when an earlier Bridgebuilder pass carried it under .previous);
+  # clear any other stale summary.
+  local kept_flatline_summary="null"
+  if [[ -f "$degraded_summary" ]] \
+      && jq -e 'type == "object"' "$degraded_summary" >/dev/null 2>&1; then
+    kept_flatline_summary=$(jq -c 'if .phase == "flatline_pr" then .
+      elif (.previous | type) == "object" and .previous.phase == "flatline_pr" then .previous
+      else null end' "$degraded_summary")
+  fi
+  if [[ "$kept_flatline_summary" == "null" ]]; then
     rm -f "$degraded_summary"
+  else
+    local kept_tmp
+    kept_tmp=$(mktemp "${degraded_summary}.XXXXXX") || return 1
+    printf '%s\n' "$kept_flatline_summary" > "$kept_tmp"
+    mv -f "$kept_tmp" "$degraded_summary"
   fi
 
   # Feature flag check (default OFF per progressive rollout plan)
@@ -689,11 +706,21 @@ phase_bridgebuilder_review() {
       actionable_high=$(jq -r '.actionable_high // 0' "$convergence_file" 2>/dev/null || echo "0")
       log_info "Iteration $iter: state=$convergence_state actionable_high=$actionable_high"
       if [[ "$convergence_state" == "DEGRADED" ]]; then
+        # sprint-bug-267 r1 (DISS-C-003): a DEGRADED Flatline PR summary
+        # already in the slot rides along under .previous.
+        local previous_summary="null"
+        if [[ -f "$degraded_summary" ]] \
+            && jq -e 'type == "object"' "$degraded_summary" >/dev/null 2>&1; then
+          previous_summary=$(jq -c 'if .phase == "flatline_pr" then .
+            elif (.previous | type) == "object" and .previous.phase == "flatline_pr" then .previous
+            else null end' "$degraded_summary")
+        fi
         local summary_tmp
         summary_tmp=$(mktemp "${degraded_summary}.XXXXXX") || return 1
         jq -n --arg pr "$pr_number" --argjson iteration "$iter" \
-          --arg evidence "$convergence_file" \
-          '{state:"DEGRADED", pr_number:$pr, iteration:$iteration, evidence:$evidence}' > "$summary_tmp"
+          --arg evidence "$convergence_file" --argjson previous "$previous_summary" \
+          '{state:"DEGRADED", phase:"bridgebuilder_review", pr_number:$pr, iteration:$iteration, evidence:$evidence}
+           + (if $previous == null then {} else {previous:$previous} end)' > "$summary_tmp"
         mv -f "$summary_tmp" "$degraded_summary"
       fi
     fi
@@ -753,6 +780,8 @@ surface_degraded_handoff() {
     local label="Bridgebuilder review"
     if jq -e '.phase == "flatline_pr"' "$summary" >/dev/null 2>&1; then
       label="Flatline PR review (marker FLATLINE-PR-DEGRADED)"
+    elif jq -e '(.previous | type) == "object" and .previous.phase == "flatline_pr"' "$summary" >/dev/null 2>&1; then
+      label="Bridgebuilder review and a DEGRADED Flatline PR review (marker FLATLINE-PR-DEGRADED; see .previous)"
     fi
     log_error "READY_FOR_HITL includes a DEGRADED ${label}. Inspect $summary before deciding."
   fi
