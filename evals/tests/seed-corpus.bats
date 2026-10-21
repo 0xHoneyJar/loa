@@ -357,3 +357,58 @@ json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
   run "$SEED" --check
   [ "$status" -eq 0 ]
 }
+
+# --- review round 1 (DISS-001 / DISS-C-001 / DISS-C-002 / DISS-C-003) ---
+
+@test "SC-13 a --sync-labels whose rebuild fails (missing fixture.yaml, an invalid fix row) exits 1 and leaves the labels byte-identical" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  curate_manifest "$C/manifests/pr-93.json" "lead 2026-10-19 (curated)" 0 '[1, 4, 5]'
+  L="$C/labels/pr-93.tsv"
+  cp "$L" "$T/before.tsv"
+  mv "$C/pr-93/fixture.yaml" "$T/fixture.yaml"
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"labels left unchanged"* ]]
+  cmp -s "$L" "$T/before.tsv"
+  mv "$T/fixture.yaml" "$C/pr-93/fixture.yaml"
+  sed -i "s|fix/${FIX:0:12}:4-5|fix/not-a-region|" "$L"
+  cp "$L" "$T/before.tsv"
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"labels left unchanged"* ]]
+  cmp -s "$L" "$T/before.tsv"
+}
+
+@test "SC-14 a no-op --sync-labels still proves the rebuild: a changed severity on a synced row exits 1 naming the mismatch, labels unchanged" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pr-93: added 0 row(s)"* ]]
+  L="$C/labels/pr-93.tsv"
+  sed -i 's/^L02-second\tlow\t/L02-second\tcritical\t/' "$L"
+  grep -q "^L02-second	critical	" "$L"
+  cp "$L" "$T/before.tsv"
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"L02-second"*"severity"* ]]
+  cmp -s "$L" "$T/before.tsv"
+}
+
+@test "SC-15 a head line starting with @L but not @L<digits> (\`@Lazy foo\`) is anchored by text, and --sync-labels writes it as text" {
+  synthetic_at_fixture
+  printf 'class A {\n  @Lazy foo\n  @Lob bar\n}\n' > "$C/pr-93/head/src/A.kt"
+  printf 'L03-kotlin\tmedium\tlogic\tsrc/A.kt\t@Lazy foo\treview\treview:engineer-feedback.md\n' >> "$C/labels/pr-93.tsv"
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  M="$C/manifests/pr-93.json"
+  [ "$(jq -r '.defects[2].anchor_line' "$M")" = "2" ]
+  [ "$(jq -r '.defects[2].must_match' "$M")" = "@Lazy foo" ]
+  curate_manifest "$M" - 2 '[2, 3]'
+  run "$SEED" --sync-labels pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(awk -F'\t' '$1 == "L03-kotlin" {print $5}' "$C/labels/pr-93.tsv" | tr '\n' ,)" = "@Lazy foo,@Lob bar," ]
+}

@@ -52,7 +52,9 @@
 # text that occurs on exactly one line of head/<file> (preferred: it survives
 # renumbering) or `@L<n>`, head line n (1-based, 1 <= n <= the file's line count),
 # for a line whose text is not unique (bd-y4pqj); `@L0`, a line past the end and a
-# non-integer after `@L` are refused with the row named.
+# non-integer after `@L` are refused with the row named. Only a one-word `@L` value
+# (`@L` followed by letters, digits or `-`) is that grammar; longer text that starts
+# with `@L` (`@Lazy foo`) is ordinary text.
 #
 # --sync-labels pr-NN (bd-y4pqj) brings the labels to a curated manifest: for every
 # anchor of manifests/pr-NN.json (`anchors`, else `anchor_line`) that no row of its
@@ -60,9 +62,10 @@
 # primary row's columns, with must_match the line's stripped text when that text is
 # on exactly one line (else `@L<n>`); it rewrites the first line to the manifest's
 # approved_by and keeps every other line byte for byte. It prints the rows it added,
-# adds nothing on a second run, never writes the manifest, and refuses (restoring the
-# labels) when the synced labels would not rebuild the manifest byte for byte. It
-# does not refreeze: run --freeze afterwards.
+# adds nothing on a second run and never writes the manifest. On every run, a no-op
+# included, it rebuilds the manifest in memory from the new labels before writing and
+# refuses (exit 1, labels file untouched, the differing fields named) when the rebuild
+# fails or is not byte-identical to the manifest. It does not refreeze: run --freeze.
 #
 # Generated artefacts never become fix regions (cycle-130 bd-8o5rx, PRD AC-10.1):
 # a path with a `dist/` component, a name ending `.map`, `.d.ts` or `.checksum`,
@@ -202,11 +205,12 @@ def check():
     print(f"corpus OK: {n} files match SHA256SUMS")
 
 # ---------------------------------------------------------------- labels I/O
-def read_labels(fx):
+def read_labels(fx, content=None):
+    """content: labels text to parse instead of the file (--sync-labels verifies before it writes)."""
     path = os.path.join(LABELS_DIR, f"{fx}.tsv")
-    if not os.path.isfile(path):
+    if content is None and not os.path.isfile(path):
         fail(f"labels not found: {path}")
-    text = open(path, encoding="utf-8").read().splitlines()
+    text = (open(path, encoding="utf-8").read() if content is None else content).splitlines()
     if not text or not re.match(r"^# approved-by: \S", text[0]):
         fail(f"{path}: the first line must be '# approved-by: <who> <date>' (or 'pending')")
     approved_by = text[0][len("# approved-by: "):].strip()
@@ -239,10 +243,13 @@ def unique_line(lines, needle):
     return hits[0] if len(hits) == 1 else None
 
 # bd-y4pqj: `@L<n>` names head line n (1-based) for a curated anchor whose text is not unique
+# only an `@L`-shaped value (one word of letters, digits, `-`) is the line grammar: `@L12`
+# resolves, `@L0`/`@Lx`/`@L4x`/`@L-1` are refused; longer text such as `@Lazy foo` stays text
 AT_LINE_RX = re.compile(r"^@L([1-9][0-9]*)$")
+AT_SHAPE_RX = re.compile(r"^@L[0-9A-Za-z-]*$")
 def resolve_anchor(lines, must_match, fname):
     """(line, None) when the must_match resolves, else (None, why)."""
-    if must_match.startswith("@L"):
+    if AT_SHAPE_RX.match(must_match):
         m = AT_LINE_RX.match(must_match)
         if not m:
             return None, "is not @L<n> with n a positive integer"
@@ -252,8 +259,8 @@ def resolve_anchor(lines, must_match, fname):
     at = unique_line(lines, must_match)
     return (at, None) if at is not None else (None, f"is not on exactly one line of head/{fname}")
 
-def build_manifest(fx, write=True):
-    approved_by, rows, _ = read_labels(fx)
+def build_manifest(fx, write=True, labels_content=None):
+    approved_by, rows, _ = read_labels(fx, labels_content)
     fyaml = os.path.join(CORPUS, fx, "fixture.yaml")
     meta = {}
     for l in open(fyaml, encoding="utf-8"):
@@ -308,6 +315,18 @@ def build_manifest(fx, write=True):
         os.makedirs(MANIFESTS_DIR, exist_ok=True)
         json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
     return man
+
+def manifest_diff(got, want):
+    """Where a rebuilt manifest differs from the tracked one (for the --sync-labels refusal)."""
+    out = [k for k in sorted(set(got) | set(want)) if k != "defects" and got.get(k) != want.get(k)]
+    gd = {d.get("id"): d for d in got.get("defects", [])}
+    if [d.get("id") for d in got.get("defects", [])] != [d.get("id") for d in want.get("defects", [])]:
+        out.append("defect ids or order")
+    for d in want.get("defects", []):
+        g = gd.get(d.get("id"))
+        if g is not None and g != d:
+            out.append(f"defect {d['id']}: " + ", ".join(sorted(k for k in set(g) | set(d) if g.get(k) != d.get(k)) or ["key order"]))
+    return "; ".join(out[:8]) or "formatting or key order"
 
 def sync_labels(fx):
     """bd-y4pqj: add a labels row for every manifest anchor no row resolves to; copy approved_by (see the header)."""
@@ -369,7 +388,7 @@ def sync_labels(fx):
             if n in have[d["id"]]:
                 continue
             t = lines[n - 1].strip()
-            textual = (t and "\t" not in t and not t.startswith("@L") and len(t.splitlines()) == 1
+            textual = (t and "\t" not in t and not AT_SHAPE_RX.match(t) and len(t.splitlines()) == 1
                        and not has_secret(t) and unique_line(lines, t) == n)
             mm = t if textual else f"@L{n}"
             n_text, n_at = n_text + bool(textual), n_at + (not textual)
@@ -384,12 +403,19 @@ def sync_labels(fx):
         out.extend(row + "\n" for _k, _m, row in adds.get(i, []))
     new = "".join(out)
     header_changed = tl[0].rstrip("\r\n") != out[0].rstrip("\n")
+    # verify before writing, on every run (a no-op sync proves the labels too): any refusal or
+    # error while rebuilding from the new content leaves the labels file untouched
+    try:
+        rebuilt = build_manifest(fx, write=False, labels_content=new)
+    except SystemExit:
+        fail(f"{fx}: the synced labels do not build (see above); labels left unchanged")
+    except Exception as e:
+        fail(f"{fx}: rebuilding from the synced labels failed ({type(e).__name__}: {e}); labels left unchanged")
+    if json.dumps(rebuilt, indent=2) != mraw:
+        fail(f"{fx}: the synced labels would not rebuild manifests/{fx}.json byte for byte "
+             f"({manifest_diff(rebuilt, man)}); labels left unchanged")
     if new != raw:
         open(lpath, "w", encoding="utf-8", newline="").write(new)
-        rebuilt = json.dumps(build_manifest(fx, write=False), indent=2)
-        if rebuilt != mraw:
-            open(lpath, "w", encoding="utf-8", newline="").write(raw)
-            fail(f"{fx}: the synced labels would not rebuild manifests/{fx}.json byte for byte; labels left unchanged")
     print(f"{fx}: added {n_text + n_at} row(s) ({n_text} text, {n_at} @L<n>); approved-by "
           + (f"set to {approved_by!r}" if header_changed else "unchanged")
           + ("; run --freeze to refresh SHA256SUMS" if new != raw else ""))
