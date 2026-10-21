@@ -78,7 +78,8 @@
 #   EVAL_ALLOW_WORKSPACE_HEAD=1 — <workspace>/pr/head (the graded agent's own copy; details.head_dir_source
 #   says which was used); with none, or a file absent from it, (ii) never credits.
 #   Three results in details, each with detected[] / missed[] (defect ids):
-#     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (the
+#     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (for a key in
+#                    manifests/c131/: manifests/v1/<fixture>.json; the
 #                    original anchors); the current manifest when v1/ has none
 #                    (v1_manifest false)
 #     recall_pm3     the 1.2.0 rule against the current manifest
@@ -128,12 +129,18 @@ if [[ ! -f "$review" ]]; then
   exit 1
 fi
 
-manifest_v1="$MANIFEST_DIR/v1/$fixture.json"
+# cycle-132 D-2.3: a key in manifests/c131/ (the frozen cycle-131 set) belongs to manifests/: its v1
+# snapshot is the sibling manifests/v1/<fixture>.json and its PR fixture sits beside manifests/
+set_root="$MANIFEST_DIR"
+if [[ "$(basename "$MANIFEST_DIR")" == c131 && "$(basename "$(dirname "$MANIFEST_DIR")")" == manifests ]]; then
+  set_root="$(dirname "$MANIFEST_DIR")"
+fi
+manifest_v1="$set_root/v1/$fixture.json"
 [[ -f "$manifest_v1" && ! -L "$manifest_v1" ]] || manifest_v1=""
 head_dir="${EVAL_HEAD_DIR:-}"; head_src="env"
 if [[ -z "$head_dir" ]]; then
   head_src="none"
-  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"; head_src="fixture"
+  if [[ -d "$set_root/../$fixture/head" ]]; then head_dir="$set_root/../$fixture/head"; head_src="fixture"
   elif [[ "${EVAL_ALLOW_WORKSPACE_HEAD:-}" == 1 && -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"; head_src="workspace"
   fi   # the workspace copy is the graded agent's own writable tree: never the default (audit r1 DISS-C-002)
 fi

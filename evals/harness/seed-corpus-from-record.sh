@@ -58,6 +58,19 @@
 # (`@L` followed by letters, digits or `-`) is that grammar; longer text that starts
 # with `@L` (`@Lazy foo`) is ordinary text.
 #
+# Labels v2 (cycle-132 D-2.3): the header may instead be the v2 header, the seven columns plus
+# `annotators agreement adjudication review_driven`; every row then has eleven columns. label_source
+# also takes the annotated values fix-commit, incident and fix-commit+incident, which need the v2
+# header and name their annotators (`A,B`), agreement (agreed|adjudicated) and review_driven
+# (true|false); an adjudicated row carries the reason in adjudication; other rows may hold `-`. When
+# any row is annotated, --build-manifest writes `label_set: "v2"` after `fixture`, adds
+# annotators (list), agreement, adjudication (`-` → null) and review_driven (bool) to every defect,
+# and records `record.incidents_meta: {main_sha}` from <corpus>/incidents/pr-NN.meta.json when that
+# file exists; otherwise the manifest is today's, byte for byte. --sync-labels copies every column of
+# the defect's primary row. The frozen cycle-131 set lives in labels/review/pr-NN.tsv and
+# manifests/c131/pr-NN.json (moved, byte-identical; rebuild it on a scratch corpus where the review
+# file is labels/pr-NN.tsv); manifests/v1/ is unchanged. Schema: evals/harness/schemas/review-manifest.schema.json.
+#
 # --sync-labels pr-NN (bd-y4pqj) brings the labels to a curated manifest: for every
 # anchor of manifests/pr-NN.json (`anchors`, else `anchor_line`) that no row of its
 # defect resolves to, it inserts a row after that defect's last row, copying the
@@ -118,6 +131,12 @@ LABELS_DIR = os.path.join(CORPUS, "labels")
 MANIFESTS_DIR = os.path.join(CORPUS, "manifests")
 FX_RX = re.compile(r"^pr-[0-9]{2}$")
 HEADER = ["defect_id", "severity", "category", "file", "must_match", "label_source", "source"]
+# cycle-132 D-2.3: the v2 header adds four trailing columns for annotated (fix-commit / incident) rows
+HEADER_V2 = HEADER + ["annotators", "agreement", "adjudication", "review_driven"]
+LABEL_SOURCES = ("review", "audit", "bridgebuilder", "fix")
+LABEL_SOURCES_V2 = ("fix-commit", "incident", "fix-commit+incident")
+ANNOTATORS_RX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*(,[A-Za-z0-9][A-Za-z0-9_-]*)*$")
+SHA_RX = re.compile(r"^[0-9a-f]{7,64}$")
 
 def fail(msg, code=1):
     print(f"seed-corpus: {msg}", file=sys.stderr)
@@ -218,15 +237,39 @@ def read_labels(fx, content=None):
         fail(f"{path}: the first line must be '# approved-by: <who> <date>' (or 'pending')")
     approved_by = text[0][len("# approved-by: "):].strip()
     body = [l for l in text[1:] if l and not l.startswith("#")]
-    if not body or body[0].split("\t") != HEADER:
-        fail(f"{path}: header must be: " + "\t".join(HEADER))
+    hdr = body[0].split("\t") if body else None
+    if hdr not in (HEADER, HEADER_V2):
+        fail(f"{path}: header must be: " + "\t".join(HEADER) + " (v2: + " + " ".join(HEADER_V2[len(HEADER):]) + ")")
     rows = []
     for i, l in enumerate(body[1:], 2):
         cells = l.split("\t")
-        if len(cells) != len(HEADER):
-            fail(f"{path}: row {i} has {len(cells)} columns, want {len(HEADER)}")
-        rows.append(dict(zip(HEADER, cells)))
+        if len(cells) != len(hdr):
+            fail(f"{path}: row {i} has {len(cells)} columns, want {len(hdr)}")
+        rows.append(dict(zip(hdr, cells)))
     return approved_by, rows, text
+
+def v2_row_error(r):
+    """why a v2 row's four trailing columns are malformed, else None. An annotated row (label_source
+    fix-commit / incident / fix-commit+incident) names its annotators, agreement and review_driven; any
+    row may hold `-` in a column it does not use; an adjudicated row carries its reason."""
+    annotated = r["label_source"] in LABEL_SOURCES_V2
+    a, g, j, rd = r["annotators"], r["agreement"], r["adjudication"], r["review_driven"]
+    if not ANNOTATORS_RX.match(a) and not (a == "-" and not annotated):
+        return f"annotators {a!r} is not a comma list of annotator ids" + (" (an annotated row names them)" if a == "-" else "")
+    if g not in ("agreed", "adjudicated") and not (g == "-" and not annotated):
+        return f"agreement {g!r} is not agreed|adjudicated" + ("" if annotated else "|-")
+    if rd not in ("true", "false") and not (rd == "-" and not annotated):
+        return f"review_driven {rd!r} is not true|false" + ("" if annotated else "|-")
+    if g == "adjudicated" and j in ("", "-"):
+        return "an adjudicated row carries the reason in adjudication"
+    return None
+
+def v2_fields(r):
+    """the manifest form of a primary row's v2 columns (`-` → empty list / null)"""
+    return {"annotators": [] if r["annotators"] == "-" else r["annotators"].split(","),
+            "agreement": None if r["agreement"] == "-" else r["agreement"],
+            "adjudication": None if r["adjudication"] in ("", "-") else r["adjudication"],
+            "review_driven": {"true": True, "false": False}.get(r["review_driven"])}
 
 # bd-8o5rx: generated artefacts are never fix regions (see the header for the list)
 GENERATED_NAMES = {"checksums.json", "REPO-MAP.md", ".build-manifest.json"}
@@ -281,10 +324,17 @@ def build_manifest(fx, write=True, labels_content=None):
         m = re.match(r"^(sprint|head_commit|fix_commit|record_ref):\s*\"?([^\"\n]*)\"?$", l)
         if m:
             meta[m.group(1)] = m.group(2)
-    defects, regions, errors, order = {}, [], [], []
+    defects, regions, errors, order, extra = {}, [], [], [], {}
     for r in rows:
-        if r["label_source"] not in ("review", "audit", "bridgebuilder", "fix"):
+        if r["label_source"] in LABEL_SOURCES_V2 and "review_driven" not in r:
+            errors.append(f"{r['defect_id']}: label_source {r['label_source']!r} needs the v2 header "
+                          f"(+ {' '.join(HEADER_V2[len(HEADER):])})"); continue
+        if r["label_source"] not in LABEL_SOURCES + LABEL_SOURCES_V2:
             errors.append(f"{r['defect_id']}: label_source {r['label_source']!r}"); continue
+        if "review_driven" in r:
+            why = v2_row_error(r)
+            if why:
+                errors.append(f"{r['defect_id']}: {why}"); continue
         hp, why = head_path(fx, r["file"])
         if hp is None:
             errors.append(f"{r['defect_id']}: file {r['file']!r} is not a path inside head/ ({why})"); continue
@@ -310,23 +360,40 @@ def build_manifest(fx, write=True, labels_content=None):
                                        "must_match": r["must_match"], "severity": r["severity"], "category": r["category"],
                                        "label_source": r["label_source"], "source": r["source"],
                                        "source_commit": meta.get("head_commit", "")[:8], "synthetic": False}
+            if "review_driven" in r:
+                extra[r["defect_id"]] = (r["label_source"] in LABEL_SOURCES_V2, v2_fields(r))
         else:
             if d["file"] != r["file"]:
                 errors.append(f"{r['defect_id']}: extra anchor rows must name the same file"); continue
             d["anchors"].append(at)
     if errors:
         fail(f"{fx}: " + "; ".join(errors))
+    # cycle-132 D-2.3: an annotated defect makes the manifest v2 (label_set, the four columns per defect,
+    # the incident scan's main_sha); a labels file without one builds today's manifest byte for byte
+    v2 = any(annotated for annotated, _f in extra.values())
     out = []
     for k in order:
         d = defects[k]
         d["anchors"] = sorted(set(d["anchors"]))
         if len(d["anchors"]) == 1:
             del d["anchors"]
+        if v2:
+            d.update(extra[k][1] if k in extra else v2_fields(dict.fromkeys(HEADER_V2[len(HEADER):], "-")))
         out.append(d)
-    man = {"fixture": fx, "approved": approved_by != "pending", "approved_by": approved_by,
-           "record": {"sprint": meta.get("sprint"), "record_ref": meta.get("record_ref"),
-                      "head_commit": meta.get("head_commit"), "fix_commit": meta.get("fix_commit")},
-           "defects": out, "fix_regions": regions}
+    record = {"sprint": meta.get("sprint"), "record_ref": meta.get("record_ref"),
+              "head_commit": meta.get("head_commit"), "fix_commit": meta.get("fix_commit")}
+    if v2:
+        ipath = os.path.join(CORPUS, "incidents", f"{fx}.meta.json")
+        if os.path.isfile(ipath):
+            try:
+                im = json.load(open(ipath, encoding="utf-8"))
+            except ValueError as e:
+                fail(f"{fx}: {ipath} does not parse ({e})")
+            if not isinstance(im, dict) or not isinstance(im.get("main_sha"), str) or not SHA_RX.match(im["main_sha"]):
+                fail(f"{fx}: {ipath} has no main_sha (hex)")
+            record["incidents_meta"] = {"main_sha": im["main_sha"]}
+    man = {"fixture": fx, **({"label_set": "v2"} if v2 else {}), "approved": approved_by != "pending",
+           "approved_by": approved_by, "record": record, "defects": out, "fix_regions": regions}
     if write:
         os.makedirs(MANIFESTS_DIR, exist_ok=True)
         json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
@@ -371,14 +438,14 @@ def sync_labels(fx):
                 fail(f"{fx}: head/{f} missing")
             heads[f] = open(hp, encoding="utf-8", errors="replace").read().splitlines()
         return heads[f]
-    seen_header = False
+    hdr = None   # HEADER or HEADER_V2 (read_labels validated it)
     for i, l in enumerate(tl[1:], 1):
         l = l.rstrip("\r\n")
         if not l or l.startswith("#"):
             continue
-        if not seen_header:
-            seen_header = True; continue
-        r = dict(zip(HEADER, l.split("\t")))
+        if hdr is None:
+            hdr = l.split("\t"); continue
+        r = dict(zip(hdr, l.split("\t")))
         if r["label_source"] == "fix":
             continue
         at, why = resolve_anchor(head(r["file"], r["defect_id"]), r["must_match"], r["file"])
@@ -411,7 +478,7 @@ def sync_labels(fx):
             mm = t if textual else f"@L{n}"
             n_text, n_at = n_text + bool(textual), n_at + (not textual)
             adds.setdefault(last[d["id"]], []).append(
-                (d["id"], mm, "\t".join([d["id"], p["severity"], p["category"], p["file"], mm, p["label_source"], p["source"]])))
+                (d["id"], mm, "\t".join(mm if c == "must_match" else p[c] for c in hdr)))
             have[d["id"]].add(n)
     out = [f"# approved-by: {approved_by}\n"]
     for i, l in enumerate(tl[1:], 1):

@@ -12,5 +12,5 @@ reference_patch: null
 grader_protected: []
 structural_check: null
 bounds: {max_turns: {}, timeout_min: {}}
-review_catch: {fixture: review-prs/pr-13, manifest: evals/fixtures/review-prs/manifests/pr-13.json}
+review_catch: {fixture: review-prs/pr-13, manifest: evals/fixtures/review-prs/manifests/c131/pr-13.json}
 suite_version: 2

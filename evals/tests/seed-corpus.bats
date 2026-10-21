@@ -220,8 +220,12 @@ scratch_record_fixture() {
   local n="$1" dst="$2" src="$REPO_ROOT/evals/fixtures/review-prs" f
   mkdir -p "$dst/pr-$n/head"
   cp -R "$src/labels" "$src/manifests" "$dst/"
+  # cycle-132 D-2.3: the frozen review-derived set lives in labels/review/ and manifests/c131/; the builder reads
+  # labels/pr-NN.tsv and writes manifests/pr-NN.json, so the scratch copy lays the frozen pair out there
+  cp "$src/labels/review/pr-$n.tsv" "$dst/labels/pr-$n.tsv"
+  cp "$src/manifests/c131/pr-$n.json" "$dst/manifests/pr-$n.json"
   cp "$src/pr-$n/fixture.yaml" "$dst/pr-$n/fixture.yaml"
-  awk -F'\t' '$0 !~ /^#/ && $1 != "defect_id" && NF == 7 {print $4}' "$src/labels/pr-$n.tsv" | sort -u |
+  awk -F'\t' '$0 !~ /^#/ && $1 != "defect_id" && NF == 7 {print $4}' "$src/labels/review/pr-$n.tsv" | sort -u |
     while IFS= read -r f; do
       mkdir -p "$dst/pr-$n/head/$(dirname "$f")"
       cp "$src/pr-$n/head/$f" "$dst/pr-$n/head/$f"
@@ -261,14 +265,14 @@ m["defects"][i] = d
 json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
 }
 
-@test "SC-9 --build-manifest reproduces every tracked record manifest (pr-11 … pr-18) byte for byte from its labels" {
+@test "SC-9 --build-manifest reproduces every frozen record manifest (manifests/c131/pr-11 … pr-18) byte for byte from its labels (labels/review/)" {
   local n S bad=""
   for n in 11 12 13 14 15 16 17 18; do
     S="$T/rebuild-$n"
     scratch_record_fixture "$n" "$S"
     run "$SEED" --build-manifest "pr-$n" --corpus "$S"
     [ "$status" -eq 0 ] || bad="$bad pr-$n(exit $status: ${output:0:200})"
-    cmp -s "$S/manifests/pr-$n.json" "$REPO_ROOT/evals/fixtures/review-prs/manifests/pr-$n.json" || bad="$bad pr-$n"
+    cmp -s "$S/manifests/pr-$n.json" "$REPO_ROOT/evals/fixtures/review-prs/manifests/c131/pr-$n.json" || bad="$bad pr-$n"
   done
   echo "differs:$bad"
   [ -z "$bad" ]
@@ -352,7 +356,7 @@ json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
     run "$SEED" --sync-labels "pr-$n" --corpus "$S"
     [ "$status" -eq 0 ]
     [[ "$output" == *"pr-$n: added 0 row(s)"* ]]
-    cmp -s "$S/labels/pr-$n.tsv" "$REPO_ROOT/evals/fixtures/review-prs/labels/pr-$n.tsv"
+    cmp -s "$S/labels/pr-$n.tsv" "$REPO_ROOT/evals/fixtures/review-prs/labels/review/pr-$n.tsv"
   done
   run "$SEED" --check
   [ "$status" -eq 0 ]
@@ -464,4 +468,117 @@ json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
   [ "$status" -eq 0 ]
   [ "$(stat -c %i "$L")" != "$before" ]
   [ "$(ls -A "$C/labels" | tr '\n' ,)" = "pr-93.tsv," ]
+}
+
+# --- cycle-132 Task 1.5 (FR-2, SDD D-2.3, implementer B): labels header v2, manifest v2 ---------------------------
+V2_HEADER="$(printf 'defect_id\tseverity\tcategory\tfile\tmust_match\tlabel_source\tsource\tannotators\tagreement\tadjudication\treview_driven')"
+# pr-94: the five-line head of pr-93 with annotated (v2) rows — a two-anchor hunk defect, an adjudicated
+# hunk+incident defect, an incident-only defect, and a fix row
+synthetic_v2_fixture() {
+  mkdir -p "$C/pr-94/head/src"
+  printf 'sprint: 994\nhead_commit: "%s"\nfix_commit: "%s"\nrecord_ref: "record/cycle-994-a2a"\n' "$HEAD_C" "$FIX" > "$C/pr-94/fixture.yaml"
+  printf 'alpha one() {\n}\nbeta two() {\n}\ngamma three\n' > "$C/pr-94/head/src/x.sh"
+  {
+    echo "# approved-by: pending"
+    echo "$V2_HEADER"
+    printf 'D1\thigh\tlogic\tsrc/x.sh\talpha one\tfix-commit\thunk:H01\tA,B\tagreed\t-\ttrue\n'
+    printf 'D1\thigh\tlogic\tsrc/x.sh\t@L2\tfix-commit\thunk:H01\tA,B\tagreed\t-\ttrue\n'
+    printf 'D2\tmedium\terror-handling\tsrc/x.sh\tbeta two\tfix-commit+incident\thunk:H02;incident:I01\tA,B\tadjudicated\tB read H02 as a refactor; I01 shows the failure\tfalse\n'
+    printf 'D3\tlow\tlogic\tsrc/x.sh\tgamma three\tincident\tincident:I02\tA,B\tagreed\t-\tfalse\n'
+    printf 'F001\t-\tfix\tsrc/x.sh\tgamma three\tfix\tfix/%s:4-5\t-\t-\t-\t-\n' "${FIX:0:12}"
+  } > "$C/labels/pr-94.tsv"
+}
+
+@test "SC-V2-1 --build-manifest on a v2 labels file: label_set v2 and the four v2 columns in defects[]; the rebuild is byte-identical" {
+  synthetic_v2_fixture
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  M="$C/manifests/pr-94.json"
+  [ "$(jq -r 'keys_unsorted | join(",")' "$M")" = "fixture,label_set,approved,approved_by,record,defects,fix_regions" ]
+  [ "$(jq -r '.label_set' "$M")" = v2 ]
+  [ "$(jq -c '[.defects[] | [.id, .label_source, .annotators, .agreement, .adjudication, .review_driven]]' "$M")" = \
+    '[["D1","fix-commit",["A","B"],"agreed",null,true],["D2","fix-commit+incident",["A","B"],"adjudicated","B read H02 as a refactor; I01 shows the failure",false],["D3","incident",["A","B"],"agreed",null,false]]' ]
+  [ "$(jq -c '.defects[0].anchors' "$M")" = "[1,2]" ]
+  [ "$(jq -r '.defects[0] | keys_unsorted | join(",")' "$M")" = "id,file,anchor_line,anchors,must_match,severity,category,label_source,source,source_commit,synthetic,annotators,agreement,adjudication,review_driven" ]
+  [ "$(jq -r '.fix_regions | length' "$M")" = 1 ]
+  cp "$M" "$T/first.json"
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  cmp -s "$M" "$T/first.json"
+}
+
+@test "SC-V2-2 a v2 header over review-derived rows only builds today's manifest (no label_set, no v2 fields)" {
+  synthetic_at_fixture
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  cp "$C/manifests/pr-93.json" "$T/v1hdr.json"
+  awk -v h="$V2_HEADER" 'BEGIN{FS=OFS="\t"} /^#/ {print; next} $1 == "defect_id" {print h; next} {print $0, "-", "-", "-", "-"}' \
+    "$C/labels/pr-93.tsv" > "$T/v2.tsv" && mv "$T/v2.tsv" "$C/labels/pr-93.tsv"
+  [ "$(awk -F'\t' '!/^#/ {print NF}' "$C/labels/pr-93.tsv" | sort -u)" = 11 ]
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  cmp -s "$C/manifests/pr-93.json" "$T/v1hdr.json"
+}
+
+@test "SC-V2-3 v2 rows are refused naming the row: an annotated source under the 7-column header, a bad agreement, review_driven or annotators, an unknown source, a short row" {
+  synthetic_v2_fixture
+  cp "$C/labels/pr-94.tsv" "$T/ok.tsv"
+  try() {  # try <file> <expected message part>
+    cp "$1" "$C/labels/pr-94.tsv"
+    run "$SEED" --build-manifest pr-94 --corpus "$C"
+    echo "$output"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"$2"* ]]
+    [ ! -e "$C/manifests/pr-94.json" ]
+  }
+  { echo "# approved-by: pending"; printf 'defect_id\tseverity\tcategory\tfile\tmust_match\tlabel_source\tsource\n'
+    printf 'D1\thigh\tlogic\tsrc/x.sh\talpha one\tfix-commit\thunk:H01\n'; } > "$T/b1.tsv"
+  try "$T/b1.tsv" "D1: label_source 'fix-commit' needs the v2 header"
+  sed 's/\tagreed\t-\ttrue$/\tmaybe\t-\ttrue/' "$T/ok.tsv" > "$T/b2.tsv";      try "$T/b2.tsv" "D1: agreement 'maybe'"
+  sed 's/\tagreed\t-\tfalse$/\tagreed\t-\tyes/' "$T/ok.tsv" > "$T/b3.tsv";     try "$T/b3.tsv" "D3: review_driven 'yes'"
+  sed 's/^D3\(.*\)\tA,B\tagreed/D3\1\t-\tagreed/' "$T/ok.tsv" > "$T/b4.tsv";   try "$T/b4.tsv" "D3: annotators '-'"
+  sed 's/^D3\(.*\)\tagreed\t-\tfalse$/D3\1\t-\t-\tfalse/' "$T/ok.tsv" > "$T/b5.tsv"; try "$T/b5.tsv" "D3: agreement '-'"
+  sed 's/\tincident\tincident:I02/\tincident+review\tincident:I02/' "$T/ok.tsv" > "$T/b6.tsv"; try "$T/b6.tsv" "D3: label_source 'incident+review'"
+  sed 's/\tagreed\t-\tfalse$//' "$T/ok.tsv" > "$T/b7.tsv";                     try "$T/b7.tsv" "has 8 columns, want 11"
+  sed 's/\tA,B\t/\tA,,B\t/' "$T/ok.tsv" > "$T/b8.tsv";                         try "$T/b8.tsv" "annotators 'A,,B'"
+}
+
+@test "SC-V2-4 --sync-labels on v2 rows copies all eleven columns from the defect's primary row; the rebuild stays byte-identical and a second run adds nothing" {
+  synthetic_v2_fixture
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  M="$C/manifests/pr-94.json"
+  curate_manifest "$M" "lead 2026-10-21 (annotated)" 1 '[3, 4]'
+  cp "$M" "$T/curated.json"
+  run "$SEED" --sync-labels pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  L="$C/labels/pr-94.tsv"
+  [ "$(awk -F'\t' '$1 == "D2" && $5 == "@L4"' "$L")" = "$(printf 'D2\tmedium\terror-handling\tsrc/x.sh\t@L4\tfix-commit+incident\thunk:H02;incident:I01\tA,B\tadjudicated\tB read H02 as a refactor; I01 shows the failure\tfalse')" ]
+  cmp -s "$M" "$T/curated.json"
+  cp "$L" "$T/after1.tsv"
+  run "$SEED" --sync-labels pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pr-94: added 0 row(s)"* ]]
+  cmp -s "$L" "$T/after1.tsv"
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  cmp -s "$M" "$T/curated.json"
+}
+
+@test "SC-V2-5 a v2 manifest records the incident scan's main_sha (incidents/pr-NN.meta.json) as record.incidents_meta; nothing else from the meta; absent without the file" {
+  synthetic_v2_fixture
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.record | has("incidents_meta")' "$C/manifests/pr-94.json")" = false ]
+  mkdir -p "$C/incidents"
+  printf '{"main_sha": "%s", "scanned_at": "2026-10-21T00:00:00Z", "gh_queries": []}\n' "$FIX" > "$C/incidents/pr-94.meta.json"
+  run "$SEED" --build-manifest pr-94 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(jq -c '.record.incidents_meta' "$C/manifests/pr-94.json")" = "{\"main_sha\":\"$FIX\"}" ]
+  # a review-derived manifest never reads it
+  synthetic_at_fixture
+  printf '{"main_sha": "%s"}\n' "$FIX" > "$C/incidents/pr-93.meta.json"
+  run "$SEED" --build-manifest pr-93 --corpus "$C"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.record | has("incidents_meta")' "$C/manifests/pr-93.json")" = false ]
 }

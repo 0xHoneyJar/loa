@@ -232,6 +232,10 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+#    label_set (cycle-132 FR-2, D-2.3: c131 for a key in manifests/c131/, v1 in manifests/v1/, else v2; a c131
+#    key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
+#    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
+#    null where the key has none); both null for build tasks
 # grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
 # diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
 # line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
@@ -1652,7 +1656,7 @@ def grade_recall(t, run_dir, grading):
     pos = {d.get("id"): i for i, d in enumerate(defects, 1)}
     # _pm3_v1 ids map through the current key's positions (the v1 snapshot keeps the ids and their
     # order); an id the current key lacks takes its position in the v1 manifest
-    v1 = read_json(os.path.join(os.path.dirname(t.key_path), "v1", os.path.basename(t.key_path)))
+    v1 = read_json(os.path.join(key_set_root(t), "v1", os.path.basename(t.key_path)))
     pos_v1 = {d.get("id"): i for i, d in enumerate((v1 or {}).get("defects") or [], 1)} if isinstance(v1, dict) else {}
 
     def positions(ids, table=pos, fallback=None):
@@ -2030,11 +2034,35 @@ def repo_name_exempt(val, tool=None):
     return hits
 
 
+# ------------------------------------------------------------------ label set (cycle-132 FR-2, D-2.3)
+def label_set(t):
+    """c131 | v1 | v2 from the key's directory: manifests/c131/<pr>.json (the frozen cycle-131 set),
+    manifests/v1/<pr>.json (the original anchors), anything else the current (v2) key."""
+    d = os.path.dirname(t.key_path)
+    if os.path.basename(os.path.dirname(d)) == "manifests" and os.path.basename(d) in ("c131", "v1"):
+        return os.path.basename(d)
+    return "v2"
+
+
+def key_set_root(t):
+    """the manifests/ directory a key belongs to: a c131 key's parent (its v1 snapshot is the sibling
+    manifests/v1/<pr>.json and the corpus SHA256SUMS sits above manifests/), else the key's own directory"""
+    d = os.path.dirname(t.key_path)
+    return os.path.dirname(d) if label_set(t) == "c131" else d
+
+
+def labels_meta(t):
+    """per defect, by position (grade.json never names a defect id): the key's provenance fields"""
+    return [{"defect": f"d{i}", "label_source": d.get("label_source"), "agreement": d.get("agreement"),
+             "review_driven": d.get("review_driven")}
+            for i, d in enumerate(t.key.get("defects") or [], 1) if isinstance(d, dict)]
+
+
 # ------------------------------------------------------------------ corpus digest (1.3.0)
 def corpus_sha256(t):
     """sha256 of the review corpus's SHA256SUMS (the directory above the key's manifests/), null when absent"""
     import hashlib
-    p = os.path.join(os.path.dirname(os.path.dirname(t.key_path)), "SHA256SUMS")
+    p = os.path.join(os.path.dirname(key_set_root(t)), "SHA256SUMS")
     try:   # one O_NOFOLLOW open, fstat regular + size bound, hash those bytes (audit r1 DISS-C-004)
         fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0))
     except OSError:
@@ -2721,6 +2749,9 @@ def grade(t, run_dir, frozen):
         for gate, v in (("review", v_review), ("audit", v_audit)):
             if v is not None:
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
+    # cycle-132 FR-2 (D-2.3): the key's label set and per-defect provenance; null for build tasks
+    g["label_set"] = label_set(t) if t.rc else None
+    g["labels_meta"] = labels_meta(t) if t.rc else None
     g["oversized_files_skipped"] = OVERSIZED[0]
     g["colliding_tests_removed"] = COLLIDING[0]
     g["collision_rule"] = collision_rule(t) if t.build else None

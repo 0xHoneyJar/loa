@@ -1716,3 +1716,59 @@ rgrade() { run "$GRADER" "$1" "$RTASK" --suite-root "$REPO_ROOT/grimoires/loa/ev
   [ "$(G '.contaminated.pattern')" = repo_name ]
   [ "$(G '.contamination_exempt | length')" = 0 ]
 }
+
+# --- cycle-132 Task 1.5 (FR-2, SDD D-2.3, implementer B): label_set and labels_meta -------------------------------
+# make_ls <set-dir>: rc-x's key at $T/ls/manifests/<set-dir>/pr-77.json (set-dir "." = manifests/ itself) under a
+# corpus root $T/ls (SHA256SUMS at the root), with a v1 snapshot at $T/ls/manifests/v1/pr-77.json
+make_ls() {
+  local sub="$1" m="$T/ls/manifests"
+  [[ -d "$T/ls" ]] && find "$T/ls" -mindepth 1 -delete
+  mkdir -p "$m/$sub" "$m/v1"
+  cat > "$m/$sub/pr-77.json" <<'EOF'
+{"fixture": "pr-77", "label_set": "v2", "defects": [
+  {"id": "K01-guard", "file": "lib/x.sh", "anchor_line": 5, "severity": "high", "category": "logic",
+   "label_source": "fix-commit+incident", "annotators": ["A", "B"], "agreement": "adjudicated",
+   "adjudication": "the hunk restores the guard", "review_driven": true},
+  {"id": "K02-quote", "file": "lib/x.sh", "anchor_line": 20, "severity": "low", "category": "logic",
+   "label_source": "review", "source": "review:engineer-feedback.md"}]}
+EOF
+  [[ "$sub" == v1 ]] || jq '.defects[0].anchor_line = 9' "$m/$sub/pr-77.json" > "$m/v1/pr-77.json"
+  printf 'abc  manifests/pr-77.json\n' > "$T/ls/SHA256SUMS"
+  sed -i "s|manifest: \"[^\"]*\"|manifest: \"$m/$sub/pr-77.json\"|" "$S/tasks/rc-x/task.yaml"
+}
+
+@test "AG-LS1 label_set follows the key's directory (manifests/ v2, manifests/c131/ c131, manifests/v1/ v1); labels_meta passes label_source, agreement and review_driven through by position" {
+  RD="$T/run"; make_run rc-x "$RD"
+  printf 'pr/head/lib/x.sh:5 the guard\n' > "$RD/sandbox/review.md"
+  make_ls .
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.label_set')" = v2 ]
+  [ "$(G '.labels_meta | map("\(.defect):\(.label_source):\(.agreement):\(.review_driven)") | join(" ")')" = "d1:fix-commit+incident:adjudicated:true d2:review:null:null" ]
+  ! grep -n 'K01-guard\|K02-quote' "$RD/grade.json"
+  make_ls c131
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.label_set')" = c131 ]
+  # a c131 key sits beside manifests/v1/: the v1 snapshot and the corpus SHA256SUMS resolve one level up
+  [ "$(G '.recall.v1_manifest')" = true ]
+  [ "$(G '.recall | "\(.recall_pm3) \(.recall_pm3_v1)"')" = "0.5 0.0" ]
+  [ "$(G '.corpus_sha256')" = "$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$T/ls/SHA256SUMS")" ]
+  make_ls v1
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.label_set')" = v1 ]
+}
+
+@test "AG-LS2 a cycle-131 run re-graded under the moved key (manifests/c131/pr-17.json) reproduces its recorded recall block; label_set c131" {
+  local fx="$TESTS_DIR/fixtures/c131-regrade/b2a-a1_full-review-r17-t1"
+  [ "$(yq -r '.review_catch.manifest' "$REPO_ROOT/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17/task.yaml")" = "evals/fixtures/review-prs/manifests/c131/pr-17.json" ]
+  RD="$T/c131run"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"
+  echo '{}' > "$RD/snapshots/index.json"; cp "$fx/review.md" "$RD/sandbox/review.md"
+  run "$GRADER" "$RD" review-r17 --suite-root "$REPO_ROOT/grimoires/loa/evals/ablation-2.0-c131" --allow-partial --executor host
+  [ "$status" -eq 0 ]
+  [ "$(G '.suite_frozen')" = true ]
+  [ "$(G '.label_set')" = c131 ]
+  [ "$(jq -c '.recall' "$RD/grade.json")" = "$(jq -c '.' "$fx/recall.json")" ]
+  [ "$(G '.labels_meta | length')" = "$(jq '.defects_seeded' "$fx/recall.json")" ]
+}

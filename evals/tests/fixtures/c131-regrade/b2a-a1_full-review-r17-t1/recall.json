@@ -1,0 +1,39 @@
+{
+  "defects_seeded": 20,
+  "defects_caught": 13,
+  "recall": 0.65,
+  "flags": 104,
+  "missed": [
+    "d3",
+    "d4",
+    "d5",
+    "d7",
+    "d16",
+    "d18",
+    "d19"
+  ],
+  "recall_pm3": 0.65,
+  "missed_pm3": [
+    "d3",
+    "d4",
+    "d5",
+    "d7",
+    "d16",
+    "d18",
+    "d19"
+  ],
+  "recall_pm3_v1": 0.6,
+  "missed_pm3_v1": [
+    "d3",
+    "d4",
+    "d5",
+    "d7",
+    "d10",
+    "d16",
+    "d18",
+    "d19"
+  ],
+  "v1_manifest": true,
+  "credits_function_only": [],
+  "rule": "pm3_or_same_function"
+}
