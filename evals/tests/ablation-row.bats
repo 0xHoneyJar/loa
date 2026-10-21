@@ -813,3 +813,31 @@ make_cell_rows() {
   run "$ROW" --validate "$T/one.jsonl"
   [ "$status" -eq 1 ]; [[ "$output" == *"missing field took_effect"* ]]
 }
+
+@test "RW15-6 (dissent DISS-003) an empty, null or non-object took-effect record fails closed: {took_effect_record: false}, never null" {
+  for body in '' 'null' '[]' '"ok"'; do
+    printf '%s' "$body" > "$T/runs/a3-review/meta/took-effect.json"
+    row a3-review "$REVIEW_TASK"
+    [ "$(jq -c '.took_effect' <<<"$(last)")" = '{"took_effect_record":false}' ] || { echo "body [$body]: $(jq -c .took_effect <<<"$(last)")"; false; }
+  done
+}
+
+@test "RW15-7 (dissent DISS-C-007) cell validity is cell.json's alone: a valid session whose pipeline.json is unreadable stays valid and counted, is listed in sessions_meta_unreadable, and the cell keeps its status" {
+  C="$T/runs/cell7"
+  make_cell_rows "$C" true:completed:1:1 true:completed:2:2 false:completed:1:1
+  echo '{not json' > "$C/sessions/s1/meta/pipeline.json"
+  jq 'del(.run_id)' "$C/meta/cell.json" > "$T/cj" && mv "$T/cj" "$C/meta/cell.json"   # the runner writes no run_id
+  "$ROW" --run-dir "$C" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  r="$(last)"
+  [ "$(jq -r '"\(.run_id) \(.status) \(.degraded) \(.sessions_valid) \(.cost_usd)"' <<<"$r")" = "cellb-a0_bare_matched-rc-01-t1 completed false 2 3" ]
+  [ "$(jq -c '.sessions_meta_unreadable' <<<"$r")" = '["s1"]' ]
+  [ "$(jq -r '[.phases[].label] | join(",")' <<<"$r")" = "BARE-s2,BARE-s3" ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  # an ordinary row carries null; a readable cell []
+  C2="$T/runs/cell8"; make_cell_rows "$C2" true:completed:1:1 true:completed:1:1
+  "$ROW" --run-dir "$C2" --task-yaml "$REVIEW_TASK" --manifest "$T/MANIFEST.json" --out "$T/rows.jsonl"
+  [ "$(jq -c '.sessions_meta_unreadable' <<<"$(last)")" = '[]' ]
+  row a3-review "$REVIEW_TASK"
+  [ "$(jq -c '.sessions_meta_unreadable' <<<"$(last)")" = null ]
+}

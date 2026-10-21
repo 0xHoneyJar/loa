@@ -231,14 +231,18 @@
 #    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated,
 #    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7),
-#    label_set (cycle-132 FR-2, D-2.3: c131 for a key in manifests/c131/, v1 in manifests/v1/, else v2; a c131
-#    key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
+#    label_set (cycle-132 FR-2, D-2.3: c131, v1 or review for a key in manifests/c131/, v1/ or review/, else v2;
+#    a set key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
 #    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
 #    null where the key has none); both null for build tasks,
 #    oracle_exposed_defects, oracle_exposed_unknown, oracle_exposed_events, oracle_exposed_by_form
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.4 (cycle-132 Sprint 269 round 3, dissent DISS-001/DISS-C-001/DISS-C-003): class 9 is judged per simple
+# command on the heredoc-stripped text with the egress program in command position (see network egress above): 1.3.2's
+# whole-value python clause flagged reviewer prose and combined words from separate commands. Recall, false positives
+# and every non-egress field are unchanged; a 1.3.3 grade may differ only in contaminated (fewer class 9 hits).
 # grader 1.3.3 (cycle-132 Sprint 269 round 2, recall-vs-defects.sh 1.3.1): the citation parser (CITE) and a numeric
 # dissent anchor's path part accept an extension of up to 12 characters (was 6): a finding on .loa.config.yaml.example
 # or Dockerfile.ablation is credited (the image self-check's reference read 0 on review-r16/r20/r22). A citation that
@@ -256,16 +260,23 @@
 #                  distinct by id with its anchor set, credited at most once per run; one citation may credit every
 #                  defect whose sites it hits; SKP-022); null for build tasks
 #   network egress (class 9, PRD D15, bd-eriso): read FIRST for every tool input, so the KF-046 class 7 PR-content
-#                  exemption never applies to it: a Bash logical line running git fetch|clone|pull|ls-remote, curl or
-#                  wget that names github.com, raw.githubusercontent.com or api.github.com; gh api|pr|issue|repo naming
-#                  those hosts or 0xHoneyJar/loa; python with urllib or requests in a command naming a host; a WebFetch
-#                  url or WebSearch query naming a host or the repository → contaminated {pattern: "network_egress"}.
-#                  Heredoc bodies are read only in a command that feeds one to an interpreter. A lower bound: an
-#                  egress the transcript cannot show (a program the agent wrote, a remote fetched by name) is not seen.
+#                  exemption never applies to it. Since 1.3.4 a Bash command is read as simple commands (newline, ;,
+#                  &&, ||, | outside quotes) of its heredoc-stripped text, each judged by the program in command
+#                  position: curl or wget naming github.com, raw.githubusercontent.com or api.github.com; git fetch|
+#                  clone|pull|ls-remote naming a host; gh api|pr|issue|repo naming a host or 0xHoneyJar/loa; python -c
+#                  code using urllib or requests and naming a host; a curl/wget in $( … ) or backticks naming a host; a
+#                  heredoc body only when fed to an interpreter (python: urllib/requests and a host; bash/sh: its
+#                  commands by the same rule). A WebFetch url or WebSearch query naming a host or the repository →
+#                  contaminated {pattern: "network_egress"}. grep/rg/echo naming a host, prose in a cat heredoc, and
+#                  words on separate commands never combine into a hit. A lower bound: an egress the transcript cannot
+#                  show (a program the agent wrote, a remote fetched by name) is not seen.
 #   Union (--union <cell-dir> --task-id T; SDD D-3.1): a matched cell is k independent BARE sessions under
 #                  <cell>/sessions/s<i>/ (first attempt; re-runs in s<i>-r<n>), each already graded on its own. The
-#                  union reads <cell>/meta/cell.json (the runner's record: k, sessions [{id, valid, status, cost_usd,
-#                  run_dir}], no arm id — the one meta/ file this grader reads, so it stays blind to the arm) and, for
+#                  union reads <cell>/meta/cell.json (the runner's record, run-ablation.sh finalize_cell: {schema_version,
+#                  task_id, trial, k, sessions: [{id, status, valid, invalid_reason, attempts, attempt_statuses,
+#                  attempt_costs, cost_usd, run_dir}], sessions_valid, sessions_attempted, started, finished}; no arm id
+#                  and no run_id — the one meta/ file this grader reads, so it stays blind to the arm; the grader uses k,
+#                  sessions[].id/valid/status/cost_usd/run_dir, and ablation-row.sh the attempt fields) and, for
 #                  the sessions it marks valid only, their grading/gates-combined.md and grade.json; it writes
 #                  <cell>/grading/gates-combined.md (each valid session's citations under a `## session s<i>` line) and
 #                  grades it with the same reduction: each defect credited at most once, strays deduplicated by cited
@@ -400,7 +411,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.3"
+GRADER_VERSION = "1.3.4"
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -1957,19 +1968,73 @@ def check_value(tool, field, val, roots):
     return None
 
 
-# 1.3.2 class 9 (PRD D15, bd-eriso): a Bash logical line that runs git fetch|clone|pull|ls-remote, curl or wget and
-# names github.com, raw.githubusercontent.com or api.github.com; gh api|pr|issue|repo naming those hosts or the
-# repository (gh reaches api.github.com without naming it); python with urllib or requests in a command that names a
-# host (the program may sit in a heredoc body); a WebFetch url or WebSearch query naming a host or the repository.
-# Heredoc bodies are read only when the command feeds one to an interpreter (written prose stays data, KF-046).
-# Lower bound: an egress the transcript cannot show (a program the agent wrote, a remote set up earlier and fetched
-# by name in another command) is not seen.
+# 1.3.2 class 9 (PRD D15, bd-eriso), made per command in 1.3.4 (Sprint 269 dissent DISS-001/C-001/C-003): the Bash
+# command is read with its heredoc bodies removed and split into simple commands (newline, ;, &&, ||, | outside quotes;
+# split_segments), and a command is egress only by its program in command position (after NAME=value, env, command,
+# exec, nice, timeout; seg_words): curl or wget naming github.com, raw.githubusercontent.com or api.github.com; git
+# with the subcommand fetch, clone, pull or ls-remote naming a host; gh api|pr|issue|repo naming a host or 0xHoneyJar/loa
+# (gh reaches api.github.com unnamed); python -c whose code uses urllib or requests and names a host; a curl or wget
+# inside $( … ) or backticks in that command, naming a host. A heredoc body counts only when it is fed to an
+# interpreter: a python body that uses urllib or requests and names a host, a bash or sh body read command by command
+# as above; prose a reviewer writes through cat > file <<EOF is data (KF-046). A WebFetch url or WebSearch query
+# naming a host or the repository is egress. Lower bound: an egress the transcript cannot show (a program the agent
+# wrote, a remote set up earlier and fetched by name, node/perl/ruby heredoc bodies) is not seen.
 EGRESS_HOST = re.compile(r"(?i)(?<![A-Za-z0-9.-])(?:raw\.githubusercontent\.com|api\.github\.com|github\.com)(?![A-Za-z0-9-])")
-EGRESS_GIT = re.compile(r"(?i)(?:^|[\s;&|(`])git\b[^;&|\n]*?\s(?:fetch|clone|pull|ls-remote)\b")
-EGRESS_TOOL = re.compile(r"(?i)(?:^|[\s;&|(`=/])(?:curl|wget)\b")
-EGRESS_GH = re.compile(r"(?i)(?:^|[\s;&|(`])gh\s+(?:[^\s;&|]+\s+)*?(?:api|pr|issue|repo)\b")
-EGRESS_PY = re.compile(r"(?i)\bpython[0-9.]*\b")
 EGRESS_PYLIB = re.compile(r"\b(?:urllib|requests)\b")
+EGRESS_SUBST = re.compile(r"(?:\$\(|`)\s*(?:curl|wget)\b")
+GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+
+def interpreter_bodies(val):
+    """[(interpreter basename, body)] for each heredoc fed to an interpreter (count_interpreter_heredocs' rule)"""
+    out = []
+    for m in HEREDOC.finditer(val):
+        line = val[val.rfind("\n", 0, m.start()) + 1:m.start()]
+        seg = re.split(r"[;&|({]", line)[-1].split()
+        while seg and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", seg[0]):
+            seg.pop(0)
+        base = seg[0].rsplit("/", 1)[-1] if seg else ""
+        if HEREDOC_INTERPRETERS.match(base):
+            body = val[m.end(4):m.end()]
+            out.append((base, body[:body.rstrip().rfind("\n") + 1] if "\n" in body.rstrip() else ""))
+    return out
+
+
+def egress_command(seg):
+    """one simple command: egress by its program in command position"""
+    if not EGRESS_HOST.search(seg) and not REPO_TOKEN.search(seg):
+        return False
+    host = bool(EGRESS_HOST.search(seg))
+    if host and EGRESS_SUBST.search(seg):
+        return True
+    w = seg_words(seg)
+    if not w:
+        return False
+    prog = w[0].rsplit("/", 1)[-1]
+    if prog in ("curl", "wget"):
+        return host
+    if prog == "git":
+        i = 1
+        while i < len(w) and w[i].startswith("-"):
+            i += 2 if w[i] in GIT_ARG_OPTS else 1
+        return host and i < len(w) and w[i] in ("fetch", "clone", "pull", "ls-remote")
+    if prog == "gh":
+        return len(w) > 1 and w[1] in ("api", "pr", "issue", "repo")   # a host or the repository named (checked above)
+    if re.fullmatch(r"python[0-9.]*", prog) and "-c" in w:
+        code = w[w.index("-c") + 1] if w.index("-c") + 1 < len(w) else ""
+        return bool(EGRESS_PYLIB.search(code) and EGRESS_HOST.search(code))
+    return False
+
+
+def egress_bash(cmd, depth=0):
+    if any(egress_command(seg) for seg, _sep in split_segments(strip_heredocs(cmd))):
+        return True
+    for interp, body in interpreter_bodies(cmd):
+        if interp.startswith("python") and EGRESS_PYLIB.search(body) and EGRESS_HOST.search(body):
+            return True
+        if interp in ("bash", "sh") and depth < 2 and egress_bash(body, depth + 1):
+            return True
+    return False
 
 
 def egress_hit(tool, val):
@@ -1977,13 +2042,7 @@ def egress_hit(tool, val):
         return bool(EGRESS_HOST.search(val) or REPO_TOKEN.search(val))
     if tool != "Bash":
         return False
-    text = val if count_interpreter_heredocs(val) > 0 else strip_heredocs(val)
-    for line in text.replace("\\\n", " ").split("\n"):
-        if EGRESS_HOST.search(line) and (EGRESS_GIT.search(line) or EGRESS_TOOL.search(line)):
-            return True
-        if EGRESS_GH.search(line) and (EGRESS_HOST.search(line) or REPO_TOKEN.search(line)):
-            return True
-    return bool(EGRESS_PY.search(val) and EGRESS_PYLIB.search(val) and EGRESS_HOST.search(val))
+    return egress_bash(val.replace("\\\n", " "))
 
 
 def transcripts(run_dir):
@@ -2141,20 +2200,24 @@ def repo_name_exempt(val, tool=None):
 
 
 # ------------------------------------------------------------------ label set (cycle-132 FR-2, D-2.3)
+KEY_SETS = ("c131", "v1", "review")   # the label-set directories under manifests/ (round 3: DISS-C-005)
+
+
 def label_set(t):
-    """c131 | v1 | v2 from the key's directory: manifests/c131/<pr>.json (the frozen cycle-131 set),
-    manifests/v1/<pr>.json (the original anchors), anything else the current (v2) key."""
+    """c131 | v1 | review | v2 from the key's directory: manifests/c131/<pr>.json (the frozen cycle-131 set),
+    manifests/v1/<pr>.json (the original anchors), manifests/review/<pr>.json (the review-derived set of the
+    newer fixtures), anything else the current (v2) key."""
     d = os.path.dirname(t.key_path)
-    if os.path.basename(os.path.dirname(d)) == "manifests" and os.path.basename(d) in ("c131", "v1"):
+    if os.path.basename(os.path.dirname(d)) == "manifests" and os.path.basename(d) in KEY_SETS:
         return os.path.basename(d)
     return "v2"
 
 
 def key_set_root(t):
-    """the manifests/ directory a key belongs to: a c131 key's parent (its v1 snapshot is the sibling
-    manifests/v1/<pr>.json and the corpus SHA256SUMS sits above manifests/), else the key's own directory"""
+    """the manifests/ directory a key belongs to: a set key's parent (its v1 snapshot is manifests/v1/<pr>.json,
+    the key itself for the v1 set, and the corpus SHA256SUMS sits above manifests/), else the key's own directory"""
     d = os.path.dirname(t.key_path)
-    return os.path.dirname(d) if label_set(t) == "c131" else d
+    return os.path.dirname(d) if label_set(t) != "v2" else d
 
 
 def labels_meta(t):

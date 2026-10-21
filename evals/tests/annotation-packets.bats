@@ -250,3 +250,38 @@ if bad:
     sys.exit("unsupported keywords: " + ", ".join(bad))
 PY
 }
+
+@test "AP-9 citations of files with 7–12 character extensions (.loa.config.yaml.example:127, Dockerfile.ablation:19) tag their hunks review_driven" {
+  local G2="$T/repo2" C2="$T/corpus2" i
+  mkdir -p "$G2/evals/harness" "$C2/incidents"
+  gc2() { git -C "$G2" -c user.email=t@t -c user.name=t "$@"; }
+  git -C "$G2" init -q -b main
+  for i in $(seq 1 140); do echo "key_$i: value $i of the example config"; done > "$G2/.loa.config.yaml.example"
+  for i in $(seq 1 40); do echo "RUN step $i of the ablation image"; done > "$G2/evals/harness/Dockerfile.ablation"
+  gc2 add -A; gc2 commit -q -m base; local B2; B2="$(git -C "$G2" rev-parse HEAD)"
+  sed -i 's/^key_5: .*/key_5: changed at head/' "$G2/.loa.config.yaml.example"
+  sed -i 's/^RUN step 5 .*/RUN step 5 changed at head/' "$G2/evals/harness/Dockerfile.ablation"
+  gc2 commit -qam head; local H2; H2="$(git -C "$G2" rev-parse HEAD)"
+  sed -i 's/^key_127: .*/key_127: fixed/' "$G2/.loa.config.yaml.example"
+  sed -i 's/^RUN step 19 .*/RUN step 19 fixed/' "$G2/evals/harness/Dockerfile.ablation"
+  gc2 commit -qam fix; local F2; F2="$(git -C "$G2" rev-parse HEAD)"
+  # the record branch, built from a separate work tree so main's files stay untouched
+  local R2="$T/rec2"
+  git -C "$G2" worktree add -q --detach "$R2" "$H2"
+  git -C "$R2" checkout -q --orphan record/cycle-7-a2a
+  git -C "$R2" rm -rq --cached .
+  mkdir -p "$R2/grimoires/loa/a2a/sprint-7"
+  printf '# Sprint 7 review — round 1\n\n### LOW-1 — stale default\n\nThe default at .loa.config.yaml.example:127 is stale.\n\n### LOW-2 — dead stage\n\nevals/harness/Dockerfile.ablation:19 declares a dead stage.\n' \
+    > "$R2/grimoires/loa/a2a/sprint-7/engineer-feedback-r1.md"
+  git -C "$R2" add grimoires
+  git -C "$R2" -c user.email=t@t -c user.name=t commit -q -m record
+  mkdir -p "$C2/pr-70/head"
+  git -C "$G2" archive "$H2" | tar -x -C "$C2/pr-70/head"
+  git -C "$G2" diff "$B2" "$H2" > "$C2/pr-70/head.diff"
+  printf 'name: pr-70\nhead_commit: "%s"\nfix_commit: "%s"\nrecord_ref: "record/cycle-7-a2a"\nfeedback_files:\n  - "grimoires/loa/a2a/sprint-7/engineer-feedback-r1.md"\n' "$H2" "$F2" > "$C2/pr-70/fixture.yaml"
+  run "$PK" pr-70 --repo "$G2" --corpus "$C2" --out "$T/p2" --no-incidents
+  [ "$status" -eq 0 ]
+  M="$T/p2/pr-70.hunks.meta.json"
+  [ "$(jq -r '[.hunks[] | select(.file == ".loa.config.yaml.example") | .review_driven] | .[0]' "$M")" = "true" ]
+  [ "$(jq -r '[.hunks[] | select(.file == "evals/harness/Dockerfile.ablation") | .review_driven] | .[0]' "$M")" = "true" ]
+}

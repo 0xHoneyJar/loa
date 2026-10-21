@@ -85,14 +85,18 @@ PINS
   [ -z "$bad" ]
 }
 
-@test "MV-3 every suite-root task.yaml review_catch.manifest resolves; the frozen roots and the record-fixture tasks name manifests/c131/" {
+@test "MV-3 every suite-root task.yaml review_catch.manifest resolves; a record fixture's manifests/pr-NN.json is named only as a v2 key; the frozen roots and the record-fixture tasks name manifests/c131/" {
   local f m bad="" n=0
   while IFS= read -r f; do
     m="$(yq -r '.review_catch.manifest // ""' "$f")"
     [ -n "$m" ] || continue
     n=$((n + 1))
     [ -f "$REPO_ROOT/$m" ] || bad="$bad ${f#"$REPO_ROOT/"}($m)"
-    case "$m" in */manifests/pr-1[1-8].json) bad="$bad ${f#"$REPO_ROOT/"}(old path)" ;; esac
+    # a record fixture's manifests/pr-NN.json is the v2 key once Task 1.6 writes it; pointing there at anything
+    # else (the frozen cycle-131 key back at its old path) is the regression this guards
+    case "$m" in */manifests/pr-1[1-8].json)
+      [ -f "$REPO_ROOT/$m" ] && [ "$(jq -r '.label_set // ""' "$REPO_ROOT/$m")" = v2 ] || bad="$bad ${f#"$REPO_ROOT/"}(old path, not a v2 key)" ;;
+    esac
   done < <(find "$REPO_ROOT/grimoires/loa/evals" -name task.yaml | LC_ALL=C sort)
   echo "bad:$bad"
   [ -z "$bad" ]

@@ -32,7 +32,7 @@
 #                             annotator): per hunk {file, head_start, head_end,
 #                             insertion, review_driven, cited_by[]}
 #
-# review_driven (D-7.6): true when the sprint's record-branch feedback — every
+# review_driven (D-7.6; extensions of 1–12 characters, as grader 1.3.3): true when the sprint's record-branch feedback — every
 # engineer-feedback*, auditor-sprint-feedback*, bridgebuilder*, bb-triage* and
 # adversarial-review*/adversarial-audit* file in the directories of the fixture's
 # feedback_files — cites the hunk's file at a head-side line within ±3 of the hunk
@@ -290,7 +290,7 @@ def resolve(tok):
     if "/" not in t and len(by_base.get(t, [])) == 1:
         return by_base[t][0]
     return None
-CITE_RX = re.compile(r"((?:[\w.+-]+/)*[\w.+-]+\.[A-Za-z0-9]{1,6})(?::|#L)(\d{1,6})(?:\s*[-–]\s*L?(\d{1,6}))?")
+CITE_RX = re.compile(r"((?:[\w.+-]+/)*[\w.+-]+\.[A-Za-z0-9]{1,12})(?::|#L)(\d{1,6})(?:\s*[-–]\s*L?(\d{1,6}))?")
 TICK = re.compile(r"`([^`\n]*)`")   # every span, so a short span never shifts the pairing
 cites = []     # (file, lo, hi, source)
 snips = []     # (snippet, text window, source)
@@ -302,7 +302,10 @@ def scan_text(text, src_of):
             cites.append((f, min(lo, hi), max(lo, hi), src_of(m.start())))
     for m in TICK.finditer(text):
         s = m.group(1).strip()
-        if not 8 <= len(s) <= 200 or CITE_RX.fullmatch(s) or re.fullmatch(r"(?:[\w.+-]+/)*[\w.+-]+\.[A-Za-z0-9]{1,6}", s):
+        # a bare path is not a code snippet: a 1–6 character extension always, a 7–12 one only when it names a
+        # fixture file (`Dockerfile.ablation`), so a dotted identifier (`red_test.command`) stays a snippet
+        if (not 8 <= len(s) <= 200 or CITE_RX.fullmatch(s) or re.fullmatch(r"(?:[\w.+-]+/)*[\w.+-]+\.[A-Za-z0-9]{1,6}", s)
+                or (re.fullmatch(r"(?:[\w.+-]+/)*[\w.+-]+\.[A-Za-z0-9]{7,12}", s) and resolve(s))):
             continue
         snips.append((s, text[max(0, m.start() - 1500): m.end() + 1500], src_of(m.start())))
 def walk_json(o, path, out):

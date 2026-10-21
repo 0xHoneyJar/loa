@@ -135,3 +135,17 @@ teardown() {
   run "$SPEND" --since 2026-10-20T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
   [ "$(grep '^{' <<<"$output" | jq -r '.runs_usd')" = "117" ]
 }
+
+@test "SP-11 (cycle-132 dissent DISS-002) a row's all_spend_usd is what counts when it is numeric (a matched cell's every session, a trial's earlier attempts), else cost_usd; the larger figure per run_id still wins" {
+  printf '%s\n' '{"run_id":"cell","cost_usd":5,"all_spend_usd":12.5,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"trial","cost_usd":3,"all_spend_usd":5.5,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"old-row","cost_usd":2,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"weird","cost_usd":4,"all_spend_usd":"n/a","started":"2026-10-21T01:00:00Z"}' > "$T/r.jsonl"
+  : > "$T/ledger.jsonl"
+  run "$SPEND" --since 2026-10-21T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.runs_usd' <<<"$output")" = "24" ]   # 12.5 + 5.5 + 2 + 4
+  printf '%s\n' '{"run_id":"cell","cost_usd":5,"all_spend_usd":20,"started":"2026-10-21T02:00:00Z"}' >> "$T/r.jsonl"
+  run "$SPEND" --since 2026-10-21T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$(jq -r '.runs_usd, .runs_rows_deduped' <<<"$output" | tr '\n' ' ')" = "31.5 1 " ]
+}

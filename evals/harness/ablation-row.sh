@@ -115,8 +115,13 @@
 #   registration_sha256 the batch MANIFEST.json registration_sha256, else null
 #   took_effect         {<rule>: true|false, …} from <run-dir>/meta/took-effect.json (the took-effect.sh --json-out
 #                       record run-ablation.sh writes for the run or the cell); null when took-effect did not run
-#                       (no record: a smoke or override path, a timeout); a record that does not parse reads
-#                       {took_effect_record: false}, so a validity filter fails it rather than passing it
+#                       (no record: a smoke or override path, a timeout); a record that is empty, does not parse or
+#                       is not an object (dissent DISS-003) reads {took_effect_record: false}, so a validity filter
+#                       fails it rather than passing it
+#   sessions_meta_unreadable  a cell: the ids of sessions whose final meta/pipeline.json is missing, does not parse or
+#                       holds no BARE record ([] when none); null on an ordinary row. Validity is cell.json's alone
+#                       (the runner decides it, the union grade reads the same flags; dissent DISS-C-007): such a
+#                       session stays valid and counted, and only its BARE record is missing from phases[]
 #   attempts            1 … 3 on a 1.5 row (the attempt limit: 2 re-runs, D-7.3); a cell, its sessions' maximum
 #   dissent_absent_reason  bd-jszcp: "disabled" comes from harness-owned evidence only — meta/arm-evidence.txt
 #                       dissent=false (the review gate), gates= or flatline= (both gates), the lines the mount library
@@ -291,6 +296,8 @@ if [[ -n "$VALIDATE" ]]; then
               need("label_set"; strn), need("batch_context"; strn), need("mount_cheval"; strn),
               need("registration_sha256"; strn), need("took_effect"; objn) ][0]
           else empty end)
+      // (if has("sessions_meta_unreadable") and ((.sessions_meta_unreadable | type) as $ty | ["array","null"] | index($ty)) == null
+           then "field sessions_meta_unreadable has type \(.sessions_meta_unreadable | type), want array|null" else empty end)
       // (if (.row_writer_version // null) == "1.5" and (.took_effect | type) == "object"
              and any(.took_effect[]; type != "boolean")
            then "took_effect values must be booleans" else empty end)
@@ -371,6 +378,7 @@ echo null > "$WORK/took.json"
 if [[ -f "$RUN_DIR/meta/took-effect.json" && ! -L "$RUN_DIR/meta/took-effect.json" ]]; then
   jq -c 'if type == "object" and (.rules | type) == "array" and all(.rules[]; (.rule | type) == "string" and (.ok | type) == "boolean")
          then (reduce .rules[] as $r ({}; .[$r.rule] = $r.ok)) else {took_effect_record: false} end' "$RUN_DIR/meta/took-effect.json" > "$WORK/took.tmp" 2>/dev/null \
+    && jq -e 'type == "object"' "$WORK/took.tmp" >/dev/null 2>&1 \
     && mv "$WORK/took.tmp" "$WORK/took.json" \
     || echo '{"took_effect_record": false}' > "$WORK/took.json"   # check-no-swallowed-jq: ok — an unreadable record fails the filter, never passes
 fi
@@ -386,7 +394,7 @@ if [[ "$CELL" == true ]]; then
   # cell extras, its first session's arm evidence, and the sessions' transcripts under the BARE-s<i> labels
   mkdir -p "$WORK/transcripts"
   python3 -I - "$RUN_DIR" "$WORK" <<'PY' || usage "meta/cell.json under $RUN_DIR is not a matched cell record"
-import json, math, os, shutil, sys
+import json, math, os, re, shutil, sys
 cell, work = sys.argv[1], sys.argv[2]
 c = json.load(open(os.path.join(cell, "meta", "cell.json"), encoding="utf-8"))
 k, sess = c["k"], c["sessions"]
@@ -396,7 +404,7 @@ num = lambda v: v if isinstance(v, (int, float)) and not isinstance(v, bool) and
 def tidy(x):   # 7.5 stays 7.5, 10.0 is written 10 (the shape jq writes for an integral sum)
     x = round(x, 6)
     return int(x) if float(x).is_integer() else x
-phases, valid_labels, costs, starts, fins, first, evid = [], [], [], [], [], None, ""
+phases, valid_labels, costs, starts, fins, first, evid, unreadable = [], [], [], [], [], None, "", []
 all_spend = cost_valid = 0.0
 attempted, max_att, statuses = 0, 1, []
 for i, s in enumerate(sess, 1):
@@ -418,19 +426,21 @@ for i, s in enumerate(sess, 1):
             p = json.load(open(os.path.join(rd, "meta", "pipeline.json"), encoding="utf-8"))
         except ValueError:
             p = None
+    if valid:
+        valid_labels.append(label)   # cell.json decides validity (the union grade reads the same flags)
     if not isinstance(p, dict):
+        unreadable.append(s["id"])
         continue
     if first is None:
         first = p
         ef = os.path.join(rd, "meta", "arm-evidence.txt")
         if os.path.isfile(ef) and not os.path.islink(ef):
             evid = open(ef, encoding="utf-8", errors="replace").read()
-    for ph in p.get("phases") or []:
-        if isinstance(ph, dict) and ph.get("name") == "BARE":
-            phases.append(dict(ph, label=label))
-            if valid:
-                valid_labels.append(label)
-            break
+    bare = [ph for ph in p.get("phases") or [] if isinstance(ph, dict) and ph.get("name") == "BARE"]
+    if bare:
+        phases.append(dict(bare[0], label=label))
+    else:
+        unreadable.append(s["id"])
     for t in (p.get("started"), ):
         if isinstance(t, str) and t:
             starts.append(t)
@@ -442,10 +452,10 @@ for i, s in enumerate(sess, 1):
 n_valid = len(valid_labels)
 status = "completed" if n_valid >= 1 else ("contaminated" if "contaminated" in statuses else "infrastructure_error")
 first = first or {}
-# the cell's run_id: cell.json names no arm (the grader reads it), so it comes from the first session's run id,
-# <batch>-<arm>-<task>-t<n>-s1, without the session suffix
+# the cell's run_id: cell.json names no arm (the grader reads it), so it comes from the first readable session's
+# run id, <batch>-<arm>-<task>-t<n>-s<i>, without the session suffix
 srid = str(first.get("run_id") or "")
-pipe = {"run_id": c.get("run_id") or (srid[:-3] if srid.endswith("-s1") else srid), "task_id": c.get("task_id") or first.get("task_id"),
+pipe = {"run_id": c.get("run_id") or re.sub(r"-s[0-9]+$", "", srid), "task_id": c.get("task_id") or first.get("task_id"),
         "task_type": first.get("task_type") or "review-catch", "trial": c.get("trial") or first.get("trial") or 0,
         "source_commit": first.get("source_commit") or "", "suite_version": first.get("suite_version"),
         "fingerprint": first.get("fingerprint"), "image_digest": first.get("image_digest"),
@@ -454,7 +464,7 @@ pipe = {"run_id": c.get("run_id") or (srid[:-3] if srid.endswith("-s1") else sri
         "snapshots": {}, "mount_integrity": None, "cap_phase": None}
 cx = {"bare_sessions": k, "sessions_valid": n_valid, "sessions_attempted": attempted, "session_costs": costs,
       "all_spend_usd": tidy(all_spend), "cost_usd": tidy(cost_valid), "valid_labels": valid_labels,
-      "half": (k + 1) // 2, "attempts": min(max(max_att, 1), 99)}
+      "half": (k + 1) // 2, "attempts": min(max(max_att, 1), 99), "sessions_meta_unreadable": unreadable}
 json.dump(pipe, open(os.path.join(work, "pipe.json"), "w"))
 json.dump(cx, open(os.path.join(work, "cellx.json"), "w"))
 open(os.path.join(work, "cell-evidence.txt"), "w", encoding="utf-8").write(evid)
@@ -701,6 +711,7 @@ ROW="$(jq -n -c \
       sessions_valid: (if $cx == null then null else $cx.sessions_valid end),
       sessions_attempted: (if $cx == null then null else $cx.sessions_attempted end),
       session_costs: (if $cx == null then null else $cx.session_costs end),
+      sessions_meta_unreadable: (if $cx == null then null else $cx.sessions_meta_unreadable end),
       all_spend_usd: (if $cx != null then $cx.all_spend_usd
                       else (([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0) + ($prior | tonumber)) end),
       dollar_match: null,

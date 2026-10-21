@@ -84,7 +84,7 @@
 #   says which was used); with none, or a file absent from it, (ii) never credits.
 #   Three results in details, each with detected[] / missed[] (defect ids):
 #     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (for a key in
-#                    manifests/c131/: manifests/v1/<fixture>.json; the
+#                    manifests/c131/, v1/ or review/: manifests/v1/<fixture>.json; the
 #                    original anchors); the current manifest when v1/ has none
 #                    (v1_manifest false)
 #     recall_pm3     the 1.2.0 rule against the current manifest
@@ -134,12 +134,14 @@ if [[ ! -f "$review" ]]; then
   exit 1
 fi
 
-# cycle-132 D-2.3: a key in manifests/c131/ (the frozen cycle-131 set) belongs to manifests/: its v1
-# snapshot is the sibling manifests/v1/<fixture>.json and its PR fixture sits beside manifests/
+# cycle-132 D-2.3 (round 3, DISS-C-005): a key in a label-set directory manifests/c131/, v1/ or review/
+# belongs to manifests/: its v1 snapshot is manifests/v1/<fixture>.json (the key itself for the v1 set)
+# and its PR fixture sits beside manifests/
 set_root="$MANIFEST_DIR"
-if [[ "$(basename "$MANIFEST_DIR")" == c131 && "$(basename "$(dirname "$MANIFEST_DIR")")" == manifests ]]; then
-  set_root="$(dirname "$MANIFEST_DIR")"
-fi
+case "$(basename "$MANIFEST_DIR")" in
+  c131|v1|review)
+    if [[ "$(basename "$(dirname "$MANIFEST_DIR")")" == manifests ]]; then set_root="$(dirname "$MANIFEST_DIR")"; fi ;;
+esac
 manifest_v1="$set_root/v1/$fixture.json"
 [[ -f "$manifest_v1" && ! -L "$manifest_v1" ]] || manifest_v1=""
 head_dir="${EVAL_HEAD_DIR:-}"; head_src="env"

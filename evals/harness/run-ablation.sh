@@ -137,8 +137,10 @@
 #   and ablation-grade.sh on the session dir; its final record goes to <cell>/meta/sessions/s<i>.json
 #   {id, status, valid, invalid_reason, attempts, attempt_statuses, attempt_costs, cost_usd, run_dir}.
 #   When all k sessions hold a record the cell is finalised in the driver: <cell>/meta/arm and
-#   <cell>/meta/cell.json {schema_version, run_id, task_id, trial, k, sessions[], sessions_valid,
-#   sessions_attempted, started, finished}, took-effect.sh --run-dir <cell> --task-yaml (a FAIL rows the
+#   <cell>/meta/cell.json {schema_version, task_id, trial, k, sessions: [{id, status, valid, invalid_reason,
+#   attempts, attempt_statuses, attempt_costs, cost_usd, run_dir}], sessions_valid, sessions_attempted, started,
+#   finished} (no run_id and no arm id: the grader reads it; the row's run_id comes from session 1's run id),
+#   took-effect.sh --run-dir <cell> --task-yaml (a FAIL rows the
 #   cell infrastructure_error and pauses the arm), ablation-grade.sh --union <cell> --task-id <task>
 #   (--suite-root, --tasks-dir smoke, --allow-partial as for trials; under the grade deadline), then
 #   ablation-row.sh --run-dir <cell> once (the cell is completed with ⌈k/2⌉ valid sessions, else degraded;

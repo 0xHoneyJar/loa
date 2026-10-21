@@ -15,7 +15,8 @@
 #                  earlier cycle's rows too); a run row with neither timestamp, or one
 #                  that does not parse, counts (the conservative side) with one stderr
 #                  note per file naming the count
-#   --runs FILE…   run-row files (JSONL, `cost_usd` per row); repeatable, and every
+#   --runs FILE…   run-row files (JSONL; a row counts its numeric `all_spend_usd` — row writer
+#                  1.5: every attempt, every session of a matched cell — else its `cost_usd`); repeatable, and every
 #                  following non-option argument is a file too. Default:
 #                  grimoires/loa/reports/ablation-2.0/runs.jsonl plus every
 #                  evals/results/ablation-2.0/*/rows.jsonl that exists. Each run_id
@@ -149,7 +150,10 @@ for f in runs_files:
             continue
         try:
             r = json.loads(line)
-            c = float(r.get("cost_usd") or 0)
+            # cycle-132 (row writer 1.5): all_spend_usd holds every attempt (a matched cell's every session, a
+            # trial's earlier attempts); cost_usd alone would leave real spend outside the meter
+            a = r.get("all_spend_usd")
+            c = float(a) if isinstance(a, (int, float)) and not isinstance(a, bool) else float(r.get("cost_usd") or 0)
         except (ValueError, TypeError, AttributeError):
             skipped += 1
             continue

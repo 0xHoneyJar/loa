@@ -1151,7 +1151,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1421,7 +1421,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1515,7 +1515,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.3 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.3.4 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1810,7 +1810,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.3 ]
+  [ "$(U .grader_version)" = 1.3.4 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -1975,5 +1975,83 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.3 ]
+  [ "$(G '.grader_version')" = 1.3.4 ]
+}
+
+@test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
+  local n=0
+  while IFS='|' read -r want input; do
+    n=$((n + 1)); RD="$T/q$n"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" BARE Bash "$input"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    got="$(G '.contaminated.pattern // "none"')"
+    if [ "$want" = egress ]; then [ "$got" = network_egress ] || { echo "case $n should be egress: $input ($got)"; false; }
+    else [ "$got" != network_egress ] || { echo "case $n should be clean: $input"; false; }; fi
+  done <<'EOF'
+clean|{"command": "cat > review.md <<'EOF2'\nThe python client uses requests to call github.com for the token.\nEOF2"}
+clean|{"command": "python3 --version\necho requests\necho see github.com"}
+clean|{"command": "python3 -m pytest -q; grep -n requests lib/x.sh; echo github.com"}
+clean|{"command": "grep -rn curl pr/head | grep github.com"}
+clean|{"command": "rg github.com ."}
+clean|{"command": "git log --oneline -3 && echo https://github.com/x/y"}
+egress|{"command": "curl -s https://api.github.com/repos/x/y"}
+egress|{"command": "cd pr && git fetch https://github.com/x/y.git main"}
+egress|{"command": "python3 -c \"import requests; requests.get('https://github.com/x/y')\""}
+egress|{"command": "bash <<'SH'\nset -e\ncurl -sL https://raw.githubusercontent.com/x/y/main/z\nSH"}
+egress|{"command": "echo $(curl -s https://api.github.com/rate_limit)"}
+egress|{"command": "timeout 30 wget -q https://github.com/x/y/archive/main.zip"}
+EOF
+  # the recorded-run equality still holds (AG-c132-5 re-grades with the plan commit's grader)
+}
+
+# --- cycle-132 Sprint 269 round 3 (DISS-C-005): every recognised set directory is re-rooted ------------------------
+sha_of() { python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+
+@test "AG-LS3 a v1 or review key is re-rooted like a c131 key: label_set names the set, the v1 snapshot is manifests/v1/<pr>.json (itself for v1), corpus_sha256 hashes the corpus SHA256SUMS" {
+  RD="$T/run"; make_run rc-x "$RD"
+  printf 'pr/head/lib/x.sh:9 the guard\n' > "$RD/sandbox/review.md"
+  make_ls v1
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  # the v1 key holds d1 at 5: a miss for :9, under both rules (the snapshot is the key itself)
+  [ "$(G '"\(.label_set) \(.recall.v1_manifest) \(.recall.recall_pm3) \(.recall.recall_pm3_v1)"')" = "v1 true 0.0 0.0" ]
+  [ "$(G '.corpus_sha256')" = "$(sha_of "$T/ls/SHA256SUMS")" ]
+  make_ls review
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  # the review key's d1 sits at 5 (a miss for :9); its v1 snapshot manifests/v1/ puts d1 at 9 (a hit)
+  [ "$(G '"\(.label_set) \(.recall.v1_manifest) \(.recall.recall_pm3) \(.recall.recall_pm3_v1)"')" = "review true 0.0 0.5" ]
+  [ "$(G '.corpus_sha256')" = "$(sha_of "$T/ls/SHA256SUMS")" ]
+}
+
+@test "AG-LS4 the recorded cycle-131 run graded against the v1 key (manifests/v1/pr-17.json): label_set v1, v1_manifest true, a corpus digest, and the v1 recall the c131 re-grade reports" {
+  local fx="$TESTS_DIR/fixtures/c131-regrade/b2a-a1_full-review-r17-t1" src="$REPO_ROOT/grimoires/loa/evals/ablation-2.0-c131/tasks/review-r17"
+  mkdir -p "$T/v1root/tasks"
+  cp -R "$src" "$T/v1root/tasks/review-r17"
+  sed -i 's#manifests/c131/pr-17.json#manifests/v1/pr-17.json#' "$T/v1root/tasks/review-r17/task.yaml"
+  [ "$(yq -r '.review_catch.manifest' "$T/v1root/tasks/review-r17/task.yaml")" = evals/fixtures/review-prs/manifests/v1/pr-17.json ]
+  RD="$T/v1run"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"
+  echo '{}' > "$RD/snapshots/index.json"; cp "$fx/review.md" "$RD/sandbox/review.md"
+  run "$GRADER" "$RD" review-r17 --suite-root "$T/v1root" --allow-unfrozen --allow-partial --executor host
+  [ "$status" -eq 0 ]
+  [ "$(G '.label_set')" = v1 ]
+  [ "$(G '.recall.v1_manifest')" = true ]
+  [ "$(G '.corpus_sha256')" = "$(sha_of "$REPO_ROOT/evals/fixtures/review-prs/SHA256SUMS")" ]
+  # the v1 rule on the v1 key is the c131 re-grade's v1 figure, as recall_pm3 and as recall_pm3_v1
+  [ "$(G '.recall.recall_pm3')" = "$(jq -r '.recall_pm3_v1' "$fx/recall.json")" ]
+  [ "$(G '.recall.recall_pm3_v1')" = "$(jq -r '.recall_pm3_v1' "$fx/recall.json")" ]
+  [ "$(jq -c '.recall.missed_pm3' "$RD/grade.json")" = "$(jq -c '.missed_pm3_v1' "$fx/recall.json")" ]
+}
+
+@test "AG-LS5 the tracked review set (manifests/review/pr-27.json) grades with label_set review and the corpus digest" {
+  local m="$REPO_ROOT/evals/fixtures/review-prs/manifests/review/pr-27.json"
+  [ -f "$m" ] || skip "no manifests/review/pr-27.json in this tree"
+  sed -i "s|manifest: \"[^\"]*\"|manifest: \"$m\"|; s|fixture: \"[^\"]*\"|fixture: \"$REPO_ROOT/evals/fixtures/review-prs/pr-27\"|" "$S/tasks/rc-x/task.yaml"
+  RD="$T/r27"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.label_set')" = review ]
+  [ "$(G '.corpus_sha256')" = "$(sha_of "$REPO_ROOT/evals/fixtures/review-prs/SHA256SUMS")" ]
+  [ "$(G '.labels_meta | length')" = "$(jq '.defects | length' "$m")" ]
 }

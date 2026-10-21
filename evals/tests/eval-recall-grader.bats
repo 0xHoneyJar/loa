@@ -658,3 +658,27 @@ JSON
   run "$GRADER" "$WS" pr-long
   [ "$(echo "$output" | jq -r '.details.detected | length')" = 0 ]
 }
+
+@test "RG-B1 a key under manifests/c131/, v1/ or review/ is re-rooted: its v1 snapshot is manifests/v1/<pr>.json (itself for a v1 key) and its head the fixture beside manifests/; another sub-directory is not" {
+  local C="$T/corp" set sdir
+  sdir="$C/pr-q/head/.claude/scripts"
+  mkdir -p "$C/manifests/c131" "$C/manifests/v1" "$C/manifests/review" "$C/manifests/other" "$sdir"
+  { echo '#!/usr/bin/env bash'; echo 'q() {'; for i in $(seq 3 29); do echo "  echo q$i"; done; echo '}'; } > "$sdir/q.sh"
+  printf '{"fixture":"pr-q","defects":[{"id":"Q1","file":".claude/scripts/q.sh","anchor_line":10,"severity":"high"}]}\n' > "$C/manifests/v1/pr-q.json"
+  for set in c131 review other; do
+    printf '{"fixture":"pr-q","defects":[{"id":"Q1","file":".claude/scripts/q.sh","anchor_line":20,"severity":"high"}]}\n' > "$C/manifests/$set/pr-q.json"
+  done
+  review 'q.sh:11 the guard'
+  for set in c131 v1 review; do
+    EVAL_MANIFEST_DIR="$C/manifests/$set" run "$GRADER" "$WS" pr-q
+    echo "$set: $output"
+    [ "$(D '.details.v1_manifest')" = "true" ]
+    [ "$(D '.details.head_dir_source')" = "fixture" ]
+    [ "$(D '.details.recall_pm3_v1 == 1')" = "true" ]   # line 11 is within 3 of the v1 anchor 10
+  done
+  EVAL_MANIFEST_DIR="$C/manifests/v1" run "$GRADER" "$WS" pr-q
+  [ "$(D '.details.recall_pm3 == 1')" = "true" ]
+  EVAL_MANIFEST_DIR="$C/manifests/other" run "$GRADER" "$WS" pr-q
+  [ "$(D '.details.v1_manifest')" = "false" ]
+  [ "$(D '.details.head_dir_source')" = "none" ]
+}
