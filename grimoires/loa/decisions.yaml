@@ -23030,3 +23030,211 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0711"
+    created_at: "2026-10-21T03:49:27Z"
+    updated_at: "2026-10-21T03:49:27Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Primary interval = cluster-t (Δ̂ ± t_{N−1}·SE_boot); the percentile interval is a diagnostic — it excludes 0 in 13.5 % of true nulls at 6 PRs (A1)"
+    decision: "reads.py --interval t is the default and the pre-registered headline interval (95 % and 90 %); the percentile interval is printed beside as a diagnostic; the RCI uses the same SE"
+    rationale: "Implementer D measured the percentile PR-cluster interval's undercoverage on synthetic nulls: 13.5 % exclusion at 6 PRs, 9.0 % at 12; the t-interval corrects for few clusters"
+    alternatives_considered:
+      - option: "percentile interval as in cycle-130/131"
+        rejected_because: "undercovers at the cycle's N; the decision would be too confident"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "00c0c4dd"
+    source: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T03:49:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0712"
+    created_at: "2026-10-21T03:49:30Z"
+    updated_at: "2026-10-21T03:49:30Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Placebo pass = |mean Δ over 200 shuffles| < 0.03 (bias) and ≤ 8 % of 95 % t-intervals exclude 0 (calibration); mean |Δ| is a diagnostic (A2, amends D17)"
+    decision: "A within-PR arm swap on paired data with a real effect spreads Δ with random signs, so mean |Δ| measures the effect, not bias; the criterion is the mean Δ and the exclusion share"
+    rationale: "D's smoke on the 63 existing rows: mean |Δ| 0.075 under shuffles of a real +0.3 effect — the old band could never pass on real data"
+    alternatives_considered:
+      - option: "keep mean |Δ| < 0.03"
+        rejected_because: "fails by construction whenever a real effect exists"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "00c0c4dd"
+    source: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T03:49:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0713"
+    created_at: "2026-10-21T03:49:55Z"
+    updated_at: "2026-10-21T03:49:55Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "N needs P(YES | Δ = MDE) ≥ 0.80 and P(NO | Δ = 0) ≥ 0.80 under the calibrated constant; clipping and matched recall printed per N (A3)"
+    decision: "power.py reports both powers, P(SMALL | 0), the clipped share and the matched recall per N; when no N meets both the registration prints the table and the lead decides openly; a clipped share above 0.10 at the MDE is stated as 'YES at the MDE may be unreachable on this corpus (ceiling)'"
+    rationale: "D's run on the existing profiles: k 11–19 puts matched recall near the ceiling and clips 32–43 % of defects, so a YES may be unreachable while a NO is the likely honest answer — the design must have power for it"
+    alternatives_considered:
+      - option: "power for YES only"
+        rejected_because: "the operator's question is answered as well by a confident NO; a design powered only for YES is biased toward inconclusive"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "00c0c4dd"
+    source: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T03:49:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-1/reviewer-d.md § Findings (Task 1.8, 2026-10-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0714"
+    created_at: "2026-10-21T05:03:35Z"
+    updated_at: "2026-10-21T05:03:35Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Phase 0 placebo on the 63 existing rows reads FAIL (t-interval exclusion 0.095 > 0.08; mean Δ −0.009 passes bias); reported as is, band unchanged"
+    decision: "The committed placebo-existing read stays FAIL under the pre-registered band; the band is not loosened after seeing the data. PREREGISTRATION §8 records it with its cause (6 clusters, a +0.28 real effect that the within-PR label shuffle turns into heavy between-PR spread) and adds the pre-specified fallback: if the Phase 1 final-look placebo also fails calibration, the primary interval is printed beside its placebo-estimated exclusion share and the decision rests on the calibrated group-sequential boundary and the PR-level permutation test."
+    rationale: "Mean Δ −0.009 shows the analysis manufactures no effect; the 9.5 % exclusion share is the small-cluster anti-conservatism D predicted (finding 2) — at 6 PRs the cluster-t interval undercovers on a shuffle mixture of a large real effect; the Phase 1 looks are protected by the simulation-calibrated OBF boundary, not by the interval"
+    alternatives_considered:
+      - option: "loosen the band to pass (e.g. ≤ 0.10 or binomial tolerance)"
+        rejected_because: "adjusting the pass rule after the data read FAIL is the p-hacking shape the pre-registration exists to prevent"
+      - option: "raise the no-decision minimum from 6 to 8 valid PRs"
+        rejected_because: "the first-look risk is already bounded by the OBF boundary (≈ 3.7 SE at t = 1/3) times the calibrated constant; delaying the first look buys little and costs early stopping; the fallback statement covers the interval"
+      - option: "swap the shuffle to PR-level flips"
+        rejected_because: "changing the construction after the fact; the SDD construction is kept and the fallback is pre-specified instead"
+    consequences:
+      positive: []
+      negative:
+        - "The Phase 0 placebo cannot certify 95 % coverage at 6 clusters; the registration says so"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "ec92795c"
+    source: "grimoires/loa/reports/ablation-2.0/placebo-existing/placebo-existing.md (Task 1.10, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:03:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/reports/ablation-2.0/placebo-existing/placebo-existing.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0715"
+    created_at: "2026-10-21T05:04:31Z"
+    updated_at: "2026-10-21T05:04:31Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "Power-run candidates: the 14 fixtures the pipeline never read (pr-11, 14–16, 19–28); eligibility = review labels + incidents ≥ 2; pr-12/13/17/18 out"
+    decision: "candidates.tsv lists the 14 seeded record fixtures the pipeline has not been evaluated on, with defects = seeded_labels + incidents as the pre-annotation signal count (eligible when ≥ 2 and exposure recorded; all 14 qualify, ceiling 14); diff_lines is derived by power.py from head.diff so k uses the same count as the cost fits; the annotation replaces the proxy with confirmed counts and a fixture confirmed below 2 defects is dropped for the next spare in seeded order"
+    rationale: "The operator's question is about PRs the pipeline has not seen: pr-12/13 (cycle-130 review-03/04) and pr-17/18 (replication-01, c131 batches) carry pipeline reads and supply the power profiles instead; review labels alone would drop pr-23/25/26 whose incidents indicate defects, biasing the corpus toward review-visible defects — the bias the pipeline-independent read exists to counter"
+    alternatives_considered:
+      - option: "review-derived labels alone as the eligibility count"
+        rejected_because: "excludes fixtures whose only defect evidence is post-merge incidents; selection bias toward what the review already sees"
+      - option: "all 18 fixtures incl. pr-12/13/17/18"
+        rejected_because: "four were read by the pipeline in cycles 130/131; they violate the unseen-PR condition of the question"
+      - option: "fix hunks as the proxy"
+        rejected_because: "every fixture has ≥ 9 hunks; no discrimination"
+    consequences:
+      positive:
+        - "Ceiling 14 bounds N; profiles and candidates are disjoint sets"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "ec92795c"
+    source: "grimoires/loa/evals/ablation-2.0-c132/candidates.tsv (Task 1.9, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:04:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "grimoires/loa/a2a/sprint-269/reviewer-a.md § Candidate table"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0716"
+    created_at: "2026-10-21T05:09:46Z"
+    updated_at: "2026-10-21T05:09:46Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Annotation packets are built without the corpus-wide --deny-dir: the 14 candidates have no run directories of their own; the full list collides on generic code"
+    decision: "annotation-packets.sh runs with its built-in leak check (labels, manifests, feedback) and no --deny-dir for the 14 candidates; a fixture that gains run directories before annotation (none today) adds exactly its own run directories"
+    rationale: "--deny-dir evals/results/ablation-2.0 (every run directory of cycles 130/131) refused all 14 packets with 8–85 matching lines each — generic code lines shared with unrelated fixtures' transcripts, not leaks; the check's purpose is to keep a fixture's own pipeline findings out of its packet, and no candidate has been run"
+    alternatives_considered:
+      - option: "keep the corpus-wide deny list and strip the matching lines"
+        rejected_because: "stripping hunk context lines blinds the annotator to the code it must judge; the matches are not leaks"
+      - option: "deny only the smoke run that read pr-16"
+        rejected_because: "the smoke run of cycle-131 read pr-17 arms, not pr-16; no candidate run directory exists"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s1/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "ec92795c"
+    source: "grimoires/loa/a2a/sprint-269/annotation/packets (Task 1.6, 2026-10-21)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-21T05:09:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s1"
+        evidence: "~/.cache/loa/cycle-132/logs: 14/14 packets clean without the list; 14/14 refused with it"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
