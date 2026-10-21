@@ -1,0 +1,16 @@
+id: review-r24
+schema_version: 1
+type: review-catch
+source: {kind: review-corpus, origin: evals/fixtures/review-prs/pr-24, date: "2026-10-16"}
+post_cutoff: true
+fixture: null            # review-catch: the sandbox's pr/ comes from review_catch.fixture
+criterion: "review the pull request, report each defect it introduces with the file and line it sits on, and give a merge verdict"
+success_criterion: "recall-vs-defects.sh over the findings reduced to the output contract recalls the pr-24 key defects (a head/<path>:<line> citation within 3 lines of a manifest anchor); verdict APPROVED (the key holds no high or critical defect)"
+test_command: null
+regression_command: null
+reference_patch: null
+grader_protected: []
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {REVIEW: 50, AUDIT: 40}}
+review_catch: {fixture: review-prs/pr-24, manifest: evals/fixtures/review-prs/manifests/pr-24.json, bare_sessions_matched: 11, bare_sessions_matched_fable: 3}
+suite_version: 2
