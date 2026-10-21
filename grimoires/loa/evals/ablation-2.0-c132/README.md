@@ -22,4 +22,4 @@ The suite root for the cycle-132 "conclusive review-catch answer" batches (PRD F
 ## Freeze and self-check
 
 - `MANIFEST.sha256` is written by `bash evals/harness/freeze.sh --root grimoires/loa/evals/ablation-2.0-c132 --allow-partial` and covers `tasks/` only (`candidates.tsv`, `PREREGISTRATION.md` and `REGISTRATION.json` are bound by the registration instead).
-- The image self-check (`ablation-grade.sh --self-check base|reference|noisy` for every task, run inside `loa-ablation:258`, grader 1.3.3) is recorded at `grimoires/loa/reports/ablation-2.0/self-check-c132.txt` (42/42 PASS); the batch driver passes it with `--self-check-log`.
+- The image self-check (`ablation-grade.sh --self-check base|reference|noisy` for every task, run inside `loa-ablation:258`, grader 1.3.4) is recorded at `grimoires/loa/reports/ablation-2.0/self-check-c132.txt` (42/42 PASS); the batch driver passes it with `--self-check-log`.

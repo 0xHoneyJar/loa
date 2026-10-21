@@ -81,7 +81,7 @@ frozen cycle-131 labels (pr-11, 14, 15, 16 — the fixtures of this corpus that 
 
 ## 11. Smoke
 
-Before G1: one `a1_full` and one single BARE run per selected PR under the closed mount; `oracle_closed` must hold on every PR (a PR that fails it is excluded from the corpus and reported); the realized cost ratio is recorded beside k and never changes it. Smoke rows decide nothing. The image self-check (every task × base / reference / noisy, grader 1.3.3) is recorded before the first batch and gated by the runner (DEC-0435).
+Before G1: one `a1_full` and one single BARE run per selected PR under the closed mount; `oracle_closed` must hold on every PR (a PR that fails it is excluded from the corpus and reported); the realized cost ratio is recorded beside k and never changes it. Smoke rows decide nothing. The image self-check (every task × base / reference / noisy, grader 1.3.4) is recorded before the first batch and gated by the runner (DEC-0435).
 
 ## 12. Amendments
 
