@@ -1,4 +1,4 @@
-# approved-by: lead 2026-10-14
+# approved-by: lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)
 # fixture pr-14 | sprint-250 | record origin/record/cycle-126-a2a | base 2fcd4af83e75 | head d785fc9a20ae | fix e170de3d2758
 # seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
 # L01 medium review: with `implement_gate.mode: authoritative` set, a Write to `src/` whose `tool_input.active_skill` reads `implement` exits 0 silently (IG-7 pins this), while the… [fix hunk near cited line 122]
@@ -7,9 +7,18 @@ defect_id	severity	category	file	must_match	label_source	source
 L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	# Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
 L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=""	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
 L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	# Non-implementation skill — ask	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
+L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	if [[ "$compliance_mode" == "authoritative" ]]; then	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
+L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	implement|/implement|bug|/bug|run|/run|simstim|/simstim)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
+L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	@L129	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
+L01-with-set-a-write-to-whose-reads-exits-0	medium	security	.claude/hooks/compliance/implement-gate.sh	@L137	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55
 L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
 L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=""	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
 L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	# Non-implementation skill — ask	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
+L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	if [[ "$file_path" == "$PROJECT_ROOT/"* ]]; then	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
+L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	normalized_path="${file_path#"$PROJECT_ROOT"/}"	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
+L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	@L89	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
+L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	@L107	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
+L02-the-gate-roots-its-zone-test-on-the-hook	medium	test	.claude/hooks/compliance/implement-gate.sh	@L108	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50
 F001	-	fix	.claude/adapters/tests/test_trust_scopes.py	def test_every_anthropic_catalog_entry_has_a_row(self):	fix	fix/e170de3d2758:349-351
 F002	-	fix	.claude/adapters/tests/test_trust_scopes.py	if "anthropic." in m]	fix	fix/e170de3d2758:357-357
 F003	-	fix	.claude/adapters/tests/test_trust_scopes.py	def test_current_generation_rows_mirror_the_4_7_scopes(self):	fix	fix/e170de3d2758:362-366

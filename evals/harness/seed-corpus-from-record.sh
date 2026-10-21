@@ -10,6 +10,7 @@
 #                              [--feedback a.md,b.md] [--dry-run]
 #   seed-corpus-from-record.sh --build-manifest pr-NN   # labels → hidden manifest (after curation)
 #   seed-corpus-from-record.sh --approve pr-NN --by "<who> <YYYY-MM-DD>"
+#   seed-corpus-from-record.sh --sync-labels pr-NN      # manifest anchors/approved_by → labels rows
 #   seed-corpus-from-record.sh --freeze                 # regenerate SHA256SUMS
 #   seed-corpus-from-record.sh --check                  # verify SHA256SUMS
 #   common: [--repo <git dir>] [--corpus <evals/fixtures/review-prs>]
@@ -43,6 +44,32 @@
 # in a fixture file (source fix/<sha>:<start>-<end>); the grader uses them
 # only for refuted share.
 #
+# Label grammar (labels/pr-NN.tsv): the first line `# approved-by: <who>` (the
+# approval record; `pending` until --approve), `#` comments, the column header,
+# then one row per anchor. A defect's first row is its primary row (anchor_line,
+# must_match, severity, category, label_source and source in the manifest); every
+# further row of the same defect_id and file adds an anchor. must_match is either
+# text that occurs on exactly one line of head/<file> (preferred: it survives
+# renumbering) or `@L<n>`, head line n (1-based, 1 <= n <= the file's line count),
+# for a line whose text is not unique (bd-y4pqj); `file` must be a relative path
+# inside pr-NN/head/ (no absolute path, `..`, backslash or NUL; symlinks may not
+# lead out), else the row is refused; `@L0`, a line past the end and a
+# non-integer after `@L` are refused with the row named. Only a one-word `@L` value
+# (`@L` followed by letters, digits or `-`) is that grammar; longer text that starts
+# with `@L` (`@Lazy foo`) is ordinary text.
+#
+# --sync-labels pr-NN (bd-y4pqj) brings the labels to a curated manifest: for every
+# anchor of manifests/pr-NN.json (`anchors`, else `anchor_line`) that no row of its
+# defect resolves to, it inserts a row after that defect's last row, copying the
+# primary row's columns, with must_match the line's stripped text when that text is
+# on exactly one line (else `@L<n>`); it rewrites the first line to the manifest's
+# approved_by (one line: no control, C1 or U+2028/U+2029 characters) and keeps every
+# other line byte for byte; the file is replaced atomically (temp file + rename).
+# It prints the rows it added, adds nothing on a second run and never writes the manifest. On every run, a no-op
+# included, it rebuilds the manifest in memory from the new labels before writing and
+# refuses (exit 1, labels file untouched, the differing fields named) when the rebuild
+# fails or is not byte-identical to the manifest. It does not refreeze: run --freeze.
+#
 # Generated artefacts never become fix regions (cycle-130 bd-8o5rx, PRD AC-10.1):
 # a path with a `dist/` component, a name ending `.map`, `.d.ts` or `.checksum`,
 # or named `checksums.json`, `REPO-MAP.md` or `.build-manifest.json` is a
@@ -75,6 +102,7 @@ ap.add_argument("record_ref", nargs="?")
 ap.add_argument("--out"); ap.add_argument("--base"); ap.add_argument("--head"); ap.add_argument("--fix")
 ap.add_argument("--feedback"); ap.add_argument("--dry-run", action="store_true")
 ap.add_argument("--build-manifest", metavar="FIXTURE"); ap.add_argument("--approve", metavar="FIXTURE")
+ap.add_argument("--sync-labels", metavar="FIXTURE")
 ap.add_argument("--by"); ap.add_argument("--freeze", action="store_true"); ap.add_argument("--check", action="store_true")
 ap.add_argument("--repo", default=HARNESS_ROOT)
 ap.add_argument("--corpus", default=os.path.join(HARNESS_ROOT, "evals", "fixtures", "review-prs"))
@@ -180,11 +208,12 @@ def check():
     print(f"corpus OK: {n} files match SHA256SUMS")
 
 # ---------------------------------------------------------------- labels I/O
-def read_labels(fx):
+def read_labels(fx, content=None):
+    """content: labels text to parse instead of the file (--sync-labels verifies before it writes)."""
     path = os.path.join(LABELS_DIR, f"{fx}.tsv")
-    if not os.path.isfile(path):
+    if content is None and not os.path.isfile(path):
         fail(f"labels not found: {path}")
-    text = open(path, encoding="utf-8").read().splitlines()
+    text = (open(path, encoding="utf-8").read() if content is None else content).splitlines()
     if not text or not re.match(r"^# approved-by: \S", text[0]):
         fail(f"{path}: the first line must be '# approved-by: <who> <date>' (or 'pending')")
     approved_by = text[0][len("# approved-by: "):].strip()
@@ -216,8 +245,36 @@ def unique_line(lines, needle):
     hits = [i for i, l in enumerate(lines, 1) if needle in l]
     return hits[0] if len(hits) == 1 else None
 
-def build_manifest(fx):
-    approved_by, rows, _ = read_labels(fx)
+def head_path(fx, f):
+    """(path, None) for a labels `file` inside <corpus>/<fx>/head, else (None, why): no absolute
+    path, `..` component, backslash or NUL, and the resolved path (symlinks followed) stays under head/."""
+    if not f or os.path.isabs(f) or "\\" in f or "\x00" in f or ".." in f.split("/"):
+        return None, "an absolute path, a `..` component, a backslash or a NUL"
+    base = os.path.realpath(os.path.join(CORPUS, fx, "head"))
+    hp = os.path.join(base, f)
+    if not os.path.realpath(hp).startswith(base + os.sep):
+        return None, "it resolves outside head/"
+    return hp, None
+
+# bd-y4pqj: `@L<n>` names head line n (1-based) for a curated anchor whose text is not unique
+# only an `@L`-shaped value (one word of letters, digits, `-`) is the line grammar: `@L12`
+# resolves, `@L0`/`@Lx`/`@L4x`/`@L-1` are refused; longer text such as `@Lazy foo` stays text
+AT_LINE_RX = re.compile(r"^@L([1-9][0-9]*)$")
+AT_SHAPE_RX = re.compile(r"^@L[0-9A-Za-z-]*$")
+def resolve_anchor(lines, must_match, fname):
+    """(line, None) when the must_match resolves, else (None, why)."""
+    if AT_SHAPE_RX.match(must_match):
+        m = AT_LINE_RX.match(must_match)
+        if not m:
+            return None, "is not @L<n> with n a positive integer"
+        if int(m.group(1)) > len(lines):
+            return None, f"is past the end of head/{fname} ({len(lines)} lines)"
+        return int(m.group(1)), None
+    at = unique_line(lines, must_match)
+    return (at, None) if at is not None else (None, f"is not on exactly one line of head/{fname}")
+
+def build_manifest(fx, write=True, labels_content=None):
+    approved_by, rows, _ = read_labels(fx, labels_content)
     fyaml = os.path.join(CORPUS, fx, "fixture.yaml")
     meta = {}
     for l in open(fyaml, encoding="utf-8"):
@@ -228,7 +285,9 @@ def build_manifest(fx):
     for r in rows:
         if r["label_source"] not in ("review", "audit", "bridgebuilder", "fix"):
             errors.append(f"{r['defect_id']}: label_source {r['label_source']!r}"); continue
-        hp = os.path.join(CORPUS, fx, "head", r["file"])
+        hp, why = head_path(fx, r["file"])
+        if hp is None:
+            errors.append(f"{r['defect_id']}: file {r['file']!r} is not a path inside head/ ({why})"); continue
         if not os.path.isfile(hp):
             errors.append(f"{r['defect_id']}: head/{r['file']} missing"); continue
         lines = open(hp, encoding="utf-8", errors="replace").read().splitlines()
@@ -241,9 +300,9 @@ def build_manifest(fx):
             regions.append({"id": r["defect_id"], "file": r["file"], "start": int(m.group(1)), "end": int(m.group(2)),
                             "source": r["source"]})
             continue
-        at = unique_line(lines, r["must_match"])
+        at, why = resolve_anchor(lines, r["must_match"], r["file"])
         if at is None:
-            errors.append(f"{r['defect_id']}: must_match {r['must_match']!r} is not on exactly one line of head/{r['file']}"); continue
+            errors.append(f"{r['defect_id']}: must_match {r['must_match']!r} {why}"); continue
         d = defects.get(r["defect_id"])
         if d is None:
             order.append(r["defect_id"])
@@ -268,9 +327,129 @@ def build_manifest(fx):
            "record": {"sprint": meta.get("sprint"), "record_ref": meta.get("record_ref"),
                       "head_commit": meta.get("head_commit"), "fix_commit": meta.get("fix_commit")},
            "defects": out, "fix_regions": regions}
-    os.makedirs(MANIFESTS_DIR, exist_ok=True)
-    json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
+    if write:
+        os.makedirs(MANIFESTS_DIR, exist_ok=True)
+        json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
     return man
+
+def manifest_diff(got, want):
+    """Where a rebuilt manifest differs from the tracked one (for the --sync-labels refusal)."""
+    out = [k for k in sorted(set(got) | set(want)) if k != "defects" and got.get(k) != want.get(k)]
+    gd = {d.get("id"): d for d in got.get("defects", [])}
+    if [d.get("id") for d in got.get("defects", [])] != [d.get("id") for d in want.get("defects", [])]:
+        out.append("defect ids or order")
+    for d in want.get("defects", []):
+        g = gd.get(d.get("id"))
+        if g is not None and g != d:
+            out.append(f"defect {d['id']}: " + ", ".join(sorted(k for k in set(g) | set(d) if g.get(k) != d.get(k)) or ["key order"]))
+    return "; ".join(out[:8]) or "formatting or key order"
+
+def sync_labels(fx):
+    """bd-y4pqj: add a labels row for every manifest anchor no row resolves to; copy approved_by (see the header)."""
+    mpath = os.path.join(MANIFESTS_DIR, f"{fx}.json")
+    lpath = os.path.join(LABELS_DIR, f"{fx}.tsv")
+    if not os.path.isfile(mpath):
+        fail(f"manifest not found: {mpath}")
+    mraw = open(mpath, encoding="utf-8").read()
+    man = json.loads(mraw)
+    approved_by = man.get("approved_by")
+    if (not isinstance(approved_by, str) or not approved_by or approved_by != approved_by.strip()
+            or len(approved_by.splitlines()) != 1 or re.search(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]", approved_by)):
+        fail(f"{mpath}: approved_by must be a one-line non-empty string without surrounding space")
+    if man.get("approved") is not (approved_by != "pending"):
+        fail(f"{mpath}: approved {man.get('approved')!r} disagrees with approved_by {approved_by!r}")
+    read_labels(fx)  # validates the header and every row's shape
+    raw = open(lpath, encoding="utf-8", newline="").read()
+    tl = raw.splitlines(keepends=True)
+    heads, have, last, primary = {}, {}, {}, {}
+    def head(f, who):
+        if f not in heads:
+            hp, why = head_path(fx, f)
+            if hp is None:
+                fail(f"{fx}: {who}: file {f!r} is not a path inside head/ ({why})")
+            if not os.path.isfile(hp):
+                fail(f"{fx}: head/{f} missing")
+            heads[f] = open(hp, encoding="utf-8", errors="replace").read().splitlines()
+        return heads[f]
+    seen_header = False
+    for i, l in enumerate(tl[1:], 1):
+        l = l.rstrip("\r\n")
+        if not l or l.startswith("#"):
+            continue
+        if not seen_header:
+            seen_header = True; continue
+        r = dict(zip(HEADER, l.split("\t")))
+        if r["label_source"] == "fix":
+            continue
+        at, why = resolve_anchor(head(r["file"], r["defect_id"]), r["must_match"], r["file"])
+        if at is None:
+            fail(f"{fx}: {r['defect_id']}: must_match {r['must_match']!r} {why}")
+        primary.setdefault(r["defect_id"], r)
+        have.setdefault(r["defect_id"], set()).add(at)
+        last[r["defect_id"]] = i
+    ids = [d.get("id") for d in man.get("defects", [])]
+    for k in primary:
+        if k not in ids:
+            fail(f"{fx}: label {k} is not a defect of manifests/{fx}.json")
+    adds, n_text, n_at = {}, 0, 0
+    for d in man.get("defects", []):
+        p = primary.get(d.get("id"))
+        if p is None:
+            fail(f"{fx}: manifest defect {d.get('id')!r} has no labels row")
+        if d.get("file") != p["file"]:
+            fail(f"{fx}: manifest defect {d['id']} names {d.get('file')!r}, its labels rows {p['file']!r}")
+        want = d.get("anchors", [d.get("anchor_line")])
+        lines = head(p["file"], d["id"])
+        for n in sorted(set(want)):
+            if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(lines):
+                fail(f"{fx}: manifest defect {d['id']} anchor {n!r} is not a line of head/{p['file']}")
+            if n in have[d["id"]]:
+                continue
+            t = lines[n - 1].strip()
+            textual = (t and "\t" not in t and not AT_SHAPE_RX.match(t) and len(t.splitlines()) == 1
+                       and not has_secret(t) and unique_line(lines, t) == n)
+            mm = t if textual else f"@L{n}"
+            n_text, n_at = n_text + bool(textual), n_at + (not textual)
+            adds.setdefault(last[d["id"]], []).append(
+                (d["id"], mm, "\t".join([d["id"], p["severity"], p["category"], p["file"], mm, p["label_source"], p["source"]])))
+            have[d["id"]].add(n)
+    out = [f"# approved-by: {approved_by}\n"]
+    for i, l in enumerate(tl[1:], 1):
+        if i in adds and not l.endswith("\n"):
+            l += "\n"
+        out.append(l)
+        out.extend(row + "\n" for _k, _m, row in adds.get(i, []))
+    new = "".join(out)
+    header_changed = tl[0].rstrip("\r\n") != out[0].rstrip("\n")
+    # verify before writing, on every run (a no-op sync proves the labels too): any refusal or
+    # error while rebuilding from the new content leaves the labels file untouched
+    try:
+        rebuilt = build_manifest(fx, write=False, labels_content=new)
+    except SystemExit:
+        fail(f"{fx}: the synced labels do not build (see above); labels left unchanged")
+    except Exception as e:
+        fail(f"{fx}: rebuilding from the synced labels failed ({type(e).__name__}: {e}); labels left unchanged")
+    if json.dumps(rebuilt, indent=2) != mraw:
+        fail(f"{fx}: the synced labels would not rebuild manifests/{fx}.json byte for byte "
+             f"({manifest_diff(rebuilt, man)}); labels left unchanged")
+    if new != raw:
+        # atomic: a temp file beside the target, then os.replace (never an in-place truncation)
+        fd, tmp = tempfile.mkstemp(dir=LABELS_DIR, prefix=f".{fx}.tsv.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+                fh.write(new); fh.flush(); os.fsync(fh.fileno())
+            os.chmod(tmp, os.stat(lpath).st_mode & 0o7777)
+            os.replace(tmp, lpath)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
+    print(f"{fx}: added {n_text + n_at} row(s) ({n_text} text, {n_at} @L<n>); approved-by "
+          + (f"set to {approved_by!r}" if header_changed else "unchanged")
+          + ("; run --freeze to refresh SHA256SUMS" if new != raw else ""))
+    for i in sorted(adds):
+        for k, mm, _row in adds[i]:
+            print(f"  + {k}\t{mm}")
 
 # ------------------------------------------------------------ simple modes
 if args.check:
@@ -283,6 +462,11 @@ if args.build_manifest:
     m = build_manifest(args.build_manifest)
     n = freeze()
     print(f"{args.build_manifest}: {len(m['defects'])} label(s), {len(m['fix_regions'])} fix region(s); approved={m['approved']}; SHA256SUMS {n} files")
+    sys.exit(0)
+if args.sync_labels:
+    if not FX_RX.match(args.sync_labels):
+        fail("fixture id must be pr-NN", 2)
+    sync_labels(args.sync_labels)
     sys.exit(0)
 if args.approve:
     fx = args.approve
@@ -723,7 +907,7 @@ pr_md = f"# {title}\n\n" + (f"Sprint {sprint} (global), {len(head_files)} file(s
                              + ("\nCommits in this change:\n\n" + "\n".join(f"- {clean(s, 200)}" for s in subjects) + "\n" if len(subjects) > 1 else ""))
 tsv = [f"# approved-by: pending",
        f"# fixture {fx} | sprint-{sprint} | record {record_ref} | base {base[:12]} | head {head[:12]} | fix {fixc[:12]}",
-       "# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve",
+       "# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor: text on exactly one head line, or @L<n> for head line n), then --approve",
        *[f"# {lb['id'][:3]} {lb['severity']} {lb['label_source']}: {lb['title']} [{lb['how']}]" for lb in labels],
        "\t".join(HEADER)]
 for lb in labels:
