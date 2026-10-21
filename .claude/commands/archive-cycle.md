@@ -118,6 +118,18 @@ grimoires/loa/archive/2026-01-17-mvp-complete/
 
 **Note**: Original files are NOT deleted. This allows referencing previous work while starting a new cycle. Delete them manually if you want a clean slate.
 
+## Script Contract (`.claude/scripts/archive-cycle.sh`)
+
+The script that performs the archive (`archive-cycle.sh [--cycle N] [--retention N] [--force] [--dry-run]`) follows these rules (bug 20261021-ba367a, issue #1263):
+
+| Rule | Behaviour |
+|------|-----------|
+| Default cycle | Without `--cycle`, the ledger's `active_cycle` number; when `active_cycle` is null, the highest cycle number among `.cycles[].id`; with no ledger, 1. `--cycle N` always overrides. |
+| Completeness gate | A cycle with any sprint whose `status` is not `completed` is refused (exit 1, nothing written) unless `--force` is passed. `--dry-run` reports what the gate would do. |
+| Ledger update | After a real archive the live ledger gets the changes below, under the `ledger-lib.sh` lock and through `_write_ledger`. The `ledger.json` copied into the archive is the pre-update ledger. `--dry-run` never writes. |
+| Retention default | Keep every archive. Pruning happens only when `--retention N` or `compound_learning.archive.retention_cycles` names N > 0 (the CLI wins over the yaml key); the newest N are kept by mtime. |
+| Tracked protection | A directory holding any git-tracked file is never deleted: it is kept with `[WARN] tracked archive kept: <path>; prune it with git`, and the dry run lists it apart from the deletion list. Outside a git work tree the mtime rule alone applies. |
+
 ## Ledger Changes
 
 Before:
@@ -220,6 +232,7 @@ Next steps:
 |-------|-------|------------|
 | "No ledger found" | Project doesn't use Sprint Ledger | Run `/plan-and-analyze` first |
 | "No active cycle" | Cycle already archived or not created | Run `/plan-and-analyze` to start |
+| "N incomplete sprint(s); refusing to archive" | A sprint of the cycle is not `completed` | Finish the sprint, or pass `--force` to archive anyway |
 | "Archive already exists" | Same slug used on same date | Use a different label |
 
 ## Related Commands
