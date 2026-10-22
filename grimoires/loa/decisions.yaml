@@ -25800,3 +25800,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0795"
+    created_at: "2026-10-22T18:12:47Z"
+    updated_at: "2026-10-22T18:12:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Look 2 (G1+G2, 8 valid PRs, 108 defects): CONTINUE; delta 0.105 SE 0.096 below the O'Brien-Fleming bound; a1_full guard 0.35; positive control pass"
+    decision: "Look 2 taken 2026-10-22T18:10Z when every G2 batch had resolved: 100 rows (68 under REGISTRATION-8, 32 under REGISTRATION-10), 8 valid PRs, 13 valid pairs, 108 labelled defects; delta 0.1053, SE 0.0960, information fraction 0.0887, z_yes 1.096 against the Lan-DeMets O'Brien-Fleming bound 158.5 at this fraction, z_no -0.055; conditional powers 0.964 (YES) and 0.012 (NO), so not FUTILE; decision CONTINUE. The 25 percent guard stays tripped on a1_full (7 of 20 cells excluded, 0.35: oracle exposure on the .claude-touching PRs r14, r15, r16, r21 plus two class-7 and outside_path contaminations), so the read is flagged inconclusive-by-degradation. Positive control under section 8 as amended: pass (open minus closed delta 0.0417, 90 percent cluster-t [-0.034, 0.117], 11 pairs over 7 PRs, exposure in 5 open runs; r25 saturated-exempt). Co-reads: pipeline-independent delta 0.367 [95 percent 0.031, 0.703] on 30 defects; cost-matched delta 0.094 [-0.064, 0.252] on the 4 of 13 pairs within the dollar tolerance. G3 proceeds (g3-a1 launched 18:10:51Z). No rule, boundary, k, group or cap changes."
+    rationale: "Neither boundary is crossed at an information fraction below 0.09 and the conditional power for YES is high, so the registered table says CONTINUE; the guard and the positive-control label are reported as registered. The budget stands at USD 2,337 of 4,200 with G3 projected at about 700."
+    alternatives_considered:
+      - option: "stop for futility"
+        rejected_because: "FUTILE needs both conditional powers below 0.20; they read 0.96 and 0.01"
+      - option: "declare the primary unreadable because the guard is tripped and skip G3"
+        rejected_because: "the guard flags, it does not stop; the registered second reads (oracle-exposure and per-class rows) need the full corpus, and the matched arm is clean"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "593148c8"
+    source: "grimoires/loa/reports/ablation-2.0/c132-looks/look-2/look-2.json (Sprint 270, 2026-10-22)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-22T18:12:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-looks/look-2/{look-2.json,look-2.md,rows.jsonl,INPUTS.json}; ~/.cache/loa/cycle-132/logs/look-2.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
