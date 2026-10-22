@@ -25696,3 +25696,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0792"
+    created_at: "2026-10-22T06:40:12Z"
+    updated_at: "2026-10-22T06:40:12Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Look 1 (G1, 5 valid PRs, 78 defects): CONTINUE by the registered minimum-information rule; a1_full guard tripped (0.333); positive control not demonstrated"
+    decision: "Look 1 taken 2026-10-22T06:35Z when every G1 batch had resolved (g1-a1, g1-a2, g1-a3, g1-b incl. the reboot resume): 60 rows, 5 valid PRs, 8 valid pairs, 78 labelled defects, delta 0.2041, SE 0.1022, information fraction 0.078; decision CONTINUE because fewer than 6 valid PRs, as registered (section 6); the 25 percent guard is tripped on a1_full (excluded share 0.333: r14 both cells, r15-t2 oracle-exposed, r27-t1 class 7) so the read is flagged inconclusive-by-degradation; positive control delta 0.0000 with 90 percent interval [-0.116, 0.116] on 6 pairs over 4 PRs with exposure in 2 open runs reads not demonstrated under section 8. G2 proceeds (g2-a1 launched 06:35:45Z). No rule, boundary, k, group or cap changes."
+    rationale: "The registered stopping rule forbids a decision below 6 valid PRs or 30 defects; the look exists to be taken when a group completes, whatever the valid count. The guard and the positive-control labels are reported as registered; the oracle-exposure and per-class rows are the registered second reads and come at the final."
+    alternatives_considered:
+      - option: "skip the look because r14 has no valid a1_full cell and the count is below the minimum"
+        rejected_because: "the registration says looks are taken when a scheduled group completes whatever the valid-PR count is, and the look output is part of the record"
+      - option: "stop for futility now on the tripped guard"
+        rejected_because: "the guard flags the read; FUTILE needs both conditional powers below 0.20 at an evaluable look, and the budget is at USD 1,500 of 4,200"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "f187b10f"
+    source: "grimoires/loa/reports/ablation-2.0/c132-looks/look-1/look-1.json (Sprint 270, 2026-10-22)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-22T06:40:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-looks/look-1/{look-1.json,look-1.md,rows.jsonl,INPUTS.json}; ~/.cache/loa/cycle-132/logs/look-1.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
