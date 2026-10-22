@@ -99,6 +99,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 4 |
 | [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 2 |
 | [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 1 |
+| [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 2 |
 
 ---
 
@@ -1915,3 +1916,24 @@ Mechanism: a fix-commit path OUTSIDE the PR is written at the PR's head_commit, 
 ### Reading guide
 
 A refusal fallback is a model-safety event on the review content, not infrastructure: the same PR reviewed on Fable without a fallback in two sibling arms the same hour, so it is stochastic per session. Read the row's phases[].refusal_fallbacks and models_used before attributing any Fable-vs-Opus difference to the pipeline; a cell with a fallback is not a Fable cell. If the rate grows past a few percent of review-catch rows, the model confound in every full-pipeline read is live and must be reported as such.
+
+## KF-052: Host reboot kills a detached ablation batch runner (setsid nohup run-ablation.sh) mid-batch: in-flight sessions and trials end without a record or row
+
+**Status**: OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery
+**Feature**: evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh
+**Symptom**: pgrep run-ablation.sh returns 0 while <batch>/STATUS.json says state running; the batch log stops without a final 'batch:' line; docker ps shows no loa-abl-* container; 'last -x reboot' shows a system boot after the last log line; the Claude session died at the same time (tool call interrupted)
+**First observed**: 2026-09 cycle-126 (memory gotcha: host reboot kills detached runs); 2026-10-22T02:1xZ cycle-132 Sprint 270 batch c132-g1-b (5 of 42 Fable sessions done; r23-t1 s2/s3 and a1_review_only r27-t1 interrupted)
+**Recurrence count**: 2
+**Current workaround**: Relaunch the same batch with --resume (batch-c132.sh <mode> <pin> --resume → run-ablation.sh --resume): relaunches only sessions without a record and plan entries without a row; the interrupted attempt dirs count toward the 3-attempt limit; MANIFEST caps kept; recorded sessions charged from their records; registration untouched
+**Upstream issue**: none (infrastructure); candidate: a systemd user unit or a boot-time resume checklist in the batch driver
+**Related visions / lore**: KF-047 (record-round 72 h timeout), cycle-126 session memory
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-22 | batch-c132.sh g1-b <pin> --resume at 02:46:24Z | pre-flight passed; 2 of 24 trials rowed kept; a1_review_only r27-t1 and fable r23-t1 s2/s3 relaunched; batch running | ~/.cache/loa/cycle-132/logs/batch-g1-b-resume.log; evals/results/ablation-2.0/c132-g1-b/STATUS.json; grimoires/loa/NOTES.md 2026-10-22T02:48:00Z |
+
+### Reading guide
+
+Confirm the cause with 'last -x reboot shutdown' before anything else. Never relaunch the batch under its own name without --resume (duplicate run_id → ROWS INVALID, cycle-132 smoke lesson) and never move or delete its rows or run dirs. After --resume check the first log lines: 'resume: batch <name>, N of M trials rowed' and the relaunched units. If it recurs ≥ 3 times, make the driver a restartable unit instead of relying on manual resume.
