@@ -25730,3 +25730,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0793"
+    created_at: "2026-10-22T07:03:43Z"
+    updated_at: "2026-10-22T07:03:43Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 10 (analysis only): positive_control per section 8 over every group, section 5 co-reads at every look; pin unchanged; REGISTRATION-9"
+    decision: "reads.py positive_control() implements the registered section 8 table verbatim: pairs from every registered group (was groups[0] only), pass needs exposure in at least 2 open runs and a positive point estimate (was 1), void only when the 90 percent cluster-t interval lies entirely below 0 (was any negative point estimate), not demonstrated otherwise with exposure, not exercised without exposure or below 3 eligible pairs; the superseded label is kept as outcome_pre_addendum_10 so both reads are reported. The look mode adds the section 5 co-reads (pipeline-independent delta, recall per arm stratified by label_source and review_driven, cost-matched delta with the dollar table) as descriptive blocks that never enter the decision. Registered as REGISTRATION-9.json (sha256 ae0b1da614479fc6c2fd15c16ab595086901dcf0cf94915c07d99cd326c47f57) at the unchanged pipeline pin fbd36a0c with the analysis tree at 2f023159; look 1 is re-read as look-1-amended beside the kept original."
+    rationale: "The hashed text is the commitment and the module is its implementation; the module still carried the pre-Flatline draft of the positive control (D-7.10) and omitted the co-reads. Taken at a look that could decide nothing (5 valid PRs below 6) and whose positive-control labels agree under both readings (point estimate 0.0000, interval covering 0, 2 exposed runs). The pipeline pin cannot move because make-inputs validates every row source_commit against it, so the registration carries a separate analysis tree hash."
+    alternatives_considered:
+      - option: "leave the module and map the labels by hand in the final report"
+        rejected_because: "at the final read the old code could void every read on a negative point estimate whose interval covers 0, which the registered text forbids; a hand mapping of a mechanical read is the weaker record"
+      - option: "move the pipeline pin to the new commit as the earlier addenda did"
+        rejected_because: "G1 rows carry source_commit fbd36a0c and make-inputs refuses rows whose pin differs; the pipeline, grader and runner are byte-identical at both commits, which register-addendum-analysis.sh verifies"
+      - option: "also render the positive control in the look markdown"
+        rejected_because: "the json carries it and the look markdown never did; deferred to the final report, no registered text requires it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "eb109f0d"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-10.md (Sprint 270, 2026-10-22)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-22T07:03:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "commit 2f023159 (patch s1-d-r7, 139 tests); REGISTRATION-9.json; reports/ablation-2.0/c132-looks/look-1 and look-1-amended"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
