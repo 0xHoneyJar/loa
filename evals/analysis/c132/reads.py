@@ -57,7 +57,8 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
 
 Inputs are validated before any output (D-7.5): the rows file hash, every grade.json hash, the pin,
 the label set, the cells and each matched cell's session membership must equal INPUTS.json, and every
-row's registration_sha256 must equal sha256(REGISTRATION.json). Registration keys read: seed,
+row's registration_sha256 must equal sha256(REGISTRATION.json) or a predecessor on its `supersedes`
+chain (REGISTRATION*.json beside it; PREREGISTRATION.md §12). Registration keys read: seed,
 boundary_constant, groups ([[task…]…]; look j follows group j), mde (default 0.10), planned_final_se
 or power_json (a path to power.json holding planned_final_se; relative to the registration's
 directory, else the cwd), sensitivities (optional order), arms (unused for routing here).
@@ -831,6 +832,13 @@ def render_md(doc):
              "interval %s; validity rules %s.\n\n"
              % (inp["rows_sha256"], inp["grades_sha256"], inp["inputs_sha256"], inp.get("registration_sha256") or "unregistered",
                 doc["seed"], doc["interval"], doc["validity"]))
+    rp = inp.get("registrations")
+    if rp:
+        L.append("Rows by registration: %s.\n\n" % ", ".join("%s: %d" % (k[:12], n) for k, n in sorted(rp["rows_by_registration"].items())))
+        L.append("Registration chain (current first): %s%s.\n\n" % (
+            " → ".join("`%s`" % k[:12] for k in rp["chain"]),
+            "; unresolved predecessor %s" % ", ".join("`%s`" % k[:12] for k in rp["unresolved_predecessor"])
+            if rp["unresolved_predecessor"] else ""))
     if doc["mode"] == "placebo":
         p = doc["placebo"]
         L.append("Contrast `%s` − `%s`; %s.\n\n" % (doc["arm_a"], doc["arm_b"], "PASS" if p.get("pass") else "FAIL"))
@@ -1063,20 +1071,23 @@ def main(argv=None):
                 planned = json.loads(txt) if txt.lstrip().startswith("[") else [x.strip() for x in txt.splitlines() if x.strip()]
             doc = common.make_inputs(a.rows, rows, cells, pin=a.pin, label_set=a.label_set, planned=planned,
                                      task_fixture=_task_fixture(a.suite_root))
+            if a.registration:
+                doc["registrations"] = common.registration_provenance(a.registration, rows)
             os.makedirs(a.out, exist_ok=True)
             with open(os.path.join(a.out, "INPUTS.json"), "w", encoding="utf-8") as f:
                 f.write(json.dumps(doc, sort_keys=True, indent=2) + "\n")
             return 0
         inputs = common.load_json(a.inputs, "INPUTS.json")
         common.validate_inputs(inputs, a.rows, rows, cells)
-        reg, reg_sha = {}, None
+        reg, reg_sha, reg_prov = {}, None, None
         if a.registration:
             reg = common.load_json(a.registration, "REGISTRATION.json")
             reg_sha = common.validate_registration(a.registration, rows)
+            reg_prov = common.registration_provenance(a.registration, rows)
         seed = a.seed if a.seed is not None else int(reg.get("seed", DEFAULT_SEED))
         doc = {"inputs": {"rows_sha256": common.sha256_file(a.rows), "grades_sha256": _grades_sha(cells),
                           "inputs_sha256": common.sha256_file(a.inputs), "registration_sha256": reg_sha,
-                          "n_rows": len(rows)},
+                          "n_rows": len(rows), "registrations": reg_prov},
                "seed": seed, "interval": INTERVAL, "validity": VALIDITY}
         if a.placebo:
             pairs, lost = common.make_pairs(cells, a.arm_a, a.arm_b)

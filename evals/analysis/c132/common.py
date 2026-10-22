@@ -440,13 +440,63 @@ def validate_inputs(inputs, rows_path, rows, cells):
         raise InputError("; ".join(errs))
 
 
+def registration_chain(reg_path):
+    """(chain, unresolved): sha256 of reg_path first, then every predecessor named by `supersedes`
+    (PREREGISTRATION.md §12), resolved through the REGISTRATION*.json files beside reg_path by the
+    sha256 of their bytes. A predecessor whose file is absent stays in the chain (the declared
+    lineage) and is listed as unresolved; the walk stops there, at a null supersedes, or on a cycle."""
+    chain, unresolved = [sha256_file(reg_path)], []
+    by_sha = {}
+    d = os.path.dirname(os.path.abspath(reg_path))
+    for name in sorted(os.listdir(d)):
+        fp = os.path.join(d, name)
+        if name.startswith("REGISTRATION") and name.endswith(".json") and os.path.isfile(fp):
+            try:
+                with open(fp, "rb") as f:
+                    b = f.read()
+                by_sha[hashlib.sha256(b).hexdigest()] = json.loads(b.decode("utf-8"))
+            except (OSError, ValueError):
+                continue
+    try:
+        with open(reg_path, "rb") as f:
+            cur = json.loads(f.read().decode("utf-8"))
+    except (OSError, ValueError):
+        cur = {}
+    while isinstance(cur, dict):
+        sup = cur.get("supersedes")
+        if not isinstance(sup, str) or not sup or sup in chain:
+            break
+        chain.append(sup)
+        if sup not in by_sha:
+            unresolved.append(sup)
+            break
+        cur = by_sha[sup]
+    return chain, unresolved
+
+
+def registration_provenance(reg_path, rows):
+    """the `registrations` provenance block: current, chain (current first), rows_by_registration, unresolved_predecessor"""
+    chain, unresolved = registration_chain(reg_path)
+    counts = {}
+    for r in rows:
+        k = r.get("registration_sha256")
+        k = k if isinstance(k, str) else "null"
+        counts[k] = counts.get(k, 0) + 1
+    return {"current": chain[0], "chain": chain, "rows_by_registration": counts,
+            "unresolved_predecessor": unresolved}
+
+
 def validate_registration(reg_path, rows):
-    """every row's registration_sha256 equals sha256(REGISTRATION.json) (D-7.2)"""
-    h = sha256_file(reg_path)
-    bad = sorted(cell_key(r) for r in rows if r.get("registration_sha256") != h)
+    """every row's registration_sha256 is sha256(REGISTRATION.json) or a predecessor on its
+    `supersedes` chain (D-7.2, PREREGISTRATION.md §12); returns the current sha256"""
+    chain, _ = registration_chain(reg_path)
+    h, ok = chain[0], set(chain)
+    off = [r for r in rows if r.get("registration_sha256") not in ok]
+    bad = sorted(cell_key(r) for r in off)
     if bad:
-        raise InputError("registration_sha256 differs from %s on %d row(s): %s"
-                         % (h[:12], len(bad), ", ".join(bad[:5])))
+        seen = sorted({str(r.get("registration_sha256"))[:12] for r in off})
+        raise InputError("registration_sha256 differs from %s on %d row(s): %s (outside the supersedes chain: %s)"
+                         % (h[:12], len(bad), ", ".join(bad[:5]), ", ".join(seen)))
     return h
 
 
