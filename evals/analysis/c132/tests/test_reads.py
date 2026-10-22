@@ -310,7 +310,11 @@ class PositiveControlTest(Base):
 
     def test_not_exercised(self):
         pc = self.final(self.batch(open_mount={"p": 0.95, "exposed": False}, p_full=0.6))["secondary"]["positive_control"]
-        self.assertEqual(pc["outcome"], "control not exercised")
+        self.assertEqual(pc["outcome"], "not exercised")
+        self.assertEqual(pc["n_exposed_open_runs"], 0)
+        self.assertEqual(pc["consequence"], "every other read unconfirmed by the positive control")
+        self.assertEqual(pc["outcome_pre_addendum_10"], "control not exercised")
+        self.assertEqual(pc["rule"], "§8 (addendum 10)")
 
     def test_void(self):
         doc = self.final(self.batch(open_mount={"p": 0.1, "exposed": True}, p_full=0.6))
@@ -328,6 +332,149 @@ class PositiveControlTest(Base):
 
     def test_absent(self):
         self.assertEqual(self.final(self.batch())["secondary"]["positive_control"], {"status": "not_run"})
+
+
+def _expose_only(keep):
+    """mutate: open-mount rows keep their oracle exposure only for the (task, trial)s in `keep`"""
+    def mut(row, grade):
+        if row["arm"] == "a1_full_openmount" and (row["task_id"], row["trial"]) not in keep:
+            row["oracle_exposed_defects"] = []
+    return mut
+
+
+def _same_missed(open_extra=()):
+    """mutate: a1_full and the open mount miss d1, d2 on every PR (Δ̂ = 0); the open mount also
+    misses d3 on the (task, trial)s in `open_extra` (Δ̂ slightly < 0, the interval covering 0)"""
+    def mut(row, grade):
+        if row["arm"] in ("a1_full", "a1_full_openmount"):
+            missed = ["d1", "d2"]
+            if row["arm"] == "a1_full_openmount" and (row["task_id"], row["trial"]) in open_extra:
+                missed.append("d3")
+            row["defects_missed_pm3"] = missed
+            grade["recall"]["missed_pm3"] = missed
+    return mut
+
+
+class PositiveControlAddendum10Test(Base):
+    """PREREGISTRATION §8 (addendum 10): one test per outcome row, every group's pairs, and the
+    pre-addendum-10 label beside"""
+
+    def cells(self, s):
+        return common.load_cells(common.load_rows(s["rows"]), [s["results"]], "c132")
+
+    def pc(self, s, reg=None):
+        return reads.positive_control(self.cells(s), reg or jload(s["registration"]), 20261021)
+
+    def test_table_ordered_and_exhaustive(self):
+        o = reads.pc_outcome
+        self.assertEqual(o(0, 12, 0.1, [0.05, 0.15]), "not exercised")
+        self.assertEqual(o(0, 12, -0.3, [-0.4, -0.2]), "not exercised")     # no exposure precedes void
+        self.assertEqual(o(5, 2, -0.3, [-0.4, -0.2]), "not exercised")      # < 3 eligible pairs precedes void
+        self.assertEqual(o(5, 0, None, None), "not exercised")
+        self.assertEqual(o(1, 12, -0.3, [-0.4, -0.2]), "void")              # void needs exposure only
+        self.assertEqual(o(2, 12, 0.05, [0.01, 0.09]), "pass")
+        self.assertEqual(o(2, 12, 0.0, [-0.02, 0.02]), "not demonstrated")
+        self.assertEqual(o(2, 12, -0.02, [-0.05, 0.01]), "not demonstrated")
+        self.assertEqual(o(1, 12, 0.05, [0.01, 0.09]), "not demonstrated")
+        p = reads.pc_outcome_pre_addendum_10
+        self.assertEqual([p(0, 12, 0.1), p(1, 12, 0.1), p(1, 12, -0.01), p(1, 12, 0.0), p(1, 0, None), p(0, 0, None)],
+                         ["control not exercised", "pass", "void", "inconclusive", "inconclusive", "control not exercised"])
+
+    def test_not_exercised_fewer_than_three_pairs(self):
+        def drop(row, grade):   # every open run but review-s01's two is degraded: 2 eligible pairs
+            if row["arm"] == "a1_full_openmount" and row["task_id"] != "review-s01":
+                row["status"] = "degraded"
+        pc = self.pc(self.batch(open_mount={"p": 0.95, "exposed": True}, p_full=0.6, mutate=drop))
+        self.assertEqual(pc["eligible_pairs"], 2)
+        self.assertGreaterEqual(pc["n_exposed_open_runs"], 2)
+        self.assertEqual(pc["outcome"], "not exercised")
+
+    def test_void_by_ci90_below_zero(self):
+        pc = self.pc(self.batch(open_mount={"p": 0.1, "exposed": True}, p_full=0.6))
+        self.assertLess(pc["ci90_t"][1], 0)
+        self.assertEqual(pc["outcome"], "void")
+        self.assertEqual(pc["consequence"], "every other read void")
+
+    def test_pass_with_two_exposures(self):
+        mut = _expose_only({("review-s01", 1), ("review-s02", 2)})
+        pc = self.pc(self.batch(open_mount={"p": 0.95, "exposed": True}, p_full=0.6, mutate=mut))
+        self.assertEqual(pc["n_exposed_open_runs"], 2)
+        self.assertGreater(pc["delta"], 0)
+        self.assertEqual((pc["outcome"], pc["consequence"]), ("pass", ""))
+
+    def test_not_demonstrated_one_exposure(self):
+        mut = _expose_only({("review-s01", 1)})
+        pc = self.pc(self.batch(open_mount={"p": 0.95, "exposed": True}, p_full=0.6, mutate=mut))
+        self.assertEqual(pc["n_exposed_open_runs"], 1)
+        self.assertGreater(pc["delta"], 0)
+        self.assertEqual(pc["outcome"], "not demonstrated")
+        self.assertEqual(pc["outcome_pre_addendum_10"], "pass")      # the old rule passed on one exposure
+        self.assertEqual(pc["consequence"], "every other read unconfirmed by the positive control")
+
+    def test_not_demonstrated_delta_zero(self):
+        pc = self.pc(self.batch(open_mount={"p": 0.95, "exposed": True}, mutate=_same_missed()))
+        self.assertEqual(pc["delta"], 0)
+        self.assertEqual(pc["outcome"], "not demonstrated")
+        self.assertEqual(pc["outcome_pre_addendum_10"], "inconclusive")
+
+    def test_not_demonstrated_delta_negative_interval_covering_zero(self):
+        pc = self.pc(self.batch(open_mount={"p": 0.95, "exposed": True}, mutate=_same_missed({("review-s01", 1)})))
+        self.assertLess(pc["delta"], 0)
+        self.assertLessEqual(pc["ci90_t"][0], 0)
+        self.assertGreaterEqual(pc["ci90_t"][1], 0)
+        self.assertEqual(pc["outcome"], "not demonstrated")
+        self.assertEqual(pc["outcome_pre_addendum_10"], "void")      # the old rule voided on any Δ̂ < 0
+
+    def test_every_group_included(self):
+        s = self.batch(open_mount={"p": 0.95, "exposed": True}, p_full=0.6,
+                       groups=[["review-s%02d" % i for i in range(1, 9)]])      # open mount on all 8 PRs
+        tasks = s["tasks"]
+        two = {"groups": [tasks[:6], tasks[6:]]}
+        pc = self.pc(s, two)
+        self.assertEqual((pc["n_prs"], pc["eligible_pairs"], pc["n_exposed_open_runs"]), (8, 16, 16))
+        self.assertTrue(any("review-s07" in k for k in pc["exposed_open_runs"]))      # a groups[1] PR
+        g1 = self.pc(s, {"groups": [tasks[:6]]})
+        self.assertEqual((g1["n_prs"], g1["eligible_pairs"]), (6, 12))
+        self.assertNotEqual(pc["delta"], g1["delta"])
+
+    def test_pre_addendum_label_on_g1_only_fixture(self):
+        # the synth open mount runs on G1 only: the old label equals the old code's outcome
+        for kw, old in (({"p": 0.95, "exposed": True}, "pass"), ({"p": 0.1, "exposed": True}, "void"),
+                        ({"p": 0.95, "exposed": False}, "control not exercised")):
+            pc = self.pc(self.batch(sub="b-%s-%s" % (kw["p"], kw["exposed"]), open_mount=kw, p_full=0.6))
+            self.assertEqual(pc["outcome_pre_addendum_10"], old, kw)
+
+
+class LookCoReadsTest(Base):
+    def test_co_reads_beside_an_unchanged_decision(self):
+        s = self.batch()
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--look", "1", "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        co = doc["co_reads"]
+        self.assertEqual(set(co) - {"look"}, {"pipeline_independent", "stratified", "cost_matched"})
+        self.assertEqual(co["pipeline_independent"]["status"], "ok")
+        st = co["stratified"]
+        n_all = sum(r["a1_full"]["defects"] for r in st["review_driven"].values())
+        self.assertLess(0, co["pipeline_independent"]["n_defects"])
+        self.assertLess(co["pipeline_independent"]["n_defects"], n_all)
+        self.assertEqual(set(st["review_driven"]), {"true", "false"})
+        self.assertEqual(set(st["label_source"]), {"incident", "fix-commit"})
+        for dim in st.values():   # strata partition the look's defects per arm
+            self.assertEqual(sum(r["a1_full"]["defects"] for r in dim.values()),
+                             sum(r["a0_bare_matched"]["defects"] for r in dim.values()))
+        cm = co["cost_matched"]
+        self.assertEqual(cm["dollar_matching"]["n"], doc["looks"][0]["n_pairs"])
+        self.assertEqual(cm["n_pairs_within_tolerance"], cm["dollar_matching"]["within"])
+        self.assertIn("## Co-reads (§5, reported at every look)", slurp(os.path.join(o, "reads.md")))
+        # the decision is the look table's, computed without the co-reads
+        cells = common.load_cells(common.load_rows(s["rows"]), [s["results"]], "c132")
+        reg = jload(s["registration"])
+        lt = reads.look_table(cells, reg, 1, reg["seed"], reg["planned_final_se"])
+        self.assertEqual(doc["looks"][0]["decision"], lt[0]["decision"])
+        self.assertEqual(doc["decision"], lt[-1]["decision"])
+        self.assertAlmostEqual(doc["looks"][0]["delta"], lt[0]["delta"], places=4)
 
 
 CLASSES = [  # (task, trial, contamination dict) — one matched cell per class
