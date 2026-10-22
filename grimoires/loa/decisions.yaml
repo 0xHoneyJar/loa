@@ -25766,3 +25766,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0794"
+    created_at: "2026-10-22T07:16:45Z"
+    updated_at: "2026-10-22T07:16:45Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 11 (analysis only): rows registered under any predecessor in the supersedes chain are readable; provenance per registration; REGISTRATION-10"
+    decision: "common.validate_registration accepts a row whose registration_sha256 is the passed registration or any predecessor reachable through the supersedes chain of the REGISTRATION-N.json files beside it (matched by file sha256; a missing predecessor file is reported unresolved while a sha declared by a resolved file stays accepted); rows outside the chain still fail; every read reports rows per registration and the chain. Registered as REGISTRATION-10.json (sha256 13cbd850f82513e8788322e9ea60ac28bba044a14c83b42e11e311611a19401c) at the unchanged pipeline pin fbd36a0c with the analysis tree at 0d1fe51e. Batches from g2-a2 run under it; g2-a1 continues under REGISTRATION-8 with the identical pipeline."
+    rationale: "Section 12 requires the original outputs to be kept and both the original and the amended reads reported, which is impossible if a read refuses every row produced before the addendum; the D-7.2 equality check implemented the pre-addendum world only. The chain is the declared lineage and resolves on disk from REGISTRATION-10 back to REGISTRATION.json with nothing unresolved."
+    alternatives_considered:
+      - option: "keep every remaining batch under REGISTRATION-8 so all rows share one sha and read them under the old registration"
+        rejected_because: "the reads must run on the amended analysis tree that REGISTRATION-9 and -10 bind, and a row should record the registration that was binding when it ran"
+      - option: "rewrite the registration_sha256 of the G1 rows"
+        rejected_because: "rows are evidence; the runs.jsonl ledger is append-only and the hashes in INPUTS.json would no longer match"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "cee7601f"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-11.md (Sprint 270, 2026-10-22)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-22T07:16:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "commit 0d1fe51e (patch s1-d-r8, 148 tests); REGISTRATION-10.json; ~/.cache/loa/cycle-132/logs/look-1-amended.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
