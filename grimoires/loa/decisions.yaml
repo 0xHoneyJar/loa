@@ -25938,3 +25938,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0799"
+    created_at: "2026-10-23T08:39:25Z"
+    updated_at: "2026-10-23T08:39:25Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 14: judge packets get real defect descriptions from the blind annotators; judge run 1 (id-only) invalid and kept; run 2 is the judge"
+    decision: "Judge pair packets carry a description of the labelled defect built from the blind Phase 0 annotators' own descriptions of the fixing hunks and incidents named by each defect's manifest source (defect-descriptions.json, outside the hashed corpus; manifests unchanged; adjudication bookkeeping omitted). Judge run 1 (1,903 labels on packets whose description was the defect id, kappa 0.22, corrected recall 0.02 to 0.13) is archived and reported as an invalid run; judge run 2 on the same sampled items is the registered judge. Registered as REGISTRATION-13.json at the unchanged pipeline pin."
+    rationale: "Section 9 asks whether a finding describes the labelled defect; a packet that names the defect only by an id makes describes nearly unreachable, so run 1 measured the packet, not the grader. The annotators' descriptions come from the same blind process that produced the key, so the judge learns nothing the key's authors did not."
+    alternatives_considered:
+      - option: "report judge run 1 as the judge result with a caveat"
+        rejected_because: "a known artefact that drives every arm toward zero corrected recall is not a semantic audit"
+      - option: "add descriptions to the v2 manifests"
+        rejected_because: "changes the hashed corpus that every row records; the descriptions belong to the judge inputs"
+      - option: "show the lead adjudication reasons too"
+        rejected_because: "they are anchor and grouping bookkeeping and some name the annotators"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "be54cbc0"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-14.md (Sprint 270, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T08:39:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "commit 6ee50833 (patch s1-c-r16 + lead edit; bats 24/24, pytest 149); REGISTRATION-13.json; run 1 archive ~/.cache/loa/cycle-132/judge/run-1-no-descriptions/; sampling identical check in logs/judge-sample-3.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
