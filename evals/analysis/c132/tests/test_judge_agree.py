@@ -141,6 +141,16 @@ class JudgeAgreeTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    def test_title_takes_the_grader_version_from_the_rows(self):
+        d = self.doc()
+        rows = [dict(r, grader_version="1.3.8") for r in ROWS]
+        self.assertTrue(judge_agree.render_md(d, rows).startswith("# Grader 1.3.8 vs the blind judge\n\n"))
+        rows[1]["grader_version"] = "1.3.10"
+        self.assertTrue(judge_agree.render_md(d, rows).startswith("# Grader 1.3.10, 1.3.8 vs the blind judge\n\n"))
+        self.assertTrue(judge_agree.render_md(d, ROWS).startswith("# Grader vs the blind judge\n\n"))
+        # everything after the title is unchanged
+        self.assertEqual(judge_agree.render_md(d, rows).split("\n", 1)[1], judge_agree.render_md(d).split("\n", 1)[1])
+
 
 if __name__ == "__main__":
     unittest.main()

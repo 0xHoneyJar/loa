@@ -1,0 +1,1416 @@
+{
+ "fixtures": {
+  "pr-11": {
+   "V01": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H03",
+     "hunk:H04"
+    ],
+    "text": "Fixing change H03 — The calibration exit records the raw provider error text under message_redacted (and prints it) without passing it through the redaction helper, so secret-shaped fragments can reach the envelope and stderr.; message_redacted is filled with the unredacted provider error string. | Fixing change H04 — The stderr error JSON embeds the unsanitised provider exception text.; The stderr error JSON embeds the unredacted provider error string. (category: security; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H05",
+     "hunk:H06",
+     "hunk:H07"
+    ],
+    "text": "Fixing change H05 — Unverified (above-probed-bound) status is inherited from the chain head instead of being computed per hop, so a calibrated fallback's 429 or context verdict is misclassified as unverified and not walked.; The 'above the probed bound' status is taken from the chain head (_ceiling_unverified) instead of computed per hop, so a calibrated fallback's ordinary 429 is not walked and is recorded as RATE_LIMIT_UNVERIFIED, and its context verdict is misclassed as CEILING_UNVERIFIED_LIMIT. | Fixing change H06 — A provider context-limit verdict on any hop is classed CEILING_UNVERIFIED_LIMIT based on the head's unverified flag rather than this hop's.; Provider context-limit class on a fallback hop uses the head's unverified status rather than the hop's own. | Fixing change H07 — A 429 on a calibrated fallback hop ends the call as RATE_LIMIT_UNVERIFIED (and writes a calibration record) because the head's unverified flag is used instead of the hop's.; A 429 on a calibrated fallback hop ends the call as RATE_LIMIT_UNVERIFIED (not walked) because the head's unverified status is inherited. (category: logic; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — The long-context premium multiplies already-floored per-category costs (with float math), underbilling by the discarded remainders and dropping remainders for the premium path.; The long-context premium multiplies already-floored per-category costs (and float-multiplies), underbilling by the discarded remainders and leaving remainders unscaled. (category: logic; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — Non-finite multipliers (inf, nan, 1e309) pass the `> 0` check and are accepted, crashing or exploding the cost calculation instead of falling back to 1.0.; Only m > 0 is checked, so inf passes and nan falls through inconsistently instead of requiring a finite positive multiplier. (category: input-validation; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — record_observed's read-append-replace cycle is not serialised across processes, so concurrent writers load the same old store and the later os.replace discards the earlier row.; record_observed's read-append-replace cycle is unlocked, so concurrent writers load the same store and the later os.replace discards the earlier row. (category: concurrency; severity: medium)"
+   }
+  },
+  "pr-14": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H09"
+    ],
+    "text": "Fixing change H09 — PROJECT_ROOT defaults to the process cwd, which follows Claude's `cd`, so App-Zone detection and the .run state the gate trusts can be shifted to another directory.; PROJECT_ROOT defaults to the process cwd, which follows Claude's cd, so the gate's zone test and state reads use the wrong root and App Zone writes can be classified outside the project. (category: security; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — When jq is missing, the payload cannot be parsed, or the tool is NotebookEdit (notebook_path), file_path comes out empty and the gate allows the write instead of asking.; An unparsable payload or missing jq yields an empty file_path and the gate allows (fail-open), and NotebookEdit's notebook_path is never read so notebook writes are never gated. (category: security; severity: high)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H11"
+    ],
+    "text": "Fixing change H11 — Path normalization is a textual prefix test, so /proc/self/cwd/src/x, //ROOT/src/x, ROOT/../name/src/x, a symlinked root or a case variant reaches an App-Zone file without an ask (and writes to the gate's own trust inputs are not checked).; Path normalisation is a textual prefix test, so /proc/self/cwd/src/x, //ROOT/src/x, ROOT/../<name>/src/x, symlinked roots, case variants or relative paths reach App Zone files unseen and are allowed; trust-input state files are also writable without an ask. (category: security; severity: high)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — In authoritative mode a model-authored tool_input.active_skill naming an implementation skill allows the App-Zone write outright, so the model can grant itself permission.; In authoritative mode a model-authored tool_input.active_skill claiming an implementation skill grants an allow by itself, and the ask is emitted in a non-contract top-level decision field. (category: security; severity: high)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — The model-authored file_path is echoed raw to stderr, so control and bidi characters reach the operator's terminal.; The model-authored file_path (and active_skill) is echoed to stderr raw, so control and bidi characters reach the operator's terminal. (category: security; severity: low)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H17"
+    ],
+    "text": "Fixing change H17 — The ask is emitted as top-level {\"decision\":\"ask\"}, which the PreToolUse contract does not accept (only approve|block), so the advisory ask is not honoured as an ask.; The ask reply is printed as {\"decision\":\"ask\"}, which the Claude Code PreToolUse contract does not accept (top-level decision is approve|block), so the ask is not honoured; the raw file_path also reaches stderr. (category: contract; severity: high)"
+   },
+   "V07": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H15",
+     "hunk:H16"
+    ],
+    "text": "Fixing change H15 — A simstim-state.json with phase implementation counts as active however old it is, so stale state permanently allows App-Zone writes.; A simstim-state.json left in phase implementation allows App Zone writes forever, with no staleness check. | Fixing change H16 — A state.json with state RUNNING counts as active with no staleness check, so a leftover run state allows App-Zone writes indefinitely.; A state.json left RUNNING allows App Zone writes forever, with no staleness check. (category: security; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H21",
+     "hunk:H22",
+     "hunk:H23"
+    ],
+    "text": "Fixing change H21 — rule_key does not recognize universal rules (bare Bash, Bash(*), Bash(:*)), so a universal deny is ignored and a universal allow does not satisfy requirements.; rule_key rejects bare Bash and keys Bash(*) / Bash(:*) as an exact or empty-prefix rule, so universal allow or deny rules are not recognised and a universal deny passes the preflight. | Fixing change H22 — The deny check never consults a universal deny, so a requirement denied by Bash(*) is reported effective.; The deny check never consults a universal deny, so every required permission is reported effective despite a Bash deny. | Fixing change H23 — The allow check ignores a universal allow, so requirements covered by bare Bash are reported missing.; The allow check never consults a universal allow, so requirements covered by bare Bash are reported missing. (category: logic; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H25",
+     "hunk:H26"
+    ],
+    "text": "Fixing change H25 — --line prints active_skill_seen_at and active_skill_source unvalidated, and tr [:cntrl:] leaves Unicode bidi/format characters, so forged evidence reaches /loa output.; The --line evidence prints any seen_at/source value from the file (only C0 stripped), so malformed or forged values and Unicode bidi/zero-width characters reach /loa output. | Fixing change H26 — The refresh carries any seen_at/source value forward from the file without checking its shape.; The refresh carries active_skill_seen_at and active_skill_source forward unvalidated, preserving arbitrary model-written values. (category: input-validation; severity: low)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H27"
+    ],
+    "text": "Fixing change H27 — The inline python runs without -I, so a json.py/yaml.py in the cwd is imported and executed.; The embedded python3 runs without -I, so a json.py/yaml.py in the cwd is imported and can forge the model validation. (category: security; severity: medium)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H30"
+    ],
+    "text": "Fixing change H30 — The stderr copy of a diff header path strips only C0/DEL, so UTF-8 C1 controls (CSI) and bidi code points from a crafted file name reach the terminal.; The stderr copy of a diff header path strips only C0/DEL, so UTF-8 C1 controls (e.g. CSI) and bidi/format code points from a PR file name reach the terminal. (category: security; severity: low)"
+   },
+   "V12": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H32"
+    ],
+    "text": "Fixing change H32 — A failing mktemp (unusable TMPDIR) breaks the call, and the stderr temp file is leaked when the caller is terminated, since no trap removes it.; An unusable TMPDIR makes mktemp fail so the call aborts or redirects to an empty path, and the stderr temp file is leaked when the caller is terminated mid-call. (category: error-handling; severity: medium)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H35"
+    ],
+    "text": "Fixing change H35 — The write-capable agent allowlist can be redirected by the ambient AGENT_TYPES_FILE environment variable, which weakens the invariant check.; The ambient AGENT_TYPES_FILE environment variable silently redirects the write-capable agent allowlist, letting the environment widen the invariant check. (category: security; severity: medium)"
+   },
+   "V14": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H44"
+    ],
+    "text": "Fixing change H44 — Budgets are keyed by bare model id only and there is no alias map, so an alias such as the default `opus` misses its target's budget and gets the 100,000-token default.; The generated budgets are keyed by bare model id only with no alias map, so an alias such as the default `opus` misses its target's budget and falls to the default entry. (category: logic; severity: medium)"
+   },
+   "V15": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H51"
+    ],
+    "text": "Fixing change H51 — The grader's python runs without -I, so a json.py planted in the invoker's cwd is imported and can forge the grade.; The grader's python3 runs without -I, so a json.py planted in the invoker's cwd is imported and can forge the grade. (category: security; severity: medium)"
+   },
+   "V16": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H52"
+    ],
+    "text": "Fixing change H52 — The citation parser credits LOA-VERDICT trailer JSON numbers, URLs, spaced ranges and dates as path:line citations, which inflates recall.; The citation parser credits the LOA-VERDICT trailer and JSON numbers, dates and spaced ranges, URLs and comma continuations across lines as path:line citations, and misses backtick/bold-wrapped paths, so recall is miscounted. (category: logic; severity: medium)"
+   },
+   "V17": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H95"
+    ],
+    "text": "Fixing change H95 — The inline python runs without -I, so a module planted in the cwd is imported and can forge the budget check.; The budget checker's python3 runs without -I, so a module planted in the cwd is imported and can forge the check. (category: security; severity: medium)"
+   }
+  },
+  "pr-15": {
+   "V01": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H04",
+     "hunk:H12",
+     "hunk:H14"
+    ],
+    "text": "Fixing change H04 — Head has no planner for agy hops: with hounfour.headless.agy_opt_in off, a gated gemini-headless hop inside a mixed fallback chain stays in models_requested and is dispatched/walked as a failed hop instead of being planned around (the hunk also adds the CLI-aware calibrate hint used by D2).; Head has no planner that drops agy hops from a mixed chain while hounfour.headless.agy_opt_in is off, so gated agy hops are dispatched/walked and counted in models_requested as failed voices (the hunk also adds the CLI-aware calibration hint helper). | Fixing change H12 — models_requested is taken from the full resolved chain without first planning around agy hops gated off by the opt-in, so gated hops are dispatched and counted.; models_requested is taken from the full resolved chain before any agy planning, so gated agy hops are recorded as requested and walked. | Fixing change H14 — Passes models_not_planned to the exit-7 MODELINV emit.; The exit-7 MODELINV envelope omits the hops that were not planned. (category: logic; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H05",
+     "hunk:H13",
+     "hunk:H19"
+    ],
+    "text": "Fixing change H05 — The observed provider-limit lookup ignores the hop's context_window, so a recorded observation outside the plausible window range (e.g. from a different route) can lower or set the input bound; intent inferred from the added argument.; The observed provider limit is looked up without the hop's context_window, so an out-of-range observation (e.g. from another route) can lower or distort this hop's input bound. | Fixing change H13 — Pre-flight gate looks up the observed limit without the head entry's context_window, so implausible observations are not filtered.; Pre-flight gate reads the observed bound without the head hop's context_window. | Fixing change H19 — Per-hop bound computation looks up the observed limit without the hop's context_window.; The per-hop derived bound reads the observed limit without the hop's context_window. (category: logic; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H09"
+    ],
+    "text": "Fixing change H09 — The CLI extra rung only reads the first truthy of extra.effort/reasoning_effort, so an invalid extra.effort hides a valid reasoning_effort and the invalid value is silently ignored without a warning.; For a CLI entry an invalid extra.effort hides a valid extra.reasoning_effort (the `or` picks the first truthy key) and the invalid value is dropped silently without a WARN. (category: logic; severity: low)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H08"
+    ],
+    "text": "Fixing change H08 — The 'sets both params.default_effort and extra.effort' warning fires for HTTP entries whose extra rung is never read, a misleading config warning.; The 'sets both params.default_effort and extra.effort' WARN fires for HTTP entries, whose extra rung is never read, producing a spurious config warning. (category: logic; severity: low)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — effort_effective is derived by a hard-coded provider check (any CLI hop passes effort through, only provider 'anthropic' maps) rather than the dispatching adapter, so the MODELINV record misstates the wire effort for codex/grok/other adapters and for providers whose block type differs from the key.; _effort_on_wire hardcodes 'CLI passes through, anthropic maps, everyone else None' instead of asking the dispatching adapter, so MODELINV effort_effective is wrong for providers whose type differs from the key or for CLI adapters that do not send effort. (category: logic; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H11",
+     "hunk:H20"
+    ],
+    "text": "Fixing change H11 — A single-entry chain refused by the agy opt-in is reported with verdict reason 'Other' instead of a distinct OptInRequired reason.; A single-hop chain refused by the agy opt-in gets verdict-quality reason 'Other' instead of a distinct opt-in reason. | Fixing change H20 — An agy-alone chain refused by the opt-in is recorded with error_class UNKNOWN and no failure_class, and the error JSON drops the failure_class, so consumers cannot tell it from a real failure.; An agy opt-in refusal (ChevalError with failure_class opt_in_required) is recorded as error_class UNKNOWN with no failure_class, and the error JSON drops the class. (category: contract; severity: low)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H15"
+    ],
+    "text": "Fixing change H15 — A CLI hop's own size rejection is recorded in the observed-ceiling store, lowering the HTTP route's input bound with a measurement that does not apply to it.; A CLI hop's own size rejection is recorded as a ceiling observation for the provider/model, wrongly lowering the HTTP route's input bound. (category: logic; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H16",
+     "hunk:H17",
+     "hunk:H18"
+    ],
+    "text": "Fixing change H16 — The calibrate hint names the CLI hop's model (which the probe refuses) and interpolates the model id unquoted into a shell command the operator pastes.; The calibration hint always names the failing hop's model id unquoted, so a CLI hop gets a probe command the probe refuses and the model id is not shell-quoted. | Fixing change H17 — The preflight line always prints 'run: <probe command>' even for a CLI hop with no calibratable HTTP entry.; The operator message prints a probe command even when no calibration is possible for a CLI hop. | Fixing change H18 — The error JSON always says 'calibrate: <command>' even when no probe command applies.; The error JSON names a calibrate command even when the CLI's own window refused the payload. (category: logic; severity: low)"
+   },
+   "V09": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H21",
+     "hunk:H22"
+    ],
+    "text": "Fixing change H21 — effort_effective is computed inline inside the emit call, so any exception in its derivation falls into the emit's handler and the whole MODELINV envelope is lost.; effort_effective is computed inline in the _emit_modelinv call, so an exception there falls into the emit handler and the whole MODELINV envelope is lost. | Fixing change H22 — Inline effort_effective derivation inside the emit call can raise and lose the envelope (fix also passes models_not_planned).; The final emit derives effort_effective inline (an exception loses the envelope) and omits models_not_planned. (category: error-handling; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H30"
+    ],
+    "text": "Fixing change H30 — agy_opt_in_enabled lets the framework System defaults satisfy the operator opt-in, reads the config from whatever cwd-ancestor root the walk finds (a planted .loa.config.yaml can opt in), accepts PyYAML 1.1 truthy spellings (yes/on/True) and never checks that the config is writable only by the current user, so the argv-exposing agy route can be enabled without the operator's decision.; agy_opt_in_enabled lets framework System defaults satisfy the operator-only opt-in, accepts PyYAML YAML-1.1 truthy spellings (yes/on/True), runs the root walk outside the fail-closed try, and honours a cwd-ancestor or others-writable config, so the argv-exposing agy route can be enabled without an explicit operator `true`. (category: security; severity: high)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H31"
+    ],
+    "text": "Fixing change H31 — validate_config keeps checking type and the agy binary when the opt-in is off, adding irrelevant 'CLI not found' errors to the opt-in refusal.; With the opt-in off validate_config still looks up the binary and reports 'CLI not found on PATH', a misleading error for a route that is disabled. (category: logic; severity: low)"
+   },
+   "V12": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H33",
+     "hunk:H35",
+     "hunk:H39"
+    ],
+    "text": "Fixing change H33 — build_headless_argv accepts a prompt and places it right after -p before the options, so a prompt starting with '-' is parsed by the CLI as a flag.; build_headless_argv accepts a prompt and puts it right after -p, where the CLI parses options, so a prompt starting with '-' is read as a flag. | Fixing change H35 — The argv prompt is inserted in option position (before --output-format etc.), where a leading '-' is parsed as an option.; The argv prompt sits in option position, before the option terminator. | Fixing change H39 — No option terminator: an argv prompt is never placed after '--', so a prompt beginning with '-' can be read as a CLI flag.; An argv prompt now goes last, after '--'. (category: input-validation; severity: medium)"
+   },
+   "V13": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H40",
+     "hunk:H41"
+    ],
+    "text": "Fixing change H40 — The CLI's own 'Prompt is too long' size rejection is not mapped to a context-limit error, and bare '429'/'529' substrings (e.g. digits inside a stated token count) classify it as a retryable rate limit that walks the chain and counts against breakers; a 'please wait' auth message is also treated as a throttle.; _raise_for_error treats any '429'/'529' substring (including digits in a token count) as a rate limit and has no context-limit branch, so the CLI's 'Prompt is too long' size rejection is walked as a provider failure or retried as a throttle. | Fixing change H41 — Adds 'invalid api key' to the static-auth markers, matching the new marker list.; An 'invalid API key' diagnostic is not recognised as a static auth failure and falls through to a walkable ProviderUnavailableError. (category: error-handling; severity: medium)"
+   },
+   "V14": {
+    "n_descriptions": 8,
+    "sources": [
+     "hunk:H91",
+     "hunk:H92",
+     "hunk:H93",
+     "hunk:H94"
+    ],
+    "text": "Fixing change H91 — Free-text ceiling_calibration strings (reprobe_trigger, cli_version, cli_model) have no length bound in the schema.; The provenance string fields of ceiling_calibration have no length bound, so arbitrary-length probe text validates. | Fixing change H92 — Unbounded ceiling_calibration string field in the schema.; transport string unbounded in the schema. | Fixing change H93 — cli_version has no length bound.; cli_version string unbounded in the schema. | Fixing change H94 — cli_model has no length bound.; cli_model string unbounded in the schema. (category: input-validation; severity: low)"
+   },
+   "V15": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H95"
+    ],
+    "text": "Fixing change H95 — The schema neither records nor requires a probe outcome for a probed_headless bound, so a partial (budget-capped) probe is indistinguishable from a clean one in the catalog.; A probed_headless calibration validates without its transport or probe outcome, so a partial probe's bound is indistinguishable from a clean one. (category: contract; severity: medium)"
+   },
+   "V16": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H100",
+     "hunk:H101"
+    ],
+    "text": "Fixing change H100 — The probed Opus 5.5 entry records sample_size: null although a probe with samples informed the bound.; The catalog records sample_size: null for a bound that five probe samples informed. | Fixing change H101 — The catalog entry written from a partial probe does not say the outcome was partial.; The operator_set entry from a partial probe does not record probe_outcome: partial. (category: logic; severity: medium)"
+   },
+   "V17": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H104"
+    ],
+    "text": "Fixing change H104 — The companion planner only drops a hop whose canonical name is exactly gemini-headless, missing agy-routed hops (provider-prefixed forms, Google models under cli-only, project aliases), and its own yq reader differs from the shared strict opt-in rule.; The companion planner recognises an agy hop only by the exact canonical name gemini-headless (not provider-prefixed forms, aliases, or a Google model under cli-only), so agy-routed companion hops are planned while the opt-in is off. (category: logic; severity: medium)"
+   },
+   "V18": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H105"
+    ],
+    "text": "Fixing change H105 — The dissent planner never emits the once-per-run gate warning when the agy route is available but gated.; No once-per-run WARN when the agy route is available but gated or the opt-in is mis-typed. (category: other; severity: low)"
+   },
+   "V19": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H107"
+    ],
+    "text": "Fixing change H107 — Flatline's tertiary agy predicate uses its own name/gemini* heuristic (no catalog aliases such as deep-research-pro) and a separate yq reader instead of the shared rule, so agy-routed tertiaries can be misjudged.; Flatline's local agy predicate only knows gemini*-named Google models and ignores catalog/project aliases, diverging from cheval's routing, so a gated agy tertiary may be planned. (category: logic; severity: medium)"
+   },
+   "V20": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H108"
+    ],
+    "text": "Fixing change H108 — Flatline never emits the once-per-run agy gate warning.; No once-per-run agy gate WARN in Flatline. (category: other; severity: low)"
+   },
+   "V21": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H110",
+     "hunk:H111"
+    ],
+    "text": "Fixing change H110 — /loa status uses its own opt-in reader and a provider=='google' heuristic rather than the shared agy route predicate, so its gate note can disagree with cheval.; /loa status uses its own opt-in reader and a provider==google rule instead of the shared predicate, so its hop note can disagree with what cheval routes. | Fixing change H111 — The CLI hop gating keys on the binary name agy rather than the shared routes_to_agy predicate.; The hop gating checks only the bin name agy instead of the shared routes_to_agy predicate. (category: logic; severity: low)"
+   },
+   "V22": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H112"
+    ],
+    "text": "Fixing change H112 — The ceiling line splices the alias-derived model id into yq expression text, accepts observations outside the plausible window, ignores a foreign-transport calibration that an observation should tighten, and prints an unquoted calibrate command.; The status ceiling line splices the model id into yq expressions, reports a foreign-transport calibration as authoritative even when a lower observation exists, accepts observations outside the context window, and emits an unquoted calibrate command. (category: logic; severity: medium)"
+   },
+   "V23": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H113"
+    ],
+    "text": "Fixing change H113 — The Providers section never emits the agy gate warning.; No agy gate WARN in the human Providers section. (category: other; severity: low)"
+   },
+   "V24": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H117",
+     "hunk:H118",
+     "hunk:H120"
+    ],
+    "text": "Fixing change H117 — cli_for ignores provider-prefixed ids (google:gemini-headless) and the local opt-in reader uses python-yq '== true', which differs from the strict shared rule.; run-preflight's agy_opted_in accepts `== true` under python yq (loose truthiness) and cli_for misses provider-prefixed headless ids, so P3 can judge gated agy voices as usable. | Fixing change H118 — provider_of returns no provider for catalog model ids without a family prefix (e.g. deep-research-pro), so such Google voices are not recognised.; provider_of returns empty for catalog Google ids without a gemini prefix (e.g. deep-research-pro), so they escape the agy gate. | Fixing change H120 — P3 gates only hops whose CLI is agy, so a Google model under cli-only (routed through agy) is counted usable on its Google credential with the opt-in off, and when opted in its usability is judged by the credential instead of the agy binary.; P3 gates only hops whose cli is agy, so a Google model under cli-only counts as usable on its API credential and, when opted in, its usability is judged on the credential instead of the agy binary. (category: logic; severity: medium)"
+   },
+   "V25": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H121",
+     "hunk:H122"
+    ],
+    "text": "Fixing change H121 — A stage whose every voice is gated off by the opt-in is reported as having no credential and no CLI on PATH, a misleading failure reason.; A stage whose every voice is gated off by the agy opt-in is reported as 'no credential present and no CLI hop', a misleading remediation. | Fixing change H122 — The P3 FAIL detail gives the missing-credential reason for stages that failed only because of the agy opt-in.; The P3 FAIL detail does not say the stage failed because of the opt-in. (category: logic; severity: low)"
+   },
+   "V26": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H158"
+    ],
+    "text": "Fixing change H158 — Bridgebuilder's readAgyGate defaults to the cwd config, never checks the config's owner/permissions, reads through aliases/merge keys without warning, swallows every read error silently as opt-in off, and isAgyRouted only matches the literal gemini-headless id.; Bridgebuilder's readAgyGate opts in from a config others can write, reads through aliases/merge keys, swallows read errors silently as 'off' without a reason, and isAgyRouted only knows the literal gemini-headless id. (category: security; severity: high)"
+   },
+   "V27": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H159"
+    ],
+    "text": "Fixing change H159 — Removes the cwd default gate parameter so callers pass the repo config.; validateApiKeys defaults the gate to readAgyGate() of the cwd's .loa.config.yaml, not the repo root's, so callers can judge voices against the wrong config. (category: logic; severity: medium)"
+   },
+   "V28": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H160"
+    ],
+    "text": "Fixing change H160 — When the Loa config cannot be read, Google voices are still planned as HTTP voices although cheval may route them to agy and refuse them, so the failure is miscounted.; When the Loa config is unreadable the mode is unknown but Google voices are still planned as HTTP, though cheval may route them to agy and refuse them. (category: error-handling; severity: medium)"
+   },
+   "V29": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H163",
+     "hunk:H164",
+     "hunk:H166"
+    ],
+    "text": "Fixing change H163 — An unreadable config or a non-boolean opt-in is logged only as 'agy opt-in off' at info level, and strict mode silently runs without a configured voice instead of warning or refusing.; The pipeline reports a config read failure as a plain 'opt-in off' info line and, in strict mode, does not refuse a review whose configured voices a failed read removed. | Fixing change H164 — With no usable model the error always says 'all API keys missing' even when the voices were removed by the agy gate.; With no adapters it always says 'all API keys missing', even when voices were not planned by the opt-in or by a config read error. | Fixing change H166 — Voices removed by a config read error shrink the expected quorum, so a review missing them can still clear the merge.; Voices dropped by a config READ ERROR are subtracted from the expected quorum, so a host fault can shrink the quorum and clear the merge. (category: error-handling; severity: medium)"
+   },
+   "V30": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H165",
+     "hunk:H168"
+    ],
+    "text": "Fixing change H165 — The posted verdict header never names the voices that were not planned or why.; The posted verdict header is built without the voices that were not planned, so the PR comment hides which voices did not run and why. | Fixing change H168 — The verdict quality line omits the not-planned voices.; The verdict-quality line omits the not-planned voices and the reason. (category: logic; severity: low)"
+   },
+   "V31": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H170"
+    ],
+    "text": "Fixing change H170 — The Opus 5.5 budget (916000) takes a ceiling measured in provider tokens as estimate-unit tokens, and the char estimator under-counts the tokenizer ~1.8x, so Bridgebuilder builds prompts far past the real window.; claude-opus-5-5's maxInput 916000 treats the provider-measured ceiling as BB estimate units; BB's estimate under-counts the 4.7+ tokenizer by ~1.8x, so BB sends payloads far above the measured bound. (category: logic; severity: high)"
+   },
+   "V32": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H200",
+     "hunk:H221"
+    ],
+    "text": "Fixing change H200 — A tokens-per-minute 429 is retried on the 5 s/15 s schedule, which cannot clear the 60 s window, and after three attempts it is recorded as a size rejection, so the probe can bracket the ceiling with a throttle.; A tokens-per-minute 429 is retried on the 5 s/15 s schedule, which cannot clear the 60 s window, so a transient throttle persists and is mis-recorded. | Fixing change H221 — A token-limit transient that persists over the short retries is turned into a size rejection without the TPM window having been waited out, and output-cap/timeout/spawn cases are not distinguished for charging.; Spend charges every failed attempt (including CLI-local rejections never sent, spawn failures) at the full estimate and does not handle an output-cap overflow or an interrupt mid-attempt, so spend and budget stops are wrong. (category: logic; severity: medium)"
+   },
+   "V33": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H201"
+    ],
+    "text": "Fixing change H201 — The 5xx regex matches any bare three-digit 5xx number (e.g. 'took 503 ms'), so non-transient failures are retried as transient.; _STATUS_5XX matches any bare 5xx number (e.g. 'took 503 ms'), classifying non-transient failures as transient. (category: logic; severity: low)"
+   },
+   "V34": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H202",
+     "hunk:H212"
+    ],
+    "text": "Fixing change H202 — Operator- and CLI-supplied strings (host route, resolved cli model, cli --version) reach the catalog's provenance text unchecked, so a control or line-break character can break or inject YAML into the catalog.; Operator- and CLI-supplied values (host route, resolved cli_model, cli --version) reach the catalog's YAML text and provenance comment unchecked, so a line break or control character can corrupt or inject catalog content. | Fixing change H212 — The produced catalog text is returned without re-parsing, so a malformed or collateral edit is written unverified.; The line-level catalog edit is returned without re-parsing, so a malformed write or a change outside the entry would be persisted. (category: input-validation; severity: medium)"
+   },
+   "V35": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H203"
+    ],
+    "text": "Fixing change H203 — subprocess.run(timeout=) kills only the direct child (the wrapper), leaving the claude process running, and output past 1 MB is silently truncated and still classified.; subprocess.run(timeout=) kills only the direct child (the wrapper), leaving the real claude process running, and output past 1 MB is silently truncated into a classification. (category: resource; severity: medium)"
+   },
+   "V36": {
+    "n_descriptions": 8,
+    "sources": [
+     "hunk:H204",
+     "hunk:H205",
+     "hunk:H222",
+     "hunk:H226"
+    ],
+    "text": "Fixing change H204 — An exception inside classification propagates and aborts the probe, losing the record of paid steps.; An exception inside _classify propagates as a traceback and loses the probe record after paid attempts. | Fixing change H205 — Usage and cost values from the CLI JSON are taken unchecked; Infinity/NaN or absurd values crash the cost arithmetic (OverflowError) and lose the record.; Non-finite or absurd CLI cost/token values (json accepts Infinity/NaN) are kept and later overflow the cost arithmetic. | Fixing change H222 — A ^C or unexpected exception during the bisection aborts without writing the record of the paid steps.; The bisection loop is unguarded: ^C or an unexpected exception after paid steps exits without writing the record. | Fixing change H226 — No exit path distinguishes an interrupted probe; with the record lost on exception the operator gets no record or exit status for it.; There is no exit path for an interrupted bisection, so it falls through the partial/clean handling with the wrong exit code. (category: error-handling; severity: medium)"
+   },
+   "V37": {
+    "n_descriptions": 3,
+    "sources": [
+     "hunk:H206",
+     "hunk:H207"
+    ],
+    "text": "Fixing change H206 — Classification runs on a 300-character truncated diagnostic and checks the context-limit marker before throttling, so Bedrock's 'Too many tokens, please wait' throttle is recorded as a size rejection and markers past 300 chars are missed.; The classifier truncates the diagnostic to 300 chars before classifying and checks the context-limit marker first, so Bedrock's 'Too many tokens, please wait' throttle is recorded as a size rejection with no retry. | Fixing change H207 — Transient markers are searched in the truncated diagnostic only. (category: logic; severity: high)"
+   },
+   "V38": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H209",
+     "hunk:H210"
+    ],
+    "text": "Fixing change H209 — write_catalog_operator_set takes no probe outcome or sample count and does not validate its string inputs, so a written entry cannot say whether its probe was clean or partial.; write_catalog_operator_set has no probe_outcome and validates none of its provenance fields, so any caller can write a partial or unvalidated probe as if it were clean. | Fixing change H210 — The catalog writer hard-codes sample_size: null and writes no probe_outcome.; The writer hardcodes sample_size: null and omits probe_outcome in ceiling_calibration. (category: contract; severity: medium)"
+   },
+   "V39": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H214"
+    ],
+    "text": "Fixing change H214 — --allow-partial/--tier/--itpm are silently ignored under --transport claude-headless.; --allow-partial, --tier and --itpm are silently ignored with --transport claude-headless, so the operator believes they took effect. (category: input-validation; severity: low)"
+   },
+   "V40": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H215"
+    ],
+    "text": "Fixing change H215 — An outcome bracketed by a token-limit (throttle) rejection rather than a context-limit rejection is accepted as clean, so a rate limit is written as the context ceiling.; A bound bracketed by a token-budget/throttle rejection (not a context limit) is judged clean and can be written as the context ceiling. (category: logic; severity: medium)"
+   },
+   "V41": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H218"
+    ],
+    "text": "Fixing change H218 — With --write-catalog the catalog prerequisites (block, context_window, writable file) and the provenance strings are only checked after the paid bisection, and the cost estimate ignores the cache-write rate and tokenizer ratio, so money is spent on a probe whose write cannot land.; The budget estimate uses the plain input price (the CLI bills the cache-write rate, 1.25x) and a 1.0 tokenizer ratio, and catalog write prerequisites/provenance are only checked after money has been spent. (category: logic; severity: medium)"
+   },
+   "V42": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H216",
+     "hunk:H219"
+    ],
+    "text": "Fixing change H216 — Spend accounting charges every failed attempt the full estimate (including the CLI's free local pre-flight rejections and never-sent spawns), exhausting the budget cap on attempts that cost nothing.; A token-limit 429 that persists over the short retries is turned into a size rejection even though the TPM window was never waited out, and retry-after hints are ignored (the hunk also adds the per-attempt charge table). | Fixing change H219 — The budget pre-check estimates the first step at ratio 1.0, under-estimating its cost by the ~1.8x tokenizer ratio, so the cap can be exceeded.; The per-attempt budget pre-check estimates the first blind step at ratio 1.0, under-estimating the cost of the 4.7+ tokenizer. (category: logic; severity: medium)"
+   },
+   "V43": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H223"
+    ],
+    "text": "Fixing change H223 — Adds the interruption reason to the outcome reasons.; The outcome reasons never record an interrupted bisection. (category: error-handling; severity: low)"
+   },
+   "V44": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H224"
+    ],
+    "text": "Fixing change H224 — The record stores the binary path and argv with the operator's absolute home path (and an unresolved bare binary name).; The tracked probe record stores the raw cli_bin and argv (absolute home paths) and re-resolves cli_model, not the binary that actually ran. (category: other; severity: low)"
+   },
+   "V45": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H225"
+    ],
+    "text": "Fixing change H225 — The record claims written_ceiling before the catalog write is attempted, so a failed write still leaves a record saying it was written.; The record claims written_ceiling before the catalog write is attempted, so a failed atomic write leaves a record saying the bound was written. (category: logic; severity: medium)"
+   }
+  },
+  "pr-16": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H01"
+    ],
+    "text": "Fixing change H01 — Untrusted decision-row text is emitted into the TSV/JSON/INDEX.md index with < and > (e.g. <script>) and C1 controls not reliably neutralised, letting agent-authored markup reach the rendered index.; Untrusted agent-authored decision rows are only partly sanitised: C1 controls are not reliably flattened and < and > pass through, so markup such as <script> reaches the TSV, JSON and INDEX.md output. (category: security; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — Any --file target is classed as a fixture, so naming the live ledger or a pending file by path bypasses the CI/hook write refusal and the linked-worktree rule.; Any --file target is treated as a fixture and returns before the CI/hook check, so naming the live ledger or a pending file by path writes it from CI, a hook or a linked worktree. (category: security; severity: high)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H03"
+    ],
+    "text": "Fixing change H03 — import accepts --rewrite targets without checking them, so files outside the project, paths with '..', symlinks or missing files are rewritten (or fail mid-import after the ledger is changed).; import never checks --rewrite targets, so it rewrites files outside the project, through '..' paths or symlinks, and fails on missing files only after the ledger has been written. (category: security; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — The shipped example sets pacing: rounds explicitly, which overrides the mode default so minimal mode gets rounds instead of its documented batch pacing.; The example sets pacing: rounds explicitly, and an explicit value wins, so a copied config makes minimal mode use rounds instead of its documented batch default. (category: contract; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H16"
+    ],
+    "text": "Fixing change H16 — Block contents and accumulated rounds are passed to jq as argv strings, so large transcripts or blocks crash on the per-argument size limit; the validation also accepts two JSON values in one block and unvalidated ids.; Block contents and the accumulated rounds go to jq as argv strings, so transcripts over the 128 KiB argument limit crash; jq -e also accepts a block holding two JSON values and does not validate id characters. (category: input-validation; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H18"
+    ],
+    "text": "Fixing change H18 — Untrusted question ids are printed raw to the terminal, so ESC/control characters in a transcript reach the output.; The human-readable report prints ids and violation text unescaped, so control characters such as ESC from untrusted transcript ids reach the terminal. (category: security; severity: low)"
+   }
+  },
+  "pr-19": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H01"
+    ],
+    "text": "Fixing change H01 — Containment of hook scripts is only checked when the leaf itself is a symlink, so a symlinked intermediate directory under .claude/ can point a registered hook at a file outside .claude/ without being refused.; Containment only resolves a symlinked leaf, so a hook path through an intermediate symlinked directory under .claude/ can register a script outside .claude/ without error. (category: security; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — The check only verifies that a floor gate's script exists on disk, not that settings.json registers it, so an unregistered floor gate hook (never runs) leaves --check green.; The check only verifies that a floor gate script exists on disk, not that settings.json registers it, so an unregistered floor gate leaves --check green while the gate never runs. (category: security; severity: high)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H03"
+    ],
+    "text": "Fixing change H03 — render_hooks_ref only counts the markers and does not check that the end marker follows the begin marker, so a misplaced end marker makes the awk pass drop all content after the begin marker from the hooks reference.; render_hooks_ref checks marker counts but not their order, so an end marker placed before the begin marker makes the awk pass drop all content after the begin line from the hooks reference. (category: input-validation; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H04"
+    ],
+    "text": "Fixing change H04 — The depth-1 checkout has no origin/main ref, so the floor-snapshot proof that compares against origin/main skips silently in CI.; The depth-1 checkout has no origin/main ref, so the floor-snapshot tests that compare against origin/main skip in CI and the floor proof never runs there. (category: other; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H05"
+    ],
+    "text": "Fixing change H05 — resolve_toggles applies LOA_EVAL_ARM_TOGGLES even when not in arm mode and for the baseline arm, so a stale inherited variable silently alters a baseline or non-arm run.; resolve_toggles applies LOA_EVAL_ARM_TOGGLES even when not in arm mode and also for the baseline arm, so a stale environment variable silently changes what a non-arm or baseline run measures. (category: logic; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H06"
+    ],
+    "text": "Fixing change H06 — A failed jq rewrite of constraints.json in the karpathy_block toggle is swallowed by the && chain and the toggle is reported as applied without verifying the Karpathy rows are gone.; When the constraints.json rewrite fails, the karpathy_block toggle passes silently and the result is never checked, so an arm can record the toggle as applied while the Karpathy rows remain. (category: error-handling; severity: medium)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — LOA_EVAL_SOURCE_COMMIT is recorded without checking it is a hex id or matches the prompt tree's HEAD, so trials from different trees can claim the same source_commit and pass the skew check.; LOA_EVAL_SOURCE_COMMIT is recorded without checking that it is a hex id or that it matches the prompt tree's HEAD, so trials from different trees can claim the same source_commit and pass the skew check. (category: input-validation; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H09"
+    ],
+    "text": "Fixing change H09 — The default model claude-fable-5-1 had a trial refused by a safeguard, and the CLI then fell back to Opus partway through the session, so a default run was not homogeneous in executor model.; The default model claude-fable-5-1 gives non-homogeneous trials, because a safeguard refusal makes the CLI fall back to Opus mid-session, so the arm measurements mix models. (category: other; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — The --batch regex accepts '.' and '..', so the batch directory resolves to the suite directory or the results root instead of a child batch directory.; The --batch regex accepts '.' and '..', so BATCH_DIR resolves to the suite directory or its parent instead of a child batch directory. (category: input-validation; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H11"
+    ],
+    "text": "Fixing change H11 — verify_corpus only checks the files listed in SHA256SUMS, so a file added to the corpus without being listed reaches the sandbox under an unchanged corpus digest.; verify_corpus only checks files that are listed in SHA256SUMS, so an unlisted file added to the corpus reaches the sandbox under an unchanged corpus digest and is not reported as drift. (category: security; severity: medium)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — The pristine-worktree check ignores git-ignored files, so leftovers from an earlier run (.loa.config.yaml, .run/) get copied into every sandbox under one recorded commit.; The pristine-worktree check ignores git-ignored files, so leftover .loa.config.yaml or .run/ files from earlier runs get copied into every sandbox under one recorded commit. (category: logic; severity: medium)"
+   },
+   "V12": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — Transport failures are detected by grepping the agent's own output with broad patterns ('network', any '5xx '), so the agent under test can trigger a retry just by mentioning such text.; Transport-failure classification greps the agent's own output with loose patterns such as 'network', so the agent under test can trigger a retry just by mentioning such text. (category: security; severity: medium)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — The trial launch passes an inherited LOA_EVAL_ARM_TOGGLES from the parent environment to execute-agent.sh, overriding the suite-declared arm toggles.; The trial launch passes an inherited LOA_EVAL_ARM_TOGGLES from the parent environment through to execute-agent.sh, overriding the suite-declared toggles of the arm. (category: logic; severity: medium)"
+   },
+   "V14": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H15"
+    ],
+    "text": "Fixing change H15 — The secret redaction patterns miss common credential shapes (PEM private keys, JWTs, GitHub fine-grained/app tokens, Google/Stripe keys, generic api_key/token assignments), and \\s in the password/secret patterns can match across newlines, so secrets can be copied into the corpus unredacted.; The secret-redaction patterns miss common credential shapes (PEM keys, JWTs, fine-grained GitHub, Google and Stripe keys, generic tokens), and the \\s in the password/secret patterns can match across lines, so secrets get copied into fixtures unredacted. (category: security; severity: high)"
+   },
+   "V15": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H16"
+    ],
+    "text": "Fixing change H16 — The scope exclusion does not exclude a root CLAUDE.md, so a fixture can carry an instruction file that Claude Code may load for the agent under test.; The scope exclusion does not drop a root CLAUDE.md, so a fixture can carry an instruction file that Claude Code may load for the agent under test (the fix calls this defensive). (category: security; severity: medium)"
+   }
+  },
+  "pr-20": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — The executable-target regex omits workflow files, makefiles, justfiles, package manifests, Dockerfiles and CI/pre-commit configs, so a heredoc writing destructive content into them is classified non-executing and its body is not scanned.; The executable-target regex omits workflow files, makefiles, justfiles, package manifests, Dockerfiles and pre-commit/CI configs, so a heredoc writing destructive content into them is classified non-executing and its body is dropped from the scan. (category: security; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H03"
+    ],
+    "text": "Fixing change H03 — The segment command-word extractor does not skip shell reserved words (if/then/do/while...), so a body line like `if :; then rm -rf src; fi` yields `then` as the command word and the rm segment is dropped.; The per-segment command-word extraction does not skip shell reserved words (if, then, do, while, ...), so a body line like `if :; then rm -rf src; fi` loses its rm segment and is allowed. (category: security; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H05",
+     "hunk:H06"
+    ],
+    "text": "Fixing change H05 — Backtick command substitutions are never normalised, so no rule anchors on them and `echo \"see `git push --force origin main`\"` (or an unquoted heredoc body with backticks) passes the fence while its $( ) twin blocks.; Backtick command substitutions (in double quotes, assignments, unquoted heredoc bodies) are never normalised, so no rule anchors on them and e.g. `echo \"see `git push --force origin main`\"` is allowed while its $( ) twin blocks. | Fixing change H06 — The scrub pipeline has no backtick-normalisation step before the rules run, letting backtick substitutions bypass every pattern.; The scrub chain applies no backtick-to-$( ) normalisation before the rules run, leaving backtick substitutions unmatched. (category: security; severity: high)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — No rule refuses `gh api` with DELETE/PUT/PATCH (or GraphQL mutations) against refs, branch protection, tags, releases or the repository, so the REST escape hatch bypasses the force-push, branch-delete and spike fences.; No rule refuses `gh api` with DELETE/PUT/PATCH (or GraphQL delete/update mutations) on refs, branch protection, tags, releases or the repository, so the REST escape hatch bypasses the P2/P5/SP-1 porcelain fences. (category: security; severity: high)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — LOA_PROFILE_CONFIG_FILE silently redirects knob reads outside bats with no visible warning, so a stray environment variable changes guard configuration unnoticed.; LOA_PROFILE_CONFIG_FILE is honoured outside bats with no notice, so knob reads can be silently redirected to another config file in live use. (category: security; severity: low)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — The /loa Profile line does not report when input guardrails or danger-level enforcement resolve to off, hiding the now-default-off guardrail state from the operator.; The /loa Profile line does not report when input guardrails or danger-level enforcement resolve to off, hiding the default-off guardrail state the DEC-0161 change introduced (intent read from the audit comment; borderline feature). (category: other; severity: low)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — allowed-tools lacks `Bash(.claude/scripts/lib/profile-lib.sh knob *)`, so the skill's postlude knob read (deny_raw_shell) is refused.; The skill's allowed-tools and command allowlist (deny_raw_shell) do not permit `.claude/scripts/lib/profile-lib.sh knob`, which its included retrospective postlude must run, so the postlude check cannot execute. (category: contract; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H16"
+    ],
+    "text": "Fixing change H16 — allowed-tools lacks the profile-lib.sh knob grant that the retrospective postlude invokes, so that call is denied under deny_raw_shell.; Same profile-lib.sh knob grant for the review-sprint skill, whose postlude (line 297) runs that command. (category: contract; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 16,
+    "sources": [
+     "hunk:H20",
+     "hunk:H21",
+     "hunk:H22",
+     "hunk:H23",
+     "hunk:H24",
+     "hunk:H25",
+     "hunk:H26",
+     "hunk:H27"
+    ],
+    "text": "Fixing change H20 — The example pins a profile-governed key explicitly, so a copied example overrides loa.profile and choosing lean/full has no effect on it.; The example config sets the profile-governed keys explicitly, so a copied example pins them as explicit overrides and loa.profile (lean/full) has no effect on them. | Fixing change H21 — decisions.surface_at_session_start is pinned in the example, overriding the profile in a copied config.; Same correction for decisions.surface_at_session_start. | Fixing change H22 — guardrails.input.enabled is pinned in the example, so the full profile cannot turn it on in a copied config.; Same correction for guardrails.input.enabled. | Fixing change H23 — guardrails.danger_level.enforce is pinned in the example, overriding the profile.; Same correction for guardrails.danger_level.enforce. | Fixing change H24 — invisible_retrospective.enabled is pinned in the example, overriding the profile.; Same correction for invisible_retrospective.enabled. | Fixing change H25 — karpathy_principles.surgical_diff_warning is pinned in the example, overriding the profile.; Same correction for karpathy_principles.surgical_diff_warning. | Fixing change H26 — karpathy_principles.require_success_criteria is pinned in the example, overriding the profile.; Same correction for karpathy_principles.require_success_criteria. | Fixing change H27 — structured_handoff.enabled is pinned in the example, overriding the profile.; Same correction for structured_handoff.enabled. (category: logic; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H56"
+    ],
+    "text": "Fixing change H56 — The knob-reader lint escapes only dots, misses reads split across a yq pipe or bracket form, and swallows grep errors (2>/dev/null, || true) so a bad pattern or missing tools/ dir reads as a clean pass.; The lint swallows grep errors (`2>/dev/null` and `|| true`) so a grep failure reads as a clean pass, escapes only dots in keys, and misses reads split across a pipe or a bracket form of the key. (category: error-handling; severity: medium)"
+   }
+  },
+  "pr-21": {
+   "V01": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H01",
+     "hunk:H02"
+    ],
+    "text": "Fixing change H01 — Under hounfour.locality local_voices cheval plans only around agy hops, so hosted hops (primary or fallback) of a chain are still dispatched with the prompt.; Under hounfour.locality local_voices cheval has no planner that drops hosted hops, so a chain containing hosted hops is dispatched to them (only the agy opt-in is planned around). | Fixing change H02 — cheval never applies the local_voices posture before the chain walk, so a chain with no local hop is dispatched to hosted providers instead of being refused.; The dispatch path only plans around agy, so under local_voices hosted hops are walked and a chain with no local hop is dispatched instead of being refused with a MODELINV row. (category: security; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H03"
+    ],
+    "text": "Fixing change H03 — MODELINV hop_locality records 'local' for any hop whose model is labelled dispatch_group local, even when the provider is a CLI provider or its endpoint host is not loopback/RFC1918/localhost.; MODELINV hop_locality records 'local' for any hop whose model declares dispatch_group local, even when the provider is CLI or its endpoint host is not loopback/RFC1918. (category: security; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — An explicit keyless: false combined with a literal auth such as \"local\" is silently overridden to keyless: true instead of being refused as a conflict.; An explicit keyless: false combined with a literal auth like \"local\" is silently overwritten to keyless: true instead of being refused as a conflict. (category: input-validation; severity: low)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H09"
+    ],
+    "text": "Fixing change H09 — validate_providers trusts a dispatch_group local label: a CLI provider or a provider with a public/DNS endpoint labelled local is admitted at load (and an https local endpoint is wrongly refused without an opt-in).; validate_providers never checks a dispatch_group local label against the endpoint host (and refuses a local-labelled https loopback/RFC1918 endpoint without an opt-in), so a declared locality is trusted rather than enforced. (category: security; severity: high)"
+   },
+   "V05": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H11",
+     "hunk:H12"
+    ],
+    "text": "Fixing change H11 — The endpoint_policy CLI catches only ConfigError from load_config, so a YAML parse or other load failure escapes as a traceback instead of the JSON error line and exit 78.; The endpoint_policy CLI only catches ConfigError from load_config, so any other load failure (e.g. unparseable YAML) escapes as a traceback instead of the JSON error line and exit 78 the health probe expects. | Fixing change H12 — A ConfigError raised by describe_provider is not caught, producing a traceback instead of the JSON error and exit 78.; A ConfigError raised by describe_provider is not caught, so the CLI crashes with a traceback instead of reporting config_load_failed with exit 78. (category: error-handling; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — The loader admits, under local_voices, a dispatch_group local model whose fallback_chain reaches a hosted hop, so cheval can walk the prompt to a hosted provider.; load_config never refuses a local model whose fallback_chain reaches a hosted hop under local_voices. (category: security; severity: high)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H16"
+    ],
+    "text": "Fixing change H16 — TransportPolicy.check_url never requires a local hop's request host to be loopback/RFC1918/localhost, so a declared locality is not enforced at request time.; TransportPolicy.check_url does not require a local hop's request host to be loopback/RFC1918/localhost, so a dispatch_group local hop reaching the adapter by another loader can go to any host. (category: security; severity: high)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H17"
+    ],
+    "text": "Fixing change H17 — A localhost endpoint is trusted without checking what the system resolver maps it to, so a non-loopback /etc/hosts entry sends a local/plain-http request off the machine.; A localhost endpoint is trusted without checking what the system resolver returns, so a hosts/nsswitch entry can send a 'local' or plain-http opted-in request to a non-loopback address. (category: security; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H26"
+    ],
+    "text": "Fixing change H26 — A zero catalog price on a non-open-weight entry (a bad pricing overlay) is accepted silently, zeroing the budget estimate without a warning.; A zero-priced voice is accepted as 0c with no warning even when it is not an open-weight entry, so a bad pricing overlay silently zeroes the budget estimate. (category: input-validation; severity: low)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H28"
+    ],
+    "text": "Fixing change H28 — The local_voices envelope attaches the DEGRADED note to every audit regardless of whether the companion was an independent voice, and provides no machine-readable degraded_security_review flag.; Under local_voices every audit envelope gets the DEGRADED note even with an independent companion voice, and the degraded-security-review case has no machine-readable flag. (category: logic; severity: medium)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H32"
+    ],
+    "text": "Fixing change H32 — The planner classifies a hop as local purely from its dispatch_group label, without rejecting CLI providers or endpoints whose host is not loopback/RFC1918/localhost.; The planner classifier calls a hop local on the dispatch_group label alone, without rejecting CLI providers or endpoints whose host is not loopback/RFC1918/localhost. (category: security; severity: high)"
+   },
+   "V12": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H73"
+    ],
+    "text": "Fixing change H73 — Bridgebuilder ignores each model's fallback_chain (and CLI kind), so under local_voices a local voice whose chain falls back to a hosted hop is kept.; Collects CLI kind and fallback chains for the locality decision. (category: security; severity: high)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H80"
+    ],
+    "text": "Fixing change H80 — On a pull request the head config is only checked for head-only keyless/insecure providers; other differences (endpoints, aliases, locality, secret allowlist) that cheval reads from the checkout are not detected, so an attacker-controlled head steers dispatch.; On a pull request the head config is only checked for head-only keyless/insecure providers, so other head changes cheval will read (providers' endpoints, aliases, locality, secret allowlist, or an unparsable head) go undetected. (category: security; severity: high)"
+   },
+   "V14": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H82"
+    ],
+    "text": "Fixing change H82 — isLocalVoice treats any voice labelled dispatch_group local as local without checking that the provider is not a CLI provider and its endpoint host is loopback/RFC1918/localhost.; isLocalVoice trusts the dispatch_group local label alone, ignoring CLI providers, the endpoint host and the model's fallback_chain, so a hosted voice can pass the local_voices filter. (category: security; severity: high)"
+   },
+   "V15": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H89"
+    ],
+    "text": "Fixing change H89 — main.ts proceeds to plan voices on a pull request whose head config differs from the trusted config instead of refusing the run.; main.ts goes ahead with the multi-model run on a PR even when the head's provider/alias/locality/allowlist config differs from the trusted source, even though cheval dispatches with the checkout's config. (category: security; severity: high)"
+   },
+   "V16": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H90"
+    ],
+    "text": "Fixing change H90 — Any exit 3 is treated as a completed DEGRADED review and mapped to exit 0 even when no run JSON proves completion, masking failures (and incomplete_voices is a string rather than an array).; The dispatcher treats any exit 3 as a completed DEGRADED review and exits 0, even with no run JSON to prove it, so a failure that happens to exit 3 is reported as success; it also records incomplete_voices as a string, not an array. (category: error-handling; severity: medium)"
+   }
+  },
+  "pr-22": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H01"
+    ],
+    "text": "Fixing change H01 — The image carries an unused rust build stage that cargo-installs beads_rust 0.2.6, a crate the file itself says is not on crates.io, so the build fails or depends on the builder (legacy builder builds every stage).; A dead build stage cargo-installs beads_rust 0.2.6, which the file itself says is not on crates.io, so a builder that builds every stage (the legacy builder) fails the image build. (category: portability; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — pip dependencies use >= ranges and bats-core is cloned by a movable tag without a commit check, so a rebuild can silently resolve different code than the batch image.; The pip dependencies use >= ranges and the bats-core clone trusts a movable tag, so a rebuild can pull different, unverified code into the image that is supposed to be reproducible. (category: security; severity: low)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H08"
+    ],
+    "text": "Fixing change H08 — --validate never checks the arm against the arm grammar (and only checks one zone_violations array), so rows with malformed arms pass validation.; --validate never checks the arm against the arm grammar (and checks only one zone_violations array), so rows with a malformed arm pass validation. (category: input-validation; severity: low)"
+   },
+   "V04": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H09",
+     "hunk:H12"
+    ],
+    "text": "Fixing change H09 — Grade, manifest, task and pipeline JSON are held in shell variables and later passed to jq as --argjson argv strings, which fails once an input exceeds MAX_ARG_STRLEN (128 KiB) on long runs.; Inputs that grow with the run (grade, manifest, task, pipeline.json) are held in shell strings and later passed to jq as --argjson argv, so a large run goes over MAX_ARG_STRLEN and the row cannot be built. | Fixing change H12 — The row program receives every run-scaled input via --argjson argv strings, which aborts on large MODELINV ledgers (hunk also hardens ms() and voices() against odd shapes and adds the Bash mount scan).; The row jq call passes every run-scaled input (MODELINV, pipeline.json, envelopes, writes) as --argjson argv strings, which fails on long runs past the per-argument limit; the hunk also hardens ms() and voices(). (category: resource; severity: high)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — envelope() prefers the agent-writable sandbox dissent envelope over the harness eval/ copy, so a later phase that rewrites the sandbox envelope changes the row's voices/degraded fields (hunk also moves MODELINV to a file and adds the arm-grammar check).; envelope() prefers the agent-writable sandbox copy of the dissent envelope over the harness eval/ copy, so a later phase can tamper with voices_run and degraded; the hunk also moves the MODELINV and manifest inputs to files and adds the arm grammar check. (category: security; severity: high)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H17"
+    ],
+    "text": "Fixing change H17 — wall_clock_ms calls ms() on any non-null started/finished, so an empty or offset timestamp makes fromdateiso8601 abort the whole row build.; wall_clock_ms calls ms() on a present but unparseable started/finished and aborts, instead of falling back to the phase sum. (category: error-handling; severity: medium)"
+   },
+   "V07": {
+    "n_descriptions": 6,
+    "sources": [
+     "hunk:H13",
+     "hunk:H15",
+     "hunk:H16"
+    ],
+    "text": "Fixing change H13 — A non-object models_used (e.g. an array) makes keys[] misbehave, so the row build aborts or reports bogus model mismatches.; A models_used that is not an object (e.g. an array) makes keys[] abort the whole row program. | Fixing change H15 — Phase records missing name or model_requested, or with a non-object models_used, are copied through as null/odd types, producing rows that fail --validate.; A phase without name or model_requested, or with a non-object models_used, passes null or bad shapes into the row, which then fails validation. | Fixing change H16 — Non-boolean verdict_accuracy values or a non-object verdict_accuracy_per_gate are passed through or crash indexing, yielding invalid rows or a jq abort.; A non-boolean verdict_accuracy or a non-object verdict_accuracy_per_gate either aborts the row program or produces a row with the wrong field types. (category: input-validation; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H18"
+    ],
+    "text": "Fixing change H18 — zone_violations only records Write/Edit tool inputs under .claude/, so Bash rewrites of the mount (CLAUDE.md, .loa.config.yaml) go unreported, and a jq abort exits without naming the run.; zone_violations records only Write/Edit inputs under .claude/, so Bash rewrites of the mount and changed CLAUDE.md/.loa.config.yaml never show up; a failed row program also exits with a bare jq error. (category: security; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H21"
+    ],
+    "text": "Fixing change H21 — An inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is only unset in arm mode, so an operator override leaks into baseline (non-arm) executor runs.; An inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset only in arm mode, so the operator's gate override still reaches the baseline (non-arm) executor. (category: logic; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H23"
+    ],
+    "text": "Fixing change H23 — The arm's effort toggle is put on argv without whitelisting it to low|medium|high|xhigh|max.; The arm's effort toggle reaches the CLI argv without a low|medium|high|xhigh|max whitelist check in this script. (category: input-validation; severity: low)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H27"
+    ],
+    "text": "Fixing change H27 — Without bats on PATH the script falls back to executing a host-specific operator dotfiles path, making the fingerprint host-dependent and running an arbitrary binary.; When bats is not on PATH, the script falls back to a host-specific path under the operator's dotfiles and executes it, so the fingerprint depends on that one machine and runs an unexpected binary. (category: portability; severity: low)"
+   },
+   "V12": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H30"
+    ],
+    "text": "Fixing change H30 — The manifest listing ignores symlinks (find -type f) and splits newline-bearing paths, so a symlink whose target changes or a newline path escapes or corrupts the frozen suite manifest.; The manifest listing uses find -type f, so symlinks are silently left out (their targets can change the suite while the manifest stays the same), and a path holding a newline splits into two bogus listing entries. (category: security; severity: medium)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "incident:I01"
+    ],
+    "text": "Incident I01 — The per-run HOME receives a full copy of the host ~/.codex/auth.json including the refresh token, so containers consume the refresh token and kill the host credential and later containers' OpenAI voice.; The per-run container HOME gets a full copy of the host ~/.codex/auth.json, refresh token included, so containers consume the host refresh token and the host and later containers lose Codex auth. (category: security; severity: high)"
+   },
+   "V14": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H41",
+     "incident:I03"
+    ],
+    "text": "Fixing change H41 — No baseline of CLAUDE.md/.loa.config.yaml is taken after materialisation, so an agent's Bash rewrite of the mount is never detected.; No baseline hash of sandbox CLAUDE.md/.loa.config.yaml is taken after materialisation, so an agent that rewrites the mount through Bash leaves no record. | Incident I03 — Review-catch sandboxes mount the pinned framework, a later version of the PR-touched files, so the reviewer can diff against the fixed code (answer-key oracle).; A mount-design hazard for review-catch tasks (later framework copy exposed), found in a later analysis; nothing in the head text shown points to a specific defect. (category: security; severity: high)"
+   },
+   "V15": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H42"
+    ],
+    "text": "Fixing change H42 — After every phase all sandbox adversarial-*.json envelopes are re-copied over eval/, so a later FIX/AUDIT phase that edits a gate envelope (or symlinks it) overwrites the harness evidence.; Every phase copies every sandbox adversarial-*.json to eval/ and overwrites the earlier copy, so a later FIX/AUDIT phase that edits a gate's envelope replaces the harness evidence (symlinks are followed too). (category: security; severity: high)"
+   },
+   "V16": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H52",
+     "hunk:H53"
+    ],
+    "text": "Fixing change H52 — The suite aggregate excludes screen batches by directory name instead of their STATUS screen marker, so a regular batch named screen-* is dropped and a screen batch in another directory is counted.; The aggregate does not filter on the STATUS.json screen marker, so a screen batch in a directory not named screen-* is counted in the suite totals and cuts. | Fixing change H53 — Removes the directory-name filter now replaced by the marker filter.; Screen batches are excluded by the screen-* directory path rather than by the marker, which drops regular batches with that prefix and keeps unmarked-name screen batches. (category: logic; severity: medium)"
+   },
+   "V17": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H54",
+     "hunk:H55"
+    ],
+    "text": "Fixing change H54 — A failed trial that reports no cost (timeout, transport loss) is charged USD 0 to spent, so the --max-usd cap under-counts and launches too many trials.; A failed trial that reports no cost (killed, transport loss) adds 0 to spent, so the --max-usd cap underestimates real spend and launches too many trials. | Fixing change H55 — A trial that writes no row adds nothing to spent, under-counting spend against --max-usd.; A trial that writes no row at all is charged nothing to spent, which also undercounts spend against the cap. (category: logic; severity: medium)"
+   },
+   "V18": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H59",
+     "hunk:H60"
+    ],
+    "text": "Fixing change H59 — Replaces the seen set with a max-cost map, part of the dedup fix.; Dedup keeps the first-seen row of a run_id, so a run rowed twice (a smoke row, then the graded row) counts whichever cost came first rather than the larger one, which can undercount spend. | Fixing change H60 — Deduplication keeps the first row seen for a run_id, so a smoke row followed by the graded row under-counts the run's cost depending on file order.; A duplicate run_id is skipped once seen, so the counted cost depends on file and row order instead of being the larger cost. (category: logic; severity: medium)"
+   },
+   "V19": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H61",
+     "hunk:H62"
+    ],
+    "text": "Fixing change H61 — Skipped malformed lines leave the total a silent lower bound: the JSON has no completeness flag.; The JSON output does not mark a total that skipped malformed lines as incomplete (no complete flag). | Fixing change H62 — With skipped lines the text output does not mark the total incomplete and the script exits 0.; When malformed lines are skipped, the total is only a lower bound, yet the script prints it without an INCOMPLETE mark and exits 0. (category: error-handling; severity: medium)"
+   },
+   "V20": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H65"
+    ],
+    "text": "Fixing change H65 — took-effect reads the agent-writable sandbox envelope before the harness eval/ copy, so a rewritten sandbox envelope can flip rules like one_voice_planned.; took-effect's envelope() reads the agent-writable sandbox envelope before the harness eval/ copy, so a tampered sandbox envelope decides one_voice_planned. (category: security; severity: high)"
+   }
+  },
+  "pr-23": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — remove_path chmods every directory entry with os.chmod, which follows symlinks, so an agent-planted link to an outside directory gets that directory's mode changed to 0700.; remove_path chmods every walked directory entry with os.chmod, which follows an agent-planted symlink and changes the mode of a directory outside the grading tree. (category: security; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 8,
+    "sources": [
+     "hunk:H15",
+     "hunk:H16",
+     "hunk:H17",
+     "hunk:H31"
+    ],
+    "text": "Fixing change H15 — copy_tree recreates every symlink verbatim, so absolute or tree-escaping links from the agent's sandbox land in the grading tree and point the tests at host paths.; copy_tree recreates every symlink from the agent's sandbox verbatim, including absolute or tree-escaping links that commands and later steps then follow outside the grading tree. | Fixing change H16 — A directory symlink is copied without checking that its target stays inside the tree.; A directory symlink is recreated in the grading tree regardless of whether its target escapes the tree. | Fixing change H17 — A file symlink is copied without checking for an escaping target (and regular files of any size are copied densely).; A file symlink is recreated regardless of an escaping target (and regular files of any size are copied densely, e.g. a sparse 1 TB file). | Fixing change H31 — Snapshot extraction relies on data_filter alone, which misses a link that escapes only through another link in the tree.; data_filter judges members in archive order, so a snapshot symlink escaping via a later link survives extraction. (category: security; severity: high)"
+   },
+   "V03": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H20",
+     "hunk:H28"
+    ],
+    "text": "Fixing change H20 — The pytest command honours an agent-written ini file's addopts, so the agent can inject plugins or deselect hidden tests.; The pytest invocation honours an agent-written ini file's addopts, letting the agent inject plugins or deselect hidden tests. | Fixing change H28 — prepare never removes agent-written conftest.py, ini files or bats helpers, so an agent hookwrapper can flip failures to passes before the hidden tests run.; prepare leaves agent-written conftest.py, ini files and bats helpers/setup_suite in the grading tree, so the agent can make failing hidden tests pass. (category: security; severity: high)"
+   },
+   "V04": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H21",
+     "hunk:H22"
+    ],
+    "text": "Fixing change H21 — The grading container runs unnamed with no pid/memory/cpu limits, capabilities intact and a plain timeout without kill-after, so a hung or runaway container cannot be killed or cleaned up.; The grading container runs unnamed without pid/memory/cpu limits, capability drop, init or a kill-after deadline, so a hung or forking agent program cannot be reliably stopped or cleaned up. | Fixing change H22 — subprocess.run buffers unbounded output and on client timeout leaves the docker container running (no kill/rm), and timed_out only recognises rc 124.; subprocess.run captures unbounded output and on client timeout leaves the container running (no kill/rm) and misses 137 kills as timeouts. (category: resource; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H23",
+     "hunk:H24"
+    ],
+    "text": "Fixing change H23 — def_line opens whatever path the test output names (absolute, above the tree, a FIFO or device) with no bounds, so agent-printed node ids can hang or exhaust the grader.; def_line opens any node path printed by code under test (absolute, outside the tree, a FIFO or device) and reads it whole, allowing hangs or reads outside the tree. | Fixing change H24 — Collection-error expansion opens the agent-printed path unbounded, so /dev/zero or a FIFO blocks or exhausts the grader.; Collection-error expansion opens an agent-printed path unbounded and unchecked (FIFO, /dev/zero, path above the tree). (category: security; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H27",
+     "hunk:H48"
+    ],
+    "text": "Fixing change H27 — all_pass ignores the exit status and timeout (a passing TAP block followed by exit 1 is green), and regressions ignore exit statuses when either side is unparseable.; all_pass treats a run as green ignoring the exit status and timeout, so a passing TAP block followed by exit 1 or a timed-out run counts as green. | Fixing change H48 — Self-check treats the suite and hidden tests as green from counts alone, ignoring exit status, timeout and parse errors.; Self-check judges green by pass counts only (ignoring exit status, timeout and parse errors) and uses the old refactor structural split. (category: logic; severity: high)"
+   },
+   "V07": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H30",
+     "hunk:H33"
+    ],
+    "text": "Fixing change H30 — Snapshot extraction writes tar members of any size, so a huge or sparse file becomes a dense write on the grader.; Snapshot extraction writes tar members of any size, so a huge file in a snapshot is materialised in full. | Fixing change H33 — churn reads whole files of any size (and opens non-regular files such as FIFOs), so a huge file or FIFO exhausts or blocks the grader.; churn reads every file whole into memory with no size bound or file-type check. (category: resource; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 7,
+    "sources": [
+     "hunk:H35",
+     "hunk:H36",
+     "hunk:H37",
+     "hunk:H38"
+    ],
+    "text": "Fixing change H35 — gate_verdict follows a symlinked feedback file (reading outside the sandbox) and reads it unbounded, possibly blocking on a FIFO.; gate_verdict follows a symlinked feedback file (os.path.isfile + open) and reads it unbounded, so an agent can point the verdict at an outside file or a FIFO. | Fixing change H36 — review_md_verdict follows a symlinked review.md and reads it unbounded. | Fixing change H37 — envelope_texts reads the envelope JSON without a size bound or non-regular-file refusal.; Envelope JSON is read without size bound or non-blocking regular-file check. | Fixing change H38 — combined_findings reads sandbox files unbounded and does not refuse a path through a symlinked parent directory outside the sandbox.; Citation sources are read whole without a size cap or a check that the path resolves inside the sandbox (a symlinked parent is followed). (category: security; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 10,
+    "sources": [
+     "hunk:H39",
+     "hunk:H40",
+     "hunk:H41",
+     "hunk:H42",
+     "incident:I01"
+    ],
+    "text": "Fixing change H39 — The contamination scan has no pattern for ~/, $HOME/ or /proc/*/environ and /var/run, so home-relative and secret-bearing reads are not flagged.; Adds HOME_WORD and SENSITIVE patterns for the contamination fix. | Fixing change H40 — Host-mode allowed roots exempt the caller's ~/.claude, ~/.claude.json, ~/.codex and ~/.aws credential stores from the outside_path check.; Host-mode contamination scan exempts the caller's credential stores (~/.claude, ~/.codex, ~/.aws), so reading them is never flagged. | Fixing change H41 — outside() treats /proc/<pid>/environ etc. and /var/run as allowed and never flags home-relative paths.; outside() treats ~/ and $HOME/ paths and /proc/<pid>/environ or /var/run as allowed, missing credential reaches. | Fixing change H42 — Bash scanning skips every one-component /x/ word as a regex (so `cd /root/` is never flagged) and ignores ~/ and $HOME/ words.; Bash scanning ignores home-relative words and skips every one-component /x/ word as a regex, so `cd /root/` or `cat ~/.aws/credentials` is never flagged. | Incident I01 — The contamination scan's ABS_WORD/GIT_HIST heuristics flag ordinary agent text (slash commands like /review-sprint, heredoc prose, sed ranges) as outside_path or git_history, marking clean runs contaminated.; The contamination scan's ABS_WORD path heuristic flags ordinary agent text (slash commands like /review-sprint, sed ranges, heredoc prose) as outside_path, marking clean runs contaminated. (category: security; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H45",
+     "hunk:H46"
+    ],
+    "text": "Fixing change H45 — For refactor tasks hidden_tests is the fixture suite (test_command) instead of the structural check, so the pass rate and accuracy measure the wrong assertion.; For refactor tasks hidden_tests is the fixture suite rather than the structural check (an untouched tree scores 1.0), and the regression logic mis-handles an unparseable base or final run. | Fixing change H46 — Snapshot trees of refactor tasks are graded with test_command rather than the structural check plus suite, so per-gate verdict accuracy is wrong.; Snapshot trees for refactor gates are judged by test_command alone instead of the structural check plus suite, so per-gate verdict accuracy is wrong. (category: logic; severity: high)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H49"
+    ],
+    "text": "Fixing change H49 — --executor host runs agent code unisolated on the host with no opt-in or warning.; --executor host runs agent code on the host as the calling user without isolation and without any opt-in or warning. (category: security; severity: medium)"
+   },
+   "V12": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H52"
+    ],
+    "text": "Fixing change H52 — A refactor task with a non-null regression_command is accepted although the grader uses test_command as its regression check.; validate-suite accepts a refactor task with a regression_command, which conflicts with test_command being the refactor regression check. (category: input-validation; severity: low)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H53"
+    ],
+    "text": "Fixing change H53 — Validation does not require grader_protected to list every fixture/tests/ file, so agent-edited fixture tests can survive grading.; validate-suite does not require grader_protected to list every fixture/tests file, so agent-edited fixture tests are not restored before grading. (category: input-validation; severity: medium)"
+   }
+  },
+  "pr-24": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H04"
+    ],
+    "text": "Fixing change H04 — With no SIGTERM handler, a grader killed by the runner's deadline skips the finally block, so the SCRATCH directory is left behind.; The grader installs no SIGTERM handler, so a terminated grade skips the finally block and leaves its SCRATCH directory behind (version bump rides along). (category: resource; severity: low)"
+   },
+   "V02": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H05",
+     "hunk:H08"
+    ],
+    "text": "Fixing change H05 — HIDDEN_TOKEN only matches lowercase adjacency, so Bash probes like Hidden/x, hiddenTests/, HiddenTests/, '*hidden*' globs and `cd hidden` are not flagged as contamination.; HIDDEN_TOKEN only matches lowercase adjacency and HIDDEN, so Bash probes like `ls Hidden/x`, `ls hiddenTests/`, `find . -iname '*hidden*'` or `cd hidden` are not flagged as contamination. | Fixing change H08 — The Bash hidden check uses only HIDDEN_TOKEN, so glob and filesystem-probe shapes of hidden go undetected.; The Bash hidden check only consults HIDDEN_TOKEN, missing glob and filesystem-probe shapes of hidden. (category: security; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H06"
+    ],
+    "text": "Fixing change H06 — The HEREDOC regex with re.S and a lazy (?:.*?\\n)*? body backtracks catastrophically on a << that is not a heredoc ($((1<<n)), <<<) and drops the operator-line remainder. The same hunk also fixes the in_quotes parity count and the empty-quote glued-token case in after_closing_quote.; in_quotes uses a quote parity count, so a sensitive word that is the whole quoted argument (cd \"/root\", ls '/home') is skipped as pattern text and parity is thrown off by apostrophes; the same hunk also fixes after_closing_quote treating ''/root/x as a glued tail and the backtracking-prone heredoc regex. (category: logic; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — in_quotes uses a quote parity count, so a sensitive word that is the whole quoted argument (cd \"/root\") is skipped, and an apostrophe elsewhere in the command flips the result.; Caller updated for the new in_quotes signature. (category: logic; severity: low)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — strip_heredocs replaces the whole operator line after <<WORD, so a redirect, pipe or argument such as `cat <<'EOF' > /root/x` is never path-scanned.; strip_heredocs replaces the heredoc together with the rest of its operator line, so a redirect or argument after <<WORD (cat <<'EOF' > /root/x) is never path-scanned, and the re.S lazy regex can backtrack heavily on << that is not a heredoc. (category: security; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "incident:I01"
+    ],
+    "text": "Incident I01 — The repo_name scan checks the whole Bash value, heredoc bodies included, so a reviewer quoting the PR's own '0xHoneyJar/loa' text in a heredoc is marked contaminated (KF-046 class 7).; The repo_name check scans the whole Bash value including heredoc prose, so a reviewer quoting the PR's own '0xHoneyJar/loa' text is flagged contaminated (KF-046 class 7). (category: logic; severity: medium)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H10"
+    ],
+    "text": "Fixing change H10 — A globbed one-component word (/roo*, /ro?t) is read as a slash-command token and skipped, so a glob that reaches /root evades the outside_path check.; A globbed one-component word such as /roo* or /ro?t tokenises to a non-sensitive single component and is skipped, letting a glob reach /root unseen. (category: security; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H11"
+    ],
+    "text": "Fixing change H11 — Every word starting with /. is skipped as a dot-directory, so /./root/x and /../root/x evade the outside_path check.; Any word starting with /. is skipped as a repo-relative dot-dir, so /./root/.ssh/id_rsa or /../root/x evades the outside_path check. (category: security; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H25",
+     "hunk:H26"
+    ],
+    "text": "Fixing change H25 — took-effect.sh runs with no deadline, so a hang stalls the batch indefinitely, and any non-zero exit pauses the arm.; took-effect runs without a deadline, so a hang stalls the trial (and a failure would pause the arm though a hang is no evidence about it). | Fixing change H26 — The grader runs with no post-run deadline, so a hung grade blocks the trial and the batch forever.; The grader is invoked without a deadline, so a hung grade blocks the batch from finishing. (category: resource; severity: medium)"
+   }
+  },
+  "pr-25": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H04"
+    ],
+    "text": "Fixing change H04 — remove_colliding deletes any agent-added .py whose bare basename matches a hidden/fixture test-dir .py (including helpers and modules inside packages, e.g. src/pkg/helpers.py), so correct solutions lose files and fail, while it misses real pytest import-name collisions in packages, ignores files inside directory overlays and the task's python_files setting.; remove_colliding compares bare basenames of any .py: it deletes agent non-test modules (e.g. src/app/helpers.py) and modules inside packages that pytest would never clash on, so correct solutions fail. It also misses real import-name collisions of packaged test modules, ignores files inside directory overlays and the fixture's python_files, and does not handle helper shadowing. (category: logic; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — The auth.json copy placed in the agent-readable per-run HOME keeps a long-lived OPENAI_API_KEY verbatim, exposing the operator's API key to the agent under evaluation.; The auth.json copy into the agent-readable per-run HOME keeps any long-lived OPENAI_API_KEY verbatim, which exposes the operator's API key to the agent under evaluation. (category: security; severity: critical)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — On --resume the codex pre-flight counts every plan entry (including already-rowed trials) toward the token horizon, so a resume whose remaining trials fit the token's lifetime is wrongly refused.; Passes the resume scope and the override into the pre-flight script so it can compute the corrected horizon. (category: logic; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H16"
+    ],
+    "text": "Fixing change H16 — The required horizon 2 x sum(watchdog)/concurrency can be shorter than a single trial's own watchdog, so a token that expires mid-trial passes the pre-flight (and an API-key-mode auth.json without tokens.access_token is wrongly refused).; The codex token horizon is computed wrongly: at concurrency >1 it can fall below one trial's own watchdog, so a token that expires mid-trial passes; on --resume it counts the whole plan, so valid resumes are refused. An API-key-mode auth.json, which has no access token, is also refused. (category: logic; severity: high)"
+   }
+  },
+  "pr-26": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — defect_vector trusts any list of strings in defects_missed as per-defect ids, even ids outside d1..dN, duplicates, or lists contradicting defects_caught, producing wrong per-defect catch values.; defect_vector trusts any list of strings in defects_missed as per-defect ids, even ids outside d1..dN, duplicates, or lists contradicting defects_caught, producing wrong per-defect catch figures. (category: input-validation; severity: medium)"
+   },
+   "V02": {
+    "n_descriptions": 12,
+    "sources": [
+     "hunk:H14",
+     "hunk:H15",
+     "hunk:H16",
+     "hunk:H17",
+     "hunk:H20",
+     "hunk:H25"
+    ],
+    "text": "Fixing change H14 — float(r.get('cost_usd') or 0) crashes on a non-numeric string cost and propagates NaN/inf into cost means.; Cost and wall-clock reads use float(r.get(...) or 0), which crashes on a non-numeric string and propagates NaN/infinity into the means. | Fixing change H15 — nums() accepts NaN/infinite floats, so per-run means become NaN.; nums() also skips non-finite values via is_num. | Fixing change H16 — Precision sums accept non-finite numbers and the cost read crashes on a non-numeric cost_usd.; Same numeric-guard correction applied to the precision computation's cost read. | Fixing change H17 — cost_per_task crashes on a non-numeric cost_usd and cost_per_run ignores bad values inconsistently/propagates NaN.; Same numeric-guard correction for cost_per_task and cost_per_run. | Fixing change H20 — Budget-matched cost sums crash on a non-numeric cost_usd and propagate NaN.; Same numeric-guard correction for budget-matched cost reads. | Fixing change H25 — Cap-failure rendering crashes on a non-numeric cost_usd.; Same numeric-guard correction in the cap-failure listing. (category: input-validation; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H18"
+    ],
+    "text": "Fixing change H18 — version_key treats a non-integer float suite_version (2.1) as absent and keeps \"2.0\" distinct from 2, and version_order only handles digit keys, so versions are mis-partitioned or mis-sorted.; version_key returns None for a non-integer float suite_version (e.g. 2.1), treating it as absent, and version_order only treats pure-digit keys as numeric, so non-integer versions are mispartitioned and missorted. (category: logic; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H28"
+    ],
+    "text": "Fixing change H28 — Among two or more suite versions any version-less row aborts the report with exit 2, even one (smoke batch, no manifest, arm not run) that would only be listed and never decided.; Among two or more suite versions, any row without suite_version aborts the report with exit 2 even when it would only be listed (smoke batch, no manifest, arm not run), instead of listing it. (category: logic; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H22"
+    ],
+    "text": "Fixing change H22 — The grader tally counts every matching run directory of a row (reruns counted several times), its sort key mixes int and str segments (TypeError on e.g. 1.2.0 vs 1.2.0-rc1, aborting the report), and it builds paths from unvalidated row arm/task_id that can escape the batch directory.; The grader tally counts every run directory matching a row's task and trial (base plus all reruns) instead of the row's own one, does not count directory-less rows as n/a, and sorts with a key mixing int and str segments that raises TypeError (e.g. 1.2.0 vs 1.2.0-rc1). (category: logic; severity: high)"
+   },
+   "V06": {
+    "n_descriptions": 10,
+    "sources": [
+     "hunk:H23",
+     "hunk:H26",
+     "hunk:H27",
+     "hunk:H30",
+     "hunk:H31"
+    ],
+    "text": "Fixing change H23 — budget_json emits suite_version as a string key rather than a typed JSON value, inconsistent with primary_suite_version.; Budget JSON suite_version typed via version_value. | Fixing change H26 — h1_json emits suite_version as a string key, not a typed value.; JSON version values are emitted with inconsistent types (string keys in h1/a4/by_suite_version, int only for digit-only primary, string for a numeric '2.1'), violating the documented typed contract. | Fixing change H27 — a4_json emits suite_version as a string key, not a typed value.; Same typing correction for a4_json. | Fixing change H30 — by_suite_version[N].suite_version is emitted as a string, not a typed value.; Same typing correction for version_json. | Fixing change H31 — primary_suite_version is a string for a non-integer numeric key such as 2.1.; Same typing correction for primary_suite_version. (category: contract; severity: low)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H29"
+    ],
+    "text": "Fixing change H29 — An exception while computing or rendering the presentation-only batch record aborts the whole report instead of degrading.; The presentation-only batch record is computed and rendered without any guard, so any exception in it (e.g. the grader sort TypeError or an int() refusal) aborts the whole report. (category: error-handling; severity: medium)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H34"
+    ],
+    "text": "Fixing change H34 — json.dumps without allow_nan=False writes non-standard NaN/Infinity tokens into report.json, and the markdown is written before the JSON is serialised.; The JSON twin is serialised with the default allow_nan, writing non-standard NaN/Infinity tokens (invalid JSON), and only after report.md is already written. (category: contract; severity: medium)"
+   },
+   "V09": {
+    "n_descriptions": 4,
+    "sources": [
+     "hunk:H40",
+     "hunk:H42"
+    ],
+    "text": "Fixing change H40 — --validate accepts a defects_missed list with malformed, duplicate or out-of-range ids or one contradicting defects_seeded/defects_caught.; --validate accepts any list of non-empty strings as defects_missed, including malformed, duplicate, out-of-range or count-inconsistent ids. | Fixing change H42 — The row writer copies any list of non-empty strings into defects_missed, even one inconsistent with the seeded/caught counts.; The row writer copies recall.missed verbatim whenever it is a list of non-empty strings, emitting inconsistent id lists instead of null. (category: input-validation; severity: medium)"
+   }
+  },
+  "pr-27": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — When EVAL_HEAD_DIR and the fixture head are absent, the grader silently falls back to <workspace>/pr/head, which is the graded agent's own writable tree, letting the graded agent influence same-function crediting.; The grader falls back by default to <workspace>/pr/head, the graded agent's own writable tree, so the agent can shape the head files used for same-function credit. (category: security; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H03"
+    ],
+    "text": "Fixing change H03 — Markdown header detection treats `#` lines inside fenced code blocks as headings, splitting a section's scope at code comments.; Markdown header detection treats `#` lines inside fenced code blocks as headings, splitting a section's scope wrongly. (category: logic; severity: medium)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H04"
+    ],
+    "text": "Fixing change H04 — Bash closing-brace detection measures indentation without expanding tabs while headers() measures tab-expanded width, so tab-indented functions never match their closing brace and their scope runs too far.; Bash close-brace detection compares raw indentation against a tab-expanded header level, so tab-indented functions never close at their own brace and swallow later lines into scope. (category: logic; severity: medium)"
+   },
+   "V04": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H05"
+    ],
+    "text": "Fixing change H05 — Python end-of-definition detection starts right after the def line, so a multi-line signature's dedented closing `):` line ends the definition before its body.; Python end-of-definition detection ends a def with a multi-line signature at its first parameter line, dropping the body from the scope. (category: logic; severity: medium)"
+   },
+   "V05": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H07"
+    ],
+    "text": "Fixing change H07 — scope_map has no bound on the number of headers, so a large file with many unterminated headers triggers a quadratic span scan (resource exhaustion on agent-influenced input).; scope_map scans headers quadratically with no bound, so a huge file with many unterminated headers can stall the grader. (category: resource; severity: medium)"
+   },
+   "V06": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H09"
+    ],
+    "text": "Fixing change H09 — grade_recall drops EVAL_HEAD_DIR when no PR fixture head exists, letting recall-vs-defects.sh fall back to the sandbox's agent-writable pr/head copy.; When no PR fixture head exists, popping EVAL_HEAD_DIR lets recall-vs-defects.sh fall back to the copied sandbox pr/head in the grading dir, the agent-controlled copy. (category: security; severity: high)"
+   },
+   "V07": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H12"
+    ],
+    "text": "Fixing change H12 — repo_name_exempt exempts a Bash command that actually reaches the upstream repository (curl/git/gh with 0xHoneyJar/loa) whenever the same line appears in the PR fixture, and ignores backslash-continued lines, hiding real contamination.; repo_name_exempt exempts an executed Bash command that fetches from the upstream repo (curl/git) whenever the same line appears in the PR fixture, hiding a real contamination probe. (category: security; severity: high)"
+   },
+   "V08": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H13"
+    ],
+    "text": "Fixing change H13 — A bare repo-name token standing as a whole line becomes its own unit, which is a substring of every fixture token line, so it is always exempt even when used as a command argument.; A bare repo-name token forming a whole line (for-list word, continuation line) is a substring of any fixture token line and is wrongly exempted. (category: security; severity: high)"
+   },
+   "V09": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H14"
+    ],
+    "text": "Fixing change H14 — corpus_sha256 validates the file with read_regular and then reopens it with plain open(), following symlinks and unbounded, so it can hash a different (swapped or oversized) file than the one checked.; corpus_sha256 checks the file with read_regular and then reopens it with a following open and unbounded read, a check-then-use race that can follow a swapped symlink or hash an oversized file. (category: security; severity: medium)"
+   },
+   "V10": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H17"
+    ],
+    "text": "Fixing change H17 — SILENT_SINK only recognises a counting/quiet grep flag as the first argument and misses egrep/fgrep/-L, so `diff … | grep -i -c x` is treated as printing diff content and falsely marks defects exposed.; SILENT_SINK only recognises a counting/quiet grep flag as the first argument (and misses egrep/-L etc.), so `| grep -i -c` is read as printing diff content and falsely marks defects exposed. (category: logic; severity: medium)"
+   },
+   "V11": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H18"
+    ],
+    "text": "Fixing change H18 — The segment splitter treats `&` in redirections like 2>&1, >&2, &> and `|&` as a command separator, breaking the pipe association so `diff … 2>&1 | wc -l` is read as an unpiped content diff.; The segment splitter treats the `&` of redirections like 2>&1 or &>/dev/null (and `|&`) as a command separator, so the following pipe sink is not attached to the diff and silent diffs read as exposing. (category: logic; severity: medium)"
+   },
+   "V12": {
+    "n_descriptions": 12,
+    "sources": [
+     "hunk:H19",
+     "hunk:H20",
+     "hunk:H21",
+     "hunk:H22",
+     "hunk:H23",
+     "incident:I02"
+    ],
+    "text": "Fixing change H19 — expand() has no cap on the cartesian product of for-list variable substitutions, so agent-authored commands can blow up grading time/memory.; Variable expansion builds an unbounded for-list product from agent-authored input, allowing exponential blow-up in the grader. | Fixing change H20 — segment_tokens runs PATHISH and expansion over arbitrarily large agent-authored segments and words without any size bound.; segment_tokens runs the PATHISH regex and expansion over arbitrarily large agent-authored segments and words with no bound. | Fixing change H21 — The oracle scan runs difflib SequenceMatcher on arbitrarily long head and sandbox copies, an unbounded (quadratic) cost on agent-controlled file size.; difflib runs over arbitrarily long head and sandbox copies with no line cap, letting a huge sandbox file stall the grader. | Fixing change H22 — Tool result text is processed with no bound on line count or line length.; Tool result text is processed unbounded in line count and line length. | Fixing change H23 — for-list word lists are stored unbounded, feeding the expansion blow-up.; A for-list variable keeps every expanded word with no cap, feeding the unbounded expansion product. | Incident I02 — The 1.3.0 oracle detector skips every tool_result flagged is_error, but a differing diff exits 1 and is error-marked, so real diff exposures can go undetected (fixed in grader 1.3.1).; The oracle detector skips every is_error tool result, but a differing diff exits 1 and is error-marked, so real head-vs-later diffs go undetected (fixed in grader 1.3.1). (category: resource; severity: medium)"
+   },
+   "V13": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H24"
+    ],
+    "text": "Fixing change H24 — The diff-form check misses silent sinks with flags after the first argument and treats stat-only `git diff --stat/--name-only` as printing content, producing false oracle exposures.; A stat-only git diff (--stat, --name-only, …) is treated as printing diff content and can mark defects exposed; the hunk also switches to the new silent_sink helper. (category: logic; severity: medium)"
+   }
+  },
+  "pr-28": {
+   "V01": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H01"
+    ],
+    "text": "Fixing change H01 — An arm whose toggles set oracle_open: true but lacks eval_only: true is silently counted as a decision component instead of being refused or treated as evaluation-only.; The report treats an arm as evaluation-only only by its eval_only flag, so a suite arm with toggles.oracle_open: true but no eval_only is silently counted as a shipped-default component instead of being refused or excluded. (category: logic; severity: high)"
+   },
+   "V02": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H02"
+    ],
+    "text": "Fixing change H02 — The report silently drops eval-only arms from the component count without disclosing which arms were excluded or how many rows they carried.; The report drops eval-only arms from the component list without disclosing them or their row counts anywhere, so readers cannot see which arms were excluded from decisions. (category: contract; severity: low)"
+   },
+   "V03": {
+    "n_descriptions": 2,
+    "sources": [
+     "hunk:H06"
+    ],
+    "text": "Fixing change H06 — The eval_only refusal keys only on the eval_only flag, so an arm with toggles.oracle_open: true (or a non-boolean eval_only/oracle_open read as false) runs the open-mount oracle outside the batch context.; The eval_only guard reads only the eval_only flag (and reads a non-boolean value as false), so an arm whose toggles open the oracle mount, or whose eval_only is malformed, runs outside the batch context without being refused. (category: security; severity: high)"
+   }
+  }
+ },
+ "schema_version": 1
+}

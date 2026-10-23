@@ -265,7 +265,7 @@ item_for() {  # item_for <dir> <cited path> → the item id whose region cites i
   bash "$JS" --rows "$T/rows-xy.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/o" --per-stratum 1 --min-total 0 >/dev/null
   # sampling-baseline.json = the key.json judge-sample.sh wrote before cited-path resolution
   # (base 9f5746b3) on this same fixture and these arguments
-  diff <(jq -S 'del(.items[].cited_path_resolution)' "$T/o/key.json") \
+  diff <(jq -S 'del(.items[].cited_path_resolution, .items[].description_source)' "$T/o/key.json") \
        <(jq -S . "$TESTS_DIR/fixtures/judge-sample/sampling-baseline.json")
   run jq -r '[.items[] | select(.cited_path_resolution == null and .region != null)] | length' "$T/o/key.json"
   [ "$output" = 0 ]
@@ -277,4 +277,69 @@ item_for() {  # item_for <dir> <cited path> → the item id whose region cites i
   bash "$JS" --rows "$T/rows-xy.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/b" --per-stratum 5 --min-total 0 > "$T/b.out"
   diff -r "$T/a" "$T/b"
   diff "$T/a.out" "$T/b.out"
+}
+
+descriptions() {  # a defect-descriptions.py output naming pr-90's D01 and D03 (D02 absent)
+  cat > "$T/descs.json" <<'J'
+{"schema_version": 1, "fixtures": {"pr-90": {
+ "D01-off-by-one-in-the-loop": {"text": "Fixing change H01 — the loop bound runs one past the end (category: logic; severity: high)", "sources": ["hunk:H01"], "n_descriptions": 1},
+ "D03-missing-guard": {"text": "Incident I01 — the guard is missing", "sources": ["incident:I01"], "n_descriptions": 1}}}}
+J
+}
+
+@test "JS-17 --descriptions: the packet carries the annotators' text; key.json records description_source; sampling identical" {
+  descriptions
+  bash "$JS" "${ARGS[@]}" --out "$T/a" --per-stratum 5 --min-total 0 > "$T/a.out"
+  run bash "$JS" "${ARGS[@]}" --out "$T/b" --per-stratum 5 --min-total 0 --descriptions "$T/descs.json"
+  [ "$status" -eq 0 ]
+  counts="$output"
+  grep -qF 'Description: Fixing change H01 — the loop bound runs one past the end (category: logic; severity: high)' "$T"/b/packets/*.md
+  grep -qF 'Description: Incident I01 — the guard is missing' "$T"/b/packets/*.md
+  grep -qF 'Description: the expansion is unquoted' "$T"/b/packets/*.md
+  run grep -rF 'Description: off by one in the loop' "$T/b/packets"
+  [ "$status" -eq 1 ]
+  run jq -r '[.items[] | select(.defect == "d1" or .defect == "d3") | .description_source] | unique | join(",")' "$T/b/key.json"
+  [ "$output" = annotators ]
+  run jq -r '[.items[] | select(.defect == "d2") | .description_source] | unique | join(",")' "$T/b/key.json"
+  [ "$output" = manifest ]
+  run jq -r '[.items[] | select(.class == "stray") | .description_source] | unique | map(tostring) | join(",")' "$T/b/key.json"
+  [ "$output" = null ]
+  n_ann="$(jq '[.items[] | select(.description_source == "annotators")] | length' "$T/b/key.json")"
+  n_man="$(jq '[.items[] | select(.description_source == "manifest")] | length' "$T/b/key.json")"
+  n_str="$(jq '[.items[] | select(.description_source == null)] | length' "$T/b/key.json")"
+  [[ "$counts" == *"descriptions: annotators=$n_ann manifest=$n_man id_fallback=0 stray=$n_str"* ]]
+  [ "$n_ann" -gt 0 ]
+  # universe, strata, π, items and order identical with and without the flag
+  diff <(jq -S 'del(.items[].description_source)' "$T/a/key.json") <(jq -S 'del(.items[].description_source)' "$T/b/key.json")
+  # only the Description lines differ between the two packet sets
+  for f in "$T"/a/packets/*.md; do
+    diff <(grep -v '^Description: ' "$f") <(grep -v '^Description: ' "$T/b/packets/$(basename "$f")")
+  done
+}
+
+@test "JS-18 without --descriptions: today's fallback text, id_fallback/manifest sources, no counts line" {
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"descriptions:"* ]]
+  grep -qF 'Description: off by one in the loop' "$T"/o/packets/*.md
+  run jq -r '[.items[] | select(.defect == "d1" or .defect == "d3") | .description_source] | unique | join(",")' "$T/o/key.json"
+  [ "$output" = id_fallback ]
+}
+
+@test "JS-19 --descriptions: an arm id in the text refuses unless the PR carries it; a bad file exits 1" {
+  descriptions
+  sed -i 's/the guard is missing/the a0_bare guard is missing/' "$T/descs.json"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0 --descriptions "$T/descs.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance field (a0_bare)"* ]]
+  [ ! -e "$T/o" ]
+  printf '# PR\n\nAdds the a0_bare arm.\n' > "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0 --descriptions "$T/descs.json"
+  [ "$status" -eq 0 ]
+  echo '{"fixtures": {}}' > "$T/bad.json"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0 --descriptions "$T/bad.json"
+  [ "$status" -eq 1 ]
+  [ ! -e "$T/o2" ]
+  run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0 --descriptions "$T/none.json"
+  [ "$status" -eq 1 ]
 }

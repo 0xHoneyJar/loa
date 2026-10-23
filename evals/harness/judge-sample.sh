@@ -6,7 +6,7 @@
 # Usage:
 #   judge-sample.sh --rows F --results-root DIR [--results-root DIR …] --out DIR --seed N
 #                   [--per-stratum 10] [--min-total 150] [--suite-root DIR …] [--repo-root DIR]
-#                   [--all-cells]
+#                   [--all-cells] [--descriptions FILE]
 #
 # The universe holds the VALID cells only (common.py's validity filter on the row and its
 # grade.json — the cells the reads use, so the Horvitz–Thompson domain is the analysis
@@ -54,6 +54,12 @@
 # a field line is exempt only when the whole line occurs verbatim there. Batch names, run ids and
 # cell keys are never exempt. Exemptions go to key.json provenance_exempt; packets are unchanged.
 #
+# --descriptions FILE (defect-descriptions.py's output, {fixtures: {<fixture>: {<defect id>: {text}}}})
+# gives a pair packet's "Description:" line the annotators' text for (fixture, defect id); otherwise
+# the manifest's description, else the defect id. key.json records each item's description_source
+# (annotators|manifest|id_fallback; null for a stray) and a counts line is printed. The description
+# never changes the universe, the strata or the draw; it is provenance-scanned like the packet.
+#
 # Exit: 0 written; 1 a packet would carry a provenance field (nothing written), or inputs
 # invalid; 2 usage.
 # =============================================================================
@@ -66,7 +72,7 @@ ANALYSIS_DIR="$REPO_ROOT/evals/analysis"
 
 usage() { sed -n '4,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
-ROWS="" OUT="" SEED="" PER=10 MINTOT=150 REPO="$REPO_ROOT" ALL=0
+ROWS="" OUT="" SEED="" PER=10 MINTOT=150 REPO="$REPO_ROOT" ALL=0 DESCS=""
 ROOTS=() SUITES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -79,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --suite-root) SUITES+=("${2:-}"); shift 2 ;;
     --repo-root) REPO="${2:-}"; shift 2 ;;
     --all-cells) ALL=1; shift ;;
+    --descriptions) DESCS="${2:-}"; [[ -n "$DESCS" ]] || usage; shift 2 ;;
     -h|--help) usage ;;
     *) printf 'judge-sample: unknown argument %s\n' "$1" >&2; usage ;;
   esac
@@ -86,6 +93,7 @@ done
 [[ -n "$ROWS" && -n "$OUT" && -n "$SEED" && ${#ROOTS[@]} -gt 0 ]] || usage
 [[ "$SEED" =~ ^[0-9]+$ && "$PER" =~ ^[1-9][0-9]*$ && "$MINTOT" =~ ^[0-9]+$ ]] || usage
 [[ -f "$ROWS" ]] || { printf 'judge-sample: rows file not found: %s\n' "$ROWS" >&2; exit 1; }
+[[ -z "$DESCS" || -f "$DESCS" ]] || { printf 'judge-sample: descriptions file not found: %s\n' "$DESCS" >&2; exit 1; }
 [[ -d "$REPO" ]] || { printf 'judge-sample: repo root not found: %s\n' "$REPO" >&2; exit 1; }
 if [[ ${#SUITES[@]} -eq 0 ]]; then
   for d in "$REPO"/grimoires/loa/evals/*/; do [[ -d "$d/tasks" ]] && SUITES+=("${d%/}"); done
@@ -94,10 +102,10 @@ fi
 roots_json="$(printf '%s\n' "${ROOTS[@]}" | jq -R . | jq -s -c .)"
 suites_json="$(printf '%s\n' ${SUITES[@]+"${SUITES[@]}"} | jq -R 'select(length > 0)' | jq -s -c .)"
 
-python3 -I - "$ANALYSIS_DIR" "$ROWS" "$roots_json" "$suites_json" "$REPO" "$OUT" "$SEED" "$PER" "$MINTOT" "$ALL" <<'PY'
+python3 -I - "$ANALYSIS_DIR" "$ROWS" "$roots_json" "$suites_json" "$REPO" "$OUT" "$SEED" "$PER" "$MINTOT" "$ALL" "$DESCS" <<'PY'
 import json, os, random, re, sys
 
-analysis_dir, rows_path, roots_json, suites_json, repo, out, seed, per, mintot, all_cells = sys.argv[1:11]
+analysis_dir, rows_path, roots_json, suites_json, repo, out, seed, per, mintot, all_cells, descs_path = sys.argv[1:12]
 all_cells = all_cells == "1"
 sys.path.insert(0, analysis_dir)
 from c132 import common  # noqa: E402
@@ -291,6 +299,30 @@ def fence(text):
     return "`" * n
 
 
+def load_descriptions(path):
+    """{fixture: {defect id: text}} from defect-descriptions.py's output ({} without --descriptions)"""
+    if not path:
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        die("descriptions file unreadable: %s" % e)
+    fx = doc.get("fixtures") if isinstance(doc, dict) and doc.get("schema_version") == 1 else None
+    if not isinstance(fx, dict):
+        die("descriptions file is not schema_version 1 with a fixtures object: %s" % path)
+    out = {}
+    for name, ds in fx.items():
+        if not isinstance(ds, dict):
+            die("descriptions file: fixture %s is not an object" % name)
+        for did, e in ds.items():
+            t = e.get("text") if isinstance(e, dict) else None
+            if isinstance(t, str) and t.strip():
+                out.setdefault(name, {})[did] = " ".join(t.split())
+    return out
+
+
+descriptions = load_descriptions(descs_path)
 meta = task_meta()
 try:
     rows = common.load_rows(rows_path)
@@ -313,6 +345,7 @@ for r in sorted(rows, key=common.cell_key):
     fixture_dir = inside(repo, fixture_rel)
     with open(mpath, encoding="utf-8") as f:
         man = json.load(f)
+    fixture_name = str(man.get("fixture") or os.path.basename(tm["fixture"].rstrip("/")))
     defects = man.get("defects") or []
     rd = common.run_dir_for(r, roots)
     if not rd:
@@ -342,7 +375,8 @@ for r in sorted(rows, key=common.cell_key):
             if best is None or (g, i) < best:
                 best = (g, i)
         base_u = {"cell": key, "arm": r.get("arm"), "task": task, "trial": r.get("trial"), "region": list(reg),
-                  "_text": finding_text(paras, reg), "_fixture": fixture_dir, "_man": defects}
+                  "_text": finding_text(paras, reg), "_fixture": fixture_dir, "_man": defects,
+                  "_fxname": fixture_name}
         if hits:
             # one credited unit per crediting relation: a region within ±3 of two defects credits both
             for i in hits:
@@ -361,7 +395,8 @@ for r in sorted(rows, key=common.cell_key):
         closest = min(near)[1] if near else None
         units.append({"cell": key, "arm": r.get("arm"), "task": task, "trial": r.get("trial"), "class": "far-miss",
                       "region": list(closest) if closest else None, "defect": did, "grader_credit": False,
-                      "_text": finding_text(paras, closest) if closest else None, "_fixture": fixture_dir, "_man": defects})
+                      "_text": finding_text(paras, closest) if closest else None, "_fixture": fixture_dir, "_man": defects,
+                      "_fxname": fixture_name})
     missed = r.get("defects_missed_pm3")
     if isinstance(missed, list):
         grader = {"d%d" % (i + 1) for i in range(len(defects))} - set(missed)
@@ -445,6 +480,7 @@ for j, u in enumerate(sampled, 1):
         L.append("Does the finding describe the labelled defect? `describes`, `partially`, or `does-not-describe`.\n\n")
     L.append("## Finding\n\n")
     resolution = None    # no cited region: nothing to resolve
+    dsource = None       # a stray carries no labelled defect
     if u["region"] is None:
         L.append("No finding cites this file.\n\n")
     else:
@@ -465,7 +501,13 @@ for j, u in enumerate(sampled, 1):
     if u["class"] != "stray":
         d = u["_man"][int(u["defect"][1:]) - 1]
         sites = [s for s in (d.get("anchors") or [d.get("anchor_line")]) if isinstance(s, int)]
-        desc = d.get("description") or re.sub(r"^[A-Za-z]?\d+-", "", str(d.get("id", ""))).replace("-", " ")
+        desc = descriptions.get(u["_fxname"], {}).get(str(d.get("id", "")))
+        dsource = "annotators"
+        if not desc:
+            desc, dsource = d.get("description"), "manifest"
+        if not desc:
+            desc = re.sub(r"^[A-Za-z]?\d+-", "", str(d.get("id", ""))).replace("-", " ")
+            dsource = "id_fallback"
         L.append("## Labelled defect\n\nFile: `%s`; anchor lines: %s.\n\nDescription: %s\n" % (
             d.get("file"), ", ".join(str(s) for s in sites), desc))
         if d.get("must_match") and not str(d["must_match"]).startswith("@L"):
@@ -495,6 +537,7 @@ for j, u in enumerate(sampled, 1):
     packets[jid] = body
     items[jid] = {k: u[k] for k in ("unit", "cell", "arm", "task", "trial", "class", "region", "defect", "grader_credit")}
     items[jid]["cited_path_resolution"] = resolution
+    items[jid]["description_source"] = dsource
 
 key = {"schema_version": 1, "seed": seed, "per_stratum": per, "per_stratum_used": cap, "min_total": mintot,
        "window": WIN, "near": NEAR, "strata": stab, "items": items, "cells": cells,
@@ -516,6 +559,10 @@ print("provenance exemptions: %d (pr_native)" % len(provenance_exempt))
 RES = ("exact", "defect_suffix", "unique_suffix", "pr_file", "unresolved")
 print("cited paths: " + " ".join("%s=%d" % (k, sum(1 for it in items.values() if it["cited_path_resolution"] == k))
                                  for k in RES) + " no_region=%d" % sum(1 for it in items.values() if it["cited_path_resolution"] is None))
+if descs_path:
+    print("descriptions: " + " ".join("%s=%d" % (k, sum(1 for it in items.values() if it["description_source"] == k))
+                                      for k in ("annotators", "manifest", "id_fallback"))
+          + " stray=%d" % sum(1 for it in items.values() if it["description_source"] is None))
 if mismatch:
     print("grader-consistency: %d cell(s) whose ±3 credits differ from the row's defects_missed_pm3" % mismatch)
 PY
