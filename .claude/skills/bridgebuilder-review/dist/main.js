@@ -1,4 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
@@ -333,7 +334,7 @@ function printSummary(summary, exitOnDegraded) {
         ...(Object.keys(errorCodes).length > 0 ? { errorCodes } : {}),
     }, null, 2));
 }
-async function main() {
+export async function main() {
     const argv = process.argv.slice(2);
     // --help flag
     if (argv.includes("--help") || argv.includes("-h")) {
@@ -674,8 +675,26 @@ async function main() {
         }
     }
 }
-main().catch((err) => {
-    console.error(`[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
-});
+/**
+ * cycle-133 follow-up a2: whether this module is the process entrypoint (`node dist/main.js`, `tsx main.ts`, or a
+ * symlink to either). Real paths are compared, so a symlinked launcher still runs; a missing or unresolvable argv[1]
+ * is never the entrypoint.
+ */
+export function isEntrypoint(moduleUrl, argv1) {
+    if (!argv1)
+        return false;
+    try {
+        return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(argv1);
+    }
+    catch {
+        return false;
+    }
+}
+// Importing this module (tests import its persona helpers) must never start a review: run only as the entrypoint.
+if (isEntrypoint(import.meta.url, process.argv[1])) {
+    main().catch((err) => {
+        console.error(`[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`);
+        process.exit(1);
+    });
+}
 //# sourceMappingURL=main.js.map
