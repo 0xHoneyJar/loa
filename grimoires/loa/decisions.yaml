@@ -26498,3 +26498,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0815"
+    created_at: "2026-10-23T15:04:23Z"
+    updated_at: "2026-10-23T15:04:23Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Reproduction: every hash equal from the fresh clone (stage 1 and 1b); live rerun 1 of 3 inside the range, 2 one defect outside, named; apparatus confirmed"
+    decision: "FR-10 read as registered. From a fresh clone of the stage-1 record (and again of stage 1b after the live-rerun flag fix), the reproducer re-derived 433 of 433 session grades, 84 of 84 pipeline-cell grades, 56 of 56 union grades, 140 of 140 INPUTS cells, 140 of 140 rows (canonical JSON and bytes, rows.jsonl sha256 equal), INPUTS.json, final.md, final.json, placebo-phase1.md and placebo-phase1.json byte for byte; seven never-graded run directories are listed, not counted; the environment matched the registration (image digest, pin tree). The DEC-0812 live sample ran all three cells to completion at the pin (USD 51.33, none contaminated or oracle-exposed): a1_full recall_pm3 0.8889 inside its recorded range [0.8889, 1.0]; a0_bare_matched 0.8889 against [1.0, 1.0]; a1_review_only 0.6667 against [0.7778, 0.8889] — the last two one defect of nine outside their two-trial ranges and named in the report as the rule requires. The lead reads the apparatus as confirmed: it ran, graded and rowed exactly as in Phase 1; a third draw outside a two-point range is a one-in-three event per arm under exchangeability, so two of three outside is within chance; no read changes."
+    rationale: "The registered rule says inside confirms and outside is named; naming two one-defect misses against two-trial ranges states the fact without turning a sample of three cells into a statistic, and the byte-identical re-derivation of every recorded artefact is the proof FR-10 asks for."
+    alternatives_considered:
+      - option: "treat the two outside grades as a failed reproduction"
+        rejected_because: "the reproduction is of the record (grades, rows, reads), which is byte-identical; the live sample tests that the apparatus still runs, and a two-trial range is not an interval"
+      - option: "rerun more trials until the grades fall inside"
+        rejected_because: "a forking path; the registered sample is three cells and the outcome is reported as it fell"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "5602f32f"
+    source: "grimoires/loa/reports/review-catch-c132/reproduction/report.md and live-runs.jsonl (Opus 5.5 reproducer, fresh clones of b15e546e and 3be895f2; Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T15:04:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/review-catch-c132/reproduction/report.md and live-runs.jsonl (Opus 5.5 reproducer, fresh clones of b15e546e and 3be895f2; Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
