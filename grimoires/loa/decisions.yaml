@@ -28779,3 +28779,241 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0860"
+    created_at: "2026-10-23T23:55:42Z"
+    updated_at: "2026-10-23T23:55:42Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.1: byte budget cuts the first file over max_diff_bytes (patch_truncated) and omits the rest (byte_budget), in selection order"
+    decision: "Selection runs truncateFiles with an unbounded budget, then applies max_diff_bytes in selection order: the first file over the budget is retained cut and marked patch_truncated, every later file is omitted as byte_budget; omission reasons derive from truncateFiles' stat suffixes with the mapping pinned by tests; unknown_omitted = changed_files minus the distinct listed files."
+    rationale: "sdd.md C-1 and PRD FR-1 AC 1 require one file to be retained cut rather than skipped, so the review never silently loses the file that crossed the budget; deriving reasons from the existing stats keeps truncateFiles' signature and its callers unchanged."
+    alternatives_considered:
+      - option: "greedy skip: omit any file that does not fit and keep filling with smaller ones"
+        rejected_because: "the AC requires the crossing file retained cut, and greedy filling reorders the risk-prioritised selection"
+      - option: "a new return shape for truncateFiles"
+        rejected_because: "every existing caller and test would change for a value the stats already carry"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (Budget, Reason mapping, Unknown count)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (paged-fetch.ts, truncation.ts, paged-fetch.test.ts)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0861"
+    created_at: "2026-10-23T23:55:45Z"
+    updated_at: "2026-10-23T23:55:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.1: any omission of a reviewable file blocks the verdict; a PR over max_files_per_pr is UNKNOWN incomplete_coverage (behaviour change accepted)"
+    decision: "The SDD's literal rule stands: file_cap, byte_budget and patch_truncated omissions of a reviewable file (code, script, config, doc extensions, build basenames, dotfiles) block the merge verdict with mergeBlockedReason incomplete_coverage; binaries and zero-change renames never block; a fetch reason is reported as itself. Consequence accepted by the lead: a pull request with more reviewable files than max_files_per_pr (50) reports UNKNOWN until the trusted configuration raises the cap for that review."
+    rationale: "A verdict over a silent subset of the files is the defect the cycle set out to remove (cycle-132 PR #1289: Bridgebuilder reviewed 1,100 files as a subset without saying so); an honest UNKNOWN with the omitted paths named is the product; the cap is a configuration knob the operator can raise per review."
+    alternatives_considered:
+      - option: "block only on security-classified omissions"
+        rejected_because: "the SDD names every reviewable omission, and a classifier for 'security file' would re-create the silent subset for the rest"
+      - option: "raise the default max_files_per_pr to cover large cycle PRs"
+        rejected_because: "it widens every review's model input by default; the trusted configuration raises it where the operator wants it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (Blocking omissions, Reason naming) and § What the lead must do"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (paged-fetch.ts evaluateCoverage, review-verdict.ts, SKILL.md blocking table)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0862"
+    created_at: "2026-10-23T23:55:49Z"
+    updated_at: "2026-10-23T23:55:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.1: a second head move reviews nothing and posts a coverage notice; page errors degrade the page except forbidden/not-found which rethrow"
+    decision: "A head that moves during the fetch restarts the two-pass fetch once; a second move stops the review, posts a coverage notice and pins the item to the fetched head. An oversize (PAYLOAD_OVERSIZE), rate-limited or network failure degrades that page and the remaining pages are reviewed; forbidden and not-found are rethrown. The posted marker carries the full record up to 20,000 characters, else counts plus a sha256; the summary JSON is always complete."
+    rationale: "Reviewing a moving target produces findings against bytes the PR no longer has; one restart absorbs the common push-during-review while a second signals an active author; a page error is partial information worth reporting, an authorisation failure is not; GitHub's comment body limit bounds the marker."
+    alternatives_considered:
+      - option: "restart indefinitely until the head is stable"
+        rejected_because: "an active author could keep the review from ever completing and each restart spends API budget"
+      - option: "fail the whole fetch on any page error"
+        rejected_because: "one rate-limited page would discard the pages already read; the coverage record names the gap instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (Head moved twice, Page errors, Marker size)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (paged-fetch.ts attempt/marker, github-cli.ts typed errors)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0863"
+    created_at: "2026-10-23T23:55:52Z"
+    updated_at: "2026-10-23T23:55:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.2: verdict table — COMMENT block clears the merge, COMMENT beside HIGH is REQUEST_CHANGES + verdict_conflict, never auto-APPROVE"
+    decision: "The decision table in core/review-verdict.ts: a parsed COMMENT block clears the merge while a prose COMMENT still blocks; a COMMENT block beside a HIGH finding yields REQUEST_CHANGES and records verdict_conflict (PRD FR-2 AC 3 with sdd.md C-2 rule 5); two blocks or a voice without a valid block record verdict_conflict; a block verdict is REQUEST_CHANGES or COMMENT, never APPROVE; writer_not_eligible degrades the run (exit 3) but keeps the consensus verdict because sdd.md C-2 rule 2 names only guard rejection and coverage as verdict-changing."
+    rationale: "The verdict must come from the machine-rendered consensus, not from prose a writer model produced (KF-055: the enrichment writer's tool-call markup read as UNKNOWN); an automatic APPROVE from a block would let a writer approve by formatting."
+    alternatives_considered:
+      - option: "let the enriched prose verdict win when the block is missing"
+        rejected_because: "that is exactly the KF-055 failure: prose carrying tool-call markup parsed as UNKNOWN and blocked the merge"
+      - option: "treat writer_not_eligible as verdict-changing"
+        rejected_because: "the consensus verdict is unaffected by who would have written the prose; the degraded exit already surfaces it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (COMMENT beside HIGH, Clearing, Block verdict, Voice without a valid block, writer_not_eligible)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (review-verdict.ts, review-verdict.test.ts, consensus-findings.ts)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0864"
+    created_at: "2026-10-23T23:55:55Z"
+    updated_at: "2026-10-23T23:55:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.2: writer-role allowlist from trusted config ∩ the proven no-tools set; codex-headless refused; API proof = adapter source scan"
+    decision: "bridgebuilder.writer_role_allowlist is read from the trusted configuration only and intersected with the routes the code has proven no-tools; codex-headless is refused (pinned posture, no all-tools switch, null proof) and the configuration cannot add it; a Google writer is refused while agy_opt_in is on; the no-tools claim for the API routes rests on a source scan of the Python adapters; the stance is keyed by the requested model and cross-checked against the reported provider, and any returned tool call means refused."
+    rationale: "PRD FR-2 and sdd.md C-2: the writer must be a route that provably cannot act; an allowlist that could widen from the PR head would be the writer choosing its own guard; a code-level proof is the only trustworthy evidence until a route exposes a verifiable no-tools switch."
+    alternatives_considered:
+      - option: "allow codex-headless with a prompt instruction not to call tools"
+        rejected_because: "KF-055 is the evidence that an instruction does not stop tool-call markup; the proof is null"
+      - option: "read the allowlist from the PR head's configuration"
+        rejected_because: "a pull request could add its own writer route; trusted-config-only is the cycle's rule for every verdict-affecting key"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (codex-headless, Allowlist source, Google writer, API proof, Stance key)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (writer-role.ts, tool-stance.ts, cheval-delegate.ts, config.ts:752)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0865"
+    created_at: "2026-10-23T23:55:59Z"
+    updated_at: "2026-10-23T23:55:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.2: enrichment guard grammar (XML and JSON tool-call shapes), fail-closed scan budget, faithful echo accepted and stripped, Pass 2 guarded too"
+    decision: "The guard rejects XML tags invoke, function_calls, function_call, tool_use, tool_calls, tool_call and the JSON keys tool_use, tool_calls, tool_call, function_call, toolUse, functionCall or type: tool_use at any depth; an unclosed fence masks to the end; the scan fails closed on its budget; unmarked findings JSON is rejected; an echo equal on canonical fields, id multiset and verdict is accepted and stripped (round 1 needs it); duplicate ids get a ~N suffix; the same check guards the single-model Pass 2; rendered JSON escapes <, > and backticks and posted paths percent-encode < and >."
+    rationale: "The round-1 and round-2 PR #1289 fixtures carry both XML and JSON tool-call shapes; a grammar that misses one would re-admit KF-055; the faithful echo is the only way the writer can legitimately include the block; Pass 2 shares the writer path and the exposure."
+    alternatives_considered:
+      - option: "strip tool-call markup and keep the rest of the prose"
+        rejected_because: "the prose around a tool call describes an action that did not happen; the un-enriched consensus is the honest post"
+      - option: "guard the multi-model path only"
+        rejected_because: "the single-model Pass 2 uses the same writer and the same grammar reaches the posted thread"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (Tool grammar, Faithful echo, Duplicate ids, Scope extension, Hardening)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:55:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8 (enrichment-guard.ts, enrichment-guard.test.ts, reviewer.ts:1131)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0866"
+    created_at: "2026-10-23T23:56:02Z"
+    updated_at: "2026-10-23T23:56:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 Tasks 1.1/1.2: runner stays node:test via tsx (no vitest); live-run-on-import test defect (KF-036) fixed in follow-up s1-a2"
+    decision: "The sprint plan's word 'vitest' is read as the skill's own test runner (node:test via tsx, npm test); no new devDependency. Implementer A's one run of persona.test.ts with a placeholder key started a real review on import (read-only gh calls against 0xHoneyJar/loa, no model call, no post) — recorded as a rule breach, root-caused (main.ts executes on import; KF-036 recurrence 5) and fixed in follow-up patch s1-a2 (entrypoint guard, hermetic persona test)."
+    rationale: "Adding vitest for one skill would duplicate a runner the repository already uses; the breach was harmless but the defect that allowed it (a test that can start a live review) is a real hazard and is removed rather than documented."
+    alternatives_considered:
+      - option: "add vitest to match the plan text"
+        rejected_because: "a second JavaScript test runner in the skill for no behavioural gain"
+      - option: "leave persona.test.ts failing as the known KF-036 and document the breach only"
+        rejected_because: "a test that performs live gh calls on import is a hazard every future implementer could trip"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "30a72c0a"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-a.md § Judgment calls (Runner) and § What the lead must do (Rule breach to record)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T23:56:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 30a72c0a8; follow-up s1-a2 (persona.test.ts, main.ts entrypoint guard); known-failures.md KF-036 attempt row 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
