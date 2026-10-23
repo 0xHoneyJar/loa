@@ -25834,3 +25834,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0796"
+    created_at: "2026-10-23T05:28:13Z"
+    updated_at: "2026-10-23T05:28:13Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 12 (judge sampler): PR-native arm ids are not provenance; run the registered sample size (about 1,750 items) above the USD 30 judge reserve"
+    decision: "judge-sample.sh exempts an arm-id token from the packet provenance scan when the task PR fixture contains it, and a provenance field line only when it occurs verbatim there; batch names, run ids and cell keys are never exempt; exemptions are recorded in key.json. Registered as REGISTRATION-11.json at the unchanged pipeline pin. The judge runs the registered sample (10 per stratum over arm x PR x class, about 1,750 items on the Phase 1 rows) in blind Opus 5.5 sessions of at most 64 packets, after a one-session pilot to measure cost; its spend runs over the section 7 judge reserve of USD 30 and stays inside the binding cap."
+    rationale: "The sampler refused every packet because reviewers quote PRs that built the harness; an arm id the PR itself contains cannot reveal the producing arm (the arms never see their own names). The sample-size rule is registered and the reserve was an estimate on the 150 floor; changing the rule to save money after seeing the universe would be the post hoc move."
+    alternatives_considered:
+      - option: "redact arm ids in packets as a placeholder"
+        rejected_because: "alters the evidence the judge reads; the token is PR content the finding legitimately quotes"
+      - option: "sample only 150 items to stay inside the USD 30 reserve"
+        rejected_because: "the registered rule is min(all, 10) per stratum; the reserve is a sub-allocation, the cap is binding and has room"
+      - option: "drop the stratified judge as unaffordable"
+        rejected_because: "the judge is the registered semantic audit of the pm3 rule and costs an estimated USD 60 to 110 against about 800 of headroom"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "993928d2"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-12.md (Sprint 270, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T05:28:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "commit c1948aa7 (patch s1-c-r14; judge-sample.bats 13/13); REGISTRATION-11.json; scratch sample on the 126 current rows: 7475 units, 1753 sampled, 206 exemptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
