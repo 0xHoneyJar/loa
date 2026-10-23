@@ -26008,3 +26008,389 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0801"
+    created_at: "2026-10-23T11:10:39Z"
+    updated_at: "2026-10-23T11:10:39Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Final read (look 3; 10 valid PRs, 16 pairs, 175 defects): primary delta +0.097, 95% cluster-t [-0.094, 0.288]; INCONCLUSIVE; a1_full 25% guard tripped"
+    decision: "Primary read as registered (PREREGISTRATION section 5, REGISTRATION-14 380f7a36): delta recall(a1_full) - recall(a0_bare_matched) = +0.0971, SE 0.0843 (10,000 PR-cluster resamples), df 9, 95% cluster-t [-0.0936, 0.2879], 90% [-0.0575, 0.2517]; recall 114/175 (0.6514) vs 97/175 (0.5543); PR-weighted +0.0834 [-0.0880, 0.2549]; REML LMM beta +0.0614 Wald 95% [-0.0540, 0.1767]; PR-level permutation p 0.3711 (exact, 1024). The repeated confidence interval at the stopping look (look 3, b 2.2622) is [-0.0936, 0.2879]; decision INCONCLUSIVE (table item 5). The 25% guard trips on a1_full (11 of 28 cells excluded, share 0.393: contaminated 5, oracle exposed 8, refusal fallback 1), so the registered read is INCONCLUSIVE BY DEGRADATION; a0_bare_matched excluded share 0.107. The report states the answer as: the pipeline caught about ten points more of the labelled defects at the same dollars, with an interval from minus nine to plus twenty-nine points; nothing shipped by default changes (G-7)."
+    rationale: "The registered decision table is exhaustive and the final look is at information fraction 1; the point estimate favours the pipeline but neither boundary is crossed and the full arm lost more than a quarter of its planned cells to exposure and contamination, which the registration pre-committed to flag."
+    alternatives_considered:
+      - option: "read the oracle-exposed re-inclusion (every form: delta +0.166, 95% [0.032, 0.299], 13 PRs) as the answer"
+        rejected_because: "it is a registered sensitivity, not the primary; exposure of the pinned pipeline to its own fixed files is the structural limitation the registration names, not a result"
+      - option: "treat INCONCLUSIVE as NO"
+        rejected_because: "z_no 0.034 is far below the NO boundary 2.262 and the RCI upper end 0.288 exceeds the MDE 0.10; the data do not exclude an effect at the MDE"
+      - option: "run further PRs to reach a boundary"
+        rejected_because: "N = 14 is the corpus ceiling (DEC-0718) and the registration allows no fourth look; the cap and the corpus end the measurement here"
+    consequences:
+      positive:
+        - "The question receives the answer the data support: a positive point estimate inside an interval that includes zero and the MDE, with the degradation stated."
+      negative:
+        - "The consortium does not get a yes or a no; the structural limitation (a pipeline reading its own fixed files) bounds what this corpus can show."
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:10:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0802"
+    created_at: "2026-10-23T11:10:42Z"
+    updated_at: "2026-10-23T11:10:42Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Stopping rule: no boundary fired at any look; look 3 was the final look at t = 1 and reads INCONCLUSIVE (z_yes 1.15 < b 2.26; z_no 0.03 < b 2.26)"
+    decision: "Look 1 (G1, 5 valid PRs, 78 defects): CONTINUE by the minimum-information rule (fewer than 6 valid PRs). Look 2 (G1+G2, 8 PRs, 108 defects): delta +0.1053, SE 0.0960, t 0.089, z_yes 1.10 vs b_yes 158.5 (OBF spending at small t): CONTINUE. Look 3 (all groups, 10 PRs, 122 labelled defects in the look table): delta +0.0971, SE 0.0843, t forced to 1, z_yes 1.15 vs b 2.262, z_no 0.034 vs b 2.262, conditional powers 0 at the final look: INCONCLUSIVE (table item 5). No budget stop occurred (spend USD 3,320 of the 4,200 cap). The report says in one sentence that the stopping rule did not fire and why."
+    rationale: "The registered procedure fixes three looks and the decision table verbatim in reads-c132.py; reporting the outcome as it fired is the pre-registration contract (NFR-1)."
+    alternatives_considered:
+      - option: "take a fourth look after re-running the excluded a1_full cells"
+        rejected_because: "the registration fixes three looks; re-running excluded cells after seeing the data is a forking path, and exposure is a property of the pinned pipeline on these PRs, not of a run"
+      - option: "declare FUTILE"
+        rejected_because: "FUTILE is defined only before the final look; at the final look the table yields INCONCLUSIVE"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:10:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0803"
+    created_at: "2026-10-23T11:10:44Z"
+    updated_at: "2026-10-23T11:10:44Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Secondary: a1_review_only - a1_full delta -0.119, 95% [-0.196, -0.041], 10 PRs: review alone catches fewer labelled defects than review plus audit at the pin"
+    decision: "The review-only arm (REVIEW gate with dissent, no AUDIT) reads 0.119 below the full arm with an interval excluding zero on 10 PRs. Reported as a secondary read; it isolates the audit gate plus its dissent as the source of the difference only to the extent the two arms differ in nothing else, which the suite guarantees at the pin."
+    rationale: "It is the one registered contrast whose interval excludes zero; the report states it beside the primary without promoting it."
+    alternatives_considered:
+      - option: "promote the review-only contrast to the headline"
+        rejected_because: "the registered primary is the matched-dollars contrast; the review-only arm is cheaper, so this contrast is not at matched spend"
+      - option: "recommend changing the shipped gate configuration"
+        rejected_because: "G-7: nothing shipped by default changes in this cycle; the report may propose, the operator decides"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:10:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0804"
+    created_at: "2026-10-23T11:10:47Z"
+    updated_at: "2026-10-23T11:10:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Secondary: a1_full - a0_bare_fable_matched delta +0.333, 95% [0.212, 0.455], 11 PRs: the same-model, same-dollars contrast favours the pipeline"
+    decision: "Against k = 3 to 4 bare Fable 5.1 sessions matched to the full arm cost (28 of 28 cells valid), the full arm reads 0.333 higher with an interval excluding zero on 11 PRs. Reported as the registered secondary (matched-Fable contrast, PRD D13). The report states beside it that this contrast compares the pipeline to its own gate model run bare, while the primary compares it to the cheaper Opus 5.5 sessions whose union covers more of the key."
+    rationale: "The matched-Fable arm answers a different question than the primary (same model, is the harness worth its dollars) and the registration kept it secondary; it is reported with its interval and without promotion."
+    alternatives_considered:
+      - option: "promote the Fable contrast to the primary"
+        rejected_because: "the registration fixes the Opus-matched contrast as primary; changing the primary after the data is a forking path"
+      - option: "pool the two matched arms"
+        rejected_because: "not registered; the arms differ in model and in k"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:10:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0805"
+    created_at: "2026-10-23T11:11:54Z"
+    updated_at: "2026-10-23T11:11:54Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Cost reads: defects per USD full 0.41 [0.27, 0.63] vs matched 0.29 [0.19, 0.45]; full caught 17 more defects for USD 53 (valid) / 85 (all spend) less"
+    decision: "On the 16 valid pairs a1_full cost USD 276.92 and caught 114 defects (0.4117 per USD, 95% [0.2677, 0.6292]); a0_bare_matched cost USD 330.07 and caught 97 (0.2939 per USD, [0.1942, 0.4532]). Cost per extra defect: the full arm caught 17 more defects while spending USD 53.16 less on valid pairs and USD 85.21 less on all spend (443.27 vs 358.06), so the matched arm is dominated; reads-c132.py prints the ratios -3.127 and -5.012 with status ok where PREREGISTRATION section 5 says dominated, and the report labels them dominated (the presentation label joins analysis addendum 16, numbers unchanged). The session-1 contrasts read no_session1: the matched rows carry no session-1 recall under the c132 validity rules, so cost per extra defect versus a single bare session is not reported."
+    rationale: "The matched arm was built to spend the same dollars as the full arm (k from the cost fits); on the realized runs it spent more and caught fewer, so the per-dollar comparison favours the pipeline on this corpus without needing a ratio."
+    alternatives_considered:
+      - option: "report the negative ratios as a cost per extra defect"
+        rejected_because: "a negative cost per extra defect has no meaning; the registration defines the ratio only when both increments are positive"
+      - option: "relabel the output silently in the report"
+        rejected_because: "every figure in the report must come from reads-c132.py (FR-9 AC 2); the label change goes through an analysis addendum"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:11:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0806"
+    created_at: "2026-10-23T11:11:57Z"
+    updated_at: "2026-10-23T11:11:57Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Pipeline-independent read (non-review-driven and incident defects): delta +0.294, 95% [-0.044, 0.632], 7 PRs; same sign as the primary, too few defects"
+    decision: "Restricted to defects with review_driven false or label_source incident, the contrast reads +0.2941 with a 95% interval [-0.0437, 0.6320] on 7 PRs. The registration names this read as a qualifier of the primary (section 5 co-read a): its sign agrees with the primary and its interval covers zero and the MDE, so it neither confirms nor contradicts the primary; the report states that the labels remain downstream of the production pipeline except for this subset."
+    rationale: "The read exists because the v2 labels were re-derived from fix commits and incidents but most defects were first found by the pipeline under measurement; the independent subset is the honest check and it is too small to decide."
+    alternatives_considered:
+      - option: "weight the primary by review_driven"
+        rejected_because: "not registered; the stratified recall per label_source is the registered co-read and is reported as such"
+      - option: "omit the read as underpowered"
+        rejected_because: "it is registered and its sign is information the consortium should see"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:11:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0807"
+    created_at: "2026-10-23T11:11:59Z"
+    updated_at: "2026-10-23T11:11:59Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Placebo on the Phase 1 rows FAILS calibration: 0.100 of 200 shuffled intervals exclude zero vs the 0.08 band; bias passes (mean -0.0005); section 8 fallback"
+    decision: "200 seeded within-PR arm-label shuffles of the 16 valid pairs through the primary read (1,000 resamples each): share of 95% cluster-t intervals excluding zero 0.1000 (band 0.08), percentile diagnostic 0.1000, mean delta -0.0005 (band 0.03), mean absolute delta 0.0501, delta quantiles q05 -0.097 / q50 +0.006 / q95 +0.086. Verdict FAIL on calibration, as the Phase 0 placebo on the 63 existing rows also read (0.095). The pre-specified fallback applies: the primary interval is printed beside its placebo-estimated exclusion share, and the decision rests on the calibrated group-sequential boundary (P(YES | 0) = 0.034 in the simulation) and the PR-level permutation test (p 0.371); the report says so in one sentence."
+    rationale: "The band is not loosened after the fact; at 10 clusters the cluster-t interval is anti-conservative by about two points, which the registration anticipated and bounded by the simulated size of the complete procedure."
+    alternatives_considered:
+      - option: "loosen the calibration band to 0.10"
+        rejected_because: "the band is registered; the placebo must read as it reads"
+      - option: "switch the primary interval to the percentile bootstrap"
+        rejected_because: "its diagnostic share is also 0.100 and it undercovers at small P (DEC-0711)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/placebo-phase1.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:11:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/placebo-phase1.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0808"
+    created_at: "2026-10-23T11:12:02Z"
+    updated_at: "2026-10-23T11:12:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Positive control PASS: open minus closed mount delta +0.042, 90% [-0.034, 0.117], 11 eligible pairs, 9 exposed open runs (expected +0.067); r11/r24/r25 exempt"
+    decision: "Under section 8 as amended by addendum 10 (every group, saturated PRs with closed-mount recall above 0.9 exempt: review-r11, review-r24, review-r25), the open mount reads +0.0417 above the closed mount on 11 eligible pairs with oracle exposure in 9 open runs; 90% cluster-t interval [-0.0335, 0.1169]. Point estimate positive with exposure in at least two runs: PASS. The pre-addendum-10 label (G1 only) reads inconclusive and is printed beside. The apparatus distinguishes the open from the closed mount in the expected direction, so the other reads are not void."
+    rationale: "The control was registered to detect a dead apparatus, not to estimate the oracle effect; its sign and exposure counts meet the registered pass rule."
+    alternatives_considered:
+      - option: "read void"
+        rejected_because: "the 90% interval is not entirely below zero"
+      - option: "read not demonstrated"
+        rejected_because: "the point estimate is positive and exposure occurred in nine open runs, not one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:12:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.json (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0809"
+    created_at: "2026-10-23T11:12:05Z"
+    updated_at: "2026-10-23T11:12:05Z"
+    phase: "implementation"
+    category: "tradeoff"
+    summary: "Label-set sensitivities need re-grades (frozen c131/v1 keys cover 4 of 14 PRs; review-derived key branch missing in reads.py): analysis addendum 16"
+    decision: "The final read prints frozen_c131_labels and v1_labels as not_provided (no re-grades exist) and has no branch for the registered seeded review-derived key (section 10 item 2). Decision: an Opus 5.5 implementer re-grades hard-link copies of every cell of the four fixtures with frozen keys (pr-11, 14, 15, 16) under manifests/c131 and manifests/v1, and every cell under the review-derived key (manifests/review for pr-19 to pr-28; manifests/c131 for the four, which the seeder documents as the moved review-derived set), with ablation-grade.sh at the pin, container executor, suite roots copied with the task manifests re-pointed; sessions first, then --union per matched cell; outputs under grimoires/loa/reports/ablation-2.0/c132-sensitivity-grades/<label>/<batch>/<arm>/<task>-t<trial>/grade.json; a determinism re-run. reads.py gains the review_derived_labels sensitivity and the dominated status label; tests; PREREGISTRATION-addendum-16.md and REGISTRATION-15.json (analysis-only, pipeline pin fbd36a0c unchanged); then the final read is re-run. The frozen-key reads will show too_few_prs (4 PRs < 6) and are reported as such."
+    rationale: "The sensitivities are registered, cost no model spend and only time; reporting not_provided would read as work not done, and grading in place would overwrite the recorded grading/ trees under another key (the grader rewrites grading/ beneath the run directory even with --out)."
+    alternatives_considered:
+      - option: "report the label-set sensitivities as not_provided"
+        rejected_because: "they are registered and mechanical; the consortium would run them"
+      - option: "grade the recorded run directories in place with --out"
+        rejected_because: "ablation-grade.sh regenerates grading/gates-combined.md and grading/pr under the run directory; under another key that corrupts the record the reproducer clones"
+      - option: "use the host executor to save time"
+        rejected_because: "the registered reproduction grades with the container executor; one container grade takes under a second"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/reports/ablation-2.0/c132-final/final.md sensitivities table (Sprint 271, 2026-10-23); evals/analysis/c132/reads.py DEFAULT_SENSITIVITIES"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:12:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-final/final.md sensitivities table (Sprint 271, 2026-10-23); evals/analysis/c132/reads.py DEFAULT_SENSITIVITIES"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0810"
+    created_at: "2026-10-23T11:12:08Z"
+    updated_at: "2026-10-23T11:12:08Z"
+    phase: "implementation"
+    category: "tradeoff"
+    summary: "Exploratory defect-level judge read (DEC-0800): 40 credited (cell, defect) pairs per arm, every credited citation judged (about 700 items, USD 10); post hoc"
+    decision: "An Opus 5.5 implementer writes a seeded sampler over the Task 2.6 judge universe: per arm, 40 credited (cell, defect) pairs drawn uniformly from the valid cells (all when fewer), and every grader-credited citation of each sampled pair becomes one packet item built exactly like judge-sample.sh (finding text, cited head lines, the blind defect description; no arm, trial, batch or decision), with the sampling key outside the packets. The lead runs the blind Opus 5.5 judge sessions with the Task 2.6 prompt in chunks of at most 64 (run-judge.sh pattern, --spend-row to the Phase 0 rows). Aggregation per arm: the share of sampled pairs with at least one citation judged describes (strict) and describes or partially (lenient), each with a PR-cluster bootstrap interval, and defect-level corrected recall = grader recall times that share; the a1_full minus a0_bare_matched difference beside. Labelled exploratory and post hoc in every table. Spend from the contingency (the judge reserve of 30 was spent at 43.1 in Sprint 270)."
+    rationale: "DEC-0800 declared this read before any of its data existed, to correct the registered estimator that removes 1/m of a defect credit per rejected citation and so penalises arms with many citations per defect; sizing at 40 pairs per arm keeps the spend near one percent of the cap while giving arm-level shares with usable intervals."
+    alternatives_considered:
+      - option: "skip the exploratory read"
+        rejected_because: "it was declared pre-data in DEC-0800 and the registered corrected recall is known to be biased against the full arm"
+      - option: "judge every credited citation of every pair (2,008 items)"
+        rejected_because: "about USD 25 for shares that converge by 40 pairs per arm; the headroom after reserves is about USD 630"
+      - option: "reuse the run-2 labels only"
+        rejected_because: "run 2 sampled 10 citations per stratum, not whole defects; a defect-level share needs all citations of each sampled pair"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "grimoires/loa/decisions.yaml DEC-0800; grimoires/loa/reports/ablation-2.0/c132-judge/key.json (universe 7,950 units, 2,008 credited)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:12:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/decisions.yaml DEC-0800; grimoires/loa/reports/ablation-2.0/c132-judge/key.json (universe 7,950 units, 2,008 credited)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0811"
+    created_at: "2026-10-23T11:26:28Z"
+    updated_at: "2026-10-23T11:26:28Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Record branch keeps a sandbox-lite set per run (agent outputs, sandbox copies of key defect files, sha manifest); reproducer rebuilds pr/ from the fixture"
+    decision: "FR-10 asks the reproducer to re-grade every recorded run directory byte-identically, but ablation-grade.sh refuses a run directory without sandbox/ and reads three kinds of sandbox content: the findings files (sandbox/review.md and sandbox/grimoires/loa/a2a/sprint-1/{engineer-feedback,auditor-sprint-feedback}.md), the sandbox copy of every file the key names as a defect file (the oracle-exposure check compares it with the fixture head and base), and nothing else from the sandbox (recall citations resolve against the tracked fixture trees). The cycle-131 record kept no sandbox, so it could not have been re-graded. Decision: the stage-1 record branch keeps, per session and per cell, what cycle-131 kept (grade.json, meta/, transcripts/, eval/, grading/gates-combined.md, the batch MANIFEST/STATUS/logs/rows) plus a parallel tree evals/results/ablation-2.0/c132-lite/<batch>/<arm>/<task>-t<trial>/[sessions/s<i>/] holding the sandbox-lite set: review.md, every regular file under sandbox/grimoires/, the sandbox copies of the key defect files at their sandbox paths, and sandbox-manifest.json (every regular sandbox file with size and sha256, the pr/head and pr/base comparison with the fixture, and the dropped set). The reproducer rebuilds sandbox/ = fixture pr-NN/{head,base,head.diff,PR.md} + the lite files, verifies the manifest entries it can, re-grades with the container executor and compares grade.json byte for byte; a mismatch is named in the report. The design is accepted only after an empirical check on at least twelve recorded runs across every arm (matched sessions, a union cell and an open-mount cell included) re-grade byte-identically from reconstructed sandboxes, with the grader read set under sandbox/ captured once."
+    rationale: "Recording whole sandboxes is 6.7 GB and about 2,500 files per run; recording nothing from the sandbox makes the registered byte-identical re-grade impossible. The grader reads a small, enumerable set under sandbox/, so a lite record with a verification manifest is both faithful and small (git stores identical blobs once)."
+    alternatives_considered:
+      - option: "record whole sandboxes"
+        rejected_because: "6.7 GB and millions of tree entries for 3,200 run directories; the PR trees and the mounted framework are reconstructable from tracked sources"
+      - option: "record no sandbox content, as cycle-131 did"
+        rejected_because: "ablation-grade.sh raises no sandbox/ and the findings files live only in the sandbox; FR-10 could not be met"
+      - option: "add a replay mode to the grader that reads findings from the record"
+        rejected_because: "the grader is a pinned pipeline file; changing it after Phase 1 breaks the pin and is a forking path"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "03e12ed0"
+    source: "evals/harness/ablation-grade.sh grade()/combined_findings()/oracle_scan() (reads sandbox/review.md, sandbox/grimoires/loa/a2a/sprint-1/*.md, sandbox/<defect file>); cycle-131 record-branch-c131.sh (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:26:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "evals/harness/ablation-grade.sh grade()/combined_findings()/oracle_scan() (reads sandbox/review.md, sandbox/grimoires/loa/a2a/sprint-1/*.md, sandbox/<defect file>); cycle-131 record-branch-c131.sh (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
