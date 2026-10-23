@@ -30,12 +30,15 @@ PR-level permutation: p 0.3711 (exact, 1024).
 
 Defects per USD: full 0.4117 [0.2677, 0.6292]; matched 0.2939 [0.1942, 0.4532].
 
-| cost per extra defect | value | extra defects | status |
-|---|---|---|---|
-| matched_all_spend | -5.0124 | 17.0000 | ok |
-| matched_valid | -3.1270 | 17.0000 | ok |
-| session1_all_spend | — | — | no_session1 |
-| session1_valid | — | — | no_session1 |
+| cost per extra defect | value | extra defects | cost increment | status |
+|---|---|---|---|---|
+| matched_all_spend | — | 17.0000 | -85.2104 | dominated |
+| matched_valid | — | 17.0000 | -53.1584 | dominated |
+| session1_all_spend | — | — | — | no_session1 |
+| session1_valid | — | — | — | no_session1 |
+
+Cost per extra defect = cost increment ÷ extra defects, defined only when both are positive (§5); `dominated`: the full arm caught more defects for no more cost; `dominated_by_cost`: it cost more and caught no more; the value is then not reported and both increments are printed.
+
 
 | contrast | read |
 |---|---|
@@ -68,6 +71,44 @@ Dollar matching: 7 of 16 pairs within ±25 % of the full cell's cost.
 
 25 % guard: INCONCLUSIVE BY DEGRADATION.
 
+## Co-reads (§5, reported at every look)
+
+Descriptive: they qualify the primary and never enter the decision.
+
+| (a) pipeline-independent a1_full − a0_bare_matched | Δ 0.2941 | 95 % [-0.0437, 0.6320] | 90 % [0.0258, 0.5624] | SE 0.1381 | PRs 7, pairs 11, defects 34 | diag 95 % percentile [0.0000, 0.5333] |
+| (c) cost-matched (exact-dollar trim, pairs within ±25 %) | Δ 0.0805 | 95 % [-0.0505, 0.2114] | 90 % [-0.0222, 0.1831] | SE 0.0510 | PRs 6, pairs 7, defects 87 | diag 95 % percentile [-0.0328, 0.1622] |
+
+(b) Recall per arm by stratum (valid pairs):
+
+| stratum | a1_full caught / defects | recall | a0_bare_matched caught / defects | recall |
+|---|---|---|---|---|
+| label_source = fix-commit | 109 / 170 | 0.6412 | 95 / 170 | 0.5588 |
+| label_source = fix-commit+incident | 3 / 3 | 1.0000 | 0 / 3 | 0.0000 |
+| label_source = incident | 2 / 2 | 1.0000 | 2 / 2 | 1.0000 |
+| review_driven = false | 23 / 33 | 0.6970 | 14 / 33 | 0.4242 |
+| review_driven = true | 91 / 142 | 0.6408 | 83 / 142 | 0.5845 |
+
+(c) Dollar matching: 7 of 16 pairs within ±25 % of the full cell's cost (pairs outside stay in the primary); trimmed pairs without per-session data 0.
+
+| PR | trial | cost full | cost matched | ratio | within |
+|---|---|---|---|---|---|
+| review-r11 | 1 | 17.6831 | 19.2849 | 1.0906 | yes |
+| review-r15 | 1 | 15.7941 | 16.7622 | 1.0613 | yes |
+| review-r16 | 1 | 19.8120 | 21.8986 | 1.1053 | yes |
+| review-r19 | 1 | 19.9983 | 32.3929 | 1.6198 | no |
+| review-r19 | 2 | 19.7025 | 47.6722 | 2.4196 | no |
+| review-r23 | 1 | 24.2681 | 13.8150 | 0.5693 | no |
+| review-r23 | 2 | 19.2728 | 13.4275 | 0.6967 | no |
+| review-r24 | 1 | 21.8296 | 21.7416 | 0.9960 | yes |
+| review-r24 | 2 | 20.7753 | 18.7008 | 0.9001 | yes |
+| review-r25 | 1 | 14.9955 | 16.2485 | 1.0836 | yes |
+| review-r25 | 2 | 12.6170 | 17.0016 | 1.3475 | no |
+| review-r26 | 1 | 13.1307 | 16.8035 | 1.2797 | no |
+| review-r26 | 2 | 15.0276 | 16.4182 | 1.0925 | yes |
+| review-r27 | 2 | 18.3201 | 25.5508 | 1.3947 | no |
+| review-r28 | 1 | 12.2064 | 16.9947 | 1.3923 | no |
+| review-r28 | 2 | 11.4826 | 15.3613 | 1.3378 | no |
+
 ## Missingness
 
 | arm | planned | rowed | valid | not rowed | excluded by reason |
@@ -95,8 +136,12 @@ Dollar matching: 7 of 16 pairs within ±25 % of the full cell's cost.
 
 ## Sensitivities (registered order; decide nothing)
 
-| frozen_c131_labels | status `not_provided` | PRs — |
-| v1_labels | status `not_provided` | PRs — |
+| frozen_c131_labels (key dir `c131`) | status `too_few_prs` | PRs 3 |
+| frozen_c131_labels: descriptive, valid pairs | a1_full 8 / 12 = 0.6667; a0_bare_matched 7 / 12 = 0.5833; PRs 3, pairs 3; cells re-graded 40, without a re-grade 100 |
+| v1_labels (key dir `v1`) | status `too_few_prs` | PRs 3 |
+| v1_labels: descriptive, valid pairs | a1_full 7 / 12 = 0.5833; a0_bare_matched 5 / 12 = 0.4167; PRs 3, pairs 3; cells re-graded 40, without a re-grade 100 |
+| review_derived_labels (key dir `review`) | Δ -0.0877 | 95 % [-0.3033, 0.1279] | 90 % [-0.2616, 0.0862] | SE 0.0935 | PRs 9, pairs 14, defects 57 | diag 95 % percentile [-0.2336, 0.1064] |
+| review_derived_labels: descriptive, valid pairs | a1_full 32 / 57 = 0.5614; a0_bare_matched 37 / 57 = 0.6491; PRs 9, pairs 14; cells re-graded 140, without a re-grade 0 |
 | judge_corrected | Δ -0.0370 |
 | judge_strays_as_defects | Δ 0.0160 | 95 % [-0.0916, 0.1236] | 90 % [-0.0712, 0.1032] | SE 0.0476 | PRs 10, pairs 16, defects 375 | diag 95 % percentile [-0.0771, 0.1066] |
 | exact_dollar_trim | Δ 0.1257 | 95 % [-0.0317, 0.2831] | 90 % [-0.0018, 0.2532] | SE 0.0696 | PRs 10, pairs 16, defects 175 | diag 95 % percentile [0.0000, 0.2716] |

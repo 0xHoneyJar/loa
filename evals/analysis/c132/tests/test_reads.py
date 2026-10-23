@@ -790,5 +790,92 @@ class DegenerateTest(Base):
         self.assertEqual(ms["sessions_excluded"], 2 * 3 * 3 + 2 * 1)
 
 
+class FinalCoReadsTest(Base):
+    def test_final_carries_co_reads(self):
+        """addendum 16 (iv): --final carries the §5 co-reads over every group, rendered before Missingness"""
+        s = self.batch()
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        co = doc["co_reads"]
+        self.assertEqual(co["look"], len(jload(s["registration"])["groups"]))
+        for k in ("pipeline_independent", "stratified", "cost_matched"):
+            self.assertIn(k, co)
+        self.assertEqual(co["pipeline_independent"]["status"], "ok")
+        self.assertEqual(co["pipeline_independent"]["delta"], doc["secondary"]["pipeline_independent"]["delta"])
+        self.assertEqual(sorted(co["stratified"]), ["label_source", "review_driven"])
+        self.assertIn("dollar_matching", co["cost_matched"])
+        self.assertEqual(co["cost_matched"]["dollar_matching"], doc["secondary"]["dollar_matching"])
+        md = slurp(os.path.join(o, "reads.md"))
+        i, j, m = md.index("## Pre-registered reads"), md.index("## Co-reads"), md.index("## Missingness")
+        self.assertLess(i, j)
+        self.assertLess(j, m)
+        self.assertEqual(md.count("## Co-reads"), 1)
+
+
+class LabelSensitivityTest(Base):
+    """addendum 16: review_derived_labels after v1_labels (§10 order), read from DIR/review/"""
+
+    def test_order(self):
+        o = reads.DEFAULT_SENSITIVITIES
+        self.assertEqual(o[:3], ["frozen_c131_labels", "v1_labels", "review_derived_labels"])
+        self.assertEqual(reads.LABEL_SENSITIVITIES["review_derived_labels"], "review")
+
+    def test_read_from_review_dir(self):
+        s = self.batch()
+        sens = os.path.join(self.tmp, "sens")
+        n = 0
+        for dp, _ds, fs in os.walk(s["results"]):
+            if "grade.json" in fs:
+                rel = os.path.relpath(dp, s["results"])
+                if rel.split(os.sep)[-1].startswith("review-s08"):
+                    continue          # a fixture without a key in the set: no re-grade
+                g = jload(os.path.join(dp, "grade.json"))
+                g["label_set"] = "review"
+                os.makedirs(os.path.join(sens, "review", rel))
+                with open(os.path.join(sens, "review", rel, "grade.json"), "w") as f:
+                    f.write(json.dumps(g))
+                n += 1
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--sensitivity-grades", sens, "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        sv = doc["sensitivities"]
+        self.assertEqual(sv["order"][2], "review_derived_labels")
+        r = sv["reads"]["review_derived_labels"]
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["label_dir"], "review")
+        self.assertEqual(r["cells_regraded"], n)
+        self.assertEqual(r["cells_without_regrade"], doc["inputs"]["n_rows"] - n)
+        self.assertEqual(r["n_prs"], 7)                      # review-s08 has no re-grade → no defect record
+        self.assertEqual(r["descriptive"]["n_prs"], 7)
+        self.assertEqual(r["descriptive"]["a1_full"]["caught"], r["caught_full"])
+        for name in ("frozen_c131_labels", "v1_labels"):
+            self.assertEqual(sv["reads"][name], {"status": "not_provided"})
+        md = slurp(os.path.join(o, "reads.md"))
+        self.assertIn("| review_derived_labels (key dir `review`) | Δ ", md)
+        self.assertIn("review_derived_labels: descriptive, valid pairs", md)
+
+    def test_cost_statuses_rendered(self):
+        s = self.batch()
+        o = os.path.join(self.tmp, "o")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        doc = jload(os.path.join(o, "reads.json"))
+        for st, val in (("dominated", None), ("dominated_by_cost", None), ("ok", 2.5)):
+            doc["secondary"]["cost_per_extra_defect"]["matched_valid"] = {
+                "status": st, "value": val, "extra_defects": 4 if st != "dominated_by_cost" else 0,
+                "cost_full": 30.0 if st != "dominated" else 10.0, "cost_baseline": 20.0}
+            md = reads.render_md(doc)
+            line = [x for x in md.splitlines() if x.startswith("| matched_valid |")][0]
+            cells = [x.strip() for x in line.strip("|").split("|")]
+            self.assertEqual(cells[-1], st)
+            self.assertEqual(cells[1], "—" if val is None else "2.5000")
+            self.assertEqual(cells[3], {"dominated": "-10.0000", "dominated_by_cost": "10.0000", "ok": "10.0000"}[st])
+            self.assertIn("`dominated`: the full arm caught more defects for no more cost", md)
+
+
+
 if __name__ == "__main__":
     unittest.main()

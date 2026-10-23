@@ -392,6 +392,22 @@ class CostTest(unittest.TestCase):
         c3 = [pair("a", 1, 2, 2, 5)]
         self.assertEqual(stats.cost_per_extra_defect(c3, baseline="matched", spend="valid")["status"], "no_extra_defects")
 
+    def test_cost_per_extra_defect_statuses(self):
+        """addendum 16 (§5): ok only when both increments are positive; dominated / dominated_by_cost carry
+        value null and both increments"""
+        ok = stats.cost_per_extra_defect([pair("a", 1, 4, 2, 5, costf=20, costm=10)])
+        self.assertEqual((ok["status"], ok["value"]), ("ok", 5.0))
+        for cf, cm, costf, costm, want in ((4, 2, 10, 20, "dominated"), (4, 2, 10, 10, "dominated"),
+                                           (2, 4, 20, 10, "dominated_by_cost"), (2, 2, 20, 10, "dominated_by_cost"),
+                                           (2, 4, 10, 20, "no_extra_defects"), (2, 2, 10, 10, "no_extra_defects")):
+            r = stats.cost_per_extra_defect([pair("a", 1, cf, cm, 5, costf=costf, costm=costm)])
+            self.assertEqual(r["status"], want, (cf, cm, costf, costm))
+            self.assertIsNone(r.get("value"))
+            self.assertEqual(r["extra_defects"], cf - cm)
+            self.assertEqual(r["cost_full"] - r["cost_baseline"], costf - costm)
+        r = stats.cost_per_extra_defect([pair("a", 1, 4, 2, 5)], spend="all", all_spend={"full": 30.0, "matched": 40.0})
+        self.assertEqual((r["status"], r["value"], r["cost_full"], r["cost_baseline"]), ("dominated", None, 30.0, 40.0))
+
 
 if __name__ == "__main__":
     unittest.main()

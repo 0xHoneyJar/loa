@@ -26394,3 +26394,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0812"
+    created_at: "2026-10-23T11:37:56Z"
+    updated_at: "2026-10-23T11:37:56Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Live-rerun sample for the reproduction declared before any run: review-r24 trial 2 in a1_full, a0_bare_matched (k 11) and a1_review_only (recorded USD 50.27)"
+    decision: "PREREGISTRATION section 13 registers the reproduction (every grade, row and read re-derived from a fresh clone of the stage-1 record commit) but names no live-rerun cells; sprint.md Task 3.3b budgets about USD 60 for three. Declared now, before any rerun: the pair is drawn with seed 20261021 by random.Random(20261021).choice over the sorted list of the seven primary pairs within the 25 percent dollar tolerance in the final read — [(review-r11,1), (review-r15,1), (review-r16,1), (review-r24,1), (review-r24,2), (review-r25,1), (review-r26,2)] — which gives review-r24 trial 2; the reproducer reruns its three cells live at the pin fbd36a0c with run-ablation.sh under the registration: a1_full (recorded c132-g3-a1, USD 20.78), a0_bare_matched (c132-g3-a2, k 11, USD 18.70) and a1_review_only (c132-g3-b, USD 10.79), recorded total USD 50.27. The rerun grades are compared with the recorded arm range on that PR (every cell of the arm on review-r24 in the record); a rerun grade inside the range confirms the apparatus, one outside is named in the report. Spend comes from the reproduction reserve (USD 80)."
+    rationale: "A seeded draw over the within-tolerance pairs keeps the choice out of the leads hands and lands on a pair where the matched bundle really spent the same dollars, so the rerun exercises the primary comparison as designed; three arms on one pair cost about the registered budget."
+    alternatives_considered:
+      - option: "rerun the cells the lead judges most informative"
+        rejected_because: "a hand-picked rerun after seeing the data is a forking path"
+      - option: "rerun a full PR group"
+        rejected_because: "about USD 300, four times the reproduction reserve; the proof needs the apparatus to reproduce, not more statistical power"
+      - option: "skip the live rerun and rely on byte-identical re-grades"
+        rejected_because: "the registration and FR-10 ask for a live sample so that the record is shown to come from a working apparatus, not only a replayable one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "cb71ecbf"
+    source: "grimoires/loa/reports/review-catch-c132/reads.json secondary.dollar_matching (pairs within 25 percent); PREREGISTRATION.md section 13 (Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:37:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/review-catch-c132/reads.json secondary.dollar_matching (pairs within 25 percent); PREREGISTRATION.md section 13 (Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

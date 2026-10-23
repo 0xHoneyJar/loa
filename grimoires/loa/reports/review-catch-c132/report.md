@@ -1,16 +1,16 @@
 # cycle-132 — does the Loa review pipeline catch more real defects per dollar than a bare model, on PRs it has not seen?
 
-**Cycle:** cycle-132 "the conclusive review-catch answer" · **Branch:** `feature/cycle-132-conclusive-review-catch` · **Pipeline under test:** Loa at commit `fbd36a0c` (every Phase 1 row's `source_commit`) · **Binding registration:** `REGISTRATION-14.json`, sha256 `380f7a36…` (PREREGISTRATION.md plus addenda 1–15; the full chain is in `PREREGISTRATION-sha256.txt`) · **Reads taken:** 2026-10-23, Sprint 271, by the lead (Fable 5.1) with `reads-c132.py --final` · **Every table below is copied byte for byte from a generated artefact** by `scripts/report-assemble.py`; `evals/tests/c132-report.bats` fails if a table row appears nowhere in those artefacts.
+**Cycle:** cycle-132 "the conclusive review-catch answer" · **Branch:** `feature/cycle-132-conclusive-review-catch` · **Pipeline under test:** Loa at commit `fbd36a0c` (every Phase 1 row's `source_commit`) · **Binding registration:** `REGISTRATION-15.json` (analysis addendum 16; PREREGISTRATION.md plus addenda 1–16; the pipeline pin unchanged; the full chain with hashes is in `PREREGISTRATION-sha256.txt`) · **Reads taken:** 2026-10-23, Sprint 271, by the lead (Fable 5.1) with `reads-c132.py --final` · **Every table below is copied byte for byte from a generated artefact** by `scripts/report-assemble.py`; `evals/tests/c132-report.bats` fails if a table row appears nowhere in those artefacts.
 
 ## ELI5
 
-We asked one question and wrote down, before spending money, exactly how we would answer it: on fourteen real pull requests the pipeline had never reviewed, does Loa's review pipeline (review gate, audit gate, a second model arguing against each) find more of the real bugs than a plain model session given the same dollars?
+We asked one question and wrote down, before spending money, how we would answer it: on fourteen real pull requests the pipeline had never reviewed, does Loa's review pipeline (review gate, audit gate, a second model arguing against each) find more real bugs than plain model sessions given the same dollars?
 
-Two blind annotators re-derived the bugs from the actual fix commits and later incidents, so the answer key was not the pipeline's own past output. Each PR was reviewed twice by the pipeline and twice by a bundle of plain model sessions costing the same money, with the plain sessions' findings pooled. A mechanical grader checked whether a finding pointed at a known bug; a blind judge then audited a sample of the grader's verdicts.
+Two blind annotators re-derived the bugs from the fix commits and later incidents, so the answer key was not the pipeline's own past output. Each PR was reviewed twice by the pipeline and twice by a bundle of plain model sessions costing the same money, with the plain sessions' findings pooled. A mechanical grader checked whether a finding pointed at a known bug; a blind judge audited a sample of its verdicts.
 
-The result: the pipeline found about ten points more of the labelled bugs than the same-dollar bundle of plain sessions, and it did so while spending less. But the interval around that ten points runs from about minus nine to plus twenty-nine, so we cannot say the difference is real, and we cannot say it is absent. The pre-registered stopping rule did not fire; the final look reads "inconclusive". The pipeline also lost more than a quarter of its planned runs to a structural problem: on PRs that modify Loa's own files, the pinned pipeline reads its own already-fixed copies, and those runs had to be excluded.
+The result: the pipeline found about ten points more of the labelled bugs than the same-dollar bundle of plain sessions, and it did so while spending less. But the interval around that ten points runs from about minus nine to plus twenty-nine, so we cannot say the difference is real, and we cannot say it is absent. The pre-registered stopping rule did not fire; the final look reads "inconclusive". Under the older answer key seeded from the original reviews, the plain sessions even came out slightly ahead, so the sign itself depends on which key is used. The pipeline also lost over a quarter of its planned runs to a structural problem: on PRs that modify Loa's own files, the pinned pipeline reads its own already-fixed copies, and those runs were excluded.
 
-Two things did come out clearly. Review alone catches fewer bugs than review plus audit. And against plain sessions of the pipeline's own model at the same dollars, the pipeline wins by a wide margin. Nothing shipped by default changes on the strength of this cycle.
+Two things came out clearly. Review alone catches fewer bugs than review plus audit. And against plain sessions of the pipeline's own model at the same dollars, the pipeline wins by a wide margin. Nothing shipped by default changes on this cycle's strength.
 
 ## The answer
 
@@ -24,7 +24,7 @@ Repeated confidence interval at the stopping look 3: [-0.0936, 0.2879] (b = 2.26
 REML LMM: β 0.0614, 95 % [-0.0540, 0.1767], σu 0.1934, σe 0.1664.
 PR-level permutation: p 0.3711 (exact, 1024).
 
-**The stopping rule did not fire** at any of the three registered looks, and the final look (information fraction 1) reads **INCONCLUSIVE**: the YES statistic z_yes 1.15 is below the O'Brien–Fleming boundary 2.26 and the NO statistic z_no 0.03 is below its boundary, so neither "the pipeline catches more at the MDE" nor "it does not" is established. **The 25 % guard tripped on the full arm** (eleven of twenty-eight planned cells excluded), so by the registration the read is **inconclusive by degradation**. **The placebo on these rows failed its calibration band** (one in ten shuffled intervals excluded zero against the registered eight percent), so, as pre-specified in §8, the decision rests on the simulation-calibrated group-sequential boundary and the PR-level permutation test (p 0.37) rather than on the bootstrap interval alone.
+**The stopping rule did not fire** at any of the three registered looks, and the final look (information fraction 1) reads **INCONCLUSIVE**: the YES statistic z_yes 1.15 is below the O'Brien–Fleming boundary 2.26 and the NO statistic z_no 0.03 is below its boundary, so neither "the pipeline catches more at the MDE" nor "it does not" is established. **The 25 % guard tripped on the full arm** (eleven of twenty-eight planned cells excluded), so by the registration the read is **inconclusive by degradation**. **The placebo on these rows failed its calibration band** (one in ten shuffled intervals excluded zero against the registered eight percent), so, as pre-specified in §8, the decision rests on the simulation-calibrated group-sequential boundary and the PR-level permutation test (p 0.37) rather than on the bootstrap interval alone. **The sign depends on the key:** under the registered review-derived sensitivity key (nine PRs, fifty-seven defects) the matched bundle reads above the pipeline, with an interval that again covers zero.
 
 ## Pre-registered reads (PREREGISTRATION §5)
 
@@ -32,14 +32,14 @@ PR-level permutation: p 0.3711 (exact, 1024).
 
 Defects per USD: full 0.4117 [0.2677, 0.6292]; matched 0.2939 [0.1942, 0.4532].
 
-The matched arm is **dominated**: on the valid pairs the full arm caught seventeen more defects while spending less (USD 276.92 against 330.07; on all spend 358.06 against 443.27), so the registered cost per extra defect has no positive increment to divide by. `reads-c132.py` prints the ratios with status `ok`; the registration's own word is dominated (DEC-0805; the label joins analysis addendum 16). The session-1 contrasts are unavailable under the c132 validity rules (`no_session1`):
+The matched arm is **dominated**: on the valid pairs the full arm caught seventeen more defects while spending less (USD 276.92 against 330.07; on all spend 358.06 against 443.27), so the registered cost per extra defect has no positive increment to divide by. Since analysis addendum 16 the read carries the registration's own word, `dominated` (DEC-0805), with both increments printed. The session-1 contrasts are unavailable under the c132 validity rules (`no_session1`):
 
-| cost per extra defect | value | extra defects | status |
-|---|---|---|---|
-| matched_all_spend | -5.0124 | 17.0000 | ok |
-| matched_valid | -3.1270 | 17.0000 | ok |
-| session1_all_spend | — | — | no_session1 |
-| session1_valid | — | — | no_session1 |
+| cost per extra defect | value | extra defects | cost increment | status |
+|---|---|---|---|---|
+| matched_all_spend | — | 17.0000 | -85.2104 | dominated |
+| matched_valid | — | 17.0000 | -53.1584 | dominated |
+| session1_all_spend | — | — | — | no_session1 |
+| session1_valid | — | — | — | no_session1 |
 
 | contrast | read |
 |---|---|
@@ -48,6 +48,21 @@ The matched arm is **dominated**: on the valid pairs the full arm caught sevente
 | matched_fable | Δ 0.3333, 95 % [0.2122, 0.4545], PRs 11 |
 
 Review alone catches fewer labelled defects than review plus audit (the one registered contrast whose interval excludes zero); the pipeline-independent read (defects with `review_driven = false` or sourced from an incident) has the same sign as the primary on too few PRs to decide; the same-model contrast against bare Fable 5.1 sessions at the same dollars favours the pipeline by a third of the key.
+
+### Co-reads (PREREGISTRATION §5; descriptive, they never enter the decision)
+
+| (a) pipeline-independent a1_full − a0_bare_matched | Δ 0.2941 | 95 % [-0.0437, 0.6320] | 90 % [0.0258, 0.5624] | SE 0.1381 | PRs 7, pairs 11, defects 34 | diag 95 % percentile [0.0000, 0.5333] |
+| (c) cost-matched (exact-dollar trim, pairs within ±25 %) | Δ 0.0805 | 95 % [-0.0505, 0.2114] | 90 % [-0.0222, 0.1831] | SE 0.0510 | PRs 6, pairs 7, defects 87 | diag 95 % percentile [-0.0328, 0.1622] |
+
+| stratum | a1_full caught / defects | recall | a0_bare_matched caught / defects | recall |
+|---|---|---|---|---|
+| label_source = fix-commit | 109 / 170 | 0.6412 | 95 / 170 | 0.5588 |
+| label_source = fix-commit+incident | 3 / 3 | 1.0000 | 0 / 3 | 0.0000 |
+| label_source = incident | 2 / 2 | 1.0000 | 2 / 2 | 1.0000 |
+| review_driven = false | 23 / 33 | 0.6970 | 14 / 33 | 0.4242 |
+| review_driven = true | 91 / 142 | 0.6408 | 83 / 142 | 0.5845 |
+
+The pipeline-independent co-read keeps the primary's sign on the defects the production pipeline did not find first; the cost-matched read on the seven pairs within the dollar tolerance is smaller than the primary and its interval covers zero.
 
 ### Dollar matching
 
@@ -113,8 +128,12 @@ Looks 1 and 2 read CONTINUE (look 1 below the minimum-information rule of six va
 
 ## Sensitivities (PREREGISTRATION §10, registered order; they decide nothing)
 
-| frozen_c131_labels | status `not_provided` | PRs — |
-| v1_labels | status `not_provided` | PRs — |
+| frozen_c131_labels (key dir `c131`) | status `too_few_prs` | PRs 3 |
+| frozen_c131_labels: descriptive, valid pairs | a1_full 8 / 12 = 0.6667; a0_bare_matched 7 / 12 = 0.5833; PRs 3, pairs 3; cells re-graded 40, without a re-grade 100 |
+| v1_labels (key dir `v1`) | status `too_few_prs` | PRs 3 |
+| v1_labels: descriptive, valid pairs | a1_full 7 / 12 = 0.5833; a0_bare_matched 5 / 12 = 0.4167; PRs 3, pairs 3; cells re-graded 40, without a re-grade 100 |
+| review_derived_labels (key dir `review`) | Δ -0.0877 | 95 % [-0.3033, 0.1279] | 90 % [-0.2616, 0.0862] | SE 0.0935 | PRs 9, pairs 14, defects 57 | diag 95 % percentile [-0.2336, 0.1064] |
+| review_derived_labels: descriptive, valid pairs | a1_full 32 / 57 = 0.5614; a0_bare_matched 37 / 57 = 0.6491; PRs 9, pairs 14; cells re-graded 140, without a re-grade 0 |
 | judge_corrected | Δ -0.0370 |
 | judge_strays_as_defects | Δ 0.0160 | 95 % [-0.0916, 0.1236] | 90 % [-0.0712, 0.1032] | SE 0.0476 | PRs 10, pairs 16, defects 375 | diag 95 % percentile [-0.0771, 0.1066] |
 | exact_dollar_trim | Δ 0.1257 | 95 % [-0.0317, 0.2831] | 90 % [-0.0018, 0.2532] | SE 0.0696 | PRs 10, pairs 16, defects 175 | diag 95 % percentile [0.0000, 0.2716] |
@@ -151,7 +170,7 @@ Looks 1 and 2 read CONTINUE (look 1 below the minimum-information rule of six va
 | pr_weighted | Δ 0.0834 [-0.0880, 0.2549] |
 | matched_fable_contrast | Δ 0.3333 | 95 % [0.2122, 0.4545] | 90 % [0.2348, 0.4319] | SE 0.0544 | PRs 11, pairs 17, defects 195 | diag 95 % percentile [0.2408, 0.4521] |
 
-Reading guide. The frozen cycle-131 and v1 keys exist for four of the fourteen fixtures; their reads need re-grades under those keys (analysis addendum 16, Sprint 271) and are reported as the registration's named status where fewer than six PRs remain. The judge-corrected sensitivity carries the registered Horvitz–Thompson estimator, which removes 1/m of a defect's credit per rejected citation and so penalises arms with many citations per defect (DEC-0800); it is not an arm comparison. Re-including the oracle-exposed cells (the structural limitation below) moves the estimate up and its interval off zero in the every-form row — that is the read the registration refused to make primary, because exposure is a property of the pinned pipeline on these PRs.
+Reading guide. The frozen cycle-131 and v1 keys exist for four of the fourteen fixtures, so after the re-grades (analysis addendum 16) their contrasts read the registered status `too_few_prs` (three PRs with valid pairs); descriptively both keep the primary's sign. **The seeded review-derived key reverses it:** on nine PRs and fifty-seven defects the matched bundle reads above the pipeline (Δ −0.09, interval covering zero). That key was seeded from the original human and pipeline review feedback and holds about a third as many defects as the re-derived v2 key on the same pairs; the primary's positive point estimate is therefore not robust to the choice of key, and the report says so rather than choosing between them after the fact. The judge-corrected sensitivity carries the registered Horvitz–Thompson estimator, which removes 1/m of a defect's credit per rejected citation and so penalises arms with many citations per defect (DEC-0800); it is not an arm comparison. Re-including the oracle-exposed cells (the structural limitation below) moves the estimate up and its interval off zero in the every-form row — that is the read the registration refused to make primary, because exposure is a property of the pinned pipeline on these PRs.
 
 ## Placebo (PREREGISTRATION §8)
 
@@ -267,11 +286,12 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 | K | took-effect FAIL caused by PR code the agent executed (KF-053) |
 
 4. **Labels downstream of the pipeline.** The v2 key was re-derived from fix commits and incidents, but most of those fixes were prompted by the pipeline's own past reviews (review-driven share 0.827). The pipeline-independent co-read is the honest check and is too small to decide.
-5. **Placebo calibration.** At ten clusters the cluster-t interval is anti-conservative by about two points; the registration anticipated this and bounded it by the simulated size of the whole procedure.
-6. **Judge agreement is low** (κ about 0.2) and the registered correction is biased against arms with many citations per defect (DEC-0800). The grader stays primary as registered; the semantic question is open.
-7. **Corpus ceiling.** N = 14 is every eligible fixture; the power simulation gave P(YES | MDE) 0.82 and P(NO | 0) 0.75 at that N, and a true null ends INCONCLUSIVE in about one study in seven. pr-11 (2026-09-25) is borderline for model exposure and is flagged; the pr-11-out sensitivity is above.
-8. **Fifteen addenda** corrected defects exposed by smokes, looks and the judge pilot, each registered before the data it governs was read; `PREREGISTRATION-sha256.txt` lists the chain. None changed the primary estimand, the arms, the rule or the cap.
-9. **Operations.** A host reboot killed the lead session at the start of Sprint 271 (recovered by `/run-resume`); two earlier reboots and one runner kill are recorded in `batches.md`. The Sprint 270 lead ran part of the sprint on Opus 5.5; arm and judge models are pinned in the registration and were unaffected.
+5. **Key dependence.** The registered review-derived-key sensitivity reverses the primary's sign (nine PRs, fifty-seven defects, interval covering zero); the frozen c131 and v1 keys keep it on three PRs. Which key one believes decides the sign of the point estimate; no key makes the interval exclude zero in the pipeline's favour at matched dollars.
+6. **Placebo calibration.** At ten clusters the cluster-t interval is anti-conservative by about two points; the registration anticipated this and bounded it by the simulated size of the whole procedure.
+7. **Judge agreement is low** (κ about 0.2) and the registered correction is biased against arms with many citations per defect (DEC-0800). The grader stays primary as registered; the semantic question is open.
+8. **Corpus ceiling.** N = 14 is every eligible fixture; the power simulation gave P(YES | MDE) 0.82 and P(NO | 0) 0.75 at that N, and a true null ends INCONCLUSIVE in about one study in seven. pr-11 (2026-09-25) is borderline for model exposure and is flagged; the pr-11-out sensitivity is above.
+9. **Sixteen addenda** corrected defects exposed by smokes, looks, the judge pilot and the first final read, each registered before the data it governs was read; `PREREGISTRATION-sha256.txt` lists the chain. None changed the primary estimand, the arms, the rule or the cap; addendum 16 supplied the missing label-set and co-read branches of the analysis and the `dominated` label.
+10. **Operations.** A host reboot killed the lead session at the start of Sprint 271 (recovered by `/run-resume`); two earlier reboots and one runner kill are recorded in `batches.md`. The Sprint 270 lead ran part of the sprint on Opus 5.5; arm and judge models are pinned in the registration and were unaffected.
 
 ## Proof
 

@@ -25,6 +25,9 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                a1_full_openmount − a1_full on every group, saturated PRs exempt; not exercised / void /
                pass / not demonstrated, the pre-addendum-10 label beside), missingness with the two bounds, the 25 % guard), then the sensitivities in the
                registration's order.
+               Since addendum 16 (iv) the final also carries the §5 co-reads (`co_reads`, the look over
+               every group: pipeline-independent Δ, recall by label_source / review_driven, the
+               cost-matched Δ with its dollar-matching table), rendered before Missingness.
   --placebo    200 seeded within-PR arm-label shuffles through the primary read (1,000 resamples
                each): pass when |mean Δ| < 0.03 (bias) and ≤ 8 % of the 95 % intervals exclude 0
                (calibration); mean |Δ| and the other interval's share are diagnostics (round 1).
@@ -47,8 +50,16 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                Round 6 (addendum 9) adds the member "oracle_exposed": cells whose ONLY invalidity is
                oracle exposure, re-included by form — `read_only`, `diff` (with or without read) and
                `all` — with counts per arm, group, PR and form (grade.json oracle_exposed_by_form).
-  --sensitivity-grades DIR  re-grades for the label-set sensitivities:
-               DIR/<c131|v1>/<batch>/<arm>/<task>-t<n>/grade.json (absent → "not_provided")
+  --sensitivity-grades DIR  re-grades for the label-set sensitivities (regrade_labels.py writes them):
+               DIR/<c131|v1|review>/<batch>/<arm>/<task>-t<n>/grade.json (a label directory absent →
+               "not_provided"; a cell without a re-grade, e.g. a fixture the set has no key for, is built
+               with grade None and so reads no_defect_record). The sensitivities frozen_c131_labels,
+               v1_labels and review_derived_labels (addendum 16: §10 item 2, the seeded review-derived key —
+               manifests/review/ for pr-19 … pr-28 and the moved cycle-131 set manifests/c131/ for the four
+               older fixtures) read DIR/c131, DIR/v1 and DIR/review.
+  Cost per extra defect (addendum 16, §5): `ok` (value = cost increment ÷ extra defects) only when both
+               increments are positive; extra defects > 0 with a cost increment ≤ 0 → `dominated`, extra
+               defects ≤ 0 with a cost increment > 0 → `dominated_by_cost` (value null, both increments printed).
   --judge DIR  the judge's result.json (judge_agree.py): judge-corrected figures and the
                judge-confirmed strays (absent → "not_provided")
   --make-inputs  write DIR/INPUTS.json for the current rows and run dirs (rows sha256, every
@@ -86,10 +97,11 @@ REVIEW_ONLY = "a1_review_only"
 MIN_PRS, MIN_DEFECTS = 6, 30
 DEFAULT_SEED = 20261021
 DEFAULT_SENSITIVITIES = [
-    "frozen_c131_labels", "v1_labels", "judge_corrected", "judge_strays_as_defects",
+    "frozen_c131_labels", "v1_labels", "review_derived_labels", "judge_corrected", "judge_strays_as_defects",
     "exact_dollar_trim", "pair_level_permutation", "ci90", "leave_one_pr_out", "pr11_in_out",
     "degraded_contaminated_excluded", "contaminated_reincluded_per_class", "pr_weighted", "matched_fable_contrast",
 ]
+LABEL_SENSITIVITIES = {"frozen_c131_labels": "c131", "v1_labels": "v1", "review_derived_labels": "review"}
 BOOT = 10000
 INTERVAL = "t"          # --interval (round 1: cluster-t primary, percentile beside)
 VALIDITY = "c132"       # --validity
@@ -488,6 +500,17 @@ def regrade_cells(cells, grades_dir, label):
     return out
 
 
+def label_descriptive(pairs):
+    """per-arm caught / defects / defect-weighted recall on a label set's valid pairs, printed whatever the
+    read's status (the frozen keys cover 4 PRs, below the 6-PR minimum: too_few_prs)"""
+    out = {"n_prs": len({p["pr"] for p in pairs}), "n_pairs": len(pairs)}
+    for side_name, arm in (("full", PRIMARY_A), ("matched", PRIMARY_B)):
+        caught = sum(p[side_name]["caught"] for p in pairs)
+        den = sum(p[side_name]["defects"] for p in pairs)
+        out[arm] = {"caught": caught, "defects": den, "recall": (float(caught) / den) if den else None}
+    return out
+
+
 def exact_dollar_pairs(pairs, cells_by_key):
     """the exact-dollar trim: the largest m ≤ k valid sessions (in session order) whose summed cost
     ≤ the paired full cell's cost; the matched side caught = the union of those sessions"""
@@ -688,6 +711,9 @@ def final_reads(cells, inputs, reg, seed, planned_se, sens_dir=None, judge_dir=N
     out["missingness"] = missingness(cells, inputs, [PRIMARY_A, PRIMARY_B, FABLE_B, REVIEW_ONLY],
                                      lambda mode: bound_pairs(cells, PRIMARY_A, PRIMARY_B, mode), seed)
     out["sensitivities"] = sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim)
+    # addendum 16 (iv): §5 reports the co-reads "beside the primary at every look and at the final" —
+    # the final look covers every group
+    out["co_reads"] = co_reads(cells, reg, len(groups), seed)
     return out
 
 
@@ -713,13 +739,17 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
             judge = common.load_json(jp, "judge result")
     by_key = {c["key"]: c for c in cells}
     for name in order:
-        if name in ("frozen_c131_labels", "v1_labels"):
-            label = "c131" if name == "frozen_c131_labels" else "v1"
+        if name in LABEL_SENSITIVITIES:
+            label = LABEL_SENSITIVITIES[name]
             rc = regrade_cells(cells, sens_dir, label) if sens_dir else None
             if rc is None:
                 res[name] = {"status": "not_provided"}
             else:
-                res[name], _ = contrast(rc, PRIMARY_A, PRIMARY_B, seed)
+                res[name], lp = contrast(rc, PRIMARY_A, PRIMARY_B, seed)
+                res[name]["label_dir"] = label
+                res[name]["cells_regraded"] = sum(1 for c in rc if c["grade_path"])
+                res[name]["cells_without_regrade"] = sum(1 for c in rc if not c["grade_path"])
+                res[name]["descriptive"] = label_descriptive(lp)
         elif name == "judge_corrected":
             if not judge or not judge.get("corrected"):
                 res[name] = {"status": "not_provided"}
@@ -825,6 +855,11 @@ def md_co_reads(co):
     return "".join(L) + "\n"
 
 
+COST_LEGEND = ("Cost per extra defect = cost increment ÷ extra defects, defined only when both are positive (§5); "
+               "`dominated`: the full arm caught more defects for no more cost; `dominated_by_cost`: it cost more "
+               "and caught no more; the value is then not reported and both increments are printed.")
+
+
 def render_md(doc):
     L = ["# cycle-132 reads — mode `%s`\n" % doc["mode"], "\n"]
     inp = doc["inputs"]
@@ -866,7 +901,7 @@ def render_md(doc):
         L.append("\n" + PARTITION_LEGEND + "\n")
         L.append("\nBoundary constant %s; MDE %s; planned final SE %s.\n\n" % (
             f4(doc["boundary_constant"]), f4(doc["mde"]), f4(doc["planned_final_se"])))
-    if doc.get("co_reads"):
+    if doc.get("co_reads") and doc["mode"] != "final":
         L.append(md_co_reads(doc["co_reads"]))
     if doc["mode"] == "final":
         L.append("## Pre-registered reads\n\n")
@@ -889,10 +924,13 @@ def render_md(doc):
         if dpu.get("status") == "ok":
             L.append("Defects per USD: full %s %s; matched %s %s.\n\n" % (
                 f4(dpu["full"].get("value")), iv(dpu["full"].get("ci95")), f4(dpu["matched"].get("value")), iv(dpu["matched"].get("ci95"))))
-        L.append("| cost per extra defect | value | extra defects | status |\n|---|---|---|---|\n")
+        L.append("| cost per extra defect | value | extra defects | cost increment | status |\n|---|---|---|---|---|\n")
         for k in sorted(sec["cost_per_extra_defect"]):
             v = sec["cost_per_extra_defect"][k]
-            L.append("| %s | %s | %s | %s |\n" % (k, f4(v.get("value")), f4(v.get("extra_defects")), v.get("status")))
+            dc = v["cost_full"] - v["cost_baseline"] if isinstance(v.get("cost_full"), (int, float)) and \
+                isinstance(v.get("cost_baseline"), (int, float)) else None
+            L.append("| %s | %s | %s | %s | %s |\n" % (k, f4(v.get("value")), f4(v.get("extra_defects")), f4(dc), v.get("status")))
+        L.append("\n%s\n\n" % COST_LEGEND)
         L.append("\n| contrast | read |\n|---|---|\n")
         for k in ("review_only_vs_full", "pipeline_independent", "matched_fable"):
             v = sec[k]
@@ -910,6 +948,8 @@ def render_md(doc):
                                                           f4(r["ratio"]), "yes" if r["within_25pct"] else "no"))
         g = doc["guard"]
         L.append("\n25 %% guard: %s.\n\n" % ("INCONCLUSIVE BY DEGRADATION" if g["inconclusive_by_degradation"] else "not tripped"))
+        if doc.get("co_reads"):
+            L.append(md_co_reads(doc["co_reads"]))
         ms = doc["missingness"]
         L.append("## Missingness\n\n| arm | planned | rowed | valid | not rowed | excluded by reason |\n|---|---|---|---|---|---|\n")
         for arm in sorted(ms["cells_by_arm"]):
@@ -968,6 +1008,15 @@ def render_md(doc):
                 L.append("| ci90 | %s |\n" % iv(v.get("ci90")))
             elif name == "pr_weighted":
                 L.append("| pr_weighted | Δ %s %s |\n" % (f4(v.get("delta")), iv(v.get("ci95"))))
+            elif name in LABEL_SENSITIVITIES:
+                L.append(md_primary("%s (key dir `%s`)" % (name, LABEL_SENSITIVITIES[name]), v))
+                ds = v.get("descriptive")
+                if ds:
+                    L.append("| %s: descriptive, valid pairs | %s %s / %s = %s; %s %s / %s = %s; PRs %d, pairs %d; "
+                             "cells re-graded %d, without a re-grade %d |\n" % (
+                                 name, PRIMARY_A, ds[PRIMARY_A]["caught"], ds[PRIMARY_A]["defects"], f4(ds[PRIMARY_A]["recall"]),
+                                 PRIMARY_B, ds[PRIMARY_B]["caught"], ds[PRIMARY_B]["defects"], f4(ds[PRIMARY_B]["recall"]),
+                                 ds["n_prs"], ds["n_pairs"], v["cells_regraded"], v["cells_without_regrade"]))
             elif name == "judge_corrected":
                 L.append("| judge_corrected | %s |\n" % ("Δ %s" % f4(v["delta"]) if v.get("status") == "ok" else "status `%s`" % v.get("status")))
             else:

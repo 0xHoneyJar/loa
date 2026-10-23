@@ -673,7 +673,10 @@ def cost_per_extra_defect(cells, baseline="matched", spend="valid", all_spend=No
     baseline "matched" (the matched cell) or "session1" (the matched cell's BARE-1 session:
     pair["matched"]["session1"] = {caught, cost}); spend "valid" (the pairs' own costs) or
     "all" (all_spend = {"full": USD, "matched": USD}: every dollar of every attempt per arm,
-    failed and excluded runs included — the headline, PRD FR-5 h)."""
+    failed and excluded runs included — the headline, PRD FR-5 h).
+    status: ok (both increments > 0), dominated (extra defects > 0, cost increment ≤ 0),
+    dominated_by_cost (extra defects ≤ 0, cost increment > 0), no_extra_defects (neither > 0),
+    no_valid_pairs, no_session1, no_all_spend."""
     cf = cb = cost_f = cost_b = 0.0
     for c in cells:
         cf += c["full"]["caught"]
@@ -693,11 +696,20 @@ def cost_per_extra_defect(cells, baseline="matched", spend="valid", all_spend=No
         if not all_spend:
             return {"status": "no_all_spend"}
         cost_f, cost_b = all_spend["full"], all_spend["matched"]
-    extra = cf - cb
+    extra, dcost = cf - cb, cost_f - cost_b
+    # PREREGISTRATION §5 (analysis addendum 16): the ratio is defined only when both increments are
+    # positive; more defects for no more cost is `dominated` (the baseline is dominated), more cost for
+    # no more defects `dominated_by_cost`; value null in both, the increments printed beside
+    if extra > 0 and dcost <= 0:
+        return {"status": "dominated", "value": None, "extra_defects": extra,
+                "cost_full": cost_f, "cost_baseline": cost_b, "baseline": baseline, "spend": spend}
+    if extra <= 0 and dcost > 0:
+        return {"status": "dominated_by_cost", "value": None, "extra_defects": extra,
+                "cost_full": cost_f, "cost_baseline": cost_b}
     if extra <= 0:
         return {"status": "no_extra_defects", "extra_defects": extra,
                 "cost_full": cost_f, "cost_baseline": cost_b}
-    return {"status": "ok", "value": (cost_f - cost_b) / extra, "extra_defects": extra,
+    return {"status": "ok", "value": dcost / extra, "extra_defects": extra,
             "cost_full": cost_f, "cost_baseline": cost_b, "baseline": baseline, "spend": spend}
 
 
