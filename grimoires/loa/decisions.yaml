@@ -26430,3 +26430,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0813"
+    created_at: "2026-10-23T11:57:13Z"
+    updated_at: "2026-10-23T11:57:13Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Exploratory defect-level judge read (post hoc): strict describing share full 0.275 vs matched 0.225 (+0.05, 95% [-0.16, 0.23]); open mount 0.40; decides nothing"
+    decision: "Run as declared in DEC-0800 and sized in DEC-0810: 40 grader-credited (cell, defect) pairs per arm drawn with seed 20261021 over the valid cells of the Task 2.6 universe, every credited citation of each pair judged blind (593 items; 10 sessions; taint false; USD 7.85). Share of pairs with at least one citation judged describes (strict) / describes-or-partially (lenient), PR-cluster 95 percent percentile intervals: a1_full 0.275 [0.100, 0.460] / 0.325; a0_bare_matched 0.225 [0.100, 0.391] / 0.350; a1_review_only 0.250 / 0.350; a0_bare_fable_matched 0.125 / 0.225; a1_full_openmount 0.400 [0.303, 0.522] / 0.525. a1_full minus a0_bare_matched: strict share +0.050 [-0.159, 0.234], lenient -0.025 [-0.206, 0.181]; defect-level corrected recall strict 0.174 vs 0.110 (+0.063 [-0.073, 0.217]). Reported in the report under Judge agreement as exploratory and post hoc; it decides nothing and no registered figure changes."
+    rationale: "The registered Horvitz-Thompson correction penalises arms with many citations per defect; the defect-level share is arm-symmetric and shows the semantic gap between proximity credit and a describing finding is roughly the same in every closed-mount arm, with the open mount higher, so the registered primary is not distorted in one direction by the proximity rule."
+    alternatives_considered:
+      - option: "promote the defect-level corrected recall to a registered sensitivity"
+        rejected_because: "it was declared after the registered judge read; it stays exploratory and labelled post hoc"
+      - option: "judge more pairs to narrow the interval"
+        rejected_because: "the shares are arm-symmetric and the read decides nothing; the spend goes to the reproduction instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "0ce2a410"
+    source: "grimoires/loa/reports/review-catch-c132/judge-defects/result.json (Sprint 271, 2026-10-23; 593 items, 10 blind Opus 5.5 sessions)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T11:57:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/review-catch-c132/judge-defects/result.json (Sprint 271, 2026-10-23; 593 items, 10 blind Opus 5.5 sessions)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

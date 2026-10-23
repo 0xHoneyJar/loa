@@ -244,17 +244,36 @@ The grader's proximity rule credits a citation within three lines of a key ancho
 | a1_full_openmount | 23 | 12 | 0.6126 | 0.1330 | [0.0793, 0.1870] | 0.2692 | 0.2582 | [0.1933, 0.3311] |
 | a1_review_only | 20 | 12 | 0.4714 | 0.1634 | [0.0864, 0.2757] | 0.2544 | 0.2866 | [0.2195, 0.3588] |
 
-An exploratory defect-level judge read (every credited citation of a seeded sample of credited cell–defect pairs per arm; declared before its data in DEC-0800, sized in DEC-0810) is reported in `judge-defects/result.md` when complete and is labelled post hoc there.
+### Exploratory defect-level read (post hoc; declared in DEC-0800 before its data, sized in DEC-0810)
+
+Forty grader-credited (cell, defect) pairs per arm, drawn with the registered seed; every credited citation of each pair judged blind (593 items, ten sessions, no taint). A pair counts when at least one of its citations describes the defect. This read is not registered and decides nothing; it exists because the registered estimator above removes 1/m of a defect's credit per rejected citation and so penalises the arm with more citations per defect (about four per pair in the full arm against 2.6 in the matched bundle).
+
+| arm | cells | PRs | pairs judged | items | strict share | 95 % | lenient share | 95 % | grader recall | corrected strict | 95 % | corrected lenient | 95 % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| a0_bare_fable_matched | 28 | 14 | 40 of 40 | 58 | 0.1250 | [0.0000, 0.2408] | 0.2250 | [0.0689, 0.4048] | 0.2757 | 0.0345 | [0.0000, 0.0659] | 0.0620 | [0.0164, 0.1136] |
+| a0_bare_matched | 25 | 13 | 40 of 40 | 103 | 0.2250 | [0.1000, 0.3913] | 0.3500 | [0.2571, 0.4706] | 0.4906 | 0.1104 | [0.0439, 0.2259] | 0.1717 | [0.1134, 0.2789] |
+| a1_full | 17 | 11 | 40 of 40 | 166 | 0.2750 | [0.1000, 0.4595] | 0.3250 | [0.1600, 0.4872] | 0.6308 | 0.1735 | [0.0546, 0.3572] | 0.2050 | [0.0933, 0.3645] |
+| a1_full_openmount | 23 | 12 | 40 of 40 | 147 | 0.4000 | [0.3030, 0.5217] | 0.5250 | [0.4000, 0.6923] | 0.6126 | 0.2450 | [0.1700, 0.3581] | 0.3216 | [0.2279, 0.4611] |
+| a1_review_only | 20 | 12 | 40 of 40 | 119 | 0.2500 | [0.1163, 0.4167] | 0.3500 | [0.2500, 0.4828] | 0.4714 | 0.1179 | [0.0478, 0.2315] | 0.1650 | [0.0973, 0.2846] |
+
+| figure | difference | 95 % |
+|---|---|---|
+| share strict | 0.0500 | [-0.1586, 0.2343] |
+| share lenient | -0.0250 | [-0.2059, 0.1810] |
+| recall corrected strict | 0.0631 | [-0.0731, 0.2172] |
+| recall corrected lenient | 0.0333 | [-0.0792, 0.1840] |
+
+Read plainly: a quarter to a third of the pairs the grader credits carry at least one citation that a blind judge says describes the defect, in the pipeline and in the matched bundle alike; the difference between them has the primary's sign and an interval three times its width. The open-mount arm describes more of what it is credited with, which is what reading the fixed file should produce.
 
 ## Spend (PREREGISTRATION §7)
 
 | item | USD |
 |---|---|
 | cap (PREREGISTRATION §7, binding) | 4200.00 |
-| run rows since kickoff (arms, smokes, blind sessions; deduplicated by run_id) | 3272.72 |
+| run rows since kickoff (arms, smokes, blind sessions; deduplicated by run_id) | 3280.57 |
 | host cost ledger since kickoff (dissents, Flatline, judge-side calls) | 47.39 |
-| cycle meter total | 3320.12 |
-| headroom under the cap | 879.88 |
+| cycle meter total | 3327.96 |
+| headroom under the cap | 872.04 |
 | reserves still held (reproduction rerun, dissents) | 250.00 |
 
 No batch was stopped by the cap; the arm allowance and every reserve except the judge's were respected (the judge spent USD 43.1 against a reserve of 30; the contingency covered it).
@@ -288,7 +307,7 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 4. **Labels downstream of the pipeline.** The v2 key was re-derived from fix commits and incidents, but most of those fixes were prompted by the pipeline's own past reviews (review-driven share 0.827). The pipeline-independent co-read is the honest check and is too small to decide.
 5. **Key dependence.** The registered review-derived-key sensitivity reverses the primary's sign (nine PRs, fifty-seven defects, interval covering zero); the frozen c131 and v1 keys keep it on three PRs. Which key one believes decides the sign of the point estimate; no key makes the interval exclude zero in the pipeline's favour at matched dollars.
 6. **Placebo calibration.** At ten clusters the cluster-t interval is anti-conservative by about two points; the registration anticipated this and bounded it by the simulated size of the whole procedure.
-7. **Judge agreement is low** (κ about 0.2) and the registered correction is biased against arms with many citations per defect (DEC-0800). The grader stays primary as registered; the semantic question is open.
+7. **Judge agreement is low** (κ about 0.2) and the registered correction is biased against arms with many citations per defect (DEC-0800); the exploratory defect-level read puts the describing share at a quarter to a third of credited pairs in every arm, with the arm difference keeping the primary's sign inside a wide interval. The grader stays primary as registered; the semantic question is open.
 8. **Corpus ceiling.** N = 14 is every eligible fixture; the power simulation gave P(YES | MDE) 0.82 and P(NO | 0) 0.75 at that N, and a true null ends INCONCLUSIVE in about one study in seven. pr-11 (2026-09-25) is borderline for model exposure and is flagged; the pr-11-out sensitivity is above.
 9. **Sixteen addenda** corrected defects exposed by smokes, looks, the judge pilot and the first final read, each registered before the data it governs was read; `PREREGISTRATION-sha256.txt` lists the chain. None changed the primary estimand, the arms, the rule or the cap; addendum 16 supplied the missing label-set and co-read branches of the analysis and the `dominated` label.
 10. **Operations.** A host reboot killed the lead session at the start of Sprint 271 (recovered by `/run-resume`); two earlier reboots and one runner kill are recorded in `batches.md`. The Sprint 270 lead ran part of the sprint on Opus 5.5; arm and judge models are pinned in the registration and were unaffected.
