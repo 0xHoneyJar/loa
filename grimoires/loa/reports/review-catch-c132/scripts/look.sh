@@ -3,7 +3,7 @@
 # (they decide nothing). Writes grimoires/loa/reports/ablation-2.0/c132-looks/look-<k>/{rows.jsonl,INPUTS.json,look-<k>.md,look-<k>.json}.
 set -euo pipefail
 cd /home/merlin/Documents/thj/code/loa
-k="$1"; NAME="${2:-look-$1}"; ROOT=grimoires/loa/evals/ablation-2.0-c132; REG=$ROOT/REGISTRATION-13.json
+k="$1"; NAME="${2:-look-$1}"; ROOT=grimoires/loa/evals/ablation-2.0-c132; REG=$ROOT/REGISTRATION-14.json
 source ~/.cache/loa/cycle-132/registration.txt   # REG_SHA, PIN, REG (bare file name)
 REG="$ROOT/${REG##*/}"   # the binding registration: REGISTRATION-8.json (addendum 9)
 OUT=grimoires/loa/reports/ablation-2.0/c132-looks/$NAME; mkdir -p "$OUT"

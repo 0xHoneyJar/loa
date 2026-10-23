@@ -10,7 +10,7 @@
 set -euo pipefail
 cd /home/merlin/Documents/thj/code/loa
 which="$1"; pin="$2"; shift 2
-ROOT=grimoires/loa/evals/ablation-2.0-c132; REG=$ROOT/REGISTRATION-13.json; LOG=grimoires/loa/reports/ablation-2.0/self-check-c132.txt
+ROOT=grimoires/loa/evals/ablation-2.0-c132; REG=$ROOT/REGISTRATION-14.json; LOG=grimoires/loa/reports/ablation-2.0/self-check-c132.txt
 ALL=review-r27,review-r28,review-r23,review-r14,review-r15,review-r25,review-r16,review-r26,review-r21,review-r19,review-r24,review-r20,review-r22,review-r11
 G1=review-r27,review-r28,review-r23,review-r14,review-r15,review-r25; G2=review-r16,review-r26,review-r21,review-r19; G3=review-r24,review-r20,review-r22,review-r11
 SECONDARY=a0_bare_fable_matched,a1_review_only
@@ -27,4 +27,4 @@ if [[ "$which" != smoke && "$which" != smoke3 && "$which" != smoke4 ]]; then
 fi
 bash evals/harness/run-ablation.sh --source-commit "$pin" --registration "$REG" --arms "$arms" --tasks "$tasks" --trials-review "$trials" \
   --concurrency 3 --run-cap 45 --batch "$batch" --results-root evals/results/ablation-2.0 --suite-root "$ROOT" --allow-partial \
-  --self-check-log "$LOG" --pre-registration-ref "NOTES 2026-10-21T06:35:41Z REGISTRATION-13 sha256 05fa23fe8c69ce300fd3f704234d9b477e5394ccd2980b4eee383b0f0839a33a pin fbd36a0c" --batch-context "$batch" "$@"
+  --self-check-log "$LOG" --pre-registration-ref "NOTES 2026-10-21T06:35:41Z REGISTRATION-14 sha256 380f7a3656d3c9dfbd93ce73ab8732ec6a777ccf89f8e49e892ed27c5b595090 pin fbd36a0c" --batch-context "$batch" "$@"
