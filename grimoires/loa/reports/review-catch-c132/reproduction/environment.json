@@ -1,0 +1,14 @@
+{
+  "clone_head": "3be895f230aa1eef6137e632bffc26dc274c5e5f",
+  "pipeline_pin": "fbd36a0c9880b244af08133013f3b6959b085c94",
+  "pin_tree_identical_to_head": true,
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "image_digest_registered": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "image_matches": true,
+  "lite_tree_present": true,
+  "registration_sha256": "c9d98acb2668dabb4e7a9e3942bc6f1d880997cfe1e3e8c5cbc25cf42906eeb9",
+  "python": "Python 3.13.5",
+  "jq": "jq-1.7",
+  "bash": "5.2.37(1)-release",
+  "host": "Linux 6.16.12+deb13-amd64 x86_64"
+}

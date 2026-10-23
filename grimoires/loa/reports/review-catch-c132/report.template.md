@@ -153,7 +153,18 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 
 ## Proof
 
-- **Reproduction** (FR-10): an Opus 5.5 reproducer, from a fresh clone of the record branch into an empty directory, re-grades every recorded run, re-rows, re-reads and re-runs the registered sample live; the record's stage-1 commit is `b15e546e649f98d81378ad3c6261525925b88a1c` and its stage 1b (one commit on top: the live-rerun flag fix of addendum 18) is `3be895f230aa1eef6137e632bffc26dc274c5e5f` (`record/cycle-132-conclusive-review-catch`); the reproducer's report is `reproduction/report.md` beside this file (and `grimoires/loa/a2a/sprint-271/reproduction/report.md` on the record's stage 2), and `REPRODUCE.md` beside this file carries the exact commands and expected hashes.
+- **Reproduction** (FR-10): an Opus 5.5 reproducer, from a fresh clone of the record branch into an empty directory (no access to the lead's working tree), re-graded every recorded run, re-rowed, re-read and re-ran the registered sample live; the record's stage-1 commit is `b15e546e649f98d81378ad3c6261525925b88a1c` and its stage 1b (one commit on top: the live-rerun flag fix of addendum 18) is `3be895f230aa1eef6137e632bffc26dc274c5e5f` (`record/cycle-132-conclusive-review-catch`); the reproducer's report is `reproduction/report.md` beside this file (and `grimoires/loa/a2a/sprint-271/reproduction/report.md` on the record's stage 2), and `REPRODUCE.md` beside this file carries the exact commands and expected hashes.
+
+### Reproduction result (`reproduction/report.md`, from the fresh clone of stage 1b `3be895f2`)
+
+{{table reproduction/report.md "## Hash table"}}
+
+Every recorded grade, row and read reproduced byte for byte; the seven run directories the runner never graded are listed in the report, not counted. The live rerun of the registered sample (DEC-0812: review-r24, one trial per arm, USD 51.33, every run completed, none contaminated or oracle-exposed):
+
+{{table reproduction/report.md "## Sampled live rerun (DEC-0812"}}
+
+Read as the registration asks: the full arm's rerun sits inside its recorded range; the matched bundle's and review-only's reruns each fall one defect of nine outside their recorded two-trial ranges (8 of 9 against two perfect trials; 6 of 9 under the proximity rule against 7 and 8 of 9), and are named here as discrepancies. A third draw landing outside a two-point range is a one-in-three event per arm under exchangeability, so two of three outside is within chance; the apparatus ran, graded and rowed exactly as in Phase 1, and nothing in these three cells changes any read.
+
 - **Controls:** the positive control and both placebos above (`placebo-phase1.md`, `placebo-existing/placebo-existing.md`).
 - **Judge:** `judge/result.md`, `judge/result.json`, `judge/key-summary.json`; the exploratory defect-level read in `judge-defects/`.
 - **Dissent records:** plan-stage Flatline reviews of the PRD, SDD, sprint plan and the pre-registration (`grimoires/loa/a2a/flatline/{prd,sdd,sprint,spec}-flatline-*-final_consensus.json`, `grimoires/loa/a2a/sprint-269/flatline-prereg.json`); the review and audit dissent envelopes of Sprints 269, 270 and 271 (`grimoires/loa/a2a/sprint-26{9,70}/adversarial-{review,audit}.json`, `sprint-270/` copied beside this file, `sprint-271/`); the Bridgebuilder round on the cycle PR.
