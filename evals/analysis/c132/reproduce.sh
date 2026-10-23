@@ -17,7 +17,8 @@
 #      calls it), re-run the reads (--make-inputs, --final with --judge and --sensitivity-grades, --placebo) under the registration the
 #      tracked reads were taken under (REGISTRATION-15), and compare every artefact's sha256 with the record; write the report.
 #   6. --live-sample: run-ablation.sh at the pin for the DEC-0812 sample — review-r24 in a1_full, a0_bare_matched and a1_review_only,
-#      one trial — into <scratch>/live (needs the operator's model credentials; about USD 50; --max-usd default 80), then the rerun grades
+#      one trial — into <scratch>/live with the tracked image self-check log (grimoires/loa/reports/ablation-2.0/self-check-c132.txt, the
+#      runner's DEC-0435 gate; the batch driver passed the same) (needs the operator's model credentials; recorded cost USD 50, the runner's conservative estimate USD 104; --max-usd default 110), then the rerun grades
 #      against the recorded arm range on review-r24 are appended to the report.
 # Exit: 0 everything reproduced (and the live sample inside range when run); 1 a difference, named in the report; 2 environment or usage.
 set -euo pipefail
@@ -32,7 +33,7 @@ SENS=grimoires/loa/reports/ablation-2.0/c132-sensitivity-grades
 POWER=grimoires/loa/reports/ablation-2.0/power-c132/power.json
 LITE=evals/results/ablation-2.0/c132-lite
 scratch="${REPRO_SCRATCH:-$ROOT/.repro-scratch}"; jobs=4; batches=""; steps=reconstruct,grade,rows,reads,report; report=grimoires/loa/a2a/sprint-271/reproduction/report.md
-envcheck=1; live=0; maxusd=80; dry=0
+envcheck=1; live=0; maxusd=110; dry=0
 while (( $# )); do case "$1" in
   --scratch) scratch="$2"; shift 2;; --jobs) jobs="$2"; shift 2;; --batches) batches="$2"; shift 2;; --steps) steps="$2"; shift 2;;
   --report) report="$2"; shift 2;; --no-env-check) envcheck=0; shift;; --live-sample) live=1; shift;; --max-usd) maxusd="$2"; shift 2;;
@@ -67,7 +68,9 @@ if (( live )) && (( ! dry )); then
   echo "reproduce.sh: live sample (DEC-0812) — review-r24 × a1_full,a0_bare_matched,a1_review_only × 1 trial at the pin, cap USD $maxusd"
   bash evals/harness/run-ablation.sh --source-commit "$PIN" --registration "$REG" --arms a1_full,a0_bare_matched,a1_review_only --tasks review-r24 \
     --trials-review 1 --concurrency 3 --run-cap 45 --batch c132-repro-live --results-root "$L" --suite-root "$SUITE" --allow-partial \
-    --batch-context c132-repro-live --max-usd "$maxusd" || echo "reproduce.sh: run-ablation.sh exit $? (recorded in the report)"
+    --batch-context c132-repro-live --max-usd "$maxusd" --self-check-log grimoires/loa/reports/ablation-2.0/self-check-c132.txt \
+    --pre-registration-ref "REPRODUCE.md: DEC-0812 live sample under REGISTRATION-15 sha256 $(jq -r .supersedes "$SUITE/REGISTRATION-16.json") pin $PIN" \
+    || echo "reproduce.sh: run-ablation.sh exit $? (recorded in the report)"
   python3 -I - "$ROWS" "$L/runs.jsonl" "$report" <<'PY'
 import json, sys
 rows_p, live_p, report_p = sys.argv[1:4]
