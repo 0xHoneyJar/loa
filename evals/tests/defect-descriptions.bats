@@ -6,7 +6,8 @@
 # an incident defect, two annotators' labels, a lead adjudication; one source id with no record):
 # the text per defect, both annotators' descriptions deduplicated A first, the missing-record
 # clause and its stderr count, determinism, the refusal on an arm token absent from the PR content
-# (and its PR-native exemption), usage.
+# (and its PR-native whole-token exemption; --forbid tokens never exempt — round 9), a non-object
+# manifest defect and unreadable PR content refused, usage.
 # =============================================================================
 
 setup() {
@@ -88,5 +89,49 @@ J
   run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
   [ "$status" -eq 1 ]
   [[ "$output" == *"unknown source kind"* ]]
+  [ ! -e "$T/o.json" ]
+}
+
+@test "DD-6 a --forbid token refuses even when the PR content carries it (never exempt, as judge-sample.sh)" {
+  printf 'Users saw a crash in batch c132-g1.\n' >> "$T/review-prs/pr-90/PR.md"
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json" --forbid crash
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance token (crash)"* ]]
+  [ ! -e "$T/o.json" ]
+}
+
+@test "DD-7 an arm/trial token is exempt only on a whole-token match in the PR content, not a substring" {
+  sed -i 's/Users saw a crash./The a1_full trial crashed./' "$AN/pr-90/A/labels.json"
+  printf 'data1_full_x and trials\n' > "$T/review-prs/pr-90/head/arms.txt"
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance token (a1_full, trial)"* ]]
+  [ ! -e "$T/o.json" ]
+  printf 'x(a1_full) and trials\n' > "$T/review-prs/pr-90/head/arms.txt"
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance token (trial)"* ]]
+  printf 'x(a1_full) and one trial.\n' > "$T/review-prs/pr-90/head/arms.txt"
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "DD-8 a non-object manifest defect and unreadable PR content refuse with nothing written" {
+  cp "$M/pr-90.json" "$T/orig.json"
+  jq -c '.defects += ["V03"]' "$T/orig.json" > "$M/pr-90.json"
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"manifest defect 3 is not an object"* ]]
+  [[ "$output" != *"Traceback"* ]]
+  [ ! -e "$T/o.json" ]
+  cp "$T/orig.json" "$M/pr-90.json"
+  mkdir "$T/review-prs/pr-90/head/sub"; printf 'x\n' > "$T/review-prs/pr-90/head/sub/locked.txt"
+  chmod 000 "$T/review-prs/pr-90/head/sub/locked.txt"
+  if [ "$(id -u)" -eq 0 ]; then chmod 644 "$T/review-prs/pr-90/head/sub/locked.txt"; skip "root reads mode-000 files"; fi
+  run python3 -I "$DD" "${ARGS[@]}" --out "$T/o.json"
+  chmod 644 "$T/review-prs/pr-90/head/sub/locked.txt"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"PR content unreadable"* ]]
+  [[ "$output" != *"Traceback"* ]]
   [ ! -e "$T/o.json" ]
 }

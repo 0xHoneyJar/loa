@@ -557,6 +557,50 @@ class ContaminationFamilyTest(Base):
         r = jload(os.path.join(o, "reads.json"))["sensitivities"]["reads"]["class9_nonrepo_egress_reincluded"]
         self.assertEqual(r["reincluded_keys"], ["c132-g1/a0_bare_matched/review-s05/1"])
 
+    def _register(self, s, names):
+        import hashlib
+        with open(s["registration"]) as f:
+            reg = json.load(f)
+        reg["sensitivities"] = names
+        with open(s["registration"], "w") as f:
+            f.write(json.dumps(reg, sort_keys=True, separators=(",", ":")))
+        with open(s["registration"], "rb") as f:
+            h = hashlib.sha256(f.read()).hexdigest()
+        rows = [json.loads(l) for l in slurp(s["rows"]).splitlines()]
+        with open(s["rows"], "w") as f:
+            for r in rows:
+                r["registration_sha256"] = h
+                f.write(json.dumps(r, sort_keys=True) + "\n")
+        rc, err = run(["--rows", s["rows"], "--results-root", s["results"], "--make-inputs", "--out", s["inputs_dir"]])
+        self.assertEqual(rc, 0, err)
+
+    def test_round4_name_one_bootstrap_same_bytes_as_family_member(self):
+        """round 9 (review DISS-C-002): the legacy name calls reinclude once for its class and never builds
+        the family; its read is byte-identical to the family's member, and the family is unchanged"""
+        s = self.batch_with_classes()
+        self._register(s, ["contaminated_reincluded_per_class", "class9_nonrepo_egress_reincluded"])
+        o = os.path.join(self.tmp, "both")
+        rc, err = run(self.common_args(s) + ["--final", "--out", o])
+        self.assertEqual(rc, 0, err)
+        both = jload(os.path.join(o, "reads.json"))["sensitivities"]["reads"]
+        dump = lambda v: json.dumps(v, sort_keys=True)
+        self.assertEqual(dump(both["class9_nonrepo_egress_reincluded"]),
+                         dump(both["contaminated_reincluded_per_class"]["classes"]["network_egress:nonrepo"]))
+        self._register(s, ["class9_nonrepo_egress_reincluded"])
+        calls, fam_calls = [], []
+        real_re, real_fam = reads.reinclude, reads.reincluded_family
+        reads.reinclude = lambda *a, **k: calls.append(a[3]) or real_re(*a, **k)
+        reads.reincluded_family = lambda *a, **k: fam_calls.append(1) or real_fam(*a, **k)
+        try:
+            o1 = os.path.join(self.tmp, "legacy")
+            rc, err = run(self.common_args(s) + ["--final", "--out", o1])
+        finally:
+            reads.reinclude, reads.reincluded_family = real_re, real_fam
+        self.assertEqual(rc, 0, err)
+        self.assertEqual((calls, fam_calls), (["network_egress:nonrepo"], []))
+        legacy = jload(os.path.join(o1, "reads.json"))["sensitivities"]["reads"]["class9_nonrepo_egress_reincluded"]
+        self.assertEqual(dump(legacy), dump(both["class9_nonrepo_egress_reincluded"]))
+
     def test_detail(self):
         d = common.contamination_detail
         self.assertEqual(d({"pattern": "network_egress", "repo_named": False}), "network_egress:nonrepo")

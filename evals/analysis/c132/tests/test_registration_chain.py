@@ -57,10 +57,17 @@ class ChainTest(unittest.TestCase):
         with self.assertRaises(common.InputError):
             common.validate_registration(os.path.join(self.d, "REGISTRATION-1.json"), rows_for([self.h2]))
 
-    def test_missing_predecessor_unresolved_but_declared_sha_passes(self):
+    def test_missing_predecessor_unresolved_and_refused(self):
+        # round 9 (audit DISS-C-001): a declared predecessor whose file is absent stays in the reported
+        # lineage but is not accepted; rows under it fail, tagged as an unresolved predecessor
         os.remove(os.path.join(self.d, "REGISTRATION-1.json"))
         rows = rows_for([self.h1, self.h2, self.h2])
-        self.assertEqual(common.validate_registration(self.p2, rows), self.h2)
+        with self.assertRaises(common.InputError) as cm:
+            common.validate_registration(self.p2, rows)
+        self.assertIn("registration_sha256 differs from %s on 1 row(s): g1/a1_full/t0/1" % self.h2[:12],
+                      str(cm.exception))
+        self.assertIn("%s (unresolved predecessor)" % self.h1[:12], str(cm.exception))
+        self.assertEqual(common.validate_registration(self.p2, rows_for([self.h2])), self.h2)
         prov = common.registration_provenance(self.p2, rows)
         self.assertEqual(prov["chain"], [self.h2, self.h1])
         self.assertEqual(prov["unresolved_predecessor"], [self.h1])
@@ -68,6 +75,21 @@ class ChainTest(unittest.TestCase):
         # the walk stops at the missing file: h0 lies beyond the evidence and is refused
         with self.assertRaises(common.InputError):
             common.validate_registration(self.p2, rows_for([self.h0]))
+
+    def test_malformed_supersedes_is_an_input_error(self):
+        for bad in ("f" * 63, "F" * 64, self.h2 + "\n", "g" * 64, "not-a-sha"):
+            p, _ = write_reg(self.d, "REGISTRATION-9.json", bad, 9)
+            for fn in (lambda: common.validate_registration(p, rows_for([self.h2])),
+                       lambda: common.registration_provenance(p, [])):
+                with self.assertRaises(common.InputError) as cm:
+                    fn()
+                self.assertIn("not a 64-hex sha256", str(cm.exception))
+
+    def test_malformed_supersedes_in_a_predecessor_is_an_input_error(self):
+        _, hb = write_reg(self.d, "REGISTRATION-7.json", "xyz", 7)
+        p, _ = write_reg(self.d, "REGISTRATION-8.json", hb, 8)
+        with self.assertRaises(common.InputError):
+            common.registration_chain(p)
 
     def test_provenance_counts(self):
         rows = rows_for([self.h0, self.h1, self.h1, self.h2, self.h2, self.h2])

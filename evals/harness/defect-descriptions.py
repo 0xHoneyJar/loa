@@ -19,10 +19,12 @@ a source id with no annotator description reads "H04: no annotator description")
 "(category: x; severity: y)" from the manifest. A stderr summary counts the source ids without
 an annotator description.
 
-Refuses (exit 1, nothing written) when a text carries an arm id (a<digits>_…), the words
-"trial" or "arm ", or a --forbid token (batch names, run ids), unless that token also occurs in
-the fixture's PR content (PR.md, head.diff, the files under head/ and base/ of
-<pr-root>/<fixture>; default pr-root = the manifests directory's parent).
+Refuses (exit 1, nothing written) when a text carries a --forbid token (batch names, run ids;
+never exempt, as in judge-sample.sh), or an arm id (a<digits>_…) or the words "trial" or "arm "
+unless that token also occurs as a whole token (no letter, digit or _ on either side) in the
+fixture's PR content (PR.md, head.diff, the files under head/ and base/ of <pr-root>/<fixture>;
+default pr-root = the manifests directory's parent). A manifest defect that is not an object, or
+PR content that cannot be read, also refuses.
 
 Exit: 0 written; 1 inputs invalid or a refusal; 2 usage.
 """
@@ -110,18 +112,30 @@ def pr_native(pr_dir):
     parts = []
     for p in paths:
         if os.path.isfile(p) and not os.path.islink(p):
-            with open(p, "rb") as f:
-                parts.append(f.read(NATIVE_CAP).decode("utf-8", "replace"))
+            try:
+                with open(p, "rb") as f:
+                    parts.append(f.read(NATIVE_CAP).decode("utf-8", "replace"))
+            except OSError as e:
+                raise Refuse("PR content unreadable: %s (%s)" % (p, e))
     return "\n".join(parts)
 
 
+def whole_token(tok, native):
+    """tok occurs in native with no letter, digit or _ immediately before or after it (a token that
+    already ends in a non-word character, such as "arm ", needs no right-hand guard)"""
+    tail = r"(?![A-Za-z0-9_])" if re.match(r"[A-Za-z0-9_]", tok[-1:]) else ""
+    return re.search(r"(?<![A-Za-z0-9_])" + re.escape(tok) + tail, native) is not None
+
+
 def leaks(text, native, forbid):
-    """the provenance-looking tokens of text that the PR content does not also carry"""
+    """the provenance-looking tokens of text: every --forbid token it carries (never exempt), and the
+    regex-detected arm/trial tokens the PR content does not also carry as a whole token"""
     toks = set()
     for pat in PATTERNS:
         toks.update(m.group(0) for m in pat.finditer(text))
-    toks.update(t for t in forbid if t and t in text)
-    return sorted(t for t in toks if t not in native)
+    bad = {t for t in toks if not whole_token(t, native)}
+    bad.update(t for t in forbid if t and t in text)
+    return sorted(bad)
 
 
 def build(a):
@@ -140,7 +154,9 @@ def build(a):
         labels, lead = annotation(a.annotation_root, fx)
         native = None
         entries = {}
-        for d in defects:
+        for n_d, d in enumerate(defects, 1):
+            if not isinstance(d, dict):
+                raise Refuse("manifest %s: manifest defect %d is not an object" % (fx, n_d))
             did = str(d.get("id", ""))
             if not did or did in entries:
                 raise Refuse("manifest %s: missing or duplicate defect id %r" % (fx, did))

@@ -764,10 +764,10 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
             # rounds 4–5 (PREREGISTRATION §12 addenda): per contamination class observed in the rows, the
             # primary read with the cells whose ONLY invalidity is a contamination of that class counted
             # valid (recall as graded), plus every class at once; the main filter stays unchanged.
-            # The round-4 name runs only its class-9 non-repository member (same semantics).
-            fam = reincluded_family(cells, reg, seed)
-            res[name] = fam["classes"].get("network_egress:nonrepo", reinclude(cells, reg, seed, "network_egress:nonrepo")) \
-                if name == "class9_nonrepo_egress_reincluded" else fam
+            # The round-4 name runs only its class-9 non-repository member (same semantics), computed
+            # once without the rest of the family (round 9, review DISS-C-002).
+            res[name] = reinclude(cells, reg, seed, "network_egress:nonrepo") \
+                if name == "class9_nonrepo_egress_reincluded" else reincluded_family(cells, reg, seed)
         elif name == "pr_weighted":
             res[name] = prim.get("pr_weighted") or {"status": prim.get("status")}
         elif name == "matched_fable_contrast":
