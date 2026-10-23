@@ -25904,3 +25904,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0798"
+    created_at: "2026-10-23T08:03:07Z"
+    updated_at: "2026-10-23T08:03:07Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Addendum 13 (judge sampler): cited paths resolve as the grader credits them; pilot labels discarded; all 1,903 items judged on regenerated packets"
+    decision: "judge-sample.sh resolves a cited region path in the grader order (exact, the labelled defect file when it ends with the cited path, the unique head-tree file ending with it, the PR files), names the resolved path in the packet header and records the resolution per item; sampling is byte-identical (verified). Registered as REGISTRATION-12.json at the unchanged pipeline pin. The 64 pilot labels judged on the old packets are archived and not used; every chunk is judged on the regenerated packets."
+    rationale: "302 of 1,903 packets (16 percent) lacked the cited code because reviewers cite partial paths the grader accepts; a blind judge without the code cannot audit the grader and leans to does-not-describe, a bias against whichever arm cites short paths. Found by a deliberate pilot before any real judging; after the fix 13 packets stay unresolved."
+    alternatives_considered:
+      - option: "keep the pilot labels for the 64 items"
+        rejected_because: "some of those packets changed content; mixing labels judged on two packet versions muddies the agreement read for USD 0.73 of savings"
+      - option: "accept the 16 percent unresolved packets and report it"
+        rejected_because: "a known directional bias in the semantic audit is cheaper to fix than to explain"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "81d13ea0"
+    source: "grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-13.md (Sprint 270, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T08:03:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "commit fc31c990 (patch s1-c-r15; judge-sample.bats 16/16); REGISTRATION-12.json; ~/.cache/loa/cycle-132/logs/judge-sample-2.log; pilot archive ~/.cache/loa/cycle-132/judge/pilot-pre-addendum-13/"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
