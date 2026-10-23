@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release hold:** v2.0.0-rc.7 is held until the cycle-132 measurement reads land (the conclusive review-catch answer: does the review pipeline catch more real defects per dollar than a bare model at the same dollars, on unseen PRs). Nothing below is released before then; the rc.7 heading is cut at the cycle's ship step after the reads and the reproduction proof (DEC-0670).
+## [2.0.0-rc.7] — 2026-10-24 — The conclusive review-catch answer (release candidate)
+
+> The rc.7 hold declared in Sprint 269 is lifted: the cycle-132 reads and the Phase 3 proof landed (REGISTRATION-15 for the reads, REGISTRATION-16/17 for the reproduction tooling; `grimoires/loa/reports/review-catch-c132/report.md`). The answer, in one sentence: the pipeline caught about ten points more of the labelled defects than a same-dollar bundle of bare Opus 5.5 sessions, inside an interval from −0.09 to +0.29 that includes zero and the MDE, with the stopping rule not firing and a quarter of the full arm lost to a structural limitation — not proven at this corpus size, and nothing shipped by default changes.
 
 ### Fixed (cycle-132 /bug micro-sprints, 2026-10-21)
 
