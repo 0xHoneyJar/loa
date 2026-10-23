@@ -7,7 +7,7 @@ Every grade, row and read of the measurement is re-derived from a fresh clone of
 ```
 git clone --branch record/cycle-132-conclusive-review-catch --single-branch https://github.com/0xHoneyJar/loa.git c132-record
 cd c132-record
-git rev-parse HEAD      # stage 1 = b15e546e649f98d81378ad3c6261525925b88a1c; stage 1b (one commit on top, the live-rerun flag fix of addendum 18) is what the branch points at before the merge: `git rev-parse HEAD^` must print b15e546e…; stage 2 appends the reproduction report and the gate records
+git rev-parse HEAD      # stage 1 = b15e546e649f98d81378ad3c6261525925b88a1c; stage 1b = 3be895f230aa1eef6137e632bffc26dc274c5e5f (one commit on top, the live-rerun flag fix of addendum 18) is what the branch points at before the merge: `git rev-parse HEAD^` must print b15e546e…; stage 2 appends the reproduction report and the gate records
 ```
 
 The record is the cycle tree at the Sprint 271 head plus the gitignored records: `grimoires/loa/a2a/` (sprints 269–271, the bug micro-sprints, Flatline consensus records, annotation packets and labels, dissent envelopes), `grimoires/loa/NOTES.md` and its archive, the judge files, `evals/results/ablation-2.0/runs.jsonl`, every `c132-*` batch and smoke record (MANIFEST, STATUS, logs, rows; per run directory `grade.json`, `meta/`, `transcripts/`, `eval/`, `grading/gates-combined.md`; never `sandbox/`, `snapshots/` or `grading/pr/`), and the sandbox-lite tree `evals/results/ablation-2.0/c132-lite/` — per run directory the agent's outputs (`review.md`, everything under the sandbox's `grimoires/`), the sandbox copies of the key's defect files, every `pr/` file that differs from the tracked fixture, and `sandbox-manifest.json` listing every sandbox file with its sha256.
