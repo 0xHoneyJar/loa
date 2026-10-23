@@ -7,7 +7,7 @@ Every grade, row and read of the measurement is re-derived from a fresh clone of
 ```
 git clone --branch record/cycle-132-conclusive-review-catch --single-branch https://github.com/0xHoneyJar/loa.git c132-record
 cd c132-record
-git rev-parse HEAD      # stage 1 = b15e546e649f98d81378ad3c6261525925b88a1c (its own SHA cannot sit inside it; stage 2, which appends the reproduction report and the gate records, carries this line)
+git rev-parse HEAD      # stage 1 = b15e546e649f98d81378ad3c6261525925b88a1c; stage 1b (one commit on top, the live-rerun flag fix of addendum 18) is what the branch points at before the merge: `git rev-parse HEAD^` must print b15e546e…; stage 2 appends the reproduction report and the gate records
 ```
 
 The record is the cycle tree at the Sprint 271 head plus the gitignored records: `grimoires/loa/a2a/` (sprints 269–271, the bug micro-sprints, Flatline consensus records, annotation packets and labels, dissent envelopes), `grimoires/loa/NOTES.md` and its archive, the judge files, `evals/results/ablation-2.0/runs.jsonl`, every `c132-*` batch and smoke record (MANIFEST, STATUS, logs, rows; per run directory `grade.json`, `meta/`, `transcripts/`, `eval/`, `grading/gates-combined.md`; never `sandbox/`, `snapshots/` or `grading/pr/`), and the sandbox-lite tree `evals/results/ablation-2.0/c132-lite/` — per run directory the agent's outputs (`review.md`, everything under the sandbox's `grimoires/`), the sandbox copies of the key's defect files, every `pr/` file that differs from the tracked fixture, and `sandbox-manifest.json` listing every sandbox file with its sha256.
@@ -42,10 +42,10 @@ Seven recorded run directories carry no `grade.json`: runs the runner never grad
 ## 5. Live rerun (DEC-0812; needs model credentials; about USD 50)
 
 ```
-evals/analysis/c132/reproduce.sh --scratch /tmp/c132-repro --jobs 4 --live-sample --max-usd 80
+evals/analysis/c132/reproduce.sh --scratch /tmp/c132-repro --jobs 4 --live-sample --max-usd 110
 ```
 
-Reruns review-r24 in `a1_full`, `a0_bare_matched` (k 11) and `a1_review_only`, one trial each, with `run-ablation.sh` at the pin under REGISTRATION-15, into `<scratch>/live`, and appends to the report each rerun grade against the recorded arm range on review-r24 (both recorded trials). A grade inside the range confirms the apparatus; one outside is a named discrepancy.
+Reruns review-r24 in `a1_full`, `a0_bare_matched` (k 11) and `a1_review_only`, one trial each, with `run-ablation.sh` at the pin under REGISTRATION-15 (the tracked image self-check log passed as the batch driver did; the runner's conservative plan estimate is USD 104, the recorded cost USD 50), into `<scratch>/live`, and appends to the report each rerun grade against the recorded arm range on review-r24 (both recorded trials). A grade inside the range confirms the apparatus; one outside is a named discrepancy.
 
 ## 6. What the reproducer reports
 
