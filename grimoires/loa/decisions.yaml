@@ -27451,3 +27451,651 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0819"
+    created_at: "2026-10-23T21:25:26Z"
+    updated_at: "2026-10-23T21:25:26Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-133 PRD is grounded by direct reads and the cycle-132 archive, not a /ride re-run (reality files date from 2026-05-04)"
+    decision: "Skip the brownfield /ride re-run. Ground every requirement in a file:line read taken this session (harness, Bridgebuilder sources, scripts, hooks) and in the cycle-132 artefacts; record the stale reality as a known gap in the PRD appendix."
+    rationale: "The scope is a list of named defects with known locations; a 20-minute repository-wide extraction adds nothing a direct read has not already established, and the reality files are five months stale either way."
+    alternatives_considered:
+      - option: "run /ride --fresh first"
+        rejected_because: "twenty minutes of broad extraction for requirements whose sources are already cited by line"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:25:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0820"
+    created_at: "2026-10-23T21:25:29Z"
+    updated_at: "2026-10-23T21:25:29Z"
+    phase: "discovery"
+    category: "release"
+    summary: "cycle-133 ships as 2.0.0-rc.8, a pre-release through the rc recipe; the publish fix (bd-kwloh) lands first so the tag reaches main"
+    decision: "CHANGELOG [Unreleased] becomes 2.0.0-rc.8 after the last audit; the post-merge candidate is published through the rc recipe; Sprint 1 fixes the publish path so the tagged commit is reachable from main (fast-forward or tag-the-merge, as the SDD decides)."
+    rationale: "Majors ship as release candidates first (operator rule); the rc.6 and rc.7 tags sit on commits main cannot reach, which the same cycle should not repeat."
+    alternatives_considered:
+      - option: "ship as 2.0.0 final"
+        rejected_because: "the rc series is the soak; this cycle changes the reviewer, the release path and the harness at once"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:25:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0821"
+    created_at: "2026-10-23T21:25:32Z"
+    updated_at: "2026-10-23T21:25:32Z"
+    phase: "discovery"
+    category: "quality"
+    summary: "The ten pre-existing tests/unit failures on main (bd-tgn04) are fixed or quarantined with a dated reason in this cycle; nothing ships red"
+    decision: "Every failing unit test named in bd-tgn04 is either repaired (retired Opus 4.x aliases, CR-7 --reprice, catalogue pins) or quarantined with a dated skip reason and a bead; the full tests/unit run is green on the shipped head and CI runs it."
+    rationale: "A suite that is red on main cannot gate anything; the cycle-132 shortcut of pinning around it is what bd-tgn04 records."
+    alternatives_considered:
+      - option: "leave them and keep pinning"
+        rejected_because: "every future red is indistinguishable from the ten known ones"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:25:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0822"
+    created_at: "2026-10-23T21:27:16Z"
+    updated_at: "2026-10-23T21:27:16Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-133 scope: implement the 25 named carry-over and framework beads plus the no-spend product tooling; sweep the other 285 open beads with evidence"
+    decision: "All the beads reads as: Tier 1 implement the 25 beads named in the brief (cycle-132 audit and Bridgebuilder follow-ups, the older cycle-132 carry-overs, the six framework fixes filed 2026-10-23) and the two product changes plus the corpus-seeding tooling; Tier 2 a verified sweep of the remaining 285 open beads (close implemented and obsolete ones with evidence, re-label the live ones backlog-2026-10, pull small in-scope live ones into the sprints)."
+    rationale: "Fifty of the open beads are P0 fossils from cycles 092-111 whose work shipped long ago; re-implementing them is waste, leaving them open is noise. The operator's instruction followed a summary that listed the carry-overs and improvements, so those are the implementation target and the rest is hygiene."
+    alternatives_considered:
+      - option: "implement every open bead literally (310)"
+        rejected_because: "most are shipped or obsolete; the tracker, not the code, is what is wrong"
+      - option: "implement only the 25 named beads and leave the tracker as is"
+        rejected_because: "a tracker with 285 stale rows cannot be the recovery source the framework says it is"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:27:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0823"
+    created_at: "2026-10-23T21:27:18Z"
+    updated_at: "2026-10-23T21:27:18Z"
+    phase: "discovery"
+    category: "budget"
+    summary: "cycle-133: no paid measurement; USD 100 cap for dissent, Bridgebuilder and one smoke (subagents excluded); the cycle-132 pin and record stay untouched"
+    decision: "No paid measurement run (annotation, arms, reads) in this cycle. Dissent runs, Bridgebuilder rounds and at most one harness smoke share a USD 100 cap; Opus subagent time is outside the cap. Every harness change ships as the next pipeline version with tests; the cycle-132 record branch and registered reads are never rewritten."
+    rationale: "The operator approved a budget for the cycle-132 measurement, not for a new one; the tooling the next measurement needs can be built and tested without model spend, and the external-corpus annotation is a funded decision of its own."
+    alternatives_considered:
+      - option: "re-run the measurement on a new corpus in this cycle"
+        rejected_because: "it needs its own power simulation, pre-registration and budget approval; folding it in would rush all three"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:27:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0824"
+    created_at: "2026-10-23T21:27:21Z"
+    updated_at: "2026-10-23T21:27:21Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "cycle-133 authorizes System Zone writes (the framework repo): each under a bounded zone marker, checksums and REPO-MAP regenerated in the same commit"
+    decision: "The PRD grants cycle-level authorization for System Zone changes (scripts, hooks, skills, Bridgebuilder sources and dist). Implementers write under .run/zone-guard-authorization.json with scope framework, a reason and an expiry of at most two hours, and regenerate .claude/checksums.json and grimoires/loa/REPO-MAP.md in the same commit."
+    rationale: "The zone rule protects consumer checkouts from editing their installed framework; this repository is the framework, and the cycle-132 findings are defects in it. The marker and the regenerated checksums keep the writes auditable."
+    alternatives_considered:
+      - option: "stage the fixes in .claude/overrides/"
+        rejected_because: "overrides customise a consumer install; they cannot fix the framework for everyone"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0825"
+    created_at: "2026-10-23T21:27:24Z"
+    updated_at: "2026-10-23T21:27:24Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "Loa reviews Loa: the SDD picks framework root, skill-only overlay or a file-read contract; acceptance is the addendum-9 oracle detector going silent"
+    decision: "The PRD states the goal (a review or audit of a PR touching .claude/ reads the PR's version of every .claude/ file while the pipeline's own skills, hooks and scripts stay pinned) and the acceptance (the addendum-9 oracle detector reports no exposure on a .claude/-touching fixture smoke); the SDD picks the design from the three candidates in the brief and records why."
+    rationale: "The three candidates differ in blast radius (a framework root touches every skill path; a skill-only overlay touches the harness; a file-read contract touches skill text) and the right one depends on code the SDD reads, not on the requirement."
+    alternatives_considered:
+      - option: "fix the PRD to the separate framework root now"
+        rejected_because: "its blast radius is the whole framework path model; that choice needs the architecture read first"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:27:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0826"
+    created_at: "2026-10-23T21:27:26Z"
+    updated_at: "2026-10-23T21:27:26Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-133 runs as four sprints: framework defects, harness and reproduction hardening, product changes, hygiene and ship; parallel Opus implementers per sprint"
+    decision: "Sprint 1 the framework's own defects and ergonomics; Sprint 2 the harness, grader and reproduction hardening under evals/; Sprint 3 Loa reviews Loa, the finding contract, the external corpus seeder and the stacked-PR guidance; Sprint 4 the beads hygiene sweep, docs, rc.8 and the ship. Implementers run in parallel worktrees within a sprint; sprints run in order through /run sprint-plan."
+    rationale: "The groups share files and tests (Bridgebuilder sources; evals/harness and evals/analysis; skills and grader) so they review and audit as units; the product changes depend on the harness fixes landing first; hygiene last so the sweep sees the cycle's own closures."
+    alternatives_considered:
+      - option: "one sprint per bead"
+        rejected_because: "twenty-five review-audit cycles for one-file fixes is ceremony without quality"
+      - option: "two large sprints"
+        rejected_because: "System Zone and evals/ changes carry different review surfaces and gates; mixing them widens every dissent diff past the voice budget (KF-004 class)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:27:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-133-brief.md (operator instruction 2026-10-23: proceed end to end with implementing all the beads / improvements); PRD cycle-133 § Appendix"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0827"
+    created_at: "2026-10-23T21:28:51Z"
+    updated_at: "2026-10-23T21:28:51Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "D-1 scope: implement the 25 named beads and the no-spend product tooling; verified hygiene sweep of the other 285 open beads"
+    decision: "As DEC-0822: Tier 1 implements the 25 beads named in the brief plus the two product changes and the corpus-seeding tooling; Tier 2 sweeps the remaining 285 open beads with evidence."
+    rationale: "Fifty open beads are P0 fossils from cycles 092-111; re-implementing them is waste, leaving them open is noise; the operator's instruction followed the summary that named the carry-overs."
+    alternatives_considered:
+      - option: "implement every open bead literally"
+        rejected_because: "most are shipped or obsolete"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-1 (cycle-133; restates the kickoff row DEC-0822 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:28:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-1 (cycle-133; restates the kickoff row DEC-0822 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0828"
+    created_at: "2026-10-23T21:28:53Z"
+    updated_at: "2026-10-23T21:28:53Z"
+    phase: "discovery"
+    category: "budget"
+    summary: "D-2 budget: no paid measurement; USD 100 cap for dissent, Bridgebuilder and one smoke; the cycle-132 pin and record untouched"
+    decision: "As DEC-0823: no annotation, arms or reads are paid for in this cycle; dissent, Bridgebuilder and at most one harness smoke share USD 100 (subagents excluded); the cycle-132 record and registered reads are never rewritten."
+    rationale: "The cycle-132 budget covered its measurement, not a new one; the tooling the next measurement needs is buildable without model spend."
+    alternatives_considered:
+      - option: "re-measure on a new corpus now"
+        rejected_because: "needs its own power simulation, pre-registration and budget approval"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-2 (cycle-133; restates the kickoff row DEC-0823 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:28:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-2 (cycle-133; restates the kickoff row DEC-0823 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0829"
+    created_at: "2026-10-23T21:28:56Z"
+    updated_at: "2026-10-23T21:28:56Z"
+    phase: "discovery"
+    category: "process"
+    summary: "D-3 grounding: direct file:line reads and the cycle-132 archive instead of a /ride re-run (reality files from 2026-05-04)"
+    decision: "As DEC-0819: skip the brownfield /ride re-run; every requirement cites a read taken this session or a cycle-132 artefact; the stale reality is a recorded gap."
+    rationale: "The scope is a list of named defects with known locations; a repository-wide extraction adds nothing a direct read has not established."
+    alternatives_considered:
+      - option: "run /ride --fresh first"
+        rejected_because: "twenty minutes of broad extraction for requirements already cited by line"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-3 (cycle-133; restates the kickoff row DEC-0819 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:28:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-3 (cycle-133; restates the kickoff row DEC-0819 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0830"
+    created_at: "2026-10-23T21:28:58Z"
+    updated_at: "2026-10-23T21:28:58Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "D-4 System Zone writes authorized for the cycle: bounded zone marker per write, checksums and REPO-MAP regenerated in the same commit"
+    decision: "As DEC-0824: cycle-level authorization for .claude/ changes (scripts, hooks, skills, Bridgebuilder sources and dist) under .run/zone-guard-authorization.json (scope framework, reason, expiry ≤ 2 h), with .claude/checksums.json and grimoires/loa/REPO-MAP.md regenerated in the same commit."
+    rationale: "This repository is the framework; the cycle-132 findings are defects in it; the marker and the checksums keep the writes auditable."
+    alternatives_considered:
+      - option: "stage fixes in .claude/overrides/"
+        rejected_because: "overrides customise a consumer install, they cannot fix the framework"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-4 (cycle-133; restates the kickoff row DEC-0824 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:28:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-4 (cycle-133; restates the kickoff row DEC-0824 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0831"
+    created_at: "2026-10-23T21:29:01Z"
+    updated_at: "2026-10-23T21:29:01Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "D-5 Loa reviews Loa: the SDD picks framework root, skill-only overlay or file-read contract; acceptance is the oracle detector going silent"
+    decision: "As DEC-0825: the PRD states the goal and the acceptance (addendum-9 oracle detector reports no exposure on a .claude/-touching fixture smoke); the SDD chooses among the three candidate designs and records why."
+    rationale: "The candidates differ in blast radius and the right one depends on code the SDD reads."
+    alternatives_considered:
+      - option: "fix the design in the PRD"
+        rejected_because: "the framework-root option touches the whole path model; that needs the architecture read"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-5 (cycle-133; restates the kickoff row DEC-0825 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-5 (cycle-133; restates the kickoff row DEC-0825 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0832"
+    created_at: "2026-10-23T21:29:04Z"
+    updated_at: "2026-10-23T21:29:04Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "D-6 one finding contract (file:line, failure scenario, severity, confidence) across the four gates, validated, plus a judge-able grader hook"
+    decision: "Review, audit, Bridgebuilder and dissent outputs converge on one finding schema enforced by verdict-derive.sh, the adversarial finding schema and the Bridgebuilder FindingsBlockSchema; the grader gains a hook that accepts a defect-level judge verdict; judge_defects.py becomes a registered analysis path once bd-xr3uq binds its samples."
+    rationale: "cycle-132's blind judge found a quarter to a third of credited findings describe the defect; the skills ask for a failure scenario in prose but no schema or grader carries it."
+    alternatives_considered:
+      - option: "change the grader rule alone"
+        rejected_because: "a mechanical grader cannot judge whether a scenario describes a defect; the judge does"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-6 (cycle-133; restates the kickoff row none recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-6 (cycle-133; restates the kickoff row none recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0833"
+    created_at: "2026-10-23T21:29:06Z"
+    updated_at: "2026-10-23T21:29:06Z"
+    phase: "discovery"
+    category: "release"
+    summary: "D-7 release: 2.0.0-rc.8 pre-release through the rc recipe; the publish fix lands first so the tag reaches main"
+    decision: "As DEC-0820: CHANGELOG [Unreleased] becomes 2.0.0-rc.8 after the last audit; the candidate is published through the rc recipe; Sprint 1 fixes the publish path so the tagged commit is reachable from main."
+    rationale: "Majors ship as release candidates first; rc.6 and rc.7 sit on commits main cannot reach."
+    alternatives_considered:
+      - option: "ship 2.0.0 final"
+        rejected_because: "the rc series is the soak; this cycle changes reviewer, release path and harness at once"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-7 (cycle-133; restates the kickoff row DEC-0820 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-7 (cycle-133; restates the kickoff row DEC-0820 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0834"
+    created_at: "2026-10-23T21:29:09Z"
+    updated_at: "2026-10-23T21:29:09Z"
+    phase: "discovery"
+    category: "process"
+    summary: "D-8 four sprints: framework defects; harness and reproduction hardening; product changes; hygiene and ship — parallel Opus implementers per sprint"
+    decision: "As DEC-0826: Sprint 1 framework defects and ergonomics; Sprint 2 harness, grader and reproduction hardening; Sprint 3 Loa reviews Loa, the finding contract, the external corpus seeder, stacked-PR guidance; Sprint 4 beads hygiene, docs, rc.8, ship."
+    rationale: "The groups share files and review surfaces; product changes depend on the harness fixes; hygiene last so the sweep sees the cycle's own closures."
+    alternatives_considered:
+      - option: "one sprint per bead"
+        rejected_because: "twenty-five gate cycles for one-file fixes is ceremony"
+      - option: "two large sprints"
+        rejected_because: "mixing System Zone and evals/ widens every dissent diff past the voice budget (KF-004 class)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-8 (cycle-133; restates the kickoff row DEC-0826 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-8 (cycle-133; restates the kickoff row DEC-0826 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0835"
+    created_at: "2026-10-23T21:29:12Z"
+    updated_at: "2026-10-23T21:29:12Z"
+    phase: "discovery"
+    category: "quality"
+    summary: "D-9 the ten pre-existing tests/unit failures are fixed or quarantined with a dated reason; nothing ships red"
+    decision: "As DEC-0821: every failing unit test named in bd-tgn04 is repaired or quarantined with a dated skip reason and a bead; tests/unit is green on the shipped head and CI runs it."
+    rationale: "A suite red on main cannot gate anything."
+    alternatives_considered:
+      - option: "keep pinning around them"
+        rejected_because: "every future red is indistinguishable from the ten known ones"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-9 (cycle-133; restates the kickoff row DEC-0821 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-9 (cycle-133; restates the kickoff row DEC-0821 recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0836"
+    created_at: "2026-10-23T21:29:14Z"
+    updated_at: "2026-10-23T21:29:14Z"
+    phase: "discovery"
+    category: "process"
+    summary: "D-10 beads hygiene: closures carry evidence in the reason; live beads re-labelled backlog-2026-10 with a status line; counts reported"
+    decision: "The sweep closes an open bead only with a reason naming the implementing commit or file:line (or the superseding decision), re-labels live ones backlog-2026-10 with a one-line status, and reports the counts in the sprint report."
+    rationale: "A closure without evidence is a deletion; false closures cost more than open rows."
+    alternatives_considered:
+      - option: "bulk-close every pre-cycle-120 bead"
+        rejected_because: "some are live (cycle-130 Bridgebuilder follow-ups); the sweep must look"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-10 (cycle-133; restates the kickoff row none recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:29:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-10 (cycle-133; restates the kickoff row none recorded against the brief grimoires/loa/context/cycle-133-brief.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0837"
+    created_at: "2026-10-23T21:45:30Z"
+    updated_at: "2026-10-23T21:45:30Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "D-12 the Flatline PRD review's 19 skeptic blockers are integrated as acceptance criteria and NFRs in PRD 1.1; none changes scope, sprints or budget"
+    decision: "Each SKP row is folded into the FR it names (fetch bound to one base/head pair, coverage recorded and degraded on omission, consensus fields immutable under enrichment, verdict precedence rules, no-tools acceptance tests, publish against the remote main with idempotent recovery, approval manifest covering every publication input, record scan on the staged tree, supervisor locking and atomic rows, default-deny egress with alternate-host tests, pricing semantics validation, judge-verdict binding by hashes, safe external materialisation, positive and negative FR-10 checks, explicit per-arm network policy, a budget reservation rule) and listed in Appendix D with its disposition."
+    rationale: "The review ran degraded (KF-041, recurrence 9: two voices, cross-scoring failed, so every skeptic concern surfaces as a blocker); read one by one each concern is a hardening the FR should carry, and none argues against the scope."
+    alternatives_considered:
+      - option: "re-run Flatline until cross-scoring works"
+        rejected_because: "KF-041 is structural at recurrence 9; the concerns are readable without consensus scores"
+      - option: "integrate only the ones that touch security"
+        rejected_because: "all nineteen are acceptance-criteria gaps; dropping any loses a free review"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-12 and § Appendix D (cycle-133 Flatline PRD review, a2a/flatline/cycle-133-prd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:45:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-12 and § Appendix D (cycle-133 Flatline PRD review, a2a/flatline/cycle-133-prd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0838"
+    created_at: "2026-10-23T21:45:58Z"
+    updated_at: "2026-10-23T21:45:58Z"
+    phase: "discovery"
+    category: "process"
+    summary: "D-11 authorization basis recorded per action class with a refusal list; no blocking human checkpoints added to the autonomous run"
+    decision: "The PRD records the basis for each action class: System Zone writes and implementation from the operator's instruction of 2026-10-23 and the cycle-132 standing rules; admin merge from the same standing rules and the recorded admin-merge authorization pattern; publication from the rc recipe precedent authorized in cycles 125, 130 and 132; tracker closures from the instruction's 'all the beads'. The run adds a refusal list (never force-push or write to main outside the publish fast-forward, never delete tags or branches, never bypass red CI or an unresolved Bridgebuilder blocker, never publish a non-rc, never touch the cycle-132 record) and pauses only when a precondition fails; the operator can revoke at any time with /run-halt."
+    rationale: "The skeptic (SKP-030, SKP-001) is right that the basis must be explicit; it is wrong that the fix is a blocking checkpoint — the operator asked for an end-to-end autonomous run and the standing rule is not to stop at task boundaries. Recording the basis and the refusal list keeps the audit trail without breaking the contract."
+    alternatives_considered:
+      - option: "human checkpoints before admin merge, publish and the closure manifest"
+        rejected_because: "contradicts the operator instruction and the autonomous-run rule; the operator can halt at any time instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a82ec556"
+    source: "grimoires/loa/prd.md § Appendix A D-11 and § Appendix D (cycle-133 Flatline PRD review, a2a/flatline/cycle-133-prd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:45:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/prd.md § Appendix A D-11 and § Appendix D (cycle-133 Flatline PRD review, a2a/flatline/cycle-133-prd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
