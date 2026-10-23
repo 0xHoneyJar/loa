@@ -1,57 +1,1280 @@
 {
   "fixture": "pr-15",
+  "label_set": "v2",
   "approved": true,
-  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "251",
     "record_ref": "origin/record/cycle-127-a2a",
     "head_commit": "8ad37c5518edebeec11f051d45ccfc63db3d1d06",
-    "fix_commit": "263a8d4c469b7946bf9923d449d69b930c9aee11"
+    "fix_commit": "263a8d4c469b7946bf9923d449d69b930c9aee11",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-adds-and-to-the-words-that-used-to-trigg",
-      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
-      "anchor_line": 578,
-      "must_match": "or \"unauthorized\" in diag_lower",
-      "severity": "low",
-      "category": "security",
-      "label_source": "review",
-      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/engineer-feedback.md#L41",
+      "id": "V01",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 356,
+      "anchors": [
+        356,
+        1693,
+        1694,
+        1695,
+        1696,
+        2070
+      ],
+      "must_match": "@L356",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H04,H12,H14",
       "source_commit": "8ad37c55",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items); verdict: another code path with the same omission is a member site of D1, not a mechanical echo \u2014 defect (B), low, contract",
+      "review_driven": true
     },
     {
-      "id": "L02-the-owner-mode-refusal-of-the-opt-in-con",
+      "id": "V02",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 783,
+      "anchors": [
+        783,
+        1962,
+        2255
+      ],
+      "must_match": "model_config, max_tokens=_hop_budget, observed=_observed_for(provider, model_id),",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H13,H19",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 907,
+      "anchors": [
+        907,
+        921,
+        922,
+        923,
+        924
+      ],
+      "must_match": "extra_raw = extra.get(\"effort\") or extra.get(\"reasoning_effort\")",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 908,
+      "must_match": "if \"default_effort\" in params and extra_raw:",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H08",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 932,
+      "anchors": [
+        932,
+        933,
+        934,
+        935,
+        936,
+        937,
+        938,
+        939,
+        940
+      ],
+      "must_match": "providers' adapters do not read CompletionRequest.effort (None).\"\"\"",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 1228,
+      "anchors": [
+        1228,
+        1229,
+        2546,
+        2547,
+        2548,
+        2549,
+        2550,
+        2551,
+        2552
+      ],
+      "must_match": "last_class = str(models_failed[-1].get(\"error_class\") or \"UNKNOWN\")",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H11,H20",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's namespace (B's corresponds); category: contract \u2014 an enumerated reason field carries the wrong value; group: A's namespace (B's corresponds); category: contract \u2014 the error record's fields (error_class, failure_class) are wrong or dropped",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2137,
+      "anchors": [
+        2137,
+        2138,
+        2139,
+        2140,
+        2141
+      ],
+      "must_match": "@L2137",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H15",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V08",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2147,
+      "anchors": [
+        2147,
+        2156,
+        2157,
+        2158,
+        2163
+      ],
+      "must_match": "\"calibrate\": _PROBE_COMMAND.format(model=_entry.model_id), \"store\": _observed_store_path(),",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H16,H17,H18",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 2834,
+      "anchors": [
+        2834,
+        2835,
+        2836,
+        2837,
+        2838,
+        2839,
+        2840,
+        2841,
+        2842,
+        2843
+      ],
+      "must_match": "# cycle-127 FR-2: caller | catalog | none.",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H21,H22",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
       "file": ".claude/adapters/loa_cheval/config/loader.py",
       "anchor_line": 113,
-      "must_match": "agy_opt_in_enabled",
-      "severity": "medium",
+      "anchors": [
+        113,
+        116,
+        117,
+        120,
+        121,
+        122,
+        125,
+        126
+      ],
+      "must_match": "def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:",
+      "severity": "high",
       "category": "security",
-      "label_source": "audit",
-      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L48",
+      "label_source": "fix-commit",
+      "source": "hunk:H30",
       "source_commit": "8ad37c55",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
     },
     {
-      "id": "L03-a-throttle-marker-still-precedes-the-sta",
+      "id": "V11",
+      "file": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py",
+      "anchor_line": 261,
+      "anchors": [
+        261,
+        262
+      ],
+      "must_match": "if not agy_opt_in_enabled():   # (cycle-127 FR-1)",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H31",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "anchor_line": 131,
+      "anchors": [
+        131,
+        145,
+        341,
+        342
+      ],
+      "must_match": "prompt: Optional[str] = None,",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H33,H35,H39",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity: codebook medium \u2014 a wrong result on an uncommon path (a prompt starting with '-'); severity: codebook medium, as H33; verdict: a site of D13's wrong behaviour (prompt in option position), not a mechanical consequence \u2014 defect member (A)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
       "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
       "anchor_line": 543,
       "anchors": [
         543,
+        544,
+        545,
+        546,
         547,
+        548,
+        549,
+        550,
         551,
+        552,
         553,
+        575,
+        576,
+        577,
         578,
-        583
+        579,
+        580,
+        581,
+        582
       ],
       "must_match": "# Rate-limit / overload \u2014 Anthropic returns 429 + \"rate limit\" or",
-      "severity": "low",
-      "category": "security",
-      "label_source": "audit",
-      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H40,H41",
       "source_commit": "8ad37c55",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items); verdict: a diagnostic the marker list misclassifies is a member site of D12 (the marker list), not a mechanical echo \u2014 defect (B), low, error-handling; group in A's namespace",
+      "review_driven": true
+    },
+    {
+      "id": "V14",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "anchor_line": 282,
+      "anchors": [
+        282,
+        283,
+        287,
+        290,
+        291,
+        292,
+        295,
+        296,
+        299,
+        300
+      ],
+      "must_match": "@L282",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H91,H92,H93,H94",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": false
+    },
+    {
+      "id": "V15",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "anchor_line": 306,
+      "anchors": [
+        306,
+        307
+      ],
+      "must_match": "\"description\": \"cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step \u2014 the value written to probed_ceiling / effective_input_ceiling.\"",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H95",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": ".claude/defaults/model-config.yaml",
+      "anchor_line": 503,
+      "anchors": [
+        503,
+        506,
+        509,
+        513
+      ],
+      "must_match": "@L503",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H100,H101",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items); anchors: union; group: A's namespace (B's corresponds); severity medium and category contract (A): a record that omits its partial-probe provenance is a misleading record",
+      "review_driven": true
+    },
+    {
+      "id": "V17",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 2350,
+      "anchors": [
+        2350,
+        2351,
+        2352,
+        2353,
+        2354,
+        2355,
+        2356,
+        2357,
+        2358,
+        2359,
+        2360
+      ],
+      "must_match": "_adv_agy_opted_in() {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H104",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V18",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 4080,
+      "anchors": [
+        4080,
+        4081
+      ],
+      "must_match": "# cycle-127 FR-1: an agy hop with the opt-in off is not planned; a chain left empty by that is opt_in_required, not no_route",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H105",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: D18 in A's namespace \u2014 both annotators name the same once-per-run warning behaviour",
+      "review_driven": true
+    },
+    {
+      "id": "V19",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 522,
+      "anchors": [
+        522,
+        523,
+        524,
+        525,
+        526,
+        529,
+        530,
+        531,
+        532,
+        533,
+        534,
+        535,
+        536
+      ],
+      "must_match": "_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (read with yq, no env override)",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H107",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V20",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 2456,
+      "must_match": "# FR-1 (cycle-045): Log tertiary model status for observability",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H108",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: as H105",
+      "review_driven": true
+    },
+    {
+      "id": "V21",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 798,
+      "anchors": [
+        798,
+        799,
+        800,
+        801,
+        802,
+        803,
+        804,
+        805,
+        806,
+        811,
+        812
+      ],
+      "must_match": "_agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H110,H111",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V22",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 822,
+      "anchors": [
+        822,
+        826,
+        827,
+        828,
+        831,
+        832,
+        833,
+        838,
+        839,
+        840,
+        842
+      ],
+      "must_match": "local cfg=\"$PROJECT_ROOT/.claude/defaults/model-config.yaml\" model eff probed cal store obs=null",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H112",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V23",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 860,
+      "must_match": "local pj p key hop line auth st age due",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H113",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: as H105",
+      "review_driven": true
+    },
+    {
+      "id": "V24",
+      "file": ".claude/scripts/run-preflight.sh",
+      "anchor_line": 153,
+      "anchors": [
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        174,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192
+      ],
+      "must_match": "cli_for() { case \"$1\" in claude-headless) echo claude ;; codex-headless) echo codex ;; gemini-headless) echo agy ;; *) echo \"\" ;; esac; }",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H117,H118,H120",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V25",
+      "file": ".claude/scripts/run-preflight.sh",
+      "anchor_line": 197,
+      "anchors": [
+        197,
+        204
+      ],
+      "must_match": "if (( usable == 0 )); then p3_fail_stages+=\"$stage \"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H121,H122",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V26",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 159,
+      "anchors": [
+        159,
+        163,
+        164,
+        165,
+        166,
+        167,
+        171,
+        173,
+        174,
+        175,
+        176,
+        180,
+        181,
+        182
+      ],
+      "must_match": "export function readAgyGate(configPath = \".loa.config.yaml\"): AgyGate {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H158",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V27",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 190,
+      "must_match": "export function validateApiKeys(config: MultiModelConfig, gate: AgyGate = readAgyGate()): {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H159",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: a wrong default (the cwd config instead of the repo root's) is a wrong behaviour of its own \u2014 defect (B), medium, logic; new group D39 in A's namespace",
+      "review_driven": true
+    },
+    {
+      "id": "V28",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 200,
+      "must_match": "if (!gate.optIn && isAgyRouted(model.provider, model.model_id, gate.mode)) {",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H160",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V29",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "anchor_line": 172,
+      "anchors": [
+        172,
+        173,
+        174,
+        212,
+        421,
+        422
+      ],
+      "must_match": "const keyStatus = validateApiKeys(multiConfig, readAgyGate(config.repoRoot ? path.join(config.repoRoot, \".loa.config.yaml\") : \".loa.config.yaml\"));",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H163,H164,H166",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V30",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "anchor_line": 347,
+      "anchors": [
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        652
+      ],
+      "must_match": "const verdictHeader = formatVerdictQualityHeader(",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H165,H168",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: logic \u2014 an incomplete report is a logic defect; other is the last resort; category: logic, as H165",
+      "review_driven": true
+    },
+    {
+      "id": "V31",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "anchor_line": 34,
+      "must_match": "\"claude-opus-5-5\": { maxInput: 916000, maxOutput: 32000, coefficient: 0.25 },",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H170",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's namespace (B's corresponds); severity: codebook high \u2014 a failure on a common path (every run of that model)",
+      "review_driven": true
+    },
+    {
+      "id": "V32",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 133,
+      "anchors": [
+        133,
+        134,
+        705,
+        706,
+        707,
+        708,
+        709,
+        710,
+        711,
+        712,
+        713,
+        714,
+        715,
+        716,
+        720,
+        721,
+        722,
+        723,
+        724,
+        725,
+        726,
+        727
+      ],
+      "must_match": "_ATTEMPTS = 3                   # per step, for transient classes only",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H200,H221",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items); anchors: union; A's attribution kept (see H216)",
+      "review_driven": true
+    },
+    {
+      "id": "V33",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 144,
+      "must_match": "_STATUS_5XX = __import__(\"re\").compile(r\"\\b5\\d\\d\\b\")",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H201",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: the over-matching regex is a distinct wrong behaviour from D25's truncation/order \u2014 own group (A)",
+      "review_driven": false
+    },
+    {
+      "id": "V34",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 173,
+      "anchors": [
+        173,
+        174,
+        175,
+        178,
+        456,
+        457,
+        458,
+        459,
+        460,
+        467,
+        468,
+        480
+      ],
+      "must_match": "def _resolved_cli_model(cli_model: str) -> str:",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H202,H212",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's finer split (D32: unchecked strings into the catalog text) is kept \u2014 the descriptions of D14's items differ; group: A's namespace (B's corresponds) (D32 kept, as H202); category: input-validation \u2014 a write persisted without re-parsing",
+      "review_driven": true
+    },
+    {
+      "id": "V35",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 215,
+      "anchors": [
+        215,
+        216,
+        217,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223,
+        224,
+        225
+      ],
+      "must_match": "\"\"\"Run with stdout/stderr spooled to temp files and read back capped at 1 MB.\"\"\"",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H203",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V36",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 230,
+      "anchors": [
+        230,
+        231,
+        232,
+        238,
+        239,
+        240,
+        751,
+        752,
+        753,
+        754,
+        755,
+        756,
+        757,
+        758,
+        759,
+        760,
+        761,
+        762,
+        830,
+        831
+      ],
+      "must_match": "def _classify(rc: int, stdout: str, stderr: str, needle: str) -> dict:",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H204,H205,H222,H226",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's namespace (B's corresponds); severity: codebook medium \u2014 a missing validation with a bounded impact (a lost record)",
+      "review_driven": true
+    },
+    {
+      "id": "V37",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 251,
+      "anchors": [
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        266,
+        267
+      ],
+      "must_match": "diag = \" \".join(x for x in (result, f\"(api_status={api_status})\" if api_status else \"\", stderr.strip()) if x)",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H206,H207",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's namespace (B's corresponds); severity: codebook high \u2014 a wrong result on a common path (provider throttling under concurrency); group: A's namespace (B's corresponds); severity: codebook medium \u2014 an uncommon path",
+      "review_driven": true
+    },
+    {
+      "id": "V38",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 402,
+      "anchors": [
+        402,
+        403,
+        404,
+        413,
+        414,
+        415,
+        456,
+        460
+      ],
+      "must_match": "def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrated_at: str, cli_model: str,",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H209,H210",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items); group: A's namespace (B's corresponds); severity: codebook medium \u2014 a misleading record (as H101)",
+      "review_driven": true
+    },
+    {
+      "id": "V39",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 512,
+      "anchors": [
+        512,
+        513
+      ],
+      "must_match": "if args.transport == \"claude-headless\":",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H214",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V40",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 616,
+      "anchors": [
+        616,
+        617,
+        618,
+        619,
+        623,
+        625,
+        627,
+        628
+      ],
+      "must_match": "fails = [s.get(\"size_measured\", s[\"tokens\"]) for s in samples if s.get(\"kind\") == \"size\"]",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H215",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": false
+    },
+    {
+      "id": "V41",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 644,
+      "anchors": [
+        644,
+        645,
+        646,
+        647,
+        648,
+        649,
+        650,
+        651,
+        652,
+        653
+      ],
+      "must_match": "argv = _cli_command(cli_bin, cli_arg)",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H218",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V42",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 684,
+      "anchors": [
+        684,
+        688,
+        689,
+        690,
+        711,
+        712,
+        713,
+        714,
+        715,
+        716,
+        720,
+        721,
+        722,
+        723,
+        724,
+        725,
+        726,
+        727
+      ],
+      "must_match": "tokens = max(1, int(target / (ratio or 1.0)))",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H216,H219",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; the annotators attribute the two behaviours (spend accounting; token-limit transient) to each other's hunk \u2014 A's attribution kept for the record; both behaviours are in the key (D35, D26); anchors: union; group D35 (A): the budget pre-check belongs with the spend accounting",
+      "review_driven": true
+    },
+    {
+      "id": "V43",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 771,
+      "anchors": [
+        771,
+        772,
+        773
+      ],
+      "must_match": "reasons = _outcome_reasons(samples, stop=stop, largest_ok=largest_ok, measured=largest_ok_measured,",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H223",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: a reason never recorded is a missing behaviour at that site \u2014 defect (B), low, error-handling; a distinct behaviour from D29's unchecked values \u2192 new group D40",
+      "review_driven": false
+    },
+    {
+      "id": "V44",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 799,
+      "anchors": [
+        799,
+        800,
+        801,
+        802
+      ],
+      "must_match": "\"cli_bin\": cli_bin,",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H224",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+      "review_driven": true
+    },
+    {
+      "id": "V45",
+      "file": "tools/ceiling-probe-live.py",
+      "anchor_line": 811,
+      "anchors": [
+        811,
+        812,
+        813,
+        814,
+        815,
+        816,
+        817,
+        818,
+        819,
+        820,
+        821
+      ],
+      "must_match": "if outcome == \"clean\" and args.write_catalog:",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H225",
+      "source_commit": "8ad37c55",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; severity: codebook medium \u2014 a misleading record on a failure path (B)",
+      "review_driven": true
     }
   ],
   "fix_regions": [

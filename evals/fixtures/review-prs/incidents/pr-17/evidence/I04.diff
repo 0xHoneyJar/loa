@@ -1,0 +1,74 @@
+commit 81005346e90ad1fca0e1e35223247f252f7787eb
+Date: 2026-10-14T16:26:31+11:00
+
+fix(cycle-129): sprint-256 audit round r256-4 — fence rule FR-GH-1 refuses gh api DELETE/PUT/PATCH on refs, branch protection, tags, releases or the repository (HIGH-A1; outside the git-family pre-filter; D156–D161 block, B95–B97 allow; register row; hooks-reference); the corpus miss class is count-gated (EXPECTED_MISS_ROWS=0); karpathy-surgical-diff.bats negations as run + status and one assertion per line (MEDIUM-A1); guard-yield.sh never treats an FR-SZ* block as a body-based false positive, GY-1/GY-3 updated (MEDIUM-A2); classifier executable-content targets widened to workflows, makefiles and package manifests with D162–D168 (LOW-A1); CHANGELOG security note on the guardrail defaults (LOW-A2); DEC-0304…DEC-0306 (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/hooks/safety/block-destructive-bash.sh b/.claude/hooks/safety/block-destructive-bash.sh
+index 47e89f6c..d3fd0400 100755
+--- a/.claude/hooks/safety/block-destructive-bash.sh
++++ b/.claude/hooks/safety/block-destructive-bash.sh
+@@ -187,7 +187,7 @@ _bdb_hd_re_ctl=$'[\x01-\x08\x0b-\x1f\x7f]'
+ _bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'
+ _bdb_hd_re_exlong='^--(exec|eval|command|in-?place)'
+ _bdb_hd_re_ext='\.(sh|bash|zsh|ksh|csh|fish|py|pyw|rb|pl|pm|js|mjs|cjs|ts|mts|cts|ps1|psm1|php|lua|tcl|command|bat|cmd)$'
+-_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$)'
++_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$)'
+ _bdb_hd_re_rc='(^|/)\.(bashrc|bash_profile|bash_login|bash_logout|profile|zshrc|zshenv|zprofile|zlogin|zlogout|kshrc|mkshrc|cshrc|tcshrc|login|logout|envrc)$'
+ _bdb_hd_re_sedp='^(([0-9]+|[$]|/[^/]*/)(,([0-9]+|[$]|/[^/]*/))?)?p$'
+ _bdb_hd_re_assign='^[A-Za-z_][A-Za-z0-9_]*='
+@@ -1315,6 +1315,24 @@ check_and_block() {
+ # =============================================================================
+ 
+ # -----------------------------------------------------------------------------
++# -----------------------------------------------------------------------------
++# FR-GH-1 — gh api with a destructive method (DELETE, PUT, PATCH; `-X`, `-XDELETE`,
++# `--method`, `--method=`) against refs, branch protection, tags, releases or the
++# repository itself (cycle-129 sprint-256 audit HIGH-A1). The porcelain twins are
++# governed by P2 (force push), P5 (branch force-delete) and SP-1 (spike pushes);
++# the REST escape hatch was not. GET, POST and PATCH on issues or pulls stay allowed.
++# Judged on the carrier-scrubbed command: the gh scrub redacts --body/--title
++# values only, so the path and the method remain visible. Placed OUTSIDE the
++# git-family pre-filter below: a gh api call need not contain the word git.
++# -----------------------------------------------------------------------------
++if [[ "$command" == *"gh"* && "$command" == *"api"* ]] \
++   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
++   && _match 'gh[[:space:]]+api[[:space:]][^;&|]*(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|repos/[^/[:space:];&|]+/[^/[:space:];&|]+(["'"'"'[:space:];&|]|$))'; then
++  matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
++  # @guard fence:FR-GH-1
++  emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
++fi
++
+ # pass-8 git-family pre-filter (wraps P2, P2b, P3, P4, P5, P6, P7).
+ # NECESSITY PROOF (`git`): each of the eight EREs inside this block contains
+ # the literal run `git` as a mandatory concatenation element (it sits outside
+diff --git a/tests/fixtures/fence-corpus/corpus.jsonl b/tests/fixtures/fence-corpus/corpus.jsonl
+index 797f892b..13ea6ec0 100644
+--- a/tests/fixtures/fence-corpus/corpus.jsonl
++++ b/tests/fixtures/fence-corpus/corpus.jsonl
+@@ -233,7 +233,22 @@
+ {"id":"D140","cmd":"cat <<EOF > notes.md\ngit push --force origin main was refused\nEOF","expect":"block","rule":"FR-6","why":"fail closed: a prose line that begins with a fence verb is kept and scanned as a command (the documented limit of per-segment classification)","cwd":"repo"}
+ {"id":"D141","cmd":"cat > notes.md <<'EOF'\n\u0001\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"a control character anywhere in the command forces the full scan","cwd":"repo"}
+ {"id":"D142","cmd":"cat <<'EOF' > \"$OUT\"\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"a non-literal write target cannot be judged: interpreter class","cwd":"repo"}
+-{"id":"M01","cmd":"gh api -X DELETE repos/o/r/git/refs/heads/main --input - <<'EOF'\n{\"ref\":\"refs/heads/main\"}\nEOF","expect":"miss","rule":"FR-6","why":"documented miss (cycle-129 Sprint 2; was B89): gh api -X DELETE has no fence rule of its own; the classifier scans the body in full (D113) and a benign body passes. The miss class is never a mismatch, so a future rule does not read as a regression (r256-3)","cwd":"repo"}
++{"id":"D156","cmd":"gh api -X DELETE repos/o/r/git/refs/heads/main --input - <<'EOF'\n{\"ref\":\"refs/heads/main\"}\nEOF","expect":"block","rule":"FR-GH-1","why":"audit r256-4 (was B89, then M01 as a documented miss): gh api DELETE on a ref deletes the remote branch; FR-GH-1 now refuses the REST escape hatch the porcelain rules already govern","cwd":"repo"}
++{"id":"D157","cmd":"gh api -XDELETE repos/o/r/git/refs/tags/v1.0.0","expect":"block","rule":"FR-GH-1","why":"audit r256-4: the joined -XDELETE form against a tag ref","cwd":"repo"}
++{"id":"D158","cmd":"gh api --method PUT repos/o/r/branches/main/protection --input -","expect":"block","rule":"FR-GH-1","why":"audit r256-4: rewriting branch protection through the API","cwd":"repo"}
++{"id":"D159","cmd":"gh api --method=DELETE \"repos/o/r/releases/12\"","expect":"block","rule":"FR-GH-1","why":"audit r256-4: deleting a release; --method= form and a quoted path","cwd":"repo"}
++{"id":"D160","cmd":"gh api -X DELETE repos/o/r","expect":"block","rule":"FR-GH-1","why":"audit r256-4: deleting the repository itself","cwd":"repo"}
++{"id":"D161","cmd":"gh api -X PATCH repos/o/r -f default_branch=spike/x","expect":"block","rule":"FR-GH-1","why":"audit r256-4: PATCH on the repository (settings such as the default branch)","cwd":"repo"}
++{"id":"B95","cmd":"gh api repos/o/r/pulls --paginate -q '.[].number'","expect":"allow","rule":"FR-GH-1","why":"audit r256-4: a GET stays allowed","cwd":"repo"}
++{"id":"B96","cmd":"gh api -X POST repos/o/r/issues -f title='fence FP' -f body='see the corpus'","expect":"allow","rule":"FR-GH-1","why":"audit r256-4: POST is not a destructive method here","cwd":"repo"}
++{"id":"B97","cmd":"gh api -X PATCH repos/o/r/issues/12 -f state=closed","expect":"allow","rule":"FR-GH-1","why":"audit r256-4: PATCH on an issue is outside the protected paths","cwd":"repo"}
++{"id":"D162","cmd":"cat > .git/hooks/pre-commit <<'EOF'\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a git hook target is executable content, shebang or not","cwd":"repo"}
++{"id":"D163","cmd":"cat > cleanup.py <<'EOF'\nimport os\nos.system(\"rm -rf src\")\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): an interpreter extension is executable content","cwd":"repo"}
++{"id":"D164","cmd":"cat > .github/workflows/ci.yml <<'EOF'\n- run: git push --force origin main\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a workflow file runs its steps; the body is scanned in full","cwd":"repo"}
++{"id":"D165","cmd":"cat > Makefile <<'EOF'\nclean:\n\trm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a makefile runs its recipes","cwd":"repo"}
++{"id":"D166","cmd":"cat > .envrc <<'EOF'\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): direnv runs .envrc on cd","cwd":"repo"}
++{"id":"D167","cmd":"cat > .claude/settings.local.json <<'EOF'\n{\"hooks\": {\"PreToolUse\": \"rm -rf src\"}}\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a settings file defines hooks (and FR-SZ2 refuses the System-Zone write regardless)","cwd":"repo"}
++{"id":"D168","cmd":"cat > package.json <<'EOF'\n{\"scripts\": {\"postinstall\": \"rm -rf src\"}}\nEOF","expect":"block","rule":"FR-6","why":"audit r256-4 (LOW-A1): a package manifest's script section runs on install","cwd":"repo"}
+ {"id":"D143","cmd":"cat >> grimoires/loa/NOTES.md <<EOF\n- **Sprint 253**: SP-1 refused `git merge spike/ceiling-ui` typed inside this NOTES append (prose, not a command)\nEOF","expect":"block","rule":"SP-1","why":"r256-1: under an UNQUOTED delimiter the backtick span is a command substitution that runs when the heredoc is expanded; normalised to the dollar-paren form, the spike merge anchors and SP-1 blocks (the quoted twin is B79)","cwd":"repo"}
+ {"id":"D144","cmd":"cat > grimoires/loa/a2a/sprint-256/review.md <<EOF\n- the transcript's `git push --force origin main` was refused by P2, as intended\nEOF","expect":"block","rule":"P2","why":"r256-1: unquoted delimiter, backtick span = a force push that runs when the heredoc is expanded (the quoted twin is B84)","cwd":"repo"}
+ {"id":"D145","cmd":"echo \"see `git push --force origin main` for the refusal\"","expect":"block","rule":"P2","why":"r256-1: a backtick substitution inside a double-quoted echo argument executes the force push; before the normalisation only the dollar-paren form (D148) anchored","cwd":"repo"}

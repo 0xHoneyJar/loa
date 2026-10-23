@@ -1,0 +1,26 @@
+commit 9c4ed3198c7891882ca77847e37bd10475885779
+Date: 2026-10-14T16:45:43+11:00
+
+fix(cycle-129): sprint-256 audit round r256-5 — /loa Profile line reports an off guardrail control (DEC-0161 mitigation; PL-14); shell reserved words are transparent prefixes in the heredoc per-segment scan and Dockerfile, pre-commit and gitlab-ci targets are executable content (D169–D178, B100); FR-GH-1 covers gh api graphql mutations, full-URL and leading-slash paths, --hostname and a non-literal method (D179–D184, B98–B99; the corpus lint admits api.github.com); profile-lib WARNs when LOA_PROFILE_CONFIG_FILE redirects a live read; check-knob-readers.sh matches the trailing two components of three-part keys (PL-17 bypass shapes); DEC-0307…DEC-0311 (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/loa-status.sh b/.claude/scripts/loa-status.sh
+index a4217e7a..00ccb0c1 100755
+--- a/.claude/scripts/loa-status.sh
++++ b/.claude/scripts/loa-status.sh
+@@ -955,7 +955,12 @@ display_profile_line() {
+     note=""
+     if [[ "$(loa_profile_source 2>/dev/null)" == "invalid" ]]; then note="unknown loa.profile, using standard; "; fi
+     ov=$(loa_profile_overrides 2>/dev/null | awk 'NF { printf "%s%s", (n++ ? ", " : ""), $0 }')
+-    printf '%s (%sexplicit overrides: %s)' "${name:-standard}" "$note" "${ov:-none}"
++    # cycle-129 audit r256-5 (DEC-0161 mitigation): say so when either guardrail
++    # control resolves to off, whatever turned it off (profile or explicit key).
++    gn=""
++    [[ "$(loa_knob guardrails.input.enabled false 2>/dev/null)" == true ]] || gn="input guardrails off"
++    [[ "$(loa_knob guardrails.danger_level.enforce false 2>/dev/null)" == true ]] || gn="${gn:+$gn, }danger-level enforcement off"
++    printf '%s (%sexplicit overrides: %s)%s' "${name:-standard}" "$note" "${ov:-none}" "${gn:+ · $gn}"
+   ) || line=""
+   echo -e "${BOLD}Profile:${NC} ${line:-standard (explicit overrides: unavailable)}"
+   return 0

@@ -1,0 +1,22 @@
+name: pr-28
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-264 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 264
+base_commit: "e93a040a541454f654bdeed0428b7a678c7b9e6e"
+head_commit: "0281ea57ad2bcc755f302dc2863f251fa3a9088e"
+fix_commit: "798d88cfc920a95ce896a527145b21ca72d0ab18"
+record_ref: "origin/record/cycle-131-honest-measurement"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-2/engineer-feedback.md"
+  - "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-20 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-20; sandbox has network; egress scanned (grader class 9)"

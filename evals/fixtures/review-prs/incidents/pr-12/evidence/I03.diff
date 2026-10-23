@@ -1,0 +1,21 @@
+commit cbfccab2e30ef0364c24908bc4191064d1fdf736
+Date: 2026-10-08T04:26:27+11:00
+
+fix(cycle-127): sprint-251 audit round r251-4 — the audit dissent's verified items: Bridgebuilder's merge gate no longer fails open under a config read error (readError → mergeBlocked with the reason, strict mode throws; the quorum is never shrunk by unreadable config); cheval reads the agy opt-in from its own install root, never a cwd-ancestor config (a planted /tmp/.loa.config.yaml opted a host in), and refuses a foreign-owned or group/world-writable config (off, one WARN); one strict spelling rule across the three readers — the exact tag:yaml.org,2002:bool tag, and YAML alias / merge-key nodes read as off everywhere (conformance rows); the lib's include guard is shell-only (declare -F) so an exported variable cannot leave the predicates undefined, and run-preflight fails closed when the lib is missing; the catalog provider maps are never cached after a swallowed exception and both readers WARN once on the name-rule fallback (hostile-subscript test on the associative maps); the throttle-status regex needs non-word boundaries (a request id matched 529), the CLI-shape context-limit parse needs its sentence, the calibrate hint shell-quotes model ids; an implausible observed limit (< 10 % of the window or above it) is ignored with a WARN instead of wedging the route; _effort_on_wire is wrapped at the MODELINV emit site. Probe: --host-route / the resolved --cli-model / cli_version are refused on control characters or over 200 chars before the dry run (a newline rewrote effective_input_ceiling in the loaded YAML), the dry run uses the real write's kwargs, and the written catalog is re-parsed and its ceilings asserted before os.replace; CLI-reported numbers must be finite and bounded; the first step's budget estimate assumes the 1.8 tokenizer ratio until a step measures; the record stores the resolved binary ~-relative (the committed record too); the ceilingCalibration schema gains an if/then (probed_headless ⇒ claude-headless transport + probe_outcome) and maxLength on the cli_* fields; the effort dry-run test can never spawn the real CLI; AGC-6 prints its diagnostics on failure. The Fable review round 2 ticked the four acceptance criteria. Refuted or declined with evidence: 36 of the 60 run-1 findings and 6 of the 11 run-2 findings (audit-dissent-triage.md).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/adversarial-review.sh b/.claude/scripts/adversarial-review.sh
+index 5fb76991..cf77799e 100755
+--- a/.claude/scripts/adversarial-review.sh
++++ b/.claude/scripts/adversarial-review.sh
+@@ -2387,7 +2387,7 @@ _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain with
+   mode=$(agy_headless_mode "${CONFIG_FILE:-}")
+   for h in "$@"; do
+     c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
+-    if routes_to_agy "$h" "$mode" || routes_to_agy "$c" "$mode"; then
++    if routes_to_agy "$h" "$mode" "${CONFIG_FILE:-}" || routes_to_agy "$c" "$mode" "${CONFIG_FILE:-}"; then   # (r251-4: project aliases)
+       log "WARN: companion hop ${h} not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — named by flatline_protocol.${key}.companion_chain.${fam}"
+     else out+="$h "; fi
+   done

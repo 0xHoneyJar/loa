@@ -1,0 +1,98 @@
+{
+  "files_compared": 18,
+  "pass": true,
+  "sample": [
+    {
+      "files": [
+        {
+          "file": "grade.json",
+          "identical": true
+        },
+        {
+          "file": "grading/gates-combined.md",
+          "identical": true
+        }
+      ],
+      "key": "c132-g1-b/a1_review_only/review-r28/1",
+      "label": "review"
+    },
+    {
+      "files": [
+        {
+          "file": "grade.json",
+          "identical": true
+        },
+        {
+          "file": "grading/gates-combined.md",
+          "identical": true
+        }
+      ],
+      "key": "c132-g2-b/a1_review_only/review-r26/2",
+      "label": "review"
+    },
+    {
+      "files": [
+        {
+          "file": "grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s1/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s2/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s3/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s4/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s5/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s6/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s7/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s8/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s9/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s10/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s11/grade.json",
+          "identical": true
+        },
+        {
+          "file": "sessions/s12/grade.json",
+          "identical": true
+        },
+        {
+          "file": "grading/gates-combined.md",
+          "identical": true
+        }
+      ],
+      "key": "c132-g3-a2/a0_bare_matched/review-r11/1",
+      "label": "review"
+    }
+  ],
+  "schema_version": 1,
+  "seed": 20261021
+}

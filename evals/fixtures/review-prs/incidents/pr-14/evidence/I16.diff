@@ -1,0 +1,78 @@
+commit cf88e4270d586cbfd1faab2258edfd3e4e978dfd
+Date: 2026-10-14T20:13:12+11:00
+
+fix(cycle-129): sprint-257 review round r257-1 — a declared dispatch_group: local is enforced, not trusted (HIGH-1: the local-hop rule — an HTTP provider whose endpoint host is a loopback or RFC1918 IP literal or localhost — stated once in endpoint_policy and applied at load, at request time by TransportPolicy.local, in hop-locality.py (endpoint_not_local / endpoint_missing / cli_provider), in Bridgebuilder applyLocality and in MODELINV hop_locality; a CLI provider never carries the label; an https endpoint on a local host needs no opt-in); keyless: false beside auth: local is refused by name (LOW-2); the probe helper CLI turns every load failure into one JSON line and exit 78 (LOW-3); the locality fixtures declare a loader-admissible localbox and load it through the real loader (LOW-1); DISS-C-002 refuted; tests test_local_dispatch_group_rule.py, LOC-9/LOC-10, FLL-8/FLL-9, trusted-config.test.ts (21), dist rebuilt; cheval pytest 3256 passed (2 baseline failures), Sprint 3 bats 136/136, npm 867/868 (KF-036), corpus 99/99 · 184/184; multi-model-reference FR-8 paragraph, CHANGELOG Fixed entry and Migration row; DEC-0331…DEC-0339 (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/loa_cheval/providers/base.py b/.claude/adapters/loa_cheval/providers/base.py
+index fdf888a9..1a499c68 100644
+--- a/.claude/adapters/loa_cheval/providers/base.py
++++ b/.claude/adapters/loa_cheval/providers/base.py
+@@ -120,20 +120,31 @@ class TransportPolicy:
+     (or a model with dispatch_group `local`): proxy environment variables are
+     ignored, an HTTP redirect is an error and is never followed, and every request
+     URL must keep the declared endpoint's scheme, host and port and start with its
+-    path. The load-time half lives in config/endpoint_policy.py."""
++    path. The load-time half lives in config/endpoint_policy.py.
++
++    `local` (D-8.1, r257-1) marks a hop whose model says dispatch_group `local`: the
++    request host must then also pass the local-hop rule (a loopback or RFC1918 IP
++    literal or `localhost`, endpoint_policy.local_host), so a declared locality is
++    enforced even when a config reaches the adapter by another loader."""
+ 
+     endpoint: str
+     provider: str
++    local: bool = False
+ 
+     def check_url(self, url: str) -> None:
+         # URL parsing stays in the canonical endpoint validator (cycle-099 import guard).
+-        from loa_cheval.config.endpoint_policy import split_url
++        from loa_cheval.config.endpoint_policy import LOCAL_RULE_TEXT, local_host, split_url
+ 
+         try:
+             d_scheme, d_host, d_port, d_path = split_url(self.endpoint)
+             r_scheme, r_host, r_port, r_path = split_url(url)
+         except ValueError as exc:
+             raise InvalidConfigError(f"request URL for provider '{self.provider}' does not parse: {exc}") from None
++        if self.local and (r_scheme not in ("http", "https") or local_host(r_host) is None):
++            raise InvalidConfigError(
++                f"request host {r_host or '(none)'} for provider '{self.provider}' is not {LOCAL_RULE_TEXT} "
++                f"(dispatch_group local, D-7.2)"
++            )
+         prefix = d_path.rstrip("/")
+         same_origin = (r_scheme, r_host, r_port) == (d_scheme, d_host, d_port)
+         in_path = (r_path == prefix or r_path.startswith(prefix + "/")) if prefix else True
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index 52bbcdd8..84b32fbb 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-14T07:40:42Z",
+-  "source_hash": "ffa2ae2ff364c468d601f0fc7a1ff0f21a1495d138efcc18a0e94c0d7b761d54",
++  "generated_at": "2026-10-14T08:50:46Z",
++  "source_hash": "b4e84888ce6f026aa7ffa758e24a1ae7262055fe3bcdebff5a3c49dd5c859cf6",
+   "file_count": 43,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "4a17672d468d763c6eb9dfe24a9c0ecf1327ab2e22c36b1a3cca454c949b0dce"
++      "sha256": "06f39340b69c9f734738ba739ee4d01be9ab9fbfdf530587541c2f928c5cbcf9"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+@@ -130,7 +130,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+-      "sha256": "b047232236a1219e578fe7151b4aba16ecedcd05ea71931ef9eaf18f9a705af8"
++      "sha256": "1b13a035d7dd98ef48cbec7fd76c96ddc9a6e0e9e40984dcbd03bfee1cb33ec5"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts",

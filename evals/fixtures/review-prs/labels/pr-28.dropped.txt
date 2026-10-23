@@ -1,0 +1,4 @@
+# pr-28 sprint-264: findings that did not become labels
+record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L33 [low] fix commit does not touch evals/harness/validate-suite.sh: the known rule ids are the `rule_<id>()` function names of the script beside it;
+record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L38 [low] no code locus (the finding opens with prose, not `path:ref`): the implementer ran an unfiltered `pkill -f bats-exec` while stopping its own test run (self-reported);
+record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-2/engineer-feedback.md#L46 [medium] no code locus (the finding opens with prose, not `path:ref`): a Fable review session refused (category `cyber`) and ran on Opus 5.5 for the rest of the phase — a model confound inside a "Fable" cell.

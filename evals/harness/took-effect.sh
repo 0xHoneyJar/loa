@@ -59,6 +59,11 @@
 #                              (d) the sandbox .git holds exactly the base commit, no remote, no
 #                                  alternates, nothing unreachable (git fsck --unreachable
 #                                  --no-reflogs) and no later-only pinned blob.
+#                              Cycle-132 addendum 9 (KF-050; addendum 5 had .claude/adapters/ only): the
+#                              answer set leaves out every path under .claude/ (the overlay keeps the whole
+#                              pinned runtime); the check requires overlay_excluded=<n>:<list, capped at 20
+#                              then ",…"> to equal the computed value and each excluded path to be at its
+#                              pinned version, and judges (a)-(d) on the other paths.
 #                              The comparison is lib/sandbox-mount.sh's (_sm_oracle_py check), the
 #                              same one pipeline-run.sh's pre-launch check_mount_closed runs.
 #                              A build run (no PR fixture) and a loa_mount: false run with no
@@ -74,10 +79,33 @@
 #                              copy), the sandbox .loa.config.yaml has
 #                              flatline_protocol.code_review.enabled false, and the audit envelope
 #                              exists with verdict_quality.voices_succeeded >= 1
+#   dissent_present            (cycle-132 PREREGISTRATION §12 addendum 2) every executed gate phase (a non-skipped
+#                              REVIEW record, and AUDIT when it ran) has its dissent envelope at the harness copy
+#                              eval/adversarial-<gate>.json (never the agent-writable sandbox copy) with
+#                              verdict_quality.voices_succeeded >= 1 (or metadata.verdict_quality) and a status
+#                              (metadata.status, else status) that is not budget_exceeded and names no refusal; a
+#                              run with no gate phase FAILs (the rule is listed on arms whose gates are the task)
+#   mount_cheval_ok            (cycle-132 bd-56nn6) arm_evidence has mount_cheval=ok: pipeline-run.sh's
+#                              pre-launch probe imported the mounted loa_cheval (KF-050); listed on every
+#                              mounted arm whose gates run a dissent
+#   bare_sessions_matched      (cycle-132 FR-3, SDD D-3.1, D-7.3) on a matched CELL directory (one holding
+#                              meta/cell.json, written by run-ablation.sh): k (cell.json k) equals the task's
+#                              review_catch.bare_sessions_matched (an arm with bare_model: fable reads
+#                              review_catch.bare_sessions_matched_fable when present; --task-yaml is
+#                              required), cell.json lists exactly k sessions s1 … sk, exactly the k first-
+#                              attempt directories sessions/s1 … sessions/sk exist (no s<k+1>), and every
+#                              session cell.json marks valid passes no_dot_claude, no_system_prompt,
+#                              no_audit_rows and integrity_clean on its final attempt's run dir (a
+#                              run_dir inside sessions/). On a session's own run dir (its parent is
+#                              sessions/) the rule reads OK "session of a matched cell" — the cell
+#                              rule decides; anywhere else it FAILs.
+# Matched cells (cycle-132): --run-dir on a cell directory (meta/cell.json, no meta/pipeline.json; the
+# arm from meta/arm) evaluates bare_sessions_matched as above and every other listed rule on each valid
+# session's final run dir (OK when every valid session passes; evidence names the first that fails).
 # A refusal record is evaluated on applicability_refused alone.
 #
 # Usage:
-#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json] [--task-yaml F] [--source-repo DIR]
+#   took-effect.sh --run-dir D --suite-file F [--arm ID] [--json] [--json-out F] [--task-yaml F] [--source-repo DIR]
 #   took-effect.sh --batch-dir D --suite-file F [--arm ID] [--json] [--source-repo DIR]
 #   --task-yaml F     the run's task (oracle_closed's fixture; run-ablation.sh passes it)
 #   --source-repo DIR a git repository holding the run's source_commit (oracle_closed)
@@ -85,6 +113,8 @@
 # Output: `arm <id>: <rule> OK|FAIL <evidence>` per rule, then `arm <id>: OK` or
 # `arm <id>: FAIL (<n> of <m> rules)`; --batch-dir adds `took-effect: <runs> runs, <k> failed`.
 # --json prints one object per run ({run_dir, arm, ok, rules: [{rule, ok, evidence}]}).
+# --json-out F (cycle-132, --run-dir only) also writes that object to F (the text output is unchanged);
+# run-ablation.sh writes <run>/meta/took-effect.json with it, the record ablation-row.sh 1.5 rows as took_effect.
 #
 # Exit codes:
 #   0  every rule OK
@@ -103,7 +133,7 @@ export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false TASK_YAML_OPT="" SOURCE_REPO_OPT=""
+RUN_DIR="" BATCH_DIR="" SUITE_FILE="" ARM_OPT="" JSON=false TASK_YAML_OPT="" SOURCE_REPO_OPT="" JSON_OUT=""
 usage() { echo "took-effect.sh: $*" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -112,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     --suite-file) SUITE_FILE="${2:-}"; shift 2 ;;
     --arm)        ARM_OPT="${2:-}"; shift 2 ;;
     --json)       JSON=true; shift ;;
+    --json-out)   JSON_OUT="${2:-}"; [[ -n "$JSON_OUT" ]] || usage "--json-out needs a file"; shift 2 ;;
     --task-yaml)  TASK_YAML_OPT="${2:-}"; shift 2 ;;
     --source-repo) SOURCE_REPO_OPT="${2:-}"; shift 2 ;;
     -h|--help)    sed -n "2,$(awk 'NR > 2 && /^# =====/ {print NR - 1; exit}' "$0")p" "$0"; exit 0 ;;
@@ -124,6 +155,7 @@ done
 SUITE_JSON="$(yq -o=json '.' "$SUITE_FILE")" || usage "suite file does not parse"
 [[ -z "$TASK_YAML_OPT" || -f "$TASK_YAML_OPT" ]] || usage "task yaml not found: $TASK_YAML_OPT"
 [[ -z "$TASK_YAML_OPT" || -z "$BATCH_DIR" ]] || usage "--task-yaml names one run's task (use it with --run-dir)"
+[[ -z "$JSON_OUT" || -z "$BATCH_DIR" ]] || usage "--json-out writes one run's record (use it with --run-dir)"
 [[ -z "$SOURCE_REPO_OPT" || -d "$SOURCE_REPO_OPT" ]] || usage "source repo not found: $SOURCE_REPO_OPT"
 
 # the closed-mount comparison (oracle_closed) is the mount library's; a literal in-tree path
@@ -411,6 +443,90 @@ rule_bare_model_fable() {
   [[ "$eff" == high ]] || { EVID="BARE effort_requested $eff (want high)"; return 1; }
   EVID="BARE models_used $keys, effort_requested high"
 }
+rule_dissent_present() {
+  local gate label f vs st ran="" bad=""
+  for gate in review audit; do
+    label=REVIEW; [[ "$gate" == audit ]] && label=AUDIT
+    [[ "$(jq --arg l "$label" '[.phases // [] | .[] | select(.name == $l and .skipped != true)] | length' "$R/meta/pipeline.json")" -gt 0 ]] || continue
+    ran="$ran $gate"
+    f="$R/eval/adversarial-$gate.json"
+    if [[ ! -f "$f" || -L "$f" ]] || ! jq -e 'type == "object"' "$f" >/dev/null 2>&1; then bad="$bad $gate:no-envelope"; continue; fi
+    vs="$(jq -r '(.verdict_quality.voices_succeeded // .metadata.verdict_quality.voices_succeeded // 0) | tostring' "$f")"
+    st="$(jq -r '(.metadata.status // .status // "") | tostring' "$f")"
+    if [[ "$st" == budget_exceeded ]] || grep -qi 'refus' <<<"$st"; then bad="$bad $gate:status=$st"
+    elif ! [[ "$vs" =~ ^[0-9]+$ && "$vs" -ge 1 ]]; then bad="$bad $gate:voices_succeeded=$vs"; fi
+  done
+  [[ -n "$ran" ]] || { EVID="no gate phase ran"; return 1; }
+  [[ -z "$bad" ]] || { EVID="dissent missing:${bad}"; return 1; }
+  EVID="dissent ran at${ran} (eval/ envelopes, voices_succeeded >= 1)"
+}
+rule_mount_cheval_ok() {
+  local v; v="$(evidence_line mount_cheval)"
+  [[ "$v" == ok ]] || { EVID="mount_cheval=${v:-<absent>} in arm_evidence (want ok; KF-050)"; return 1; }
+  EVID="mount_cheval=ok"
+}
+# cell_sessions <cell-dir> → TSV lines <id> <valid> <run_dir> from meta/cell.json (run_dir realpath inside
+# <cell>/sessions/, else "-"); exit 1 when cell.json is not a cell record
+cell_sessions() {
+  python3 -I - "$1" <<'PY'
+import json, os, sys
+cell = sys.argv[1]
+try:
+    c = json.load(open(os.path.join(cell, "meta", "cell.json"), encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(c, dict) or not isinstance(c.get("sessions"), list):
+    sys.exit(1)
+base = os.path.realpath(os.path.join(cell, "sessions"))
+for s in c["sessions"]:
+    if not isinstance(s, dict):
+        sys.exit(1)
+    rd = s.get("run_dir")
+    p = os.path.realpath(os.path.join(cell, rd)) if isinstance(rd, str) and rd else ""
+    ok = p.startswith(base + os.sep) and os.path.isdir(p)
+    print("%s\t%s\t%s" % (s.get("id"), "true" if s.get("valid") is True else "false", p if ok else "-"))
+PY
+}
+rule_bare_sessions_matched() {
+  local cj="$R/meta/cell.json" k want key n i id valid rd sub fails="" bad
+  if [[ ! -f "$cj" ]]; then
+    if [[ "$(basename "$(dirname "$R")")" == sessions && -f "$(dirname "$(dirname "$R")")/meta/arm" ]]; then
+      EVID="session $(basename "$R") of a matched cell (the cell rule runs on the cell directory)"; return 0
+    fi
+    EVID="not a matched cell (no meta/cell.json) and not one of its sessions"; return 1
+  fi
+  k="$(jq -r '.k | if type == "number" and . >= 1 and . == floor then tostring else "" end' "$cj" 2>/dev/null || true)"
+  [[ -n "$k" ]] || { EVID="meta/cell.json has no integer k"; return 1; }
+  [[ -n "$TASK_YAML_OPT" ]] || { EVID="k $k unverified: --task-yaml names the task's review_catch.bare_sessions_matched"; return 1; }
+  key=bare_sessions_matched
+  if [[ "$(jq -r '.toggles.bare_model // ""' <<<"$ARM_DEF")" == fable ]]; then
+    want="$(yq -r '.review_catch.bare_sessions_matched_fable // .review_catch.bare_sessions_matched // ""' "$TASK_YAML_OPT" 2>/dev/null || true)"
+    key="bare_sessions_matched_fable|bare_sessions_matched"
+  else
+    want="$(yq -r '.review_catch.bare_sessions_matched // ""' "$TASK_YAML_OPT" 2>/dev/null || true)"
+  fi
+  [[ "$want" =~ ^[0-9]+$ ]] || { EVID="the task has no review_catch.$key"; return 1; }
+  [[ "$k" -eq "$want" ]] || { EVID="cell k $k, the task's review_catch.$key is $want"; return 1; }
+  n="$(jq '.sessions | length' "$cj")"
+  [[ "$n" -eq "$k" ]] || { EVID="cell.json lists $n sessions, k $k"; return 1; }
+  [[ "$(jq -r '[.sessions[].id] | join(",")' "$cj")" == "$(seq -s, -f 's%g' 1 "$k")" ]] \
+    || { EVID="cell.json session ids $(jq -r '[.sessions[].id] | join(",")' "$cj"), want s1 … s$k"; return 1; }
+  for i in $(seq 1 "$k"); do [[ -d "$R/sessions/s$i" ]] || { EVID="session s$i was never attempted (no sessions/s$i)"; return 1; }; done
+  [[ ! -e "$R/sessions/s$((k + 1))" ]] || { EVID="sessions/s$((k + 1)) exists beyond k $k"; return 1; }
+  local nvalid=0 save_r="$R" save_ev
+  while IFS=$'\t' read -r id valid rd; do
+    [[ "$valid" == true ]] || continue
+    [[ "$rd" != - ]] || { R="$save_r"; EVID="valid session $id has no run dir inside sessions/"; return 1; }
+    nvalid=$((nvalid + 1))
+    for sub in no_dot_claude no_system_prompt no_audit_rows integrity_clean; do
+      R="$rd"; EVID=""
+      if ! "rule_$sub"; then fails="$fails $id:$sub(${EVID})"; fi
+    done
+  done < <(cell_sessions "$save_r" || echo "x	true	-")
+  R="$save_r"
+  [[ -z "$fails" ]] || { EVID="valid sessions failing:${fails}"; return 1; }
+  EVID="k $k = the task's $key; s1 … s$k attempted; $nvalid valid session(s) pass no_dot_claude, no_system_prompt, no_audit_rows, integrity_clean"
+}
 rule_review_only_phases() {
   local got
   got="$(jq -r '[.phases // [] | .[] | .label] | join(",")' "$R/meta/pipeline.json")"
@@ -431,9 +547,22 @@ rule_no_review_dissent_envelope() {
   EVID="no review envelope; code_review.enabled false; audit voices_succeeded $vs"
 }
 
+cell_rule() {  # cell_rule <rule> — the rule on every valid session of the cell at $R
+  local rule="$1" cell="$R" id valid rd n=0 first=""
+  while IFS=$'\t' read -r id valid rd; do
+    [[ "$valid" == true ]] || continue
+    if [[ "$rd" == - ]]; then first="${first:-$id: no run dir inside sessions/}"; continue; fi
+    n=$((n + 1)); R="$rd"; EVID=""
+    "rule_$rule" || first="${first:-$id: $EVID}"
+  done < <(cell_sessions "$cell" || echo "x	true	-")
+  R="$cell"
+  [[ -z "$first" ]] || { EVID="$first"; return 1; }
+  EVID="$n valid session(s) pass"
+}
+
 # ---- one run ------------------------------------------------------------------------
 check_run() {  # check_run <run-dir> → prints lines; returns 0/1; 2 on usage problems
-  R="$1"
+  R="$1" CELL_MODE=false
   local arm rules rule fails=0 total=0 results='[]' ok
   if [[ -n "$ARM_OPT" ]]; then arm="$ARM_OPT"
   elif [[ -f "$R/meta/arm" ]]; then arm="$(sed -n '1p' "$R/meta/arm" | tr -d '[:space:]')"
@@ -448,7 +577,11 @@ check_run() {  # check_run <run-dir> → prints lines; returns 0/1; 2 on usage p
     else printf 'arm %s: absent (component-absent; no rules)\n' "$arm"; fi
     return 0
   fi
-  if [[ -f "$R/meta/refused.json" ]]; then
+  if [[ -f "$R/meta/cell.json" && ! -f "$R/meta/pipeline.json" ]]; then
+    rules="$(jq -r '(.took_effect // []) | .[]' <<<"$ARM_DEF")"
+    [[ -n "$rules" ]] || { echo "took-effect.sh: arm $arm lists no took_effect rules" >&2; return 2; }
+    CELL_MODE=true
+  elif [[ -f "$R/meta/refused.json" ]]; then
     rules="applicability_refused"
   else
     [[ -f "$R/meta/pipeline.json" ]] || { echo "took-effect.sh: no meta/pipeline.json under $R" >&2; return 2; }
@@ -458,18 +591,24 @@ check_run() {  # check_run <run-dir> → prints lines; returns 0/1; 2 on usage p
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     total=$((total + 1)); EVID=""
-    if declare -F "rule_$rule" >/dev/null; then
-      if "rule_$rule"; then ok=true; else ok=false; fi
-    else
+    if ! declare -F "rule_$rule" >/dev/null; then
       ok=false; EVID="unknown rule id"
-    fi
+    elif [[ "$CELL_MODE" == true && "$rule" != bare_sessions_matched ]]; then
+      # a cell: the rule holds on every valid session's final run dir
+      if cell_rule "$rule"; then ok=true; else ok=false; fi
+    elif "rule_$rule"; then ok=true; else ok=false; fi
     [[ "$ok" == true ]] || fails=$((fails + 1))
-    if [[ "$JSON" == true ]]; then
+    if [[ "$JSON" == true || -n "$JSON_OUT" ]]; then
       results="$(jq -c --arg r "$rule" --argjson ok "$ok" --arg e "$EVID" '. + [{rule: $r, ok: $ok, evidence: $e}]' <<<"$results")"
-    else
+    fi
+    if [[ "$JSON" != true ]]; then
       printf 'arm %s: %s %s %s\n' "$arm" "$rule" "$([[ "$ok" == true ]] && echo OK || echo FAIL)" "$EVID"
     fi
   done <<<"$rules"
+  if [[ -n "$JSON_OUT" ]]; then
+    jq -nc --arg d "$R" --arg arm "$arm" --argjson rules "$results" --argjson ok "$([[ $fails -eq 0 ]] && echo true || echo false)" \
+      '{run_dir: $d, arm: $arm, ok: $ok, rules: $rules}' > "$JSON_OUT.tmp" && mv "$JSON_OUT.tmp" "$JSON_OUT"
+  fi
   if [[ "$JSON" == true ]]; then
     jq -nc --arg d "$R" --arg arm "$arm" --argjson rules "$results" --argjson ok "$([[ $fails -eq 0 ]] && echo true || echo false)" \
       '{run_dir: $d, arm: $arm, ok: $ok, rules: $rules}'

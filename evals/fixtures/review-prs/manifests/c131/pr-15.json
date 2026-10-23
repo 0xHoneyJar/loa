@@ -1,0 +1,1508 @@
+{
+  "fixture": "pr-15",
+  "approved": true,
+  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
+  "record": {
+    "sprint": "251",
+    "record_ref": "origin/record/cycle-127-a2a",
+    "head_commit": "8ad37c5518edebeec11f051d45ccfc63db3d1d06",
+    "fix_commit": "263a8d4c469b7946bf9923d449d69b930c9aee11"
+  },
+  "defects": [
+    {
+      "id": "L01-adds-and-to-the-words-that-used-to-trigg",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "anchor_line": 578,
+      "must_match": "or \"unauthorized\" in diag_lower",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/engineer-feedback.md#L41",
+      "source_commit": "8ad37c55",
+      "synthetic": false
+    },
+    {
+      "id": "L02-the-owner-mode-refusal-of-the-opt-in-con",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "anchor_line": 113,
+      "must_match": "agy_opt_in_enabled",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L48",
+      "source_commit": "8ad37c55",
+      "synthetic": false
+    },
+    {
+      "id": "L03-a-throttle-marker-still-precedes-the-sta",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "anchor_line": 543,
+      "anchors": [
+        543,
+        547,
+        551,
+        553,
+        578,
+        583
+      ],
+      "must_match": "# Rate-limit / overload \u2014 Anthropic returns 429 + \"rate limit\" or",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-127-a2a:grimoires/loa/a2a/sprint-251/auditor-sprint-feedback.md#L82",
+      "source_commit": "8ad37c55",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/adapters/cheval.py",
+      "start": 18,
+      "end": 18,
+      "source": "fix/263a8d4c469b:18-18"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/adapters/cheval.py",
+      "start": 32,
+      "end": 32,
+      "source": "fix/263a8d4c469b:32-32"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/adapters/cheval.py",
+      "start": 71,
+      "end": 71,
+      "source": "fix/263a8d4c469b:71-71"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/adapters/cheval.py",
+      "start": 356,
+      "end": 356,
+      "source": "fix/263a8d4c469b:356-356"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/adapters/cheval.py",
+      "start": 783,
+      "end": 783,
+      "source": "fix/263a8d4c469b:783-783"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/adapters/cheval.py",
+      "start": 864,
+      "end": 864,
+      "source": "fix/263a8d4c469b:864-864"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/adapters/cheval.py",
+      "start": 901,
+      "end": 901,
+      "source": "fix/263a8d4c469b:901-901"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/adapters/cheval.py",
+      "start": 908,
+      "end": 908,
+      "source": "fix/263a8d4c469b:908-908"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/adapters/cheval.py",
+      "start": 921,
+      "end": 924,
+      "source": "fix/263a8d4c469b:921-924"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/adapters/cheval.py",
+      "start": 932,
+      "end": 940,
+      "source": "fix/263a8d4c469b:932-940"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1228,
+      "end": 1228,
+      "source": "fix/263a8d4c469b:1228-1228"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1693,
+      "end": 1694,
+      "source": "fix/263a8d4c469b:1693-1694"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1962,
+      "end": 1962,
+      "source": "fix/263a8d4c469b:1962-1962"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2070,
+      "end": 2070,
+      "source": "fix/263a8d4c469b:2070-2070"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2136,
+      "end": 2141,
+      "source": "fix/263a8d4c469b:2136-2141"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2147,
+      "end": 2147,
+      "source": "fix/263a8d4c469b:2147-2147"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2155,
+      "end": 2158,
+      "source": "fix/263a8d4c469b:2155-2158"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2163,
+      "end": 2163,
+      "source": "fix/263a8d4c469b:2163-2163"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2255,
+      "end": 2255,
+      "source": "fix/263a8d4c469b:2255-2255"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2546,
+      "end": 2552,
+      "source": "fix/263a8d4c469b:2546-2552"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2813,
+      "end": 2813,
+      "source": "fix/263a8d4c469b:2813-2813"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/adapters/cheval.py",
+      "start": 2834,
+      "end": 2843,
+      "source": "fix/263a8d4c469b:2834-2843"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/adapters/cheval.py",
+      "start": 3046,
+      "end": 3046,
+      "source": "fix/263a8d4c469b:3046-3046"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "start": 498,
+      "end": 502,
+      "source": "fix/263a8d4c469b:498-502"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "start": 526,
+      "end": 526,
+      "source": "fix/263a8d4c469b:526-526"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "start": 586,
+      "end": 586,
+      "source": "fix/263a8d4c469b:586-586"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 22,
+      "end": 22,
+      "source": "fix/263a8d4c469b:22-22"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 47,
+      "end": 47,
+      "source": "fix/263a8d4c469b:47-47"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 53,
+      "end": 53,
+      "source": "fix/263a8d4c469b:53-53"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 113,
+      "end": 126,
+      "source": "fix/263a8d4c469b:113-126"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py",
+      "start": 261,
+      "end": 262,
+      "source": "fix/263a8d4c469b:261-262"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 72,
+      "end": 72,
+      "source": "fix/263a8d4c469b:72-72"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 131,
+      "end": 131,
+      "source": "fix/263a8d4c469b:131-131"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 138,
+      "end": 138,
+      "source": "fix/263a8d4c469b:138-138"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 145,
+      "end": 145,
+      "source": "fix/263a8d4c469b:145-145"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 162,
+      "end": 162,
+      "source": "fix/263a8d4c469b:162-162"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 186,
+      "end": 186,
+      "source": "fix/263a8d4c469b:186-186"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 298,
+      "end": 300,
+      "source": "fix/263a8d4c469b:298-300"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 341,
+      "end": 341,
+      "source": "fix/263a8d4c469b:341-341"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 543,
+      "end": 553,
+      "source": "fix/263a8d4c469b:543-553"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "start": 577,
+      "end": 577,
+      "source": "fix/263a8d4c469b:577-577"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/adapters/loa_cheval/types.py",
+      "start": 9,
+      "end": 9,
+      "source": "fix/263a8d4c469b:9-9"
+    },
+    {
+      "id": "F043",
+      "file": ".claude/adapters/loa_cheval/types.py",
+      "start": 499,
+      "end": 500,
+      "source": "fix/263a8d4c469b:499-500"
+    },
+    {
+      "id": "F044",
+      "file": ".claude/adapters/loa_cheval/types.py",
+      "start": 515,
+      "end": 516,
+      "source": "fix/263a8d4c469b:515-516"
+    },
+    {
+      "id": "F045",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 9,
+      "end": 9,
+      "source": "fix/263a8d4c469b:9-9"
+    },
+    {
+      "id": "F046",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 22,
+      "end": 22,
+      "source": "fix/263a8d4c469b:22-22"
+    },
+    {
+      "id": "F047",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 56,
+      "end": 56,
+      "source": "fix/263a8d4c469b:56-56"
+    },
+    {
+      "id": "F048",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 71,
+      "end": 73,
+      "source": "fix/263a8d4c469b:71-73"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 146,
+      "end": 146,
+      "source": "fix/263a8d4c469b:146-146"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/adapters/tests/test_agy_opt_in_gate.py",
+      "start": 154,
+      "end": 154,
+      "source": "fix/263a8d4c469b:154-154"
+    },
+    {
+      "id": "F051",
+      "file": ".claude/adapters/tests/test_anthropic_catalog_floor.py",
+      "start": 24,
+      "end": 24,
+      "source": "fix/263a8d4c469b:24-24"
+    },
+    {
+      "id": "F052",
+      "file": ".claude/adapters/tests/test_anthropic_catalog_floor.py",
+      "start": 144,
+      "end": 147,
+      "source": "fix/263a8d4c469b:144-147"
+    },
+    {
+      "id": "F053",
+      "file": ".claude/adapters/tests/test_anthropic_catalog_floor.py",
+      "start": 151,
+      "end": 151,
+      "source": "fix/263a8d4c469b:151-151"
+    },
+    {
+      "id": "F054",
+      "file": ".claude/adapters/tests/test_anthropic_catalog_floor.py",
+      "start": 166,
+      "end": 168,
+      "source": "fix/263a8d4c469b:166-168"
+    },
+    {
+      "id": "F055",
+      "file": ".claude/adapters/tests/test_anthropic_catalog_floor.py",
+      "start": 364,
+      "end": 364,
+      "source": "fix/263a8d4c469b:364-364"
+    },
+    {
+      "id": "F056",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 33,
+      "end": 33,
+      "source": "fix/263a8d4c469b:33-33"
+    },
+    {
+      "id": "F057",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 61,
+      "end": 61,
+      "source": "fix/263a8d4c469b:61-61"
+    },
+    {
+      "id": "F058",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 75,
+      "end": 78,
+      "source": "fix/263a8d4c469b:75-78"
+    },
+    {
+      "id": "F059",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 94,
+      "end": 95,
+      "source": "fix/263a8d4c469b:94-95"
+    },
+    {
+      "id": "F060",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 99,
+      "end": 104,
+      "source": "fix/263a8d4c469b:99-104"
+    },
+    {
+      "id": "F061",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 129,
+      "end": 129,
+      "source": "fix/263a8d4c469b:129-129"
+    },
+    {
+      "id": "F062",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 148,
+      "end": 148,
+      "source": "fix/263a8d4c469b:148-148"
+    },
+    {
+      "id": "F063",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 155,
+      "end": 155,
+      "source": "fix/263a8d4c469b:155-155"
+    },
+    {
+      "id": "F064",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 219,
+      "end": 224,
+      "source": "fix/263a8d4c469b:219-224"
+    },
+    {
+      "id": "F065",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 230,
+      "end": 230,
+      "source": "fix/263a8d4c469b:230-230"
+    },
+    {
+      "id": "F066",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 238,
+      "end": 241,
+      "source": "fix/263a8d4c469b:238-241"
+    },
+    {
+      "id": "F067",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 274,
+      "end": 274,
+      "source": "fix/263a8d4c469b:274-274"
+    },
+    {
+      "id": "F068",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 298,
+      "end": 298,
+      "source": "fix/263a8d4c469b:298-298"
+    },
+    {
+      "id": "F069",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 304,
+      "end": 304,
+      "source": "fix/263a8d4c469b:304-304"
+    },
+    {
+      "id": "F070",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 321,
+      "end": 323,
+      "source": "fix/263a8d4c469b:321-323"
+    },
+    {
+      "id": "F071",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 330,
+      "end": 330,
+      "source": "fix/263a8d4c469b:330-330"
+    },
+    {
+      "id": "F072",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 334,
+      "end": 334,
+      "source": "fix/263a8d4c469b:334-334"
+    },
+    {
+      "id": "F073",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 341,
+      "end": 344,
+      "source": "fix/263a8d4c469b:341-344"
+    },
+    {
+      "id": "F074",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 351,
+      "end": 351,
+      "source": "fix/263a8d4c469b:351-351"
+    },
+    {
+      "id": "F075",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 355,
+      "end": 355,
+      "source": "fix/263a8d4c469b:355-355"
+    },
+    {
+      "id": "F076",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 361,
+      "end": 361,
+      "source": "fix/263a8d4c469b:361-361"
+    },
+    {
+      "id": "F077",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 370,
+      "end": 370,
+      "source": "fix/263a8d4c469b:370-370"
+    },
+    {
+      "id": "F078",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 379,
+      "end": 389,
+      "source": "fix/263a8d4c469b:379-389"
+    },
+    {
+      "id": "F079",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 393,
+      "end": 393,
+      "source": "fix/263a8d4c469b:393-393"
+    },
+    {
+      "id": "F080",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 403,
+      "end": 403,
+      "source": "fix/263a8d4c469b:403-403"
+    },
+    {
+      "id": "F081",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 440,
+      "end": 444,
+      "source": "fix/263a8d4c469b:440-444"
+    },
+    {
+      "id": "F082",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 451,
+      "end": 451,
+      "source": "fix/263a8d4c469b:451-451"
+    },
+    {
+      "id": "F083",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 457,
+      "end": 459,
+      "source": "fix/263a8d4c469b:457-459"
+    },
+    {
+      "id": "F084",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 472,
+      "end": 472,
+      "source": "fix/263a8d4c469b:472-472"
+    },
+    {
+      "id": "F085",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 484,
+      "end": 484,
+      "source": "fix/263a8d4c469b:484-484"
+    },
+    {
+      "id": "F086",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 525,
+      "end": 525,
+      "source": "fix/263a8d4c469b:525-525"
+    },
+    {
+      "id": "F087",
+      "file": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "start": 675,
+      "end": 675,
+      "source": "fix/263a8d4c469b:675-675"
+    },
+    {
+      "id": "F088",
+      "file": ".claude/adapters/tests/test_effort_catalog_default.py",
+      "start": 175,
+      "end": 178,
+      "source": "fix/263a8d4c469b:175-178"
+    },
+    {
+      "id": "F089",
+      "file": ".claude/adapters/tests/test_effort_catalog_default.py",
+      "start": 185,
+      "end": 185,
+      "source": "fix/263a8d4c469b:185-185"
+    },
+    {
+      "id": "F090",
+      "file": ".claude/adapters/tests/test_effort_catalog_default.py",
+      "start": 395,
+      "end": 395,
+      "source": "fix/263a8d4c469b:395-395"
+    },
+    {
+      "id": "F091",
+      "file": ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py",
+      "start": 2,
+      "end": 2,
+      "source": "fix/263a8d4c469b:2-2"
+    },
+    {
+      "id": "F092",
+      "file": ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py",
+      "start": 18,
+      "end": 18,
+      "source": "fix/263a8d4c469b:18-18"
+    },
+    {
+      "id": "F093",
+      "file": ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py",
+      "start": 50,
+      "end": 50,
+      "source": "fix/263a8d4c469b:50-50"
+    },
+    {
+      "id": "F094",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 274,
+      "end": 274,
+      "source": "fix/263a8d4c469b:274-274"
+    },
+    {
+      "id": "F095",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 287,
+      "end": 287,
+      "source": "fix/263a8d4c469b:287-287"
+    },
+    {
+      "id": "F096",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 292,
+      "end": 292,
+      "source": "fix/263a8d4c469b:292-292"
+    },
+    {
+      "id": "F097",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 296,
+      "end": 296,
+      "source": "fix/263a8d4c469b:296-296"
+    },
+    {
+      "id": "F098",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 300,
+      "end": 300,
+      "source": "fix/263a8d4c469b:300-300"
+    },
+    {
+      "id": "F099",
+      "file": ".claude/data/schemas/model-config-v3.schema.json",
+      "start": 306,
+      "end": 307,
+      "source": "fix/263a8d4c469b:306-307"
+    },
+    {
+      "id": "F100",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 64,
+      "end": 64,
+      "source": "fix/263a8d4c469b:64-64"
+    },
+    {
+      "id": "F101",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 510,
+      "end": 510,
+      "source": "fix/263a8d4c469b:510-510"
+    },
+    {
+      "id": "F102",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 754,
+      "end": 754,
+      "source": "fix/263a8d4c469b:754-754"
+    },
+    {
+      "id": "F103",
+      "file": ".claude/defaults/model-config.yaml",
+      "start": 495,
+      "end": 501,
+      "source": "fix/263a8d4c469b:495-501"
+    },
+    {
+      "id": "F104",
+      "file": ".claude/defaults/model-config.yaml",
+      "start": 506,
+      "end": 506,
+      "source": "fix/263a8d4c469b:506-506"
+    },
+    {
+      "id": "F105",
+      "file": ".claude/defaults/model-config.yaml",
+      "start": 513,
+      "end": 513,
+      "source": "fix/263a8d4c469b:513-513"
+    },
+    {
+      "id": "F107",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 81,
+      "end": 81,
+      "source": "fix/263a8d4c469b:81-81"
+    },
+    {
+      "id": "F108",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 2349,
+      "end": 2360,
+      "source": "fix/263a8d4c469b:2349-2360"
+    },
+    {
+      "id": "F109",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 4081,
+      "end": 4081,
+      "source": "fix/263a8d4c469b:4081-4081"
+    },
+    {
+      "id": "F110",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "start": 56,
+      "end": 56,
+      "source": "fix/263a8d4c469b:56-56"
+    },
+    {
+      "id": "F111",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "start": 522,
+      "end": 536,
+      "source": "fix/263a8d4c469b:522-536"
+    },
+    {
+      "id": "F112",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "start": 2456,
+      "end": 2456,
+      "source": "fix/263a8d4c469b:2456-2456"
+    },
+    {
+      "id": "F113",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 619,
+      "end": 619,
+      "source": "fix/263a8d4c469b:619-619"
+    },
+    {
+      "id": "F114",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 798,
+      "end": 806,
+      "source": "fix/263a8d4c469b:798-806"
+    },
+    {
+      "id": "F115",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 811,
+      "end": 814,
+      "source": "fix/263a8d4c469b:811-814"
+    },
+    {
+      "id": "F116",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 821,
+      "end": 822,
+      "source": "fix/263a8d4c469b:821-822"
+    },
+    {
+      "id": "F117",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 826,
+      "end": 838,
+      "source": "fix/263a8d4c469b:826-838"
+    },
+    {
+      "id": "F118",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 842,
+      "end": 842,
+      "source": "fix/263a8d4c469b:842-842"
+    },
+    {
+      "id": "F119",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 860,
+      "end": 860,
+      "source": "fix/263a8d4c469b:860-860"
+    },
+    {
+      "id": "F120",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 880,
+      "end": 880,
+      "source": "fix/263a8d4c469b:880-880"
+    },
+    {
+      "id": "F121",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 38,
+      "end": 38,
+      "source": "fix/263a8d4c469b:38-38"
+    },
+    {
+      "id": "F122",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 46,
+      "end": 46,
+      "source": "fix/263a8d4c469b:46-46"
+    },
+    {
+      "id": "F123",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 153,
+      "end": 159,
+      "source": "fix/263a8d4c469b:153-159"
+    },
+    {
+      "id": "F124",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 174,
+      "end": 174,
+      "source": "fix/263a8d4c469b:174-174"
+    },
+    {
+      "id": "F125",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 179,
+      "end": 179,
+      "source": "fix/263a8d4c469b:179-179"
+    },
+    {
+      "id": "F126",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 186,
+      "end": 190,
+      "source": "fix/263a8d4c469b:186-190"
+    },
+    {
+      "id": "F127",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 197,
+      "end": 197,
+      "source": "fix/263a8d4c469b:197-197"
+    },
+    {
+      "id": "F128",
+      "file": ".claude/scripts/run-preflight.sh",
+      "start": 204,
+      "end": 204,
+      "source": "fix/263a8d4c469b:204-204"
+    },
+    {
+      "id": "F160",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts",
+      "start": 3,
+      "end": 6,
+      "source": "fix/263a8d4c469b:3-6"
+    },
+    {
+      "id": "F161",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts",
+      "start": 19,
+      "end": 22,
+      "source": "fix/263a8d4c469b:19-22"
+    },
+    {
+      "id": "F162",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts",
+      "start": 35,
+      "end": 35,
+      "source": "fix/263a8d4c469b:35-35"
+    },
+    {
+      "id": "F163",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts",
+      "start": 159,
+      "end": 159,
+      "source": "fix/263a8d4c469b:159-159"
+    },
+    {
+      "id": "F164",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts",
+      "start": 168,
+      "end": 168,
+      "source": "fix/263a8d4c469b:168-168"
+    },
+    {
+      "id": "F165",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 3,
+      "end": 3,
+      "source": "fix/263a8d4c469b:3-3"
+    },
+    {
+      "id": "F166",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 151,
+      "end": 151,
+      "source": "fix/263a8d4c469b:151-151"
+    },
+    {
+      "id": "F167",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 157,
+      "end": 182,
+      "source": "fix/263a8d4c469b:157-182"
+    },
+    {
+      "id": "F168",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 190,
+      "end": 190,
+      "source": "fix/263a8d4c469b:190-190"
+    },
+    {
+      "id": "F169",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 200,
+      "end": 200,
+      "source": "fix/263a8d4c469b:200-200"
+    },
+    {
+      "id": "F170",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 220,
+      "end": 220,
+      "source": "fix/263a8d4c469b:220-220"
+    },
+    {
+      "id": "F171",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 26,
+      "end": 26,
+      "source": "fix/263a8d4c469b:26-26"
+    },
+    {
+      "id": "F172",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 172,
+      "end": 174,
+      "source": "fix/263a8d4c469b:172-174"
+    },
+    {
+      "id": "F173",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 212,
+      "end": 212,
+      "source": "fix/263a8d4c469b:212-212"
+    },
+    {
+      "id": "F174",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 352,
+      "end": 352,
+      "source": "fix/263a8d4c469b:352-352"
+    },
+    {
+      "id": "F175",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 421,
+      "end": 422,
+      "source": "fix/263a8d4c469b:421-422"
+    },
+    {
+      "id": "F176",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 628,
+      "end": 628,
+      "source": "fix/263a8d4c469b:628-628"
+    },
+    {
+      "id": "F177",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+      "start": 652,
+      "end": 652,
+      "source": "fix/263a8d4c469b:652-652"
+    },
+    {
+      "id": "F178",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "start": 14,
+      "end": 14,
+      "source": "fix/263a8d4c469b:14-14"
+    },
+    {
+      "id": "F179",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "start": 34,
+      "end": 34,
+      "source": "fix/263a8d4c469b:34-34"
+    },
+    {
+      "id": "F180",
+      "file": ".loa.config.yaml.example",
+      "start": 748,
+      "end": 749,
+      "source": "fix/263a8d4c469b:748-749"
+    },
+    {
+      "id": "F181",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 287,
+      "end": 290,
+      "source": "fix/263a8d4c469b:287-290"
+    },
+    {
+      "id": "F182",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 297,
+      "end": 300,
+      "source": "fix/263a8d4c469b:297-300"
+    },
+    {
+      "id": "F183",
+      "file": "docs/migration/v2.0-model-generation-floor.md",
+      "start": 310,
+      "end": 311,
+      "source": "fix/263a8d4c469b:310-311"
+    },
+    {
+      "id": "F184",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 51,
+      "end": 51,
+      "source": "fix/263a8d4c469b:51-51"
+    },
+    {
+      "id": "F185",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 5978,
+      "end": 5981,
+      "source": "fix/263a8d4c469b:5978-5981"
+    },
+    {
+      "id": "F186",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 5989,
+      "end": 5991,
+      "source": "fix/263a8d4c469b:5989-5991"
+    },
+    {
+      "id": "F187",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 6002,
+      "end": 6002,
+      "source": "fix/263a8d4c469b:6002-6002"
+    },
+    {
+      "id": "F188",
+      "file": "tests/unit/adversarial-review-companion.bats",
+      "start": 6027,
+      "end": 6027,
+      "source": "fix/263a8d4c469b:6027-6027"
+    },
+    {
+      "id": "F189",
+      "file": "tests/unit/cycle-124-effort-flag.bats",
+      "start": 27,
+      "end": 27,
+      "source": "fix/263a8d4c469b:27-27"
+    },
+    {
+      "id": "F190",
+      "file": "tests/unit/flatline-tertiary-agy-opt-in.bats",
+      "start": 11,
+      "end": 11,
+      "source": "fix/263a8d4c469b:11-11"
+    },
+    {
+      "id": "F191",
+      "file": "tests/unit/flatline-tertiary-agy-opt-in.bats",
+      "start": 45,
+      "end": 45,
+      "source": "fix/263a8d4c469b:45-45"
+    },
+    {
+      "id": "F192",
+      "file": "tests/unit/flatline-tertiary-agy-opt-in.bats",
+      "start": 77,
+      "end": 77,
+      "source": "fix/263a8d4c469b:77-77"
+    },
+    {
+      "id": "F193",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 1,
+      "end": 1,
+      "source": "fix/263a8d4c469b:1-1"
+    },
+    {
+      "id": "F194",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 10,
+      "end": 10,
+      "source": "fix/263a8d4c469b:10-10"
+    },
+    {
+      "id": "F195",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 66,
+      "end": 69,
+      "source": "fix/263a8d4c469b:66-69"
+    },
+    {
+      "id": "F196",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 76,
+      "end": 77,
+      "source": "fix/263a8d4c469b:76-77"
+    },
+    {
+      "id": "F197",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 84,
+      "end": 111,
+      "source": "fix/263a8d4c469b:84-111"
+    },
+    {
+      "id": "F198",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 122,
+      "end": 124,
+      "source": "fix/263a8d4c469b:122-124"
+    },
+    {
+      "id": "F199",
+      "file": "tests/unit/loa-status-providers.bats",
+      "start": 129,
+      "end": 131,
+      "source": "fix/263a8d4c469b:129-131"
+    },
+    {
+      "id": "F200",
+      "file": "tests/unit/model-config-v3-schema.bats",
+      "start": 540,
+      "end": 540,
+      "source": "fix/263a8d4c469b:540-540"
+    },
+    {
+      "id": "F201",
+      "file": "tests/unit/model-config-v3-schema.bats",
+      "start": 544,
+      "end": 546,
+      "source": "fix/263a8d4c469b:544-546"
+    },
+    {
+      "id": "F202",
+      "file": "tests/unit/run-preflight.bats",
+      "start": 1,
+      "end": 1,
+      "source": "fix/263a8d4c469b:1-1"
+    },
+    {
+      "id": "F203",
+      "file": "tests/unit/run-preflight.bats",
+      "start": 17,
+      "end": 17,
+      "source": "fix/263a8d4c469b:17-17"
+    },
+    {
+      "id": "F204",
+      "file": "tests/unit/run-preflight.bats",
+      "start": 305,
+      "end": 305,
+      "source": "fix/263a8d4c469b:305-305"
+    },
+    {
+      "id": "F205",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 33,
+      "end": 37,
+      "source": "fix/263a8d4c469b:33-37"
+    },
+    {
+      "id": "F206",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 43,
+      "end": 48,
+      "source": "fix/263a8d4c469b:43-48"
+    },
+    {
+      "id": "F207",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 69,
+      "end": 70,
+      "source": "fix/263a8d4c469b:69-70"
+    },
+    {
+      "id": "F208",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 74,
+      "end": 74,
+      "source": "fix/263a8d4c469b:74-74"
+    },
+    {
+      "id": "F209",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 134,
+      "end": 134,
+      "source": "fix/263a8d4c469b:134-134"
+    },
+    {
+      "id": "F210",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 144,
+      "end": 144,
+      "source": "fix/263a8d4c469b:144-144"
+    },
+    {
+      "id": "F211",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 166,
+      "end": 166,
+      "source": "fix/263a8d4c469b:166-166"
+    },
+    {
+      "id": "F212",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 215,
+      "end": 215,
+      "source": "fix/263a8d4c469b:215-215"
+    },
+    {
+      "id": "F213",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 219,
+      "end": 225,
+      "source": "fix/263a8d4c469b:219-225"
+    },
+    {
+      "id": "F214",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 229,
+      "end": 232,
+      "source": "fix/263a8d4c469b:229-232"
+    },
+    {
+      "id": "F215",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 238,
+      "end": 240,
+      "source": "fix/263a8d4c469b:238-240"
+    },
+    {
+      "id": "F216",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 251,
+      "end": 257,
+      "source": "fix/263a8d4c469b:251-257"
+    },
+    {
+      "id": "F217",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 266,
+      "end": 267,
+      "source": "fix/263a8d4c469b:266-267"
+    },
+    {
+      "id": "F218",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 403,
+      "end": 404,
+      "source": "fix/263a8d4c469b:403-404"
+    },
+    {
+      "id": "F219",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 413,
+      "end": 415,
+      "source": "fix/263a8d4c469b:413-415"
+    },
+    {
+      "id": "F220",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 456,
+      "end": 456,
+      "source": "fix/263a8d4c469b:456-456"
+    },
+    {
+      "id": "F221",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 460,
+      "end": 460,
+      "source": "fix/263a8d4c469b:460-460"
+    },
+    {
+      "id": "F222",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 467,
+      "end": 468,
+      "source": "fix/263a8d4c469b:467-468"
+    },
+    {
+      "id": "F223",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 480,
+      "end": 480,
+      "source": "fix/263a8d4c469b:480-480"
+    },
+    {
+      "id": "F224",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 501,
+      "end": 503,
+      "source": "fix/263a8d4c469b:501-503"
+    },
+    {
+      "id": "F225",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 512,
+      "end": 513,
+      "source": "fix/263a8d4c469b:512-513"
+    },
+    {
+      "id": "F226",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 618,
+      "end": 618,
+      "source": "fix/263a8d4c469b:618-618"
+    },
+    {
+      "id": "F227",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 631,
+      "end": 631,
+      "source": "fix/263a8d4c469b:631-631"
+    },
+    {
+      "id": "F228",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 639,
+      "end": 639,
+      "source": "fix/263a8d4c469b:639-639"
+    },
+    {
+      "id": "F229",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 643,
+      "end": 653,
+      "source": "fix/263a8d4c469b:643-653"
+    },
+    {
+      "id": "F230",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 682,
+      "end": 682,
+      "source": "fix/263a8d4c469b:682-682"
+    },
+    {
+      "id": "F231",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 686,
+      "end": 690,
+      "source": "fix/263a8d4c469b:686-690"
+    },
+    {
+      "id": "F232",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 697,
+      "end": 697,
+      "source": "fix/263a8d4c469b:697-697"
+    },
+    {
+      "id": "F233",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 704,
+      "end": 727,
+      "source": "fix/263a8d4c469b:704-727"
+    },
+    {
+      "id": "F234",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 751,
+      "end": 762,
+      "source": "fix/263a8d4c469b:751-762"
+    },
+    {
+      "id": "F235",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 772,
+      "end": 772,
+      "source": "fix/263a8d4c469b:772-772"
+    },
+    {
+      "id": "F236",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 799,
+      "end": 802,
+      "source": "fix/263a8d4c469b:799-802"
+    },
+    {
+      "id": "F237",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 811,
+      "end": 821,
+      "source": "fix/263a8d4c469b:811-821"
+    },
+    {
+      "id": "F238",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 829,
+      "end": 831,
+      "source": "fix/263a8d4c469b:829-831"
+    },
+    {
+      "id": "F239",
+      "file": "tools/ceiling-probe-live.py",
+      "start": 837,
+      "end": 841,
+      "source": "fix/263a8d4c469b:837-841"
+    }
+  ]
+}

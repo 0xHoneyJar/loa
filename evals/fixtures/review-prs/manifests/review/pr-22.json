@@ -1,0 +1,777 @@
+{
+  "fixture": "pr-22",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": "258",
+    "record_ref": "origin/record/cycle-130-a2a",
+    "head_commit": "05442536d2d36a690b9f06b5117c13a5b800057b",
+    "fix_commit": "ffe162efdffb048336ea09a10f9dd4fae108c4e0"
+  },
+  "defects": [
+    {
+      "id": "L01-hands-every-input-to-jq-as-an-argv-strin",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 214,
+      "anchors": [
+        214,
+        221,
+        230
+      ],
+      "must_match": "DOT_WRITES=\"$(for f in \"${ev_files[@]}\"; do",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L15",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L02-the-row-building-jq-program-aborts-on-pl",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 230,
+      "anchors": [
+        221,
+        230,
+        235
+      ],
+      "must_match": "fromdateiso8601",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L17",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L03-under-counts-silently-diss-c-005-confirm",
+      "file": "evals/harness/spend.sh",
+      "anchor_line": 169,
+      "anchors": [
+        169,
+        174
+      ],
+      "must_match": "\"runs_rows_deduped\": dedup, \"ledger_rows\": ledger_rows, \"skipped_lines\": skipped}, sort_keys=True))",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L19",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L04-screen-batches-are-excluded-from-the-sui",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 391,
+      "anchors": [
+        366,
+        378,
+        391
+      ],
+      "must_match": "! -path \"$SUITE_DIR/screen-*\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L21",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L05-neither-hashes-nor-refuses-symlinks-diss",
+      "file": "evals/harness/freeze.sh",
+      "anchor_line": 69,
+      "anchors": [
+        67,
+        69
+      ],
+      "must_match": "find \"$d\" -type f",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L23",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L06-the-codex-cli-version-in-the-documentati",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 85,
+      "must_match": "# toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.137.0 by",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L25",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L07-the-row-writer-trusts-the-dissent-envelo",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 189,
+      "anchors": [
+        189,
+        214,
+        221
+      ],
+      "must_match": "ARM=\"${MAN_ARM:-${META_ARM:-$(jq -r '.arm // \"\"' <<<\"$PIPE_JSON\")}}\"",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L13",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L08-a-trial-that-dies-without-a-event-costs",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 495,
+      "anchors": [
+        495,
+        505,
+        523
+      ],
+      "must_match": "collect()",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L15",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L09-passes-the-arm-s-to-argv-without-its-own",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 217,
+      "anchors": [
+        217,
+        268
+      ],
+      "must_match": "apply_arm_toggles",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L17",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L10-self-modification-through-bash-is-invisi",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 220,
+      "must_match": "\\.claude/",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L19",
+      "source_commit": "05442536",
+      "synthetic": false
+    },
+    {
+      "id": "L11-executes-a-path-under-one-operator-s-hom",
+      "file": "evals/harness/fingerprint.sh",
+      "anchor_line": 40,
+      "anchors": [
+        40,
+        48,
+        52
+      ],
+      "must_match": "LOA_EVAL_BATS_BIN",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L23",
+      "source_commit": "05442536",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/Dockerfile.ablation",
+      "start": 19,
+      "end": 20,
+      "source": "fix/ffe162efdffb:19-20"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/Dockerfile.ablation",
+      "start": 69,
+      "end": 72,
+      "source": "fix/ffe162efdffb:69-72"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 6,
+      "end": 9,
+      "source": "fix/ffe162efdffb:6-9"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 13,
+      "end": 13,
+      "source": "fix/ffe162efdffb:13-13"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 33,
+      "end": 33,
+      "source": "fix/ffe162efdffb:33-33"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 53,
+      "end": 54,
+      "source": "fix/ffe162efdffb:53-54"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 60,
+      "end": 60,
+      "source": "fix/ffe162efdffb:60-60"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 83,
+      "end": 83,
+      "source": "fix/ffe162efdffb:83-83"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 122,
+      "end": 122,
+      "source": "fix/ffe162efdffb:122-122"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 166,
+      "end": 180,
+      "source": "fix/ffe162efdffb:166-180"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 185,
+      "end": 185,
+      "source": "fix/ffe162efdffb:185-185"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 189,
+      "end": 209,
+      "source": "fix/ffe162efdffb:189-209"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 214,
+      "end": 214,
+      "source": "fix/ffe162efdffb:214-214"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 221,
+      "end": 226,
+      "source": "fix/ffe162efdffb:221-226"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 230,
+      "end": 236,
+      "source": "fix/ffe162efdffb:230-236"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 247,
+      "end": 247,
+      "source": "fix/ffe162efdffb:247-247"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 267,
+      "end": 267,
+      "source": "fix/ffe162efdffb:267-267"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 285,
+      "end": 285,
+      "source": "fix/ffe162efdffb:285-285"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 303,
+      "end": 307,
+      "source": "fix/ffe162efdffb:303-307"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 313,
+      "end": 313,
+      "source": "fix/ffe162efdffb:313-313"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 326,
+      "end": 327,
+      "source": "fix/ffe162efdffb:326-327"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 88,
+      "end": 94,
+      "source": "fix/ffe162efdffb:88-94"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 115,
+      "end": 115,
+      "source": "fix/ffe162efdffb:115-115"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 212,
+      "end": 215,
+      "source": "fix/ffe162efdffb:212-215"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 223,
+      "end": 223,
+      "source": "fix/ffe162efdffb:223-223"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 268,
+      "end": 268,
+      "source": "fix/ffe162efdffb:268-268"
+    },
+    {
+      "id": "F027",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 362,
+      "end": 362,
+      "source": "fix/ffe162efdffb:362-362"
+    },
+    {
+      "id": "F028",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 401,
+      "end": 401,
+      "source": "fix/ffe162efdffb:401-401"
+    },
+    {
+      "id": "F029",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 22,
+      "end": 23,
+      "source": "fix/ffe162efdffb:22-23"
+    },
+    {
+      "id": "F030",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 48,
+      "end": 48,
+      "source": "fix/ffe162efdffb:48-48"
+    },
+    {
+      "id": "F031",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 52,
+      "end": 55,
+      "source": "fix/ffe162efdffb:52-55"
+    },
+    {
+      "id": "F032",
+      "file": "evals/harness/freeze.sh",
+      "start": 24,
+      "end": 25,
+      "source": "fix/ffe162efdffb:24-25"
+    },
+    {
+      "id": "F033",
+      "file": "evals/harness/freeze.sh",
+      "start": 38,
+      "end": 38,
+      "source": "fix/ffe162efdffb:38-38"
+    },
+    {
+      "id": "F034",
+      "file": "evals/harness/freeze.sh",
+      "start": 66,
+      "end": 70,
+      "source": "fix/ffe162efdffb:66-70"
+    },
+    {
+      "id": "F035",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 54,
+      "end": 54,
+      "source": "fix/ffe162efdffb:54-54"
+    },
+    {
+      "id": "F036",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 85,
+      "end": 85,
+      "source": "fix/ffe162efdffb:85-85"
+    },
+    {
+      "id": "F037",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 106,
+      "end": 106,
+      "source": "fix/ffe162efdffb:106-106"
+    },
+    {
+      "id": "F038",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 153,
+      "end": 153,
+      "source": "fix/ffe162efdffb:153-153"
+    },
+    {
+      "id": "F039",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 298,
+      "end": 298,
+      "source": "fix/ffe162efdffb:298-298"
+    },
+    {
+      "id": "F040",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 312,
+      "end": 312,
+      "source": "fix/ffe162efdffb:312-312"
+    },
+    {
+      "id": "F041",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 331,
+      "end": 331,
+      "source": "fix/ffe162efdffb:331-331"
+    },
+    {
+      "id": "F042",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 340,
+      "end": 340,
+      "source": "fix/ffe162efdffb:340-340"
+    },
+    {
+      "id": "F043",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 345,
+      "end": 345,
+      "source": "fix/ffe162efdffb:345-345"
+    },
+    {
+      "id": "F044",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 358,
+      "end": 358,
+      "source": "fix/ffe162efdffb:358-358"
+    },
+    {
+      "id": "F045",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 497,
+      "end": 497,
+      "source": "fix/ffe162efdffb:497-497"
+    },
+    {
+      "id": "F046",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 775,
+      "end": 778,
+      "source": "fix/ffe162efdffb:775-778"
+    },
+    {
+      "id": "F047",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 824,
+      "end": 824,
+      "source": "fix/ffe162efdffb:824-824"
+    },
+    {
+      "id": "F048",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 849,
+      "end": 849,
+      "source": "fix/ffe162efdffb:849-849"
+    },
+    {
+      "id": "F049",
+      "file": "evals/harness/run-arms.sh",
+      "start": 27,
+      "end": 27,
+      "source": "fix/ffe162efdffb:27-27"
+    },
+    {
+      "id": "F050",
+      "file": "evals/harness/run-arms.sh",
+      "start": 32,
+      "end": 32,
+      "source": "fix/ffe162efdffb:32-32"
+    },
+    {
+      "id": "F051",
+      "file": "evals/harness/run-arms.sh",
+      "start": 89,
+      "end": 89,
+      "source": "fix/ffe162efdffb:89-89"
+    },
+    {
+      "id": "F052",
+      "file": "evals/harness/run-arms.sh",
+      "start": 164,
+      "end": 164,
+      "source": "fix/ffe162efdffb:164-164"
+    },
+    {
+      "id": "F053",
+      "file": "evals/harness/run-arms.sh",
+      "start": 346,
+      "end": 346,
+      "source": "fix/ffe162efdffb:346-346"
+    },
+    {
+      "id": "F054",
+      "file": "evals/harness/run-arms.sh",
+      "start": 361,
+      "end": 364,
+      "source": "fix/ffe162efdffb:361-364"
+    },
+    {
+      "id": "F055",
+      "file": "evals/harness/run-arms.sh",
+      "start": 373,
+      "end": 373,
+      "source": "fix/ffe162efdffb:373-373"
+    },
+    {
+      "id": "F056",
+      "file": "evals/harness/run-arms.sh",
+      "start": 378,
+      "end": 378,
+      "source": "fix/ffe162efdffb:378-378"
+    },
+    {
+      "id": "F057",
+      "file": "evals/harness/run-arms.sh",
+      "start": 391,
+      "end": 391,
+      "source": "fix/ffe162efdffb:391-391"
+    },
+    {
+      "id": "F058",
+      "file": "evals/harness/run-arms.sh",
+      "start": 505,
+      "end": 509,
+      "source": "fix/ffe162efdffb:505-509"
+    },
+    {
+      "id": "F059",
+      "file": "evals/harness/run-arms.sh",
+      "start": 523,
+      "end": 523,
+      "source": "fix/ffe162efdffb:523-523"
+    },
+    {
+      "id": "F060",
+      "file": "evals/harness/spend.sh",
+      "start": 17,
+      "end": 18,
+      "source": "fix/ffe162efdffb:17-18"
+    },
+    {
+      "id": "F061",
+      "file": "evals/harness/spend.sh",
+      "start": 25,
+      "end": 25,
+      "source": "fix/ffe162efdffb:25-25"
+    },
+    {
+      "id": "F062",
+      "file": "evals/harness/spend.sh",
+      "start": 29,
+      "end": 31,
+      "source": "fix/ffe162efdffb:29-31"
+    },
+    {
+      "id": "F063",
+      "file": "evals/harness/spend.sh",
+      "start": 43,
+      "end": 43,
+      "source": "fix/ffe162efdffb:43-43"
+    },
+    {
+      "id": "F064",
+      "file": "evals/harness/spend.sh",
+      "start": 121,
+      "end": 123,
+      "source": "fix/ffe162efdffb:121-123"
+    },
+    {
+      "id": "F065",
+      "file": "evals/harness/spend.sh",
+      "start": 134,
+      "end": 141,
+      "source": "fix/ffe162efdffb:134-141"
+    },
+    {
+      "id": "F066",
+      "file": "evals/harness/spend.sh",
+      "start": 169,
+      "end": 169,
+      "source": "fix/ffe162efdffb:169-169"
+    },
+    {
+      "id": "F067",
+      "file": "evals/harness/spend.sh",
+      "start": 174,
+      "end": 174,
+      "source": "fix/ffe162efdffb:174-174"
+    },
+    {
+      "id": "F068",
+      "file": "evals/harness/took-effect.sh",
+      "start": 21,
+      "end": 21,
+      "source": "fix/ffe162efdffb:21-21"
+    },
+    {
+      "id": "F069",
+      "file": "evals/harness/took-effect.sh",
+      "start": 74,
+      "end": 74,
+      "source": "fix/ffe162efdffb:74-74"
+    },
+    {
+      "id": "F070",
+      "file": "evals/harness/took-effect.sh",
+      "start": 86,
+      "end": 88,
+      "source": "fix/ffe162efdffb:86-88"
+    },
+    {
+      "id": "F071",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 174,
+      "end": 174,
+      "source": "fix/ffe162efdffb:174-174"
+    },
+    {
+      "id": "F072",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 179,
+      "end": 179,
+      "source": "fix/ffe162efdffb:179-179"
+    },
+    {
+      "id": "F073",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 239,
+      "end": 239,
+      "source": "fix/ffe162efdffb:239-239"
+    },
+    {
+      "id": "F074",
+      "file": "evals/tests/arm-toggles.bats",
+      "start": 356,
+      "end": 361,
+      "source": "fix/ffe162efdffb:356-361"
+    },
+    {
+      "id": "F075",
+      "file": "evals/tests/fixtures/claude-stub-pipeline.sh",
+      "start": 22,
+      "end": 22,
+      "source": "fix/ffe162efdffb:22-22"
+    },
+    {
+      "id": "F076",
+      "file": "evals/tests/fixtures/claude-stub-pipeline.sh",
+      "start": 84,
+      "end": 84,
+      "source": "fix/ffe162efdffb:84-84"
+    },
+    {
+      "id": "F077",
+      "file": "evals/tests/freeze.bats",
+      "start": 101,
+      "end": 101,
+      "source": "fix/ffe162efdffb:101-101"
+    },
+    {
+      "id": "F078",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 276,
+      "end": 276,
+      "source": "fix/ffe162efdffb:276-276"
+    },
+    {
+      "id": "F079",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 764,
+      "end": 764,
+      "source": "fix/ffe162efdffb:764-764"
+    },
+    {
+      "id": "F080",
+      "file": "evals/tests/run-arms.bats",
+      "start": 249,
+      "end": 249,
+      "source": "fix/ffe162efdffb:249-249"
+    },
+    {
+      "id": "F081",
+      "file": "evals/tests/spend.bats",
+      "start": 8,
+      "end": 8,
+      "source": "fix/ffe162efdffb:8-8"
+    },
+    {
+      "id": "F082",
+      "file": "evals/tests/spend.bats",
+      "start": 57,
+      "end": 62,
+      "source": "fix/ffe162efdffb:57-62"
+    },
+    {
+      "id": "F083",
+      "file": "evals/tests/spend.bats",
+      "start": 66,
+      "end": 66,
+      "source": "fix/ffe162efdffb:66-66"
+    },
+    {
+      "id": "F084",
+      "file": "evals/tests/took-effect.bats",
+      "start": 103,
+      "end": 103,
+      "source": "fix/ffe162efdffb:103-103"
+    }
+  ]
+}

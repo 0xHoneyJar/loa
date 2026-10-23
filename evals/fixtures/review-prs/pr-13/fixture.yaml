@@ -15,3 +15,8 @@ record_ref: "origin/record/cycle-126-a2a"
 feedback_files:
   - "grimoires/loa/a2a/sprint-249/engineer-feedback.md"
   - "grimoires/loa/a2a/sprint-249/auditor-sprint-feedback.md"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-05 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-05; sandbox has network; egress scanned (grader class 9)"

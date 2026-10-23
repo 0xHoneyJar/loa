@@ -1,0 +1,104 @@
+# Dockerfile.ablation — container executor image for the cycle-130 component ablation
+# (SDD D-4.9 / DEC-0411). Extends Dockerfile.sandbox's pinned base and non-root user
+# with the Claude Code CLI, the codex CLI, pytest and bats. It holds NO credentials.
+# pipeline-run.sh mounts exactly two host paths: the sandbox read-write at /workspace
+# and a per-run writable HOME at /home/evaluser (<run>/meta/home: the codex CLI's
+# auth.json/config.toml copies, empty .claude/ and .aws/; the CLI's session store). The
+# Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK passed in the environment.
+# The image's tool versions (below) are the batch's versions: every arm runs here.
+#
+# Build (no build context is needed; nothing is COPY'd):
+#   docker build -t loa-ablation:258 - < evals/harness/Dockerfile.ablation
+# Run:
+#   evals/harness/pipeline-run.sh --executor container --image loa-ablation:258 …
+#   (pipeline-run.sh passes --rm --name --user --network bridge --read-only --tmpfs /tmp
+#    --pids-limit 512 --memory 4g --cpus 2 and exactly the two mounts)
+#
+# Digest pinned 2026-02-11 (same base as Dockerfile.sandbox):
+#   docker manifest inspect node:20.11.0-bookworm-slim | jq '.manifests[0].digest'
+FROM rust:1-bookworm AS brbuild
+RUN cargo install beads_rust --version 0.2.6 --root /opt/br --locked 2>/dev/null || cargo install beads_rust --version 0.2.6 --root /opt/br
+
+FROM node:20.11.0-bookworm-slim@sha256:8ea90c4f037cc3c2f566eb46c53eaac005129113487eda4090058fe554578104 AS base
+
+ARG CLAUDE_CODE_VERSION=2.1.299
+ARG CODEX_VERSION=0.162.1
+ARG PYTEST_VERSION=9.0.2
+ARG BATS_VERSION=v1.13.0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    git \
+    jq \
+    python3 \
+    python3-pip \
+    python3-venv \
+    grep \
+    diffutils \
+    coreutils \
+    procps \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# yq (mikefarah/yq) with SHA256 integrity verification (as Dockerfile.sandbox)
+ARG YQ_VERSION=v4.40.5
+ARG YQ_SHA256_AMD64=0d6aaf1cf44a8d18fbc7ed0ef14f735a8df8d2e314c4cc0f0242d35c0a440c95
+ARG YQ_SHA256_ARM64=9431f0fa39a0af03a152d7fe19a86e42e9ff28d503ed4a70598f9261ec944a97
+RUN arch=$(dpkg --print-architecture) && \
+    case "$arch" in \
+      amd64) yq_arch="amd64"; yq_sha256="${YQ_SHA256_AMD64}" ;; \
+      arm64) yq_arch="arm64"; yq_sha256="${YQ_SHA256_ARM64}" ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${yq_arch}" \
+      -o /usr/local/bin/yq && \
+    echo "${yq_sha256}  /usr/local/bin/yq" | sha256sum -c - && \
+    chmod +x /usr/local/bin/yq
+
+# The two CLIs at the versions the fingerprint pins (exact versions, no ranges).
+RUN npm install -g --no-fund --no-audit \
+      "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+      "@openai/codex@${CODEX_VERSION}" \
+    && npm cache clean --force
+
+# pytest for Python fixtures (bookworm's pip is externally managed)
+RUN pip3 install --no-cache-dir --break-system-packages "pytest==${PYTEST_VERSION}"
+# cheval's declared dependencies (.claude/adapters/pyproject.toml: dependencies + the `full` extra),
+# so the sandbox gates (adversarial-review.sh, flatline-orchestrator.sh) can dispatch (lead, DEC-0482)
+RUN pip3 install --no-cache-dir --break-system-packages "rfc8785>=0.1.4" "jsonschema>=4.21" "pyyaml>=6.0" "httpx[http2]>=0.24.0"
+
+# bats-core at the pinned tag
+RUN git clone --depth 1 --branch "${BATS_VERSION}" https://github.com/bats-core/bats-core.git /tmp/bats-core && \
+    /tmp/bats-core/install.sh /usr/local && \
+    rm -rf /tmp/bats-core
+
+# Disable npm lifecycle scripts for anything the agent installs later
+RUN npm config set ignore-scripts true
+
+# Non-root user (as Dockerfile.sandbox). At run time /home/evaluser is replaced by the
+# per-run HOME bind mount and the process runs as the host uid (--user).
+RUN groupadd -r evaluser && useradd -r -g evaluser -d /home/evaluser -s /bin/bash evaluser
+# No beads (br) in the image: beads_rust 0.2.6 is not on crates.io and the host binary needs glibc 2.38+; the sandbox
+# materialiser writes the beads opt-out marker (LOA_EVAL_BR_BIN unset/absent), so every arm runs the skills'
+# markdown fallback alike (lead, Sprint 258).
+RUN mkdir -p /home/evaluser/.aws /home/evaluser/.claude /home/evaluser/.codex /workspace && \
+    chown -R evaluser:evaluser /home/evaluser /workspace
+
+ENV TZ=UTC
+ENV LC_ALL=C
+ENV HOME=/home/evaluser
+ENV NPM_CONFIG_IGNORE_SCRIPTS=true
+ENV CLAUDE_CODE_USE_BEDROCK=1
+
+USER evaluser
+WORKDIR /workspace
+
+# Health check — every tool the fingerprint names is present
+RUN bash --version && git --version && jq --version && node --version && \
+    python3 --version && python3 -m pytest --version && yq --version && \
+    bats --version && claude --version && codex --version && \
+    echo "All tools verified"
+
+ENTRYPOINT []
+CMD ["/bin/bash"]

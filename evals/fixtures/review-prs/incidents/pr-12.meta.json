@@ -1,0 +1,62 @@
+{
+  "changed_files": 15,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 11,
+    "issue": 0,
+    "kf": 1
+  },
+  "fixture": "pr-12",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \".loa.config.yaml.example\" OR \"01-guardrails-fail-open.json\" OR \"02-cleanup-continues.json\" OR \"03-message-redacted.json\" OR \"ADVERSARIAL-REVIEW.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 4,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"README.md\" OR \"SKILL.md\" OR \"adversarial-review-companion.bats\" OR \"adversarial-review-normalise.bats\" OR \"adversarial-review.sh\"",
+      "total_count": 4
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"neg-missing-id.json\" OR \"verdict-derive.bats\" OR \"verdict-derive.sh\"",
+      "total_count": 2
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 13,
+  "merge_commit": "e70f2838ef29e52e25f651d62706317b335c29b6",
+  "merge_date": "2026-10-07T07:45:33Z",
+  "pr": 1274,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:23:09Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-07T07:45:33Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:23:09Z"
+  }
+}

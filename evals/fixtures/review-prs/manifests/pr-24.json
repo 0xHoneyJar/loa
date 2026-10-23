@@ -1,0 +1,443 @@
+{
+  "fixture": "pr-24",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "260",
+    "record_ref": "origin/record/cycle-130-a2a",
+    "head_commit": "4c2796067e8b9b65c66a8843328b5abae06bd9ca",
+    "fix_commit": "53600ea3168adfba0745ae5c1c461ab4d24a342e",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 256,
+      "must_match": "import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time",
+      "severity": "low",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H04",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1329,
+      "anchors": [
+        1329,
+        1395
+      ],
+      "must_match": "HIDDEN_TOKEN = re.compile(r\"HIDDEN|(?<=[/._=-])hidden\\b|\\bhidden(?=[/_=-]|\\.[A-Za-z0-9])\")",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H08",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity/category: codebook medium and security (B) \u2014 the contamination detector misses probe shapes; a missing validation with bounded impact; as H05 (same group D5)",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1369,
+      "anchors": [
+        1369,
+        1372,
+        1373,
+        1374,
+        1377
+      ],
+      "must_match": "return not (before.isspace() or before in \"=(<>|;&,\")",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H06",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) \u2014 A's attribution kept; both behaviours are in the key (D2, D3)",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1372,
+      "anchors": [
+        1372,
+        1373,
+        1374,
+        1444
+      ],
+      "must_match": "def in_quotes(body, pos):   # DEC-0551: odd count of unescaped quotes before pos \u2192 inside a literal",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) \u2014 defect member of D3 (A)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1377,
+      "anchors": [
+        1377,
+        1383
+      ],
+      "must_match": "HEREDOC = re.compile(r\"<<-?\\s*(['\\\"]?)([A-Za-z_][A-Za-z0-9_]*)\\1[^\\n]*\\n(?:.*?\\n)*?\\s*\\2[ \\t]*(?=\\n|$)\", re.S)",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1401,
+      "anchors": [
+        1401,
+        1402
+      ],
+      "must_match": "if \"0xhoneyjar/loa\" in low:",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "incident",
+      "source": "incident:I01",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D10 = B's D8 (namespace only); category: logic (an incident record carries none; the scan misclassifies quoted PR text)",
+      "review_driven": false
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1422,
+      "anchors": [
+        1422,
+        1423
+      ],
+      "must_match": "one = re.match(r\"^/([^/]+)/?$\", w)",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "severity: codebook medium (A) \u2014 a detector bypass with bounded impact",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1438,
+      "must_match": "if w.startswith(\"/.\"):",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/run-ablation.sh",
+      "anchor_line": 976,
+      "anchors": [
+        976,
+        978,
+        980,
+        996,
+        997
+      ],
+      "must_match": "tout=\"$(\"$TOOK_BIN\" --run-dir \"$rd\" --suite-file \"$SUITE_FILE\" 2>&1)\" || trc=$?",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H25,H26",
+      "source_commit": "4c279606",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 167,
+      "end": 168,
+      "source": "fix/53600ea3168a:167-168"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 176,
+      "end": 176,
+      "source": "fix/53600ea3168a:176-176"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 200,
+      "end": 202,
+      "source": "fix/53600ea3168a:200-202"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 256,
+      "end": 258,
+      "source": "fix/53600ea3168a:256-258"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1328,
+      "end": 1329,
+      "source": "fix/53600ea3168a:1328-1329"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1369,
+      "end": 1377,
+      "source": "fix/53600ea3168a:1369-1377"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1382,
+      "end": 1383,
+      "source": "fix/53600ea3168a:1382-1383"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1395,
+      "end": 1395,
+      "source": "fix/53600ea3168a:1395-1395"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1404,
+      "end": 1404,
+      "source": "fix/53600ea3168a:1404-1404"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1423,
+      "end": 1423,
+      "source": "fix/53600ea3168a:1423-1423"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1436,
+      "end": 1438,
+      "source": "fix/53600ea3168a:1436-1438"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1444,
+      "end": 1444,
+      "source": "fix/53600ea3168a:1444-1444"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1538,
+      "end": 1538,
+      "source": "fix/53600ea3168a:1538-1538"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1542,
+      "end": 1542,
+      "source": "fix/53600ea3168a:1542-1542"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1623,
+      "end": 1623,
+      "source": "fix/53600ea3168a:1623-1623"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 135,
+      "end": 135,
+      "source": "fix/53600ea3168a:135-135"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 149,
+      "end": 149,
+      "source": "fix/53600ea3168a:149-149"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 187,
+      "end": 187,
+      "source": "fix/53600ea3168a:187-187"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 225,
+      "end": 225,
+      "source": "fix/53600ea3168a:225-225"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 262,
+      "end": 262,
+      "source": "fix/53600ea3168a:262-262"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 341,
+      "end": 341,
+      "source": "fix/53600ea3168a:341-341"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 721,
+      "end": 721,
+      "source": "fix/53600ea3168a:721-721"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 744,
+      "end": 744,
+      "source": "fix/53600ea3168a:744-744"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 967,
+      "end": 967,
+      "source": "fix/53600ea3168a:967-967"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 976,
+      "end": 978,
+      "source": "fix/53600ea3168a:976-978"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/run-ablation.sh",
+      "start": 996,
+      "end": 997,
+      "source": "fix/53600ea3168a:996-997"
+    },
+    {
+      "id": "F027",
+      "file": "evals/tests/ablation-grade.bats",
+      "start": 1001,
+      "end": 1001,
+      "source": "fix/53600ea3168a:1001-1001"
+    },
+    {
+      "id": "F028",
+      "file": "evals/tests/fixtures/ablation-grade-stub.sh",
+      "start": 7,
+      "end": 7,
+      "source": "fix/53600ea3168a:7-7"
+    },
+    {
+      "id": "F029",
+      "file": "evals/tests/fixtures/ablation-grade-stub.sh",
+      "start": 25,
+      "end": 25,
+      "source": "fix/53600ea3168a:25-25"
+    },
+    {
+      "id": "F030",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 31,
+      "end": 31,
+      "source": "fix/53600ea3168a:31-31"
+    },
+    {
+      "id": "F031",
+      "file": "evals/tests/run-ablation.bats",
+      "start": 688,
+      "end": 688,
+      "source": "fix/53600ea3168a:688-688"
+    }
+  ]
+}

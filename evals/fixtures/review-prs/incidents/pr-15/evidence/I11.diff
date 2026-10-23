@@ -1,0 +1,15 @@
+commit 8e9965141be6c3cbec24d9661600cc6d8d56d6b9
+Date: 2026-10-14T21:39:58+11:00
+
+fix(cycle-129): CI — hop-locality.py splits the endpoint authority by hand (scheme://[userinfo@]host[:port], bracketed IPv6, numeric port; the same split as Bridgebuilder's localEndpointHost) because the cycle-099 import guard confines URL parsing to the endpoint validator (T1.15 import-guard red on 757e7043); model-config.yaml.checksum bumped for the Sprint 3 catalog comment (DRIFT-LOCKFILE-MISMATCH red); checksums.json and REPO-MAP refreshed (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/defaults/model-config.yaml.checksum b/.claude/defaults/model-config.yaml.checksum
+index 75c62299..3aa265f5 100644
+--- a/.claude/defaults/model-config.yaml.checksum
++++ b/.claude/defaults/model-config.yaml.checksum
+@@ -1 +1 @@
+-4d17fd65c8e75e71ac2248bd9c7539a64932fc8dadaa2c1b3de3078a19102e93
++35d5f6d2e7914a20f8b92c23fb45822df5adcbbb4a614f39ca632d7cbbd1e46c

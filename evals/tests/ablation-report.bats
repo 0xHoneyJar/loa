@@ -841,3 +841,62 @@ PY
   run "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$FX/c131/runs.jsonl"
   [ "$status" -eq 0 ]
 }
+
+# --- report 1.4 (cycle-132 Sprint 269 Task 1.7b): label_set partitions, the matched-bare section, intention to run ---
+
+# c132_fx — the c131 scenario plus matched cells (a0_bare_matched on rc-01: two cells at k 3, one at k 4, one degraded)
+c132_fx() {
+  D="$T/c132"; cp -r "$FX/c131" "$D"
+  M="$D/manifests/c131-b/MANIFEST.json"
+  local tmpl; tmpl="$(jq -c 'select(.arm == "a1_full" and .task_id == "rc-01" and .trial == 1)' "$D/runs.jsonl")"
+  local n k deg r
+  for spec in 1:3:false 2:3:false 3:4:false 4:3:true; do
+    IFS=: read -r n k deg <<<"$spec"
+    r="c131-b-a0_bare_matched-rc-01-t$n"
+    jq -c --arg r "$r" --argjson n "$n" --argjson k "$k" --argjson deg "$deg" '. + {run_id: $r, arm: "a0_bare_matched", trial: $n,
+        row_writer_version: "1.5", bare_sessions: $k, sessions_valid: $k, sessions_attempted: $k, degraded: $deg,
+        degraded_reason: (if $deg then "sessions_valid < k/2 (1 of 3)" else null end), defect_catch_rate: 0.75,
+        recall_session1: 0.5, precision_session1: 0.4, cost_usd: 9, all_spend_usd: 11,
+        session_costs: [range(0; $k) | {session: "s\(. + 1)", valid: true}]}' <<<"$tmpl" >> "$D/runs.jsonl"
+    jq --arg r "$r" '.arm_map[$r] = "a0_bare_matched"' "$M" > "$T/m" && mv "$T/m" "$M"
+  done
+}
+rep132() { run python3 -I "$REPORT" --runs "$D/runs.jsonl" --manifests "$D/manifests" --suite "$SUITE" --out "$T/r.md" --json "$T/r.json" "$@"; }
+
+@test "AR-c132-1 a matched arm is read in its own section — one line per task × k (never pooled across k), union and session-1 figures — and is never a component or a decision" {
+  c132_fx
+  rep132
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '^## Matched-bare arms' "$T/r.md"
+  [ "$(jq -c '[.matched_arms[] | [.arm, .task_id, .k, .cells, .completed, .degraded]]' "$T/r.json")" = '[["a0_bare_matched","rc-01",3,3,2,1],["a0_bare_matched","rc-01",4,1,1,0]]' ]
+  jq -e '.matched_arms[0] | .union_catch_rate == 0.75 and .recall_session1 == 0.5 and .precision_session1 == 0.4
+         and .cost_usd == 9 and .all_spend_usd == 11 and .sessions_valid == 9 and .sessions_attempted == 9' "$T/r.json" >/dev/null
+  grep -qF '| `a0_bare_matched` | rc-01 | 3 | 3 | 2 | 1 | 0 | 0.750 | 0.500 | 0.400 | 9 / 9 |' "$T/r.md"
+  [ "$(jq '[.decisions[] | select(.arm == "a0_bare_matched" or .arm == "a0_bare_fable_matched")] | length' "$T/r.json")" = 0 ]
+  grep -qF 'over 9 components' "$T/r.md"   # the component count is unchanged by the two matched arms
+  # without matched rows the section is absent (an older report reads as before)
+  python3 -I "$REPORT" --runs "$FX/c131/runs.jsonl" --manifests "$FX/c131/manifests" --suite "$SUITE" --out "$T/o.md" --json "$T/o.json" >/dev/null
+  ! grep -q '^## Matched-bare arms' "$T/o.md" || false
+  [ "$(jq '.matched_arms | length' "$T/o.json")" = 0 ]
+}
+
+@test "AR-c132-2 rows of two label sets in one suite version are never pooled: two partitions keyed '· labels <set>', the decisions read the larger" {
+  c132_fx
+  jq -c 'if .task_type == "review-catch" and (.trial == 3) then .label_set = "c131" else .label_set = "v2" end' "$D/runs.jsonl" > "$T/x" && mv "$T/x" "$D/runs.jsonl"
+  rep132
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -r '.by_suite_version | keys | join(",")' "$T/r.json")" = "3 · labels c131,3 · labels v2" ]
+  grep -q 'partitions: 3 · labels v2, 3 · labels c131' "$T/r.md"
+}
+
+@test "AR-c132-3 intention to run: every planned cell of a batch with a plan reads completed, degraded, cut or not run from its row and STATUS.json" {
+  c132_fx
+  jq '.plan = ([.arm_map | to_entries[] | {run_id: .key, arm: .value}] + [{run_id: "c131-b-a0_bare_matched-rc-02-t1", arm: "a0_bare_matched"}])' "$M" > "$T/m" && mv "$T/m" "$M"
+  rep132
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -c '.intention_to_run[0] | .arms.a0_bare_matched as $a | [.batch, .state, $a.planned, $a.completed, $a.degraded, $a.cut, $a.not_run]' "$T/r.json")" = '["c131-b",null,5,3,1,0,1]' ]
+  grep -qF '| `c131-b` | no STATUS.json | `a0_bare_matched` | 5 | 3 | 1 | 0 | 1 |' "$T/r.md"
+  echo '{"state": "partial", "cuts": [{"reason": "max_usd"}]}' > "$D/manifests/c131-b/STATUS.json"
+  rep132
+  [ "$(jq -c '.intention_to_run[0] | [.state, .arms.a0_bare_matched.cut, .arms.a0_bare_matched.not_run]' "$T/r.json")" = '["partial",1,0]' ]
+}

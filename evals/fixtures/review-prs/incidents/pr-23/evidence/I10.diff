@@ -1,0 +1,185 @@
+commit 8ba76633de01f88a2980562a289edf685a1f470d
+Date: 2026-10-21T13:10:35+11:00
+
+fix(evals): audit round — head_path containment for the labels file column (absolute, .., backslash, NUL refused; realpath under head/), atomic temp+replace labels write, approved_by guard rejects Unicode line separators — sprint-bug-268 (auditor-sprint-feedback-r1 MEDIUM-1, LOW-1..2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/seed-corpus-from-record.sh b/evals/harness/seed-corpus-from-record.sh
+index 10d641f9..4ef7ff52 100755
+--- a/evals/harness/seed-corpus-from-record.sh
++++ b/evals/harness/seed-corpus-from-record.sh
+@@ -51,7 +51,9 @@
+ # further row of the same defect_id and file adds an anchor. must_match is either
+ # text that occurs on exactly one line of head/<file> (preferred: it survives
+ # renumbering) or `@L<n>`, head line n (1-based, 1 <= n <= the file's line count),
+-# for a line whose text is not unique (bd-y4pqj); `@L0`, a line past the end and a
++# for a line whose text is not unique (bd-y4pqj); `file` must be a relative path
++# inside pr-NN/head/ (no absolute path, `..`, backslash or NUL; symlinks may not
++# lead out), else the row is refused; `@L0`, a line past the end and a
+ # non-integer after `@L` are refused with the row named. Only a one-word `@L` value
+ # (`@L` followed by letters, digits or `-`) is that grammar; longer text that starts
+ # with `@L` (`@Lazy foo`) is ordinary text.
+@@ -61,8 +63,9 @@
+ # defect resolves to, it inserts a row after that defect's last row, copying the
+ # primary row's columns, with must_match the line's stripped text when that text is
+ # on exactly one line (else `@L<n>`); it rewrites the first line to the manifest's
+-# approved_by and keeps every other line byte for byte. It prints the rows it added,
+-# adds nothing on a second run and never writes the manifest. On every run, a no-op
++# approved_by (one line: no control, C1 or U+2028/U+2029 characters) and keeps every
++# other line byte for byte; the file is replaced atomically (temp file + rename).
++# It prints the rows it added, adds nothing on a second run and never writes the manifest. On every run, a no-op
+ # included, it rebuilds the manifest in memory from the new labels before writing and
+ # refuses (exit 1, labels file untouched, the differing fields named) when the rebuild
+ # fails or is not byte-identical to the manifest. It does not refreeze: run --freeze.
+@@ -242,6 +245,17 @@ def unique_line(lines, needle):
+     hits = [i for i, l in enumerate(lines, 1) if needle in l]
+     return hits[0] if len(hits) == 1 else None
+ 
++def head_path(fx, f):
++    """(path, None) for a labels `file` inside <corpus>/<fx>/head, else (None, why): no absolute
++    path, `..` component, backslash or NUL, and the resolved path (symlinks followed) stays under head/."""
++    if not f or os.path.isabs(f) or "\\" in f or "\x00" in f or ".." in f.split("/"):
++        return None, "an absolute path, a `..` component, a backslash or a NUL"
++    base = os.path.realpath(os.path.join(CORPUS, fx, "head"))
++    hp = os.path.join(base, f)
++    if not os.path.realpath(hp).startswith(base + os.sep):
++        return None, "it resolves outside head/"
++    return hp, None
++
+ # bd-y4pqj: `@L<n>` names head line n (1-based) for a curated anchor whose text is not unique
+ # only an `@L`-shaped value (one word of letters, digits, `-`) is the line grammar: `@L12`
+ # resolves, `@L0`/`@Lx`/`@L4x`/`@L-1` are refused; longer text such as `@Lazy foo` stays text
+@@ -271,7 +285,9 @@ def build_manifest(fx, write=True, labels_content=None):
+     for r in rows:
+         if r["label_source"] not in ("review", "audit", "bridgebuilder", "fix"):
+             errors.append(f"{r['defect_id']}: label_source {r['label_source']!r}"); continue
+-        hp = os.path.join(CORPUS, fx, "head", r["file"])
++        hp, why = head_path(fx, r["file"])
++        if hp is None:
++            errors.append(f"{r['defect_id']}: file {r['file']!r} is not a path inside head/ ({why})"); continue
+         if not os.path.isfile(hp):
+             errors.append(f"{r['defect_id']}: head/{r['file']} missing"); continue
+         lines = open(hp, encoding="utf-8", errors="replace").read().splitlines()
+@@ -338,7 +354,7 @@ def sync_labels(fx):
+     man = json.loads(mraw)
+     approved_by = man.get("approved_by")
+     if (not isinstance(approved_by, str) or not approved_by or approved_by != approved_by.strip()
+-            or re.search(r"[\x00-\x1f\x7f]", approved_by)):
++            or len(approved_by.splitlines()) != 1 or re.search(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]", approved_by)):
+         fail(f"{mpath}: approved_by must be a one-line non-empty string without surrounding space")
+     if man.get("approved") is not (approved_by != "pending"):
+         fail(f"{mpath}: approved {man.get('approved')!r} disagrees with approved_by {approved_by!r}")
+@@ -346,9 +362,11 @@ def sync_labels(fx):
+     raw = open(lpath, encoding="utf-8", newline="").read()
+     tl = raw.splitlines(keepends=True)
+     heads, have, last, primary = {}, {}, {}, {}
+-    def head(f):
++    def head(f, who):
+         if f not in heads:
+-            hp = os.path.join(CORPUS, fx, "head", f)
++            hp, why = head_path(fx, f)
++            if hp is None:
++                fail(f"{fx}: {who}: file {f!r} is not a path inside head/ ({why})")
+             if not os.path.isfile(hp):
+                 fail(f"{fx}: head/{f} missing")
+             heads[f] = open(hp, encoding="utf-8", errors="replace").read().splitlines()
+@@ -363,7 +381,7 @@ def sync_labels(fx):
+         r = dict(zip(HEADER, l.split("\t")))
+         if r["label_source"] == "fix":
+             continue
+-        at, why = resolve_anchor(head(r["file"]), r["must_match"], r["file"])
++        at, why = resolve_anchor(head(r["file"], r["defect_id"]), r["must_match"], r["file"])
+         if at is None:
+             fail(f"{fx}: {r['defect_id']}: must_match {r['must_match']!r} {why}")
+         primary.setdefault(r["defect_id"], r)
+@@ -381,7 +399,7 @@ def sync_labels(fx):
+         if d.get("file") != p["file"]:
+             fail(f"{fx}: manifest defect {d['id']} names {d.get('file')!r}, its labels rows {p['file']!r}")
+         want = d.get("anchors", [d.get("anchor_line")])
+-        lines = head(p["file"])
++        lines = head(p["file"], d["id"])
+         for n in sorted(set(want)):
+             if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(lines):
+                 fail(f"{fx}: manifest defect {d['id']} anchor {n!r} is not a line of head/{p['file']}")
+@@ -415,7 +433,17 @@ def sync_labels(fx):
+         fail(f"{fx}: the synced labels would not rebuild manifests/{fx}.json byte for byte "
+              f"({manifest_diff(rebuilt, man)}); labels left unchanged")
+     if new != raw:
+-        open(lpath, "w", encoding="utf-8", newline="").write(new)
++        # atomic: a temp file beside the target, then os.replace (never an in-place truncation)
++        fd, tmp = tempfile.mkstemp(dir=LABELS_DIR, prefix=f".{fx}.tsv.", suffix=".tmp")
++        try:
++            with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
++                fh.write(new); fh.flush(); os.fsync(fh.fileno())
++            os.chmod(tmp, os.stat(lpath).st_mode & 0o7777)
++            os.replace(tmp, lpath)
++        except BaseException:
++            if os.path.exists(tmp):
++                os.remove(tmp)
++            raise
+     print(f"{fx}: added {n_text + n_at} row(s) ({n_text} text, {n_at} @L<n>); approved-by "
+           + (f"set to {approved_by!r}" if header_changed else "unchanged")
+           + ("; run --freeze to refresh SHA256SUMS" if new != raw else ""))
+diff --git a/evals/tests/seed-corpus.bats b/evals/tests/seed-corpus.bats
+index b121eeef..6260451f 100644
+--- a/evals/tests/seed-corpus.bats
++++ b/evals/tests/seed-corpus.bats
+@@ -412,3 +412,56 @@ json.dump(m, open(sys.argv[1], "w"), indent=2)' "$@"
+   [ "$status" -eq 0 ]
+   [ "$(awk -F'\t' '$1 == "L03-kotlin" {print $5}' "$C/labels/pr-93.tsv" | tr '\n' ,)" = "@Lazy foo,@Lob bar," ]
+ }
++
++# --- audit round (MEDIUM-1 / LOW-1 / LOW-2) ---
++
++@test "SC-16 a labels file column outside head/ (../.., absolute, a symlink out) is refused by --build-manifest and --sync-labels, nothing written" {
++  synthetic_at_fixture
++  run "$SEED" --build-manifest pr-93 --corpus "$C"
++  [ "$status" -eq 0 ]
++  M="$C/manifests/pr-93.json"; L="$C/labels/pr-93.tsv"
++  mkdir -p "$C/etc"; printf 'outside dotdot line\n' > "$C/etc/hostname"
++  printf 'outside absolute line\n' > "$T/outside.txt"
++  ln -s "$T/outside.txt" "$C/pr-93/head/src/link.txt"
++  cp "$L" "$T/ok.tsv"; cp "$M" "$T/ok.json"
++  local f mm
++  for f in '../../etc/hostname' "$T/outside.txt" 'src/link.txt'; do
++    case "$f" in ../*) mm='outside dotdot line' ;; *) mm='outside absolute line' ;; esac
++    { cat "$T/ok.tsv"; printf 'L02-second\tlow\tstyle\t%s\t%s\taudit\taudit:auditor-sprint-feedback.md\n' "$f" "$mm"; } > "$L"
++    cp "$L" "$T/bad.tsv"
++    run "$SEED" --build-manifest pr-93 --corpus "$C"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"L02-second: file '$f' is not a path inside head/"* ]]
++    cmp -s "$M" "$T/ok.json"
++    run "$SEED" --sync-labels pr-93 --corpus "$C"
++    [ "$status" -eq 1 ]
++    [[ "$output" == *"L02-second: file '$f' is not a path inside head/"* ]]
++    cmp -s "$L" "$T/bad.tsv"
++    cmp -s "$M" "$T/ok.json"
++  done
++}
++
++@test "SC-17 --sync-labels refuses an approved_by holding a Unicode line separator (U+2028) and leaves the labels unchanged" {
++  synthetic_at_fixture
++  run "$SEED" --build-manifest pr-93 --corpus "$C"
++  [ "$status" -eq 0 ]
++  curate_manifest "$C/manifests/pr-93.json" $'lead 2026-10-19 # forged' 0 '[1, 4]'
++  L="$C/labels/pr-93.tsv"; cp "$L" "$T/before.tsv"
++  run "$SEED" --sync-labels pr-93 --corpus "$C"
++  [ "$status" -eq 1 ]
++  [[ "$output" == *"approved_by must be a one-line"* ]]
++  cmp -s "$L" "$T/before.tsv"
++}
++
++@test "SC-18 --sync-labels replaces the labels file atomically (a new inode, no temp file left behind)" {
++  synthetic_at_fixture
++  run "$SEED" --build-manifest pr-93 --corpus "$C"
++  [ "$status" -eq 0 ]
++  curate_manifest "$C/manifests/pr-93.json" "lead 2026-10-19 (curated)" 0 '[1, 4]'
++  L="$C/labels/pr-93.tsv"
++  local before; before="$(stat -c %i "$L")"
++  run "$SEED" --sync-labels pr-93 --corpus "$C"
++  [ "$status" -eq 0 ]
++  [ "$(stat -c %i "$L")" != "$before" ]
++  [ "$(ls -A "$C/labels" | tr '\n' ,)" = "pr-93.tsv," ]
++}

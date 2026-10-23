@@ -1,0 +1,47 @@
+commit 3263bbc4ea22bfc0dff03d522d3308005ad60546
+Date: 2026-10-14T14:57:42+11:00
+
+fix(cycle-129): sprint-256 review round r256-1 — a backtick pair outside single quotes is a command substitution to the fence (HIGH-1: heredoc-aware normalisation to the dollar-paren form before any rule runs; unquoted heredoc bodies alternate every backtick, quoted bodies and single quotes stay literal, unbalanced shell quotes fail closed; corpus B79/B84 → quoted delimiters, D143–D148 block the unquoted-heredoc, echo, printf, assignment and dollar-paren shapes, B90/B91 pin the literal cases; knob-off differs from the pre-change hook on exactly D143–D147, DEC-0296); LOW-1 check-knob-readers.sh as a Shell Tests step; LOW-2 run-corpus.sh --knob-off self-check on D122; LOW-3 POSIX touch -t in KS-5; LOW-5 LOA_PROFILE_CONFIG_FILE documented in the example; skill-invariants.md records the harness probe (enforced in the main session until the next user prompt, not in subagents); KF-043 scope corrected by an attempt row (DEC-0297); CHANGELOG Fixed entry; corpus 91/91 · 148/148, hook bats 476/0, lints green (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/rules/skill-invariants.md b/.claude/rules/skill-invariants.md
+index d2b61f85..e80c6cd7 100644
+--- a/.claude/rules/skill-invariants.md
++++ b/.claude/rules/skill-invariants.md
+@@ -70,6 +70,20 @@ ## Mechanical C-PROC-001 enforcement via `disallowed-tools` (cycle-114 FR-4)
+ fence territory (`block-destructive-bash.sh` and the System-Zone rules), not
+ frontmatter territory.
+ 
++**What the harness enforces (live probe, cycle-129 Sprint 2, Claude Code 2.1.296).**
++In the main session, invoking a skill that carries `disallowed-tools: Write, Edit,
++NotebookEdit` removed the three tools until the next user prompt — the next Write
++was refused ("Permission to use Write has been denied"), later calls reported the
++tools "disabled for this session, in subagents as well", and invoking a write-capable
++skill did not restore them; in an unattended run that is the rest of the session
++(KF-043). A Bash redirect still wrote a file (the Bash gap above). In a subagent
++(`general-purpose`, all tools) the same skill removed nothing: Write, Edit and Bash
++all succeeded, and `allowed-tools: Read, Grep, Glob` did not restrict either. So the
++key is a barrier in the main session only; for subagent work the zones, the fence and
++the implement gate are the barriers. Keep the key (it holds where the review and audit
++skills run) and never invoke such a skill from a lead session that still has writes
++to do.
++
+ ## Scope
+ 
+ Applies to every `.claude/skills/**/SKILL.md`. The lint runs as part of the normal validation suite (`bats tests/unit/skill-capabilities.bats`).
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index f2ba980e..a82de682 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -29,6 +29,9 @@
+ # config key read the same configuration under every profile
+ # (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
+ # An unknown value warns and falls back to standard.
++# Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
++# library at another config file (hooks pass their own test config through it);
++# it is honoured outside bats, so treat it as part of the hook environment.
+ loa:
+   profile: standard   # lean | standard | full
+ 

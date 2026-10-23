@@ -1,0 +1,199 @@
+commit 3263bbc4ea22bfc0dff03d522d3308005ad60546
+Date: 2026-10-14T14:57:42+11:00
+
+fix(cycle-129): sprint-256 review round r256-1 — a backtick pair outside single quotes is a command substitution to the fence (HIGH-1: heredoc-aware normalisation to the dollar-paren form before any rule runs; unquoted heredoc bodies alternate every backtick, quoted bodies and single quotes stay literal, unbalanced shell quotes fail closed; corpus B79/B84 → quoted delimiters, D143–D148 block the unquoted-heredoc, echo, printf, assignment and dollar-paren shapes, B90/B91 pin the literal cases; knob-off differs from the pre-change hook on exactly D143–D147, DEC-0296); LOW-1 check-knob-readers.sh as a Shell Tests step; LOW-2 run-corpus.sh --knob-off self-check on D122; LOW-3 POSIX touch -t in KS-5; LOW-5 LOA_PROFILE_CONFIG_FILE documented in the example; skill-invariants.md records the harness probe (enforced in the main session until the next user prompt, not in subagents); KF-043 scope corrected by an attempt row (DEC-0297); CHANGELOG Fixed entry; corpus 91/91 · 148/148, hook bats 476/0, lints green (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/hooks/safety/block-destructive-bash.sh b/.claude/hooks/safety/block-destructive-bash.sh
+index 28684653..47e89f6c 100755
+--- a/.claude/hooks/safety/block-destructive-bash.sh
++++ b/.claude/hooks/safety/block-destructive-bash.sh
+@@ -587,6 +587,10 @@ _bdb_hd_scan_body() {
+       seg="${t%%$'\n'*}"
+       _bdb_hd_segword "$seg"
+       if [[ -n "$_hd_w" ]]; then
++        # Under a quoted delimiter a backtick is literal text (r256-1): strip it from
++        # the kept segment so the later backtick normalisation cannot turn prose such
++        # as "git merge main; see `git merge spike/x` later" into a substitution.
++        (( $3 )) && _hd_rest="${_hd_rest//\`/}"
+         if [[ "$_hd_w" =~ $_bdb_hd_re_varw ]]; then
+           _hd_full=1
+           _hd_synth="${_hd_synth}rm${_hd_rest}"$'\n'"git${_hd_rest}"$'\n'"kubectl${_hd_rest}"$'\n'
+@@ -1046,11 +1050,116 @@ _bdb_scrub_literal_program() {
+   printf '%s' "$text"
+ }
+ 
+-# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).
+-# The echo scrub must run last: it can otherwise consume a closing quote in
+-# metadata containing "; echo ..." and make a later live write look quoted.
+-# (bash loops, each guarded by a cheap literal test so the benign path pays
+-# nothing beyond the substring check).
++# -----------------------------------------------------------------------------
++# cycle-129 r256-1 (sprint-256 review HIGH-1): a backtick pair outside single
++# quotes is a command substitution exactly like `$( … )` — in plain text, inside
++# double quotes, in an assignment and in an unquoted heredoc body — but every
++# rule anchors on `(`, `;`, `&&`, `|`, whitespace or a quote and none on a
++# backtick, so `echo "see \`git push --force origin main\`"` matched nothing
++# while its `$( )` twin blocked (identical on main 864069f2). Normalise before
++# the rules run: the 1st, 3rd, … backtick outside single quotes becomes `$(`,
++# the 2nd, 4th, … becomes `)`; a backslash escapes the next character outside
++# single quotes (an escaped backtick stays literal); inside single quotes
++# nothing changes. Kept segments of a quoted-delimiter heredoc body have their
++# literal backticks stripped by _bdb_hd_scan_body before this runs. Fast path
++# (no single quote, no backslash in the text): alternate by position; the
++# char loop runs only when quoting has to be tracked. Costs one substring test
++# on the common path.
++# -----------------------------------------------------------------------------
++# Heredoc bodies are raw text (no shell quoting applies inside them): under an
++# unquoted delimiter every backtick is a substitution, under a quoted one every
++# backtick is literal — so the normaliser walks the command line by line, uses
++# _bdb_hd_header to find each heredoc's delimiter and quoting, and applies the
++# body rule to body lines and shell-quote tracking (_bt_q) to the rest. If the
++# shell text's quotes do not balance at the end (an apostrophe in prose, an
++# unreadable header, two heredocs on one line) the whole shell text is redone
++# with quoting ignored: fail closed, never literal by accident.
++# _bdb_bt_alt_line <line>  → _bt_out: plain alternation (state _bt_open)
++# _bdb_bt_shell_line <line> → _bt_out: alternation outside single quotes
++_bt_out="" _bt_open=0 _bt_q="" _bt_force=0
++_bdb_bt_alt_line() {
++  local s="${1:-}" i n ch
++  _bt_out=""
++  [[ "$s" == *'`'* ]] || { _bt_out="$s"; return; }
++  n=${#s}
++  for ((i = 0; i < n; i++)); do
++    ch="${s:i:1}"
++    if [[ "$ch" == '\' ]]; then
++      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
++    fi
++    if [[ "$ch" == '`' ]]; then
++      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
++      continue
++    fi
++    _bt_out+="$ch"
++  done
++}
++_bdb_bt_shell_line() {
++  local s="${1:-}" i n ch
++  if (( _bt_force )); then _bdb_bt_alt_line "$s"; return; fi
++  if [[ "$s" != *'`'* && "$s" != *"'"* && "$s" != *'"'* && "$s" != *'\'* ]]; then _bt_out="$s"; return; fi
++  _bt_out=""
++  n=${#s}
++  for ((i = 0; i < n; i++)); do
++    ch="${s:i:1}"
++    if [[ "$_bt_q" == "'" ]]; then
++      [[ "$ch" == "'" ]] && _bt_q=""
++      _bt_out+="$ch"; continue
++    fi
++    if [[ "$ch" == '\' ]]; then
++      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
++    fi
++    if [[ "$ch" == '`' ]]; then
++      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
++      continue
++    fi
++    if [[ -z "$_bt_q" && "$ch" == "'" ]]; then _bt_q="'"
++    elif [[ "$ch" == '"' ]]; then
++      if [[ "$_bt_q" == '"' ]]; then _bt_q=""; else _bt_q='"'; fi
++    fi
++    _bt_out+="$ch"
++  done
++}
++_bdb_backtick_norm() {
++  local s="${1:-}"
++  [[ "$s" == *'`'* ]] || { printf '%s' "$s"; return; }
++  local -a L
++  local l n i out="" body=0 delim="" quoted=0 tabs=0 d pass
++  L=()
++  while IFS= read -r l || [[ -n "$l" ]]; do L[${#L[@]}]="$l"; done <<< "$s"
++  n=${#L[@]}
++  for pass in 1 2; do
++    out="" body=0 _bt_open=0 _bt_q="" _bt_force=0
++    (( pass == 2 )) && _bt_force=1
++    for ((i = 0; i < n; i++)); do
++      l="${L[i]}"
++      if (( body )); then
++        d="$l"
++        if (( tabs )); then while [[ "$d" == $'\t'* ]]; do d="${d#$'\t'}"; done; fi
++        if [[ "$d" == "$delim" ]]; then body=0; _bt_open=0; out+="$l"$'\n'; continue; fi
++        if (( quoted )); then out+="$l"$'\n'; else _bdb_bt_alt_line "$l"; out+="$_bt_out"$'\n'; fi
++        continue
++      fi
++      _bdb_bt_shell_line "$l"; out+="$_bt_out"$'\n'
++      if [[ "$l" == *'<<'* ]]; then
++        _bdb_hd_header "$l"
++        if (( _hd_ops == 1 )); then body=1; delim="$_hd_delim"; quoted=$_hd_quoted; tabs=$_hd_tabs; _bt_open=0
++        elif (( _hd_ops != 0 )); then _bt_force=1   # unreadable header or several heredocs: fail closed from here
++        fi
++      fi
++    done
++    [[ -z "$_bt_q" ]] && break          # balanced quotes: done; else pass 2 ignores quoting
++  done
++  out="${out%$'\n'}"
++  [[ "$s" == *$'\n' ]] && out+=$'\n'
++  printf '%s' "$out"
++}
++
++# Heredoc scrub, then backtick normalisation, then quoted-value carriers, then
++# echo/printf (sed). The echo scrub must run last: it can otherwise consume a
++# closing quote in metadata containing "; echo ..." and make a later live write
++# look quoted. (bash loops, each guarded by a cheap literal test so the benign
++# path pays nothing beyond the substring check).
+ _cmd_match="$command"
+ if [[ "$_cmd_match" == *"for "* || "$_cmd_match" == *"python"* ]]; then
+   _cmd_match=$(_bdb_scrub_literal_program "$_cmd_match")
+@@ -1065,6 +1174,8 @@ if [[ "$_cmd_match" == *"<<"* ]]; then
+     _cmd_match=$(_bdb_scrub_cat_heredoc "$_cmd_match")
+   fi
+ fi
++# cycle-129 r256-1: backtick substitutions take the `$( )` form the rules anchor on
++[[ "$_cmd_match" == *'`'* ]] && _cmd_match=$(_bdb_backtick_norm "$_cmd_match")
+ [[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
+ if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
+   _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index f2ba980e..a82de682 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -29,6 +29,9 @@
+ # config key read the same configuration under every profile
+ # (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
+ # An unknown value warns and falls back to standard.
++# Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
++# library at another config file (hooks pass their own test config through it);
++# it is honoured outside bats, so treat it as part of the hook environment.
+ loa:
+   profile: standard   # lean | standard | full
+ 
+diff --git a/tests/fixtures/fence-corpus/corpus.jsonl b/tests/fixtures/fence-corpus/corpus.jsonl
+index 351e0814..21237402 100644
+--- a/tests/fixtures/fence-corpus/corpus.jsonl
++++ b/tests/fixtures/fence-corpus/corpus.jsonl
+@@ -181,12 +181,12 @@
+ {"id":"D100","cmd":"git checkout --patch spike/ceiling-ui -- src/a.ts","expect":"block","rule":"SP-1","why":"the long form of the same patch copy, with a path","cwd":"repo"}
+ {"id":"B77","cmd":"git checkout -p main","expect":"allow","rule":"SP-1","why":"a patch copy from the default branch names no spike","cwd":"repo"}
+ {"id":"B78","cmd":"git format-patch -1 main","expect":"allow","rule":"SP-1","why":"format-patch of a non-spike ref; the spike form is a documented two-step miss","cwd":"repo"}
+-{"id":"B79","cmd":"cat >> grimoires/loa/NOTES.md <<EOF\n- **Sprint 253**: SP-1 refused `git merge spike/ceiling-ui` typed inside this NOTES append (prose, not a command)\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 1: a spike merge named mid-sentence in a NOTES append with an unquoted delimiter (the #1245 scrub did not cover it); the segment's command word is `-`, so the line is dropped","cwd":"repo"}
++{"id":"B79","cmd":"cat >> grimoires/loa/NOTES.md <<'EOF'\n- **Sprint 253**: SP-1 refused `git merge spike/ceiling-ui` typed inside this NOTES append (prose, not a command)\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 1: a spike merge named mid-sentence in a NOTES append under a QUOTED delimiter (the backticks are literal); the segment's command word is `-`, so the line is dropped. The unquoted form is D143 (r256-1)","cwd":"repo"}
+ {"id":"B80","cmd":"mkdir -p grimoires/loa/a2a/sprint-253 && cat > grimoires/loa/a2a/sprint-253/engineer-feedback.md <<'EOF'\n## LOW-3\nThe recipe git fetch origin spike/x && git merge FETCH_HEAD belongs to the ICE merge path, not to a heredoc.\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 2: a compound header (mkdir && cat) writing a feedback file whose prose names the fetch+FETCH_HEAD one-liner; only the heredoc's own pipeline is classified","cwd":"repo"}
+ {"id":"B81","cmd":"tee -a grimoires/loa/NOTES.md <<'EOF'\n- the fence (SP-1) blocked `git rebase spike/ceiling-ui` inside a review heredoc; recorded as a false positive\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 3: tee -a to a plain .md with a spike rebase named mid-sentence","cwd":"repo"}
+ {"id":"B82","cmd":"git commit -q -F - <<'EOF'\nfix(fence): SP-1 no longer blocks prose naming git merge spike/x inside a heredoc\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 4: a commit message read from stdin naming a spike merge","cwd":"repo"}
+ {"id":"B83","cmd":"gh pr comment 1279 -F - <<'EOF'\nThe reviewer's example `git cherry-pick spike/ceiling-ui~2` is refused by SP-1 by design.\nEOF","expect":"allow","rule":"FR-6","why":"SP-1 prose case 5: a PR comment body read from stdin naming a spike cherry-pick","cwd":"repo"}
+-{"id":"B84","cmd":"cat > grimoires/loa/a2a/sprint-256/review.md <<EOF\n- the transcript's `git push --force origin main` was refused by P2, as intended\nEOF","expect":"allow","rule":"FR-6","why":"the P2 force-push string inside a heredoc redirected to a .md file, unquoted delimiter; the line's command word is `-`","cwd":"repo"}
++{"id":"B84","cmd":"cat > grimoires/loa/a2a/sprint-256/review.md <<'EOF'\n- the transcript's `git push --force origin main` was refused by P2, as intended\nEOF","expect":"allow","rule":"FR-6","why":"the P2 force-push string inside a heredoc redirected to a .md file under a QUOTED delimiter (the backticks are literal); the line's command word is `-`. The unquoted form is D144 (r256-1)","cwd":"repo"}
+ {"id":"B85","cmd":"br create --title \"fence false positive\" --description - <<'EOF'\nThe agent typed rm -rf ./build inside a NOTES heredoc and the fence blocked the append.\nEOF","expect":"allow","rule":"FR-6","why":"br create reading its description from stdin; the body quotes a recursive delete mid-sentence","cwd":"repo"}
+ {"id":"B86","cmd":"gh pr comment 1281 -F - <<'EOF'\nThe `git push --force` to the record branch was blocked; use the temporary-index recipe.\nEOF","expect":"allow","rule":"FR-6","why":"gh pr comment -F - body naming a force push; `;` splits the line and neither segment starts with a fence verb","cwd":"repo"}
+ {"id":"B87","cmd":"jq -f - evals/results/arms/review-recall/batch-1/STATUS.json <<'EOF'\n.per_arm | to_entries[] | select(.value.note != \"rm -rf src\")\nEOF","expect":"allow","rule":"FR-6","why":"a jq filter read from stdin (no in-place flag); the filter's pipes split into segments whose words are jq, not shell","cwd":"repo"}
+@@ -234,3 +234,11 @@
+ {"id":"D141","cmd":"cat > notes.md <<'EOF'\n\u0001\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"a control character anywhere in the command forces the full scan","cwd":"repo"}
+ {"id":"D142","cmd":"cat <<'EOF' > \"$OUT\"\nrm -rf src\nEOF","expect":"block","rule":"FR-6","why":"a non-literal write target cannot be judged: interpreter class","cwd":"repo"}
+ {"id":"B89","cmd":"gh api -X DELETE repos/o/r/git/refs/heads/main --input - <<'EOF'\n{\"ref\":\"refs/heads/main\"}\nEOF","expect":"allow","rule":"FR-6","why":"documented miss (cycle-129 Sprint 2): gh api -X DELETE has no fence rule of its own; the classifier scans the body in full (D113) and a benign body passes","cwd":"repo"}
++{"id":"D143","cmd":"cat >> grimoires/loa/NOTES.md <<EOF\n- **Sprint 253**: SP-1 refused `git merge spike/ceiling-ui` typed inside this NOTES append (prose, not a command)\nEOF","expect":"block","rule":"SP-1","why":"r256-1: under an UNQUOTED delimiter the backtick span is a command substitution that runs when the heredoc is expanded; normalised to the dollar-paren form, the spike merge anchors and SP-1 blocks (the quoted twin is B79)","cwd":"repo"}
++{"id":"D144","cmd":"cat > grimoires/loa/a2a/sprint-256/review.md <<EOF\n- the transcript's `git push --force origin main` was refused by P2, as intended\nEOF","expect":"block","rule":"P2","why":"r256-1: unquoted delimiter, backtick span = a force push that runs when the heredoc is expanded (the quoted twin is B84)","cwd":"repo"}
++{"id":"D145","cmd":"echo \"see `git push --force origin main` for the refusal\"","expect":"block","rule":"P2","why":"r256-1: a backtick substitution inside a double-quoted echo argument executes the force push; before the normalisation only the dollar-paren form (D148) anchored","cwd":"repo"}
++{"id":"D146","cmd":"printf '%s\\n' \"`git merge spike/ceiling-ui`\" > notes.md","expect":"block","rule":"SP-1","why":"r256-1: a backtick substitution inside a double-quoted printf argument executes the spike merge before anything is written","cwd":"repo"}
++{"id":"D147","cmd":"msg=\"done: `git push --force origin main`\"","expect":"block","rule":"P2","why":"r256-1: a backtick substitution inside a double-quoted assignment executes the force push","cwd":"repo"}
++{"id":"D148","cmd":"echo \"see $(git push --force origin main) for the refusal\"","expect":"block","rule":"P2","why":"r256-1: the dollar-paren twin of D145, which blocked before the fix; pinned so the two forms cannot diverge again","cwd":"repo"}
++{"id":"B90","cmd":"echo 'see `git push --force origin main` for the refusal'","expect":"allow","rule":"P2","why":"r256-1: inside single quotes a backtick span is literal text and nothing runs; the normalisation leaves single-quoted text alone","cwd":"repo"}
++{"id":"B91","cmd":"git commit -q -F - <<'EOF'\nfix(fence): a backtick span outside single quotes is a substitution; see `git merge main` for the ordinary merge path\nEOF","expect":"allow","rule":"FR-6","why":"r256-1: under a quoted delimiter the kept segment's literal backticks are stripped before the normalisation, so prose that mentions an ordinary command in backticks still allows","cwd":"repo"}

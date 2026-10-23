@@ -1,0 +1,125 @@
+# approved-by: pending
+# fixture pr-22 | sprint-258 | record origin/record/cycle-130-a2a | base 252501b449b8 | head 05442536d2d3 | fix ffe162efdffb
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor: text on exactly one head line, or @L<n> for head line n), then --approve
+# L01 medium review: hands every input to jq as an argv string and will hit `MAX_ARG_STRLEN` on the longest runs (DISS-C-003, confirmed). [fix hunk near cited line 226]
+# L02 low review: the row-building jq program aborts on plausible field shapes and the script then exits outside its contract (DISS-C-001 confirmed as hardening; [quoted snippet + fix hunk near cited line 230]
+# L03 low review: under-counts silently (DISS-C-005, confirmed). [fix hunk near cited line 159]
+# L04 low review: screen batches are excluded from the suite aggregate by directory name (DISS-C-006, confirmed). [quoted snippet + fix hunk near cited line 391]
+# L05 low review: neither hashes nor refuses symlinks (DISS-C-007, confirmed). [quoted snippet + fix hunk near cited line 73]
+# L06 low review: the codex CLI version in the documentation drifted from the image. [fix hunk near cited line 85]
+# L07 medium audit: the row writer trusts the dissent envelope inside the sandbox (DISS-C-001, confirmed). [fix hunk near cited line 215]
+# L08 medium audit: a trial that dies without a `result` event costs the spend ceiling nothing (DISS-C-002, confirmed). [quoted snippet + fix hunk near cited line 514]
+# L09 low audit: passes the arm's `effort` to argv without its own whitelist (DISS-C-003, confirmed as defence in depth). [quoted snippet + fix hunk near cited line 268]
+# L10 low audit: self-modification through Bash is invisible to `zone_violations` (DISS-C-004, confirmed in part). [quoted snippet]
+# L11 low audit: executes a path under one operator's home directory (DISS-C-006, confirmed; [quoted snippet + fix hunk near cited line 54]
+defect_id	severity	category	file	must_match	label_source	source
+L01-hands-every-input-to-jq-as-an-argv-strin	medium	logic	evals/harness/ablation-row.sh	DOT_WRITES="$(for f in "${ev_files[@]}"; do	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L15
+L01-hands-every-input-to-jq-as-an-argv-strin	medium	logic	evals/harness/ablation-row.sh	done | jq -s -c '.')"	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L15
+L01-hands-every-input-to-jq-as-an-argv-strin	medium	logic	evals/harness/ablation-row.sh	def ms(ts): if ts == null then null else (ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000) end;	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L15
+L02-the-row-building-jq-program-aborts-on-pl	low	error-handling	evals/harness/ablation-row.sh	fromdateiso8601	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L17
+L02-the-row-building-jq-program-aborts-on-pl	low	error-handling	evals/harness/ablation-row.sh	.metadata.companion_voice.planned	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L17
+L02-the-row-building-jq-program-aborts-on-pl	low	error-handling	evals/harness/ablation-row.sh	done | jq -s -c '.')"	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L17
+L03-under-counts-silently-diss-c-005-confirm	low	logic	evals/harness/spend.sh	"runs_rows_deduped": dedup, "ledger_rows": ledger_rows, "skipped_lines": skipped}, sort_keys=True))	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L19
+L03-under-counts-silently-diss-c-005-confirm	low	logic	evals/harness/spend.sh	f"cap {whole(cap)}; headroom {money(headroom)}; reserve {whole(reserve)}")	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L19
+L04-screen-batches-are-excluded-from-the-sui	low	logic	evals/harness/run-arms.sh	! -path "$SUITE_DIR/screen-*"	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L21
+L04-screen-batches-are-excluded-from-the-sui	low	logic	evals/harness/run-arms.sh	screen: true	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L21
+L04-screen-batches-are-excluded-from-the-sui	low	logic	evals/harness/run-arms.sh	jq -s --arg suite "$SUITE" '	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L21
+L05-neither-hashes-nor-refuses-symlinks-diss	low	security	evals/harness/freeze.sh	find "$d" -type f	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L23
+L05-neither-hashes-nor-refuses-symlinks-diss	low	security	evals/harness/freeze.sh	for d in "${dirs[@]}"; do	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L23
+L06-the-codex-cli-version-in-the-documentati	low	logic	evals/harness/pipeline-run.sh	# toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.137.0 by	review	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L25
+L07-the-row-writer-trusts-the-dissent-envelo	medium	logic	evals/harness/ablation-row.sh	ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' <<<"$PIPE_JSON")}}"	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L13
+L07-the-row-writer-trusts-the-dissent-envelo	medium	logic	evals/harness/ablation-row.sh	DOT_WRITES="$(for f in "${ev_files[@]}"; do	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L13
+L07-the-row-writer-trusts-the-dissent-envelo	medium	logic	evals/harness/ablation-row.sh	done | jq -s -c '.')"	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L13
+L08-a-trial-that-dies-without-a-event-costs	medium	logic	evals/harness/run-arms.sh	collect()	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L15
+L08-a-trial-that-dies-without-a-event-costs	medium	logic	evals/harness/run-arms.sh	local cost	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L15
+L08-a-trial-that-dies-without-a-event-costs	medium	logic	evals/harness/run-arms.sh	log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log)"	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L15
+L09-passes-the-arm-s-to-argv-without-its-own	low	security	evals/harness/execute-agent.sh	apply_arm_toggles	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L17
+L09-passes-the-arm-s-to-argv-without-its-own	low	security	evals/harness/execute-agent.sh	arm_effort="$(jq -r '.effort // ""' <<<"$ARM_TOGGLES")"	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L17
+L10-self-modification-through-bash-is-invisi	low	logic	evals/harness/ablation-row.sh	\.claude/	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L19
+L11-executes-a-path-under-one-operator-s-hom	low	security	evals/harness/fingerprint.sh	LOA_EVAL_BATS_BIN	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L23
+L11-executes-a-path-under-one-operator-s-hom	low	security	evals/harness/fingerprint.sh	-h|--help)     sed -n '2,28p' "$0"; exit 0 ;;	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L23
+L11-executes-a-path-under-one-operator-s-hom	low	security	evals/harness/fingerprint.sh	if [[ -z "$BATS_BIN" ]]; then	audit	record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L23
+F001	-	fix	evals/harness/Dockerfile.ablation	FROM rust:1-bookworm AS brbuild	fix	fix/ffe162efdffb:19-20
+F002	-	fix	evals/harness/Dockerfile.ablation	RUN pip3 install --no-cache-dir --break-system-packages "rfc8785>=0.1.4" "jsonschema>=4.21" "pyyaml>=6.0" "httpx[http2]>=0.24.0"	fix	fix/ffe162efdffb:69-72
+F003	-	fix	evals/harness/ablation-row.sh	# and cost ledgers, the dissent envelopes under	fix	fix/ffe162efdffb:6-9
+F004	-	fix	evals/harness/ablation-row.sh	# disagrees with meta/arm is refused (exit 2).	fix	fix/ffe162efdffb:13-13
+F005	-	fix	evals/harness/ablation-row.sh	#                   NotebookEdit tool inputs under .claude/ in transcripts/events-*.jsonl	fix	fix/ffe162efdffb:33-33
+F006	-	fix	evals/harness/ablation-row.sh	#   --validate F       check every row's fields, types and enums; exit 1 on the first	fix	fix/ffe162efdffb:53-54
+F007	-	fix	evals/harness/ablation-row.sh	#   2  usage error, unreadable input, arm mismatch	fix	fix/ffe162efdffb:60-60
+F008	-	fix	evals/harness/ablation-row.sh	-h|--help)        sed -n '2,62p' "$0"; exit 0 ;;	fix	fix/ffe162efdffb:83-83
+F009	-	fix	evals/harness/ablation-row.sh	// (if (.zone_violations.dot_claude_writes | type) != "array" then "zone_violations.dot_claude_writes is not an array" else empty end)	fix	fix/ffe162efdffb:122-122
+F010	-	fix	evals/harness/ablation-row.sh	[[ -n "$GRADE" ]] || { [[ -f "$RUN_DIR/grade.json" ]] && GRADE="$RUN_DIR/grade.json"; } || true	fix	fix/ffe162efdffb:166-180
+F011	-	fix	evals/harness/ablation-row.sh	MAN_ARM="$(jq -r --arg r "$RUN_ID" '.arm_map[$r] // empty' <<<"$MAN_JSON")"	fix	fix/ffe162efdffb:185-185
+F012	-	fix	evals/harness/ablation-row.sh	ARM="${MAN_ARM:-${META_ARM:-$(jq -r '.arm // ""' <<<"$PIPE_JSON")}}"	fix	fix/ffe162efdffb:189-209
+F013	-	fix	evals/harness/ablation-row.sh	DOT_WRITES="$(for f in "${ev_files[@]}"; do	fix	fix/ffe162efdffb:214-214
+F014	-	fix	evals/harness/ablation-row.sh	done | jq -s -c '.')"	fix	fix/ffe162efdffb:221-226
+F015	-	fix	evals/harness/ablation-row.sh	def ms(ts): if ts == null then null else (ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000) end;	fix	fix/ffe162efdffb:230-236
+F016	-	fix	evals/harness/ablation-row.sh	model_mismatches: [ ($ph.models_used // {}) | keys[] | select((. | norm_model) != ($ph.model_requested | norm_model)) ]	fix	fix/ffe162efdffb:247-247
+F017	-	fix	evals/harness/ablation-row.sh	| (if $rc == null then null else ($rc.defects_caught // $rc.caught // null) end) as $caught	fix	fix/ffe162efdffb:267-267
+F018	-	fix	evals/harness/ablation-row.sh	phases: [ $phases[] | {name, label, session_id, model_requested, models_used, effort_requested, effort_effective,	fix	fix/ffe162efdffb:285-285
+F019	-	fix	evals/harness/ablation-row.sh	verdict_accuracy: ($g.verdict_accuracy | if type == "object" then .value else . end),	fix	fix/ffe162efdffb:303-307
+F020	-	fix	evals/harness/ablation-row.sh	wall_clock_ms: (if $p.started != null and $p.finished != null then (ms($p.finished) - ms($p.started))	fix	fix/ffe162efdffb:313-313
+F021	-	fix	evals/harness/ablation-row.sh	zone_violations: {dot_claude_writes: $dot}	fix	fix/ffe162efdffb:326-327
+F022	-	fix	evals/harness/execute-agent.sh	#   In arm mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the	fix	fix/ffe162efdffb:88-94
+F023	-	fix	evals/harness/execute-agent.sh	sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,95p' | sed 's/^# \{0,1\}//' >&2	fix	fix/ffe162efdffb:115-115
+F024	-	fix	evals/harness/execute-agent.sh	if [[ "$ARM_MODE" == "true" ]]; then	fix	fix/ffe162efdffb:212-215
+F025	-	fix	evals/harness/execute-agent.sh	ARM_EVIDENCE="$(jq -Rn '[inputs | select(length > 0) | capture("^(?<k>[^=]+)=(?<v>.*)$") | {(.k): .v}] | add // {}' < "$arm_ev_file")"	fix	fix/ffe162efdffb:223-223
+F026	-	fix	evals/harness/execute-agent.sh	arm_effort="$(jq -r '.effort // ""' <<<"$ARM_TOGGLES")"	fix	fix/ffe162efdffb:268-268
+F027	-	fix	evals/harness/execute-agent.sh	--argjson refusal_fallbacks "$refusal_fallbacks" \	fix	fix/ffe162efdffb:362-362
+F028	-	fix	evals/harness/execute-agent.sh	source_commit: $source_commit	fix	fix/ffe162efdffb:401-401
+F029	-	fix	evals/harness/fingerprint.sh	#   --bats-bin B       bats executable (default: bats on PATH, else the operator's	fix	fix/ffe162efdffb:22-23
+F030	-	fix	evals/harness/fingerprint.sh	-h|--help)     sed -n '2,28p' "$0"; exit 0 ;;	fix	fix/ffe162efdffb:48-48
+F031	-	fix	evals/harness/fingerprint.sh	if [[ -z "$BATS_BIN" ]]; then	fix	fix/ffe162efdffb:52-55
+F032	-	fix	evals/harness/freeze.sh	# Exit: 0 written / matches; 1 drift, missing manifest under --check, or the	fix	fix/ffe162efdffb:24-25
+F033	-	fix	evals/harness/freeze.sh	usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,26p' | sed 's/^# \{0,1\}//' >&2; exit 2; }	fix	fix/ffe162efdffb:38-38
+F034	-	fix	evals/harness/freeze.sh	for d in "${dirs[@]}"; do	fix	fix/ffe162efdffb:66-70
+F035	-	fix	evals/harness/pipeline-run.sh	#                sandbox/.eval/ after every phase), adversarial-*.json	fix	fix/ffe162efdffb:54-54
+F036	-	fix	evals/harness/pipeline-run.sh	# toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.137.0 by	fix	fix/ffe162efdffb:85-85
+F037	-	fix	evals/harness/pipeline-run.sh	# record (ablation-row.sh reads `running` as interrupted).	fix	fix/ffe162efdffb:106-106
+F038	-	fix	evals/harness/pipeline-run.sh	-h|--help)        sed -n '2,105p' "$0"; exit 0 ;;	fix	fix/ffe162efdffb:153-153
+F039	-	fix	evals/harness/pipeline-run.sh	SPENT_MICRO=0 IMAGE_DIGEST="" FINGERPRINT="" SNAPSHOTS_JSON='{}' TOGGLES="$SUITE_TOGGLES"	fix	fix/ffe162efdffb:298-298
+F040	-	fix	evals/harness/pipeline-run.sh	evidence_json() {	fix	fix/ffe162efdffb:312-312
+F041	-	fix	evals/harness/pipeline-run.sh	--argjson spent "$SPENT_MICRO" --arg cap "$MAX_RUN_USD" --arg effort "$EFFORT_FLAG" '	fix	fix/ffe162efdffb:331-331
+F042	-	fix	evals/harness/pipeline-run.sh	tools: $tools, snapshots: $snapshots, phases: $phases, started: $started, finished: $finished}' \	fix	fix/ffe162efdffb:340-340
+F043	-	fix	evals/harness/pipeline-run.sh	STATUS="$1"; [[ -n "${3:-}" ]] && REASON="$3"	fix	fix/ffe162efdffb:345-345
+F044	-	fix	evals/harness/pipeline-run.sh	STATUS=infrastructure_error; REASON="${REASON:-driver aborted (rc $rc)}"	fix	fix/ffe162efdffb:358-358
+F045	-	fix	evals/harness/pipeline-run.sh	printf 'loa_mount=none\n' >> "$ARM_EVIDENCE_FILE"	fix	fix/ffe162efdffb:497-497
+F046	-	fix	evals/harness/pipeline-run.sh	local env_f	fix	fix/ffe162efdffb:775-778
+F047	-	fix	evals/harness/pipeline-run.sh	--argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" '	fix	fix/ffe162efdffb:824-824
+F048	-	fix	evals/harness/pipeline-run.sh	started: $started, finished: $finished}' >> "$PHASES_FILE"	fix	fix/ffe162efdffb:849-849
+F049	-	fix	evals/harness/run-arms.sh	#   in_flight_reserved, max, trials_launched, at_trial}, state partial, exit 1.	fix	fix/ffe162efdffb:27-27
+F050	-	fix	evals/harness/run-arms.sh	#   never reads screen-* batches. --batch and --trials are ignored under --screen.	fix	fix/ffe162efdffb:32-32
+F051	-	fix	evals/harness/run-arms.sh	usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,68p' | sed 's/^# \{0,1\}//' >&2; exit 2; }	fix	fix/ffe162efdffb:89-89
+F052	-	fix	evals/harness/run-arms.sh	WORKTREE="$CACHE_ROOT/arms-src-$SRC12"	fix	fix/ffe162efdffb:164-164
+F053	-	fix	evals/harness/run-arms.sh	SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0	fix	fix/ffe162efdffb:346-346
+F054	-	fix	evals/harness/run-arms.sh	--argjson cut "$CUT_JSON" --argjson screen "$SCREEN" --arg spent "$SPENT" --arg max_usd "$MAX_USD" \	fix	fix/ffe162efdffb:361-364
+F055	-	fix	evals/harness/run-arms.sh	# state is failed > running > partial > complete; source/model must agree.	fix	fix/ffe162efdffb:373-373
+F056	-	fix	evals/harness/run-arms.sh	jq -s --arg suite "$SUITE" '	fix	fix/ffe162efdffb:378-378
+F057	-	fix	evals/harness/run-arms.sh	$(find "$SUITE_DIR" -mindepth 2 -maxdepth 2 -name STATUS.json ! -path "$SUITE_DIR/screen-*" | sort) > "$agg.tmp" 2>/dev/null \	fix	fix/ffe162efdffb:391-391
+F058	-	fix	evals/harness/run-arms.sh	local cost	fix	fix/ffe162efdffb:505-509
+F059	-	fix	evals/harness/run-arms.sh	log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log)"	fix	fix/ffe162efdffb:523-523
+F060	-	fix	evals/harness/spend.sh	#                  evals/results/ablation-2.0/*/rows.jsonl that exists. A row whose	fix	fix/ffe162efdffb:17-18
+F061	-	fix	evals/harness/spend.sh	#                  runs_rows_deduped, ledger_rows, skipped_lines	fix	fix/ffe162efdffb:25-25
+F062	-	fix	evals/harness/spend.sh	#   count as zero; a malformed line is skipped and counted (stderr note).	fix	fix/ffe162efdffb:29-31
+F063	-	fix	evals/harness/spend.sh	usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,32p' | sed 's/^# \{0,1\}//' >&2; exit 2; }	fix	fix/ffe162efdffb:43-43
+F064	-	fix	evals/harness/spend.sh	runs_usd, runs_rows, dedup = 0.0, 0, 0	fix	fix/ffe162efdffb:121-123
+F065	-	fix	evals/harness/spend.sh	key = rid if isinstance(rid, str) and rid else None	fix	fix/ffe162efdffb:134-141
+F066	-	fix	evals/harness/spend.sh	"runs_rows_deduped": dedup, "ledger_rows": ledger_rows, "skipped_lines": skipped}, sort_keys=True))	fix	fix/ffe162efdffb:169-169
+F067	-	fix	evals/harness/spend.sh	f"cap {whole(cap)}; headroom {money(headroom)}; reserve {whole(reserve)}")	fix	fix/ffe162efdffb:174-174
+F068	-	fix	evals/harness/took-effect.sh	#   one_voice_planned          both envelopes (review, audit) say companion_voice.planned false	fix	fix/ffe162efdffb:21-21
+F069	-	fix	evals/harness/took-effect.sh	-h|--help)    sed -n '2,56p' "$0"; exit 0 ;;	fix	fix/ffe162efdffb:74-74
+F070	-	fix	evals/harness/took-effect.sh	envelope() {  # envelope <gate> → path or empty	fix	fix/ffe162efdffb:86-88
+F071	-	fix	evals/tests/ablation-row.bats	local e="$T/runs/a1-build/sandbox/grimoires/loa/a2a/sprint-1"	fix	fix/ffe162efdffb:174-174
+F072	-	fix	evals/tests/ablation-row.bats	[[ "$(jq -r '.degraded_reason' <<<"$(last)")" == *"audit envelope 1 of 2 voices completed"* ]]	fix	fix/ffe162efdffb:179-179
+F073	-	fix	evals/tests/ablation-row.bats	run "$ROW" --bogus	fix	fix/ffe162efdffb:239-239
+F074	-	fix	evals/tests/arm-toggles.bats	[ "$(jq -r '.arm_evidence.gates' "$WS/.eval/executor.json")" = "flatline_protocol.{code_review,security_audit}.enabled=false" ]	fix	fix/ffe162efdffb:356-361
+F075	-	fix	evals/tests/fixtures/claude-stub-pipeline.sh	#   STUB_DOT_CLAUDE_WRITE_<PHASE>  1: emit a Write tool_use under .claude/	fix	fix/ffe162efdffb:22-22
+F076	-	fix	evals/tests/fixtures/claude-stub-pipeline.sh	led="$(v STUB_LEDGER_USD 0)"	fix	fix/ffe162efdffb:84-84
+F077	-	fix	evals/tests/freeze.bats	run "$FZ" --smoke --allow-partial --check	fix	fix/ffe162efdffb:101-101
+F078	-	fix	evals/tests/pipeline-run.bats	@test "A5: PLAN runs with the Flatline step off; A1's PLAN prompt has it on" {	fix	fix/ffe162efdffb:276-276
+F079	-	fix	evals/tests/pipeline-run.bats	rm_run() { chmod -R u+rwx "$T/run" 2>/dev/null || true; find "$T/run" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T/run" 2>/dev/null || true; find "$T/log" "$T/dlog" -mindepth 1 -delete 2>/dev/null || true; }	fix	fix/ffe162efdffb:764-764
+F080	-	fix	evals/tests/run-arms.bats	run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 1 --source-commit "$SHA" --results-dir "$RES" --screen --screen-tasks 0	fix	fix/ffe162efdffb:249-249
+F081	-	fix	evals/tests/spend.bats	# runs.jsonl 6.41 + 3.59, rows.jsonl 3.59 (same run_id, counted once) + 2.00,	fix	fix/ffe162efdffb:8-8
+F082	-	fix	evals/tests/spend.bats	@test "SP-4 a malformed line is skipped and counted; the rest still sums" {	fix	fix/ffe162efdffb:57-62
+F083	-	fix	evals/tests/spend.bats	@test "SP-5 exit 1 on an unreadable file; exit 2 on usage errors" {	fix	fix/ffe162efdffb:66-66
+F084	-	fix	evals/tests/took-effect.bats	@test "no_gate_phases + enforce_env_false: OK on A4; FAIL on a gated run" {	fix	fix/ffe162efdffb:103-103

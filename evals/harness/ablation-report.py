@@ -88,6 +88,24 @@
 #   finding volume  per review-catch arm: flags per valid row (finding_volume_per_run) and planted
 #                   defects caught ÷ findings flagged (precision_planted_per_flag), informational.
 #
+# Report 1.4 (cycle-132 Sprint 269 Task 1.7b, SDD §1.4 "Row writer and report"; additive — no decision, H1/A4
+# state or existing number changes on rows without the 1.5 fields):
+#   label_set       a suite version whose review-catch rows carry more than one label_set (row writer 1.5; a row
+#                   without one reads "unlabelled") is split into "<version> · labels <set>" partitions as pins
+#                   and rules are — never pooled
+#   bare_sessions   a matched arm (toggles bare_sessions: matched) is never a component and never enters H1, A4
+#                   or a decision; its rows (cells of k sessions) are read in their own section, one line per
+#                   arm × task × k (rows of different k are never pooled): "## Matched-bare arms" — cells,
+#                   completed / degraded / excluded, the union catch rate (defect_catch_rate) and the session-1
+#                   catch rate (recall_session1) and precision (precision_session1) means over the completed cells,
+#                   sessions valid / attempted, mean cost_usd (valid sessions) and all_spend_usd (every attempt);
+#                   printed when the primary version holds a matched row. JSON matched_arms [...]
+#   intention to run  "## Intention to run": per batch whose MANIFEST.json carries a plan, per arm, every planned
+#                   cell read from its row and the batch's STATUS.json (read-only): completed (a completed row,
+#                   not degraded), degraded (any other row), cut (no row while STATUS.json records a cut), not run
+#                   (no row, no cut). JSON intention_to_run [{batch, state, arms: {<arm>: {planned, completed,
+#                   degraded, cut, not_run}}}]
+#
 # Suite versions (Sprint 262): rows of different suite_version values are never pooled. The
 # main sections (Decisions, Per-arm detail, Exclusions, Cuts, Sensitivity, Rows per cell) read
 # the primary version only; every other version gets "## Suite version N (batches: …) —
@@ -255,7 +273,7 @@ import statistics
 import subprocess
 import sys
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 REPORT_SCHEMA = 1
 ROW_SCHEMA_MAJOR = 1
 MANIFEST_SCHEMA_MAJOR = 1
@@ -1135,13 +1153,24 @@ def part_rule(r):
     return v if isinstance(v, str) and v else "pm3"
 
 
+def part_labels(r):
+    """report 1.4: the label set a review-catch row's catch figures follow (row writer 1.5 label_set);
+    "unlabelled" without one; None for a build row"""
+    if r.get("task_type") != REVIEW:
+        return None
+    v = r.get("label_set")
+    return v if isinstance(v, str) and v else "unlabelled"
+
+
 def part_split(v, rows):
     """report 1.3: one suite version's rows split by source_commit and grader_rule when either takes more
     than one value — rows of different pins or rules are never pooled; the key names the pin (12
-    characters) and the rule ("n/a" for build rows when review rows hold two rules)"""
+    characters) and the rule ("n/a" for build rows when review rows hold two rules); report 1.4: and by
+    label_set the same way"""
     commits = sorted({str(r.get("source_commit") or "") for r in rows})
     rules = sorted({x for x in (part_rule(r) for r in rows) if x is not None})
-    if len(commits) <= 1 and len(rules) <= 1:
+    labels = sorted({x for x in (part_labels(r) for r in rows) if x is not None})
+    if len(commits) <= 1 and len(rules) <= 1 and len(labels) <= 1:
         PART_VERSION[v] = v
         return {v: list(rows)}
     out = {}
@@ -1151,6 +1180,8 @@ def part_split(v, rows):
             k += f" · pin {str(r.get('source_commit') or '')[:12] or 'n/a'}"
         if len(rules) > 1:
             k += f" · rule {part_rule(r) or 'n/a'}"
+        if len(labels) > 1:
+            k += f" · labels {part_labels(r) or 'n/a'}"
         PART_VERSION[k] = v
         out.setdefault(k, []).append(r)
     return out
@@ -1915,7 +1946,11 @@ def build(args):
     for a in arms:
         if not a.get("absent") and (a.get("toggles") or {}).get("oracle_open") is True and a.get("eval_only") is not True:
             raise Fail(f"suite arm {a.get('id')} opens the oracle (toggles.oracle_open: true) without eval_only: true")
-    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and not is_eval_only(a)]
+    def is_matched(a):   # report 1.4: a compute-matched bare arm is read in its own section, never as a component
+        return (a.get("toggles") or {}).get("bare_sessions") == "matched"
+    matched_arms = [a["id"] for a in arms if is_matched(a) and not a.get("absent")]
+    components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent") and not is_eval_only(a)
+                  and not is_matched(a)]
     absent = [a for a in arms if a.get("absent")]
     seed = args.seed
     groups, primary, unversioned = partition(rows, args.suite_version, mans,
@@ -2035,6 +2070,13 @@ def build(args):
     render_extra_sens(L, P, rules, "##")
 
     render_budget(L, P["budget"], "##")
+
+    matched = matched_rows(P.get("rows", []), matched_arms)
+    if matched:
+        render_matched(L, matched, "##")
+    itr = intention_to_run(mans, rows)
+    if itr:
+        render_itr(L, itr, "##")
 
     L("## Rows per cell")
     L("")
@@ -2198,8 +2240,96 @@ def build(args):
         "budget_matched": budget_json(P["budget"]),
         "batches": recs_json,
         "batches_note": recs_note,
+        "matched_arms": matched,
+        "intention_to_run": itr,
     }
     return "\n".join(lines) + "\n", data, P["decidable"]
+
+
+# ---------------------------------------------------------------- report 1.4 (cycle-132): matched arms, intention to run
+def _mean(xs):
+    xs = [x for x in xs if is_num(x)]
+    return r9(sum(xs) / len(xs)) if xs else None
+
+
+def matched_rows(rows, matched_arms):
+    """one line per matched arm × task × k (bare_sessions): the union and session-1 figures"""
+    groups = {}
+    for r in rows:
+        if r.get("arm") not in matched_arms:
+            continue
+        k = r.get("bare_sessions")
+        groups.setdefault((r["arm"], str(r.get("task_id")), k if is_num(k) else None), []).append(r)
+    out = []
+    for (arm, task, k), rs in sorted(groups.items(), key=lambda x: (x[0][0], x[0][1], -1 if x[0][2] is None else x[0][2])):
+        done = [r for r in rs if r.get("status") == "completed" and r.get("degraded") is not True]
+        out.append({"arm": arm, "task_id": task, "k": k, "cells": len(rs), "completed": len(done),
+                    "degraded": sum(1 for r in rs if r.get("status") == "completed" and r.get("degraded") is True),
+                    "excluded": sum(1 for r in rs if r.get("status") != "completed"),
+                    "union_catch_rate": _mean([r.get("defect_catch_rate") for r in done]),
+                    "recall_session1": _mean([r.get("recall_session1") for r in done]),
+                    "precision_session1": _mean([r.get("precision_session1") for r in done]),
+                    "sessions_valid": sum(int(r["sessions_valid"]) for r in rs if is_num(r.get("sessions_valid"))),
+                    "sessions_attempted": sum(int(r["sessions_attempted"]) for r in rs if is_num(r.get("sessions_attempted"))),
+                    "cost_usd": _mean([usd_of(r) for r in rs]),
+                    "all_spend_usd": _mean([r.get("all_spend_usd") for r in rs]),
+                    "runs": sorted(r["run_id"] for r in rs)})
+    return out
+
+
+def render_matched(L, matched, h):
+    L(f"{h} Matched-bare arms (k bare sessions per cell, union-graded; never a component, never pooled across k)")
+    L("")
+    L("| arm | task | k | cells | completed | degraded | excluded | union catch rate | session-1 catch rate | "
+      "session-1 precision | sessions valid / attempted | mean cost (valid) | mean all spend |")
+    L("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for m in matched:
+        L(f"| `{m['arm']}` | {m['task_id']} | {m['k'] if m['k'] is not None else 'n/a'} | {m['cells']} | {m['completed']} | "
+          f"{m['degraded']} | {m['excluded']} | {u3(m['union_catch_rate'])} | {u3(m['recall_session1'])} | "
+          f"{u3(m['precision_session1'])} | {m['sessions_valid']} / {m['sessions_attempted']} | "
+          f"{u3(m['cost_usd'])} | {u3(m['all_spend_usd'])} |")
+    L("")
+
+
+def intention_to_run(mans, rows):
+    """every planned cell of each batch whose MANIFEST.json carries a plan: completed / degraded / cut / not run"""
+    out = []
+    for b, m in sorted(mans.items()):
+        plan = m.get("plan")
+        if not isinstance(plan, list) or not plan:
+            continue
+        st = read_json_file(os.path.join(os.path.dirname(m["_path"]), "STATUS.json"))
+        st = st if isinstance(st, dict) else {}
+        cut = bool(st.get("cuts"))
+        by_id = {r["run_id"]: r for r in rows if r.get("batch") == b}
+        arms = {}
+        for e in plan:
+            if not isinstance(e, dict) or not isinstance(e.get("arm"), str):
+                continue
+            a = arms.setdefault(e["arm"], {"planned": 0, "completed": 0, "degraded": 0, "cut": 0, "not_run": 0})
+            a["planned"] += 1
+            r = by_id.get(e.get("run_id"))
+            if r is None:
+                a["cut" if cut else "not_run"] += 1
+            elif r.get("status") == "completed" and r.get("degraded") is not True:
+                a["completed"] += 1
+            else:
+                a["degraded"] += 1
+        out.append({"batch": b, "state": st.get("state") if isinstance(st.get("state"), str) else None,
+                    "arms": dict(sorted(arms.items()))})
+    return out
+
+
+def render_itr(L, itr, h):
+    L(f"{h} Intention to run (every planned cell: completed / degraded / cut / not run)")
+    L("")
+    L("| batch | state | arm | planned | completed | degraded | cut | not run |")
+    L("|---|---|---|---|---|---|---|---|")
+    for e in itr:
+        for arm, a in e["arms"].items():
+            L(f"| `{e['batch']}` | {e['state'] or 'no STATUS.json'} | `{arm}` | {a['planned']} | {a['completed']} | "
+              f"{a['degraded']} | {a['cut']} | {a['not_run']} |")
+    L("")
 
 
 def write_out(path, text):

@@ -1,0 +1,282 @@
+commit ffe162efdffb048336ea09a10f9dd4fae108c4e0
+Date: 2026-10-15T14:18:20+11:00
+
+fix(cycle-130): sprint-258 audit round 1 — measurement integrity against the sandbox and a hard spend ceiling: pipeline-run.sh copies each gate's dissent envelope to eval/ once when the gate ends (envelope_sha256 on the record, a symlink never copied) and records CLAUDE.md/.loa.config.yaml sha256 at materialisation and at finish (mount_integrity); ablation-row.sh and took-effect.sh read eval/ first and the row carries envelope_mismatch, write-shaped bash_mount_refs and mount_changed, with the arm grammar enforced in the writer and --validate; run-arms.sh --max-usd charges run_cap for a trial that dies without a reported cost (spend.assumed_cap_trials); execute-agent.sh unsets an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE in every mode (recorded in executor.json) and whitelists the arm effort itself; fingerprint.sh drops the host-specific bats fallback; Dockerfile.ablation pins the cheval dependencies exactly and checks the bats-core tag against commit 3bca150e (image rebuilt: id 4e37cb5f…); the 20 smoke rows regenerated under the new writer; 15 new bats cases (284/284); SDD §5.5/5.6/5.8/5.11/5.13 amendments; CHANGELOG hardening bullet; DEC-0496 (review r2 APPROVED), DEC-0497 (audit r1); beads bd-li5vl, bd-z7ytx, bd-80l5u, bd-mohlw
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/execute-agent.sh b/evals/harness/execute-agent.sh
+index a1ce6b8d..258a1da8 100755
+--- a/evals/harness/execute-agent.sh
++++ b/evals/harness/execute-agent.sh
+@@ -85,13 +85,16 @@
+ #                                    LOA_ADVERSARIAL_REVIEW_ENFORCE=false in the executor env
+ #     flatline: false                flatline_protocol.enabled=false
+ #     sprint_plan / context_resets   pipeline-run.sh only: exit 2 here (no phases to edit)
+-#   In arm mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the
+-#   toggles, and the sandbox .claude/checksums.json is regenerated after them
++#   In every mode an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE is unset before the
++#   toggles (only gates: false sets it again; audit LOW-A3), and in arm mode the
++#   sandbox .claude/checksums.json is regenerated after them
+ #   (arm_evidence.manifest_sha256). The materialisation and toggle code lives in
+-#   lib/sandbox-mount.sh (its header is the contract).
++#   lib/sandbox-mount.sh (its header is the contract); an arm effort outside
++#   low|medium|high|xhigh|max is exit 2 here as well (audit LOW-A1).
+ #   The appended skill prompt (.eval/skill-prompt.md) is derived from the
+ #   toggled sandbox SKILL.md. executor.json records arm, arm_toggles,
+-#   arm_evidence and source_commit.
++#   arm_evidence, source_commit and adversarial_review_enforce (the variable's
++#   value in the executor environment at launch, or "unset").
+ #
+ # Tested by evals/tests/execute-agent.bats and evals/tests/arm-toggles.bats.
+ # =============================================================================
+@@ -112,7 +115,7 @@ TRIAL_ID=""
+ TIMEOUT_S=900
+ 
+ usage() {
+-  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,95p' | sed 's/^# \{0,1\}//' >&2
++  sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,98p' | sed 's/^# \{0,1\}//' >&2
+   exit 2
+ }
+ 
+@@ -209,10 +212,9 @@ fi
+ 
+ # Toggles hit the sandbox copy only, after every materialisation step; each is
+ # verified and one that cannot take effect is exit 2 before the executor starts.
+-if [[ "$ARM_MODE" == "true" ]]; then
+-  # an operator's gate override never reaches an arm that did not declare it
+-  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
+-fi
++# An operator's gate override never reaches the executor, baseline or arm (audit LOW-A3):
++# only the gates: false toggle (apply_arm_toggles) sets it again.
++unset LOA_ADVERSARIAL_REVIEW_ENFORCE
+ arm_ev_file="$(mktemp "$eval_dir/.arm-evidence.XXXXXX")"
+ ARM_EVIDENCE_FILE="$arm_ev_file" apply_arm_toggles "$WORKSPACE" "$ARM_TOGGLES" "$ARM" || { rm -f "$arm_ev_file"; exit 2; }
+ # The sandbox manifest is regenerated after the toggles so no integrity reader
+@@ -221,6 +223,9 @@ if [[ "$ARM_MODE" == "true" && -d "$WORKSPACE/.claude" ]]; then
+   ARM_EVIDENCE_FILE="$arm_ev_file" regen_sandbox_manifest "$WORKSPACE" || { rm -f "$arm_ev_file"; exit 2; }
+ fi
+ ARM_EVIDENCE="$(jq -Rn '[inputs | select(length > 0) | capture("^(?<k>[^=]+)=(?<v>.*)$") | {(.k): .v}] | add // {}' < "$arm_ev_file")"
++# the gate-enforcement value the executor environment carries at launch (recorded in executor.json)
++REVIEW_ENFORCE="unset"
++[[ -n "${LOA_ADVERSARIAL_REVIEW_ENFORCE+x}" ]] && REVIEW_ENFORCE="$LOA_ADVERSARIAL_REVIEW_ENFORCE"
+ rm -f "$arm_ev_file"
+ 
+ # Skill body without the YAML frontmatter → the appended system prompt. Read
+@@ -266,6 +271,8 @@ resolve_effort() {
+ effort="$(resolve_effort)"
+ # cycle-130: an arm's effort toggle is the treatment and overrides every other source
+ arm_effort="$(jq -r '.effort // ""' <<<"$ARM_TOGGLES")"
++# audit LOW-A1: the value reaches argv, so it is whitelisted here too (not only in the library)
++case "$arm_effort" in ""|low|medium|high|xhigh|max) ;; *) echo "ERROR: arm '$ARM' toggle effort='$arm_effort' is not low|medium|high|xhigh|max" >&2; exit 2 ;; esac
+ [[ -n "$arm_effort" ]] && effort="$arm_effort"
+ 
+ prompt="$(yq -r '.prompt // ""' "$TASK_YAML")"
+@@ -360,6 +367,7 @@ jq -n \
+   --argjson arm_evidence "$ARM_EVIDENCE" \
+   --arg source_commit "${LOA_EVAL_SOURCE_COMMIT:-$prompt_tree_commit}" \
+   --argjson refusal_fallbacks "$refusal_fallbacks" \
++  --arg review_enforce "$REVIEW_ENFORCE" \
+   '
+   def norm_usage(u): {
+     input_tokens: (u.input_tokens // u.inputTokens // 0),
+@@ -398,7 +406,8 @@ jq -n \
+     arm: $arm,
+     arm_toggles: $arm_toggles,
+     arm_evidence: $arm_evidence,
+-    source_commit: $source_commit
++    source_commit: $source_commit,
++    adversarial_review_enforce: $review_enforce
+   }' > "$eval_dir/executor.json"
+ 
+ if [[ $rc -ne 0 ]]; then
+diff --git a/evals/harness/run-arms.sh b/evals/harness/run-arms.sh
+index 8608f767..0648faa3 100755
+--- a/evals/harness/run-arms.sh
++++ b/evals/harness/run-arms.sh
+@@ -25,6 +25,12 @@
+ #   when spent + est_next > max it cuts: no further launches, running trials
+ #   finish, STATUS.json gets cut_reason: max_usd and cut = {reason, spent,
+ #   in_flight_reserved, max, trials_launched, at_trial}, state partial, exit 1.
++#   A trial that ends without status completed and without a reported cost
++#   (missing, 0 or malformed total_cost_usd: killed on timeout, lost in transport,
++#   no result event), or that writes no row at all, is charged run_cap to spent
++#   (an assumed charge: it may have burned up to the cap before it died); assumed
++#   charges never enter est_next's means, and STATUS.json.spend.assumed_cap_trials
++#   counts them (audit MEDIUM-A2).
+ # Screen (bd-j4lwr): --screen runs one trial of the first N fixtures (default
+ #   2) per arm into <results-dir>/<suite>/screen-<UTC ts>/ (its own MANIFEST,
+ #   STATUS, rows), prints a per-arm table (trials, mean USD, mean recall) on
+@@ -88,7 +94,7 @@ CONCURRENCY=2 BATCH="" RESULTS_ROOT="$EVALS_DIR/results/arms" RETRY_WAIT=300
+ DRY_RUN=false ALLOW_UNAPPROVED=false
+ MAX_USD="" RUN_CAP="" SCREEN=false SCREEN_TASKS=2
+ 
+-usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,68p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
++usage() { sed -n '2,/^# =====.*$/p' "$0" | sed -n '2,74p' | sed 's/^# \{0,1\}//' >&2; exit 2; }
+ die() { echo "run-arms: $*" >&2; exit 2; }
+ 
+ while [[ $# -gt 0 ]]; do
+@@ -348,7 +354,7 @@ STATE="running"
+ DONE=() FAILED=() PLANNED=()
+ for i in "${!ARMS[@]}"; do DONE[$i]=0; FAILED[$i]=0; PLANNED[$i]=$(( ${#FIXTURES[@]} * TRIALS )); done
+ # spend accounting (--max-usd): batch spend, per-arm and pooled completed-cost sums
+-SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0
++SPENT=0 CUT_JSON=null POOL_SUM=0 POOL_N=0 ASSUMED_CAP=0
+ ARM_SUM=() ARM_N=()
+ for i in "${!ARMS[@]}"; do ARM_SUM[$i]=0; ARM_N[$i]=0; done
+ fadd() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.10g", a + b }'; }
+@@ -364,9 +370,11 @@ write_status() {
+   jq -n --arg state "$STATE" --argjson per "$per" --arg src "$SRC_FULL" --arg model "$MODEL" \
+     --arg started "$STARTED" --argjson finished "$finished" --arg batch "$BATCH" --arg suite "$SUITE" \
+     --argjson cut "$CUT_JSON" --argjson screen "$SCREEN" --arg spent "$SPENT" --arg max_usd "$MAX_USD" \
++    --argjson assumed "$ASSUMED_CAP" \
+     '{schema_version: 1, suite: $suite, batch: $batch, state: $state, per_arm: $per,
+       source_commit: $src, model_id: $model, started: $started, finished: $finished}
+-     + (if $max_usd == "" then {} else {spend: {spent_usd: ($spent | tonumber), max_usd: ($max_usd | tonumber)}} end)
++     + (if $max_usd == "" then {} else {spend: {spent_usd: ($spent | tonumber), max_usd: ($max_usd | tonumber),
++                                                assumed_cap_trials: $assumed}} end)
+      + (if $cut == null then {} else {cut_reason: $cut.reason, cut: $cut} end)
+      + (if $screen then {screen: true} else {} end)' > "$BATCH_DIR/STATUS.json.tmp"
+   mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+@@ -510,11 +518,18 @@ collect() {  # collect <job-id> <arm>
+   if [[ -f "$JOBS_DIR/$jid.row" ]]; then
+     mkdir -p "$BATCH_DIR/$arm"
+     cat "$JOBS_DIR/$jid.row" >> "$BATCH_DIR/$arm/results.jsonl"
+-    local cost
++    local cost st
+     cost="$(jq -r '(.executor.total_cost_usd // 0) | tonumber? // 0' "$JOBS_DIR/$jid.row" 2>/dev/null || echo 0)"
+     [[ "$cost" =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || cost=0
+-    SPENT="$(fadd "$SPENT" "$cost")"
+-    if [[ "$(jq -r '.status' "$JOBS_DIR/$jid.row")" == "completed" ]]; then
++    st="$(jq -r '.status // ""' "$JOBS_DIR/$jid.row" 2>/dev/null || echo "")"
++    if [[ "$st" != "completed" ]] && awk -v c="$cost" 'BEGIN { exit !(c + 0 == 0) }'; then
++      # audit MEDIUM-A2: a failed trial that reports no cost is charged the run cap
++      SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++      log "assumed cap: $jid ended ${st:-without a status} with no reported cost; USD $RUN_CAP charged to spent"
++    else
++      SPENT="$(fadd "$SPENT" "$cost")"
++    fi
++    if [[ "$st" == "completed" ]]; then
+       ARM_SUM[$i]="$(fadd "${ARM_SUM[$i]}" "$cost")"; ARM_N[$i]=$(( ${ARM_N[$i]} + 1 ))
+       POOL_SUM="$(fadd "$POOL_SUM" "$cost")"; POOL_N=$((POOL_N + 1))
+     fi
+@@ -528,7 +543,8 @@ collect() {  # collect <job-id> <arm>
+     rm -f "$JOBS_DIR/$jid".*
+   else
+     FAILED[$i]=$(( ${FAILED[$i]} + 1 ))
+-    log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log)"
++    SPENT="$(fadd "$SPENT" "$RUN_CAP")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))
++    log "FAILED $jid (no row written; see $JOBS_DIR/$jid.exec.log); assumed cap: USD $RUN_CAP charged to spent"
+   fi
+   write_status
+ }
+diff --git a/evals/tests/arm-toggles.bats b/evals/tests/arm-toggles.bats
+index 0d801ca9..5bb1eaa0 100644
+--- a/evals/tests/arm-toggles.bats
++++ b/evals/tests/arm-toggles.bats
+@@ -354,11 +354,18 @@ integrity_in() {
+   grep -qx 'LOA_ADVERSARIAL_REVIEW_ENFORCE=false' "$T/env"
+   [ "$(jq -r '.arm_evidence.arm_env' "$WS/.eval/executor.json")" = "LOA_ADVERSARIAL_REVIEW_ENFORCE=false" ]
+   [ "$(jq -r '.arm_evidence.gates' "$WS/.eval/executor.json")" = "flatline_protocol.{code_review,security_audit}.enabled=false" ]
++  # executor.json records the value the executor environment carried (audit LOW-A3)
++  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = "false" ]
+   # an inherited override never reaches an arm that did not declare it
+   rm -rf "$SNAP" "$WS"; mkdir -p "$WS"
+-  LOA_ADVERSARIAL_REVIEW_ENFORCE=false run_arm a1_full "$REPO_ROOT/$ABL_SUITE_REL" reviewing-code
++  # exported: bats `run` does not hand a prefix assignment to the command it runs (audit LOW-A3 round)
++  export LOA_ADVERSARIAL_REVIEW_ENFORCE=false
++  run_arm a1_full "$REPO_ROOT/$ABL_SUITE_REL" reviewing-code
++  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
+   [ "$status" -eq 0 ]
+-  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/env"
++  [ -s "$T/env" ]
++  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/env" || false   # a bare `! cmd` never fails a bats test
++  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = "unset" ]
+   # the library also hands the variable to a caller-owned env file (pipeline-run.sh)
+   W2="$T/ws2"; mkdir -p "$W2"
+   ARM_ENV_FILE="$T/arm.env" run lib apply_arm_toggles "$W2" '{"gates":false}' a4_no_gates
+diff --git a/evals/tests/execute-agent.bats b/evals/tests/execute-agent.bats
+index 5d0ca1c7..6730b1cc 100644
+--- a/evals/tests/execute-agent.bats
++++ b/evals/tests/execute-agent.bats
+@@ -247,3 +247,40 @@ make_tree() {  # make_tree <dir> <effort-line-or-empty>
+   [ "$(head -1 "$REPO_ROOT/evals/results/$run_id/results.jsonl" | jq -r '.executor // "absent"')" = "absent" ]
+   find "$REPO_ROOT/evals/results/$run_id" -mindepth 1 -delete; rmdir "$REPO_ROOT/evals/results/$run_id"
+ }
++
++@test "EA-13 an inherited LOA_ADVERSARIAL_REVIEW_ENFORCE never reaches a baseline executor; executor.json records it as unset (audit LOW-A3)" {
++  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_FULL_ENV_FILE="$T/fullenv"
++  unset LOA_EVAL_ARM LOA_EVAL_ARM_TOGGLES
++  # exported (bats `run` does not hand a prefix assignment to the command it runs)
++  export LOA_ADVERSARIAL_REVIEW_ENFORCE=false
++  run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
++  unset LOA_ADVERSARIAL_REVIEW_ENFORCE
++  [ "$status" -eq 0 ]
++  [ -s "$T/fullenv" ]
++  ! grep -q '^LOA_ADVERSARIAL_REVIEW_ENFORCE=' "$T/fullenv" || false   # a bare `! cmd` never fails a bats test
++  [ "$(jq -r '.adversarial_review_enforce' "$WS/.eval/executor.json")" = unset ]
++}
++
++@test "EA-14 an arm effort outside low|medium|high|xhigh|max is exit 2 before the executor starts, even when the mount library accepts it (audit LOW-A1)" {
++  # a temporary copy of the harness whose lib/sandbox-mount.sh is the stub library, which
++  # applies any effort value (the real library refuses it first; this proves the second check)
++  local H="$T/h/evals/harness"
++  mkdir -p "$H/lib"
++  cp "$EXEC" "$H/execute-agent.sh"
++  cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
++  make_tree "$T/tree" "effort: high"
++  sed 's/reviewing-code/fake-skill/' "$T/task.yaml" > "$T/task-fake.yaml"
++  LOA_EVAL_ARM=a7_effort_medium LOA_EVAL_ARM_TOGGLES='{"effort":"maximum"}' EVAL_PROMPT_TREE="$T/tree" \
++    run "$H/execute-agent.sh" --task-yaml "$T/task-fake.yaml" --workspace "$WS"
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"toggle effort='maximum' is not low|medium|high|xhigh|max"* ]]
++  [ ! -e "$STUB_ARGV_FILE" ]
++  [ ! -e "$WS/.eval/executor.json" ]
++  # a whitelisted value through the same copy runs
++  find "$WS" -mindepth 1 -delete
++  LOA_EVAL_ARM=a7_effort_medium LOA_EVAL_ARM_TOGGLES='{"effort":"medium"}' EVAL_PROMPT_TREE="$T/tree" \
++    run "$H/execute-agent.sh" --task-yaml "$T/task-fake.yaml" --workspace "$WS"
++  [ "$status" -eq 0 ]
++  grep -qx -- '--effort' "$STUB_ARGV_FILE"
++  grep -qx 'medium' "$STUB_ARGV_FILE"
++}
+diff --git a/evals/tests/run-arms.bats b/evals/tests/run-arms.bats
+index d56643c2..f448bb70 100644
+--- a/evals/tests/run-arms.bats
++++ b/evals/tests/run-arms.bats
+@@ -273,3 +273,34 @@ teardown() {
+   [[ "$output" == *"screen- prefix is reserved"* ]]
+   [ ! -e "$RES/review-recall/screen-foo" ]
+ }
++
++@test "RA-13 assumed cap (audit MEDIUM-A2): --max-usd 12 --run-cap 5, trial 1 dies twice with no cost, the rest cost USD 2: trial 1 charges 5 and the cut comes at trial 5 (5+2+2+2=11, 11+2=13>12), where uncharged it came at trial 8; spend.assumed_cap_trials 1" {
++  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
++  echo 2 > "$T/fails"
++  export STUB_FAIL_COUNTER="$T/fails"
++  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 8 --concurrency 1 \
++    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
++  [ "$status" -eq 1 ]
++  B="$RES/review-recall/batch-pr-01-pr-01-n1" S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
++  # trial 1: two transport failures, an error row whose executor reports total_cost_usd 0
++  [ "$(head -1 "$B/baseline/results.jsonl" | jq -r '.status + " " + (.attempts | tostring) + " " + (.executor.total_cost_usd | tostring)')" = "error 2 0" ]
++  [ "$(jq -r '.cut.trials_launched' "$S")" = "4" ]
++  [ "$(jq -r '.cut.at_trial' "$S")" = "5" ]
++  [ "$(jq -r '.cut.spent' "$S")" = "11" ]
++  [ "$(jq -r '.spend.spent_usd' "$S")" = "11" ]
++  [ "$(jq -r '.spend.assumed_cap_trials' "$S")" = "1" ]
++  # the assumed charge never enters the arm mean: the next estimate is the completed trials' USD 2
++  [ "$(jq -r '.cut.est_next' "$S")" = "2" ]
++  [ "$(jq -r '.per_arm.baseline.trials_done' "$S")" = "3" ]
++  [ "$(jq -r '.per_arm.baseline.trials_failed' "$S")" = "1" ]
++  grep -q 'assumed cap: j0001 ended error with no reported cost; USD 5 charged to spent' "$B/run.log"
++}
++
++@test "RA-14 assumed cap: every completed trial reporting its cost leaves assumed_cap_trials 0" {
++  export EVAL_CLAUDE_BIN="$TESTS_DIR/fixtures/ablation/claude-ablation-stub.sh" STUB_COST_USD=2
++  run "$RA" --suite review-recall --arms baseline --fixtures pr-01 --trials 2 --concurrency 1 \
++    --source-commit "$SHA" --results-dir "$RES" --retry-wait 0 --max-usd 12 --run-cap 5
++  [ "$status" -eq 0 ]
++  S="$RES/review-recall/batch-pr-01-pr-01-n1/STATUS.json"
++  [ "$(jq -c '.spend' "$S")" = '{"spent_usd":4,"max_usd":12,"assumed_cap_trials":0}' ]
++}

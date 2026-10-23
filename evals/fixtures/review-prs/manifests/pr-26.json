@@ -1,0 +1,647 @@
+{
+  "fixture": "pr-26",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "262",
+    "record_ref": "origin/record/cycle-130-a2a",
+    "head_commit": "82c5cd7d5f677e6c5211696e5a1d0f63b8f339af",
+    "fix_commit": "56ce0b8f78cc762279d9fb1553f5e812d4014311",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 549,
+      "anchors": [
+        549,
+        550,
+        551
+      ],
+      "must_match": "if isinstance(missed, list) and all(isinstance(x, str) for x in missed):",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 595,
+      "anchors": [
+        595,
+        596,
+        597,
+        598,
+        757,
+        758,
+        773,
+        776,
+        778,
+        797,
+        798,
+        965,
+        968,
+        1321
+      ],
+      "must_match": "\"arm_cost\": mean([float(r.get(\"cost_usd\") or 0) for r in va]),",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H14,H15,H16,H17,H20,H25",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo \u2014 defect (A); group D3",
+      "review_driven": false
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 825,
+      "anchors": [
+        825,
+        827,
+        831,
+        832,
+        833,
+        835,
+        836,
+        839,
+        840
+      ],
+      "must_match": "def version_key(v):",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H18",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 847,
+      "anchors": [
+        847,
+        848,
+        849,
+        850,
+        851,
+        1403
+      ],
+      "must_match": "if len(keys) > 1 and missing:",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H28",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1054,
+      "anchors": [
+        1054,
+        1062,
+        1063,
+        1064,
+        1065,
+        1066,
+        1067,
+        1068,
+        1069,
+        1070,
+        1080,
+        1081,
+        1082
+      ],
+      "must_match": "ad = os.path.join(d, r[\"arm\"])",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H22",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace; severity: codebook high \u2014 wrong counts and a crash on a common path (reruns, version strings)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1117,
+      "anchors": [
+        1117,
+        1339,
+        1351,
+        1592,
+        1611
+      ],
+      "must_match": "return {k: (j6(x) if isinstance(x, float) else",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H23,H26,H27,H30,H31",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo \u2014 defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1552,
+      "anchors": [
+        1552,
+        1553
+      ],
+      "must_match": "recs = batch_record(mans, rows)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H29",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1675,
+      "anchors": [
+        1675,
+        1676,
+        1677
+      ],
+      "must_match": "write_out(args.out, text)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H34",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 165,
+      "anchors": [
+        165,
+        166,
+        167,
+        168,
+        412,
+        413
+      ],
+      "must_match": "// (if has(\"defects_missed\") and .defects_missed != null",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H40,H42",
+      "source_commit": "82c5cd7d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/ablation-report.py",
+      "start": 62,
+      "end": 62,
+      "source": "fix/56ce0b8f78cc:62-62"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/ablation-report.py",
+      "start": 87,
+      "end": 88,
+      "source": "fix/56ce0b8f78cc:87-88"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-report.py",
+      "start": 126,
+      "end": 127,
+      "source": "fix/56ce0b8f78cc:126-127"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-report.py",
+      "start": 138,
+      "end": 139,
+      "source": "fix/56ce0b8f78cc:138-139"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/ablation-report.py",
+      "start": 152,
+      "end": 152,
+      "source": "fix/56ce0b8f78cc:152-152"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/ablation-report.py",
+      "start": 159,
+      "end": 159,
+      "source": "fix/56ce0b8f78cc:159-159"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/ablation-report.py",
+      "start": 174,
+      "end": 174,
+      "source": "fix/56ce0b8f78cc:174-174"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/ablation-report.py",
+      "start": 197,
+      "end": 197,
+      "source": "fix/56ce0b8f78cc:197-197"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-report.py",
+      "start": 229,
+      "end": 229,
+      "source": "fix/56ce0b8f78cc:229-229"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-report.py",
+      "start": 443,
+      "end": 443,
+      "source": "fix/56ce0b8f78cc:443-443"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-report.py",
+      "start": 484,
+      "end": 485,
+      "source": "fix/56ce0b8f78cc:484-485"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-report.py",
+      "start": 496,
+      "end": 510,
+      "source": "fix/56ce0b8f78cc:496-510"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-report.py",
+      "start": 549,
+      "end": 549,
+      "source": "fix/56ce0b8f78cc:549-549"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-report.py",
+      "start": 595,
+      "end": 598,
+      "source": "fix/56ce0b8f78cc:595-598"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-report.py",
+      "start": 757,
+      "end": 758,
+      "source": "fix/56ce0b8f78cc:757-758"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/ablation-report.py",
+      "start": 773,
+      "end": 778,
+      "source": "fix/56ce0b8f78cc:773-778"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/ablation-report.py",
+      "start": 797,
+      "end": 798,
+      "source": "fix/56ce0b8f78cc:797-798"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/ablation-report.py",
+      "start": 824,
+      "end": 851,
+      "source": "fix/56ce0b8f78cc:824-851"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/ablation-report.py",
+      "start": 860,
+      "end": 861,
+      "source": "fix/56ce0b8f78cc:860-861"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/ablation-report.py",
+      "start": 965,
+      "end": 968,
+      "source": "fix/56ce0b8f78cc:965-968"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/ablation-report.py",
+      "start": 992,
+      "end": 996,
+      "source": "fix/56ce0b8f78cc:992-996"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1006,
+      "end": 1084,
+      "source": "fix/56ce0b8f78cc:1006-1084"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1117,
+      "end": 1117,
+      "source": "fix/56ce0b8f78cc:1117-1117"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1145,
+      "end": 1145,
+      "source": "fix/56ce0b8f78cc:1145-1145"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1321,
+      "end": 1321,
+      "source": "fix/56ce0b8f78cc:1321-1321"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1339,
+      "end": 1339,
+      "source": "fix/56ce0b8f78cc:1339-1339"
+    },
+    {
+      "id": "F027",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1351,
+      "end": 1351,
+      "source": "fix/56ce0b8f78cc:1351-1351"
+    },
+    {
+      "id": "F028",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1403,
+      "end": 1406,
+      "source": "fix/56ce0b8f78cc:1403-1406"
+    },
+    {
+      "id": "F029",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1552,
+      "end": 1553,
+      "source": "fix/56ce0b8f78cc:1552-1553"
+    },
+    {
+      "id": "F030",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1592,
+      "end": 1592,
+      "source": "fix/56ce0b8f78cc:1592-1592"
+    },
+    {
+      "id": "F031",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1611,
+      "end": 1611,
+      "source": "fix/56ce0b8f78cc:1611-1611"
+    },
+    {
+      "id": "F032",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1635,
+      "end": 1635,
+      "source": "fix/56ce0b8f78cc:1635-1635"
+    },
+    {
+      "id": "F033",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1649,
+      "end": 1649,
+      "source": "fix/56ce0b8f78cc:1649-1649"
+    },
+    {
+      "id": "F034",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1674,
+      "end": 1677,
+      "source": "fix/56ce0b8f78cc:1674-1677"
+    },
+    {
+      "id": "F035",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 56,
+      "end": 56,
+      "source": "fix/56ce0b8f78cc:56-56"
+    },
+    {
+      "id": "F036",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 64,
+      "end": 68,
+      "source": "fix/56ce0b8f78cc:64-68"
+    },
+    {
+      "id": "F037",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 123,
+      "end": 123,
+      "source": "fix/56ce0b8f78cc:123-123"
+    },
+    {
+      "id": "F038",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 129,
+      "end": 129,
+      "source": "fix/56ce0b8f78cc:129-129"
+    },
+    {
+      "id": "F039",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 137,
+      "end": 137,
+      "source": "fix/56ce0b8f78cc:137-137"
+    },
+    {
+      "id": "F040",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 168,
+      "end": 168,
+      "source": "fix/56ce0b8f78cc:168-168"
+    },
+    {
+      "id": "F041",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 313,
+      "end": 313,
+      "source": "fix/56ce0b8f78cc:313-313"
+    },
+    {
+      "id": "F042",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 412,
+      "end": 412,
+      "source": "fix/56ce0b8f78cc:412-412"
+    },
+    {
+      "id": "F043",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 13,
+      "end": 13,
+      "source": "fix/56ce0b8f78cc:13-13"
+    },
+    {
+      "id": "F044",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 25,
+      "end": 25,
+      "source": "fix/56ce0b8f78cc:25-25"
+    },
+    {
+      "id": "F045",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 471,
+      "end": 471,
+      "source": "fix/56ce0b8f78cc:471-471"
+    },
+    {
+      "id": "F046",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 477,
+      "end": 477,
+      "source": "fix/56ce0b8f78cc:477-477"
+    },
+    {
+      "id": "F047",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 525,
+      "end": 525,
+      "source": "fix/56ce0b8f78cc:525-525"
+    },
+    {
+      "id": "F048",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 409,
+      "end": 409,
+      "source": "fix/56ce0b8f78cc:409-409"
+    },
+    {
+      "id": "F049",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 417,
+      "end": 417,
+      "source": "fix/56ce0b8f78cc:417-417"
+    },
+    {
+      "id": "F050",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 479,
+      "end": 479,
+      "source": "fix/56ce0b8f78cc:479-479"
+    },
+    {
+      "id": "F051",
+      "file": "evals/tests/fixtures/ablation-report/gen-fixtures.py",
+      "start": 66,
+      "end": 66,
+      "source": "fix/56ce0b8f78cc:66-66"
+    },
+    {
+      "id": "F052",
+      "file": "evals/tests/fixtures/ablation-report/gen-fixtures.py",
+      "start": 326,
+      "end": 326,
+      "source": "fix/56ce0b8f78cc:326-326"
+    },
+    {
+      "id": "F053",
+      "file": "evals/tests/fixtures/ablation-report/gen-fixtures.py",
+      "start": 346,
+      "end": 346,
+      "source": "fix/56ce0b8f78cc:346-346"
+    },
+    {
+      "id": "F054",
+      "file": "evals/tests/fixtures/ablation-report/gen-fixtures.py",
+      "start": 360,
+      "end": 360,
+      "source": "fix/56ce0b8f78cc:360-360"
+    }
+  ]
+}

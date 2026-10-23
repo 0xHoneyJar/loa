@@ -47,6 +47,11 @@
 # findings_cited, findings_refuted and refuted_share (refuted / cited; null
 # when nothing is cited).
 #
+# Grader 1.3.1 (cycle-132 Sprint 269 round 2): a cited path's extension may run to 12 characters (was 6), so
+#   head/.loa.config.yaml.example:127 and head/evals/harness/Dockerfile.ablation:19 cite; every other boundary rule
+#   (the range and date guards, the bare :N rules, the URL exclusion) is unchanged, and a text that parsed under
+#   1.3.0 parses to the same citations (the path still splits at its last dot before the colon).
+#
 # Grader 1.3.0 (cycle-131 FR-2, SDD §5.2, D-2.1; rule "pm3_or_same_function"):
 #   Citation validity first (both clauses of the new rule): a cited line is positive;
 #   a cited range is ordered (a <= b, the parser orders it); when the defect's file
@@ -78,7 +83,8 @@
 #   EVAL_ALLOW_WORKSPACE_HEAD=1 — <workspace>/pr/head (the graded agent's own copy; details.head_dir_source
 #   says which was used); with none, or a file absent from it, (ii) never credits.
 #   Three results in details, each with detected[] / missed[] (defect ids):
-#     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (the
+#     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (for a key in
+#                    manifests/c131/, v1/ or review/: manifests/v1/<fixture>.json; the
 #                    original anchors); the current manifest when v1/ has none
 #                    (v1_manifest false)
 #     recall_pm3     the 1.2.0 rule against the current manifest
@@ -111,7 +117,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.3.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.3.1"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -123,17 +129,25 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.3.0"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.3.1"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
 
-manifest_v1="$MANIFEST_DIR/v1/$fixture.json"
+# cycle-132 D-2.3 (round 3, DISS-C-005): a key in a label-set directory manifests/c131/, v1/ or review/
+# belongs to manifests/: its v1 snapshot is manifests/v1/<fixture>.json (the key itself for the v1 set)
+# and its PR fixture sits beside manifests/
+set_root="$MANIFEST_DIR"
+case "$(basename "$MANIFEST_DIR")" in
+  c131|v1|review)
+    if [[ "$(basename "$(dirname "$MANIFEST_DIR")")" == manifests ]]; then set_root="$(dirname "$MANIFEST_DIR")"; fi ;;
+esac
+manifest_v1="$set_root/v1/$fixture.json"
 [[ -f "$manifest_v1" && ! -L "$manifest_v1" ]] || manifest_v1=""
 head_dir="${EVAL_HEAD_DIR:-}"; head_src="env"
 if [[ -z "$head_dir" ]]; then
   head_src="none"
-  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"; head_src="fixture"
+  if [[ -d "$set_root/../$fixture/head" ]]; then head_dir="$set_root/../$fixture/head"; head_src="fixture"
   elif [[ "${EVAL_ALLOW_WORKSPACE_HEAD:-}" == 1 && -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"; head_src="workspace"
   fi   # the workspace copy is the graded agent's own writable tree: never the default (audit r1 DISS-C-002)
 fi
@@ -155,7 +169,7 @@ text = open(review_path, encoding="utf-8", errors="replace").read()
 # parse; an open `:369-...` still cites 369) — sprint-250 review run 2, #13
 RNG = r'(\d{1,6})(?:[-–](\d{1,6}))?(?![A-Za-z0-9]|[-–]\d)'
 CITE = re.compile(
-    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,12})[`*)]{0,3}:(?P<first>' + RNG
     + r'(?:[ \t]*,[ \t]*' + RNG + r')*)'
     # head:N / base:N keep the 1.1.0 boundary set ("head:40" binds); the JSON
     # punctuation set, plus a CLOSING backtick (one after a token character:
@@ -516,7 +530,7 @@ out = {
         "findings_cited": len(findings), "findings_refuted": len(refuted),
         "refuted_share": refuted_share,
     },
-    "grader_version": "1.3.0",
+    "grader_version": "1.3.1",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)

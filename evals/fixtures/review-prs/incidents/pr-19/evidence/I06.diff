@@ -1,0 +1,121 @@
+commit cddec3677a58f26e8986f034419f03f559782648
+Date: 2026-10-20T13:13:11+11:00
+
+fix(cycle-131): sprint-263 audit round r1c — executed probe lines never class-7 exempt, no workspace pr/head fallback, bounded detector work, one validated corpus-hash open
+
+Audit dissent run 1 on the sprint diff (4 findings: 1 HIGH, 2 MEDIUM, 1 LOW; DEC-0644):
+- ablation-grade.sh: a Bash logical line (heredoc bodies removed) that holds the repo name and a network- or
+  VCS-capable executable word (git, gh, curl, wget, pip, npm, npx, ssh, scp, nc, docker, rsync, python -c …) is
+  never KF-046 class 7 exempt — pr-13 and pr-16 carry `curl … 0xHoneyJar/loa … | bash` lines the old rule would
+  have licensed; quoting such a line in notes stays PR content (AG-54). Every agent-controlled dimension of the
+  oracle detector is bounded (for-list 64, expansion 256, segment 64 KB, word 4,096 / 512 per segment, result
+  lines clipped, difflib skipped above 20,000 lines → grade.json oracle_scan_skipped) (AG-55). corpus_sha256
+  hashes the bytes of one O_NOFOLLOW open with an fstat regular-file and size check.
+- recall-vs-defects.sh: the $workspace/pr/head fallback is gone unless EVAL_ALLOW_WORKSPACE_HEAD=1;
+  details.head_dir_source ∈ env|fixture|workspace|none; above 5,000 headers the ±20 fallback replaces the scope
+  map (RG-44).
+- sprint.md: Sprint 1 deliverables, criteria and tasks ticked (two criteria annotated: FR-1 AC 4 PARTIAL by
+  DEC-0632; FR-3 AC 3 is the Sprint 3 read).
+- evals/tests 516/516; the 36-run re-grade on this grader: 36/36 regression, 0 rows changed (as after r1a, r1b).
+- Review APPROVED (engineer-feedback.md), audit APPROVED after this round (auditor-sprint-feedback.md).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/graders/recall-vs-defects.sh b/evals/graders/recall-vs-defects.sh
+index 4b0432af..9cb7b109 100755
+--- a/evals/graders/recall-vs-defects.sh
++++ b/evals/graders/recall-vs-defects.sh
+@@ -74,8 +74,9 @@
+ #   regex (yaml, json, txt, tsv, …), falls back to ±20 lines around the site (and a
+ #   cited line in such a definition has no scope); a site outside every definition
+ #   (top-level code, text before the first heading) has no scope (±3 only).
+-#   Head directory: $EVAL_HEAD_DIR, else <manifest dir>/../<fixture>/head, else
+-#   <workspace>/pr/head; with none, or a file absent from it, (ii) never credits.
++#   Head directory: $EVAL_HEAD_DIR, else <manifest dir>/../<fixture>/head, else — only under
++#   EVAL_ALLOW_WORKSPACE_HEAD=1 — <workspace>/pr/head (the graded agent's own copy; details.head_dir_source
++#   says which was used); with none, or a file absent from it, (ii) never credits.
+ #   Three results in details, each with detected[] / missed[] (defect ids):
+ #     recall_pm3_v1  the 1.2.0 rule against <manifest dir>/v1/<fixture>.json (the
+ #                    original anchors); the current manifest when v1/ has none
+@@ -129,16 +130,17 @@ fi
+ 
+ manifest_v1="$MANIFEST_DIR/v1/$fixture.json"
+ [[ -f "$manifest_v1" && ! -L "$manifest_v1" ]] || manifest_v1=""
+-head_dir="${EVAL_HEAD_DIR:-}"
++head_dir="${EVAL_HEAD_DIR:-}"; head_src="env"
+ if [[ -z "$head_dir" ]]; then
+-  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"
+-  elif [[ -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"
+-  fi
++  head_src="none"
++  if [[ -d "$MANIFEST_DIR/../$fixture/head" ]]; then head_dir="$MANIFEST_DIR/../$fixture/head"; head_src="fixture"
++  elif [[ "${EVAL_ALLOW_WORKSPACE_HEAD:-}" == 1 && -d "$workspace/pr/head" ]]; then head_dir="$workspace/pr/head"; head_src="workspace"
++  fi   # the workspace copy is the graded agent's own writable tree: never the default (audit r1 DISS-C-002)
+ fi
+ 
+-python3 -I - "$manifest" "$review" "$executor" "$manifest_v1" "$head_dir" <<'PY'
++python3 -I - "$manifest" "$review" "$executor" "$manifest_v1" "$head_dir" "$head_src" <<'PY'
+ import json, os, re, stat, sys
+-manifest_path, review_path, executor_path, manifest_v1_path, head_dir = sys.argv[1:6]
++manifest_path, review_path, executor_path, manifest_v1_path, head_dir, head_src = sys.argv[1:7]
+ man = json.load(open(manifest_path))
+ man_v1 = json.load(open(manifest_v1_path)) if manifest_v1_path else man
+ text = open(review_path, encoding="utf-8", errors="replace").read()
+@@ -338,6 +340,7 @@ def close_line(kind, lines, h, lv, end):
+ 
+ 
+ _scopes = {}
++HEADERS_CAP = 5000
+ 
+ 
+ def scope_map(rel):
+@@ -352,6 +355,9 @@ def scope_map(rel):
+     if kind is not None:
+         n = len(lines)
+         hs = headers(kind, lines)
++        if len(hs) > HEADERS_CAP:
++            _scopes[rel] = (None, None)   # an unterminated 4 MB file gets the ±20 fallback, not a quadratic scan (audit r1 DISS-C-002)
++            return _scopes[rel]
+         spans = []
+         for k, (h, lv) in enumerate(hs):
+             end = n
+@@ -504,7 +510,7 @@ out = {
+         "recall_pm3": rate(det_pm3, man), "detected_pm3": det_pm3, "missed_pm3": mis_pm3,
+         "recall_pm3_v1": rate(det_v1, man_v1), "detected_pm3_v1": det_v1, "missed_pm3_v1": mis_v1,
+         "planted_v1": len(man_v1.get("defects", [])), "v1_manifest": bool(manifest_v1_path),
+-        "credits_function_only": function_only, "rule": "pm3_or_same_function",
++        "credits_function_only": function_only, "rule": "pm3_or_same_function", "head_dir_source": head_src,
+         "false_positives": false_positives, "severity_counts": sev,
+         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
+         "findings_cited": len(findings), "findings_refuted": len(refuted),
+diff --git a/evals/tests/eval-recall-grader.bats b/evals/tests/eval-recall-grader.bats
+index f161e7ee..5416e7a5 100644
+--- a/evals/tests/eval-recall-grader.bats
++++ b/evals/tests/eval-recall-grader.bats
+@@ -482,6 +482,25 @@ D() { echo "$output" | jq -r "$1"; }
+   [ "$(D '.details.detected | join(",")')" = "S1" ]
+ }
+ 
++@test "RG-44 (audit r1 DISS-C-002) without EVAL_HEAD_DIR or a fixture head the grader never reads the workspace's pr/head unless EVAL_ALLOW_WORKSPACE_HEAD=1; details name the source" {
++  mkdir -p "$WS/pr/head/.claude/scripts"
++  { echo '#!/usr/bin/env bash'; echo 'w() {'; for i in $(seq 3 19); do echo "  echo w$i"; done; echo '}'; } > "$WS/pr/head/.claude/scripts/w.sh"
++  printf '{"fixture":"pr-w","defects":[{"id":"S1","file":".claude/scripts/w.sh","anchor_line":5,"severity":"high"}]}\n' > "$T/manifests/pr-w.json"
++  review 'w.sh:12 six lines down, same function'
++  run "$GRADER" "$WS" pr-w
++  [ "$status" -eq 1 ]
++  [ "$(D '.details.detected | length')" = "0" ]
++  [ "$(D '.details.head_dir_source')" = "none" ]
++  EVAL_ALLOW_WORKSPACE_HEAD=1 run "$GRADER" "$WS" pr-w
++  [ "$(D '.details.detected | join(",")')" = "S1" ]
++  [ "$(D '.details.head_dir_source')" = "workspace" ]
++  make_scope
++  man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":16,"severity":"high"}]'
++  review 's.sh:22 the guard is gone'
++  run "$GRADER" "$WS" pr-s
++  [ "$(D '.details.head_dir_source')" = "fixture" ]
++}
++
+ @test "RG-30 a citation in the next function 6 lines away is detected under neither rule; a top-level site has no scope" {
+   make_scope
+   man_s '[{"id":"S1","file":".claude/scripts/s.sh","anchor_line":22,"severity":"high"},

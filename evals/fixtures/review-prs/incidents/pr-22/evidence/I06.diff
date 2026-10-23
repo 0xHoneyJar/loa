@@ -1,0 +1,73 @@
+commit c0d429074f263b22f3643eb44bfd4a38eac7b6bf
+Date: 2026-10-20T14:49:27+11:00
+
+fix(cycle-131): sprint-264 review round r2a — eval_only derived from oracle_open and type-checked in pipeline-run; the report names evaluation-only arms
+
+Review dissent run 1 on e93a040a..0281ea57 (4 advisories, 0 blocking):
+- pipeline-run.sh treats an arm whose toggles set oracle_open: true as evaluation-only whatever the suite says, and
+  refuses a present eval_only that is not a JSON boolean (DISS-C-002; pipeline-run.bats case added).
+- ablation-report.py prints 'Evaluation-only arms (not components): <arm> (<n> rows) …' under the decisions and
+  records them in report.json (DISS-C-004; AR-12 asserts the line).
+- DISS-C-001 (task files not in the dissent diff) is the dissent driver's path exclusion, not a missing commit;
+  DISS-C-003 (hand-maintained toggle vocabulary) → bead bd-gdl5s.
+- KF-051 (Fable refusal fallback mid-phase) recorded; DEC-0646, DEC-0647.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/pipeline-run.sh b/evals/harness/pipeline-run.sh
+index 12676a49..19548de6 100755
+--- a/evals/harness/pipeline-run.sh
++++ b/evals/harness/pipeline-run.sh
+@@ -138,7 +138,8 @@
+ # when the run stopped before materialisation). `.claude/` itself is covered by
+ # took-effect.sh integrity_clean.
+ #
+-# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount) is
++# eval_only arms (cycle-131 FR-5): an arm declaring `eval_only: true` (a1_full_openmount), or whose
++# toggles set `oracle_open: true`, is
+ # refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
+ # run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
+ # LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
+@@ -255,7 +256,15 @@ fi
+ SUITE_TOGGLES="$(jq -c '.toggles // {}' <<<"$ARM_DEF")"
+ # eval_only (cycle-131 FR-5): refused before anything is created, dry run included, unless the
+ # runner marks the batch context; no pipeline.json, so no infrastructure_error row is possible
+-EVAL_ONLY=false; [[ "$(jq -r '.eval_only // false' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
++# eval_only is derived from the property it protects as well as from the flag (review r1 DISS-C-002): an arm whose
++# toggles open the mount (oracle_open: true) is evaluation-only whatever the suite says; a present eval_only that is
++# not a JSON boolean is refused rather than read as false
++case "$(jq -r 'if has("eval_only") then (.eval_only | type) else "absent" end' <<<"$ARM_DEF")" in
++  absent|boolean) ;;
++  *) echo "pipeline-run.sh: refused: arm '$ARM': eval_only must be a JSON boolean (true|false)" >&2; exit 2 ;;
++esac
++EVAL_ONLY=false
++[[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+ if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
+   echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
+   exit 2
+diff --git a/evals/tests/pipeline-run.bats b/evals/tests/pipeline-run.bats
+index fc4d0145..2c5b7966 100644
+--- a/evals/tests/pipeline-run.bats
++++ b/evals/tests/pipeline-run.bats
+@@ -1243,6 +1243,20 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
+   [ "$status" -eq 0 ]
+ }
+ 
++@test "eval_only (review r1 DISS-C-002): an arm whose toggles open the mount is refused outside the batch context even without eval_only; a non-boolean eval_only is refused as malformed" {
++  c131_arms
++  unset LOA_ABLATION_BATCH_CONTEXT
++  yq -i '.arms += [{"id": "x_open", "label": "XO", "task_types": ["review-catch"], "toggles": {"oracle_open": true}, "took_effect": ["integrity_clean"]}]' "$T/suite.yaml"
++  dryrun_rc x_open
++  [ "$status" -eq 2 ]
++  grep -q "refused: arm 'x_open': eval_only arm outside an evaluation batch" <<<"$output"
++  [ ! -e "$T/run" ]
++  yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = "yes"' "$T/suite.yaml"
++  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
++  [ "$status" -eq 2 ]
++  grep -q "eval_only must be a JSON boolean" <<<"$output"
++}
++
+ @test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {
+   c131_arms
+   LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full_openmount "$REVIEWC"

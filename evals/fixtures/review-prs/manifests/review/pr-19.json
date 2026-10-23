@@ -1,0 +1,307 @@
+{
+  "fixture": "pr-19",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": "255",
+    "record_ref": "origin/record/cycle-129-a2a",
+    "head_commit": "ee1625a0b674c261787615852e34cc6bedc09877",
+    "fix_commit": "b6802e4f392abe2dba46845d6d2e85a274e777a5"
+  },
+  "defects": [
+    {
+      "id": "L01-default-executor-and-header-contradict-d",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 56,
+      "anchors": [
+        45,
+        56
+      ],
+      "must_match": "DEFAULT_MODEL=\"claude-fable-5-1\"",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L12",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L02-the-floor-snapshot-never-runs-in-ci",
+      "file": "tests/unit/floor-snapshot.bats",
+      "anchor_line": 44,
+      "must_match": "@test \"FS-3 the register disables nothing: settings.json hook registrations are identical to origin/main\" {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L15",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L03-intermediate-symlink-escapes-the-hook-co",
+      "file": ".claude/scripts/guard-yield.sh",
+      "anchor_line": 221,
+      "anchors": [
+        220,
+        221
+      ],
+      "must_match": "readlink",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L21",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L04-arm-toggles-apply-outside-arm-mode-and-l",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 162,
+      "must_match": "resolve_toggles() {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L24",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L05-corpus-check-ignores-unlisted-files-diss",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 127,
+      "anchors": [
+        127,
+        150
+      ],
+      "must_match": "[[ \"$BATCH\" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die \"invalid --batch '$BATCH'\"",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L27",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L06-accepts-and-dissent-diss-c-004",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 244,
+      "anchors": [
+        127,
+        244
+      ],
+      "must_match": "cleanup()",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L38",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L07-transport-failure-classifier-reads-the-a",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 314,
+      "must_match": "5[0-9][0-9]",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L41",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L08-pristine-worktree-check-ignores-ignored",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 231,
+      "must_match": "[[ -z \"$(git -C \"$WORKTREE\" status --porcelain 2>/dev/null)\" ]] \\",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L44",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L09-redaction-regexes-narrower-than-the-grad",
+      "file": "evals/harness/seed-corpus-from-record.sh",
+      "anchor_line": 116,
+      "anchors": [
+        110,
+        116
+      ],
+      "must_match": "password",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L47",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L10-karpathy-constraints-rewrite-could-fail",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 254,
+      "must_match": "local cj=\"$WORKSPACE/.claude/data/constraints.json\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L50",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    },
+    {
+      "id": "L11-unvalidated-dissent-diss-c-009",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 401,
+      "must_match": "--arg source_commit \"${LOA_EVAL_SOURCE_COMMIT:-$prompt_tree_commit}\" \\",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-129-a2a:grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L53",
+      "source_commit": "ee1625a0",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/scripts/guard-yield.sh",
+      "start": 220,
+      "end": 229,
+      "source": "fix/b6802e4f392a:220-229"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/scripts/guard-yield.sh",
+      "start": 334,
+      "end": 334,
+      "source": "fix/b6802e4f392a:334-334"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/scripts/guard-yield.sh",
+      "start": 393,
+      "end": 393,
+      "source": "fix/b6802e4f392a:393-393"
+    },
+    {
+      "id": "F004",
+      "file": ".github/workflows/bats-tests.yml",
+      "start": 91,
+      "end": 91,
+      "source": "fix/b6802e4f392a:91-91"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 162,
+      "end": 165,
+      "source": "fix/b6802e4f392a:162-165"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 254,
+      "end": 258,
+      "source": "fix/b6802e4f392a:254-258"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 289,
+      "end": 289,
+      "source": "fix/b6802e4f392a:289-289"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/run-arms.sh",
+      "start": 45,
+      "end": 46,
+      "source": "fix/b6802e4f392a:45-46"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/run-arms.sh",
+      "start": 56,
+      "end": 56,
+      "source": "fix/b6802e4f392a:56-56"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/run-arms.sh",
+      "start": 127,
+      "end": 127,
+      "source": "fix/b6802e4f392a:127-127"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/run-arms.sh",
+      "start": 150,
+      "end": 150,
+      "source": "fix/b6802e4f392a:150-150"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/run-arms.sh",
+      "start": 231,
+      "end": 232,
+      "source": "fix/b6802e4f392a:231-232"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/run-arms.sh",
+      "start": 314,
+      "end": 315,
+      "source": "fix/b6802e4f392a:314-315"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/run-arms.sh",
+      "start": 336,
+      "end": 336,
+      "source": "fix/b6802e4f392a:336-336"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/seed-corpus-from-record.sh",
+      "start": 110,
+      "end": 114,
+      "source": "fix/b6802e4f392a:110-114"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/seed-corpus-from-record.sh",
+      "start": 307,
+      "end": 307,
+      "source": "fix/b6802e4f392a:307-307"
+    },
+    {
+      "id": "F017",
+      "file": "evals/tests/arm-toggles.bats",
+      "start": 194,
+      "end": 194,
+      "source": "fix/b6802e4f392a:194-194"
+    },
+    {
+      "id": "F018",
+      "file": "evals/tests/arm-toggles.bats",
+      "start": 199,
+      "end": 199,
+      "source": "fix/b6802e4f392a:199-199"
+    },
+    {
+      "id": "F019",
+      "file": "evals/tests/run-arms.bats",
+      "start": 52,
+      "end": 52,
+      "source": "fix/b6802e4f392a:52-52"
+    },
+    {
+      "id": "F020",
+      "file": "tests/unit/floor-snapshot.bats",
+      "start": 44,
+      "end": 50,
+      "source": "fix/b6802e4f392a:44-50"
+    }
+  ]
+}

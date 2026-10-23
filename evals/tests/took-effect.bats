@@ -16,6 +16,10 @@ setup() {
   SUITE="$FX/suite.yaml"
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/te.XXXXXX")"
   cp -a "$FX/runs" "$T/runs"
+  # cycle-132 addendum 9: production leaves every .claude/ path pinned (the overlay writes nothing); the cycle-131
+  # oracle_closed cases run the overlay mechanics under addendum 5's prefix through the bats-gated test override,
+  # and TE-c132-8 unsets it to judge the production default
+  export SM_TEST_MODE=1 SM_TEST_EXCLUDED_PREFIX=.claude/adapters/
 }
 
 teardown() {
@@ -474,4 +478,192 @@ make_closed_run() {
   edit_json "$rd/meta/pipeline.json" '.arm_toggles.loa_mount = false'
   te131 "$rd"
   [ "$status" -eq 1 ]; line oracle_closed | grep -q 'loa_mount: false but the sandbox has .claude/'
+}
+
+# --- cycle-132 Sprint 269 Tasks 1.7a / 1.7b: mount_cheval_ok, bare_sessions_matched (matched cells) -----------------
+
+c132_suite() {
+  S132="$T/suite-c132.yaml"
+  cp "$SUITE" "$S132"
+  yq -i '.arms += [
+    {"id": "a1_cheval", "task_types": ["all"], "toggles": {}, "took_effect": ["mount_cheval_ok"]},
+    {"id": "a0_bare_matched", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_sessions": "matched"}, "phases": ["BARE"],
+     "took_effect": ["no_dot_claude", "no_system_prompt", "no_audit_rows", "integrity_clean", "bare_sessions_matched"]},
+    {"id": "a0_bare_fable_matched", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_model": "fable", "bare_sessions": "matched"},
+     "phases": ["BARE"], "took_effect": ["bare_model_fable", "bare_sessions_matched"]}]' "$S132"
+  TY="$T/task-k.yaml"
+  cp "$FX/tasks/rc-01/task.yaml" "$TY"
+  yq -i '.review_catch.bare_sessions_matched = 2 | .review_catch.bare_sessions_matched_fable = 3' "$TY"
+}
+te132() { local run="$1"; shift; run "$TE" --run-dir "$run" --suite-file "$S132" "$@"; }
+# make_cell_te <cell> <arm> <k> <valid…> — sessions s1 … sk copied from the A0 fixture run; meta/cell.json and meta/arm
+make_cell_te() {
+  local c="$1" arm="$2" k="$3" i; shift 3
+  mkdir -p "$c/meta" "$c/sessions"; echo "$arm" > "$c/meta/arm"
+  for i in $(seq 1 "$k"); do cp -a "$T/runs/a0-build" "$c/sessions/s$i"; echo "$arm" > "$c/sessions/s$i/meta/arm"; done
+  printf '%s\n' "$@" | jq -R -s -c --argjson k "$k" '[split("\n")[] | select(length > 0)] as $v
+    | {schema_version: 1, k: $k, sessions: [range(0; $k) as $j | {id: ("s\($j + 1)"), valid: ($v[$j] == "true"), status: "completed",
+       run_dir: ("sessions/s\($j + 1)")}]}' > "$c/meta/cell.json"
+}
+
+@test "TE-c132-1 mount_cheval_ok: OK on mount_cheval=ok in the arm evidence; broken, none and absent FAIL" {
+  c132_suite
+  echo 'mount_cheval=ok' >> "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 0 ]
+  line mount_cheval_ok | grep -q ' OK mount_cheval=ok$'
+  sed -i 's/^mount_cheval=ok$/mount_cheval=broken:ImportError: cannot import name x/' "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 1 ]
+  line mount_cheval_ok | grep -q 'FAIL mount_cheval=broken:ImportError: cannot import name x in arm_evidence (want ok; KF-050)'
+  sed -i '/^mount_cheval=/d' "$T/runs/a1-review/meta/arm-evidence.txt"
+  te132 "$T/runs/a1-review" --arm a1_cheval
+  [ "$status" -eq 1 ]
+  line mount_cheval_ok | grep -q 'mount_cheval=<absent>'
+}
+
+@test "TE-c132-2 bare_sessions_matched on a cell: k equals the task's value, s1 … sk attempted and nothing beyond, every valid session passes the bare rules; an invalid session is not read" {
+  c132_suite
+  C="$T/cell"; make_cell_te "$C" a0_bare_matched 2 true true
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line bare_sessions_matched | grep -q 'OK k 2 = the task'"'"'s bare_sessions_matched; s1 … s2 attempted; 2 valid session(s) pass'
+  line no_dot_claude | grep -q ' OK 2 valid session(s) pass'
+  # a valid session that broke a bare rule fails both the rule and the cell rule, naming it
+  echo x > "$C/sessions/s2/sandbox/CLAUDE.md"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]
+  line bare_sessions_matched | grep -q 'FAIL valid sessions failing: s2:no_dot_claude'
+  line no_dot_claude | grep -q 'FAIL s2: sandbox has .claude/ or CLAUDE.md'
+  # the same session marked invalid is never read
+  jq '.sessions[1].valid = false' "$C/meta/cell.json" > "$T/c" && mv "$T/c" "$C/meta/cell.json"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 0 ]
+  # k against the task, the session directories, the ids, and --task-yaml
+  yq -i '.review_catch.bare_sessions_matched = 3' "$TY"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'cell k 2, the task'"'"'s review_catch.bare_sessions_matched is 3'
+  yq -i '.review_catch.bare_sessions_matched = 2' "$TY"
+  cp -a "$C/sessions/s1" "$C/sessions/s3"
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'sessions/s3 exists beyond k 2'
+  find "$C/sessions/s3" -depth -delete; find "$C/sessions/s2" -depth -delete
+  te132 "$C" --task-yaml "$TY"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'session s2 was never attempted'
+  te132 "$C"
+  [ "$status" -eq 1 ]; line bare_sessions_matched | grep -q 'k 2 unverified: --task-yaml'
+}
+
+@test "TE-c132-3 bare_sessions_matched on a session's own run dir reads OK (the cell decides); on an ordinary run it FAILs; the Fable cell reads its own k and checks bare_model_fable on every valid session" {
+  c132_suite
+  C="$T/cell"; make_cell_te "$C" a0_bare_matched 2 true true
+  te132 "$C/sessions/s1" --arm a0_bare_matched
+  line bare_sessions_matched | grep -q 'OK session s1 of a matched cell'
+  te132 "$T/runs/a0-build" --arm a0_bare_matched
+  line bare_sessions_matched | grep -q 'FAIL not a matched cell'
+  F="$T/cellf"; make_cell_te "$F" a0_bare_fable_matched 3 true true false
+  te132 "$F" --task-yaml "$TY"
+  [ "$status" -eq 1 ]   # the A0 fixture's BARE ran on Opus: bare_model_fable fails on s1
+  line bare_model_fable | grep -q 'FAIL s1: BARE models_used'
+  line bare_sessions_matched | grep -q 'OK k 3 = the task'"'"'s bare_sessions_matched_fable|bare_sessions_matched'
+}
+
+@test "TE-c132-4 --json-out writes the run's JSON record beside an unchanged text report; it refuses --batch-dir" {
+  te a1-build
+  local text="$output"
+  te a1-build --json-out "$T/rec.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$text" ]
+  [ "$(jq -r '"\(.arm) \(.ok) \(.rules | length)"' "$T/rec.json")" = "a1_full true $(yq -o=json . "$SUITE" | jq '[.arms[] | select(.id == "a1_full") | .took_effect[]] | length')" ]
+  run "$TE" --batch-dir "$T/runs" --suite-file "$SUITE" --json-out "$T/x.json"
+  [ "$status" -eq 2 ]
+}
+
+# --- cycle-132 PREREGISTRATION §12 addendum 2: dissent_present ----------------------------------------------------------
+dp_suite() {
+  SDP="$T/suite-dp.yaml"; cp "$SUITE" "$SDP"
+  yq -i '.arms += [{"id": "a1_dp", "task_types": ["all"], "toggles": {}, "took_effect": ["dissent_present"]}]' "$SDP"
+}
+tedp() { run "$TE" --run-dir "$1" --suite-file "$SDP" --arm a1_dp; }
+
+@test "TE-c132-5 dissent_present: both gates ran with their eval/ envelopes and voices >= 1 → PASS; a REVIEW without an envelope → FAIL" {
+  dp_suite
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line dissent_present | grep -q 'OK dissent ran at review audit'
+  rm "$T/runs/a1-review/eval/adversarial-review.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]
+  line dissent_present | grep -q 'FAIL dissent missing: review:no-envelope'
+}
+
+@test "TE-c132-6 dissent_present: an AUDIT envelope with status budget_exceeded, a refusal or 0 voices → FAIL; the sandbox copy never stands in for eval/" {
+  dp_suite
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "budget_exceeded"'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:status=budget_exceeded'
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "refused: preflight"'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:status=refused: preflight'
+  edit_json "$T/runs/a1-review/eval/adversarial-audit.json" '.metadata.status = "reviewed" | .verdict_quality.voices_succeeded = 0'
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'audit:voices_succeeded=0'
+  mkdir -p "$T/runs/a1-review/sandbox/grimoires/loa/a2a/sprint-1"
+  cp "$T/runs/a1-build/eval/adversarial-review.json" "$T/runs/a1-review/sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json"
+  rm "$T/runs/a1-review/eval/adversarial-review.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'review:no-envelope'
+}
+
+@test "TE-c132-7 dissent_present: a skipped AUDIT (the APPROVED path) is judged on REVIEW alone → PASS; a run with no gate phase FAILs" {
+  dp_suite
+  edit_json "$T/runs/a1-review/meta/pipeline.json" '.phases |= map(if .label == "AUDIT" then .skipped = true else . end)'
+  rm "$T/runs/a1-review/eval/adversarial-audit.json"
+  tedp "$T/runs/a1-review"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line dissent_present | grep -q 'OK dissent ran at review '
+  tedp "$T/runs/a0-build"
+  [ "$status" -eq 1 ]; line dissent_present | grep -q 'FAIL no gate phase ran'
+}
+
+@test "TE-c132-8 oracle_closed (addendum 9, KF-050): with the production default every .claude/ answer path (the PR's script, the fix commit's helper, the adapter) stays pinned and overlay_excluded names them all; OK; it FAILs when a .claude path is at the PR's version or the recorded exclusion differs" {
+  unset SM_TEST_MODE SM_TEST_EXCLUDED_PREFIX
+  c131_suite; make_closed_run
+  # add an adapter path to the source (pinned), the fixture and its diff; re-materialise the sandbox and overlay again
+  mkdir -p "$CSRC/.claude/adapters/loa_cheval" "$CFX/head/.claude/adapters/loa_cheval" "$CFX/base/.claude/adapters/loa_cheval"
+  printf 'EFFORT_LEVELS = ("low",)\n' > "$CSRC/.claude/adapters/loa_cheval/types.py"
+  ( cd "$CSRC" && gg . add -A && gg . commit -qm pinned-adapters )
+  local pin; pin="$(git -C "$CSRC" rev-parse HEAD)"
+  printf 'OLD = 1\n' > "$CFX/head/.claude/adapters/loa_cheval/types.py"; printf 'OLD = 0\n' > "$CFX/base/.claude/adapters/loa_cheval/types.py"
+  printf 'diff --git a/.claude/adapters/loa_cheval/types.py b/.claude/adapters/loa_cheval/types.py\n--- a/.claude/adapters/loa_cheval/types.py\n+++ b/.claude/adapters/loa_cheval/types.py\n@@ -1 +1 @@\n-OLD = 0\n+OLD = 1\n' >> "$CFX/head.diff"
+  local w="$CRD/sandbox"
+  find "$w" -mindepth 1 -delete; mkdir -p "$w/pr"
+  cp -a "$CFX/head" "$CFX/base" "$CFX/head.diff" "$w/pr/"
+  git -C "$w" init -q; printf '/.claude/\n' >> "$w/.git/info/exclude"; gg "$w" add -A; gg "$w" commit -qm base
+  printf 'base_commit=%s\n' "$(git -C "$w" rev-parse HEAD)" > "$CRD/meta/arm-evidence.txt"
+  mkdir -p "$w/.claude"; cp -a "$CSRC/.claude/." "$w/.claude/"
+  ARM_EVIDENCE_FILE="$CRD/meta/arm-evidence.txt" bash -c 'source "$1"; overlay_answer_paths "$2" "$3" head "$4" "$5"' _ \
+    "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$w" "$CFX" "$CSRC" "$pin" 2>/dev/null
+  jq --arg p "$pin" '.source_commit = $p' "$CRD/meta/pipeline.json" > "$T/p" && mv "$T/p" "$CRD/meta/pipeline.json"
+  grep -qx 'mount_overlay=head:0' "$CRD/meta/arm-evidence.txt"
+  grep -qx 'overlay_excluded=3:.claude/adapters/loa_cheval/types.py,.claude/scripts/gate.sh,.claude/scripts/helper.sh' "$CRD/meta/arm-evidence.txt"
+  [ "$(cat "$w/.claude/adapters/loa_cheval/types.py")" = 'EFFORT_LEVELS = ("low",)' ]
+  [ "$(cat "$w/.claude/scripts/gate.sh")" = 'gate LATER fixed' ]   # the pinned runtime, not the PR's script
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line oracle_closed | grep -q 'OK ok head:0 answer paths (0 present).*3 .claude path(s) left pinned'
+  # the PR's script written over the pinned one (the smoke3 review-r14 shape): FAIL
+  printf 'gate head\n' > "$w/.claude/scripts/gate.sh"
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 1 ] || { echo "$output"; false; }; line oracle_closed | grep -q 'FAIL (a) .claude/scripts/gate.sh: an excluded .claude path' || { echo "$output"; false; }
+  git -C "$CSRC" show "$pin:.claude/scripts/gate.sh" > "$w/.claude/scripts/gate.sh"
+  # the adapter overwritten with the PR's version: FAIL
+  cp "$CFX/head/.claude/adapters/loa_cheval/types.py" "$w/.claude/adapters/loa_cheval/types.py"
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL (a) .claude/adapters/loa_cheval/types.py: an excluded .claude path'
+  printf 'EFFORT_LEVELS = ("low",)\n' > "$w/.claude/adapters/loa_cheval/types.py"
+  # evidence recorded under addendum 5's narrower prefix: FAIL
+  sed -i 's|^overlay_excluded=.*|overlay_excluded=1:.claude/adapters/loa_cheval/types.py|' "$CRD/meta/arm-evidence.txt"
+  te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
+  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'overlay_excluded=1:.claude/adapters/loa_cheval/types.py, the answer set excludes 3:'
 }

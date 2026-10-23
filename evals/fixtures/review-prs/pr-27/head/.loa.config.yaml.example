@@ -1,0 +1,3128 @@
+# =============================================================================
+# Loa Framework Configuration Examples
+# =============================================================================
+# This file contains comprehensive configuration examples for .loa.config.yaml
+# Copy sections you need to your .loa.config.yaml file.
+#
+# For documentation on each option, see:
+# - .claude/loa/reference/config-reference.md
+# - CHANGELOG.md for version-specific features
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Profile (cycle-129, DEC-0143)
+# -----------------------------------------------------------------------------
+# One knob sets the defaults of the optional surfaces as a set:
+#   known_failures.surface_at_session_start, decisions.surface_at_session_start,
+#   karpathy_principles.surgical_diff_warning,
+#   karpathy_principles.require_success_criteria, guardrails.input.enabled,
+#   guardrails.danger_level.enforce, invisible_retrospective.enabled,
+#   structured_handoff.enabled, soul_identity_doc.enabled
+# `lean` turns them all off, `full` all on, and `standard` (the default) is the
+# per-key default this file shows (soul_identity_doc.enabled, not shown here,
+# is false). A key you set explicitly anywhere in
+# this file wins over the profile. The values per profile live in
+# .claude/data/profiles.yaml; `/loa` prints the effective profile and your
+# explicit overrides. No floor key is reachable through a profile: review,
+# audit, verdict-derive, the dissent artefact gate, the deny list, the
+# destructive-command fence, the System-Zone rules and every other floor
+# config key read the same configuration under every profile
+# (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
+# An unknown value warns and falls back to standard.
+# The nine keys appear in this file only as commented lines at their usual
+# place ("Profile-governed … uncomment to pin it"), so a copied example follows
+# the profile you choose; an uncommented key is an explicit override and wins.
+# Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
+# library at another config file (hooks pass their own test config through it);
+# it is honoured outside bats, so treat it as part of the hook environment.
+loa:
+  profile: standard   # lean | standard | full
+
+# -----------------------------------------------------------------------------
+# Ride Configuration (v1.31.0)
+# -----------------------------------------------------------------------------
+# Controls /ride codebase analysis behavior.
+ride:
+  # Days before ride artifacts are considered stale. When /ride is invoked
+  # and .reality-meta.json shows artifacts younger than this, the user is
+  # prompted to skip or re-analyze. Use --fresh flag to bypass.
+  staleness_days: 7
+
+  # Enrichment phases (v1.39.0) — opt-in depth for /ride
+  # These phases run after the standard ride when --with-gaps, --with-decisions,
+  # --with-terms, or --enriched flags are passed. No flags = standard ride unchanged.
+  enrichment:
+    gaps:
+      # Maximum open gaps before error. Prevents gap tracker from growing unbounded.
+      max_open: 200
+      # Warning threshold. Logs a warning when open gaps reach this count.
+      warn_at: 150
+    decisions:
+      # Months before an ADR is flagged as stale and recommended for reconfirmation.
+      stale_months: 12
+      # Additional ADR directory paths to scan (beyond the 5 built-in patterns).
+      extra_paths: []
+    terminology:
+      # Maximum terms to extract from source code. Ranked by frequency, capped here.
+      max_terms: 50
+
+# -----------------------------------------------------------------------------
+# Configurable Paths (v1.27.0)
+# -----------------------------------------------------------------------------
+# Customize grimoire and state file locations. All paths are relative to
+# PROJECT_ROOT. Useful for OpenClaw integration or custom project structures.
+#
+# Requirements:
+# - yq v4+ (mikefarah/yq) for YAML parsing
+# - Paths must be relative (no leading /)
+# - Soul source and output must be different files
+paths:
+  # Grimoire directory (default: grimoires/loa)
+  # All derived paths (ledger, notes, trajectory, etc.) are relative to this
+  grimoire: grimoires/loa
+
+  # Beads directory (default: .beads)
+  beads: .beads
+
+  # Soul file paths (BEAUVOIR.md -> SOUL.md transformation)
+  soul:
+    source: grimoires/loa/BEAUVOIR.md   # Input template
+    output: grimoires/loa/SOUL.md       # Generated output
+
+# OpenClaw Integration Example:
+# Place SOUL.md at workspace root for OpenClaw bootstrap
+# paths:
+#   grimoire: .loa/grimoire
+#   soul:
+#     source: .loa/grimoire/BEAUVOIR.md
+#     output: SOUL.md    # At workspace root
+
+  # State directory (default: .loa-state) — v2.0.0
+  # Consolidated state zone: beads, ck, run, memory, trajectory
+  # All scripts use get_state_*() getters from path-lib.sh
+  state_dir: .loa-state
+
+# Environment Variable Overrides (updated for state-dir):
+# - LOA_STATE_DIR: Override state directory path
+# - LOA_ALLOW_ABSOLUTE_STATE=1: Allow absolute paths for state_dir (containers/CI)
+# - LOA_GRIMOIRE_DIR: Override grimoire path
+# - LOA_BEADS_DIR: Override beads path
+# - LOA_SOUL_SOURCE: Override soul source path
+# - LOA_SOUL_OUTPUT: Override soul output path
+# - LOA_USE_LEGACY_PATHS=1: Bypass config, use hardcoded defaults
+# - LOA_STRICT_CONFIG=1: Fail on missing yq (default: warn and use defaults)
+
+# -----------------------------------------------------------------------------
+# Plan and Analyze (v1.6.0)
+# -----------------------------------------------------------------------------
+plan_and_analyze:
+  codebase_grounding:
+    enabled: true
+    reality_staleness_days: 7
+    ride_timeout_minutes: 20
+    skip_on_ride_error: false
+
+# -----------------------------------------------------------------------------
+# Interview Depth Configuration (v1.41.0)
+# -----------------------------------------------------------------------------
+# Controls question depth, input style, and pacing across planning skills.
+# Default: thorough mode; pacing unset, so rounds of plain-text discovery questions.
+#
+# Construct override: Schema supports future construct manifest interview
+# overrides gated by trust tier (RFC #379). Not wired yet.
+interview:
+  # Mode: thorough | minimal
+  #   thorough: 3-6 questions/phase, mandatory phase gates, no inference
+  #   minimal: 1-2 questions/phase, skip covered phases, faster throughput
+  mode: thorough
+
+  # Per-skill overrides (optional — mode applies to all if omitted)
+  # per_skill:
+  #   discovering-requirements: thorough
+  #   designing-architecture: minimal
+  #   planning-sprints: thorough
+
+  # Input style — per interaction type
+  input_style:
+    # routing_gates: AskUserQuestion for phase transitions (Continue/Adjust/Stop)
+    routing_gates: structured    # structured | plain
+    # discovery_questions: plain text for domain exploration
+    discovery_questions: plain   # structured | plain
+    # confirmation: AskUserQuestion for understanding checks
+    confirmation: structured     # structured | plain
+
+  # Question pacing. One key for the discovery interview, /architect Phase 2,
+  # /sprint-plan Phase 2 and /chart; per_skill above still picks the mode.
+  # Left unset (the shipped default), it is rounds for thorough and batch for
+  # minimal; uncomment and set a value to pin it for every mode.
+  #   rounds: each turn asks the whole frontier, every open question whose
+  #     prerequisites are settled; a question that depends on another one still
+  #     open waits for a later round. Questions are numbered across the session
+  #     (Q1, Q2, ...), each with a recommended answer. "yes" accepts every
+  #     recommendation in the round; a numbered answer overrides that question;
+  #     unanswered numbers are restated and take the recommendation only after
+  #     you confirm. The frontier is recomputed after each round. Each round ends
+  #     with a <!-- round: N; questions: [...] --> block that
+  #     tools/check-round-independence.sh checks.
+  #   sequential: one question per turn, wait for the answer (the supported
+  #     opt-out if you prefer one question at a time)
+  #   batch: 3-6 numbered questions per turn, user responds freely
+  # pacing: rounds   # sequential | batch | rounds; unset = rounds for thorough, batch for minimal
+
+  # Prototype-class questions: one the operator answers "I need to see it", or
+  # one the agent proposes as unanswerable by talking and the operator confirms.
+  # Interactive, it becomes a decision:prototype bead (a standalone question
+  # bead) with an open DEC row, never an [ASSUMPTION]. Unattended (run mode,
+  # /autonomous, a live unattended marker) there is no one to confirm, so:
+  #   defer (default): create the decision:prototype bead and the open DEC row,
+  #     mark the dependent requirement in the PRD with
+  #     **Deferred:** pending prototype <bead-id> (DEC-NNNN)
+  #     and continue planning; validate-artifact.sh --type sprint WARNs on any
+  #     task that cites the deferred requirement.
+  #   halt: create the same bead and row, then stop planning with
+  #     "planning halted: prototype <bead-id> (DEC-NNNN) needs an interactive
+  #     session; run /chart <slug> or build the spike, then resume"
+  # The prototype itself is built later, interactively, on a spike/<slug> branch
+  # (pushed, never merged, no PR); its report is grimoires/loa/spikes/<slug>.md.
+  unattended_prototype: defer   # defer | halt
+
+  # Phase transition gates
+  phase_gates:
+    between_phases: true       # Require confirmation between discovery phases
+    before_generation: true    # Require confirmation before generating output doc
+
+  # Backpressure controls (anti-rushing for capable models)
+  backpressure:
+    no_infer: true             # Prohibit inferring answers to unasked questions
+    show_work: true            # Cite known vs unknown before asking
+    min_confirmation_questions: 1  # Min questions even for "covered" phases
+
+# -----------------------------------------------------------------------------
+# Autonomous Agent (v1.11.0)
+# -----------------------------------------------------------------------------
+autonomous_agent:
+  operator:
+    type: auto  # auto | human | ai
+  audit_threshold: 4
+  max_remediation_loops: 3
+  context:
+    soft_limit_tokens: 80000
+    hard_limit_tokens: 150000
+
+# -----------------------------------------------------------------------------
+# Update Configuration (v1.39.0)
+# -----------------------------------------------------------------------------
+# Controls /update-loa behavior including supply chain verification.
+# update:
+#   # Override remote URL allowlist for forks/mirrors (default: 0xHoneyJar/loa)
+#   allowed_remotes:
+#     - "https://github.com/your-org/loa.git"
+#     - "git@github.com:your-org/loa.git"
+
+# -----------------------------------------------------------------------------
+# Workspace Cleanup (v1.23.0)
+# -----------------------------------------------------------------------------
+# Archives previous cycle artifacts when starting fresh /simstim or /autonomous
+workspace_cleanup:
+  enabled: true                        # Enable workspace cleanup in preflight
+
+  # Default action when no TTY (non-interactive mode)
+  # Options: archive | skip
+  default_action: archive
+
+  # Disk space safety settings
+  disk_space:
+    safety_margin: 2                   # Require 2x archive size free space
+
+  # Lock settings for concurrent execution prevention
+  lock:
+    ttl_seconds: 300                   # Lock timeout for stale detection
+
+  # Security settings
+  security:
+    follow_symlinks: false             # Never follow symlinks (security)
+
+  # Archive retention policy
+  retention:
+    max_age_days: 90                   # Delete archives older than 90 days
+    max_count: 10                      # Keep only 10 newest archives
+    # Note: Archives with .keep marker are never deleted
+
+  # Prompt settings (for interactive mode)
+  prompt:
+    timeout_seconds: 5                 # Timeout before defaulting to archive
+
+# -----------------------------------------------------------------------------
+# Goal Traceability (v0.21.0)
+# -----------------------------------------------------------------------------
+goal_traceability:
+  enabled: true              # Enable goal ID system
+  require_goal_ids: false    # Require G-N IDs in PRD (backward compat)
+  auto_assign_ids: true      # Auto-assign if missing
+  generate_appendix_c: true  # Generate goal mapping in sprint
+  generate_e2e_task: true    # Auto-generate E2E validation task
+
+goal_validation:
+  enabled: true              # Enable goal validation
+  block_on_at_risk: false    # Block review on AT_RISK (default: warn)
+  block_on_blocked: true     # Block review on BLOCKED
+  require_e2e_task: true     # Require E2E task in final sprint
+
+# -----------------------------------------------------------------------------
+# Context Editing (v1.13.0)
+# -----------------------------------------------------------------------------
+context_editing:
+  enabled: true
+  compact_threshold_percent: 80
+  preserve_recent_turns: 5
+  clear_targets:
+    - stale_tool_results
+    - completed_phase_details
+    - superseded_file_reads
+  preserve_artifacts:
+    - trajectory_events
+    - quality_gate_results
+    - decision_records
+
+# -----------------------------------------------------------------------------
+# Memory Schema (v1.13.0)
+# -----------------------------------------------------------------------------
+memory_schema:
+  enabled: true
+  storage_dir: grimoires/loa/memory
+  auto_capture:
+    decisions: true
+    errors: true
+    learnings: true
+  retrieval:
+    max_per_query: 10
+    min_confidence: 0.6
+  lifecycle:
+    auto_archive: true
+    check_on_session_start: true
+
+# -----------------------------------------------------------------------------
+# Known Failures surface (cycle-115)
+# -----------------------------------------------------------------------------
+# The operational log at grimoires/loa/known-failures.md records degradation
+# patterns the framework has hit. Its ## Index is generated (drift-proof) by
+# .claude/scripts/grimoire-index.sh from the ## KF-NNN: headings.
+known_failures:
+  # When true, the .claude/hooks/loa-kf-surface.sh SessionStart hook surfaces a
+  # compact symptom -> KF table (with numeric recurrence) at session start so an
+  # agent sees the failure log before triaging. DEFAULT-OFF: the hook is
+  # observability only — it always exits 0, never blocks a session, and emits
+  # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
+  # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
+  # (known-failures.md unreadable or zero entries parsed).
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
+
+# -----------------------------------------------------------------------------
+# Decision ledger (grimoires/loa/decisions.yaml)
+# -----------------------------------------------------------------------------
+# Rows are written only by .claude/scripts/lib/dec-write-lib.sh (needs jq and Mike
+# Farah yq v4). Skills record decisions as `proposed`; the operator confirms them
+# with /decisions confirm. See grimoires/loa/sdd.md §3.1 for the schema.
+decisions:
+  # When true, .claude/hooks/session-start/loa-decisions-surface.sh prints up to 10
+  # proposed and open rows (id, status, summary) at session start, inside the L6
+  # untrusted-content fence, plus a notice when .run/unattended.json is stale.
+  # DEFAULT-OFF: the hook prints nothing while this is false and always exits 0.
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
+  # Hours after which `dec-write-lib.sh context --set-unattended`'s marker is stale
+  # and ignored (a marker from another session is stale at once).
+  unattended_marker_ttl_hours: 24
+
+# -----------------------------------------------------------------------------
+# Skills (v1.14.0)
+# -----------------------------------------------------------------------------
+skills:
+  defer_loading: false        # Config prep only (runtime Phase 2)
+  always_load:
+    - autonomous-agent
+    - run-mode
+  categories:
+    planning: [discovering-requirements, planning-sprints, designing-architecture]
+    implementation: [implementing-tasks, deploying-infrastructure]
+    quality: [reviewing-code, auditing-security]
+    support: [translating-for-executives, continuous-learning]
+    operations: [autonomous-agent, run-mode, riding-codebase, mounting-framework]
+
+# -----------------------------------------------------------------------------
+# Learnings / Two-Tier Architecture (v1.15.1)
+# -----------------------------------------------------------------------------
+learnings:
+  tiers:
+    framework:
+      enabled: true
+      weight: 1.0
+    project:
+      enabled: true
+      weight: 0.9
+  query:
+    default_tier: all  # framework | project | all
+    max_results: 10
+
+# -----------------------------------------------------------------------------
+# Oracle (v1.11.0)
+# -----------------------------------------------------------------------------
+oracle:
+  weights:
+    loa: 1.0
+    anthropic: 0.8
+    community: 0.5
+  query:
+    default_indexer: auto  # auto | qmd | grep
+    default_limit: 10
+    default_scope: all
+
+# -----------------------------------------------------------------------------
+# Compound Learning (v1.10.0, Flatline Integration v1.23.0)
+# -----------------------------------------------------------------------------
+compound_learning:
+  enabled: true
+  pattern_detection:
+    min_occurrences: 2
+    similarity_threshold: 0.6
+  quality_gates:
+    discovery_depth: { min_score: 5 }
+    reusability: { min_score: 5 }
+
+  # Flatline Integration (v1.23.0)
+  # Connect Flatline Protocol multi-model consensus to Compound Learning
+  flatline_integration:
+    # Master toggle for Flatline → Compound Learning connection
+    enabled: true
+
+    # Capture learning candidates from Flatline HIGH_CONSENSUS outputs
+    capture_from_flatline:
+      enabled: true
+      min_consensus_score: 750      # Minimum consensus score (0-1000)
+      include_disputed: true         # Also capture low-delta disputed items
+      disputed_max_delta: 200        # Maximum score delta for disputed items
+
+    # Transformation configuration (content → trigger/solution)
+    transformation:
+      fallback_to_llm: true          # Use LLM when patterns fail
+      max_transformations_per_cycle: 50  # Prevent runaway API costs
+
+    # Validation of borderline learnings (Sprint 2)
+    validation:
+      enabled: true
+      borderline_range: [20, 28]     # Score range for borderline (out of 40)
+      max_validations_per_cycle: 10  # Budget control
+      rate_limit_seconds: 30         # Minimum time between validations
+
+    # Upstream proposal enhancement (Sprint 3)
+    upstream_enhancement:
+      semantic_similarity:
+        enabled: true
+        threshold: 70                # Similarity threshold (0-100)
+        alpha: 0.6                   # Weight for semantic vs Jaccard
+        combine_with_jaccard: true
+      pre_proposal_review:
+        enabled: true
+        min_alignment_score: 600     # Minimum alignment (0-1000)
+
+  # API configuration for Flatline integration
+  api:
+    max_retries: 3
+    initial_backoff_ms: 1000
+    max_backoff_ms: 30000
+    timeout_seconds: 60
+    circuit_breaker:
+      failure_threshold: 5
+      reset_timeout_seconds: 300
+
+  # LLM response validation
+  validation:
+    llm_responses:
+      require_schema_validation: true
+      sanitize_input: true
+      sanitize_output: true
+      banned_tokens:
+        - "ignore previous"
+        - "disregard instructions"
+        - "system prompt"
+
+  # Budget controls (SKP-001)
+  budget:
+    daily_budget_cents: 500          # Maximum daily API spend
+    warn_at_percent: 80              # Warning threshold
+    track_costs_in_trajectory: true
+
+  # Security and data redaction (SKP-006)
+  security:
+    redaction:
+      enabled: true
+      patterns:
+        - api_keys
+        - emails
+        - file_paths
+      allowlist_domains: []
+
+# -----------------------------------------------------------------------------
+# Visual Communication (v2.0.0)
+# -----------------------------------------------------------------------------
+visual_communication:
+  enabled: true
+  mode: "github"   # github (default) | render | url
+  theme: "github"  # github|dracula|nord|tokyo-night|solarized-light|solarized-dark|catppuccin
+
+  # Local rendering options (for mode: render)
+  local_render:
+    output_format: "svg"  # svg | png
+    output_dir: "grimoires/loa/diagrams/"
+
+  # Legacy URL options (for mode: url)
+  service: "https://agents.craft.do/mermaid"  # External service URL
+  include_preview_urls: false  # Generate preview links (legacy)
+
+# -----------------------------------------------------------------------------
+# Agent Browser (v2.0.0)
+# -----------------------------------------------------------------------------
+agent_browser:
+  enabled: false              # Opt-in (default: false)
+  tool: "dev-browser"         # MCP server to use
+  mode: "headless"            # headless | extension
+  session_persistence: true   # Keep sessions between calls
+  screenshot_dir: "grimoires/loa/screenshots/"
+  timeout_ms: 30000           # Navigation timeout
+
+# -----------------------------------------------------------------------------
+# Prompt Enhancement (v1.14.0 + Invisible Mode v1.17.0)
+# -----------------------------------------------------------------------------
+prompt_enhancement:
+  enabled: true
+  auto_enhance_threshold: 4
+  show_analysis: true
+  max_refinement_iterations: 3
+
+  # Invisible mode: automatically enhance prompts without user visibility
+  invisible_mode:
+    enabled: true              # Enable invisible enhancement for all commands
+    log_to_trajectory: true    # Log activity to trajectory for debugging
+    timeout_ms: 500            # Maximum time for enhancement (advisory)
+
+  # Middleware configuration
+  middleware:
+    enabled: true              # Enable middleware mode (enhancement before skill)
+    exclude_skills:            # Skills excluded from enhancement
+      - "enhancing-prompts"    # Prevent recursion
+      - "run-mode"             # Don't enhance autonomous mode
+    exclude_commands: []       # Additional commands to exclude
+
+# -----------------------------------------------------------------------------
+# URL Registry (v1.15.1)
+# -----------------------------------------------------------------------------
+url_registry:
+  enabled: true
+  placeholder_domain: your-domain.example.com
+  warn_on_missing: true
+
+# -----------------------------------------------------------------------------
+# Feedback Routing (v1.11.0)
+# -----------------------------------------------------------------------------
+feedback:
+  routing:
+    enabled: true           # Enable smart routing
+    auto_classify: true     # Auto-detect target repo
+    require_confirmation: true  # Always confirm with user
+
+    # Construct routing (v1.40.0 / cycle-025)
+    # Routes feedback about installed construct packs/skills to their source repos.
+    # Requires constructs to declare source_repo in manifest.yaml.
+    construct_routing:
+      enabled: true               # Master toggle for construct feedback routing
+      attribution_threshold: 0.33 # Minimum confidence to suggest construct routing (0.0-1.0)
+      redaction:
+        strip_absolute_paths: true   # Redact /home/user/... paths
+        strip_secrets: true          # Redact AWS keys, tokens, JWTs
+        strip_env_vars: true         # Redact environment variable assignments
+        include_snippets: false      # Code blocks stripped for external repos (default: off)
+        include_file_refs: true      # File references kept but paths made relative
+        include_environment: false   # Environment/system info section stripped (default: off)
+      rate_limits:
+        per_repo_daily: 5           # Warn after N issues to same repo in 24h
+        per_repo_daily_hard: 20     # Block at N issues to same repo in 24h
+        dedup_window_hours: 24      # Fingerprint dedup window in hours
+
+  labels:
+    graceful_missing: true  # Don't fail on missing labels
+
+# -----------------------------------------------------------------------------
+# Update Loa / Branch Testing (v1.11.0)
+# -----------------------------------------------------------------------------
+# =============================================================================
+# Aleph (third-party, vendored) — OPT-IN (bug 20260922-13a3d1)
+# =============================================================================
+# Aleph was not authored by the Loa maintainers. Loa never verifies, installs,
+# tests or syncs it unless this is true (or LOA_ALEPH_ENABLED=1 is exported):
+# mount/update skip the Aleph refresh, check-loa skips its integrity check, the
+# tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
+aleph:
+  enabled: false
+
+update_loa:
+  # DX Hardening (cycle-052): Emoji "What's New" after /update-loa
+  friendly_summary: true
+
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+
+# -----------------------------------------------------------------------------
+# Run Mode
+# -----------------------------------------------------------------------------
+run_mode:
+  enabled: true
+  defaults:
+    max_cycles: 20
+    timeout_hours: 8
+  # Run position from files (cycle-129 FR-5): `run-checkpoint.sh derive` rebuilds
+  # .run/sprint-plan-state.json (.state canonical, .status mirrored, derived_at) and
+  # .run/circuit-breaker.json from COMPLETED markers, LOA-VERDICT trailers, the ledger
+  # and git at every checkpoint. false = report-only (the caches are written as before;
+  # the rollback key).
+  file_authoritative: true
+  # Hours after which a RUNNING run with no activity derives to INTERRUPTED, and after
+  # which a derived cache (derived_at) no longer counts as a known run position for the
+  # implement gate. Positive integer.
+  stale_hours: 12
+  sprint_plan:
+    branch_prefix: "feature/"
+    default_branch_name: "release"
+    consolidate_pr: true
+    commit_prefix: "feat"
+    include_commits_by_sprint: true
+  # Git operations control (v1.30.0)
+  # Controls automatic push and PR creation at end of /run execution
+  git:
+    # auto_push: Controls whether to push commits to remote
+    #   - true: Push and create PR automatically (default, current behavior)
+    #   - false: Never auto-push, keep all changes local
+    #   - prompt: Ask before pushing (HITL confirmation)
+    # Can be overridden with --local (forces false) or --confirm-push (forces prompt)
+    auto_push: true
+    # Always create PRs as drafts - this is hardcoded and cannot be changed
+    create_draft_pr: true
+    # Git-aware sync_run_mode (Issue #474)
+    # Branch to diff against when inferring sprint completion from git history.
+    base_branch: "main"
+    # Regex pattern (grep -E) for sprint commit messages. Default matches
+    # conventional commit markers like "feat(sprint-1): implementation".
+    # Override if your project uses a different commit convention.
+    sprint_commit_pattern: '^feat\(sprint-'
+
+# -----------------------------------------------------------------------------
+# Implement gate (cycle-129 FR-4(a); hook: .claude/hooks/compliance/implement-gate.sh)
+# -----------------------------------------------------------------------------
+# PreToolUse check on Write/Edit/NotebookEdit into the App Zone (src/, lib/, app/)
+# outside an implementation run. A write is SANCTIONED (allowed, one audit row each) by:
+#   - a RUNNING run cache (.run/sprint-plan-state.json or .run/state.json, fresh
+#     last_activity, and derived_at within run_mode.stale_hours when present);
+#   - .run/implement-active.json {skill: implement|bug, sprint, started_at} younger than
+#     two hours (`run-checkpoint.sh mark` at the start of /implement and /bug, `unmark`
+#     at the end); a stale or malformed marker is logged and does not sanction;
+#   - LOA_IMPLEMENT_GATE_OVERRIDE=1 in the session environment (audited, one row per write).
+# An unsanctioned App-Zone write is then handled by `mode`:
+#   ask        (default) asks for confirmation, as before, and logs one row per ask
+#   telemetry  logs one row to .run/audit.jsonl and allows silently
+#   deny       refuses the write when the derived run position is known (the cache parses
+#              and its derived_at is within run_mode.stale_hours); an unknown position
+#              (missing, not derived, stale, unparseable) asks instead, never allows.
+#              The hook is a fence only in this mode.
+# Writes to the gate's own inputs (.run state files, .run/audit.jsonl, the marker,
+# .loa.config.yaml) ask in every mode and under every sanction.
+# `claims: authoritative` is a tighten-only modifier for any mode: a model-authored
+# tool_input.active_skill naming a non-implementation skill asks (or, under deny, is
+# denied), and never allows by itself. The legacy `mode: authoritative` means
+# mode: ask + claims: authoritative. /loa prints the effective mode on its Gate line.
+implement_gate:
+  mode: ask                      # ask | telemetry | deny
+  # claims: authoritative        # optional, tighten-only
+
+# -----------------------------------------------------------------------------
+# Notifications (cycle-117 item C)
+# -----------------------------------------------------------------------------
+# Operator-configurable external push, fired best-effort by the Stop-hook
+# push-at-gate when an autonomous run reaches a terminal gate (sprint
+# JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim
+# COMPLETED/AWAITING_HITL/HALTED). This is the SAME "run an operator command"
+# pattern reserved (but never wired) by spiral.harness.heartbeat.
+# phase_complete_hook below — this `notifications.push_command` is the first
+# instance the framework actually EXECUTES.
+#
+# TRUST: this file is operator-owned/trusted input. `command` is run via
+# `bash -c` — treat it exactly like a command you type yourself; do not point
+# it at agent- or PR-controlled data. It receives these env vars:
+#   LOA_PUSH_MESSAGE  short (<200 char) "<id> <source> <state>" summary
+#   LOA_PUSH_SOURCE   sprint_plan | bridge | simstim
+#   LOA_PUSH_STATE    the terminal state (e.g. JACKED_OUT)
+#   LOA_PUSH_ID       sprint id / iteration-N / simstim phase
+notifications:
+  push_command:
+    enabled: false               # opt-in; default is a silent no-op
+    command: ""                  # e.g. 'ntfy publish my-topic "$LOA_PUSH_MESSAGE"'
+                                 #  or  'osascript -e "display notification \"$LOA_PUSH_MESSAGE\""'
+    timeout_sec: 5               # hard cap; a slow command can never trap the agent
+
+# -----------------------------------------------------------------------------
+# BUTTERFREEZONE — Agent-Grounded README (v1.35.0)
+# -----------------------------------------------------------------------------
+# Generates BUTTERFREEZONE.md: a provenance-tagged, checksum-verified,
+# token-efficient project summary for AI agent consumption.
+# "The zone where only truth survives — no butter, no hype."
+butterfreezone:
+  enabled: true                         # On by default, opt-out via false
+  output_path: BUTTERFREEZONE.md        # Relative to repo root
+  word_budget:
+    total: 3200                         # ~8000 tokens (model-agnostic)
+    per_section: 800                    # ~2000 tokens per section
+  staleness_days: 7                     # Advisory freshness window
+  hooks:
+    run_bridge: true                    # Regenerate in bridge FINALIZING phase
+    run_sprint_plan: false              # Phase 2: regenerate after sprint plan
+    post_merge: false                   # Phase 2: regenerate on merge to main
+    ride: false                         # Future: regenerate after /ride
+    ship: false                         # Phase 2: regenerate on /ship
+  rtfm:
+    check_enabled: true                 # Include in RTFM validation
+    strict_mode: false                  # false=advisory warnings, true=hard gate
+  ecosystem:                              # Cross-repo discovery graph (v1.40.0)
+    # Each entry declares a related repository with its role and interface.
+    # Agents traverse these links to build a multi-repo capability graph.
+    # Schema per entry:
+    #   repo (required):     GitHub slug — machine-resolvable via gh
+    #   role (required):     semantic relationship (runtime, protocol, distribution, billing, client, library)
+    #   interface (required): integration surface (hounfour-router, npm-package, jwt-auth, etc.)
+    #   protocol (optional): shared contract version from a common package
+    - repo: 0xHoneyJar/loa-finn
+      role: runtime
+      interface: hounfour-router
+      protocol: loa-hounfour@8.3.1
+    - repo: 0xHoneyJar/loa-hounfour
+      role: protocol
+      interface: npm-package
+      protocol: loa-hounfour@8.3.1
+    - repo: 0xHoneyJar/arrakis
+      role: distribution
+      interface: jwt-auth
+      protocol: loa-hounfour@8.3.1
+  culture:                                # Cultural BUTTERFREEZONE (v1.40.0)
+    # Optional section communicating project principles, naming, methodology.
+    # Provenance: OPERATIONAL. Omitted when not configured.
+    naming_etymology: "Vodou terminology as cognitive hooks for framework concepts"
+    principles:
+      - "Think Before Coding — plan and analyze before implementing"
+      - "Simplicity First — minimum complexity for the current task"
+    methodology: "Agent-driven development with iterative excellence loops"
+  manual_sections:
+    sentinel_start: "<!-- manual-start -->"
+    sentinel_end: "<!-- manual-end -->"
+  # Capability overrides — manual adjustments to inferred capabilities (v1.40.0)
+  # The generator infers capabilities from SKILL.md keyword analysis. These
+  # overrides let you suppress false positives or add capabilities the
+  # inference engine cannot detect.
+  capability_overrides:
+    # Suppress: list of strings to remove from inferred capabilities.
+    # Uses grep -Fv (fixed-string, case-sensitive, substring match).
+    # A value of "ci" removes ANY capability line containing "ci"
+    # (e.g., "ci-deploy" but also "specificity-analysis").
+    # Values are NOT regexes — special characters are treated literally.
+    suppress: []
+    # Examples:
+    #   suppress:
+    #     - "network: read"           # Remove inferred network read capability
+    #     - "model: invoke"           # Remove inferred model invocation
+    #
+    # Add: list of capability strings to force-include.
+    # add: []
+    # Examples:
+    #   add:
+    #     - "filesystem: write (scope: app)"
+  security:
+    redaction_enabled: true             # Gitleaks-pattern secret redaction
+
+# -----------------------------------------------------------------------------
+# Beads-First Infrastructure (v1.29.0)
+# -----------------------------------------------------------------------------
+# Task tracking via beads_rust (br) is the EXPECTED DEFAULT.
+# Working without beads is treated as an abnormal state requiring explicit
+# acknowledgment. "We're building spaceships. Safety is paramount."
+beads:
+  # Mode: required | recommended | disabled
+  # - required: Block workflow if beads unavailable
+  # - recommended: Prompt for opt-out if unavailable (default)
+  # - disabled: No beads checks
+  mode: recommended
+
+  # Health check frequency
+  # - session: Once per session start
+  # - sprint: At sprint boundaries (default)
+  # - phase: At every workflow phase
+  health_check_frequency: sprint
+
+  # Opt-out configuration (for users without beads installed)
+  opt_out:
+    # Hours until opt-out expires and user must re-acknowledge
+    confirmation_interval_hours: 24
+    # Require reason when opting out
+    require_reason: true
+    # Maximum consecutive opt-outs before warning
+    max_consecutive: 3
+
+  # Autonomous mode configuration
+  autonomous:
+    # Require beads for /run and /autonomous workflows
+    requires_beads: true
+    # Allow DEGRADED status to proceed (warn only)
+    allow_degraded: true
+    # Maximum recovery attempts before halting
+    max_recovery_attempts: 3
+
+  # Size and staleness thresholds
+  thresholds:
+    # Warn when issues.jsonl exceeds this size
+    jsonl_warn_size_mb: 50
+    # Warn when beads.db exceeds this size
+    db_warn_size_mb: 100
+    # Warn when JSONL hasn't been synced in this many hours
+    sync_stale_hours: 24
+
+# -----------------------------------------------------------------------------
+# Hounfour Multi-Model Provider Abstraction (v1.31.0)
+# -----------------------------------------------------------------------------
+# Configure upstream model routing, pricing, budget enforcement, and circuit
+# breakers. System defaults ship in .claude/defaults/model-config.yaml —
+# only override values you want to change here.
+#
+# Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
+# Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
+hounfour:
+  # cycle-109 Sprint 3 T3.8 (commit E): `hounfour.flatline_routing` config
+  # key REMOVED. Cycle-109 deleted the legacy adapter (T3.7 under
+  # C109.OP-S3) and removed the consuming branches (T3.6 commit C).
+  # cheval is now the unconditional substrate dispatch path; there is no
+  # runtime-flag rollback. Rollback model post-cycle-109: `git revert` per
+  # grimoires/loa/runbooks/cycle-109-rollback.md. The `feature_flags.flatline_routing`
+  # sub-key below is preserved as an informational audit-log surface
+  # (other consumers still read it for telemetry) but does NOT gate
+  # dispatch behavior anymore.
+
+  # cycle-129 FR-8 — locality: hosted (default; the rollback) | local_voices. Under local_voices every model hop
+  # of the dissent (primary, companion, advisory voices, the KF-004 repair chain — pinned to the answering voice, no
+  # tiny or claude-headless), Flatline (voices and scorers), Bridgebuilder and the health probe is planned only on a
+  # provider whose model entry says `dispatch_group: local`; each hosted hop is refused by name at plan time, never
+  # rerouted, and cheval records locality_mode / hop_locality in MODELINV. The Claude Code session model is exempt:
+  # it remains the platform.
+  # locality: local_voices — with one local family the companion is not an independent second voice (duplicate_voice, or not planned), so every security audit is DEGRADED_SECURITY_REVIEW; adversarial-review-gate.sh and verdict-derive.sh treat this envelope exactly as they treat any other.
+  locality: hosted
+
+  # cycle-129 FR-7 — advisory-voice promotion (a maintainer decision; unset by default). Promotion of an advisory
+  # voice to a counted one is unreachable this cycle: no voice arm exists in the eval harness, so an alias listed
+  # in both flatline_protocol.<gate>.advisory_voices and companion_chain is refused with "advisory voice <alias>
+  # cannot be counted: no arms report line for the alias (voice arms are a future iteration)". The keys are read
+  # and named so a later cycle adds only the arm.
+  # advisory_promotion:
+  #   min_recall_ratio: 0.8      # the voice's arm recall over the counted voices' recall
+  #   max_refuted_delta: 0.1     # the most extra refuted findings the arm may show
+
+  # Per-subsystem feature flags (all default true — opt-out, not opt-in)
+  feature_flags:
+    google_adapter: true     # Enable Google provider adapter
+    deep_research: true      # Enable Deep Research models (Interactions API)
+    flatline_routing: true   # cycle-107: flipped — engages cheval chain-walk + voice-drop
+    metering: true           # Enable BudgetEnforcer cost tracking
+    thinking_traces: true    # Include thinking config in request bodies
+    jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
+    context_filtering: false # Epistemic context filtering: false | "audit" | "enforce"
+
+  # Metering — cost tracking and budget enforcement (SDD §4.3)
+  metering:
+    enabled: true
+    ledger_path: .run/cost-ledger.jsonl      # JSONL append-only cost ledger
+    budget:
+      daily_micro_usd: 500000000             # $500/day (500M micro-USD)
+      warn_at_percent: 80                    # Warn when spending exceeds this %
+      on_exceeded: downgrade                 # block | downgrade | warn
+
+  # Headless mode — within-company CLI fallback routing (cycle-104 Sprint 2)
+  # ---------------------------------------------------------------------------
+  # Routes between HTTP API adapters and local CLI binaries (`claude` /
+  # `codex` / `gemini`). Per-call override via env: LOA_HEADLESS_MODE=<mode>
+  # (env wins over this config; both unset → prefer-api).
+  #
+  # Modes (chain_resolver.resolve() applies them within-company only):
+  #   prefer-api : HTTP first, CLI last in each chain entry (today's default)
+  #   prefer-cli : CLI first, HTTP last (budget-constrained operators)
+  #   api-only   : drop CLI entries from chain
+  #   cli-only   : drop HTTP entries — zero-API-key path. Requires every
+  #                primary in your bindings to have a `kind: cli` chain
+  #                terminal (`claude-headless` / `codex-headless` /
+  #                `gemini-headless` in the default model-config.yaml).
+  #
+  # CLI binaries must be on $PATH (or pin paths below). The router REFUSES
+  # to issue HTTPS when the resolved chain is CLI-only (defense-in-depth,
+  # SDD §1.9). Operator runbooks (cycle-104 T2.12):
+  #   grimoires/loa/runbooks/headless-mode.md            # 4-mode reference
+  #   grimoires/loa/runbooks/headless-capability-matrix.md  # feature × adapter
+  #   grimoires/loa/runbooks/chain-walk-debugging.md     # LOA_HEADLESS_VERBOSE + envelope queries
+  headless:
+    mode: prefer-api                         # prefer-api | prefer-cli | api-only | cli-only
+    # agy_opt_in: the agy (Antigravity) CLI route — the `gemini-headless` hop — is opt-in (cycle-127).
+    # Off (the default), cheval refuses an agy dispatch before any spawn and every planner (dissent,
+    # Flatline tertiary, Bridgebuilder, /loa, run preflight) records the hop as not planned
+    # (reason opt_in_required), never as a failed voice — a host without agy plans no Google CLI voice.
+    # Set true only where agy is installed AND OAuth-authed: `agy -p` takes the whole prompt (the
+    # redacted review diff) on argv, readable by every local account through /proc and ps. Only the
+    # lowercase scalar `true` counts (yes / on / True / "true" read off, with a WARN); there is no
+    # environment override.
+    agy_opt_in: false
+    # cli_paths: discovery hints. If unset, $PATH is searched.
+    # cli_paths:
+    #   claude: /usr/local/bin/claude
+    #   codex: /usr/local/bin/codex
+    #   gemini: /usr/local/bin/gemini
+
+  # Provider registry — override endpoints, auth, or add new providers
+  # Providers not listed here use system defaults from model-config.yaml
+  providers:
+    openai:
+      # type: openai                    # Provider SDK type
+      # endpoint: "https://api.openai.com/v1"
+      auth: "{env:OPENAI_API_KEY}"      # Auth template (env: prefix resolves env vars)
+      models:
+        gpt-5.2:
+          capabilities: [chat, tools, function_calling]
+          context_window: 128000
+          pricing:
+            input_per_mtok: 10000000    # $10.00/M tokens (integer micro-USD)
+            output_per_mtok: 30000000   # $30.00/M tokens
+        gpt-5.3-codex:
+          capabilities: [chat, tools, function_calling, code]
+          context_window: 400000
+          pricing:
+            input_per_mtok: 1750000     # $1.75/M tokens
+            output_per_mtok: 14000000   # $14.00/M tokens
+
+    google:
+      # type: google                    # Provider SDK type
+      # endpoint: "https://generativelanguage.googleapis.com/v1beta"
+      auth: "{env:GOOGLE_API_KEY}"      # Requires GOOGLE_API_KEY environment variable
+      models:
+        gemini-2.5-flash:
+          capabilities: [chat]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 150000      # $0.15/M tokens (integer micro-USD)
+            output_per_mtok: 600000     # $0.60/M tokens
+        gemini-2.5-pro:
+          capabilities: [chat, thinking_traces]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 1250000     # $1.25/M tokens
+            output_per_mtok: 10000000   # $10.00/M tokens
+
+    anthropic:
+      auth: "{env:ANTHROPIC_API_KEY}"
+      models:
+        claude-opus-4-7:
+          capabilities: [chat, tools, function_calling, thinking_traces]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 5000000     # $5.00/M tokens
+            output_per_mtok: 25000000   # $25.00/M tokens
+        claude-opus-4-6:
+          # Retained as pinnable fallback (cycle-082 PRD §13).
+          # Pin via `opus: "anthropic:claude-opus-4-6"` in your aliases to route to 4.6 specifically.
+          capabilities: [chat, tools, function_calling, thinking_traces]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 5000000
+            output_per_mtok: 25000000
+        claude-sonnet-4-6:
+          capabilities: [chat, tools, function_calling]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 3000000
+            output_per_mtok: 15000000
+
+    # ─── Subscription-auth headless adapters (cycle-098/099 cheval transport plugins) ───
+    #
+    # The `*-headless` provider types below (gemini-headless, claude-headless,
+    # codex-headless) are CHEVAL TRANSPORT PLUGINS — they route requests
+    # through CLI subprocess calls instead of HTTP APIs, billing against the
+    # operator's subscription quota instead of an API-key balance.
+    #
+    # IMPORTANT: these provider types are configured here via `hounfour.providers`
+    # (which is the cheval ProviderConfig.type axis). They are NOT registerable
+    # via `model_aliases_extra` (whose `provider:` enum is locked to the 4 SoT-
+    # declared providers per cycle-099 NFR-Sec-4: openai, anthropic, google,
+    # bedrock). If you try to use `provider: codex-headless` inside a
+    # `model_aliases_extra` block, schema validation will reject it.
+    #
+    # Subscription-billed model IDs live entirely in `hounfour.providers`;
+    # operators expose them to agent bindings via `aliases:` below.
+
+    # gemini-headless: routes through `agy -p` (the Antigravity CLI — the FR-5
+    # repoint, loa#1096; Google retired gemini-cli's individual Code Assist tier).
+    # No api_key consumed — agy is OAuth-authed against the operator's Antigravity
+    # subscription. Requires `agy` on PATH (or AGY_HEADLESS_BIN) and
+    # hounfour.headless.agy_opt_in: true (default false — see headless: above);
+    # every stock Google chain ends in this terminal. Each
+    # model entry needs `extra.cli_model`, an agy `--model` LABEL from `agy models`
+    # (e.g. "Gemini 3.1 Pro (High)"), not an api id; agy's argv is fixed, so the
+    # gemini_policies / gemini_extra_flags extras below are not read by it.
+    # SECURITY: `agy -p` takes the whole prompt (the redacted review diff) on
+    # argv, readable by every local account through /proc/<pid>/cmdline and `ps`
+    # for the life of the hop — cheval WARNs once per process on dispatch; a
+    # stdin transport waits on the bd-ugmi re-probe. Avoid it on a shared host.
+    #
+    # Same gemini-3.x line as the google provider, just a different transport.
+    # Useful when deep-thinker / fast-thinker / flatline-tertiary token spend
+    # is large enough that subscription economics beat per-token API pricing.
+    #
+    # NOTE (#979): `auth_type` and `dispatch_group` are inferred for the three
+    # *-headless provider types (headless + the provider family's group) —
+    # the field-less model shape below loads as-is. Set them explicitly only
+    # to override.
+    gemini-headless:
+      type: gemini-headless
+      # No `auth:` field — agy authenticates itself (its own OAuth store)
+      read_timeout: 600.0
+      models:
+        # Model IDs match gemini-cli ≥ 0.40.x defaults. The bare names
+        # (`gemini-3-pro` / `gemini-3-flash`) return ModelNotFoundError 404 —
+        # the canonical preview suffixes are required.
+        gemini-3.1-pro-preview:
+          capabilities: [chat, thinking_traces]
+          context_window: 1048576
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          # extra:
+          #   gemini_policies:                        # additional --policy <path> args
+          #     - .gemini/policy-readonly.json
+          #   gemini_extra_flags:                     # arbitrary additional CLI flags
+          #     - ["--allowed-tools", "read,grep"]
+          #     - "--list-extensions"
+        gemini-3-flash-preview:
+          capabilities: [chat]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 0
+            output_per_mtok: 0
+
+    # claude-headless: routes through `claude -p` (Claude Code CLI) for Claude
+    # Max / Pro / Team subscription auth. No api_key consumed — bills against
+    # the operator's Claude subscription quota.
+    # Requires `claude` CLI on PATH (npm install -g @anthropic-ai/claude-code)
+    # and a one-time `claude /login` to populate the OAuth credential store.
+    #
+    # NOTE: This is DIFFERENT from `claude-code:session` (the in-process native
+    # runtime). claude-headless is a subprocess invocation of the CLI — useful
+    # when an agent binding wants subscription-billed Claude calls but doesn't
+    # want to (or can't) use the native runtime.
+    #
+    # NOTE on overhead: Claude Code injects ~14K tokens of agent-persona system
+    # prompt per call. On Max subscription that's quota-cost only. To trim,
+    # set `extra: { system_prompt: "..." }` (REPLACES default) or
+    # `extra: { append_system_prompt: "..." }` (ADDS to default).
+    claude-headless:
+      type: claude-headless
+      # No `auth:` field — auth is OAuth-managed by Claude Code (~/.claude/...)
+      read_timeout: 600.0
+      models:
+        claude-opus-4-7:
+          capabilities: [chat, tools, function_calling, thinking_traces]
+          context_window: 200000
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          extra:
+            effort: high  # low | medium | high | xhigh | max
+            # system_prompt: "You are a precise code reviewer."  # OPTIONAL — replaces default
+            # append_system_prompt: "Be terse."                  # OPTIONAL — adds to default
+        claude-sonnet-4-6:
+          capabilities: [chat, tools, function_calling]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 0
+            output_per_mtok: 0
+
+    # codex-headless: routes through `codex exec` for ChatGPT subscription auth.
+    # No api_key consumed — bills against the operator's ChatGPT subscription quota.
+    # Requires `codex` CLI (>=0.125.0 for gpt-5.5 + xhigh) on PATH and a one-time
+    # `codex login` to populate ~/.codex/auth.json.
+    #
+    # Same gpt-5.x line as the openai provider, just a different transport. Useful
+    # when bridgebuilder / spiraling / flatline-review token spend is large enough
+    # that subscription economics beat per-token API pricing.
+    codex-headless:
+      type: codex-headless
+      # No `auth:` field — auth is file-based (~/.codex/auth.json)
+      read_timeout: 600.0                  # codex agent loops can run longer than HTTP
+      models:
+        gpt-5.5:
+          capabilities: [chat, code]
+          context_window: 400000
+          token_param: max_completion_tokens
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry. The operator's
+            # subscription quota is the budget; cheval's per-Mtok metering should
+            # not double-count it.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          extra:
+            reasoning_effort: high          # low | medium | high | xhigh
+            # codex_config_overrides:        # optional — extra `codex exec -c k=v` flags
+            #   reasoning_summaries: "true"
+
+  # Flatline tertiary model — enables 3-model triangular cross-scoring
+  # Requires GOOGLE_API_KEY to be set in environment
+  flatline_tertiary_model: gemini-2.5-pro  # 3-model Flatline: Opus + GPT-5.3-codex + Gemini
+
+  # Aliases — short names mapping to provider:model-id
+  #
+  # Cycle-093 sprint-4 advisory (T3.1):
+  # If you have `gpt-5.2` pinned in your `.loa.config.yaml`, consider migrating
+  # to `gpt-5.3-codex`. The 5.3 model line is on the current OpenAI Responses
+  # API path (better tool-calling, more recent training cutoff) and is what the
+  # framework's adversarial-review + bridgebuilder paths default to. The
+  # examples below have been updated to reflect this preference; gpt-5.2
+  # remains supported for operators with workload-specific reasons to pin it.
+  aliases:
+    native: "claude-code:session"          # Reserved — Claude Code native runtime
+    reviewer: "openai:gpt-5.3-codex"       # Primary review model (gpt-5.2 → 5.3 per T3.1)
+    reasoning: "openai:gpt-5.3-codex"      # Reasoning/skeptic model (gpt-5.2 → 5.3 per T3.1)
+    cheap: "anthropic:claude-sonnet-5"     # Budget-conscious model (cycle-126: 4-6 → 5)
+    opus: "anthropic:claude-opus-5-5"      # High-quality model (cycle-124 floor 4-7 → 5; cycle-126 5 → 5.5)
+    deep-thinker: "google:gemini-3.1-pro-preview"   # Re-added cycle-093 sprint-4
+
+  # Agent bindings — which model each agent uses + requirements
+  # Agents not listed here use the system defaults from model-config.yaml
+  agents:
+    reviewing-code:
+      model: reviewer
+      temperature: 0.3
+    translating-for-executives:
+      model: cheap
+      temperature: 0.5
+    flatline-reviewer:
+      model: reviewer
+      temperature: 0.3
+    flatline-skeptic:
+      model: reasoning
+      temperature: 0.5
+      requires:
+        thinking_traces: preferred
+    # Agents bound to native runtime (Claude Code session):
+    # implementing-tasks, riding-codebase, designing-architecture,
+    # planning-sprints, discovering-requirements, auditing-security
+
+  # Routing — fallback chains (provider down) and downgrade chains (budget)
+  routing:
+    fallback:
+      openai: [anthropic]               # OpenAI down → try Anthropic
+      anthropic: [openai]               # Anthropic down → try OpenAI
+    downgrade:
+      reviewer: [cheap]                 # Budget exceeded → downgrade
+
+    # Circuit breaker — per-provider state machine (CLOSED/OPEN/HALF_OPEN)
+    # State files: .run/circuit-breaker-{provider}.json
+    circuit_breaker:
+      failure_threshold: 5              # Consecutive failures to trip OPEN
+      reset_timeout_seconds: 60         # Seconds in OPEN before probing
+      half_open_max_probes: 1           # Concurrent probes in HALF_OPEN
+      count_window_seconds: 300         # Rolling window for failure count
+
+  # Retry — per-request retry with exponential backoff
+  retry:
+    max_retries: 3                      # Per-provider retries
+    max_total_attempts: 6               # Global hard cap (SDD §4.2.7)
+    max_provider_switches: 2            # Maximum fallback chain depth
+    base_delay_seconds: 1.0             # Exponential backoff base
+
+  # Metering — JSONL cost ledger with integer micro-USD arithmetic
+  metering:
+    enabled: true
+    ledger_path: ".run/cost-ledger.jsonl"   # cycle-124 FR-6: same default as the catalog; the hygiene tripwire scans .run/
+    budget:
+      daily_micro_usd: 500000000        # $500/day (500M micro-USD)
+      warn_at_percent: 80               # Warn at 80% of daily budget
+      on_exceeded: downgrade            # downgrade | block | warn
+
+  # Timeouts — per-provider connection/read/write limits
+  defaults:
+    connect_timeout: 10                 # seconds
+    read_timeout: 120                   # seconds
+    write_timeout: 30                   # seconds
+
+# Hounfour Examples:
+#
+# Each example sits between a `# @example-begin <name>` and a `# @example-end`
+# marker. .claude/adapters/tests/test_config_examples_load.py uncomments every
+# marked block, merges it over the System defaults with the real cheval loader
+# and asserts it loads, so an example that would not load fails CI.
+#
+# Example 1: Conservative (all native, no remote calls)
+# The Claude Code session itself still runs against Anthropic.
+# @example-begin conservative
+# hounfour:
+#   flatline_routing: false
+#   agents:
+#     reviewing-code:
+#       model: native
+#     flatline-reviewer:
+#       model: native
+# @example-end
+#
+# Example 2: Budget-conscious (lower daily limit, aggressive downgrade)
+# @example-begin budget-conscious
+# hounfour:
+#   metering:
+#     budget:
+#       daily_micro_usd: 50000000       # $50/day
+#       warn_at_percent: 60
+#       on_exceeded: block              # Hard stop instead of downgrade
+# @example-end
+#
+# Example 3: Custom provider (e.g., Azure OpenAI)
+# Every model of a custom HTTP provider declares endpoint_family, auth_type,
+# dispatch_group and context_window. The key is read from an environment
+# variable, which must match a secret_env_allowlist pattern: only LOA_*,
+# OPENAI_API_KEY, ANTHROPIC_API_KEY, MOONSHOT_API_KEY, GOOGLE_API_KEY and
+# GEMINI_API_KEY are allowed by default.
+# @example-begin azure-openai
+# hounfour:
+#   secret_env_allowlist:
+#     - "^AZURE_OPENAI_KEY$"
+#   providers:
+#     azure-openai:
+#       type: openai
+#       endpoint: "https://myorg.openai.azure.com/openai/deployments/gpt-5"
+#       auth: "{env:AZURE_OPENAI_KEY}"
+#       models:
+#         gpt-5-azure:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: azure
+#           capabilities: [chat, tools, function_calling]
+#           context_window: 400000
+#           max_output_tokens: 16000
+#           pricing:
+#             input_per_mtok: 10000000
+#             output_per_mtok: 30000000
+#   aliases:
+#     reviewer: "azure-openai:gpt-5-azure"
+# @example-end
+#
+# Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
+# Threat model: plain http is admitted only to the one host named in
+# allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
+# range. IP literals are never resolved, so the prompt does not cross a public
+# network unencrypted and the address cannot be rebound; localhost is resolved
+# and checked at request time, and any address that is not loopback (or a
+# resolver failure) refuses the request by name. For this provider
+# cheval ignores proxy environment variables, refuses redirects and keeps every
+# request under the declared endpoint path, while every other provider keeps the
+# https, loopback and private-range refusals.
+# keyless: true sends no credential (a literal auth: "local" means the same).
+# secret_env_allowlist: if your server does want a key, use
+# auth: "{env:LOCAL_LLM_KEY}" instead of keyless and add "^LOCAL_LLM_KEY$" to
+# secret_env_allowlist; an environment variable outside the allowlist is refused.
+# A prompt over the declared context_window refuses the hop by name and is never
+# truncated; the zero prices record the hop at cost 0.
+# @example-begin local-openai-compatible
+# hounfour:
+#   providers:
+#     local:
+#       type: openai_compat
+#       endpoint: "http://127.0.0.1:8000/v1"
+#       keyless: true
+#       allow_insecure_endpoint: "127.0.0.1"   # a host string, never a boolean
+#       models:
+#         qwen3-coder-30b:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: local                # marks the hop local (hop_locality: local)
+#           capabilities: [chat]                 # add structured_json if the server enforces response_format
+#           context_window: 32768
+#           max_output_tokens: 8192
+#           streaming_recovery:
+#             first_token_deadline_s: 120        # CPU servers take a while on a large prompt
+#           pricing:
+#             input_per_mtok: 0
+#             output_per_mtok: 0
+#   aliases:
+#     local-reviewer: "local:qwen3-coder-30b"
+# @example-end
+trajectory:
+  archive:
+    # Maximum export size in MB before LFS warning
+    max_export_size_mb: 50
+    # Auto-compress exports (gzip)
+    compress: true
+    # Opt-in: commit trajectory exports to git
+    git_commit: false
+    # Retention: delete exports older than this many days
+    retention_days: 365
+
+# -----------------------------------------------------------------------------
+# Memory Bootstrap (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+memory_bootstrap:
+  # Sources for deterministic bootstrap
+  sources:
+    trajectory: true
+    flatline: true
+    feedback: true
+    bridge: true
+  # Quality gates
+  quality:
+    min_confidence: 0.7
+    min_content_length: 10
+    dedup: true
+
+# -----------------------------------------------------------------------------
+# Redaction Pipeline (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+redaction:
+  # Fail-closed by default
+  strict: true
+  # Operator override allowlist file (one pattern per line)
+  # allowlist_file: .loa-redact-allowlist
+  # Override specific rules (for known false positives)
+  override_rules: []
+  # Input limits
+  max_input_size_mb: 50
+  # Entropy detection threshold (Shannon bits/char)
+  entropy_threshold: 4.5
+  entropy_min_length: 20
+
+# -----------------------------------------------------------------------------
+# Migration (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+migration:
+  # Compatibility mode: auto | resolution | symlink | copy
+  compat_mode: auto
+  # Lock timeout in seconds
+  lock_timeout: 30
+
+# -----------------------------------------------------------------------------
+# Destructive Command Guard (v1.28.0)
+# -----------------------------------------------------------------------------
+# Runtime safety layer that validates shell commands before execution.
+# Intercepts potentially dangerous operations and applies configurable policies.
+# See: .claude/protocols/destructive-command-guard.md
+destructive_command_guard:
+  # Master toggle - set to true to enable DCG
+  enabled: true
+
+  # Timeout for pattern matching (milliseconds)
+  timeout_ms: 100
+
+  # Heredoc consumer classifier (cycle-129 FR-6). true (default): the Bash
+  # fence scans a heredoc body in full only when its consumer may execute it,
+  # and scans a non-executing body per segment. false: the pre-cycle scan
+  # (rollback key; turning it off only tightens). See hooks-reference.md,
+  # "Heredoc consumer classification".
+  heredoc_classifier: true
+
+  # Security packs to load (core is always loaded)
+  # Each pack adds domain-specific patterns
+  packs:
+    # Database operations (SQL, MongoDB, Redis)
+    database: true
+    # Docker/container operations
+    docker: true
+    # Kubernetes operations (kubectl, helm)
+    kubernetes: false
+    # AWS CLI operations
+    cloud-aws: false
+    # Google Cloud operations
+    cloud-gcp: false
+    # Azure CLI operations
+    cloud-azure: false
+    # Terraform/OpenTofu operations
+    terraform: false
+
+  # Additional safe paths beyond defaults
+  # Paths must be absolute or use environment variables
+  safe_paths:
+    - "${PROJECT_ROOT}/tmp"
+    - "${PROJECT_ROOT}/cache"
+    # Add project-specific paths here
+    # - /app/cache
+
+  # Override default actions for specific patterns
+  # Useful for relaxing rules in specific contexts
+  overrides:
+    # Example: Allow git push --force with warning instead of block
+    # git_push_force:
+    #   action: WARN
+    #   reason: "Team workflow allows force push to feature branches"
+
+  # Run Mode integration
+  run_mode:
+    # Enable DCG during autonomous execution
+    enabled: true
+    # Log blocked commands to trajectory
+    audit_log: true
+    # Halt workflow after N blocked commands
+    halt_on_block_count: 3
+
+# -----------------------------------------------------------------------------
+# Simstim - HITL Accelerated Development (v1.24.0)
+# -----------------------------------------------------------------------------
+# Orchestrate complete development cycle (PRD → SDD → Sprint → Implementation)
+# with Flatline Protocol reviews at each stage. Human drives planning phases
+# while HIGH_CONSENSUS findings auto-integrate.
+# "Experience the AI's work while maintaining your own consciousness." — Gibson
+simstim:
+  # Master toggle - set to true to enable /simstim command
+  enabled: true
+
+  # Flatline behavior in HITL mode
+  flatline:
+    auto_accept_high_consensus: true   # Auto-integrate without prompting
+    show_disputed: true                # Present DISPUTED items for decision
+    show_blockers: true                # Present BLOCKERS (NOT auto-halt like autonomous)
+    phases:                            # Which phases get Flatline review
+      - prd
+      - sdd
+      - sprint
+
+  # Default options
+  defaults:
+    timeout_hours: 24                  # Maximum workflow duration
+
+  # Phase skipping behavior
+  skip_phases:
+    prd_if_exists: false               # Still review even if PRD exists
+    sdd_if_exists: false               # Still review even if SDD exists
+    sprint_if_exists: false            # Still review even if sprint exists
+
+# -----------------------------------------------------------------------------
+# Search Orchestration (v1.7.0)
+# -----------------------------------------------------------------------------
+prefer_ck: true  # Use ck when available
+
+# -----------------------------------------------------------------------------
+# Upstream Learning Flow (v1.17.0)
+# -----------------------------------------------------------------------------
+upstream_detection:
+  enabled: true
+  min_occurrences: 3
+  min_success_rate: 0.8
+  min_upstream_score: 70
+
+upstream_proposals:
+  target_repo: "0xHoneyJar/loa"
+  label: "learning-proposal"
+  anonymization:
+    enabled: true
+  rejection_cooldown_days: 90
+
+# -----------------------------------------------------------------------------
+# Input Guardrails & Danger Level Enforcement (v1.20.0)
+# -----------------------------------------------------------------------------
+# Pre-execution validation for skill invocations. Provides PII filtering,
+# injection detection, and relevance checking before skills execute.
+# Based on OpenAI's "A Practical Guide to Building Agents" guardrails pattern.
+#
+# Default OFF since cycle-129 (DEC-0161): across 82 recorded guardrail events
+# the input guardrails caught nothing, and danger-level enforcement blocked
+# the sanctioned skills seven times. Turn them on with
+# `guardrails.input.enabled: true` (the orchestrator then logs PASS/BLOCK
+# events to the trajectory) and `guardrails.danger_level.enforce: true`.
+# Both keys are part of the `loa.profile` set (`full` turns them on).
+guardrails:
+  # Input guardrails (pre-execution)
+  input:
+    # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+    # enabled: false
+
+    # PII Filter: Detect and redact sensitive data before processing
+    # Actions: redact (replace with placeholder), anonymize (generic value)
+    pii_filter:
+      enabled: true
+      mode: blocking              # blocking | parallel | advisory
+      patterns:
+        api_keys: true            # sk-*, ghp_*, AKIA*
+        emails: true              # user@example.com
+        phone_numbers: true       # 555-123-4567
+        ssn: true                 # 123-45-6789
+        credit_cards: true        # 4111-1111-1111-1111
+        jwt_tokens: true          # eyJ... tokens
+        private_keys: true        # -----BEGIN PRIVATE KEY-----
+        file_paths: anonymize     # anonymize | redact | ignore
+      log_redactions: true        # Log redaction count (never values)
+
+    # Injection Detection: Check for prompt injection patterns
+    # Score threshold: 0.0-1.0 (higher = more strict)
+    injection_detection:
+      enabled: true
+      mode: blocking
+      threshold: 0.7              # Range: 0.0-1.0 (default: 0.7)
+      patterns:
+        - instruction_override    # "ignore previous", "disregard"
+        - role_confusion          # "you are now", "act as"
+        - context_manipulation    # "system prompt", "debug mode"
+        - encoding_evasion        # base64, unicode tricks
+
+    # Relevance Check: Verify request matches skill purpose
+    # Note: High false positive rate - recommended mode: advisory or parallel
+    relevance_check:
+      enabled: false              # Disabled by default (high FP rate)
+      mode: advisory
+      confidence_threshold: 0.8   # Range: 0.0-1.0 (default: 0.8)
+
+  # Tripwire: Halt execution on parallel guardrail failure
+  tripwire:
+    enabled: true
+    on_failure: halt              # halt | warn | log
+    rollback_on_halt: false       # Revert uncommitted changes (experimental)
+
+  # Danger Level Enforcement: Tool risk classification
+  # Levels: safe, moderate, high, critical
+  danger_level:
+    # Profile-governed (loa.profile; standard = false, full = true); see the
+    # default-off note above the block. Uncomment to pin it:
+    # enforce: false
+    interactive:
+      safe: execute               # Execute immediately
+      moderate: execute_with_notice  # Brief notice in output
+      high: confirm_required      # Require explicit confirmation
+      critical: confirm_with_reason  # Confirm + explain why
+    autonomous:
+      safe: execute               # Execute immediately
+      moderate: execute_with_log  # Execute with enhanced logging
+      high: block_without_flag    # BLOCK unless --allow-high
+      critical: always_block      # ALWAYS BLOCK (no override)
+
+  # Trajectory logging for guardrail events
+  logging:
+    enabled: true
+    input_guardrails: true
+    danger_level_decisions: true
+    handoffs: true
+    redaction_audit: true         # Log redaction counts for audit
+
+# -----------------------------------------------------------------------------
+# Invisible Retrospective Learning (v1.19.0)
+# -----------------------------------------------------------------------------
+# Automatic learning detection during skill execution without user invocation.
+# Uses skill postludes to silently scan for discoveries and extract learnings.
+# Mirrors the invisible prompt enhancement pattern from v1.17.0.
+invisible_retrospective:
+  # Master toggle - set to false to disable all invisible retrospective.
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # enabled: true
+
+  # Always log to trajectory (even when disabled) - useful for debugging
+  log_to_trajectory: true
+
+  # Minimum quality gates passed to surface finding (out of 4)
+  # Gates: Depth, Reusability, Trigger Clarity, Verification
+  # Range: 0-4 (0 = surface everything, 4 = maximum strictness)
+  surface_threshold: 3
+
+  # Maximum candidates to evaluate per skill invocation
+  # Range: 1-20 (recommended max: 10, higher values increase processing time)
+  max_candidates: 5
+
+  # Maximum learnings to extract per session (prevents noise)
+  # Range: 1-10 (recommended max: 5, higher values may flood NOTES.md)
+  max_extractions_per_session: 3
+
+  # Sanitize descriptions before logging (redacts API keys, paths, emails, etc.)
+  # CRITICAL: Do NOT disable in production - defense in depth applies sanitization even if false
+  sanitize_descriptions: true
+
+  # Per-skill enablement (only skills with postludes support this)
+  skills:
+    implementing-tasks: true     # High discovery potential (bugs, debugging)
+    auditing-security: true      # Security patterns and findings
+    reviewing-code: true         # Code review insights
+    deploying-infrastructure: false  # Lower discovery potential
+    designing-architecture: false    # Lower discovery potential
+
+  # Quality gate toggles (all default to true)
+  # Disable specific gates if they're too strict for your use case
+  quality_gates:
+    require_depth: true          # Gate 1: Discovery required multiple steps
+    require_reusability: true    # Gate 2: Generalizable beyond this instance
+    require_trigger_clarity: true # Gate 3: Clear when to apply learning
+    require_verification: true   # Gate 4: Solution confirmed working
+
+# -----------------------------------------------------------------------------
+# Flatline Protocol (v1.17.0)
+# -----------------------------------------------------------------------------
+# Multi-model adversarial review using Claude Opus 4.7 + GPT-5.2 for planning
+# document quality assurance. Phase 1: parallel reviews, Phase 2: cross-scoring,
+# Phase 3: consensus extraction with HIGH/DISPUTED/LOW/BLOCKER classification.
+flatline_protocol:
+  # Master toggle - set to true to enable Flatline Protocol
+  enabled: true
+
+  # Auto-trigger after planning phases (prd, sdd, sprint)
+  auto_trigger: true
+
+  # Phase-specific toggles
+  phases:
+    prd: true      # Review after /plan-and-analyze
+    sdd: true      # Review after /architect
+    sprint: true   # Review after /sprint-plan
+
+  # Model configuration
+  models:
+    primary: opus        # Claude Opus 5.5 (the catalog `opus` alias)
+    secondary: gpt-5.3-codex  # OpenAI GPT-5.3-codex (via Responses API)
+
+  # Consensus thresholds (0-1000 scale)
+  thresholds:
+    high_consensus: 700      # Both models > this = auto-integrate
+    disputed_delta: 300      # Score delta > this = disputed
+    low_value: 400           # Both < this = discard
+    blocker_skeptic: 700     # Skeptic concern > this = blocker
+
+  # Iteration safety cap — max Flatline loops before forced termination
+  max_iterations: 5
+
+  # Knowledge retrieval for domain context
+  knowledge:
+    # Tier 1: Local grimoires (always active)
+    local:
+      enabled: true
+      paths:
+        - grimoires/loa/
+        - .claude/protocols/
+
+    # Tier 2: NotebookLM (optional, requires browser auth setup)
+    notebooklm:
+      enabled: false           # Opt-in (requires auth setup)
+      notebook_id: ""          # Your NotebookLM notebook ID
+      timeout_ms: 30000        # Query timeout
+
+  # Inquiry mode (FR-4): Collaborative multi-model architectural inquiry
+  # Runs 3 parallel queries (structural, historical, governance) and synthesizes
+  inquiry:
+    budget_cents: 500            # Cost budget per inquiry invocation
+    # Perspectives use primary/secondary/tertiary models with rotating assignment
+
+  # Adversarial cross-model dissent for quality gates (#224)
+  # A second model reviews code that Claude already reviewed
+  code_review:
+    enabled: false               # Opt-in: enable for /review-sprint
+    model: "gpt-5.3-codex"      # Dissenter model
+    timeout_seconds: 60          # Per-call timeout
+    budget_cents: 150            # Gate on ONE dissent call's pre-dispatch cost estimate, made once from the diff's size before any
+                                 # dispatch — not a spend ceiling (a malformed value fails closed: read as 0 cents, which refuses — exit 4,
+                                 # status budget_exceeded — any dispatch estimated above 0; there is no "no cap" value): fallback hops, the companion
+                                 # voice and the KF-004 repairs (≤ 5 findings per voice, each up to one call per repair-chain hop —
+                                 # three at most) are further calls it does not count; the repairs are bounded by count and wall
+                                 # clock: each voice's repairs share a wall budget of 5 × the timeout × 2, never under two of
+                                 # the heaviest hop's charges plus a timeout —
+                                 # pinned by LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS (env only — one pin for both gates; a pin below
+                                 # the heaviest repair hop's charge is warned: that hop is never started)
+    # cycle-131 FR-4: how the gate's budget is set. fixed (the default; an absent key is fixed) gates on budget_cents
+    # as above. diff fits the budget to the diff: budget = min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max),
+    # where estimate is the gate's own pre-dispatch estimate over the planned voices (primary, the companion's first hop,
+    # each advisory voice); an estimate above that budget still refuses (exit 4, budget_exceeded, reason budget). Note
+    # that under diff a budget_cents above budget_cents_max is held to the maximum. A value that is not fixed or diff, or a
+    # budget_cents_max that is not a whole number, is said and fixed applies. When the key is written the envelope's
+    # metadata names budget_scale, budget_cents_effective and budget_cents_max. The eval harness
+    # (evals/harness/pipeline-run.sh) writes budget_scale: diff for both gates in its sandbox config; the shipped default stays fixed.
+    budget_scale: fixed
+    budget_cents_max: 600        # the ceiling of the diff scaling (cents); unused under fixed
+    # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
+    # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
+    # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI — → opus → claude-headless;
+    # companion_chain reads only its anthropic / openai keys) runs in parallel and both envelopes
+    # aggregate (voices_planned 2). A primary of unknown family (an id no catalog entry or name rule places) gets
+    # that companion too, but it is never judged independent — counted_as duplicate_voice, not a second voice
+    # (on security_audit a DEGRADED_SECURITY_REVIEW): list the model in the catalog, or set false. Credential presence only decides where
+    # the companion chain starts (no key → the CLI hop). Set false to run one voice.
+    # A host with no route to the other family (no key, its CLI not on PATH) records
+    # companion_voice {planned: false, reason: no_route} — on security_audit that is a
+    # DEGRADED_SECURITY_REVIEW on every audit; set false where one voice is the host's shape
+    # (an absent key is true: a config that predates the key runs two voices).
+    companion_voice: true
+    # Optional: replace the default companion chains (used as given — no PATH filter:
+    # a CLI hop named here is planned even when its binary is absent, and fails as
+    # that hop; only the default chains plan the CLI hop when its binary is on PATH; a hop this block's fallback_chain
+    # also holds stays in the chain and is listed under companion_voice.shared_hops —
+    # independence is judged from the voices that actually answered:
+    # companion_voice.independent, a same-family companion is not a second voice).
+    # companion_chain:
+    #   anthropic: [opus, claude-headless]
+    #   openai: [gpt-5.5, codex-headless]
+    # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
+    # A dissenter finding from an UNENFORCED hop that fails validate_finding
+    # gets one bounded repair round-trip per hop of the repair chain (cycle-126
+    # FR-2.4: `tiny` when an Anthropic key is present → `claude-headless` when the
+    # binary is on PATH → the voice that answered, always last) before rejection
+    # (schema-enforced payloads never enter the loop):
+    # a normalization pre-pass runs first — severity/category case-folded and
+    # trimmed (no synonym mapping); a missing failure_mode is derived from the
+    # description's first sentence (failure_mode_derived) and a missing id from
+    # the position (DISS-NNN, id_derived), with no model call; if the finding still
+    # fails, only the offending finding JSON + the violated validation
+    # clause are sent back to the model. The repaired finding must be
+    # byte-identical to the original on every field except the one(s) it
+    # was authorized to fix, and re-enters the full validation pipeline
+    # (never just the failed clause) before being accepted. Rejected and
+    # repaired counts are recorded in the rejected-finding sidecar
+    # (grimoires/loa/a2a/<sprint_id>/adversarial-rejected-<type>.jsonl)
+    # and in the degraded-verdict trajectory record, so findings the
+    # dissenter model produced but that were silently dropped for a
+    # trivial schema mismatch (KF-004's original complaint) stay visible.
+    # cycle-129 FR-7: advisory voices (aliases — an open-weight or local model, say). They run after the counted
+    # voices on the same prompts, concurrently, under ONE wall clock (advisory_timeout_seconds), with the same schema,
+    # qualification and repair rules; their findings are written ONLY under advisory_voices[].findings in
+    # adversarial-review.json (voice: advisory, counted_as: advisory_voice, duplicate_of: the id of a counted finding
+    # on the same file, overlapping lines, same category) — never in findings[], voices_planned or verdict_quality, so
+    # they cannot change a verdict; a failed or timed-out one is a status in its entry. The budget gate prices every
+    # planned voice (primary, the companion's first hop, each advisory alias) at its catalog price, 10 / 30 USD per
+    # Mtok when the catalog has none (said by name). An alias also listed in companion_chain is refused at plan time:
+    # promotion to a counted voice needs a voice arm (see hounfour.advisory_promotion).
+    advisory_voices: []
+    advisory_timeout_seconds: 600
+  security_audit:
+    enabled: false               # Opt-in: enable for /audit-sprint
+    model: "gpt-5.3-codex"      # Dissenter model
+    timeout_seconds: 60
+    budget_cents: 150            # Gate on ONE dissent call's pre-dispatch cost estimate, as code_review's — not a spend ceiling
+                                 # (a malformed value fails closed: read as 0 cents, which refuses — exit 4, status budget_exceeded —
+                                 # any dispatch estimated above 0): the second voice, fallback hops and the KF-004 repairs
+                                 # are further calls; the repairs are bounded by count and wall clock — code_review's rule on THIS block's timeout_seconds,
+                                 # never under two of the heaviest hop's charges plus a timeout; code_review's LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS pin, one for both gates)
+    budget_scale: fixed          # cycle-131 FR-4: see code_review — fixed | diff; diff: budget = min(max(budget_cents, ceil(estimate × 1.2)), budget_cents_max),
+                                 # read from THIS block; the eval harness writes diff, the shipped default stays fixed
+    budget_cents_max: 600        # the ceiling of the diff scaling (cents); unused under fixed
+    companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
+                                 # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true);
+                                 # a companion_chain is read per block — this block's own, as code_review documents it
+    advisory_voices: []          # cycle-129 FR-7: see code_review — findings under advisory_voices[] only, never tallied
+    advisory_timeout_seconds: 600
+  stable_anchors:
+    required: true               # Demote anchorless high-severity findings
+    preferred_format: "symbol"   # symbol | hunk_header | line_number
+    enforce_for: ["BLOCKING", "CRITICAL", "HIGH"]
+  context_escalation:
+    enabled: true                # Full-file context for P0 files
+    secondary_token_budget: 15000
+    max_file_lines: 500
+    max_file_bytes: 51200        # 50KB
+    denylist: ["*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", ".env*", "credentials.*", "secrets.*", "*.secret"]
+  secret_scanning:
+    enabled: true                # Pre-send redaction (recommended)
+    patterns:                    # Format-specific regex patterns
+      - "AKIA[0-9A-Z]{16}"
+      - "-----BEGIN[A-Z ]*PRIVATE KEY-----"
+      - "ghp_[A-Za-z0-9]{36}"
+    allowlist:                   # False-positive exclusions
+      - "sha256:[a-f0-9]{64}"
+      - "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+# -----------------------------------------------------------------------------
+# Red Team — Generative Adversarial Security Design (cycle-012, sprint-bug-102)
+# -----------------------------------------------------------------------------
+# Invoked via /red-team. Generates creative attack scenarios against design
+# documents (PRD/SDD) and synthesizes architectural counter-designs.
+#
+# IMPORTANT: Live model invocation requires:
+#   1. hounfour.flatline_routing: true  (see Hounfour section above)
+#   2. At least one provider API key: ANTHROPIC_API_KEY / OPENAI_API_KEY /
+#      GOOGLE_API_KEY / GEMINI_API_KEY
+#   3. .claude/scripts/model-invoke is executable
+#
+# When any of those is missing, the pipeline falls back to MOCK mode (fixture
+# data). Mock mode emits a visible WARNING banner so results aren't mistaken
+# for real analysis. To force a mode explicitly, the adapter accepts --live
+# or --mock.
+red_team:
+  enabled: false                # Opt-in — set true to enable /red-team
+  mode: standard                # quick | standard | deep (see SKILL.md)
+  thresholds:
+    confirmed_attack: 700       # Both models >700 → CONFIRMED_ATTACK
+    theoretical: 400
+    human_review_gate: 800      # Severity >800 requires human acknowledgment
+  budgets:
+    quick_max_tokens: 50000
+    standard_max_tokens: 200000
+    deep_max_tokens: 500000
+  # Optional: route red team through Hounfour (same routing as Flatline).
+  # If unset, inherits from hounfour.flatline_routing. Set false here to
+  # force mock mode even when Flatline runs live.
+  # routing_enabled: true
+  simstim:
+    auto_trigger: false         # Run as Phase 4.5 of /simstim
+    phase: post_sdd
+
+# -----------------------------------------------------------------------------
+# Autonomous Flatline Mode (v1.22.0)
+# -----------------------------------------------------------------------------
+# Enable Flatline Protocol to operate within autonomous workflows (/autonomous,
+# /run sprint-plan) without human intervention. HIGH_CONSENSUS findings auto-
+# integrate, BLOCKERS halt workflow, DISPUTED items are logged for post-review.
+autonomous_mode:
+  # Master toggle - set to true to enable autonomous operation
+  # Default: false (requires explicit opt-in for safety)
+  enabled: false
+
+  # Auto-enable when AI operator detected (CLAWDBOT_GATEWAY_TOKEN, LOA_OPERATOR=ai)
+  # Only triggers on "strong" signals - weak signals require explicit enabled: true
+  auto_enable_for_ai: true
+
+  # Actions for each consensus category
+  actions:
+    high_consensus: integrate    # integrate | log | skip
+    disputed: log                # halt | log | skip (logged to NOTES.md + trajectory)
+    blocker: halt                # halt | log | continue (halt generates escalation)
+    low_value: skip              # log | skip
+
+  # Behavior on unrecoverable error (auth failure, invalid response, etc.)
+  # halt: Stop workflow, generate escalation report
+  # continue: Log error, skip document, continue with next
+  on_error: halt
+
+  # Maximum disputed items before converting to BLOCKER
+  # Threshold scope determines if this is per-phase or cumulative
+  # Default: 5 per phase
+  max_disputed_items: 5
+
+  # Disputed threshold configuration
+  disputed:
+    threshold_scope: per_phase   # per_phase | cumulative
+    warn_at_percent: 60          # Warn at N% of threshold (e.g., 3/5)
+    critical_at_percent: 80      # Escalate warning at N% (e.g., 4/5)
+
+  # Timeout configuration (all values in milliseconds)
+  timeouts:
+    per_call: 60000              # Single API call timeout (60s)
+    per_document: 180000         # Total time for one document review (3min)
+    total_run: 900000            # Total time for all phases (15min)
+
+  # Retry configuration for transient errors
+  retry:
+    max_attempts: 3              # Maximum retry attempts per call
+    base_delay_ms: 1000          # Initial delay between retries
+    max_delay_ms: 30000          # Maximum delay (with exponential backoff + jitter)
+
+  # Pre-integration snapshot configuration
+  snapshots:
+    enabled: true                # Create snapshots before auto-integration
+    max_age_days: 7              # Auto-cleanup snapshots older than this
+
+    # Git integration (SECURITY: defaults to false to prevent history pollution)
+    git_commit: false            # Commit snapshots to git (default: local only)
+    git_commit_with_hooks: true  # Run pre-commit hooks when git_commit is true
+    secret_scanning: true        # Scan for secrets before git commit (gitleaks/basic)
+
+    # Storage quota management (prevents disk exhaustion)
+    max_count: 100               # Maximum number of snapshots to retain
+    max_bytes: 104857600         # Maximum total storage (100MB default)
+    on_quota: fail               # fail | purge_oldest (what to do when quota exceeded)
+
+  # Document/manifest locking (prevents concurrent modification)
+  locking:
+    enabled: true                # Enable flock()-based advisory locks
+    timeout_seconds: 10          # Lock acquisition timeout
+    stale_ttl_seconds: 300       # Auto-expire stale locks (5min)
+    max_retries: 3               # Retry attempts with exponential backoff
+
+    # Run-level isolation (prevents concurrent Flatline runs)
+    run_isolation: true          # Acquire global run mutex before starting
+
+    # NFS fallback (for shared filesystems where flock may not work)
+    nfs_fallback: true           # Use mkdir-based atomic locking as fallback
+
+# -----------------------------------------------------------------------------
+# Autonomous Flatline Examples
+# -----------------------------------------------------------------------------
+# Example 1: Minimal (AI auto-enable, safe defaults)
+# autonomous_mode:
+#   enabled: false               # Let auto_enable_for_ai handle it
+#   auto_enable_for_ai: true     # Enable when running under AI operator
+#
+# Example 2: Explicit autonomous with safety limits
+# autonomous_mode:
+#   enabled: true
+#   max_disputed_items: 3        # Lower threshold for safety
+#   timeouts:
+#     total_run: 600000          # 10 minute limit
+#   snapshots:
+#     enabled: true
+#     git_commit: false          # Local snapshots only
+#
+# Example 3: Conservative (log everything, no auto-integrate)
+# autonomous_mode:
+#   enabled: true
+#   actions:
+#     high_consensus: log        # Log instead of integrate
+#     disputed: log
+#     blocker: halt
+#     low_value: log
+#
+# Example 4: Aggressive (continue on errors) - USE WITH CAUTION
+# autonomous_mode:
+#   enabled: true
+#   on_error: continue           # Don't halt on errors
+#   actions:
+#     blocker: log               # Log blockers instead of halting
+#   # WARNING: This may allow problematic changes to accumulate
+
+# -----------------------------------------------------------------------------
+# Eval Sandbox (v1.32.0)
+# -----------------------------------------------------------------------------
+# Configuration for the eval framework: deterministic framework evals and
+# stochastic agent evals with baseline comparison and CI integration.
+# See: evals/README.md for architecture and usage.
+eval:
+  # Default suite to run when no --suite specified
+  default_suite: framework
+
+  # Sandbox mode: local (default) or container (Docker)
+  sandbox_mode: local
+
+  # Trial configuration
+  trials:
+    # Default trials for framework evals (deterministic, 1 is sufficient)
+    framework: 1
+    # Default trials for agent evals (stochastic, 3+ recommended)
+    agent: 3
+
+  # Comparison thresholds
+  comparison:
+    # Regression threshold — pass rate drop larger than this triggers regression
+    threshold: 0.10
+    # Use Wilson confidence intervals for multi-trial comparisons
+    wilson_ci: true
+    # Model version skew makes results advisory-only
+    advisory_on_model_skew: true
+
+  # CI integration
+  ci:
+    # Post PR comment with eval results
+    post_pr_comment: true
+    # Block PR on regressions (exit code 1)
+    block_on_regression: true
+    # Allow infrastructure errors to pass (exit code 2)
+    allow_infra_errors: true
+
+  # Baseline management
+  baselines:
+    # Require --reason flag when updating baselines
+    require_reason: true
+    # Directory for baseline YAML files
+    directory: evals/baselines
+
+  # Result storage
+  results:
+    # JSONL ledger for historical results
+    ledger: evals/results/eval-ledger.jsonl
+    # Retention for CI artifacts (days)
+    artifact_retention_days: 90
+
+# =============================================================================
+# Post-PR Validation Loop (v1.25.0)
+# =============================================================================
+# Automated validation after PR creation: audit, context clear, E2E, Flatline
+# PRD: grimoires/loa/prd-post-pr-validation.md
+# SDD: grimoires/loa/sdd-post-pr-validation.md
+post_pr_validation:
+  # Master toggle - set to false to disable all post-PR validation
+  enabled: true
+
+  # -------------------------------------------------------------------------
+  # Phase Toggles
+  # -------------------------------------------------------------------------
+  phases:
+    # Consolidated PR audit after PR creation
+    audit:
+      enabled: true
+      # Maximum fix iterations before escalating
+      max_iterations: 5
+      # Skip findings below this severity
+      min_severity: "medium"
+
+    # Context clearing for fresh-eyes review
+    context_clear:
+      enabled: true
+      # Write checkpoint to NOTES.md Session Continuity
+      write_checkpoint: true
+
+    # E2E testing with fresh context
+    e2e:
+      enabled: true
+      # Maximum fix iterations
+      max_iterations: 3
+      # Build command (uses package.json scripts if not specified)
+      # build_command: "npm run build"
+      # Test command (uses package.json scripts if not specified)
+      # test_command: "npm test"
+
+    # Final Flatline PR review (optional, costs ~$1.50)
+    flatline:
+      enabled: false  # Disabled by default due to cost
+      # Mode for Flatline review
+      mode: "hitl"    # hitl | autonomous
+
+    # Bridgebuilder post-PR review with auto-triage (Amendment 1, cycle-053)
+    # Closes the loop between external adversarial review and Loa state.
+    # Runs bridge-orchestrator.sh against the current PR after PR creation,
+    # parses findings via post-pr-triage.sh, and dispatches /bug for BLOCKERs.
+    # Feature-flagged OFF for progressive rollout — opt-in per Issue #464 Part B.
+    bridgebuilder_review:
+      enabled: false  # Default off; enable per-repo after validation
+      # Auto-dispatch /bug triage for BLOCKER findings in autonomous mode.
+      # Per HITL design decision #1: autonomous acts with logged reasoning.
+      auto_triage_blockers: true
+      # Bridge iteration depth (inherited from /run-bridge default)
+      depth: 5
+
+  # -------------------------------------------------------------------------
+  # Per-Phase Timeouts (seconds)
+  # -------------------------------------------------------------------------
+  timeouts:
+    post_pr_audit: 600         # 10 minutes
+    context_clear: 60          # 1 minute
+    e2e_testing: 1200          # 20 minutes
+    flatline_pr: 300           # 5 minutes
+    bridgebuilder_review: 600  # 10 minutes (Amendment 1)
+
+  # -------------------------------------------------------------------------
+  # Circuit Breakers
+  # -------------------------------------------------------------------------
+  circuit_breaker:
+    # Same finding appearing N times triggers escalation
+    same_finding_threshold: 3
+    # Same E2E failure appearing N times triggers escalation
+    same_failure_threshold: 2
+
+  # -------------------------------------------------------------------------
+  # Marker Files (Flatline IMP-008)
+  # -------------------------------------------------------------------------
+  # Stored in .run/ directory with dotfile convention
+  markers:
+    audit_passed: ".PR-AUDITED"
+    e2e_passed: ".PR-E2E-PASSED"
+    validated: ".PR-VALIDATED"
+
+  # -------------------------------------------------------------------------
+  # GitHub API Retry Policy (Flatline IMP-003)
+  # -------------------------------------------------------------------------
+  github_api:
+    max_attempts: 3
+    # Exponential backoff delays (seconds)
+    backoff: [1, 2, 4]
+    # Timeout per attempt (seconds)
+    timeout_per_attempt: 30
+
+  # -------------------------------------------------------------------------
+  # Integration with Run Mode
+  # -------------------------------------------------------------------------
+  # When run_mode creates a PR, automatically invoke post-PR validation
+  auto_invoke:
+    enabled: true
+    # Mode for auto-invoked validation
+    mode: "autonomous"
+
+# =============================================================================
+# Vision Registry Integration (v1.42.0)
+# =============================================================================
+# Weaves captured visions from bridge reviews into planning workflows.
+# Visions are speculative insights captured by Bridgebuilder during reviews.
+# This feature gives agents creative agency to surface relevant past insights
+# during /plan-and-analyze, optionally proposing vision-inspired requirements.
+#
+# Lifecycle: shadow → prompt → active → default
+# Shadow mode logs matches silently. After graduation, visions are presented
+# to the user during planning with Explore/Defer/Skip choices.
+vision_registry:
+  # Master switch — default OFF. All vision code is no-op when false.
+  enabled: false
+
+  # Shadow mode: log matches silently without presenting to user.
+  # After shadow_cycles_before_prompt cycles with matches, a graduation
+  # prompt offers to enable active mode.
+  shadow_mode: true
+  shadow_cycles_before_prompt: 2
+
+  # Status filter: which vision statuses to consider for matching.
+  status_filter:
+    - Captured
+    - Exploring
+
+  # Minimum number of tags that must overlap for a vision to be relevant.
+  min_tag_overlap: 2
+
+  # Maximum visions shown per planning session (active mode).
+  max_visions_per_session: 3
+
+  # Reference count threshold before suggesting lore elevation.
+  ref_elevation_threshold: 3
+
+  # Experimental: propose vision-inspired requirements during /plan-and-analyze.
+  # When true AND a vision is marked "Explore", 1-3 requirements tagged
+  # [VISION-INSPIRED] are proposed in a separate PRD section.
+  propose_requirements: false
+
+  # Auto-capture VISION-severity findings from bridge reviews as vision entries.
+  # When true, bridge-vision-capture.sh is invoked automatically during bridge
+  # review finalization for findings with VISION or SPECULATION severity.
+  bridge_auto_capture: false
+
+# =============================================================================
+# /spiral Autopoietic Meta-Orchestrator (cycle-066, RFC-060 #483)
+# =============================================================================
+# Multi-cycle autonomous development loop. Each cycle runs /simstim; outputs
+# (visions, lore, bridge findings) become the next cycle's inputs via the
+# existing post-merge HARVEST pipeline. Terminates on cycle budget, flatline,
+# cost, wall-clock, quality-gate failure, or HITL halt.
+#
+# SAFETY FLOORS (hardcoded, cannot be overridden by config):
+#   - max_cycles        ≤ 50
+#   - budget_cents      ≤ 10000 ($100)
+#   - wall_clock_seconds ≤ 86400 (24h)
+#
+# Status: v0.1.0 MVP scaffolding. Cycle dispatch wires in cycle-067+.
+# See: grimoires/loa/proposals/rfc-060-spiral.md
+spiral:
+  # Master switch — default OFF. /spiral exits early with guidance when false.
+  enabled: false
+
+  # Default cycle budget
+  default_max_cycles: 3
+
+  # Kaironic convergence: two consecutive cycles below this many new findings
+  # trigger flatline termination.
+  flatline:
+    min_new_findings_per_cycle: 3
+    consecutive_low_cycles: 2
+
+  # Cost budget (cents). Safety floor: 10000 ($100).
+  budget_cents: 2000
+
+  # Wall-clock budget (seconds). Safety floor: 86400 (24h).
+  wall_clock_seconds: 28800
+
+  # SEED phase: pull prior cycle outputs into this cycle's discovery context.
+  # Gated separately because Vision Registry is in shadow_mode (#486).
+  seed:
+    enabled: false
+    include_visions: true
+    include_lore: true
+    include_deferred_findings: true
+    max_seed_tokens: 2000
+
+  # HITL halt sentinel — creating this file mid-spiral halts gracefully.
+  halt_sentinel: ".run/spiral-halt"
+
+  # ── Evidence-Gated Harness (cycle-071) ──────────────────────────────
+  # Phase-as-subprocess: each phase is a separate claude -p call.
+  # Gate-as-script: Flatline/Review/Audit run in bash (LLM cannot skip).
+  harness:
+    enabled: true                    # Use harness vs monolithic dispatch
+    max_phase_retries: 3             # Retries per gate on failure
+
+    # cycle-092 Sprint 4 (#598) — SIMSTIM heartbeat (editor of intent in-flight)
+    heartbeat:
+      enabled: true                  # Spawn heartbeat emitter daemon during cycles
+      interval_sec: 60               # Emit [HEARTBEAT] every N seconds (clamp [30, 300])
+      budget_usd: 80                 # Budget displayed in heartbeat line
+      format: editor                 # editor (3-line, default) | compact | json (S5 stretch — editor fallback + warning)
+      intent:
+        enabled: true                # Emit [INTENT <ts>] lines on phase boundary
+        sources:                     # Per-phase source-file mapping for intent text
+          IMPLEMENTATION: grimoires/loa/a2a/engineer-feedback.md
+          IMPL_FIX:       grimoires/loa/a2a/engineer-feedback.md
+          AUDIT:          grimoires/loa/a2a/auditor-sprint-feedback.md
+      confidence_cues: true          # Surface "attempt N of 3 · last chance" etc.
+      pace_baselines_min:            # Per-phase baseline for pace classification (minutes)
+        discovery: 4
+        architecture: 4
+        planning: 4
+        flatline: 2
+        implementation: 18
+        review: 4
+        audit: 4
+        impl_fix: 10
+      # SpiralPhaseComplete hook — operator-configurable per-phase notification.
+      # Deferred to post-cycle-092 work: schema reserved for forward compat,
+      # but actual dispatching from _emit_dashboard_snapshot(PHASE_EXIT) is
+      # scope-split. Env vars at dispatch time: PHASE, COST, DURATION_SEC, CYCLE_ID.
+      phase_complete_hook:
+        enabled: false               # Post-cycle-092 follow-up
+        command: ""                  # e.g. 'osascript -e ... notification' on macOS
+
+    # Per-phase budget caps (claude -p --max-budget-usd)
+    planning_budget_usd: 1           # PRD, SDD, Sprint (each)
+    implement_budget_usd: 5          # Code + tests + commit
+    review_budget_usd: 2             # Independent review session
+    audit_budget_usd: 2              # Independent audit session
+
+    # Advisor Strategy: Sonnet executes (~5x cheaper), Opus judges.
+    # See: grimoires/loa/reports/spiral-harness-benchmark-report.md
+    executor_model: sonnet           # PRD, SDD, Sprint, Implementation
+    advisor_model: opus              # Review, Audit (judgment quality)
+
+    # Pipeline Profiles (cycle-072): match intensity to task complexity.
+    # full     = all 3 Flatline gates + Opus advisor ($15 budget)
+    # standard = Sprint Flatline only + Opus advisor ($12 budget) [DEFAULT]
+    # light    = no Flatline + Sonnet advisor ($8 budget)
+    # Override per-cycle: --profile light
+    pipeline_profile: standard
+
+  # ── Off-Hours Scheduling (cycle-072) ────────────────────────────────
+  # Run spiral cycles during AFK/sleep windows against included token
+  # allowances instead of burning paid overage.
+  # Entry point: .claude/scripts/spiral-scheduler.sh
+  # Schedule via: CronCreate, RemoteTrigger, or /schedule skill
+  scheduling:
+    enabled: false                   # Must opt-in
+    windows:
+      - start_utc: "02:00"          # When to begin (HH:MM UTC)
+        end_utc: "08:00"            # When to halt gracefully
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill                   # "fill" = use full window; "single" = one cycle; "continuous" = ignore window, run until other conditions stop
+    max_cycles_per_window: 3         # Safety cap per scheduling window
+
+# Prompt Isolation (v1.42.0)
+# De-authorization wrappers for untrusted content in LLM prompts.
+# Wraps external/user content in de-authorization envelope that prevents
+# prompt injection from reviewed documents, PR diffs, and learning content.
+# See vision-003: Context Isolation as Prompt Injection Defense.
+prompt_isolation:
+  # Master switch. When false, isolate_content() passes through unchanged.
+  enabled: true
+
+# =============================================================================
+# Run Bridge — Autonomous Excellence Loop (v1.34.0)
+# =============================================================================
+# Iterative sprint-plan → Bridgebuilder review → findings → repeat loop.
+# Each iteration leaves a GitHub trail and captures visions.
+run_bridge:
+  # Master toggle — must be true to use /run-bridge
+  enabled: false
+
+  # ── Quick Start Profiles ──
+  # Minimal (convergence only): enabled: true — all sub-features default false
+  # Standard (+ cross-repo + lore): also set cross_repo_query.enabled: true
+  # Exploration (all features):  also set research_mode.enabled: true,
+  #   research_mode.inquiry_enabled: true, vision_registry.activation_enabled: true
+
+  # Default parameters
+  defaults:
+    # Maximum bridge iterations (1-5). Default 3 is empirical: code PRs
+    # (what /run-bridge iterates on) plateau at 2 iters (cycles 102-114
+    # record) — override here or with --depth N. See run-bridge-reference.md.
+    depth: 3
+    # Review after each sprint vs full plan
+    per_sprint: false
+    # Flatline threshold: ratio of current/initial score below which to count as "flat"
+    flatline_threshold: 0.05
+    # How many consecutive below-threshold iterations before stopping
+    consecutive_flatline: 2
+
+  # Timeout limits
+  timeouts:
+    # Maximum hours per bridge iteration
+    per_iteration_hours: 4
+    # Maximum total hours for entire bridge run
+    total_hours: 24
+
+  # GitHub trail configuration
+  github_trail:
+    # Post Bridgebuilder review as PR comment after each iteration
+    post_comments: true
+    # Update PR body with iteration summary table
+    update_pr_body: true
+    # Commit message prefix for bridge iteration commits
+    commit_prefix: "bridge"
+
+  # Ground Truth generation
+  ground_truth:
+    enabled: true
+    # Max tokens per GT section file
+    max_tokens_per_section: 2000
+    # Max tokens for GT index file
+    index_max_tokens: 500
+
+  # Vision Registry
+  vision_registry:
+    enabled: true
+    # Auto-capture VISION findings from Bridgebuilder reviews
+    auto_capture: true
+    # FR-3: Activate relevant visions during bridge cycles (scan for tag overlap)
+    activation_enabled: false
+
+  # RTFM documentation gate (runs after loop termination)
+  rtfm:
+    enabled: true
+    # Maximum fix iterations on RTFM failure (capped to prevent loops)
+    max_fix_iterations: 1
+
+  # Lore integration
+  lore:
+    enabled: true
+    # Which lore categories to load for bridge context
+    categories:
+      - mibera
+      - neuromancer
+
+  # Bridgebuilder persona enrichment (v1.35.0)
+  bridgebuilder:
+    # Enable persona-driven enriched reviews
+    persona_enabled: true
+    # Path to persona definition file
+    persona_path: .claude/data/bridgebuilder-persona.md
+    # Include enriched fields (faang_parallel, metaphor, teachable_moment, connection)
+    enriched_findings: true
+    # Generate insights stream (rich prose surrounding findings)
+    insights_stream: true
+    # Include PRAISE severity findings for good engineering decisions
+    praise_findings: true
+    # Verify persona file integrity against base branch
+    integrity_check: true
+    # Token budget for review output
+    token_budget:
+      # Maximum tokens for findings JSON stream
+      findings_tokens: 5000
+      # Maximum tokens for insights prose stream
+      insights_tokens: 25000
+      # Maximum total tokens (both streams)
+      total_tokens: 30000
+    # Size limits for PR comments
+    size_limits:
+      # Truncate preserving findings JSON (65KB)
+      truncate_bytes: 66560
+      # Findings-only emergency fallback (256KB)
+      findings_only_bytes: 262144
+    # Security content redaction
+    redaction:
+      # Enable gitleaks-inspired pattern redaction
+      enabled: true
+      # Block posting if secrets remain after redaction
+      post_redaction_safety: true
+
+  # Cross-Repository Pattern Query (FR-1, v1.40.0)
+  # Discovers structural parallels across sibling repos before each bridge review.
+  # Resolution: sibling directory → config override → REMOTE: GitHub API fallback.
+  cross_repo_query:
+    enabled: false                  # Enable cross-repo pattern matching
+    # ecosystem:                    # Override auto-discovery of sibling repos
+    #   - /path/to/sibling-repo
+    #   - REMOTE:0xHoneyJar/loa-hounfour
+    budget: 2000                    # Token budget per repo query
+    max_repos: 5                    # Maximum repos to query per iteration
+    per_repo_timeout: 5             # Per-repo timeout (seconds)
+    timeout: 15                     # Total timeout for all queries (seconds)
+
+  # Research Mode (FR-2, v1.40.0) — Divergent Exploration Iterations
+  # After convergence iterations, optionally run a divergent exploration that
+  # produces SPECULATION-only findings excluded from flatline scoring.
+  research_mode:
+    enabled: false                  # Enable research mode
+    trigger_after_iteration: 1      # Fire after N convergent iterations complete
+    max_research_iterations: 1      # Maximum research iterations per bridge run
+    inquiry_enabled: false          # Also trigger multi-model inquiry (FR-4)
+
+  # Pipeline Self-Review (cycle-046 FR-3) — pipeline code reviews itself
+  pipeline_self_review:
+    enabled: false                  # Enable pipeline self-review during bridge
+
+  # Red Team Compliance Gate Profiles (cycle-047)
+  # Each profile defines keywords for SDD section extraction and a prompt template
+  # for model evaluation. See .claude/scripts/lib/compliance-lib.sh for details.
+  # compliance_gates:
+  #   security:
+  #     keywords: [Security, Authentication, Authorization, Validation]
+  #     prompt_template: "security-comparison"   # Default template
+  #   # api_contract:                            # Future profile
+  #   #   keywords: [API, Endpoint, Contract, Schema, Interface]
+  #   #   prompt_template: "api-contract"
+  #   # economic_invariant:                      # Future profile
+  #   #   keywords: [Economic, Invariant, Token, Governance, Vault]
+  #   #   prompt_template: "economic-invariant"
+
+# =============================================================================
+# Agent Teams Compatibility (v1.39.0)
+# =============================================================================
+# Experimental: Requires CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+# Enables multi-agent orchestration with Loa's workflow.
+# See: .claude/loa/reference/agent-teams-reference.md
+agent_teams:
+  # Detection mode: auto (use if available), true (require), false (disable)
+  enabled: auto
+
+  # Beads access model: Only the team lead runs br commands;
+  # teammates report task status via SendMessage
+  beads_access: lead_only
+
+  # State file behavior when Agent Teams is active
+  state_files:
+    # Use teammate-scoped state files (.run/*.{name}.json)
+    scoped: true
+    # Lead merges teammate state into canonical files on TeamDelete
+    merge_on_shutdown: true
+
+# =============================================================================
+# Post-Merge Automation Pipeline (v1.36.0)
+# =============================================================================
+# Automated post-merge pipeline triggered on push to main.
+# 3-layer architecture: GH Actions → claude-code-action → shell orchestrator.
+#
+# Workflow file `.github/workflows/post-merge.yml` is scaffolded automatically
+# by `mount-loa.sh` / `mount-submodule.sh` on first install (Issue #669) and
+# preserved on re-mount. Submodule installs require `submodules: recursive`
+# on actions/checkout (baked into the upstream template) so symlinked
+# `.claude/scripts/*` paths resolve at runtime.
+post_merge:
+  # Master toggle — must be true for GH Actions workflow to process merges
+  enabled: false
+
+  # Phase matrix for each PR type
+  # cycle: all 8 phases (classify, semver, changelog, gt_regen, rtfm, tag, release, notify)
+  # bugfix: 4 phases (classify, semver, tag, notify)
+  # other: 4 phases (classify, semver, tag, notify)
+
+  # claude-code-action configuration
+  claude_code_action:
+    # Model for cycle pipeline execution
+    model: "claude-sonnet-4-5-20250929"
+    # Maximum conversation turns
+    max_turns: 15
+    # Tool allowlist
+    allowed_tools: "Bash(bash),Read,Write,Glob,Grep"
+
+  # Timeouts
+  timeouts:
+    # Full pipeline timeout in minutes (GH Actions job timeout)
+    full_pipeline_minutes: 30
+
+  # Phase-specific options
+  phases:
+    # Skip ground truth regeneration
+    skip_gt: false
+    # Skip RTFM validation
+    skip_rtfm: false
+
+  # Lore promoter (cycle-061, #484)
+  # When enabled, the post-merge pipeline auto-promotes PRAISE candidates
+  # from .run/bridge-lore-candidates.jsonl into grimoires/loa/lore/patterns.yaml
+  # via lore-promote.sh --auto (threshold 2 — pattern must recur across ≥2
+  # distinct merged PRs to qualify). Without this enabled, lore-promote.sh
+  # ships in v1.80.0 but never runs in practice — the autopoietic spiral
+  # never closes.
+  #
+  # Default false — opt-in per repo. Recommended to enable once the
+  # downstream Loa user has reviewed the lore promoter contract.
+  lore_promote:
+    enabled: false
+
+  # Notification
+  notify:
+    # Post pipeline summary as PR comment
+    pr_comment: true
+    # Discord notification on failure (requires DISCORD_WEBHOOK_URL secret)
+    discord_on_failure: true
+
+# =============================================================================
+# Harness Engineering — Safety Hooks, Deny Rules, Audit (v1.37.0)
+# =============================================================================
+# Defense-in-depth configuration for agent safety. Hooks operate at the Claude
+# Code platform level, providing protection across all modes (interactive,
+# autonomous, simstim). Source: Trail of Bits + OpenAI harness patterns.
+harness:
+  # Safety hooks — PreToolUse:Bash destructive command blocking
+  safety_hooks:
+    enabled: true                         # Master toggle for safety hook
+    # Individual pattern toggles (all true by default)
+    block_rm_rf: true                     # Block rm -rf (suggest trash)
+    block_force_push: true                # Block git push --force (suggest --force-with-lease)
+    block_reset_hard: true                # Block git reset --hard (suggest git stash)
+    block_git_clean: true                 # Block git clean -f without -n dry-run
+
+  # Deny rules — platform-level file access blocking
+  deny_rules:
+    # Auto-install during /mount (blocks ~/.ssh, ~/.aws, ~/.kube, etc.)
+    auto_install: true                    # Set false to skip during /mount
+    # Template: .claude/hooks/settings.deny.json
+    # Installer: .claude/scripts/install-deny-rules.sh
+
+  # Audit logging — PostToolUse:Bash mutation logger
+  audit_logging:
+    enabled: true                         # Log mutating commands to .run/audit.jsonl
+    max_file_size_mb: 10                  # Rotate when audit log exceeds this size
+
+  # Stop guard — prevent premature exit during autonomous runs
+  stop_guard:
+    enabled: true                         # Check for active /run, /run-bridge, /simstim
+
+  # Invariant linter — mechanical validation of Loa structure
+  invariant_linting:
+    enabled: true                         # Enable lint-invariants.sh
+    on_mount: true                        # Run after /mount
+    on_run_preflight: true                # Run during /run preflight
+
+# =============================================================================
+# Bridgebuilder — Autonomous PR Review
+# =============================================================================
+# Configuration for the /bridgebuilder skill. All fields have sensible defaults.
+# Precedence: CLI flags > env vars > this config > auto-detect > built-in defaults.
+bridgebuilder:
+  # Master toggle — set to false to disable the skill entirely
+  enabled: true
+
+  # Additional repositories to review (owner/repo format).
+  # Auto-detected repo from git remote is always included unless --no-auto-detect.
+  # Env: BRIDGEBUILDER_REPOS (comma-separated)
+  repos: []
+
+  # LLM model for generating reviews.
+  # Env: BRIDGEBUILDER_MODEL
+  model: "claude-sonnet-4-5-20250929"
+
+  # Maximum open PRs to process per run
+  max_prs: 10
+
+  # Maximum files per PR (excess truncated, risk-prioritized: security files first)
+  max_files_per_pr: 50
+
+  # Maximum diff size in bytes (100KB default)
+  max_diff_bytes: 100000
+
+  # Token budget for LLM input (persona + diff + metadata)
+  max_input_tokens: 8000
+
+  # Maximum response tokens for generated review
+  max_output_tokens: 4000
+
+  # Review dimensions (subset of: security, quality, test-coverage, operational-readiness)
+  dimensions:
+    - security
+    - quality
+    - test-coverage
+
+  # HTML comment marker for idempotency detection
+  review_marker: "bridgebuilder-review"
+
+  # Path to persona override (project-specific reviewer personality).
+  # Falls back to built-in resources/BEAUVOIR.md if file not found.
+  persona_path: "grimoires/bridgebuilder/BEAUVOIR.md"
+
+  # Exit code of a multi-model run whose consensus is DEGRADED: fewer voices completed than planned, or a
+  # degraded verdict-quality band (cycle-129, DEC-0150). The JSON and the PR comments are written first;
+  # callers treat 3 as "completed, degraded" and print a WARN naming the voices. 0 restores the pre-cycle-129
+  # exit (rollback key). Two values are meaningful to the callers (spiral-harness.sh, the session-cap dispatcher):
+  # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
+  # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
+  # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
+  # Trusted config drift: cheval reads the checkout's configuration for the dispatch, so a pull request whose
+  # head changes hounfour.providers, hounfour.aliases, hounfour.locality or the secret allowlist is refused by
+  # name before any voice is planned (exit 5): merge the base branch into the head, or set
+  # BRIDGEBUILDER_TRUSTED_CONFIG to the configuration you vouch for.
+  exit_on_degraded: 3
+
+# =============================================================================
+# QMD Context Query — Unified context retrieval with three-tier fallback
+# =============================================================================
+# Controls the qmd-context-query.sh script that provides semantic search
+# across grimoires, skills, notes, and reality files.
+# Three-tier fallback: QMD (semantic) → CK (code knowledge) → grep (text)
+
+qmd_context:
+  # Master switch — set to false to disable all context injection
+  enabled: true
+
+  # Default token budget for context results (word_count × 1.3)
+  default_budget: 2000
+
+  # Timeout in seconds for each search tier
+  timeout_seconds: 5
+
+  # Scope definitions — map scope names to backend-specific paths
+  scopes:
+    grimoires:
+      qmd_collection: "loa-grimoire"
+      ck_path: ".ck/loa-grimoire/"
+      grep_paths:
+        - "grimoires/loa/"
+    skills:
+      qmd_collection: "loa-skills"
+      ck_path: ".ck/skills/"
+      grep_paths:
+        - ".claude/skills/"
+    notes:
+      qmd_collection: "loa-grimoire"
+      ck_path: ".ck/loa-grimoire/"
+      grep_paths:
+        - "grimoires/loa/NOTES.md"
+    reality:
+      qmd_collection: "loa-reality"
+      ck_path: ".ck/reality/"
+      grep_paths:
+        - "grimoires/loa/reality/"
+
+  # Per-skill budget and scope overrides
+  # Keys match the --skill argument passed by each SKILL.md integration:
+  #   implement      → /implement (implementing-tasks/SKILL.md)
+  #   review_sprint  → /review-sprint (reviewing-code/SKILL.md)
+  #   ride           → /ride (riding-codebase/SKILL.md)
+  #   run_bridge     → /run-bridge (bridge-orchestrator.sh)
+  #   gate0          → preflight.sh run_integrity_checks()
+  skill_overrides:
+    implement:
+      budget: 2000
+      scope: grimoires
+    review_sprint:
+      budget: 1500
+      scope: grimoires
+    ride:
+      budget: 2000
+      scope: reality
+    run_bridge:
+      budget: 2500
+      scope: grimoires
+    gate0:
+      budget: 1000
+      scope: notes
+
+# -----------------------------------------------------------------------------
+# Operator OS — Personal workflow modes (cycle-051)
+# -----------------------------------------------------------------------------
+# Define named modes that bundle constructs with merged gates and a single
+# entry point command. Activate with: archetype-resolver.sh activate <mode>
+#
+# operator_os:
+#   modes:
+#     feel:
+#       constructs: [artisan, observer]
+#       entry_point: /feel
+#     dig:
+#       constructs: [k-hole]
+#       entry_point: /dig
+
+# -----------------------------------------------------------------------------
+# Construct ambient settings (cycle-051)
+# -----------------------------------------------------------------------------
+# Controls session-start greeting, thread lifecycle, and local source paths.
+#
+# constructs:
+#   ambient_greeting: false   # Show greeting on session start (opt-in)
+#   thread_archive_days: 30   # Auto-archive open threads after N days
+#   local_source_paths:       # Local clone search paths for /constructs install
+#     - ~/Documents/GitHub/construct-{slug}
+
+# -----------------------------------------------------------------------------
+# cycle-095 — Model Currency operator surface (Sprints 1+2)
+# -----------------------------------------------------------------------------
+# All blocks are commented (defaults preserve previous behavior). Uncomment
+# to opt in.
+#
+# Pro-tier opt-in: retargets aliases declared in tier_groups.mappings to
+# their *-pro counterparts when prefer_pro_models: true. Default false
+# (cost-safety). Sprint 3 wires the flag into the config loader.
+# WARNING: enables ~5-10x cost increase on reasoning_tokens-charged calls.
+#
+# hounfour:
+#   prefer_pro_models: false        # Sprint 3 — opt-in flag
+#   experimental:
+#     # Operational kill-switch: restore pre-cycle-095 alias resolution
+#     # at config-load time. Equivalent to LOA_FORCE_LEGACY_ALIASES=1.
+#     force_legacy_aliases: false
+#     # Forward-compat policy for /v1/responses output[].type values not
+#     # in the §5.4 normalization matrix. Default "strict" raises
+#     # UnsupportedResponseShapeError; "degrade" skips the unknown block
+#     # with a once-per-process WARN.
+#     responses_unknown_shape_policy: strict
+#
+# tier_groups:
+#   mappings: {}                    # Sprint 3 populates with reviewer/reasoning -> *-pro targets
+#   denylist: []                    # alias names to opt out of retargeting
+#   max_cost_per_session_micro_usd: null   # set integer for hard per-session cap (e.g., 100000000 = $100)
+#   override_user_aliases: false    # Sprint 3 — when true, mappings WIN over user pins
+#
+# Environment-variable equivalents:
+#   LOA_FORCE_LEGACY_ALIASES=1            # operator escape hatch (alias rollback)
+#   LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat  # one-shot migration backstop for custom OpenAI entries
+#   LOA_RESPONSES_UNKNOWN_SHAPE_POLICY=degrade  # one-shot graceful degradation
+#   LOA_PREFER_PRO_DRYRUN=1               # preview retargets without applying (Sprint 2)
+
+# -----------------------------------------------------------------------------
+# cycle-098 — Agent-Network Primitives (Sprint 1+ — opt-in)
+# -----------------------------------------------------------------------------
+# Seven named primitives (L1..L7) for autonomous adjudication, budget,
+# scheduled cycles, trust, cross-repo reads, structured handoffs, and SOUL.
+# All primitives default to disabled. Tier validator (CC-10) classifies the
+# enabled set on boot. tier_enforcement_mode controls behavior on unsupported
+# combinations: "warn" (default) prints a warning; "refuse" halts boot.
+#
+# Currently shipped (Sprint 1):
+#   - L1 hitl-jury-panel (this section's hitl_jury_panel block)
+#   Audit-envelope shared infrastructure (.run/<primitive>-events.jsonl)
+#
+# Pending (Sprint 2..7):
+#   - L2 cost-budget-enforcer
+#   - L3 scheduled-cycle-template
+#   - L4 graduated-trust
+#   - L5 cross-repo-status-reader
+#   - L6 ostrom-handoff
+#   - L7 soul-md
+#
+# agent_network:
+#   primitives:
+#     L1:
+#       enabled: false      # opt-in; see hitl_jury_panel block below
+#     L2:
+#       enabled: false
+#     L3:
+#       enabled: false
+#     L4:
+#       enabled: false
+#     L5:
+#       enabled: false
+#     L6:
+#       enabled: false
+#     L7:
+#       enabled: false
+#
+# tier_enforcement_mode: warn   # warn (default) | refuse
+
+# -----------------------------------------------------------------------------
+# L1 hitl-jury-panel — N-panelist random-selection adjudicator
+# -----------------------------------------------------------------------------
+# When enabled, replaces routine AskUserQuestion-class decisions during
+# operator absence with a deterministic-seed jury panel. Logs all panelist
+# views BEFORE selection (auditable on crash). Protected-class decisions
+# always route to .run/protected-queue.jsonl regardless of this flag.
+#
+# Source: RFC #653; PRD §FR-L1; SDD §1.4.2 + §5.3
+#
+# hitl_jury_panel:
+#   enabled: false                         # opt-in
+#   default_panelists:
+#     - id: persona-a
+#       model: opus
+#       persona_file: .claude/data/personas/persona-a.md
+#     - id: skeptic
+#       model: opus
+#       persona_file: .claude/data/personas/skeptic.md
+#     - id: alternative-model
+#       model: gpt-5.3-codex
+#       persona_file: .claude/data/personas/alternative-model.md
+#   selection: random                      # random | (future: weighted | round-robin)
+#   seed_source: decision_id+context_hash  # FR-L1-3
+#   audit_log: .run/panel-decisions.jsonl
+#   default_disagreement_threshold: 0.5
+#
+# Environment variables:
+#   LOA_PANEL_AUDIT_LOG               override audit log path
+#   LOA_PANEL_PROTECTED_QUEUE         override protected-queue path
+#   LOA_PANEL_PER_PANELIST_TIMEOUT    per-panelist timeout in seconds (default 60)
+#   LOA_PANEL_MIN_PANELISTS           min surviving panelists for BOUND (default 2)
+#   LOA_PANEL_DISAGREEMENT_FN         path to caller-supplied disagreement script
+#                                      (default: no-op pass per FR-L1-6)
+
+# -----------------------------------------------------------------------------
+# L2 cost-budget-enforcer — daily token cap with fail-closed semantics
+# -----------------------------------------------------------------------------
+# When enabled, paid calls go through budget_verdict before execution. The
+# verdict is one of {allow, warn-90, halt-100, halt-uncertainty}. The fifth
+# halt-uncertainty mode covers 5 failure cases (billing API stale, counter
+# inconsistent, counter drift, clock drift, provider lag) — fail-closed under
+# all uncertainty.
+#
+# Sprint 2 ships: state machine, reconciliation cron (default 6h cadence),
+# daily snapshot job for hash-chain recovery (RPO 24h).
+#
+# Source: RFC #654; PRD §FR-L2; SDD §1.4.2 + §1.5.3 + §5.4
+#
+# cost_budget_enforcer:
+#   daily_cap_usd: 50.00                          # FR-L2-1..4 reference
+#   freshness_threshold_seconds: 300              # 5 min — billing data is "fresh"
+#   stale_halt_pct: 75                            # counter % triggering stale_halt + provider_lag
+#   clock_tolerance_seconds: 60                   # ±60s for clock_drift
+#   provider_lag_halt_seconds: 300                # 5 min provider_lag threshold
+#   billing_stale_halt_seconds: 900               # 15 min billing_stale threshold
+#   audit_log: .run/cost-budget-events.jsonl
+#   billing_observer_cmd: /path/to/observer-shim.sh   # caller-supplied UsageObserver
+#   # Sprint H2 (#708 F-005): observer cmd path MUST live under one of the
+#   # allowed_observer_paths prefixes. Defaults to .claude/scripts/observers
+#   # and .run/observers if unset. Without this allowlist, an attacker who
+#   # could set LOA_BUDGET_OBSERVER_CMD via env-var injection achieved
+#   # arbitrary execution in the L2 process. Tests can widen the allowlist
+#   # via env: LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES (colon-separated).
+#   allowed_observer_paths:
+#     - .claude/scripts/observers
+#     - .run/observers
+#   per_provider_caps:                            # optional sub-caps per provider
+#     openai: 5.00
+#     anthropic: 30.00
+#   providers:                                    # used by reconciliation cron
+#     - aggregate
+#     - anthropic
+#     - openai
+#   reconciliation:
+#     interval_hours: 6                           # cron cadence (1..24)
+#     drift_threshold_pct: 5.0                    # FR-L2-5 BLOCKER threshold
+#
+# Environment variable overrides (see .claude/scripts/lib/cost-budget-enforcer-lib.sh):
+#   LOA_BUDGET_LOG                  override audit log path
+#   LOA_BUDGET_DAILY_CAP_USD        override daily cap
+#   LOA_BUDGET_DRIFT_THRESHOLD      override reconcile drift threshold pct
+#   LOA_BUDGET_FRESHNESS_SECONDS    override freshness threshold
+#   LOA_BUDGET_STALE_HALT_PCT       override stale-halt counter %
+#   LOA_BUDGET_CLOCK_TOLERANCE      override clock tolerance seconds
+#   LOA_BUDGET_LAG_HALT_SECONDS     override provider-lag threshold
+#   LOA_BUDGET_BILLING_STALE_SECONDS override billing-stale threshold
+#   LOA_BUDGET_OBSERVER_CMD         override billing-observer path
+#   LOA_BUDGET_TEST_NOW             test-only override for "now"
+#
+# To install/uninstall the reconciliation cron:
+#   .claude/scripts/budget/budget-reconcile-install.sh install
+#   .claude/scripts/budget/budget-reconcile-install.sh uninstall
+
+# -----------------------------------------------------------------------------
+# L3 scheduled-cycle-template — generic 5-phase autonomous-cycle skeleton
+# -----------------------------------------------------------------------------
+# Composes /schedule (cron registration) with the audit envelope into a
+# 5-phase contract: reader → decider → dispatcher → awaiter → logger. flock
+# guards concurrency; cycle_id (content-addressed) provides idempotency;
+# optional L2 budget pre-check halts cycles before they spend.
+#
+# Each ScheduleConfig is a small YAML pointing at the five phase scripts.
+# Worked example: .claude/skills/scheduled-cycle-template/contracts/example-schedule.yaml
+#
+# Source: RFC #655; PRD §FR-L3 (8 ACs); SDD §1.4.2 + §5.5
+#
+# scheduled_cycle_template:
+#   enabled: false                              # opt-in
+#   audit_log: .run/cycles.jsonl                # cycle.{start,phase,complete,error,lock_failed}
+#   lock_dir: .run/cycles                       # per-schedule lock files: <lock_dir>/<schedule_id>.lock
+#   lock_timeout_seconds: 30                    # flock acquire timeout (FR-L3-5)
+#   budget_pre_check: false                     # opt-in to L2 cost-budget gate (FR-L3-6, CC-9)
+#   max_cycle_seconds: 14400                    # cap on (timeout_seconds × 5 phases); rejects malicious schedules
+#   phase_path_allowed_prefixes:                # phase scripts MUST live under one of these
+#     - .claude/skills                          #   Defaults shown; canonicalized via realpath +
+#     - .run/schedules                          #   prefix-match. Add deployment-specific dirs here.
+#     - .run/cycles-contracts
+#   schedules: []                               # array of ScheduleConfig YAML paths
+#
+# Environment variable overrides (see .claude/scripts/lib/scheduled-cycle-lib.sh):
+#   LOA_CYCLES_LOG                       override audit log path
+#   LOA_L3_LOCK_DIR                      override lock directory
+#   LOA_L3_LOCK_TIMEOUT_SECONDS          override flock acquire timeout
+#   LOA_L3_BUDGET_PRECHECK_ENABLED       "1"/"true" to enable L2 gate
+#   LOA_L3_KILL_GRACE_SECONDS            grace period after timeout TERM before KILL (default 5)
+#   LOA_L3_TEST_NOW                      test-only override for "now"
+#   LOA_L3_TEST_MODE                     "1" enables test-only escape hatches (LOA_L3_L2_LIB_OVERRIDE);
+#                                          implicit when running under bats (BATS_TEST_DIRNAME set)
+#   LOA_L3_PHASE_PATH_ALLOWED_PREFIXES   colon-separated list overriding the yaml allowlist
+#   LOA_L3_PHASE_ENV_PASSTHROUGH         space-separated extra env-var names to expose to phase scripts
+#                                          (default allowlist is minimal: PATH/HOME/USER/LANG/...);
+#                                          only [A-Z_][A-Z0-9_]* names accepted
+#   LOA_L3_MAX_CYCLE_SECONDS             override max projected cycle time (default 14400)
+#   LOA_L3_L2_LIB_OVERRIDE               TEST-ONLY: path to override L2 lib for graceful-skip testing
+#
+# CLI:
+#   .claude/scripts/lib/scheduled-cycle-lib.sh invoke <schedule.yaml> [--cycle-id <id>] [--dry-run]
+#   .claude/scripts/lib/scheduled-cycle-lib.sh idempotency-check <cycle_id>
+#   .claude/scripts/lib/scheduled-cycle-lib.sh replay [<log_path>] [--cycle-id <id>]
+#
+# Cron registration is done via /schedule pointing at the `invoke` subcommand.
+
+# -----------------------------------------------------------------------------
+# Session-cap post-reset fan-out — cycle-117 Wave-2 item B (bd-c117-b-fanout-5ggb)
+# -----------------------------------------------------------------------------
+# Translates configured session-limit reset windows into L3 ScheduleConfig
+# YAMLs (validated via scheduled-cycle-lib.sh's own `register` entry point,
+# per the "mutate only via lib entry points" invariant) plus real crontab
+# entries with deterministic off-:00/:30 per-repo minute jitter. Item A
+# (bd-c117-a-session-cap-x04j) owns .run/session-limit-state.json and writes
+# NO config here — this block belongs to item B alone.
+#
+# SCOPE (read before enabling — bd-fanout-real-dispatch-9jv6, Tranche 1): the
+# `bridgebuilder` phase now dispatches a REAL review. Its dispatch_contract
+# points at .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/,
+# whose FAIL-CLOSED decider fires bridgebuilder-review's headless entrypoint
+# (resources/entry.sh — a real CLI that spiral-harness.sh already runs
+# unattended; the prior "no standalone CLI entrypoint" claim was FALSE) only
+# when the captured session-limit snapshot shows sprint_plan/bridge state
+# RUNNING or HALTED. BB runs with no --pr, so it self-discovers open PRs and
+# dedups. ENABLING THIS ARMS UNATTENDED, ON-CRON POSTING OF LIVE PR REVIEW
+# COMMENTS — the `enabled: false` default below keeps it disarmed.
+#
+# The `flatline` and `red_team` phases REMAIN shipped no-op example-*.sh
+# placeholders (Tranche 2, deferred): unlike BB, both hard-require an explicit
+# --doc <path> and cannot resolve a target from the session-limit snapshot.
+# Wiring them needs an operator decision on current-state vs resume-exact
+# doc-targeting semantics — until then those labels produce an audit trail
+# only and do NOT re-run any real review.
+#
+# session_cap:
+#   reset_windows: []                          # e.g. ["02:00 Australia/Melbourne"]
+#                                               #   "HH:MM <IANA-TZ>" strings
+#   post_reset_fanout:
+#     enabled: false                           # opt-in; false short-circuits install
+#     phases:                                  # v1: label only (see SCOPE note above)
+#       - flatline
+#       - bridgebuilder
+#       - red_team
+#     cron_jitter_min: 7                       # minute offset range [1, cron_jitter_min];
+#                                               #   integer 1..59, else defaults to 7
+#
+# To install/uninstall the fan-out schedules + crontab entries:
+#   .claude/scripts/session-cap-fanout.sh install [--dry-run]
+#   .claude/scripts/session-cap-fanout.sh uninstall   # alias: --off
+#   .claude/scripts/session-cap-fanout.sh status
+#   .claude/scripts/session-cap-fanout.sh show
+
+# -----------------------------------------------------------------------------
+# Audit-log daily snapshot — RPO 24h for L1/L2 chain-critical untracked logs
+# -----------------------------------------------------------------------------
+# Sprint 2C ships the producer side of the L1/L2 hash-chain recovery loop.
+# Snapshots gzip-compress and optionally Ed25519-sign each rolling log to
+# grimoires/loa/audit-archive/<utc-date>-<primitive>.jsonl.gz; the archive
+# directory is git-tracked. The recovery side
+# (audit_recover_chain) consumes these to restore corrupted/lost logs.
+#
+# Source: SDD §3.4.4 (recovery procedure) + §3.7 (persistence policy)
+#
+# audit_snapshot:
+#   cron_expression: "0 4 * * *"          # daily at 04:00 UTC (default)
+#
+# Operator runbook: grimoires/loa/runbooks/audit-log-recovery.md
+#
+# To install/uninstall the daily snapshot cron:
+#   .claude/scripts/audit/audit-snapshot-install.sh install
+#   .claude/scripts/audit/audit-snapshot-install.sh uninstall
+
+# -----------------------------------------------------------------------------
+# Model-Health-Probe Webhook (cycle-093 §3B + cycle-099 sprint-1E.c.3.c)
+# -----------------------------------------------------------------------------
+# Optional fan-out for probe alert events. The probe POSTs the redacted audit
+# entry (already scrubbed via _redact_secrets) to the configured webhook URL,
+# fire-and-forget, with --max-time 5.
+#
+# Two dispatch paths:
+#   1. Default (legacy): raw curl with hardened defaults (--proto =https,
+#      --max-redirs 10). The webhook URL is operator-supplied dynamically and
+#      cannot be statically allowlisted (operators legitimately use Slack,
+#      PagerDuty, Discord, custom URLs). Tagged [ENDPOINT-VALIDATOR-EXEMPT].
+#   2. Opt-in (1E.c.3.c, recommended): wrapper-routed dispatch through
+#      endpoint_validator__guarded_curl with the operator-controlled
+#      .claude/scripts/lib/allowlists/webhook-hosts.json allowlist.
+#      Empty default → fail-closed; operator MUST add permitted webhook
+#      hosts before opt-in dispatch will succeed.
+#
+# Why opt-in (not always-on): operators upgrading from cycle-093 with an
+# existing webhook URL configured continue to work without action. Migrating
+# to wrapper-routed dispatch is a one-line config change PLUS adding the host
+# to webhook-hosts.json.
+#
+# model_health_probe:
+#   alert_webhook_url: ""                                # operator-supplied
+#   alert_webhook_endpoint_validator_enabled: false      # opt-in to wrapper path
+#
+# IMPORTANT — value semantics (BB iter-1 F10): the toggle accepts ONLY the
+# literal lowercase string `true` to enable the wrapper path. YAML-truthy
+# variants (`yes`, `1`, `True`, `True`/`Yes`/`On`) all fall through to the
+# legacy raw-curl path. This is INTENTIONAL fail-safe behavior — operators
+# expecting the wrapper protection MUST use lowercase `true` exactly.
+#
+# When alert_webhook_endpoint_validator_enabled: true, populate
+# .claude/scripts/lib/allowlists/webhook-hosts.json with the permitted hosts.
+# Override the allowlist path via the LOA_WEBHOOK_ALLOWLIST_PATH env var.
+
+# ============================================================================
+# Cycle-108 — Advisor-strategy routing (PRD §5 FR-1, SDD §3 + §21.1)
+# ----------------------------------------------------------------------------
+# Maps logical role (planning/review/implementation) → tier (advisor/executor)
+# → provider:model. Default-OFF until operator-approved benchmark resolves
+# decision-fork (see grimoires/loa/cycles/cycle-108-advisor-strategy/rollout-policy.md).
+#
+# Kill switch (env, takes precedence over `enabled`):
+#   LOA_ADVISOR_STRATEGY_DISABLE=1   # disables advisor-strategy at runtime
+#
+# NFR-Sec1: review/audit roles MUST resolve to advisor tier — enforced at
+# the loader layer (.claude/adapters/loa_cheval/config/advisor_strategy.py).
+# Attempting to map review→executor raises ConfigError at load time.
+# ============================================================================
+
+# advisor_strategy:
+#   # Master switch. Default false per cycle-108 decision-fork (c') —
+#   # see rollout-policy.md §1. Operators opt in per-stratum once the
+#   # real-data benchmark resolves DEFERRED classifications.
+#   enabled: false
+#
+#   # Resolution mode:
+#   #   static  — config_sha pinned at load time; safer for production
+#   #   dynamic — re-resolves per call; only for dev/test
+#   tier_resolution: static
+#
+#   # Default tier per role. NFR-Sec1 hard-pins review→advisor.
+#   defaults:
+#     planning: advisor
+#     review: advisor
+#     implementation: executor
+#
+#   # Tier → provider → model alias.
+#   tier_aliases:
+#     advisor:
+#       anthropic: claude-opus-5
+#       # openai: gpt-5.5-pro              # optional cross-provider
+#       # google: gemini-3.1-pro-preview   # optional cross-provider
+#     executor:
+#       anthropic: claude-sonnet-5
+#       # openai: gpt-5.5
+#       # google: gemini-2.5-pro
+#
+#   # Per-skill tier override. Map skill name → tier.
+#   # Skills in audited_review_skills CANNOT be overridden to executor
+#   # (NFR-Sec1 enforced at loader).
+#   per_skill_overrides: {}
+#
+#   # Skill names that MUST resolve to advisor tier regardless of role/override.
+#   # CI gate (cycle-108-schema-guard.yml) requires this enum to be co-edited
+#   # with the SKILL.md role field in a single commit.
+#   audited_review_skills: []
+#
+#   # Per-stage tier-routing opt-in (cycle-116 D3, bd-c116-d3-tiering).
+#   # Each key gates ONE dispatch stage: when true, that stage routes through
+#   # the advisor_strategy role/skill resolver (so per_skill_overrides + the
+#   # role defaults above govern its model) instead of a hardcoded --model pin.
+#   # Default-off (absent key == false) => byte-identical to pre-D3 dispatch.
+#   #
+#   # flatline_scorer gates Flatline score-mode cross-scoring in
+#   # flatline-orchestrator.sh. Flip true ONLY after the live A/B in
+#   # grimoires/loa/runbooks/model-tiering-per-stage.md clears for your models.
+#   # With the flag true and NO per_skill_override, flatline-scorer resolves to
+#   # its role default (implementation -> advisor). To actually demote it to the
+#   # cheaper executor tier, ALSO set the override below.
+#   stage_routing:
+#     flatline_scorer: false
+#
+#   # Worked example — demote flatline-scorer to executor once A/B-validated:
+#   #   per_skill_overrides:
+#   #     flatline-scorer: executor        # requires stage_routing.flatline_scorer: true to take effect
+#   #   stage_routing:
+#   #     flatline_scorer: true
+#   #
+#   # NOTE: advisor_strategy is the mechanism that actually GOVERNS dispatch.
+#   # The separate `workload_tier_map:` section (cycle-112) is an INFORMATIONAL
+#   # calibration memory only — it records the empirically-observed safe tier
+#   # per skill (with evidence_ref) but has zero dispatch consumers. Consult it
+#   # to decide a per_skill_overrides value; it will not change routing on its
+#   # own. See model-tiering-per-stage.md for why both surfaces exist.
+#
+#   # Benchmark substrate (cycle-108 sprint-2 T2.A).
+#   benchmark:
+#     # Cost-cap pre-estimate aborts the benchmark harness above this USD.
+#     # Override via `tools/advisor-benchmark.sh --cost-cap-usd N`.
+#     max_cost_usd: 50
+#     # Cleanup strategy for worktrees: keep | defer | now
+#     cleanup_strategy: defer
+#
+#   # Per-skill daily token quota (cycle-108 sprint-4 T4.D).
+#   # tools/modelinv-rollup.sh --per-skill-daily-quota alerts when a single
+#   # skill exceeds this on any 24-hour window.
+#   daily_token_budget_default: 500000
+
+# =============================================================================
+# Karpathy Principles (#961 enforcement v1)
+# =============================================================================
+# Mechanical reinforcement of the 4 Karpathy principles documented inline in
+# .claude/loa/CLAUDE.loa.md (post-PR #960) and detailed in
+# .claude/protocols/karpathy-principles.md.
+#
+# v1 ships:
+#   - Surgical-Changes diff-size hook (warn-by-default, opt-in BLOCK reserved for v2)
+#   - Goal-Driven success-criteria gate in /implement
+#   - Trajectory logging at grimoires/loa/a2a/trajectory/karpathy-*.jsonl
+karpathy_principles:
+  # Advisory — used by skills' Think-Before-Coding internal checks. No hook
+  # consumer in v1; reserved for v2 when surface-assumption analysis lands.
+  surface_assumptions: true
+
+  # Simplicity enforcement intensity: full (default, enforced — the YAGNI ladder,
+  # stdlib/native first, shortest diff) or ultra (deletion-first, challenges the
+  # requirement before building). There is NO advise-only 'lite' level: the
+  # "never simplify away" floor (C-PROC-011) stays enforced at every level.
+  simplicity_intensity: full
+
+  # G-1 — master switch for the PostToolUse:Write|Edit surgical-diff hook
+  # at .claude/hooks/quality/karpathy-surgical-diff-check.sh. When false,
+  # the hook fast-paths to exit 0 in <10ms.
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # surgical_diff_warning: true
+
+  # G-1 — per-session diff-lines threshold. When the session accumulator
+  # exceeds this, the hook emits a [karpathy-surgical-warn] stderr line
+  # and writes a trajectory event. Raised from the original protocol-doc
+  # sketch of 50 because 50 was empirically too tight for bug-fix sprints
+  # that legitimately touch 60-80 lines (test file + production diff).
+  diff_lines_per_task: 100
+
+  # Reserved for v2 — no v1 consumer. Cyclomatic complexity check.
+  simplicity_check: true
+
+  # Reserved for v2 — no v1 consumer. AST-level abstraction-depth analysis.
+  max_abstraction_depth: 2
+
+  # G-3 — when true, /implement refuses to write code if sprint.md lacks a
+  # "Success criteria" / "Acceptance criteria" / "Verification" section.
+  # Operator can [Skip with rationale] to override per-invocation.
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # require_success_criteria: true
+
+  # warn | block. v1 honors only "warn" — block-mode is reserved for v2 to
+  # avoid surprise breaking changes during initial rollout. Even with
+  # `enforce: block` set, the v1 hook returns 0 (informational only).
+  enforce: warn
+
+# -----------------------------------------------------------------------------
+# Structured Handoffs (L6) — surfacing controls
+# -----------------------------------------------------------------------------
+structured_handoff:
+  # Master toggle for the L6 SessionStart surfacing hook.
+  # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+  # enabled: false
+  # Per-handoff body byte cap at surfacing.
+  surface_max_chars: 4000
+  # cycle-121: skip UNREAD handoffs older than N days at surfacing (0 = never
+  # skip). Read-path only — INDEX.md and read_by are untouched; old handoffs
+  # stay recoverable via the structured-handoff skill.
+  surface_max_age_days: 30
+
+# =============================================================================
+# red_test — inputs to .claude/scripts/red-test-check.sh (the /bug red-before-green check)
+# =============================================================================
+# The check runs a test command at the red commit and at the fix, under `env -i`, and accepts
+# only a known runner as the first word of the command and of --setup: bats, pytest,
+# python -m pytest, npm/pnpm/yarn test|run, cargo test, go test, make, mix test,
+# bundle exec rspec. Shells, env, eval, exec and inline-code interpreters (python -c, node -e,
+# perl -e, ruby -e) are always refused. This block widens that list for one project. Edit it as
+# the operator: the file is tracked, and a red_test change on the branch under review makes the
+# check WARN.
+#
+# red_test:
+#   # The project's test command; the exact string (whitespace-normalised) is accepted,
+#   # unless it starts with a shell, a launcher or an inline-code interpreter (those are refused
+#   # even here). A red_test change on the branch under review makes the check refuse until the
+#   # reviewer passes --trust-config.
+#   command: "make test"
+#   # The exact --setup string accepted besides the runner list (e.g. a dependency install).
+#   setup: "npm ci"
+#   # ./... or tests/... scripts accepted as the first word, matched exactly.
+#   allowed_runners:
+#     - ./scripts/run-tests.sh

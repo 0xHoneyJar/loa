@@ -1,0 +1,142 @@
+{
+  "changed_files": 65,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 11,
+    "issue": 3,
+    "kf": 1
+  },
+  "fixture": "pr-11",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \".build-manifest.json\" OR \"SKILL.md\" OR \"anthropic_adapter.py\" OR \"base.py\" OR \"bedrock_adapter.py\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"ceiling-probe-live.py\" OR \"ceiling.py\" OR \"cheval.py\" OR \"config.d.ts.map\" OR \"config.generated.d.ts\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"config.generated.d.ts.map\" OR \"config.generated.js\" OR \"config.generated.js.map\" OR \"config.generated.ts\" OR \"config.js\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"config.js.map\" OR \"config.test.ts\" OR \"config.ts\" OR \"conftest.py\" OR \"cost-report.bats\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"cost-report.sh\" OR \"cycle-124-dispatch-budgets.bats\" OR \"effort-dispatch.bats\" OR \"flatline-call-model-schema.bats\" OR \"flatline-max-tokens.bats\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"flatline-orchestrator.sh\" OR \"gen-adapter-maps.sh\" OR \"gen-bb-registry.ts\" OR \"generated-model-maps.sh\" OR \"google_adapter.py\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"ledger.py\" OR \"lib-multipass.sh\" OR \"loa-status-providers.bats\" OR \"loa-status.sh\" OR \"model-config.yaml\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"multi-model-pipeline-timeout.test.ts\" OR \"multi-model-pipeline.d.ts.map\" OR \"multi-model-pipeline.js\" OR \"multi-model-pipeline.js.map\" OR \"multi-model-pipeline.ts\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"multi-model-reference.md\" OR \"multipass-estimator.bats\" OR \"openai_adapter.py\" OR \"pricing.py\" OR \"quick.md\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"retry.py\" OR \"security.md\" OR \"test_anthropic_catalog_floor.py\" OR \"test_ceiling_e2e.py\" OR \"test_ceiling_policy.py\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"test_ceiling_probe_write_catalog.py\" OR \"test_ceiling_retry.py\" OR \"test_count_tokens_fallback.py\" OR \"test_estimator_uncertainty.py\" OR \"test_full_size_adapter_defaults.py\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"test_input_size_consumers.py\" OR \"test_long_context_pricing.py\" OR \"test_max_tokens_defaults.py\" OR \"test_transport_matrix.py\" OR \"truncation-registry.test.ts\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-07 \"truncation.generated.js\" OR \"truncation.generated.js.map\" OR \"truncation.generated.ts\" OR \"truncation.test.ts\" OR \"types.py\"",
+      "total_count": 0
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 13,
+  "merge_commit": "e70f2838ef29e52e25f651d62706317b335c29b6",
+  "merge_date": "2026-10-07T07:45:33Z",
+  "pr": 1274,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:22:13Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-07T07:45:33Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:22:13Z"
+  }
+}

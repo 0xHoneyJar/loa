@@ -1,0 +1,225 @@
+commit 3b0f8bf38bd7468326ed583ef68d539de2adc302
+Date: 2026-10-13T18:22:52+11:00
+
+fix(cycle-128): sprint-254 review round r254-1 and the cycle's docs — the Fable review's MEDIUM and seven LOWs closed with tests, Task 3.6 and Task 3.E2E delivered: the glossary gate can no longer be satisfied by an alias line (validate-artifact.sh --type glossary fails an entry with more than six aliases and WARNs on an alias that shares no word with its term or definition and is not the term's initials; the checker WARNs, advisory, when alias resolutions outnumber defined-term resolutions and keeps the alias column in --report; GV-20…24, GT-24/25); fences follow CommonMark through the new shared .claude/scripts/lib/md-fence.awk (an opener's character and length close it; code spans match backtick runs of equal length; GT-20/21/22/27/28, GV-23); the token shape admits one interior colon so the four decision: labels are checked (the kernel gained no token; GT-8b/8c); --json avoids jq 1.6-only features (GT-26); an orphan _Aliases_: line WARNs with its glossary line and no longer shadows a later alias (GT-23); RTC-9 builds its no-timeout shim from the entries of PATH (Homebrew, Nix and asdf hosts keep their tools) and red-test-check.sh prints (no output) inside an empty marker block (RTC-18); planning-sprints, reviewing-code and riding-codebase trimmed to 16,124 / 16,223 / 16,226 of 16,384 bytes without dropping a rule. Docs (Task 3.6, implementer H): CHANGELOG [Unreleased] reconciled into one release note for sprints 252–254 (Added / Changed / Fixed / Security grouped by FR, the review and audit rounds folded into the entries they correct, a Migration section for the pacing default, the Seams rule date, yq v4 and the operator-only commands); README what's-new block; hooks-reference.md "Decision surfaces" table (SessionStart decisions surface, ICE spike rule, fence SP-1, the FR-1.1 decided-spike unlock, the /chart interactive-only gate, the FR-8 lint, each with its accepted bypasses); scripts-reference.md rows for every new script; protocols-summary.md; grimoires/loa/sdd.md §10 Open Questions DEC column backfilled from the seeded ledger (DEC-0001…DEC-0016, DEC-0025, DEC-0030, DEC-0049, DEC-0051, DEC-0053; the validator WARN is gone); REPO-MAP.md regenerated with its checksum over the final .claude/ code (repo-map-gen.sh --validate exit 0); .claude/checksums.json refreshed for tracked files only; evals fixture copies of golden-path.sh and mount-loa.sh re-synced (sync-fixtures.sh --check exit 0). Task 3.E2E: grimoires/loa/a2a/sprint-254/e2e.md records G-1…G-7 with commands, artefacts and results (G-3 scored on a second rounds transcript, G-7 verified by one live harness run whose stream is saved; the archived cycle-127 plan fails two pre-existing required-section rules while the Seams rule adds only a WARN there). Sprint 3 tasks ticked in sprint.md; Sprint 3 implementer decisions seeded as proposed ledger rows. Verification on the final tree: the 22-suite run recorded in the review; check-prompt-budget exit 0; validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; sync-fixtures --check current; md-fence.awk parses under awk; bash -n on every changed script; shell-compat greps clean; check-glossary-terms.sh PASS on the live kernel (16 kept, 0 missing, 11/30 allowlisted, one advisory WARN); both glossaries, the sprint plan (seams + live beads cross-check), the PRD and the SDD validate.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/loa/reference/hooks-reference.md b/.claude/loa/reference/hooks-reference.md
+index 32589d12..30ad64ca 100644
+--- a/.claude/loa/reference/hooks-reference.md
++++ b/.claude/loa/reference/hooks-reference.md
+@@ -174,6 +174,7 @@ ## All Hook Registrations
+ | UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
+ | SessionStart | (all) | `hook-guard.sh session-start/loa-run-state-surface.sh` | One `Run: <state> (<age>) → <command>` line when a run is HALTED/INTERRUPTED or RUNNING idle 12h+, plus a session-limit-reset line; silent otherwise (cycle-125 FR-3; also feeds `/loa` and `workflow-state.sh`) |
+ | SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` | Writes `.run/context-class` — `long` by default, `standard` under `LOA_CONTEXT_CLASS=standard` or a ≤ 200K session model — the class the skills' context-discipline thresholds follow (`tool-result-clearing.md`); `/loa` shows it; a re-fire on clear/compact/resume with no model keeps a `model`/`env` record; silent, never blocks |
++| SessionStart | (all) | `hook-guard.sh session-start/loa-decisions-surface.sh` | Default off (`decisions.surface_at_session_start`): up to ten `proposed`/`open` decision rows inside the L6 data fence, plus a stale unattended-marker notice; see [Decision surfaces](#decision-surfaces-cycle-128) |
+ | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+ | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
+ | PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
+@@ -187,6 +188,19 @@ ## All Hook Registrations
+ | PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh compliance/implement-gate.sh` | ADVISORY: `ask` on an App Zone write outside an active implementation run, on a write to the gate's own trust inputs, and whenever the write cannot be evaluated; never blocks (§implement-gate.sh) |
+ | Stop (opt-in, UNREGISTERED by default) | (all) | `safety/stop-input-probe.sh` | DIAGNOSTIC: gated by `LOA_STOP_INPUT_PROBE=1`; dumps raw Stop input to `.run/stop-input-probe.jsonl` for one cap-hitting session — never in `settings.hooks.json` |
+ 
++## Decision surfaces (cycle-128)
++
++Hooks, fence rules and gates added for the decision ledger, `/chart` and spikes (FR-3, FR-4, FR-5, FR-8). Each is a fence, not a boundary; the accepted bypasses are listed per row.
++
++| Surface | Where | What it does | Config / override | Accepted bypasses | Tests |
++|---------|-------|--------------|-------------------|-------------------|-------|
++| SessionStart decisions surface | `.claude/hooks/session-start/loa-decisions-surface.sh` (through `hook-guard.sh`) | Prints up to ten `proposed`, then `open`, rows of `grimoires/loa/decisions.yaml` (id, status, summary) so the operator sees what awaits `/decisions confirm`; adds one notice when `.run/unattended.json` belongs to another session or is older than the TTL. Exits 0 on every path. | `decisions.surface_at_session_start` (default `false`); `decisions.unattended_marker_ttl_hours` (default 24) | Silent without Mike Farah yq v4 or without the L6 sanitizer. Summaries are agent-written and untrusted: control characters (C0, C1, U+2028/9) are stripped, angle brackets replaced, each capped at 100 characters, and the block wrapped by `sanitize_for_session_start L6 … --max-chars 2000`. | `tests/unit/loa-decisions-surface.bats` |
++| ICE spike rule | `.claude/scripts/run-mode-ice.sh` | `is-spike <branch>` (true for `spike/<x>` and remote or full refs ending in one). `merge [source]` stays blocked except on a spike head, where only the default branch (`main`/`master`) may come in, with `--ff` so `merge.ff=only` cannot refuse a diverged spike; a conflict returns git's exit code and names the way out. A spike source is refused. `pr-create` refuses a spike head. | none | Applies inside run mode only; outside it, fence rule SP-1 is the control. | `tests/unit/run-mode-ice.bats` |
++| Fence rule SP-1 | `.claude/hooks/safety/block-destructive-bash.sh` | Spike content never enters another branch: merge, rebase, pull, cherry-pick, reset, read-tree and update-ref with a spike ref operand; checkout or restore of a path from a spike; branch force/move/copy with a spike ref; push refspecs carrying a spike ref to another branch, or HEAD to another branch while on a spike; a FETCH_HEAD merge after fetching a spike on the same line; git alias definitions; and PRs from a spike head (`gh pr create`, `gh api` on a pulls path). Pushes, checkouts and default-branch merges into a spike stay allowed. Judged on the carrier-scrubbed, whitespace-collapsed command. | none | Listed in the rule's header comment: `git show spike/x:path >` a file, `git diff spike/x` piped to `git apply`, `git switch -c new spike/x`, `git worktree add -b new <dir> spike/x`, a spike branched under a new name then merged, a fetch and a FETCH_HEAD merge in separate commands, an alias defined outside the agent's Bash calls, `gh api --input <file>`, and a spike spelled as a SHA. The usual fence classes also apply (subshells, `eval`, newlines). Prose that names a spike merge inside a heredoc body is a known false positive: write it with the Write tool. | `tests/unit/block-destructive-bash.bats`, corpus `tests/fixtures/fence-corpus/` |
++| FR-1.1 decided-spike unlock | `.claude/hooks/safety/block-destructive-bash.sh` (`_fr11_spike_decided`) | `git branch -D spike/<slug>` passes only when `refs/remotes/origin/spike/<slug>` exists with the local branch an ancestor of it, and the MAIN working tree's ledger holds a `decided` row with a transition to decided by `operator:*` and source `grimoires/loa/spikes/<slug>.md`. Offline (git, yq v4, jq); any failed lookup keeps the block. | none | Trusts the tracked ledger as operator-owned state: a forged operator row lets an agent delete a local branch that is already pushed, and nothing else. The remote-tracking ref is only as fresh as the last fetch or push. | `tests/unit/block-destructive-bash.bats` |
++| `/chart` interactive-only gate | `.claude/scripts/chart-guard.sh`, the first step of the `charting-decisions` skill | Refuses (exit 1) when `dec-write-lib.sh context` says unattended (a fresh unattended marker, a RUNNING run state, `LOA_UNATTENDED=1`, `LOA_FLATLINE_MODE=autonomous`, or an autonomous PRD Status line) or when `br` is missing; a context it cannot read counts as unattended. `--close-consumed` allows the one unattended operation. | none | A skill step, not a hook: a session that skips the step is caught by `chart-ticket.sh`, whose every write subcommand repeats the context check (`--dry-run` and `close --consumed-by` exempt). An unattended session with none of the signals reads as interactive. | `tests/unit/charting-decisions.bats` |
++| FR-8 `disable-model-invocation` lint | `tests/unit/user-invoked-commands.bats` over `.claude/data/user-invoked-commands.txt` | Every listed command file carries `disable-model-invocation: true` and every flagged file is listed; no other command or skill body has an operative line naming a listed command (the clause before the verb is judged; "tell the user to run" is advice); no SKILL.md `allowed-tools` grants `dec-write-lib.sh confirm`, `supersede` or `context --clear`. The harness refusal itself is checked live by `tests/unit/user-invoked-harness.bats`. | `LOA_HARNESS_CHECK=0` skips the live harness call (a skip, never a pass) | A text lint: an indirect reference it cannot parse as operative passes, and the harness refusal is the control. The live check skips without the `claude` CLI, `jq` or `timeout`, and on a CLI error or an inconclusive control. | `tests/unit/user-invoked-commands.bats`, `tests/unit/user-invoked-harness.bats` |
++
+ ## Compliance Hooks — Agent Hook Pattern (v1.40.0)
+ 
+ ### When to Use Agent vs Shell Hooks
+@@ -239,6 +253,8 @@ ## block-destructive-bash.sh — Full Pattern Set & Posture (moved from CLAUDE.l
+ 
+ **cycle-122 additions**: `FR-MERGE-2` blocks manual `git tag` creation (listing/inspect/delete forms allowed; audited override `LOA_ALLOW_GIT_TAG=1`) — C-MERGE-002's mechanical twin. `FR-1.2b` blocks output-swallowed `git stash push/pop/apply` (`| tail`/`| head`, `|| true`, `2>/dev/null` — the issue #555 silent-data-loss shapes); remedy: `stash_with_guard`. `FR-SZ2` blocks direct Bash writes into `.claude/` (redirect/tee/copy/sed-i/rm shapes; `.claude/overrides/` + `.claude/cache/` excluded) unless the bounded framework-dev marker (`.run/zone-guard-authorization.json`, same validation as zone-write-guard) or `LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1` authorizes — closing the single-agent System-Zone Bash gap. Same accepted-bypass classes as their parents (fence, not boundary).
+ 
++**cycle-128 additions**: `SP-1` keeps spike content out of every other branch, and FR-1.1 lets a fully pushed spike branch with an operator-decided ledger row be deleted. Both are described, with their accepted misses, under [Decision surfaces](#decision-surfaces-cycle-128).
++
+ A separate script-level runtime layer (`dcg-exec.sh` + `destructive-command-guard.sh`, pattern packs for core/database/docker/kubernetes) validates commands executed by Loa scripts with configurable BLOCK/WARN/ALLOW actions — invocation and pack details live in those scripts' headers.
+ 
+ **Defense-in-depth posture (cycle-111)**: this hook is a fence against routine destructive mistakes by autonomous agents — NOT a hardened security boundary. Documented accepted bypass classes (cycle-111 SDD §11): newline statement separators, subshell wrapping (`bash -c '...'` quoted-differently, `$(...)`), eval/base64 decode, SQL comments containing WHERE, python scripts loaded from disk, jq absent from PATH. ERE flavor: GNU/BSD-compatible extensions (`\s`, `\b`), NOT strict POSIX. Latency budget: p95 < 80ms across 100 invocations (bash startup + jq + 13 grep passes).
+diff --git a/.claude/loa/reference/protocols-summary.md b/.claude/loa/reference/protocols-summary.md
+index a2cad0ed..c6d32b12 100644
+--- a/.claude/loa/reference/protocols-summary.md
++++ b/.claude/loa/reference/protocols-summary.md
+@@ -20,7 +20,7 @@ # Protocols Summary
+ | `reference/helper-scripts.md` | Comprehensive script documentation | scripts-reference.md pointer |
+ | `implementation-compliance.md` | C-PROC enforcement checklist (generated from constraints.json) | CLAUDE.loa.md Process Compliance pointer |
+ | `input-guardrails.md` | Guardrails orchestrator detail (PII/injection/danger) | guardrails-reference.md; skill preludes |
+-| `karpathy-principles.md` | Enforcement map + config keys (canonical TEXT lives in CLAUDE.loa.md) | implementing-tasks pointer; CLAUDE.loa.md pointer |
++| `karpathy-principles.md` | Enforcement map + config keys (canonical TEXT lives in CLAUDE.loa.md); unattended runs look facts up and record operator-owned decisions with `dec-write-lib.sh new` | implementing-tasks pointer; CLAUDE.loa.md pointer |
+ | `reference/recommended-hooks.md` | Optional Claude Code hook patterns | hooks-reference.md; operators |
+ | `ride-translation.md` | /ride codebase-translation flow | riding-codebase skill |
+ | `safe-file-creation.md` | Write-tool-vs-heredoc decision tree | shell-conventions.md pointer; implementing-tasks |
+diff --git a/.claude/loa/reference/scripts-reference.md b/.claude/loa/reference/scripts-reference.md
+index dc5ac988..5900ba6c 100644
+--- a/.claude/loa/reference/scripts-reference.md
++++ b/.claude/loa/reference/scripts-reference.md
+@@ -36,6 +36,24 @@ ## Workflow Support
+ | `compound-orchestrator.sh` | `/compound` command orchestration |
+ | `collect-trace.sh` | Execution trace collection for `/feedback` |
+ 
++## Decision Surfaces (cycle-128)
++
++Exit codes are `0` ok, `1` refused or failed, `2` usage unless the row says otherwise. Paths are under `.claude/scripts/` unless they start with `tools/`.
++
++| Script | Contract | Exit codes |
++|--------|----------|------------|
++| `lib/dec-write-lib.sh` | Single writer of `grimoires/loa/decisions.yaml`: `new`, `decide`, `confirm`, `reject`, `supersede`, `import --from PENDING`, `list [--status] [--decided-by] [--not-decided-by] [--format md]`, `context [--why] \| --set-unattended \| --clear`. Lock, yq v4, verify before rename; attribution from the run context; unattended writes land `proposed`; a linked worktree writes the sprint pending file; refuses the live ledger under CI or a hook context. | 0 ok; 1 refused (preflight, CI/hook context, lock busy, verify, validation, unknown id, illegal transition, ref grammar, missing artifact, ambiguous confirm); 2 usage |
++| `../hooks/session-start/loa-decisions-surface.sh` | SessionStart surface of pending rows, default off (`decisions.surface_at_session_start`); sanitised and L6-fenced. | always 0 |
++| `chart-guard.sh [--close-consumed] [--root DIR]` | First step of `/chart`: prints `interactive` and exits 0, or refuses when the context is unattended or `br` is missing. | 0 go; 1 refused; 2 usage |
++| `chart-ticket.sh <subcommand> [--dry-run]` | The `/chart` write steps: `epic`, `ticket`, `edge`, `claim`, `resolve`, `rule-out`, `handoff`, `close`, `research-begin`, `research-end`. Idempotent by ledger `source` and bead `external_ref`; every write refuses an unattended context (`--dry-run` and `close --consumed-by` exempt). | 0 ok; 1 refused or failed, nothing further written; 2 usage |
++| `chart-frontier.sh <epic-id\|map-slug> [--json] [--root DIR]` | Lists a map's unclaimed, unblocked `question` tickets through `br ready`; an empty frontier prints nothing. | 0 ok; 1 unknown map or unreadable `br` output; 2 usage or `br` missing |
++| `chart-unblock-probe.sh --ticket <bead> [--timeout <s>] -- <cmd…>` | Runs a `decision:unblock` probe argv in a throwaway detached worktree under a scrubbed environment and prints `probe-exit: N` (124 on a timeout) as information. | 0 nothing it watches changed; 1 something changed or the worktree could not be created; 2 usage |
++| `red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--no-link-deps] [--timeout <s>] [--json] -- <test cmd…>` | Runs the test at the red commit and the green revision in temporary worktrees with dependency directories linked; prints the red run's tail; `--json` prints `{red, green, red_exit, green_exit, verdict, red_tail, green_tail, linked_deps}`. | 0 `VERIFIED`; 1 `GREEN_FAILS`; 2 usage, unresolvable commit, red not an ancestor, worktree or `--setup` failure; 3 `DECOY`; 4 `NOT_A_RED`; 5 `TIMEOUT` |
++| `tools/check-round-independence.sh <transcript> [--min-average N] [--json]` | Scores an interview transcript's `<!-- round: … -->` blocks: no same-round or forward dependency, no repeated id, increasing rounds, at least N (default 2) new questions per round on average, the final round exempt. | 0 independent; 1 violation; 2 usage, unreadable file or no round block |
++| `tools/check-glossary-terms.sh [--kernel P] [--glossary P] [--allowlist P] [--json] [--report]` | Every identifier-shaped backticked span of `CLAUDE.loa.md` outside fenced code resolves to a glossary entry or alias, or to `.claude/data/glossary-allowlist.txt` (at most 30 entries); stale or redundant allowlist entries WARN. | 0 every token resolves; 1 a miss or more than 30 allowlist entries; 2 usage or unreadable input |
++
++`validate-artifact.sh` gains `--type decisions`, `--type map`, `--type spike` and `--type glossary`, the Seams Under Test rule in `--type sprint`, and fact/decision tag checks in `--type prd` and `--type sdd`. `run-mode-ice.sh` gains `is-spike`; `golden-path.sh` reports the `charting` phase.
++
+ ## Visual & Documentation
+ 
+ | Script | Purpose |
+diff --git a/.claude/skills/planning-sprints/SKILL.md b/.claude/skills/planning-sprints/SKILL.md
+index 2ee27827..19e193bd 100644
+--- a/.claude/skills/planning-sprints/SKILL.md
++++ b/.claude/skills/planning-sprints/SKILL.md
+@@ -282,11 +282,9 @@ # Create tasks under epic — EVERY task declares its dependencies at creation
+ 
+ **Edge-or-none rule (REQUIRED):** every non-epic bead declares either `--deps <id1,id2>`
+ (what blocks it) or `--deps none` (an explicit no-blockers assertion, recorded as the
+-`deps:none` label). A sprint plan is an ordered list — the ordering knowledge exists NOW
+-and is captured in one flag; retrofitting edges later costs O(n²) review. A task graph
+-with edges is schedulable (topological order, parallel tracks, honest unblock counts);
+-a flat list silently degrades every downstream consumer (`get-ready-work.sh --graph`,
+-`bv --robot-plan` wave dispatch) into priority-only guessing.
++`deps:none` label). The ordering is known now and costs one flag; retrofitting edges costs
++O(n²) review, and a flat list degrades `get-ready-work.sh --graph` and `bv --robot-plan`
++wave dispatch to priority-only guessing.
+ 
+ ### Structural Validation
+ 
+@@ -347,9 +345,9 @@ ### Debrief Structure
+ 
+ 1. **Confirmation**: "✓ Sprint Plan saved to grimoires/loa/sprint.md"
+ 
+-2. **Key Decisions** (3-5 items): The most impactful planning choices. Each decision should be one line: "• {choice made} (not {alternative rejected})"
++2. **Key Decisions** (3-5 items): The most impactful planning choices, one line each: "• {choice made} (not {alternative rejected})"
+ 
+-3. **Assumptions** (1-3 items): Things assumed true but not explicitly confirmed by the user. Each assumption should be falsifiable: "• {assumption} — if wrong, {consequence}"
++3. **Assumptions** (1-3 items): Things assumed but not confirmed by the user, each falsifiable: "• {assumption} — if wrong, {consequence}"
+ 
+ 4. **Biggest Tradeoff** (1 item): The most consequential either/or decision. Format: "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
+ 
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index 549265ed..041d59f7 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -85,7 +85,7 @@ ## Pre-Execution Guardrails (mechanized)
+ # Senior Tech Lead Reviewer
+ 
+ <objective>
+-Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write detailed feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
++Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
+ </objective>
+ 
+ <permission_grants>
+@@ -125,8 +125,7 @@ ### Coverage
+ 
+ Entry format (the filter reads the first line of each entry): `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
+ 
+-You MAY approve when every remaining finding sits under `## Observations` — medium or low
+-severity, or a speculative low-confidence high recorded under `excluded` — each with a concrete
++You MAY approve when every remaining finding sits under `## Observations`, each with a concrete
+ failure scenario.
+ </adversarial_protocol>
+ 
+@@ -220,7 +219,7 @@ ## Phase 2: Code Review
+ 
+ **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
++**Fast-Gate Parity**: self-checks must match CI's fast gate — verify its formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+ 
+ ## Phase 2.5: Adversarial Cross-Model Review
+ 
+@@ -236,10 +235,10 @@ ## Phase 3: Previous Feedback Verification
+ 
+ ## Phase 4: Decision Making
+ 
+-**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
++**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a pile of medium/low is your call (rationale in Overall Assessment).
+ 
+ **Automatic CHANGES_REQUIRED** when
+-`reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
++`reviewer.md`'s `## AC Verification` section is missing, shows `✗ Not met` without a
+ scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
+ Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
+ ("implemented in src/", "done") instead of `file:line` + a specific symbol.
+@@ -256,7 +255,7 @@ ## Phase 5: Feedback Generation
+ NOT force APPROVED. `excluded` equals the demoted highs under `## Observations`; a critical
+ there is a violation.
+ 
+-**MUST self-check before finishing**: run
++**MUST self-check**: run
+ `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
+ and resolve any reported inconsistency before finishing.
+ </workflow>
+diff --git a/.claude/skills/riding-codebase/SKILL.md b/.claude/skills/riding-codebase/SKILL.md
+index 3b6e074f..7d6e0ef1 100644
+--- a/.claude/skills/riding-codebase/SKILL.md
++++ b/.claude/skills/riding-codebase/SKILL.md
+@@ -89,7 +89,7 @@ ## Context Discipline
+ 
+ ## Phase 0.5: Codebase Probing
+ 
+-Before loading any files, probe the codebase to pick a loading strategy. Run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (fall back to eager loading if unavailable) for file count, lines, tokens, and size category:
++Before loading files, pick a loading strategy: run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (eager loading if unavailable) for file count, lines, tokens and size category:
+ 
+ | Codebase Size | Lines | Strategy |
+ |---------------|-------|----------|
+@@ -97,7 +97,7 @@ ## Phase 0.5: Codebase Probing
+ | Medium | 10K-50K | Prioritized — high-relevance first |
+ | Large | >50K | Excerpts only — too large for full load |
+ 
+-Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-load decision; for prioritized/excerpts strategies, sort by relevance score using `.claude/scripts/context-manager.sh should-load "$file" --json`. Log probe results to trajectory.
++Create `grimoires/loa/reality/loading-plan.md` grouping files by should-load decision (prioritized/excerpts: sort by relevance score via `.claude/scripts/context-manager.sh should-load "$file" --json`); log probe results to trajectory.
+ 
+ ---
+ 
+@@ -105,7 +105,7 @@ ## Phase 1: Interactive Context Discovery
+ 
+ ### 1.1 Context Discovery Setup
+ 
+-Scan `grimoires/loa/context/` for existing documentation files, then use `AskUserQuestion` to offer the user a chance to add more (architecture docs, tribal knowledge, roadmaps) to `grimoires/loa/context/` before the interview.
++Scan `grimoires/loa/context/` for existing docs, then offer via `AskUserQuestion` to add more there (architecture docs, tribal knowledge, roadmaps) before the interview.
+ 
+ ### 1.2 Analyze Existing Context (Pre-Interview)
+ 
+@@ -153,7 +153,7 @@ ## Phase 2: Code Reality Extraction
+ 
+ ## Phase 2b: Code Hygiene Audit
+ 
+-Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for HUMAN DECISION: files outside standard directories, potential temporary/WIP folders, commented-out code blocks, and potential dependency conflicts. **WRITE TO DISK.**
++Generate `grimoires/loa/reality/hygiene-report.md` flagging for HUMAN DECISION: files outside standard directories, likely temporary/WIP folders, commented-out code blocks and possible dependency conflicts. **WRITE TO DISK.**
+ 
+ **See**: `resources/references/deep-analysis-guide.md` for the hygiene report template and dead code philosophy.
+ 
+@@ -267,7 +267,7 @@ ## Phase 7: Governance Audit
+ 
+ ## Phase 8: Legacy Deprecation
+ 
+-For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, referencing `grimoires/loa/drift-report.md`.
++Prepend to each file in `legacy/doc-files.txt` a deprecation notice naming `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth and citing `grimoires/loa/drift-report.md`.
+ 
+ ---
+ 

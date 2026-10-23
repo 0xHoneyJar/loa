@@ -1,0 +1,41 @@
+# approved-by: lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)
+# fixture pr-16 | sprint-252 | record origin/record/cycle-128-a2a | base e9f175a6e3be | head 8dc4a49dc38a | fix 16f38539459a
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
+# L01 medium review: `resolve_target` treats any `--file` as a fixture, so `CI=1 dec-write-lib.sh new --file grimoires/loa/decisions.yaml ...` reaches the write path (probe: the ca… [fix hunk near cited line 250]
+# L02 medium review: `grep -viE "$exempt"` discards any line containing user/operator/human/ask/tell/suggest/recommend/manually, so "Run `/decisions confirm` on the operator's beha… [quoted snippet + fix hunk near cited line 65]
+# L03 low review: the shape check runs `jq -e` over a JSON stream and reflects only the last value; [fix hunk near cited line 63]
+# L04 low audit: INDEX decisions family emitted ledger text with only `|` escaped (fixed, audit round) [quoted snippet + fix hunk inside emit_decisions()]
+defect_id	severity	category	file	must_match	label_source	source
+L01-treats-any-as-a-fixture-so-reaches-the-w	medium	test	.claude/scripts/lib/dec-write-lib.sh	resolve_target(){ # mode: write|read	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33
+L01-treats-any-as-a-fixture-so-reaches-the-w	medium	test	.claude/scripts/lib/dec-write-lib.sh	@L250	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33
+L01-treats-any-as-a-fixture-so-reaches-the-w	medium	test	.claude/scripts/lib/dec-write-lib.sh	TARGET="$(o file)"; TARGET_KIND="fixture"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33
+L01-treats-any-as-a-fixture-so-reaches-the-w	medium	test	.claude/scripts/lib/dec-write-lib.sh	local why; if why="$(ci_blocked)"; then die "refused: ${why} is set; the ledger is never written from CI or a hook (use --file <fixture> in tests)"; fi	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33
+L02-discards-any-line-containing-user-operat	medium	logic	tests/unit/user-invoked-commands.bats	grep -viE "$exempt"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41
+L02-discards-any-line-containing-user-operat	medium	logic	tests/unit/user-invoked-commands.bats	# check_operative <root>: prints file:line for each operative reference to a	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41
+L02-discards-any-line-containing-user-operat	medium	logic	tests/unit/user-invoked-commands.bats	exempt='(^|[^[:alpha:]])(user|operator|human|manually|suggest|recommend|tell|ask)'	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41
+L03-the-shape-check-runs-over-a-json-stream	low	logic	tools/check-round-independence.sh	rounds_json="[]"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60
+L03-the-shape-check-runs-over-a-json-stream	low	logic	tools/check-round-independence.sh	arr="$(printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*[0-9]+[[:space:]]*;[[:space:]]*questions:[[:space:]]*//; s/[[:space:]]*-->$//')"	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60
+L03-the-shape-check-runs-over-a-json-stream	low	logic	tools/check-round-independence.sh	if printf '%s' "$arr" | jq -e 'type == "array" and all(.[];	review	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60
+L04-index-decisions-family-emitted-ledger-te	low	security	.claude/scripts/grimoire-index.sh	emit_decisions()	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76
+L04-index-decisions-family-emitted-ledger-te	low	security	.claude/scripts/grimoire-index.sh	# Sanitised in jq (control characters, C1, U+2028/9 flattened; capped at 160 code points) so an	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76
+L04-index-decisions-family-emitted-ledger-te	low	security	.claude/scripts/grimoire-index.sh	def s: tostring | gsub("[[:cntrl:]\u2028\u2029]"; " ") | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76
+L04-index-decisions-family-emitted-ledger-te	low	security	.claude/scripts/grimoire-index.sh	| ["decisions", (.id | s), ((.status // "") | s), ((.summary // "") | s), ("grimoires/loa/decisions.yaml#" + (.id | s)),	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76
+L04-index-decisions-family-emitted-ledger-te	low	security	.claude/scripts/grimoire-index.sh	((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'	audit	record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76
+F001	-	fix	.claude/scripts/grimoire-index.sh	# Sanitised in jq (control characters, C1, U+2028/9 flattened; capped at 160 code points) so an	fix	fix/16f38539459a:186-189
+F002	-	fix	.claude/scripts/lib/dec-write-lib.sh	resolve_target(){ # mode: write|read	fix	fix/16f38539459a:248-252
+F003	-	fix	.claude/scripts/lib/dec-write-lib.sh	TARGET="$LIVE"; TARGET_KIND="live"; [[ -f "$TARGET" ]] || die "ledger not found: $TARGET"	fix	fix/16f38539459a:626-626
+F004	-	fix	.claude/skills/discovering-requirements/resources/REFERENCE.md	An explicit `interview.pacing` wins over the mode default, so a config that sets `sequential` keeps it.	fix	fix/16f38539459a:60-60
+F005	-	fix	.loa.config.yaml.example	# Default: thorough mode with rounds of plain-text discovery questions.	fix	fix/16f38539459a:100-100
+F006	-	fix	.loa.config.yaml.example	# Unset: rounds for thorough, batch for minimal. An explicit value always wins.	fix	fix/16f38539459a:127-127
+F007	-	fix	.loa.config.yaml.example	pacing: rounds   # sequential | batch | rounds	fix	fix/16f38539459a:140-140
+F008	-	fix	tests/unit/check-round-independence.bats	@test "RI-12 no round block exits 2; usage errors exit 2" {	fix	fix/16f38539459a:137-137
+F009	-	fix	tests/unit/dec-write-lib.bats	@test "dec-write: the live ledger in the main checkout gets DEC ids; --pending writes the sprint pending file" {	fix	fix/16f38539459a:381-381
+F010	-	fix	tests/unit/dec-write-lib.bats	# ---- lock --------------------------------------------------------------------------	fix	fix/16f38539459a:417-417
+F011	-	fix	tests/unit/grimoire-index.bats	[ -f "$output" ]	fix	fix/16f38539459a:140-140
+F012	-	fix	tests/unit/user-invoked-commands.bats	# check_operative <root>: prints file:line for each operative reference to a	fix	fix/16f38539459a:61-69
+F013	-	fix	tests/unit/user-invoked-commands.bats	grep -nE "$re" "$f" 2>/dev/null | grep -viE "$exempt" |	fix	fix/16f38539459a:74-75
+F014	-	fix	tests/unit/user-invoked-commands.bats	@test "fixture: a skill granting dec-write-lib.sh confirm is reported" {	fix	fix/16f38539459a:209-209
+F015	-	fix	tools/check-round-independence.sh	rounds_json="[]"	fix	fix/16f38539459a:65-65
+F016	-	fix	tools/check-round-independence.sh	arr="$(printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*[0-9]+[[:space:]]*;[[:space:]]*questions:[[:space:]]*//; s/[[:space:]]*-->$//')"	fix	fix/16f38539459a:71-83
+F017	-	fix	tools/check-round-independence.sh	.violations += ["round \($r.round): malformed questions array (each entry needs a string id and a depends_on array of strings)"]	fix	fix/16f38539459a:90-90
+F018	-	fix	tools/check-round-independence.sh	(.per_round[] | "round \(.round): \(.new) new question(s)\(if .reasked > 0 then ", \(.reasked) re-asked" else "" end) [\(.ids | join(" "))]"),	fix	fix/16f38539459a:138-143

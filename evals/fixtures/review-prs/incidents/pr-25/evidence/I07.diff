@@ -1,0 +1,252 @@
+commit cddec3677a58f26e8986f034419f03f559782648
+Date: 2026-10-20T13:13:11+11:00
+
+fix(cycle-131): sprint-263 audit round r1c — executed probe lines never class-7 exempt, no workspace pr/head fallback, bounded detector work, one validated corpus-hash open
+
+Audit dissent run 1 on the sprint diff (4 findings: 1 HIGH, 2 MEDIUM, 1 LOW; DEC-0644):
+- ablation-grade.sh: a Bash logical line (heredoc bodies removed) that holds the repo name and a network- or
+  VCS-capable executable word (git, gh, curl, wget, pip, npm, npx, ssh, scp, nc, docker, rsync, python -c …) is
+  never KF-046 class 7 exempt — pr-13 and pr-16 carry `curl … 0xHoneyJar/loa … | bash` lines the old rule would
+  have licensed; quoting such a line in notes stays PR content (AG-54). Every agent-controlled dimension of the
+  oracle detector is bounded (for-list 64, expansion 256, segment 64 KB, word 4,096 / 512 per segment, result
+  lines clipped, difflib skipped above 20,000 lines → grade.json oracle_scan_skipped) (AG-55). corpus_sha256
+  hashes the bytes of one O_NOFOLLOW open with an fstat regular-file and size check.
+- recall-vs-defects.sh: the $workspace/pr/head fallback is gone unless EVAL_ALLOW_WORKSPACE_HEAD=1;
+  details.head_dir_source ∈ env|fixture|workspace|none; above 5,000 headers the ±20 fallback replaces the scope
+  map (RG-44).
+- sprint.md: Sprint 1 deliverables, criteria and tasks ticked (two criteria annotated: FR-1 AC 4 PARTIAL by
+  DEC-0632; FR-3 AC 3 is the Sprint 3 read).
+- evals/tests 516/516; the 36-run re-grade on this grader: 36/36 regression, 0 rows changed (as after r1a, r1b).
+- Review APPROVED (engineer-feedback.md), audit APPROVED after this round (auditor-sprint-feedback.md).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/ablation-grade.sh b/evals/harness/ablation-grade.sh
+index 7c6765a2..9ea0f455 100755
+--- a/evals/harness/ablation-grade.sh
++++ b/evals/harness/ablation-grade.sh
+@@ -1807,7 +1807,7 @@ def check_value(tool, field, val, roots):
+     if "grimoires/loa/evals/ablation-2.0" in val:
+         return "suite_path"
+     if "0xhoneyjar/loa" in low:
+-        ex = repo_name_exempt(val)
++        ex = repo_name_exempt(val, tool)
+         if ex is None:
+             return "repo_name"
+         EXEMPT_BUF.extend(ex)   # KF-046 class 7: every occurrence is PR content; the scan goes on
+@@ -1979,11 +1979,31 @@ def fixture_token_lines():
+     return out
+ 
+ 
+-def repo_name_exempt(val):
+-    """→ [(fixture source, fixture line)] when every repo-name occurrence in val is PR content, else None"""
++NET_EXE = {"git", "gh", "curl", "wget", "pip", "pip3", "npm", "npx", "pnpm", "yarn", "ssh", "scp", "sftp", "nc", "ncat",
++           "telnet", "docker", "podman", "rsync", "svn", "hg", "aria2c", "http", "https", "fetch", "gem", "cargo", "go"}
++
++
++def executes_network(line):
++    """a Bash logical line that could reach the network or a VCS remote: a word whose basename is a network- or
++    VCS-capable executable, or python/node/perl/ruby with an inline program (audit r1 DISS-C-001)"""
++    words = re.findall(r"[A-Za-z0-9_./-]+", line)
++    base = [w.rsplit("/", 1)[-1] for w in words]
++    if any(b in NET_EXE for b in base):
++        return True
++    return any(b in ("python", "python3", "node", "perl", "ruby") and ("-c" in words or "-e" in words) for b in base)
++
++
++def repo_name_exempt(val, tool=None):
++    """→ [(fixture source, fixture line)] when every repo-name occurrence in val is PR content, else None.
++    A Bash command is executed text: an occurrence on a logical line that could reach the network or a VCS remote
++    is never exempt, whatever the fixture holds (pr-13 and pr-16 carry `curl … 0xHoneyJar/loa … | bash` lines)."""
+     fl = fixture_token_lines()
+     if not fl:
+         return None
++    if tool == "Bash":   # the executed text is the command with its heredoc bodies removed (a quoted line in notes is not run)
++        for line in strip_heredocs(val).replace("\\\n", " ").split("\n"):
++            if REPO_TOKEN.search(line) and executes_network(line):
++                return None
+     hits = []
+     for line in val.replace("\\\n", " ").split("\n"):   # a backslash-continued command is one logical line
+         for m in REPO_TOKEN.finditer(line):
+@@ -2009,11 +2029,25 @@ def corpus_sha256(t):
+     """sha256 of the review corpus's SHA256SUMS (the directory above the key's manifests/), null when absent"""
+     import hashlib
+     p = os.path.join(os.path.dirname(os.path.dirname(t.key_path)), "SHA256SUMS")
+-    text = read_regular(p, READ_CAP, whole=True)
+-    if text is None:
++    try:   # one O_NOFOLLOW open, fstat regular + size bound, hash those bytes (audit r1 DISS-C-004)
++        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0))
++    except OSError:
+         return None
+-    with open(p, "rb") as f:
+-        return hashlib.sha256(f.read()).hexdigest()
++    try:
++        st = os.fstat(fd)
++        if not stat.S_ISREG(st.st_mode) or st.st_size > READ_CAP:
++            return None
++        h = hashlib.sha256()
++        while True:
++            b = os.read(fd, 1 << 20)
++            if not b:
++                break
++            h.update(b)
++        return h.hexdigest()
++    except OSError:
++        return None
++    finally:
++        os.close(fd)
+ 
+ 
+ # ------------------------------------------------------------------ oracle detector (1.3.0, D-1.3, KF-049)
+@@ -2056,6 +2090,9 @@ def corpus_sha256(t):
+ # A LOWER BOUND, like the contamination scan: a paraphrase, a copy made by a program and read later, or a
+ # path built at run time is not seen.
+ ORACLE_PHASES = ("BARE", "REVIEW", "AUDIT")
++# bounds on agent-authored input (audit r1 DISS-C-003): every dimension the graded session controls is capped
++FORLIST_CAP, EXPAND_CAP, SEG_CAP, WORD_CAP, WORDS_CAP, LINE_CAP, LINES_CAP, DIFF_LINES_CAP = 64, 256, 65536, 4096, 512, 4096, 20000, 20000
++ORACLE_SKIPPED = []   # answer paths whose later-line map was skipped (a side over DIFF_LINES_CAP lines)
+ DIFF_EXE = {"diff", "sdiff", "comm"}
+ READ_EXE = {"cat", "sed", "awk", "grep", "head", "tail", "less", "python3"}
+ ANSWER_TOP = ".claude/"
+@@ -2228,6 +2265,8 @@ def expand(tok, vars_):
+             changed = True
+             for v in vars_[name]:
+                 nxt.append(o[:m.start()] + v + o[m.end():])
++            if len(nxt) > EXPAND_CAP:
++                return []             # a for-list product past the cap resolves nothing (audit r1 DISS-C-003)
+         outs = nxt
+         if not changed:
+             break
+@@ -2264,13 +2303,20 @@ def ws_targets(rel, answer, directory_ok):
+ 
+ 
+ def segment_tokens(seg, vars_, cwd, ws):
+-    """every path-shaped token of a segment (inside process substitutions too), expanded and classified"""
++    """every path-shaped token of a segment (inside process substitutions too), expanded and classified;
++    bounded against agent-authored bulk (audit r1 DISS-C-003): a segment over SEG_CAP bytes, a word over
++    WORD_CAP characters or past the WORDS_CAP-th word is not read"""
+     out = []
+-    for m in PATHISH.finditer(seg):
+-        for v in expand(m.group(0), vars_):
+-            c = classify(v, cwd, ws)
+-            if c is not None:
+-                out.append((v, c))
++    if len(seg) > SEG_CAP:
++        return out
++    for word in seg.split()[:WORDS_CAP]:
++        if len(word) > WORD_CAP:
++            continue
++        for m in PATHISH.finditer(word):
++            for v in expand(m.group(0), vars_):
++                c = classify(v, cwd, ws)
++                if c is not None:
++                    out.append((v, c))
+     return out
+ 
+ 
+@@ -2362,6 +2408,9 @@ def oracle_scan(t, run_dir):
+         if not live[f] or hd is None:
+             continue
+         hl, cl = hd.split("\n"), cur.split("\n")
++        if len(hl) > DIFF_LINES_CAP or len(cl) > DIFF_LINES_CAP:
++            ORACLE_SKIPPED.append(f)  # no later-line map for a huge copy: the read form cannot fire for it (audit r1 DISS-C-003)
++            continue
+         for pos, sites, _mm in by_file[f]:
+             near_text[(f, pos)] = [hl[L - 1].strip() for s_ in sites for L in range(s_ - 3, s_ + 4)
+                                    if 1 <= L <= len(hl) and len(hl[L - 1].strip()) >= 8]
+@@ -2415,7 +2464,7 @@ def oracle_scan(t, run_dir):
+                     i0, plan = uses.pop(blk["tool_use_id"])
+                     if blk.get("is_error") is True:
+                         continue          # the tool failed (a refused command, a hook block): nothing printed
+-                    res = result_text(blk)
++                    res = "\n".join(l[:LINE_CAP] for l in result_text(blk).split("\n")[:LINES_CAP])
+                     dtargets = sorted({f for how, f in plan if how.startswith("diff") and live.get(f)})
+                     rtargets = sorted({f for how, f in plan if how == "read" and live.get(f)})
+                     if dtargets and res.strip():
+@@ -2490,7 +2539,7 @@ def oracle_plan(tool, inp, ws, answer):
+             words = []
+             for x in m.group(2).split():
+                 words += expand(x.strip("'\""), vars_)
+-            vars_[m.group(1)] = words
++            vars_[m.group(1)] = words[:FORLIST_CAP]
+             continue
+         if not w:
+             continue
+@@ -2572,7 +2621,7 @@ def grade(t, run_dir, frozen):
+          "diff_lines": None, "files_changed": None, "symlinks_dropped": 0, "harness_files_removed": 0,
+          "oversized_files_skipped": 0, "history_probes": 0, "heredoc_interpreters": 0, "contaminated": None,
+          "contamination_exempt": [], "oracle_exposed_defects": None, "oracle_exposed_unknown": None,
+-         "oracle_exposed_events": None, "oracle_exposed_by_form": None, "corpus_sha256": None}
++         "oracle_exposed_events": None, "oracle_exposed_by_form": None, "oracle_scan_skipped": None, "corpus_sha256": None}
+     acc = {"review": None, "audit": None}
+     SNAPSHOT_LINKS_DROPPED[0] = 0
+     OVERSIZED[0] = 0
+@@ -2652,8 +2701,10 @@ def grade(t, run_dir, frozen):
+             g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
+         g["recall"], g["false_positives"] = grade_recall(t, run_dir, grading)
+         g["corpus_sha256"] = corpus_sha256(t)
++        ORACLE_SKIPPED.clear()
+         (g["oracle_exposed_defects"], g["oracle_exposed_unknown"], g["oracle_exposed_events"],
+          g["oracle_exposed_by_form"]) = oracle_scan(t, run_dir)
++        g["oracle_scan_skipped"] = sorted(set(ORACLE_SKIPPED))
+         key_cr = any((d.get("severity") or "").lower() in ("high", "critical") for d in t.key.get("defects") or [])
+         for gate, v in (("review", v_review), ("audit", v_audit)):
+             if v is not None:
+diff --git a/evals/tests/ablation-grade.bats b/evals/tests/ablation-grade.bats
+index 1116e74a..7100f899 100644
+--- a/evals/tests/ablation-grade.bats
++++ b/evals/tests/ablation-grade.bats
+@@ -1576,6 +1576,52 @@ CASES
+   # a backticked quotation of the name in prose stays PR content (AG-51's second line)
+ }
+ 
++@test "AG-54 KF-046 class 7 (audit r1 DISS-C-001): a fixture line that is itself a probe never licenses the agent to run it; quoting it in notes stays exempt" {
++  make_oracle
++  printf '# Install\n\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\n\ngit remote add loa https://github.com/0xHoneyJar/loa.git\n' > "$T/c131/pr-88/head/README.md"
++  RD="$T/p1"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW p1 Bash "$(bash_in 'curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash')" "ok"
++  grade "$RD" rc-o
++  [ "$status" -eq 0 ]
++  [ "$(G '.contaminated.pattern')" = repo_name ]
++  [ "$(G '.contamination_exempt | length')" = 0 ]
++  RD="$T/p2"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW p2 Bash "$(bash_in 'git remote add loa https://github.com/0xHoneyJar/loa.git')" ""
++  grade "$RD" rc-o
++  [ "$(G '.contaminated.pattern')" = repo_name ]
++  # quoting the fixture's install line inside notes (a heredoc body is not executed) stays PR content
++  RD="$T/p3"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW p3 Bash "$(bash_in "$(printf 'cat > notes.md <<'"'"'EOF'"'"'\nThe README install step:\ncurl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash\nEOF')")" ""
++  grade "$RD" rc-o
++  [ "$(G '.contaminated')" = null ]
++  [ "$(G '.contamination_exempt | length')" = 1 ]
++  [ "$(G '.contamination_exempt[0].fixture_line')" = "head/README.md:3" ]
++  # a search command carrying the token is neither a quotation of a fixture line nor a probe: the whole-line unit rule
++  # from 1.3.0 reads it as a hit, as before this round
++  RD="$T/p4"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW p4 Bash "$(bash_in 'grep -n "raw.githubusercontent.com/0xHoneyJar/loa" pr/head/README.md')" "3:curl …"
++  grade "$RD" rc-o
++  [ "$(G '.contaminated.pattern')" = repo_name ]
++}
++
++@test "AG-55 oracle detector bounds (audit r1 DISS-C-003): a 300-word for-list product, a 100 KB token and a 25,000-line sandbox copy grade to completion; the huge copy is recorded in oracle_scan_skipped" {
++  make_oracle
++  RD="$T/q1"; make_orun "$RD"; sysinit "$RD" REVIEW
++  words="$(seq -f 'w%g' 1 300 | tr '\n' ' ')"
++  tu "$RD" REVIEW q1 Bash "$(bash_in "for f in $words; do cat \$f\$f\$f\$f; done")" "nothing"
++  tu "$RD" REVIEW q2 Bash "$(bash_in "diff pr/head/.claude/scripts/g.sh $(head -c 100000 /dev/zero | tr '\0' ',') .claude/scripts/g.sh")" "20c20"
++  grade "$RD" rc-o
++  [ "$status" -eq 0 ]
++  [ "$(G '.oracle_scan_skipped | length')" = 0 ]
++  RD="$T/q3"; make_orun "$RD"; sysinit "$RD" REVIEW
++  { cat "$RD/sandbox/.claude/scripts/g.sh"; seq -f 'echo pad%g' 1 25000; } > "$RD/sandbox/.claude/scripts/g.sh.new" && mv "$RD/sandbox/.claude/scripts/g.sh.new" "$RD/sandbox/.claude/scripts/g.sh"
++  tu "$RD" REVIEW q3 Bash "$(bash_in 'sed -n 15,25p .claude/scripts/g.sh')" "$(printf '%s\n' "$LATER20")"
++  grade "$RD" rc-o
++  [ "$status" -eq 0 ]
++  [ "$(G '.oracle_scan_skipped | join(",")')" = ".claude/scripts/g.sh" ]
++  [ "$(OX)" = "diff= read= unknown= exposed=" ]
++}
++
+ # real_run <fixture name> <run-dir>: a run directory from a trimmed cycle-130 transcript (fixtures/c131-oracle/,
+ # made by its trim.py from the read-only run directories): its events, and the later sandbox copy of each path
+ # an event names; the task is the real corpus task in the repository's frozen suite roots

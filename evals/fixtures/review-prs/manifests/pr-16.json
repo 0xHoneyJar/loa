@@ -1,84 +1,173 @@
 {
   "fixture": "pr-16",
+  "label_set": "v2",
   "approved": true,
-  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "252",
     "record_ref": "origin/record/cycle-128-a2a",
     "head_commit": "8dc4a49dc38ae397c4efbc5fb379e7dbbd044ea7",
-    "fix_commit": "16f38539459a12ecd1f19bf09d4cca5a960b8156"
+    "fix_commit": "16f38539459a12ecd1f19bf09d4cca5a960b8156",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-treats-any-as-a-fixture-so-reaches-the-w",
-      "file": ".claude/scripts/lib/dec-write-lib.sh",
-      "anchor_line": 249,
+      "id": "V01",
+      "file": ".claude/scripts/grimoire-index.sh",
+      "anchor_line": 186,
       "anchors": [
-        249,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192
+      ],
+      "must_match": "# Sanitised in jq (control characters, C1, U+2028/9 flattened; capped at 160 code points) so an",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "8dc4a49d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 186\u2013187)",
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "anchor_line": 250,
+      "anchors": [
         250,
         251,
+        252,
+        253,
         261
       ],
-      "must_match": "resolve_target(){ # mode: write|read",
-      "severity": "medium",
-      "category": "test",
-      "label_source": "review",
-      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33",
+      "must_match": "@L250",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
       "source_commit": "8dc4a49d",
-      "synthetic": false
-    },
-    {
-      "id": "L02-discards-any-line-containing-user-operat",
-      "file": "tests/unit/user-invoked-commands.bats",
-      "anchor_line": 74,
-      "anchors": [
-        61,
-        65,
-        74
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
       ],
-      "must_match": "grep -viE \"$exempt\"",
-      "severity": "medium",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41",
-      "source_commit": "8dc4a49d",
-      "synthetic": false
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 261)",
+      "review_driven": true
     },
     {
-      "id": "L03-the-shape-check-runs-over-a-json-stream",
+      "id": "V03",
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "anchor_line": 626,
+      "anchors": [
+        626,
+        627
+      ],
+      "must_match": "@L626",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
+      "source_commit": "8dc4a49d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: security \u2014 an unchecked write target; input-validation rejected as the narrower reading",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".loa.config.yaml.example",
+      "anchor_line": 127,
+      "anchors": [
+        127,
+        140
+      ],
+      "must_match": "# Unset: rounds for thorough, batch for minimal. An explicit value always wins.",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "8dc4a49d",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 127, the mode-default comment); category: contract \u2014 the shipped example contradicts the documented default",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
       "file": "tools/check-round-independence.sh",
       "anchor_line": 65,
       "anchors": [
         65,
         71,
-        72
+        72,
+        73,
+        74,
+        75,
+        77,
+        79,
+        82
       ],
       "must_match": "rounds_json=\"[]\"",
-      "severity": "low",
-      "category": "logic",
-      "label_source": "review",
-      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H16",
       "source_commit": "8dc4a49d",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 65); group: A's D5 (B's D6 after H13 is not a defect); category: input-validation \u2014 unbounded input reaching argv",
+      "review_driven": true
     },
     {
-      "id": "L04-index-decisions-family-emitted-ledger-te",
-      "file": ".claude/scripts/grimoire-index.sh",
-      "anchor_line": 177,
+      "id": "V06",
+      "file": "tools/check-round-independence.sh",
+      "anchor_line": 73,
       "anchors": [
-        177,
-        186,
-        189,
-        191,
-        192
+        73,
+        139,
+        140,
+        142,
+        143
       ],
-      "must_match": "emit_decisions()",
+      "must_match": "type == \"object\" and (.id | type == \"string\" and length > 0)",
       "severity": "low",
       "category": "security",
-      "label_source": "audit",
-      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L76",
+      "label_source": "fix-commit",
+      "source": "hunk:H18",
       "source_commit": "8dc4a49d",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D6 = B's D7 (namespace only)",
+      "review_driven": false
     }
   ],
   "fix_regions": [

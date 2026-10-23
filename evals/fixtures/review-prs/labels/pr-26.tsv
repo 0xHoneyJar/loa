@@ -1,0 +1,117 @@
+# approved-by: lead 2026-10-21
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	input-validation	evals/harness/ablation-report.py	if isinstance(missed, list) and all(isinstance(x, str) for x in missed):	fix-commit	hunk:H13	A,B	agreed	-	false
+V01	medium	input-validation	evals/harness/ablation-report.py	ms = set(missed)	fix-commit	hunk:H13	A,B	agreed	-	false
+V01	medium	input-validation	evals/harness/ablation-report.py	return [0.0 if f"d{k}" in ms else 1.0 for k in range(1, n + 1)], "ids"	fix-commit	hunk:H13	A,B	agreed	-	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"arm_cost": mean([float(r.get("cost_usd") or 0) for r in va]),	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"control_cost": mean([float(r.get("cost_usd") or 0) for r in vc]),	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"arm_wall": mean([float(r.get("wall_clock_ms") or 0) for r in va]),	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"control_wall": mean([float(r.get("wall_clock_ms") or 0) for r in vc])}	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	vs = [r.get(key) for r in (valid if rs is None else rs)	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	if isinstance(c, bool) or not isinstance(c, (int, float)):	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	f = f if isinstance(f, (int, float)) and not isinstance(f, bool) else 0	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	usd += float(r.get("cost_usd") or 0)	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"cost_per_task": task_mean(by_task, lambda r: float(r.get("cost_usd") or 0)) if by_task else None,	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	"cost_per_run": nums("cost_usd"),	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	e["a0_cost_sum"] = sum(float(r.get("cost_usd") or 0) for r in a0)	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	e["a1_cost_mean"] = mean([float(r.get("cost_usd") or 0) for r in a1])	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V02	medium	input-validation	evals/harness/ablation-report.py	f"USD {float(r.get('cost_usd') or 0):.2f})")	fix-commit	hunk:H14,H15,H16,H17,H20,H25	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3	false
+V03	medium	logic	evals/harness/ablation-report.py	def version_key(v):	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	if v is None or isinstance(v, bool):	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	@L831	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	return str(int(v))	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	if isinstance(v, str) and v.strip():	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	return str(int(s)) if re.fullmatch(r"\d+", s) else s	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	@L836	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	def version_order(k):	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	logic	evals/harness/ablation-report.py	return (0, int(k), "") if k.isdigit() else (1, 0, k)	fix-commit	hunk:H18	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	if len(keys) > 1 and missing:	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	r = missing[0]	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	raise Fail(f"{r['_where']}: row {r['run_id']} has no suite_version while the rows hold suite_version "	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	f"{', '.join(keys)}; rows of different suite versions are never pooled, so every row must "	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	f"name its suite_version")	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V04	medium	logic	evals/harness/ablation-report.py	groups, primary = partition(rows, args.suite_version)	fix-commit	hunk:H28	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V05	high	logic	evals/harness/ablation-report.py	ad = os.path.join(d, r["arm"])	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	dirs = []	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	for x in listing[ad]:	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	mm = GRADE_DIR.fullmatch(x)	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	if mm and mm.group(1) == r["task_id"] and int(mm.group(2)) == r["trial"]:	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	dirs.append(x)	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	if not dirs:	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	e["run_dirs_missing"] += 1	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	for x in dirs:	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	gp = os.path.join(ad, x, "grade.json")	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	gv[ver] = gv.get(ver, 0) + 1	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	e["grader_versions"] = dict(sorted(gv.items(), key=lambda kv: (	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V05	high	logic	evals/harness/ablation-report.py	kv[0] == "n/a", [int(p) if p.isdigit() else p for p in re.split(r"[.]", kv[0])])))	fix-commit	hunk:H22	A,B	adjudicated	anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)	true
+V06	low	contract	evals/harness/ablation-report.py	return {k: (j6(x) if isinstance(x, float) else	fix-commit	hunk:H23,H26,H27,H30,H31	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)	true
+V06	low	contract	evals/harness/ablation-report.py	@L1339	fix-commit	hunk:H23,H26,H27,H30,H31	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)	true
+V06	low	contract	evals/harness/ablation-report.py	"suite_version": V["version"], "comparison": comp}	fix-commit	hunk:H23,H26,H27,H30,H31	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)	true
+V06	low	contract	evals/harness/ablation-report.py	return {"suite_version": V["version"], "rows": len(V["rows"]), "batches": V["batches"],	fix-commit	hunk:H23,H26,H27,H30,H31	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)	true
+V06	low	contract	evals/harness/ablation-report.py	"primary_suite_version": int(primary) if primary.isdigit() else (None if primary == "n/a" else primary),	fix-commit	hunk:H23,H26,H27,H30,H31	A,B	adjudicated	verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7; anchors: union; group: A's namespace (B's corresponds)	true
+V07	medium	error-handling	evals/harness/ablation-report.py	recs = batch_record(mans, rows)	fix-commit	hunk:H29	A,B	agreed	-	true
+V07	medium	error-handling	evals/harness/ablation-report.py	@L1553	fix-commit	hunk:H29	A,B	agreed	-	true
+V08	medium	contract	evals/harness/ablation-report.py	write_out(args.out, text)	fix-commit	hunk:H34	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V08	medium	contract	evals/harness/ablation-report.py	if args.json_out:	fix-commit	hunk:H34	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V08	medium	contract	evals/harness/ablation-report.py	write_out(args.json_out, json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n")	fix-commit	hunk:H34	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	// (if has("defects_missed") and .defects_missed != null	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	and ((.defects_missed | type) != "array"	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	or any(.defects_missed[]; (type != "string") or (length == 0)))	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	then "field defects_missed has type \(.defects_missed | type), want a list of non-empty strings|null" else empty end)	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	| if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0) then $ms	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	input-validation	evals/harness/ablation-row.sh	else null end end),	fix-commit	hunk:H40,H42	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+F001	-	fix	evals/harness/ablation-report.py	# two or more versions → exit 2; when one version (or none) is present, such rows join it.	fix	fix/56ce0b8f78cc:62-62	-	-	-	-
+F002	-	fix	evals/harness/ablation-report.py	#                   ids when present, else each defect of the task takes the row's	fix	fix/56ce0b8f78cc:87-88	-	-	-	-
+F003	-	fix	evals/harness/ablation-report.py	# Presentation items (Sprint 262 R3, report 1.2.0; none of them changes a decision, an H1/A4 state or	fix	fix/56ce0b8f78cc:126-127	-	-	-	-
+F004	-	fix	evals/harness/ablation-report.py	#                   directories <batch dir>/<arm>/<task>-t<n>[-r<k>] ("n/a" without grade.json; a missing	fix	fix/56ce0b8f78cc:138-139	-	-	-	-
+F005	-	fix	evals/harness/ablation-report.py	#                   version; by_suite_version[N].budget_matched for each).	fix	fix/56ce0b8f78cc:152-152	-	-	-	-
+F006	-	fix	evals/harness/ablation-report.py	#      suite_version among two versions, --suite-version naming no row's version	fix	fix/56ce0b8f78cc:159-159	-	-	-	-
+F007	-	fix	evals/harness/ablation-report.py	VERSION = "1.2.0"	fix	fix/56ce0b8f78cc:174-174	-	-	-	-
+F008	-	fix	evals/harness/ablation-report.py	GRADE_DIR = re.compile(r"(.+)-t(\d+)(?:-r(\d+))?")	fix	fix/56ce0b8f78cc:197-197	-	-	-	-
+F009	-	fix	evals/harness/ablation-report.py	def schema_major(v):	fix	fix/56ce0b8f78cc:229-229	-	-	-	-
+F010	-	fix	evals/harness/ablation-report.py	class Analysis:	fix	fix/56ce0b8f78cc:443-443	-	-	-	-
+F011	-	fix	evals/harness/ablation-report.py	return "all" in types or ttype in types or ("build" in types and ttype in BUILD_TYPES)	fix	fix/56ce0b8f78cc:484-485	-	-	-	-
+F012	-	fix	evals/harness/ablation-report.py	m = mans.get(row["batch"])	fix	fix/56ce0b8f78cc:496-510	-	-	-	-
+F013	-	fix	evals/harness/ablation-report.py	if isinstance(missed, list) and all(isinstance(x, str) for x in missed):	fix	fix/56ce0b8f78cc:549-549	-	-	-	-
+F014	-	fix	evals/harness/ablation-report.py	"arm_cost": mean([float(r.get("cost_usd") or 0) for r in va]),	fix	fix/56ce0b8f78cc:595-598	-	-	-	-
+F015	-	fix	evals/harness/ablation-report.py	vs = [r.get(key) for r in (valid if rs is None else rs)	fix	fix/56ce0b8f78cc:757-758	-	-	-	-
+F016	-	fix	evals/harness/ablation-report.py	if isinstance(c, bool) or not isinstance(c, (int, float)):	fix	fix/56ce0b8f78cc:773-778	-	-	-	-
+F017	-	fix	evals/harness/ablation-report.py	"cost_per_task": task_mean(by_task, lambda r: float(r.get("cost_usd") or 0)) if by_task else None,	fix	fix/56ce0b8f78cc:797-798	-	-	-	-
+F018	-	fix	evals/harness/ablation-report.py	def version_key(v):	fix	fix/56ce0b8f78cc:824-851	-	-	-	-
+F019	-	fix	evals/harness/ablation-report.py	return groups, w	fix	fix/56ce0b8f78cc:860-861	-	-	-	-
+F020	-	fix	evals/harness/ablation-report.py	e["a0_cost_sum"] = sum(float(r.get("cost_usd") or 0) for r in a0)	fix	fix/56ce0b8f78cc:965-968	-	-	-	-
+F021	-	fix	evals/harness/ablation-report.py	def batch_record(mans, rows):	fix	fix/56ce0b8f78cc:992-996	-	-	-	-
+F022	-	fix	evals/harness/ablation-report.py	"grader_versions": {}, "run_dirs_missing": 0}	fix	fix/56ce0b8f78cc:1006-1084	-	-	-	-
+F023	-	fix	evals/harness/ablation-report.py	return {k: (j6(x) if isinstance(x, float) else	fix	fix/56ce0b8f78cc:1117-1117	-	-	-	-
+F024	-	fix	evals/harness/ablation-report.py	gv += f"; no run dir ×{e['run_dirs_missing']}"	fix	fix/56ce0b8f78cc:1145-1145	-	-	-	-
+F025	-	fix	evals/harness/ablation-report.py	f"USD {float(r.get('cost_usd') or 0):.2f})")	fix	fix/56ce0b8f78cc:1321-1321	-	-	-	-
+F026	-	fix	evals/harness/ablation-report.py	return {"line": V["h1_line"], "established": V["h1_ok"], "state": V["h1_state"], "rule": rules.get("h1"),	fix	fix/56ce0b8f78cc:1339-1339	-	-	-	-
+F027	-	fix	evals/harness/ablation-report.py	"suite_version": V["version"], "comparison": comp}	fix	fix/56ce0b8f78cc:1351-1351	-	-	-	-
+F028	-	fix	evals/harness/ablation-report.py	groups, primary = partition(rows, args.suite_version)	fix	fix/56ce0b8f78cc:1403-1406	-	-	-	-
+F029	-	fix	evals/harness/ablation-report.py	recs = batch_record(mans, rows)	fix	fix/56ce0b8f78cc:1552-1553	-	-	-	-
+F030	-	fix	evals/harness/ablation-report.py	return {"suite_version": V["version"], "rows": len(V["rows"]), "batches": V["batches"],	fix	fix/56ce0b8f78cc:1592-1592	-	-	-	-
+F031	-	fix	evals/harness/ablation-report.py	"primary_suite_version": int(primary) if primary.isdigit() else (None if primary == "n/a" else primary),	fix	fix/56ce0b8f78cc:1611-1611	-	-	-	-
+F032	-	fix	evals/harness/ablation-report.py	"batches": recs,	fix	fix/56ce0b8f78cc:1635-1635	-	-	-	-
+F033	-	fix	evals/harness/ablation-report.py	class Parser(argparse.ArgumentParser):	fix	fix/56ce0b8f78cc:1649-1649	-	-	-	-
+F034	-	fix	evals/harness/ablation-report.py	text, data, decidable = build(args)	fix	fix/56ce0b8f78cc:1674-1677	-	-	-	-
+F035	-	fix	evals/harness/ablation-row.sh	#                   non-empty strings (row writer 1.2, bd-yz1rd)	fix	fix/56ce0b8f78cc:56-56	-	-	-	-
+F036	-	fix	evals/harness/ablation-row.sh	#   ablation-report.py refuses any other schema_version.	fix	fix/56ce0b8f78cc:64-68	-	-	-	-
+F037	-	fix	evals/harness/ablation-row.sh	-h|--help)        sed -n '2,101p' "$0"; exit 0 ;;	fix	fix/56ce0b8f78cc:123-123	-	-	-	-
+F038	-	fix	evals/harness/ablation-row.sh	STATUSES='["completed","cap_failure","agent_error","transport_error","infrastructure_error","interrupted","contaminated"]'	fix	fix/56ce0b8f78cc:129-129	-	-	-	-
+F039	-	fix	evals/harness/ablation-row.sh	err="$(jq -r --argjson st "$STATUSES" --argjson ungraded "$ALLOW_UNGRADED" '	fix	fix/56ce0b8f78cc:137-137	-	-	-	-
+F040	-	fix	evals/harness/ablation-row.sh	then "field defects_missed has type \(.defects_missed | type), want a list of non-empty strings|null" else empty end)	fix	fix/56ce0b8f78cc:168-168	-	-	-	-
+F041	-	fix	evals/harness/ablation-row.sh	--arg retry_reason "$RETRY_REASON" '	fix	fix/56ce0b8f78cc:313-313	-	-	-	-
+F042	-	fix	evals/harness/ablation-row.sh	| if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0) then $ms	fix	fix/56ce0b8f78cc:412-412	-	-	-	-
+F043	-	fix	evals/tests/ablation-report.bats	# defect, the budget-matched baseline.	fix	fix/56ce0b8f78cc:13-13	-	-	-	-
+F044	-	fix	evals/tests/ablation-report.bats	for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present; do	fix	fix/56ce0b8f78cc:25-25	-	-	-	-
+F045	-	fix	evals/tests/ablation-report.bats	[ "$(b pr-2 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=1" ]	fix	fix/56ce0b8f78cc:471-471	-	-	-	-
+F046	-	fix	evals/tests/ablation-report.bats	grep -qF '| a3_one_voice | 1.2.5 ×1, 1.2.11 ×1, n/a ×1; no run dir ×15 |' "$M"	fix	fix/56ce0b8f78cc:477-477	-	-	-	-
+F047	-	fix	evals/tests/ablation-report.bats	[ "$(jq -r '.decisions[] | select(.arm == "a3_one_voice") | .state' "$FX/present/report.json")" = "keep" ]	fix	fix/56ce0b8f78cc:525-525	-	-	-	-
+F048	-	fix	evals/tests/ablation-row.bats	edit_grade a3-review '.recall.missed = ["d2","d5"]'	fix	fix/56ce0b8f78cc:409-409	-	-	-	-
+F049	-	fix	evals/tests/ablation-row.bats	edit_grade a3-review '.recall.missed = []'	fix	fix/56ce0b8f78cc:417-417	-	-	-	-
+F050	-	fix	evals/tests/ablation-row.bats	[ "$status" -eq 0 ] && [[ "$output" == *"2 rows valid"* ]]	fix	fix/56ce0b8f78cc:479-479	-	-	-	-
+F051	-	fix	evals/tests/fixtures/ablation-report/gen-fixtures.py	#                 suite_version 1 reads "not available".	fix	fix/56ce0b8f78cc:66-66	-	-	-	-
+F052	-	fix	evals/tests/fixtures/ablation-report/gen-fixtures.py	def write(out, name, rows, mans, extras=None):	fix	fix/56ce0b8f78cc:326-326	-	-	-	-
+F053	-	fix	evals/tests/fixtures/ablation-report/gen-fixtures.py	json.dump(data, fh, indent=2, sort_keys=True)	fix	fix/56ce0b8f78cc:346-346	-	-	-	-
+F054	-	fix	evals/tests/fixtures/ablation-report/gen-fixtures.py	("present", present_scenario)):	fix	fix/56ce0b8f78cc:360-360	-	-	-	-

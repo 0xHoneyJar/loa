@@ -1,0 +1,40 @@
+commit 30727c9528fb3402f84723444be9038a0909f680
+Date: 2026-10-13T16:17:13+11:00
+
+fix(cycle-128): sprint-253 review round r253-1 — the Fable review's HIGH and MEDIUM closed with tests, plus eight LOWs: the chart-researcher agent is read-only (Read, Grep, Glob, WebFetch; no Write, Edit or Bash) and returns its report as its final message, which the charting session writes verbatim to the report path before research-end runs as the secondary scope check (agent-types.yaml write_capable false; SKILL.md, REFERENCE.md and chart.md updated; CD-26/CD-26b); chart-ticket.sh close --consumed-by closes only a handed-off map with zero open rows and otherwise exits 1 writing nothing (CD-22 rewritten through handoff, CD-22b/CD-22c negatives); chart-unblock-probe.sh fails on files under the main tree's .run/ or .beads/ newer than its start marker, mirroring research-end, with the out-of-tree boundary stated (CD-27b); fence SP-1's merge/rebase/pull/cherry-pick pattern keeps the spike ref inside the verb's own shell segment so prose naming a merge and a spike path on one line passes (corpus B60/B61 allow; D73/D74 block the quoted and remote-prefixed refs), and the D-5.9 decided-spike unlock gains its trust-boundary comment and three bats cases (operator-decided row passes; agent-decided row and no row block); run-mode-ice.sh merge on a spike branch returns git's exit code on a conflict with a message naming the way out and uses --ff so merge.ff=only cannot refuse a diverged spike (two new ICE tests); hand-off tests pin the gate for a claimed ticket, a ticket waiting on a claimed prerequisite and a two-label ticket (CD-20b/c/d); the br stub parses trailing boolean flags and keeps its state when jq fails (CD-0); CD-14 skips as root; the charting-lint no-br map test no longer rewrites PATH (the missing .beads/ selects the skip path and the stub log proves br never ran); set_status cleans its temp file; a REFERENCE recovery row for a re-run after a failed br close. Dissent r253-1: two voices (codex-headless gpt-5.5-pro + claude-headless), 10 findings, 0 schema-rejected; DISS-001, C-001, C-002, C-003, C-004, C-005, C-007, C-008 and C-009 fixed or pinned, C-006 recorded as the documented fence misses, C-005's flag doubt refuted (br 0.2.6 has --slug, --dry-run and --external-ref). Sprint 2 tasks ticked in sprint.md; CHANGELOG Fixed and Security bullets. Verification: 552/552 across eleven suites (the seven Sprint 2 suites, validate-artifact, skill-capabilities, block-destructive-bash with the fence corpus, user-invoked-commands); check-prompt-budget exit 0; validate-skill-capabilities 37/37; agents-md-gen --check exit 0 (51 commands); check-no-swallowed-jq and check-no-raw-sha256sum OK.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/data/agent-types.yaml b/.claude/data/agent-types.yaml
+index fa30a686..713346f1 100644
+--- a/.claude/data/agent-types.yaml
++++ b/.claude/data/agent-types.yaml
+@@ -25,4 +25,4 @@ agent_types:
+   prompt-auditor-io:
+     write_capable: false
+   chart-researcher:
+-    write_capable: true
++    write_capable: false
+diff --git a/tests/unit/skill-capabilities.bats b/tests/unit/skill-capabilities.bats
+index 334a4f14..b355cd14 100644
+--- a/tests/unit/skill-capabilities.bats
++++ b/tests/unit/skill-capabilities.bats
+@@ -849,7 +849,7 @@ cost-profile: moderate
+     local data="$PROJECT_ROOT/.claude/data/agent-types.yaml"
+     run yq -r '.agent_types | to_entries | map(.key + "=" + (.value.write_capable | tostring)) | join(" ")' "$data"
+     [ "$status" -eq 0 ]
+-    [ "$output" = "general-purpose=true claude=true fork=true loa-scout=false Plan=false Explore=false prompt-auditor=false prompt-auditor-io=false chart-researcher=true" ]
++    [ "$output" = "general-purpose=true claude=true fork=true loa-scout=false Plan=false Explore=false prompt-auditor=false prompt-auditor-io=false chart-researcher=false" ]
+     local f
+     for f in "$PROJECT_ROOT"/.claude/agents/*.md; do
+         yq -e ".agent_types[\"$(basename "$f" .md)\"]" "$data" >/dev/null || { echo "unlisted: $f" >&2; return 1; }
+@@ -864,7 +864,7 @@ cost-profile: moderate
+     [ "$status" -eq 0 ]
+     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-scout
+     [ "$status" -eq 1 ]
+-    [[ "$output" == *"agent type 'loa-scout'"*"(general-purpose claude fork chart-researcher)"* ]]
++    [[ "$output" == *"agent type 'loa-scout'"*"(general-purpose claude fork)"* ]]
+     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-io
+     [ "$status" -eq 1 ]
+ }

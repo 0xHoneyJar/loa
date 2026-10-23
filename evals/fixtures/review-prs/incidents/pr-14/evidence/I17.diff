@@ -1,0 +1,217 @@
+commit 07110d7052ea531b190ec58a0f429e0718e2365c
+Date: 2026-10-14T21:29:39+11:00
+
+fix(cycle-129): sprint-257 security audit round a257-1 — a declared locality is enforced where the prompt is sent: under hounfour.locality local_voices cheval plans around every chain hop that fails the local-hop rule (one stderr line each, MODELINV models_not_planned reason locality_refused) and refuses an all-hosted chain before any dispatch (LocalityRefusedError, failure_class locality_refused, exit INVALID_CONFIG), the loader refuses a local model whose fallback_chain reaches a hosted or unresolvable hop, and Bridgebuilder walks the chain in the trusted view (MEDIUM-A1; one implementation endpoint_policy.hop_is_local serves cheval, the loader and MODELINV hop_locality); Bridgebuilder refuses trusted-config drift on a pull request — hounfour.providers, aliases, locality and the secret allowlist compared head vs trusted, exit 5 before any voice is planned, because cheval-delegate spawns cheval from the checkout (MEDIUM-A2); localhost is resolved and checked for loopback at request time (LOW-A1); metadata.locality.degraded_security_review is machine-readable on the audit envelope (LOW-A2); a zero price not marked open_weight warns in the budget gate (LOW-A3; metering guard → bd-yzzb9); DISS-001 RFC1918 opt-in accepted by design; tests test_locality_fallback_plan.py (13), test_local_dispatch_group_rule.py (+9), LOC-1/4/10, BUD-3/7, trusted-config.test.ts (35), dist rebuilt; cheval pytest 3277 passed (2 baseline), Sprint 3 bats 137/137, npm 881/882 (KF-036), corpus 99/99 · 184/184; CHANGELOG Fixed entry + two Migration rows; DEC-0340…DEC-0351 (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 2e9e033d..d1b0ed04 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -420,6 +420,43 @@ def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Di
+     return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
+ 
+ 
++def _entry_is_local(entry: Any, hounfour: Dict[str, Any]) -> bool:
++    """The local-hop rule (SDD D-8.1) for one resolved hop: `endpoint_policy.hop_is_local` on the merged view, and a
++    `kind: cli` hop (the resolver's adapter_kind) is hosted whatever its label says."""
++    from loa_cheval.config.endpoint_policy import hop_is_local
++    if getattr(entry, "adapter_kind", "http") == "cli":
++        return False
++    return hop_is_local(hounfour, getattr(entry, "provider", ""), getattr(entry, "model_id", ""))
++
++
++def _plan_around_locality(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Dict[str, Any]]]:
++    """cycle-129 audit a257-1 MEDIUM-A1 (a), SDD D-8.1: under `hounfour.locality: local_voices` cheval — the process
++    that sends the prompt — plans around every hop that fails the local-hop rule, the way `_plan_around_agy` plans
++    around the agy opt-in: the hop is dropped before the walk (never dispatched, not in models_requested) with one
++    stderr line naming it, and returned as `[{model, provider, reason: locality_refused}]` for MODELINV
++    `models_not_planned`. A chain left empty raises `LocalityRefusedError` — never a silent reroute. Under `hosted` (or
++    unset) the chain is returned unchanged."""
++    if not isinstance(hounfour, dict) or hounfour.get("locality") != "local_voices":
++        return chain, []
++    from loa_cheval.types import LocalityRefusedError
++    primary = chain.entries[0] if chain.entries else None
++    hosted = [e for e in chain.entries if not _entry_is_local(e, hounfour)]
++    if not hosted:
++        return chain, []
++    for e in hosted:
++        where = "primary" if e is primary else f"fallback of {chain.primary_alias}"
++        print(f"locality: local_voices refuses hosted hop {e.provider}:{e.model_id} ({where})", file=sys.stderr)
++    if len(hosted) == len(chain.entries):
++        raise LocalityRefusedError(
++            f"locality: local_voices refuses every hop of {chain.primary_alias} "
++            f"({', '.join(e.canonical for e in hosted)}): none passes the local-hop rule (dispatch_group local on an "
++            f"HTTP provider whose endpoint host is a loopback or RFC1918 IP literal or localhost)"
++        )
++    kept = [e for e in chain.entries if e not in hosted]
++    skipped = [{"model": e.canonical, "provider": e.provider, "reason": "locality_refused"} for e in hosted]
++    return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
++
++
+ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
+     """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
+ 
+@@ -1811,6 +1848,33 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+     # the full resolved chain (cycle-127 review r251-1 G1: a gated agy hop is
+     # planned around before models_requested is taken; r251-4 S8, audit n2).
+     _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
++    # cycle-129 audit a257-1 MEDIUM-A1 (a): under hounfour.locality local_voices the hosted hops are planned around;
++    # a chain with no local hop is refused before any dispatch, with a MODELINV row (failure_class locality_refused).
++    from loa_cheval.types import LocalityRefusedError as _LocalityRefusedError
++    try:
++        _chain, _models_not_planned_loc = _plan_around_locality(_chain, hounfour)
++    except _LocalityRefusedError as _e:
++        print(_error_json(_e.code, _e.detail, retryable=False, failure_class=_e.failure_class), file=sys.stderr)
++        try:
++            _emit_modelinv(
++                models_requested=[e.canonical for e in _chain.entries],
++                models_succeeded=[],
++                models_failed=[{"model": e.canonical, "provider": e.provider, "error_class": "INVALID_CONFIG",
++                                "failure_class": _e.failure_class, "message_redacted": _e.detail}
++                               for e in _chain.entries],
++                operator_visible_warn=True,
++                capability_class=getattr(binding, "capability_class", None),
++                calling_primitive=(getattr(args, "skill", None) or agent_name),
++                models_not_planned=_models_not_planned or None,
++                **_modelinv_hop_telemetry(_chain.entries[0].canonical, hounfour),
++            )
++        except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask the refusal
++            print(f"[AUDIT-EMIT-FAILED] {type(_emit_err).__name__}: {_emit_err}", file=sys.stderr)
++        return EXIT_CODES["INVALID_CONFIG"]
++    if _models_not_planned_loc:
++        _models_not_planned = list(_models_not_planned) + _models_not_planned_loc
++        if _auth_type_resolved is not None:
++            _auth_type_resolved = _chain.entries[0].auth_type
+     if _models_not_planned and _auth_type_resolved is not None:
+         _auth_type_resolved = _chain.entries[0].auth_type
+     _modelinv_capability_class = getattr(binding, "capability_class", None)
+diff --git a/.claude/adapters/loa_cheval/providers/base.py b/.claude/adapters/loa_cheval/providers/base.py
+index 1a499c68..372693e4 100644
+--- a/.claude/adapters/loa_cheval/providers/base.py
++++ b/.claude/adapters/loa_cheval/providers/base.py
+@@ -145,6 +145,12 @@ class TransportPolicy:
+                 f"request host {r_host or '(none)'} for provider '{self.provider}' is not {LOCAL_RULE_TEXT} "
+                 f"(dispatch_group local, D-7.2)"
+             )
++        if str(local_host(r_host)).lower() == "localhost":
++            # audit a257-1 LOW-A1: an IP literal is never resolved, but `localhost` is resolved by the system resolver
++            # (/etc/hosts, nsswitch) when the request is sent — so it is resolved here first and every address it
++            # yields must be loopback. Fail closed: a resolver failure refuses too. (Every policy hop — a local one or
++            # an `allow_insecure_endpoint: localhost` opt-in, whose plain http must stay on this machine.)
++            self._check_localhost_resolves_to_loopback()
+         prefix = d_path.rstrip("/")
+         same_origin = (r_scheme, r_host, r_port) == (d_scheme, d_host, d_port)
+         in_path = (r_path == prefix or r_path.startswith(prefix + "/")) if prefix else True
+@@ -154,6 +160,40 @@ class TransportPolicy:
+                 f"{self.endpoint!r} for provider '{self.provider}' (D-7.2 path-prefix rule)"
+             )
+ 
++    def _check_localhost_resolves_to_loopback(self) -> None:
++        import ipaddress
++
++        try:
++            infos = socket.getaddrinfo("localhost", None)
++        except Exception as exc:  # noqa: BLE001 — any resolver failure refuses (fail closed)
++            raise InvalidConfigError(
++                f"request host localhost for provider '{self.provider}' could not be resolved "
++                f"({type(exc).__name__}) (dispatch_group local, D-7.2)"
++            ) from None
++        addrs = []
++        for info in infos or ():
++            try:
++                addrs.append(str(info[4][0]))
++            except (IndexError, TypeError):
++                addrs.append("(unreadable)")
++        if not addrs:
++            raise InvalidConfigError(
++                f"request host localhost for provider '{self.provider}' could not be resolved "
++                f"(no address) (dispatch_group local, D-7.2)"
++            )
++        for addr in addrs:
++            try:
++                ip = ipaddress.ip_address(addr.split("%", 1)[0])
++                mapped = getattr(ip, "ipv4_mapped", None)
++                loopback = ip.is_loopback or bool(mapped is not None and mapped.is_loopback)
++            except ValueError:
++                loopback = False
++            if not loopback:
++                raise InvalidConfigError(
++                    f"request host localhost for provider '{self.provider}' resolves to {addr[:64]}, not a loopback "
++                    f"address (dispatch_group local, D-7.2)"
++                )
++
+     def refuse_redirect(self, status: int) -> None:
+         if 300 <= int(status) < 400:
+             raise InvalidConfigError(
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index 84b32fbb..e448855f 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-14T08:50:46Z",
+-  "source_hash": "b4e84888ce6f026aa7ffa758e24a1ae7262055fe3bcdebff5a3c49dd5c859cf6",
++  "generated_at": "2026-10-14T10:15:43Z",
++  "source_hash": "5dc9f2234313e53dae6152a581dd0ab7bbcdde5b23b2a70b3c9b3eb3aae843c1",
+   "file_count": 43,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "06f39340b69c9f734738ba739ee4d01be9ab9fbfdf530587541c2f928c5cbcf9"
++      "sha256": "39543c7beef4919f453fb552a6182075f78554a85987b67891ef5f020f21ff2e"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+@@ -130,7 +130,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+-      "sha256": "1b13a035d7dd98ef48cbec7fd76c96ddc9a6e0e9e40984dcbd03bfee1cb33ec5"
++      "sha256": "11cbc1ed7b4e0dca7ef4fdc2c16a34ca7f122709eaf9ac478ebe2dea0cfb1866"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts",
+@@ -142,7 +142,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
+-      "sha256": "8509c88a4038dccde7eeea79f557a0b6cdad74fb2412c2c743ba5bf92281ec27"
++      "sha256": "6db270fc245fff889312487e40488f02cb8841201ecd2f243a16eb76cf5f36a8"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index 6fb0676c..68b7ee4a 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -1226,8 +1226,10 @@ hounfour:
+ # Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
+ # Threat model: plain http is admitted only to the one host named in
+ # allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
+-# range that is never resolved through DNS, so the prompt does not cross a
+-# public network unencrypted and the name cannot be rebound. For this provider
++# range. IP literals are never resolved, so the prompt does not cross a public
++# network unencrypted and the address cannot be rebound; localhost is resolved
++# and checked at request time, and any address that is not loopback (or a
++# resolver failure) refuses the request by name. For this provider
+ # cheval ignores proxy environment variables, refuses redirects and keeps every
+ # request under the declared endpoint path, while every other provider keeps the
+ # https, loopback and private-range refusals.
+@@ -2512,6 +2514,10 @@ bridgebuilder:
+   # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
+   # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
+   # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
++  # Trusted config drift: cheval reads the checkout's configuration for the dispatch, so a pull request whose
++  # head changes hounfour.providers, hounfour.aliases, hounfour.locality or the secret allowlist is refused by
++  # name before any voice is planned (exit 5): merge the base branch into the head, or set
++  # BRIDGEBUILDER_TRUSTED_CONFIG to the configuration you vouch for.
+   exit_on_degraded: 3
+ 
+ # =============================================================================

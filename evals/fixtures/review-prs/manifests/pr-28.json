@@ -1,0 +1,151 @@
+{
+  "fixture": "pr-28",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "264",
+    "record_ref": "origin/record/cycle-131-honest-measurement",
+    "head_commit": "0281ea57ad2bcc755f302dc2863f251fa3a9088e",
+    "fix_commit": "798d88cfc920a95ce896a527145b21ca72d0ab18",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1913,
+      "must_match": "components = [a[\"id\"] for a in arms if a[\"id\"] not in (CONTROL, BARE) and not a.get(\"absent\") and a.get(\"eval_only\") is not True]",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "0281ea57",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/ablation-report.py",
+      "anchor_line": 1927,
+      "anchors": [
+        1927,
+        1928,
+        1929,
+        1930,
+        1931,
+        1932
+      ],
+      "must_match": "k = len(components)",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "0281ea57",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (insertion after 1927; B's 1930\u20131932 are the lines that drop the arms without disclosure, inside the context 1916\u20131939); verdict, group, severity, category agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 258,
+      "anchors": [
+        258,
+        259
+      ],
+      "must_match": "EVAL_ONLY=false; [[ \"$(jq -r '.eval_only // false' <<<\"$ARM_DEF\")\" == true ]] && EVAL_ONLY=true",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H06",
+      "source_commit": "0281ea57",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1913,
+      "end": 1913,
+      "source": "fix/798d88cfc920:1913-1913"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1927,
+      "end": 1927,
+      "source": "fix/798d88cfc920:1927-1927"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-report.py",
+      "start": 1998,
+      "end": 1998,
+      "source": "fix/798d88cfc920:1998-1998"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-report.py",
+      "start": 2174,
+      "end": 2174,
+      "source": "fix/798d88cfc920:2174-2174"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 141,
+      "end": 141,
+      "source": "fix/798d88cfc920:141-141"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 258,
+      "end": 258,
+      "source": "fix/798d88cfc920:258-258"
+    },
+    {
+      "id": "F007",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 189,
+      "end": 189,
+      "source": "fix/798d88cfc920:189-189"
+    },
+    {
+      "id": "F008",
+      "file": "evals/tests/ablation-report.bats",
+      "start": 325,
+      "end": 325,
+      "source": "fix/798d88cfc920:325-325"
+    },
+    {
+      "id": "F009",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 1245,
+      "end": 1245,
+      "source": "fix/798d88cfc920:1245-1245"
+    }
+  ]
+}

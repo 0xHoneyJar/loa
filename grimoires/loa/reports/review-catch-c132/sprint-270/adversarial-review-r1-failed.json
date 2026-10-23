@@ -1,0 +1,20 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "review",
+    "sprint_id": "sprint-270",
+    "timestamp": "2026-10-23T09:22:26Z",
+    "status": "failed",
+    "reason": "run 1 (2026-10-23T09:05:36Z): both voices ran (cost ledger rows 09:08:20Z codex-headless and 09:18:30Z claude headless) but the script exited without an envelope; the only error was the exit-trap reaper's 'wait_for: No record of process 31343' (line 4126); stdout empty",
+    "recorded_by": "record-fallback",
+    "displaced": null,
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": null,
+      "run_tag": null
+    },
+    "rejected_summary": [],
+    "rejected_sidecars": []
+  }
+}

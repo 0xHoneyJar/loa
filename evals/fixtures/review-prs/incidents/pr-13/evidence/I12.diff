@@ -1,0 +1,38 @@
+commit 2fb03b5c0a7dedfbc6ee144c7184e47ac443aaa7
+Date: 2026-10-14T21:55:25+11:00
+
+fix(cycle-129): Bridgebuilder PR #1282 round 1 — the session-cap dispatcher treats Bridgebuilder exit 3 as completed-degraded only when a run JSON with a verdicts array is on stdout (else ERROR, degraded false, exit 3) and records incomplete_voices as an array (F-001; new callers case); the three profile-governed SessionStart hooks say on stderr when profile-lib.sh cannot be sourced instead of going dark silently, ASCII-only (F-002, gpt F001/F002); the generated hooks-reference table renders hook matchers with slashes (Write/Edit/MultiEdit/NotebookEdit) — the human format hook-wiring W6 pins, which the FR-1 generator had changed to escaped pipes (guard-yield.bats GY updated, table regenerated, --check in sync); F-004/F-005/F-006/F-007/F-010/F-011/F-012/F-013 refuted with evidence and F-008 filed as bd-8o5rx (triage note in a2a/sprint-257/bb-triage.md) (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/loa/reference/hooks-reference.md b/.claude/loa/reference/hooks-reference.md
+index a27b8f76..c5a92372 100644
+--- a/.claude/loa/reference/hooks-reference.md
++++ b/.claude/loa/reference/hooks-reference.md
+@@ -186,18 +186,18 @@ ## All Hook Registrations
+ | PreToolUse | Skill(plan-and-analyze.*) | `scripts/cleanup-context.sh` | active | none | Archive the previous cycle's discovery context before /plan-and-analyze |
+ | PreToolUse | Bash | `hook-guard.sh safety/block-destructive-bash.sh` | active | none | Block destructive commands and System-Zone shell writes (the fence; per-pattern rows are fence:<id>) |
+ | PreToolUse | Bash | `hook-guard.sh safety/team-role-guard.sh` | dormant | LOA_TEAM_MEMBER | Enforce lead-only operations in Agent Teams (armed only when LOA_TEAM_MEMBER is set) |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh safety/team-role-guard-write.sh` | dormant | LOA_TEAM_MEMBER | Block teammate writes to the System Zone, state files and append-only files (armed only when LOA_TEAM_MEMBER is set) |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh safety/spiral-dispatch-guard.sh` | active | none | Block inline implementation writes under /spiraling until spiral-harness.sh is dispatched |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh safety/zone-write-guard.sh` | active | LOA_ZONE_GUARD_DISABLE | Block project-work writes into the framework zone (bounded marker .run/zone-guard-authorization.json for framework development) |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh compliance/implement-gate.sh` | active | implement_gate.mode | implement_gate.mode ask (default: ask + row) \| telemetry (allow + row) \| deny (refuse an unsanctioned App Zone write while the run position is known, else ask); sanctions: derived RUNNING cache, fresh .run/implement-active.json, LOA_IMPLEMENT_GATE_OVERRIDE; trust-input writes ask in every mode; a fence only under deny |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh safety/notes-size-guard.sh` | active | none | Refuse a write that would grow grimoires/loa/NOTES.md at or over 200 KiB (shrinking edits and notes-guard.sh rotate pass) |
+-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `hook-guard.sh safety/adversarial-review-gate.sh` | active | flatline_protocol.code_review.enabled | Block a COMPLETED marker write when cross-model dissent is enabled and its artefact is missing or invalid (the floor row is gate:adversarial-review-gate) |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh safety/team-role-guard-write.sh` | dormant | LOA_TEAM_MEMBER | Block teammate writes to the System Zone, state files and append-only files (armed only when LOA_TEAM_MEMBER is set) |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh safety/spiral-dispatch-guard.sh` | active | none | Block inline implementation writes under /spiraling until spiral-harness.sh is dispatched |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh safety/zone-write-guard.sh` | active | LOA_ZONE_GUARD_DISABLE | Block project-work writes into the framework zone (bounded marker .run/zone-guard-authorization.json for framework development) |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh compliance/implement-gate.sh` | active | implement_gate.mode | implement_gate.mode ask (default: ask + row) \| telemetry (allow + row) \| deny (refuse an unsanctioned App Zone write while the run position is known, else ask); sanctions: derived RUNNING cache, fresh .run/implement-active.json, LOA_IMPLEMENT_GATE_OVERRIDE; trust-input writes ask in every mode; a fence only under deny |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh safety/notes-size-guard.sh` | active | none | Refuse a write that would grow grimoires/loa/NOTES.md at or over 200 KiB (shrinking edits and notes-guard.sh rotate pass) |
++| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh safety/adversarial-review-gate.sh` | active | flatline_protocol.code_review.enabled | Block a COMPLETED marker write when cross-model dissent is enabled and its artefact is missing or invalid (the floor row is gate:adversarial-review-gate) |
+ | PreToolUse | Skill | `hook-guard.sh safety/team-skill-guard.sh` | dormant | LOA_TEAM_MEMBER | Block lead-only skill invocations for teammates (armed only when LOA_TEAM_MEMBER is set) |
+ | PreToolUse | Skill | `hook-guard.sh safety/spiral-skill-sentinel.sh` | active | none | Write the spiral sentinel when /spiraling is invoked so the dispatch guard arms itself |
+ | PostToolUse | Bash | `audit/mutation-logger.sh` | telemetry | none | Log mutating shell commands to .run/audit.jsonl |
+ | PostToolUse | Write | `audit/write-mutation-logger.sh` | telemetry | none | Log Write and Edit tool file modifications to .run/audit.jsonl |
+ | PostToolUse | Edit | `audit/write-mutation-logger.sh` | telemetry | none | Log Write and Edit tool file modifications to .run/audit.jsonl |
+-| PostToolUse | Write\|Edit\|NotebookEdit | `quality/karpathy-surgical-diff-check.sh` | telemetry | karpathy_principles.surgical_diff_warning | Warn-only: track per-task diff size against diff_lines_per_task; never blocks |
++| PostToolUse | Write/Edit/NotebookEdit | `quality/karpathy-surgical-diff-check.sh` | telemetry | karpathy_principles.surgical_diff_warning | Warn-only: track per-task diff size against diff_lines_per_task; never blocks |
+ | Stop | (all) | `safety/run-mode-stop-guard.sh` | active | none | Soft-block a Stop while an autonomous run is active |
+ | Stop | (all) | `hygiene/settings-cleanup.sh` | active | none | Prune one-off permission entries from settings.local.json at session end |
+ | PermissionRequest | (all) | `scripts/permission-audit.sh` | telemetry | none | Log permission requests for prompt analysis (async) |

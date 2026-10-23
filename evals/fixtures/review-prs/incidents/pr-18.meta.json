@@ -1,0 +1,70 @@
+{
+  "changed_files": 29,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 1,
+    "issue": 0,
+    "kf": 1
+  },
+  "fixture": "pr-18",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"GLOSSARY.md\" OR \"REFERENCE.md\" OR \"SKILL.md\" OR \"allowlist.txt\" OR \"check-glossary-terms.sh\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"check-glossary-terms.yml\" OR \"cycle-127-sprint.md\" OR \"glossary-allowlist.txt\" OR \"glossary-terms.bats\" OR \"glossary-validator.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"kernel.md\" OR \"micro-sprint.md\" OR \"mount-loa.sh\" OR \"mount-submodule.sh\" OR \"red-test-check.bats\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"red-test-check.sh\" OR \"sprint-seams.bats\" OR \"sprint-template.md\" OR \"symlink-manifest.sh\" OR \"validate-artifact.sh\"",
+      "total_count": 2
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 7,
+  "merge_commit": "6056a37271ed7cf54f3a44d2534c04ebe30833dd",
+  "merge_date": "2026-10-13T10:52:13Z",
+  "pr": 1279,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:27:19Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-13T10:52:13Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:27:19Z"
+  }
+}

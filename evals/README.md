@@ -520,6 +520,14 @@ re-applied on every seed. `fix` rows (the hunks the fix commit changed) feed the
 only. A label file is approved with `seed-corpus-from-record.sh --approve pr-NN --by "<who> <date>"`;
 `run-arms.sh` refuses unapproved fixtures unless `--allow-unapproved`.
 
+Label sets (cycle-132, Sprint 269): the current key of a fixture is `labels/pr-NN.tsv` + `manifests/pr-NN.json`
+(`label_set: v2` for pr-11, 14–16 and 19–28 — two blind annotators' labels adjudicated by the lead, with
+`label_source`, `agreement`, `adjudication` and `review_driven` per defect); the frozen cycle-131 key of
+pr-11 … pr-18 lives at `manifests/c131/pr-NN.json` with its labels at `labels/review/pr-NN.tsv`, the v1 key
+at `manifests/v1/`, and the seeded review-derived key of pr-19 … pr-28 at `manifests/review/pr-NN.json`
+(labels `labels/review/pr-NN.tsv`). Tasks name the key they grade against in `review_catch.manifest`; the
+earlier sets are sensitivities, never pooled with the v2 reads.
+
 ```bash
 # one suite, one batch, against a detached worktree pinned at the source commit
 ./evals/harness/run-arms.sh --suite review-recall --arms baseline,no_companion,no_karpathy,no_rule_files \

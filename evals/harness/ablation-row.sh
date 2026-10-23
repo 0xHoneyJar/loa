@@ -84,9 +84,10 @@
 #                       null on build and ungraded rows
 #   grader_version, corpus_sha256  grade.json's (null when absent)
 #   dissent_absent_reason {review, audit}  per gate that ran (a non-skipped REVIEW / AUDIT phase; null for a
-#                       gate that did not run): disabled (the sandbox .loa.config.yaml sets
+#                       gate that did not run): disabled (1.4: the sandbox .loa.config.yaml sets
 #                       flatline_protocol.enabled, or the gate's code_review / security_audit .enabled,
-#                       false, or meta/arm-evidence.txt says dissent=false for the review gate) > budget
+#                       false, or meta/arm-evidence.txt says dissent=false for the review gate; 1.5, bd-jszcp:
+#                       the harness evidence lines only, see the 1.5 fields) > budget
 #                       (envelope metadata.status budget_exceeded) > preflight (a status naming preflight, or
 #                       a record-fallback whose reason names it) > error (status failed, any other
 #                       record-fallback, or no envelope although the gate ran) > none (the dissent ran)
@@ -97,14 +98,52 @@
 #   oracle_open         true when the evidence says oracle_open=true, else false
 #   gate_scripts_at_pr_version  the comma list of gate_scripts_at_pr_version= ([] when absent)
 #
-# Row writer version: 1.4 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
+# Row writer 1.5 fields (cycle-132 Sprint 269 Task 1.7b, SDD §3.2 "Entity: rows.jsonl"; additive — schema_version
+# stays 1; --validate requires every 1.5 field on a row whose row_writer_version is "1.5"):
+#   bare_sessions, sessions_valid, sessions_attempted  a matched cell's k, valid and attempted session counts; null
+#                       on an ordinary row
+#   session_costs       a cell: [{session, status, valid, attempts, attempt_costs: [USD per attempt], cost_usd (the
+#                       final attempt's)}] from meta/cell.json; null on an ordinary row
+#   all_spend_usd       every dollar of every attempt: a cell, Σ attempt_costs over all sessions; an ordinary row,
+#                       cost_usd + --prior-spend (the runner's earlier attempts of the trial)
+#   cost_usd            a cell: Σ cost_usd of the VALID sessions (ordinary rows unchanged)
+#   dollar_match        null (filled by the analysis: |cost matched − cost full| ≤ 0.25 × cost full, D-7.9)
+#   recall_session1, recall_pm3_session1, precision_session1  the union grade's session-1 figures; null otherwise
+#   label_set           grade.json label_set (null when absent)
+#   batch_context       meta/arm-evidence.txt batch_context= (a cell: its first session's), else null
+#   mount_cheval        meta/arm-evidence.txt mount_cheval= (ok | none | broken:<reason>), else null
+#   registration_sha256 the batch MANIFEST.json registration_sha256, else null
+#   contaminated        {phase, pattern} as before; a network_egress hit (grader 1.3.6, round 10) adds repo_named
+#                       (boolean|null), host and url (string|null) from grade.json — --validate checks those types
+#   took_effect         {<rule>: true|false, …} from <run-dir>/meta/took-effect.json (the took-effect.sh --json-out
+#                       record run-ablation.sh writes for the run or the cell); null when took-effect did not run
+#                       (no record: a smoke or override path, a timeout); a record that is empty, does not parse or
+#                       is not an object (dissent DISS-003) reads {took_effect_record: false}, so a validity filter
+#                       fails it rather than passing it
+#   sessions_meta_unreadable  a cell: the ids of sessions whose final meta/pipeline.json is missing, does not parse or
+#                       holds no BARE record ([] when none); null on an ordinary row. Validity is cell.json's alone
+#                       (the runner decides it, the union grade reads the same flags; dissent DISS-C-007): such a
+#                       session stays valid and counted, and only its BARE record is missing from phases[]
+#   attempts            1 … 3 on a 1.5 row (the attempt limit: 2 re-runs, D-7.3); a cell, its sessions' maximum
+#   dissent_absent_reason  bd-jszcp: "disabled" comes from harness-owned evidence only — meta/arm-evidence.txt
+#                       dissent=false (the review gate), gates= or flatline= (both gates), the lines the mount library
+#                       writes when it applies those toggles — never from the agent-writable sandbox .loa.config.yaml
+# A matched CELL (--run-dir on a directory holding meta/cell.json and no meta/pipeline.json, written by
+# run-ablation.sh): the row joins meta/cell.json, meta/arm, each session's final attempt
+# (sessions/<s>/meta/pipeline.json, its transcripts and arm evidence) and the cell's union grade.json; phases[] are
+# the k sessions' BARE records labelled BARE-s<i>; status completed when at least one session is valid (the union
+# is graded), else contaminated when a session was, else infrastructure_error; degraded when sessions_valid <
+# ⌈k/2⌉ (reason "sessions_valid < k/2 (<n> of <k>)") or when a VALID session's record degrades (an invalid
+# session's refusal fallback is the reason it is invalid, not a degradation of the cell).
+#
+# Row writer version: 1.5 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
 # envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
 # regressions_final_green, Sprint 262; 1.3 the defects_missed id rules, Sprint 262 audit;
-# 1.4 the cycle-131 fields above).
+# 1.4 the cycle-131 fields above; 1.5 the cycle-132 fields above).
 #
 # Usage:
 #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
-#                   [--status S] [--attempts N] [--retry-reason R] [--out runs.jsonl]
+#                   [--status S] [--attempts N] [--retry-reason R] [--prior-spend USD] [--out runs.jsonl]
 #   ablation-row.sh --validate runs.jsonl [--allow-ungraded]
 #
 # Options:
@@ -117,6 +156,7 @@
 #   --status S         override the derived status (one of the seven)
 #   --attempts N       attempts including transport retries (default 1)
 #   --retry-reason R   the retry's reason (default null)
+#   --prior-spend USD  the spend of the trial's earlier attempts (default 0; all_spend_usd = cost_usd + it)
 #   --out F            append the row to F (flock when available); default stdout
 #   --validate F       check every row's fields, types and enums (the arm grammar, the
 #                      four zone_violations arrays); exit 1 on the first bad row naming
@@ -140,7 +180,7 @@
 set -euo pipefail
 export LC_ALL=C
 
-RUN_DIR="" TASK_YAML="" GRADE="" MANIFEST="" STATUS_OVERRIDE="" ATTEMPTS=1 RETRY_REASON="" OUT=""
+RUN_DIR="" TASK_YAML="" GRADE="" MANIFEST="" STATUS_OVERRIDE="" ATTEMPTS=1 RETRY_REASON="" OUT="" PRIOR_SPEND=0
 VALIDATE="" ALLOW_UNGRADED=false
 usage() { echo "ablation-row.sh: $*" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
@@ -152,6 +192,7 @@ while [[ $# -gt 0 ]]; do
     --status)         STATUS_OVERRIDE="${2:-}"; shift 2 ;;
     --attempts)       ATTEMPTS="${2:-}"; shift 2 ;;
     --retry-reason)   RETRY_REASON="${2:-}"; shift 2 ;;
+    --prior-spend)    PRIOR_SPEND="${2:-}"; shift 2 ;;
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
@@ -250,6 +291,31 @@ if [[ -n "$VALIDATE" ]]; then
       // (if has("gate_scripts_at_pr_version") and (.gate_scripts_at_pr_version | type) == "array"
              and any(.gate_scripts_at_pr_version[]; type != "string" or length == 0)
            then "gate_scripts_at_pr_version must be a list of non-empty strings" else empty end)
+      // (if (.row_writer_version // null) == "1.5" then
+            [ need("bare_sessions"; numn), need("sessions_valid"; numn), need("sessions_attempted"; numn),
+              need("session_costs"; ["array","null"]), need("all_spend_usd"; num), need("dollar_match"; booln),
+              need("recall_session1"; numn), need("recall_pm3_session1"; numn), need("precision_session1"; numn),
+              need("label_set"; strn), need("batch_context"; strn), need("mount_cheval"; strn),
+              need("registration_sha256"; strn), need("took_effect"; objn) ][0]
+          else empty end)
+      // (if has("sessions_meta_unreadable") and ((.sessions_meta_unreadable | type) as $ty | ["array","null"] | index($ty)) == null
+           then "field sessions_meta_unreadable has type \(.sessions_meta_unreadable | type), want array|null" else empty end)
+      // (if (.contaminated | type) == "object" and (
+             ((.contaminated | has("repo_named")) and ((.contaminated.repo_named | type) as $ty | ["boolean","null"] | index($ty)) == null)
+             or any(("host", "url") as $k | .contaminated | select(has($k)) | .[$k] | type; . != "string" and . != "null"))
+           then "contaminated.repo_named must be boolean|null and contaminated.host/url string|null" else empty end)
+      // (if (.row_writer_version // null) == "1.5" and (.took_effect | type) == "object"
+             and any(.took_effect[]; type != "boolean")
+           then "took_effect values must be booleans" else empty end)
+      // (if (.row_writer_version // null) == "1.5" and ((.attempts | type) != "number" or .attempts < 1 or .attempts > 3 or .attempts != (.attempts | floor))
+           then "attempts \(.attempts | tojson) is not 1 … 3 (the attempt limit: 2 re-runs, D-7.3)" else empty end)
+      // (if (.row_writer_version // null) == "1.5" and (.bare_sessions != null) and
+             ((.bare_sessions | type) != "number" or (.sessions_valid | type) != "number" or (.sessions_attempted | type) != "number"
+              or (.session_costs | type) != "array" or .sessions_valid > .sessions_attempted or .sessions_attempted > .bare_sessions
+              or (.session_costs | length) != .bare_sessions)
+           then "matched cell fields inconsistent: bare_sessions \(.bare_sessions | tojson), sessions_valid \(.sessions_valid | tojson), sessions_attempted \(.sessions_attempted | tojson), session_costs \(.session_costs | if type == "array" then length else . end | tojson)" else empty end)
+      // (if (.row_writer_version // null) == "1.5" and (.registration_sha256 != null) and ((.registration_sha256 | test("^[0-9a-f]{64}$")) | not)
+           then "registration_sha256 is not 64 lowercase hex" else empty end)
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
@@ -288,9 +354,14 @@ fi
 [[ -n "$TASK_YAML" ]] || usage "missing --task-yaml"
 [[ -f "$TASK_YAML" ]] || usage "task yaml not found: $TASK_YAML"
 PIPE="$RUN_DIR/meta/pipeline.json"
-[[ -f "$PIPE" ]] || usage "no meta/pipeline.json under $RUN_DIR"
-jq -e 'type == "object"' "$PIPE" >/dev/null 2>&1 || usage "meta/pipeline.json does not parse"
+CELL=false   # a matched cell (row writer 1.5): meta/cell.json, no meta/pipeline.json
+[[ -f "$RUN_DIR/meta/cell.json" && ! -f "$PIPE" ]] && CELL=true
+if [[ "$CELL" != true ]]; then
+  [[ -f "$PIPE" ]] || usage "no meta/pipeline.json under $RUN_DIR"
+  jq -e 'type == "object"' "$PIPE" >/dev/null 2>&1 || usage "meta/pipeline.json does not parse"
+fi
 [[ "$ATTEMPTS" =~ ^[0-9]+$ ]] || usage "--attempts must be an integer"
+[[ "$PRIOR_SPEND" =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage "--prior-spend must be an amount in USD"
 if [[ -n "$STATUS_OVERRIDE" ]] && ! jq -e --arg s "$STATUS_OVERRIDE" 'index($s) != null' <<<"$STATUSES" >/dev/null; then
   usage "--status must be one of $(jq -r 'join("|")' <<<"$STATUSES")"
 fi
@@ -308,13 +379,105 @@ if [[ -n "$GRADE" ]]; then
   [[ -f "$GRADE" ]] || usage "grade file not found: $GRADE"
   jq -c '.' "$GRADE" > "$WORK/grade.json" || usage "grade file does not parse: $GRADE"
 fi
+# row writer 1.5: the took-effect record of this run (or cell), {rule: ok}; null without one
+echo null > "$WORK/took.json"
+if [[ -f "$RUN_DIR/meta/took-effect.json" && ! -L "$RUN_DIR/meta/took-effect.json" ]]; then
+  jq -c 'if type == "object" and (.rules | type) == "array" and all(.rules[]; (.rule | type) == "string" and (.ok | type) == "boolean")
+         then (reduce .rules[] as $r ({}; .[$r.rule] = $r.ok)) else {took_effect_record: false} end' "$RUN_DIR/meta/took-effect.json" > "$WORK/took.tmp" 2>/dev/null \
+    && jq -e 'type == "object"' "$WORK/took.tmp" >/dev/null 2>&1 \
+    && mv "$WORK/took.tmp" "$WORK/took.json" \
+    || echo '{"took_effect_record": false}' > "$WORK/took.json"   # check-no-swallowed-jq: ok — an unreadable record fails the filter, never passes
+fi
 echo '{}' > "$WORK/manifest.json"
 if [[ -n "$MANIFEST" ]]; then
   [[ -f "$MANIFEST" ]] || usage "manifest not found: $MANIFEST"
   jq -c '.' "$MANIFEST" > "$WORK/manifest.json" || usage "manifest does not parse: $MANIFEST"
 fi
 yq -o=json '.' "$TASK_YAML" > "$WORK/task.json" || usage "task yaml does not parse"
-jq -c '.' "$PIPE" > "$WORK/pipe.json" || usage "meta/pipeline.json does not parse"
+echo null > "$WORK/cellx.json"
+if [[ "$CELL" == true ]]; then
+  # the cell's record: a synthesized pipeline record (phases = the k sessions' BARE records, BARE-s<i>), the
+  # cell extras, its first session's arm evidence, and the sessions' transcripts under the BARE-s<i> labels
+  mkdir -p "$WORK/transcripts"
+  python3 -I - "$RUN_DIR" "$WORK" <<'PY' || usage "meta/cell.json under $RUN_DIR is not a matched cell record"
+import json, math, os, re, shutil, sys
+cell, work = sys.argv[1], sys.argv[2]
+c = json.load(open(os.path.join(cell, "meta", "cell.json"), encoding="utf-8"))
+k, sess = c["k"], c["sessions"]
+assert isinstance(k, int) and not isinstance(k, bool) and k >= 1 and isinstance(sess, list) and len(sess) == k
+base = os.path.realpath(os.path.join(cell, "sessions"))
+num = lambda v: v if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else 0
+def tidy(x):   # 7.5 stays 7.5, 10.0 is written 10 (the shape jq writes for an integral sum)
+    x = round(x, 6)
+    return int(x) if float(x).is_integer() else x
+phases, valid_labels, costs, starts, fins, first, evid, unreadable = [], [], [], [], [], None, "", []
+all_spend = cost_valid = 0.0
+attempted, max_att, statuses = 0, 1, []
+for i, s in enumerate(sess, 1):
+    assert isinstance(s, dict) and s.get("id") == f"s{i}"
+    label, valid = f"BARE-s{i}", s.get("valid") is True
+    att = s.get("attempts") if isinstance(s.get("attempts"), int) and not isinstance(s.get("attempts"), bool) else 0
+    acs = [num(x) for x in (s.get("attempt_costs") or [])] if isinstance(s.get("attempt_costs"), list) else []
+    attempted += 1 if att >= 1 else 0
+    max_att = max(max_att, att)
+    all_spend += sum(acs)
+    cost_valid += num(s.get("cost_usd")) if valid else 0
+    statuses.append(s.get("status"))
+    costs.append({"session": s["id"], "status": s.get("status"), "valid": valid, "attempts": att,
+                  "attempt_costs": acs, "cost_usd": num(s.get("cost_usd"))})
+    rd = os.path.realpath(os.path.join(cell, s.get("run_dir") or ""))
+    p = None
+    if rd.startswith(base + os.sep) and os.path.isfile(os.path.join(rd, "meta", "pipeline.json")):
+        try:
+            p = json.load(open(os.path.join(rd, "meta", "pipeline.json"), encoding="utf-8"))
+        except ValueError:
+            p = None
+    if valid:
+        valid_labels.append(label)   # cell.json decides validity (the union grade reads the same flags)
+    if not isinstance(p, dict):
+        unreadable.append(s["id"])
+        continue
+    if first is None:
+        first = p
+        ef = os.path.join(rd, "meta", "arm-evidence.txt")
+        if os.path.isfile(ef) and not os.path.islink(ef):
+            evid = open(ef, encoding="utf-8", errors="replace").read()
+    bare = [ph for ph in p.get("phases") or [] if isinstance(ph, dict) and ph.get("name") == "BARE"]
+    if bare:
+        phases.append(dict(bare[0], label=label))
+    else:
+        unreadable.append(s["id"])
+    for t in (p.get("started"), ):
+        if isinstance(t, str) and t:
+            starts.append(t)
+    if isinstance(p.get("finished"), str) and p["finished"]:
+        fins.append(p["finished"])
+    tr = os.path.join(rd, "transcripts", "events-BARE.jsonl")
+    if os.path.isfile(tr) and not os.path.islink(tr):
+        shutil.copyfile(tr, os.path.join(work, "transcripts", f"events-{label}.jsonl"))
+n_valid = len(valid_labels)
+status = "completed" if n_valid >= 1 else ("contaminated" if "contaminated" in statuses else "infrastructure_error")
+first = first or {}
+# the cell's run_id: cell.json names no arm (the grader reads it), so it comes from the first readable session's
+# run id, <batch>-<arm>-<task>-t<n>-s<i>, without the session suffix
+srid = str(first.get("run_id") or "")
+pipe = {"run_id": c.get("run_id") or re.sub(r"-s[0-9]+$", "", srid), "task_id": c.get("task_id") or first.get("task_id"),
+        "task_type": first.get("task_type") or "review-catch", "trial": c.get("trial") or first.get("trial") or 0,
+        "source_commit": first.get("source_commit") or "", "suite_version": first.get("suite_version"),
+        "fingerprint": first.get("fingerprint"), "image_digest": first.get("image_digest"),
+        "executor_mode": first.get("executor_mode"), "status": status, "phases": phases,
+        "started": min(starts) if starts else "", "finished": max(fins) if fins else None,
+        "snapshots": {}, "mount_integrity": None, "cap_phase": None}
+cx = {"bare_sessions": k, "sessions_valid": n_valid, "sessions_attempted": attempted, "session_costs": costs,
+      "all_spend_usd": tidy(all_spend), "cost_usd": tidy(cost_valid), "valid_labels": valid_labels,
+      "half": (k + 1) // 2, "attempts": min(max(max_att, 1), 99), "sessions_meta_unreadable": unreadable}
+json.dump(pipe, open(os.path.join(work, "pipe.json"), "w"))
+json.dump(cx, open(os.path.join(work, "cellx.json"), "w"))
+open(os.path.join(work, "cell-evidence.txt"), "w", encoding="utf-8").write(evid)
+PY
+else
+  jq -c '.' "$PIPE" > "$WORK/pipe.json" || usage "meta/pipeline.json does not parse"
+fi
 RUN_ID="$(jq -r '.run_id // ""' "$WORK/pipe.json")"
 
 # arm: manifest arm_map > meta/arm > pipeline.json; never sandbox/
@@ -356,6 +519,7 @@ printf '%s\n' ${mismatch[@]+"${mismatch[@]}"} | jq -R -s -c 'split("\n") | map(s
 echo '[]' > "$WORK/dot.json"
 shopt -s nullglob
 ev_files=("$RUN_DIR"/transcripts/events-*.jsonl)
+[[ "$CELL" == true ]] && ev_files=("$WORK"/transcripts/events-*.jsonl)
 shopt -u nullglob
 if [[ ${#ev_files[@]} -gt 0 ]]; then
   for f in "${ev_files[@]}"; do
@@ -385,15 +549,12 @@ if [[ ${#ev_files[@]} -gt 0 ]]; then
     done | jq -s -c '.' > "$WORK/bashref.json"
 fi
 
-# row writer 1.4: the arm evidence lines (meta/arm-evidence.txt, key=value) and the sandbox config's
-# flatline_protocol block (the gates' planned dissent)
+# row writer 1.4: the arm evidence lines (meta/arm-evidence.txt, key=value; a cell: its first session's).
+# 1.5 (bd-jszcp): the sandbox .loa.config.yaml is no longer read — the agent can write it; the planned dissent
+# absence comes from the harness-written evidence lines alone
 : > "$WORK/evidence.txt"
-[[ -f "$RUN_DIR/meta/arm-evidence.txt" ]] && cp "$RUN_DIR/meta/arm-evidence.txt" "$WORK/evidence.txt"
-echo null > "$WORK/flp.json"
-if [[ -f "$RUN_DIR/sandbox/.loa.config.yaml" && ! -L "$RUN_DIR/sandbox/.loa.config.yaml" ]]; then
-  yq -o=json '.flatline_protocol // null' "$RUN_DIR/sandbox/.loa.config.yaml" > "$WORK/flp.tmp" 2>/dev/null \
-    && jq -e '.' "$WORK/flp.tmp" >/dev/null 2>&1 && mv "$WORK/flp.tmp" "$WORK/flp.json" || true
-fi
+if [[ "$CELL" == true ]]; then cp "$WORK/cell-evidence.txt" "$WORK/evidence.txt"
+elif [[ -f "$RUN_DIR/meta/arm-evidence.txt" ]]; then cp "$RUN_DIR/meta/arm-evidence.txt" "$WORK/evidence.txt"; fi
 
 # Each --slurpfile binds an array of the file's values; [0] is the one value.
 ROW="$(jq -n -c \
@@ -401,7 +562,7 @@ ROW="$(jq -n -c \
   --slurpfile m_f "$WORK/manifest.json" --slurpfile minv_f "$WORK/minv.json" \
   --slurpfile er_f "$WORK/env-review.json" --slurpfile ea_f "$WORK/env-audit.json" --slurpfile dot_f "$WORK/dot.json" \
   --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
-  --slurpfile flp_f "$WORK/flp.json" --rawfile ev_raw "$WORK/evidence.txt" \
+  --slurpfile cx_f "$WORK/cellx.json" --rawfile ev_raw "$WORK/evidence.txt" --arg prior "$PRIOR_SPEND" --slurpfile te_f "$WORK/took.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
   --arg retry_reason "$RETRY_REASON" "$MISSED_RULES"'
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
@@ -421,7 +582,7 @@ ROW="$(jq -n -c \
   def poslist($v; $s): if ($v | type) == "array" and all($v[]; type == "string" and length > 0)
                           and ([$v | positions_rule($s)] | length) == 0 then $v else null end;
   $p_f[0] as $p | $task_f[0] as $task | $g_f[0] as $g | $m_f[0] as $m | $minv_f[0] as $minv
-  | ($flp_f[0] | if type == "object" then . else {} end) as $flp
+  | $cx_f[0] as $cx
   | $er_f[0] as $er | $ea_f[0] as $ea | $dot_f[0] as $dot | $bash_f[0] as $bashref | $mm_f[0] as $mismatch
   | ($p.phases // [] | map(select(.skipped != true))) as $ran
   | [ $ran[] as $ph
@@ -441,7 +602,8 @@ ROW="$(jq -n -c \
                                 and ([$mu | keys[] | norm_model] | any(. == ($ph.model_requested | norm_model)) | not)
                              then [$mu | keys | join(", ")] else [] end )
         } ] as $phases
-  | ( [ $phases[] | .label as $l
+  | ( [ $phases[] | select($cx == null or ((.label as $l | $cx.valid_labels | index($l)) != null))
+        | .label as $l
         | .model_requested as $req
         | ( .model_missing[] | "\($l): requested \($req) absent from models_used (\(.))" ),
           ( if (.refusal_fallbacks | length) > 0 then "\($l): refusal fallback" else empty end ),
@@ -451,6 +613,8 @@ ROW="$(jq -n -c \
           | ( if $v.quality == "DEGRADED" then "\($gate) envelope verdict_quality DEGRADED" else empty end ),
             ( if ($v.planned != null and $v.completed != null and $v.completed < $v.planned)
                 then "\($gate) envelope \($v.completed) of \($v.planned) voices completed" else empty end ) ]
+      + (if $cx != null and $cx.sessions_valid < $cx.half
+           then ["sessions_valid < k/2 (\($cx.sessions_valid) of \($cx.bare_sessions))"] else [] end)
     ) as $why
   | ($p.status // "infrastructure_error" | if . == "running" then "interrupted" else . end) as $pst
   | (if $status_override != "" then $status_override
@@ -462,9 +626,9 @@ ROW="$(jq -n -c \
   | (if $rc == null then null else ($rc.defects_caught // $rc.caught // null) end) as $caught
   | ms($p.started) as $t0 | ms($p.finished) as $t1
   | ([$ran[] | .label // .name] ) as $labels
-  | def gate_off($k): (($flp[$k] // null) | if type == "object" then .enabled else null end) == false;
-    (($flp.enabled == false) or gate_off("code_review") or evkv("dissent") == "false") as $rev_off
-  | (($flp.enabled == false) or gate_off("security_audit")) as $aud_off
+  | (evkv("gates") != null or evkv("flatline") != null) as $both_off   # bd-jszcp: harness-written lines only
+  | ($both_off or evkv("dissent") == "false") as $rev_off
+  | $both_off as $aud_off
   | def reason($e; $ranq; $off):
       if ($ranq | not) then null
       elif $off then "disabled"
@@ -529,7 +693,7 @@ ROW="$(jq -n -c \
                             and ([$ms | missed_rule($seeded; $caught)] | length) == 0 then $ms
                          else null end end),
       regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
-      row_writer_version: "1.4",
+      row_writer_version: "1.5",
       defect_catch_rate_pm3: (if $rc == null then null else ($rc.recall_pm3 // null) end),
       defect_catch_rate_pm3_v1: (if $rc == null then null else ($rc.recall_pm3_v1 // null) end),
       defects_missed_pm3: (if $rc == null then null else poslist($rc.missed_pm3; $seeded) end),
@@ -549,22 +713,42 @@ ROW="$(jq -n -c \
       oracle_open: (evkv("oracle_open") == "true"),
       gate_scripts_at_pr_version: (evkv("gate_scripts_at_pr_version") as $v
                                    | if $v == null or $v == "" then [] else [$v | split(",")[] | select(length > 0)] end),
+      bare_sessions: ($cx.bare_sessions // null),
+      sessions_valid: (if $cx == null then null else $cx.sessions_valid end),
+      sessions_attempted: (if $cx == null then null else $cx.sessions_attempted end),
+      session_costs: (if $cx == null then null else $cx.session_costs end),
+      sessions_meta_unreadable: (if $cx == null then null else $cx.sessions_meta_unreadable end),
+      all_spend_usd: (if $cx != null then $cx.all_spend_usd
+                      else (([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0) + ($prior | tonumber)) end),
+      dollar_match: null,
+      recall_session1: (if $g == null then null else ($g.recall_session1 // null | if type == "number" then . else null end) end),
+      recall_pm3_session1: (if $g == null then null else ($g.recall_pm3_session1 // null | if type == "number" then . else null end) end),
+      precision_session1: (if $g == null then null else ($g.precision_session1 // null | if type == "number" then . else null end) end),
+      label_set: (if $g == null then null else ($g.label_set // null | if type == "string" then . else null end) end),
+      batch_context: evkv("batch_context"),
+      mount_cheval: evkv("mount_cheval"),
+      registration_sha256: ($m.registration_sha256 // null | if type == "string" then . else null end),
+      took_effect: $te_f[0],
       diff_lines: ($g.diff_lines // null),
       files_changed: ($g.files_changed // null),
-      cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),
+      cost_usd: (if $cx != null then $cx.cost_usd else ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0) end),
       wall_clock_ms: (if $t0 != null and $t1 != null then ($t1 - $t0)
                       else ([$phases[] | .wall_ms // .duration_ms // 0] | add // 0) end),
       tokens_in: ([$phases[] | .tokens_in // 0] | add // 0),
       tokens_out: ([$phases[] | .tokens_out // 0] | add // 0),
       stalls: ([$phases[] | select(.timed_out == true)] | length),
-      attempts: $attempts,
+      attempts: (if $cx != null then $cx.attempts else $attempts end),
       retry_reason: (if $retry_reason == "" then null else $retry_reason end),
       degraded: (($why | length) > 0),
       degraded_reason: (if ($why | length) == 0 then null else ($why | join("; ")) end),
       status: $status,
       cap_phase: ($p.cap_phase // null),
       snapshots: {implement: ($p.snapshots.implement // null), fix1: ($p.snapshots.fix1 // null), fix2: ($p.snapshots.fix2 // null)},
-      contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)} else null end),
+      contaminated: ($g.contaminated // null | if type == "object" then {phase: (.phase // null), pattern: (.pattern // null)}
+                       + (if .pattern == "network_egress" then {repo_named: (.repo_named | if type == "boolean" then . else null end),   # not `// null`: false must survive
+                            host: (.host // null | if type == "string" then . else null end),
+                            url: (.url // null | if type == "string" then .[0:200] else null end)} else {} end)
+                     else null end),
       zone_violations: {dot_claude_writes: $dot, bash_mount_refs: $bashref,
                         mount_changed: [($p.mount_integrity | obj) | to_entries[] | select(.value == "changed") | .key],
                         envelope_mismatch: $mismatch}

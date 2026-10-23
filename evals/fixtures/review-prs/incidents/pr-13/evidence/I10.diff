@@ -1,0 +1,25 @@
+commit 07110d7052ea531b190ec58a0f429e0718e2365c
+Date: 2026-10-14T21:29:39+11:00
+
+fix(cycle-129): sprint-257 security audit round a257-1 — a declared locality is enforced where the prompt is sent: under hounfour.locality local_voices cheval plans around every chain hop that fails the local-hop rule (one stderr line each, MODELINV models_not_planned reason locality_refused) and refuses an all-hosted chain before any dispatch (LocalityRefusedError, failure_class locality_refused, exit INVALID_CONFIG), the loader refuses a local model whose fallback_chain reaches a hosted or unresolvable hop, and Bridgebuilder walks the chain in the trusted view (MEDIUM-A1; one implementation endpoint_policy.hop_is_local serves cheval, the loader and MODELINV hop_locality); Bridgebuilder refuses trusted-config drift on a pull request — hounfour.providers, aliases, locality and the secret allowlist compared head vs trusted, exit 5 before any voice is planned, because cheval-delegate spawns cheval from the checkout (MEDIUM-A2); localhost is resolved and checked for loopback at request time (LOW-A1); metadata.locality.degraded_security_review is machine-readable on the audit envelope (LOW-A2); a zero price not marked open_weight warns in the budget gate (LOW-A3; metering guard → bd-yzzb9); DISS-001 RFC1918 opt-in accepted by design; tests test_locality_fallback_plan.py (13), test_local_dispatch_group_rule.py (+9), LOC-1/4/10, BUD-3/7, trusted-config.test.ts (35), dist rebuilt; cheval pytest 3277 passed (2 baseline), Sprint 3 bats 137/137, npm 881/882 (KF-036), corpus 99/99 · 184/184; CHANGELOG Fixed entry + two Migration rows; DEC-0340…DEC-0351 (sprint-3)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/skills/auditing-security/SKILL.md b/.claude/skills/auditing-security/SKILL.md
+index ab40379a..ca73bea8 100644
+--- a/.claude/skills/auditing-security/SKILL.md
++++ b/.claude/skills/auditing-security/SKILL.md
+@@ -178,10 +178,10 @@ ## Phase 1B: Investigate Pass
+ 
+ ## Phase 1C: Security Dissenter Analysis
+ 
+-Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
++Runs when `flatline_protocol.security_audit.enabled: true`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
+ 
+ Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+-Read `advisory_voices[].findings` as advisory input, never tallied.
++Read `advisory_voices[].findings` as advisory input, never tallied; `metadata.locality.degraded_security_review: true` ⇒ state DEGRADED_SECURITY_REVIEW.
+ 
+ ## Phase 1: Systematic Audit
+ 

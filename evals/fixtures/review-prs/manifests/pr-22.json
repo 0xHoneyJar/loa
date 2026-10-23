@@ -1,0 +1,1108 @@
+{
+  "fixture": "pr-22",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "258",
+    "record_ref": "origin/record/cycle-130-a2a",
+    "head_commit": "05442536d2d36a690b9f06b5117c13a5b800057b",
+    "fix_commit": "ffe162efdffb048336ea09a10f9dd4fae108c4e0",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/harness/Dockerfile.ablation",
+      "anchor_line": 19,
+      "anchors": [
+        19,
+        20
+      ],
+      "must_match": "FROM rust:1-bookworm AS brbuild",
+      "severity": "medium",
+      "category": "portability",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": "evals/harness/Dockerfile.ablation",
+      "anchor_line": 69,
+      "anchors": [
+        69,
+        72
+      ],
+      "must_match": "RUN pip3 install --no-cache-dir --break-system-packages \"rfc8785>=0.1.4\" \"jsonschema>=4.21\" \"pyyaml>=6.0\" \"httpx[http2]>=0.24.0\"",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 122,
+      "must_match": "// (if (.zone_violations.dot_claude_writes | type) != \"array\" then \"zone_violations.dot_claude_writes is not an array\" else empty end)",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H08",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 168,
+      "anchors": [
+        168,
+        171,
+        173,
+        176,
+        178,
+        179,
+        180,
+        224,
+        225,
+        226
+      ],
+      "must_match": "GRADE_JSON=null",
+      "severity": "high",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H09,H12",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 200,
+      "anchors": [
+        200,
+        201,
+        202,
+        203,
+        205,
+        206
+      ],
+      "must_match": "envelope() {  # envelope <gate> \u2192 JSON or null",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group D3 (A); severity: codebook high (B) \u2014 the agent under test can alter its own evaluation record; a plausible path to harm",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 230,
+      "anchors": [
+        230,
+        313
+      ],
+      "must_match": "def ms(ts): if ts == null then null else (ts | sub(\"\\\\.[0-9]+Z$\"; \"Z\") | fromdateiso8601 * 1000) end;",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D7 \u2014 both describe the wall-clock behaviour (B's D7 lumps it with D8)",
+      "review_driven": false
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 247,
+      "anchors": [
+        247,
+        285,
+        303,
+        304,
+        305,
+        306,
+        307
+      ],
+      "must_match": "model_mismatches: [ ($ph.models_used // {}) | keys[] | select((. | norm_model) != ($ph.model_requested | norm_model)) ]",
+      "severity": "medium",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H13,H15,H16",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's D8 (B's D7 lumps A's D7 and D8); category: input-validation (A) \u2014 an unchecked shape; as H13",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-row.sh",
+      "anchor_line": 326,
+      "anchors": [
+        326,
+        327
+      ],
+      "must_match": "zone_violations: {dot_claude_writes: $dot}",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H18",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 212,
+      "anchors": [
+        212,
+        213,
+        214,
+        215
+      ],
+      "must_match": "if [[ \"$ARM_MODE\" == \"true\" ]]; then",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H21",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: A's D10 = B's D8 (namespace); severity: codebook medium (B) \u2014 a missing reset with bounded impact; category logic (A): the knob affects the measurement, not a security boundary",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": "evals/harness/execute-agent.sh",
+      "anchor_line": 268,
+      "anchors": [
+        268,
+        269
+      ],
+      "must_match": "arm_effort=\"$(jq -r '.effort // \"\"' <<<\"$ARM_TOGGLES\")\"",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H23",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": "evals/harness/fingerprint.sh",
+      "anchor_line": 52,
+      "anchors": [
+        52,
+        53,
+        54,
+        55
+      ],
+      "must_match": "if [[ -z \"$BATS_BIN\" ]]; then",
+      "severity": "low",
+      "category": "portability",
+      "label_source": "fix-commit",
+      "source": "hunk:H27",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": "evals/harness/freeze.sh",
+      "anchor_line": 66,
+      "anchors": [
+        66,
+        67,
+        68,
+        69,
+        70
+      ],
+      "must_match": "local d",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H30",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 79,
+      "anchors": [
+        79,
+        80
+      ],
+      "must_match": "# Exactly two mounts. meta/home/ (mode 0700) holds copies of $HOME/.codex/{auth.json,",
+      "severity": "high",
+      "category": "security",
+      "label_source": "incident",
+      "source": "incident:I01",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D18 = B's D16 (namespace); category: security (an incident record carries none; a credential handling fault)",
+      "review_driven": false
+    },
+    {
+      "id": "V14",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 486,
+      "anchors": [
+        486,
+        487,
+        488,
+        492,
+        497
+      ],
+      "must_match": "lib_call apply_arm_toggles \"$WS\" \"$TOGGLES\" \"$ARM\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit+incident",
+      "source": "hunk:H41;incident:I03",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds); verdict: the incident (KF-049) names the head-era sandbox mount in these files and A anchored its site; B found no site in the shown text \u2014 defect-at-head (A), high, group D19; category security (an evaluation-integrity boundary)",
+      "review_driven": true
+    },
+    {
+      "id": "V15",
+      "file": "evals/harness/pipeline-run.sh",
+      "anchor_line": 775,
+      "anchors": [
+        775,
+        776,
+        777,
+        778
+      ],
+      "must_match": "local env_f",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H42",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group D3 (A); severity: codebook high (B) \u2014 the agent under test can alter its own evaluation record; a plausible path to harm",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 378,
+      "anchors": [
+        378,
+        391
+      ],
+      "must_match": "jq -s --arg suite \"$SUITE\" '",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H52,H53",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the directory-name filter is the site of D14's wrong behaviour \u2014 defect member (B), medium, logic; group in A's namespace",
+      "review_driven": true
+    },
+    {
+      "id": "V17",
+      "file": "evals/harness/run-arms.sh",
+      "anchor_line": 505,
+      "anchors": [
+        505,
+        506,
+        507,
+        508,
+        522,
+        523
+      ],
+      "must_match": "local cost",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H54,H55",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V18",
+      "file": "evals/harness/spend.sh",
+      "anchor_line": 121,
+      "anchors": [
+        121,
+        122,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141
+      ],
+      "must_match": "runs_usd, runs_rows, dedup = 0.0, 0, 0",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H59,H60",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the first-seen set is the dedup behaviour itself \u2014 defect member of D16 (B), medium, logic; group in A's namespace; anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V19",
+      "file": "evals/harness/spend.sh",
+      "anchor_line": 159,
+      "anchors": [
+        159,
+        160,
+        169,
+        173,
+        174
+      ],
+      "must_match": "if skipped:",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H61,H62",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's D17 = B's D15; severity: codebook medium (B) \u2014 a misleading total; as H61",
+      "review_driven": true
+    },
+    {
+      "id": "V20",
+      "file": "evals/harness/took-effect.sh",
+      "anchor_line": 86,
+      "anchors": [
+        86,
+        87,
+        88
+      ],
+      "must_match": "envelope() {  # envelope <gate> \u2192 path or empty",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H65",
+      "source_commit": "05442536",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group D3 (A); severity: codebook high (B) \u2014 the agent under test can alter its own evaluation record; a plausible path to harm",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/harness/Dockerfile.ablation",
+      "start": 19,
+      "end": 20,
+      "source": "fix/ffe162efdffb:19-20"
+    },
+    {
+      "id": "F002",
+      "file": "evals/harness/Dockerfile.ablation",
+      "start": 69,
+      "end": 72,
+      "source": "fix/ffe162efdffb:69-72"
+    },
+    {
+      "id": "F003",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 6,
+      "end": 9,
+      "source": "fix/ffe162efdffb:6-9"
+    },
+    {
+      "id": "F004",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 13,
+      "end": 13,
+      "source": "fix/ffe162efdffb:13-13"
+    },
+    {
+      "id": "F005",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 33,
+      "end": 33,
+      "source": "fix/ffe162efdffb:33-33"
+    },
+    {
+      "id": "F006",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 53,
+      "end": 54,
+      "source": "fix/ffe162efdffb:53-54"
+    },
+    {
+      "id": "F007",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 60,
+      "end": 60,
+      "source": "fix/ffe162efdffb:60-60"
+    },
+    {
+      "id": "F008",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 83,
+      "end": 83,
+      "source": "fix/ffe162efdffb:83-83"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 122,
+      "end": 122,
+      "source": "fix/ffe162efdffb:122-122"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 166,
+      "end": 180,
+      "source": "fix/ffe162efdffb:166-180"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 185,
+      "end": 185,
+      "source": "fix/ffe162efdffb:185-185"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 189,
+      "end": 209,
+      "source": "fix/ffe162efdffb:189-209"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 214,
+      "end": 214,
+      "source": "fix/ffe162efdffb:214-214"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 221,
+      "end": 226,
+      "source": "fix/ffe162efdffb:221-226"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 230,
+      "end": 236,
+      "source": "fix/ffe162efdffb:230-236"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 247,
+      "end": 247,
+      "source": "fix/ffe162efdffb:247-247"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 267,
+      "end": 267,
+      "source": "fix/ffe162efdffb:267-267"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 285,
+      "end": 285,
+      "source": "fix/ffe162efdffb:285-285"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 303,
+      "end": 307,
+      "source": "fix/ffe162efdffb:303-307"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 313,
+      "end": 313,
+      "source": "fix/ffe162efdffb:313-313"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/ablation-row.sh",
+      "start": 326,
+      "end": 327,
+      "source": "fix/ffe162efdffb:326-327"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 88,
+      "end": 94,
+      "source": "fix/ffe162efdffb:88-94"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 115,
+      "end": 115,
+      "source": "fix/ffe162efdffb:115-115"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 212,
+      "end": 215,
+      "source": "fix/ffe162efdffb:212-215"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 223,
+      "end": 223,
+      "source": "fix/ffe162efdffb:223-223"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 268,
+      "end": 268,
+      "source": "fix/ffe162efdffb:268-268"
+    },
+    {
+      "id": "F027",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 362,
+      "end": 362,
+      "source": "fix/ffe162efdffb:362-362"
+    },
+    {
+      "id": "F028",
+      "file": "evals/harness/execute-agent.sh",
+      "start": 401,
+      "end": 401,
+      "source": "fix/ffe162efdffb:401-401"
+    },
+    {
+      "id": "F029",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 22,
+      "end": 23,
+      "source": "fix/ffe162efdffb:22-23"
+    },
+    {
+      "id": "F030",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 48,
+      "end": 48,
+      "source": "fix/ffe162efdffb:48-48"
+    },
+    {
+      "id": "F031",
+      "file": "evals/harness/fingerprint.sh",
+      "start": 52,
+      "end": 55,
+      "source": "fix/ffe162efdffb:52-55"
+    },
+    {
+      "id": "F032",
+      "file": "evals/harness/freeze.sh",
+      "start": 24,
+      "end": 25,
+      "source": "fix/ffe162efdffb:24-25"
+    },
+    {
+      "id": "F033",
+      "file": "evals/harness/freeze.sh",
+      "start": 38,
+      "end": 38,
+      "source": "fix/ffe162efdffb:38-38"
+    },
+    {
+      "id": "F034",
+      "file": "evals/harness/freeze.sh",
+      "start": 66,
+      "end": 70,
+      "source": "fix/ffe162efdffb:66-70"
+    },
+    {
+      "id": "F035",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 54,
+      "end": 54,
+      "source": "fix/ffe162efdffb:54-54"
+    },
+    {
+      "id": "F036",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 85,
+      "end": 85,
+      "source": "fix/ffe162efdffb:85-85"
+    },
+    {
+      "id": "F037",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 106,
+      "end": 106,
+      "source": "fix/ffe162efdffb:106-106"
+    },
+    {
+      "id": "F038",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 153,
+      "end": 153,
+      "source": "fix/ffe162efdffb:153-153"
+    },
+    {
+      "id": "F039",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 298,
+      "end": 298,
+      "source": "fix/ffe162efdffb:298-298"
+    },
+    {
+      "id": "F040",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 312,
+      "end": 312,
+      "source": "fix/ffe162efdffb:312-312"
+    },
+    {
+      "id": "F041",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 331,
+      "end": 331,
+      "source": "fix/ffe162efdffb:331-331"
+    },
+    {
+      "id": "F042",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 340,
+      "end": 340,
+      "source": "fix/ffe162efdffb:340-340"
+    },
+    {
+      "id": "F043",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 345,
+      "end": 345,
+      "source": "fix/ffe162efdffb:345-345"
+    },
+    {
+      "id": "F044",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 358,
+      "end": 358,
+      "source": "fix/ffe162efdffb:358-358"
+    },
+    {
+      "id": "F045",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 497,
+      "end": 497,
+      "source": "fix/ffe162efdffb:497-497"
+    },
+    {
+      "id": "F046",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 775,
+      "end": 778,
+      "source": "fix/ffe162efdffb:775-778"
+    },
+    {
+      "id": "F047",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 824,
+      "end": 824,
+      "source": "fix/ffe162efdffb:824-824"
+    },
+    {
+      "id": "F048",
+      "file": "evals/harness/pipeline-run.sh",
+      "start": 849,
+      "end": 849,
+      "source": "fix/ffe162efdffb:849-849"
+    },
+    {
+      "id": "F049",
+      "file": "evals/harness/run-arms.sh",
+      "start": 27,
+      "end": 27,
+      "source": "fix/ffe162efdffb:27-27"
+    },
+    {
+      "id": "F050",
+      "file": "evals/harness/run-arms.sh",
+      "start": 32,
+      "end": 32,
+      "source": "fix/ffe162efdffb:32-32"
+    },
+    {
+      "id": "F051",
+      "file": "evals/harness/run-arms.sh",
+      "start": 89,
+      "end": 89,
+      "source": "fix/ffe162efdffb:89-89"
+    },
+    {
+      "id": "F052",
+      "file": "evals/harness/run-arms.sh",
+      "start": 164,
+      "end": 164,
+      "source": "fix/ffe162efdffb:164-164"
+    },
+    {
+      "id": "F053",
+      "file": "evals/harness/run-arms.sh",
+      "start": 346,
+      "end": 346,
+      "source": "fix/ffe162efdffb:346-346"
+    },
+    {
+      "id": "F054",
+      "file": "evals/harness/run-arms.sh",
+      "start": 361,
+      "end": 364,
+      "source": "fix/ffe162efdffb:361-364"
+    },
+    {
+      "id": "F055",
+      "file": "evals/harness/run-arms.sh",
+      "start": 373,
+      "end": 373,
+      "source": "fix/ffe162efdffb:373-373"
+    },
+    {
+      "id": "F056",
+      "file": "evals/harness/run-arms.sh",
+      "start": 378,
+      "end": 378,
+      "source": "fix/ffe162efdffb:378-378"
+    },
+    {
+      "id": "F057",
+      "file": "evals/harness/run-arms.sh",
+      "start": 391,
+      "end": 391,
+      "source": "fix/ffe162efdffb:391-391"
+    },
+    {
+      "id": "F058",
+      "file": "evals/harness/run-arms.sh",
+      "start": 505,
+      "end": 509,
+      "source": "fix/ffe162efdffb:505-509"
+    },
+    {
+      "id": "F059",
+      "file": "evals/harness/run-arms.sh",
+      "start": 523,
+      "end": 523,
+      "source": "fix/ffe162efdffb:523-523"
+    },
+    {
+      "id": "F060",
+      "file": "evals/harness/spend.sh",
+      "start": 17,
+      "end": 18,
+      "source": "fix/ffe162efdffb:17-18"
+    },
+    {
+      "id": "F061",
+      "file": "evals/harness/spend.sh",
+      "start": 25,
+      "end": 25,
+      "source": "fix/ffe162efdffb:25-25"
+    },
+    {
+      "id": "F062",
+      "file": "evals/harness/spend.sh",
+      "start": 29,
+      "end": 31,
+      "source": "fix/ffe162efdffb:29-31"
+    },
+    {
+      "id": "F063",
+      "file": "evals/harness/spend.sh",
+      "start": 43,
+      "end": 43,
+      "source": "fix/ffe162efdffb:43-43"
+    },
+    {
+      "id": "F064",
+      "file": "evals/harness/spend.sh",
+      "start": 121,
+      "end": 123,
+      "source": "fix/ffe162efdffb:121-123"
+    },
+    {
+      "id": "F065",
+      "file": "evals/harness/spend.sh",
+      "start": 134,
+      "end": 141,
+      "source": "fix/ffe162efdffb:134-141"
+    },
+    {
+      "id": "F066",
+      "file": "evals/harness/spend.sh",
+      "start": 169,
+      "end": 169,
+      "source": "fix/ffe162efdffb:169-169"
+    },
+    {
+      "id": "F067",
+      "file": "evals/harness/spend.sh",
+      "start": 174,
+      "end": 174,
+      "source": "fix/ffe162efdffb:174-174"
+    },
+    {
+      "id": "F068",
+      "file": "evals/harness/took-effect.sh",
+      "start": 21,
+      "end": 21,
+      "source": "fix/ffe162efdffb:21-21"
+    },
+    {
+      "id": "F069",
+      "file": "evals/harness/took-effect.sh",
+      "start": 74,
+      "end": 74,
+      "source": "fix/ffe162efdffb:74-74"
+    },
+    {
+      "id": "F070",
+      "file": "evals/harness/took-effect.sh",
+      "start": 86,
+      "end": 88,
+      "source": "fix/ffe162efdffb:86-88"
+    },
+    {
+      "id": "F071",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 174,
+      "end": 174,
+      "source": "fix/ffe162efdffb:174-174"
+    },
+    {
+      "id": "F072",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 179,
+      "end": 179,
+      "source": "fix/ffe162efdffb:179-179"
+    },
+    {
+      "id": "F073",
+      "file": "evals/tests/ablation-row.bats",
+      "start": 239,
+      "end": 239,
+      "source": "fix/ffe162efdffb:239-239"
+    },
+    {
+      "id": "F074",
+      "file": "evals/tests/arm-toggles.bats",
+      "start": 356,
+      "end": 361,
+      "source": "fix/ffe162efdffb:356-361"
+    },
+    {
+      "id": "F075",
+      "file": "evals/tests/fixtures/claude-stub-pipeline.sh",
+      "start": 22,
+      "end": 22,
+      "source": "fix/ffe162efdffb:22-22"
+    },
+    {
+      "id": "F076",
+      "file": "evals/tests/fixtures/claude-stub-pipeline.sh",
+      "start": 84,
+      "end": 84,
+      "source": "fix/ffe162efdffb:84-84"
+    },
+    {
+      "id": "F077",
+      "file": "evals/tests/freeze.bats",
+      "start": 101,
+      "end": 101,
+      "source": "fix/ffe162efdffb:101-101"
+    },
+    {
+      "id": "F078",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 276,
+      "end": 276,
+      "source": "fix/ffe162efdffb:276-276"
+    },
+    {
+      "id": "F079",
+      "file": "evals/tests/pipeline-run.bats",
+      "start": 764,
+      "end": 764,
+      "source": "fix/ffe162efdffb:764-764"
+    },
+    {
+      "id": "F080",
+      "file": "evals/tests/run-arms.bats",
+      "start": 249,
+      "end": 249,
+      "source": "fix/ffe162efdffb:249-249"
+    },
+    {
+      "id": "F081",
+      "file": "evals/tests/spend.bats",
+      "start": 8,
+      "end": 8,
+      "source": "fix/ffe162efdffb:8-8"
+    },
+    {
+      "id": "F082",
+      "file": "evals/tests/spend.bats",
+      "start": 57,
+      "end": 62,
+      "source": "fix/ffe162efdffb:57-62"
+    },
+    {
+      "id": "F083",
+      "file": "evals/tests/spend.bats",
+      "start": 66,
+      "end": 66,
+      "source": "fix/ffe162efdffb:66-66"
+    },
+    {
+      "id": "F084",
+      "file": "evals/tests/took-effect.bats",
+      "start": 103,
+      "end": 103,
+      "source": "fix/ffe162efdffb:103-103"
+    }
+  ]
+}

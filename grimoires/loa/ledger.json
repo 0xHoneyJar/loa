@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-132-conclusive-review-catch",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2682,6 +2682,39 @@
         }
       ],
       "archived_at": "2026-10-20T12:27:38Z"
+    },
+    {
+      "id": "cycle-132-conclusive-review-catch",
+      "label": "cycle-132 — the conclusive review-catch answer (does the review pipeline catch more real defects per dollar than a bare model at the same dollars, on unseen PRs)",
+      "status": "active",
+      "created": "2026-10-21T00:48:44Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 269,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-21T02:27:50Z",
+          "completed": "2026-10-21T08:13:56Z"
+        },
+        {
+          "global_id": 270,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-21T02:27:51Z",
+          "completed": "2026-10-23T10:00:38Z"
+        },
+        {
+          "global_id": 271,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-21T02:27:51Z",
+          "completed": "2026-10-23T15:53:22Z"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 268,
@@ -3127,6 +3160,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 266,
-  "last_updated": "2026-10-21T02:11:45Z"
+  "next_sprint_number": 272,
+  "last_updated": "2026-10-23T15:53:22Z"
 }

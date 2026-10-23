@@ -1,0 +1,23 @@
+name: pr-21
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-257 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 257
+base_commit: "8ead194f312a7093e8273c30290bd621bb811d5e"
+head_commit: "163656ff763d56cc1f1fd6fed92ad78c2acc8dd6"
+fix_commit: "2fb03b5c0a7dedfbc6ee144c7184e47ac443aaa7"
+record_ref: "origin/record/cycle-129-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-257/bb-triage.md"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-14 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-14; sandbox has network; egress scanned (grader class 9)"

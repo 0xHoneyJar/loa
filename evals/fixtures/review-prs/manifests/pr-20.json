@@ -1,0 +1,665 @@
+{
+  "fixture": "pr-20",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "256",
+    "record_ref": "origin/record/cycle-129-a2a",
+    "head_commit": "40df53ed837858b6026c7da7b80feb8bdec96d89",
+    "fix_commit": "9c4ed3198c7891882ca77847e37bd10475885779",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 190,
+      "anchors": [
+        190,
+        191
+      ],
+      "must_match": "_bdb_hd_re_sys='(^|/)(\\.claude/hooks(/|$)|\\.claude/settings[^/]*\\.json$|\\.git/hooks(/|$)|\\.git/config$|\\.gitconfig$|\\.ssh/rc$|\\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$)'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 548,
+      "anchors": [
+        548,
+        550,
+        551
+      ],
+      "must_match": "@L548",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V03",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 1049,
+      "anchors": [
+        1049,
+        1050,
+        1051,
+        1052,
+        1053,
+        1054,
+        1061,
+        1067,
+        1068
+      ],
+      "must_match": "# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H05,H06",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V04",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 1206,
+      "anchors": [
+        1206,
+        1217
+      ],
+      "must_match": "@L1206",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V05",
+      "file": ".claude/scripts/lib/profile-lib.sh",
+      "anchor_line": 61,
+      "must_match": "_LOA_PL_CFG=\"${LOA_PROFILE_CONFIG_FILE:-${status_cfg:-$default_cfg}}\"",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/scripts/loa-status.sh",
+      "anchor_line": 958,
+      "must_match": "printf '%s (%sexplicit overrides: %s)' \"${name:-standard}\" \"$note\" \"${ov:-none}\"",
+      "severity": "low",
+      "category": "other",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V07",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "anchor_line": 6,
+      "anchors": [
+        6,
+        34,
+        35
+      ],
+      "must_match": "allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V08",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "anchor_line": 6,
+      "anchors": [
+        6,
+        297
+      ],
+      "must_match": "allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H16",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo \u2014 defect (A); group D7",
+      "review_driven": false
+    },
+    {
+      "id": "V09",
+      "file": ".loa.config.yaml.example",
+      "anchor_line": 312,
+      "anchors": [
+        312,
+        325,
+        1358,
+        1404,
+        1432,
+        2932,
+        2950,
+        2962
+      ],
+      "must_match": "@L312",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H20,H21,H22,H23,H24,H25,H26,H27",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed; verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo \u2014 defect (A); group D8",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": "tools/check-knob-readers.sh",
+      "anchor_line": 40,
+      "anchors": [
+        40,
+        41,
+        43,
+        44,
+        45
+      ],
+      "must_match": "alt=$(printf '%s\\n' \"$keys\" | sed 's/\\./\\\\./g' | paste -sd'|' -)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H56",
+      "source_commit": "40df53ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group agreed",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/data/guard-origins.yaml",
+      "start": 311,
+      "end": 311,
+      "source": "fix/9c4ed3198c78:311-311"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 190,
+      "end": 190,
+      "source": "fix/9c4ed3198c78:190-190"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 550,
+      "end": 550,
+      "source": "fix/9c4ed3198c78:550-550"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 589,
+      "end": 589,
+      "source": "fix/9c4ed3198c78:589-589"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 1049,
+      "end": 1053,
+      "source": "fix/9c4ed3198c78:1049-1053"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 1067,
+      "end": 1067,
+      "source": "fix/9c4ed3198c78:1067-1067"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "start": 1206,
+      "end": 1206,
+      "source": "fix/9c4ed3198c78:1206-1206"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/loa/reference/hooks-reference.md",
+      "start": 216,
+      "end": 216,
+      "source": "fix/9c4ed3198c78:216-216"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/loa/reference/hooks-reference.md",
+      "start": 280,
+      "end": 280,
+      "source": "fix/9c4ed3198c78:280-280"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/loa/reference/hooks-reference.md",
+      "start": 294,
+      "end": 294,
+      "source": "fix/9c4ed3198c78:294-294"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/rules/skill-invariants.md",
+      "start": 72,
+      "end": 72,
+      "source": "fix/9c4ed3198c78:72-72"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/scripts/lib/profile-lib.sh",
+      "start": 61,
+      "end": 61,
+      "source": "fix/9c4ed3198c78:61-61"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/scripts/loa-status.sh",
+      "start": 958,
+      "end": 958,
+      "source": "fix/9c4ed3198c78:958-958"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 6,
+      "end": 7,
+      "source": "fix/9c4ed3198c78:6-7"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 34,
+      "end": 34,
+      "source": "fix/9c4ed3198c78:34-34"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 6,
+      "end": 7,
+      "source": "fix/9c4ed3198c78:6-7"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 38,
+      "end": 38,
+      "source": "fix/9c4ed3198c78:38-38"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 288,
+      "end": 288,
+      "source": "fix/9c4ed3198c78:288-288"
+    },
+    {
+      "id": "F019",
+      "file": ".loa.config.yaml.example",
+      "start": 31,
+      "end": 31,
+      "source": "fix/9c4ed3198c78:31-31"
+    },
+    {
+      "id": "F020",
+      "file": ".loa.config.yaml.example",
+      "start": 312,
+      "end": 312,
+      "source": "fix/9c4ed3198c78:312-312"
+    },
+    {
+      "id": "F021",
+      "file": ".loa.config.yaml.example",
+      "start": 325,
+      "end": 325,
+      "source": "fix/9c4ed3198c78:325-325"
+    },
+    {
+      "id": "F022",
+      "file": ".loa.config.yaml.example",
+      "start": 1358,
+      "end": 1358,
+      "source": "fix/9c4ed3198c78:1358-1358"
+    },
+    {
+      "id": "F023",
+      "file": ".loa.config.yaml.example",
+      "start": 1404,
+      "end": 1404,
+      "source": "fix/9c4ed3198c78:1404-1404"
+    },
+    {
+      "id": "F024",
+      "file": ".loa.config.yaml.example",
+      "start": 1431,
+      "end": 1432,
+      "source": "fix/9c4ed3198c78:1431-1432"
+    },
+    {
+      "id": "F025",
+      "file": ".loa.config.yaml.example",
+      "start": 2932,
+      "end": 2932,
+      "source": "fix/9c4ed3198c78:2932-2932"
+    },
+    {
+      "id": "F026",
+      "file": ".loa.config.yaml.example",
+      "start": 2950,
+      "end": 2950,
+      "source": "fix/9c4ed3198c78:2950-2950"
+    },
+    {
+      "id": "F027",
+      "file": ".loa.config.yaml.example",
+      "start": 2962,
+      "end": 2962,
+      "source": "fix/9c4ed3198c78:2962-2962"
+    },
+    {
+      "id": "F028",
+      "file": "tests/fixtures/fence-corpus/corpus.jsonl",
+      "start": 184,
+      "end": 184,
+      "source": "fix/9c4ed3198c78:184-184"
+    },
+    {
+      "id": "F029",
+      "file": "tests/fixtures/fence-corpus/corpus.jsonl",
+      "start": 189,
+      "end": 189,
+      "source": "fix/9c4ed3198c78:189-189"
+    },
+    {
+      "id": "F030",
+      "file": "tests/fixtures/fence-corpus/corpus.jsonl",
+      "start": 200,
+      "end": 200,
+      "source": "fix/9c4ed3198c78:200-200"
+    },
+    {
+      "id": "F031",
+      "file": "tests/fixtures/fence-corpus/corpus.jsonl",
+      "start": 236,
+      "end": 236,
+      "source": "fix/9c4ed3198c78:236-236"
+    },
+    {
+      "id": "F032",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 6,
+      "end": 6,
+      "source": "fix/9c4ed3198c78:6-6"
+    },
+    {
+      "id": "F033",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 12,
+      "end": 12,
+      "source": "fix/9c4ed3198c78:12-12"
+    },
+    {
+      "id": "F034",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 25,
+      "end": 25,
+      "source": "fix/9c4ed3198c78:25-25"
+    },
+    {
+      "id": "F035",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 31,
+      "end": 33,
+      "source": "fix/9c4ed3198c78:31-33"
+    },
+    {
+      "id": "F036",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 49,
+      "end": 49,
+      "source": "fix/9c4ed3198c78:49-49"
+    },
+    {
+      "id": "F037",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 76,
+      "end": 76,
+      "source": "fix/9c4ed3198c78:76-76"
+    },
+    {
+      "id": "F038",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 81,
+      "end": 84,
+      "source": "fix/9c4ed3198c78:81-84"
+    },
+    {
+      "id": "F039",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 93,
+      "end": 93,
+      "source": "fix/9c4ed3198c78:93-93"
+    },
+    {
+      "id": "F040",
+      "file": "tests/fixtures/fence-corpus/run-corpus.sh",
+      "start": 99,
+      "end": 102,
+      "source": "fix/9c4ed3198c78:99-102"
+    },
+    {
+      "id": "F041",
+      "file": "tests/unit/guard-yield.bats",
+      "start": 71,
+      "end": 71,
+      "source": "fix/9c4ed3198c78:71-71"
+    },
+    {
+      "id": "F042",
+      "file": "tests/unit/guard-yield.bats",
+      "start": 82,
+      "end": 85,
+      "source": "fix/9c4ed3198c78:82-85"
+    },
+    {
+      "id": "F043",
+      "file": "tests/unit/guard-yield.bats",
+      "start": 89,
+      "end": 89,
+      "source": "fix/9c4ed3198c78:89-89"
+    },
+    {
+      "id": "F044",
+      "file": "tests/unit/karpathy-surgical-diff.bats",
+      "start": 112,
+      "end": 112,
+      "source": "fix/9c4ed3198c78:112-112"
+    },
+    {
+      "id": "F045",
+      "file": "tests/unit/karpathy-surgical-diff.bats",
+      "start": 153,
+      "end": 154,
+      "source": "fix/9c4ed3198c78:153-154"
+    },
+    {
+      "id": "F046",
+      "file": "tests/unit/karpathy-surgical-diff.bats",
+      "start": 158,
+      "end": 158,
+      "source": "fix/9c4ed3198c78:158-158"
+    },
+    {
+      "id": "F047",
+      "file": "tests/unit/karpathy-surgical-diff.bats",
+      "start": 173,
+      "end": 173,
+      "source": "fix/9c4ed3198c78:173-173"
+    },
+    {
+      "id": "F048",
+      "file": "tests/unit/lint-invariants.bats",
+      "start": 59,
+      "end": 60,
+      "source": "fix/9c4ed3198c78:59-60"
+    },
+    {
+      "id": "F049",
+      "file": "tests/unit/lint-invariants.bats",
+      "start": 68,
+      "end": 69,
+      "source": "fix/9c4ed3198c78:68-69"
+    },
+    {
+      "id": "F050",
+      "file": "tests/unit/lint-invariants.bats",
+      "start": 95,
+      "end": 95,
+      "source": "fix/9c4ed3198c78:95-95"
+    },
+    {
+      "id": "F051",
+      "file": "tests/unit/lint-invariants.bats",
+      "start": 125,
+      "end": 129,
+      "source": "fix/9c4ed3198c78:125-129"
+    },
+    {
+      "id": "F052",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 39,
+      "end": 39,
+      "source": "fix/9c4ed3198c78:39-39"
+    },
+    {
+      "id": "F053",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 64,
+      "end": 72,
+      "source": "fix/9c4ed3198c78:64-72"
+    },
+    {
+      "id": "F054",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 78,
+      "end": 78,
+      "source": "fix/9c4ed3198c78:78-78"
+    },
+    {
+      "id": "F055",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 191,
+      "end": 191,
+      "source": "fix/9c4ed3198c78:191-191"
+    },
+    {
+      "id": "F056",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 196,
+      "end": 196,
+      "source": "fix/9c4ed3198c78:196-196"
+    },
+    {
+      "id": "F057",
+      "file": "tests/unit/profile-lib.bats",
+      "start": 257,
+      "end": 257,
+      "source": "fix/9c4ed3198c78:257-257"
+    },
+    {
+      "id": "F058",
+      "file": "tools/check-knob-readers.sh",
+      "start": 38,
+      "end": 45,
+      "source": "fix/9c4ed3198c78:38-45"
+    }
+  ]
+}

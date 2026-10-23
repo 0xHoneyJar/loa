@@ -53,6 +53,17 @@
 #                                 the caller skips overlay_answer_paths and writes mount_overlay=none;
 #                                 refused when ARM_EVIDENCE_FILE already holds a head|base overlay;
 #                                 evidence oracle_open=true
+#         bare_sessions: matched  (cycle-132 FR-3, SDD D-3.1) the compute-matched bare arm: one
+#                                 session of a matched cell (run-ablation.sh plans k sessions per
+#                                 cell); refused unless the same toggles set loa_mount: false;
+#                                 evidence bare_sessions=matched
+#   print_toggle_vocabulary
+#       (cycle-132, bd-gdl5s) the toggle vocabulary, one line per toggle in a fixed order:
+#       `<key>\t<allowed values, |-joined>\t<sandbox .loa.config.yaml edits, ,-joined, or ->`
+#       (values: false | true | a word; the edits are the yq paths apply_arm_toggles sets, as
+#       `<path>=false`). validate-suite.sh and pipeline-run.sh --dry-run (config_edits: the
+#       arm's edits in this order, a repeated path once) read it instead of hand-kept copies;
+#       evals/tests/arm-toggles.bats pins it against apply_arm_toggles' case labels.
 #   regen_sandbox_manifest <ws>
 #       writes <ws>/.claude/checksums.json {generated, algorithm: sha256, files} over
 #       every regular file under <ws>/.claude except overrides/ and the manifest
@@ -80,7 +91,17 @@
 #       paths; only under .claude/, never .claude/checksums.json) gets the mode's version
 #       in the sandbox (head: the PR's pr/head/ copy, the default, DEC-0622; base: pr/base/;
 #       fix-commit paths outside the PR: `git show <head_commit>:X`); a path without that
-#       version is removed. <source-tree> (default $EVAL_PROMPT_TREE, else this repository)
+#       version is removed. Cycle-132 PREREGISTRATION §12 addendum 5 (KF-050) left .claude/adapters/
+#       pinned; addendum 9 (KF-050, smoke3 review-r14: the PR-era .claude/defaults/ catalog planned the
+#       dissent) widens that to every answer path under .claude/ — adapters, defaults, scripts, hooks,
+#       skills, rules, the whole runtime and its prompts. The pipeline under test is the pinned
+#       framework in full; as the answer set holds only .claude/ paths, the overlay writes nothing
+#       (mount_overlay=<mode>:0) and the PR's own versions stay visible under pr/head/, pr/base/ and
+#       pr/head.diff. Evidence overlay_excluded=<exact n>:<the first 20 paths, then ",…" when n > 20>
+#       (overlay_excluded=0 when none); mount_overlay counts the overlaid paths only. Test-only:
+#       SM_TEST_MODE=1 with a bats marker and SM_TEST_EXCLUDED_PREFIX=<a prefix under .claude/>
+#       narrows the exclusion (recorded as overlay_test_excluded_prefix=) so the suites still exercise
+#       the overlay mechanics. <source-tree> (default $EVAL_PROMPT_TREE, else this repository)
 #       is the copy source and the git repository the fix and head commits are read from.
 #       Evidence: copy_source=<HEAD sha, "-dirty" suffix when .claude/ has changes>,
 #       mount_overlay=<mode>:<n>, overlay_sha256=<path>=<sha|absent> per path,
@@ -96,12 +117,17 @@
 #       the pre-launch form of took-effect.sh oracle_closed: clauses (a)-(d) (see
 #       _sm_oracle_py) against the fixture, the evidence file (default $ARM_EVIDENCE_FILE:
 #       mount_overlay, overlay_sha256, base_commit, copy_source) and the copy source's
-#       pinned versions. Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
+#       pinned versions; since addendum 9 the answer set leaves out every .claude/ path (addendum 5:
+#       .claude/adapters/ only), the evidence's overlay_excluded must equal the computed value (exact
+#       count, list capped at 20), and each excluded path must still be at its pinned version (absent
+#       when the pin has none); clauses (a)-(d) judge the remaining paths. Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
 #       first violated clause and path.
 #   apply_eval_config_variant <ws>
 #       the cycle-131 evaluation config in the sandbox .loa.config.yaml:
 #       flatline_protocol.{code_review,security_audit}.budget_scale = "diff" and
-#       .budget_cents_max = 600 (verified); evidence config_variant=eval.
+#       .budget_cents_max = 1200 (verified; cycle-132 PREREGISTRATION §12 addendum 2: 600 refused both
+#       gates' dissent on the largest registered diffs, est. ≈ 627–660c; 1200 leaves headroom and budget_scale
+#       diff still scales small PRs down); evidence config_variant=eval.
 #   init_sandbox_beads <ws> <task_title>
 #       `br init --prefix bd --no-daemon` in <ws> plus one task bead with the title
 #       when br ($LOA_EVAL_BR_BIN, default br) is on PATH → beads=br; else the opt-out
@@ -192,6 +218,27 @@ mount_prompt_surface() {
   fi
   _sm_evidence mount "skill:$skill"
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# The toggle vocabulary (bd-gdl5s): key, allowed values, sandbox config edits. The order is
+# the order of the dry run's config_edits (companion_voice, gates, dissent, flatline).
+print_toggle_vocabulary() {
+  printf '%s\t%s\t%s\n' \
+    companion_voice false "flatline_protocol.code_review.companion_voice=false,flatline_protocol.security_audit.companion_voice=false" \
+    karpathy_block false - \
+    rule_files false - \
+    audit_delta_instruction false - \
+    loa_mount false - \
+    effort "low|medium|high|xhigh|max" - \
+    gates false "flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false" \
+    dissent false "flatline_protocol.code_review.enabled=false" \
+    flatline false "flatline_protocol.enabled=false" \
+    sprint_plan false - \
+    context_resets false - \
+    bare_model fable - \
+    oracle_open true - \
+    bare_sessions matched -
 }
 
 # ---------------------------------------------------------------------------
@@ -305,6 +352,8 @@ apply_arm_toggles() {
       [[ "$val" == "fable" ]] || { _sm_err "arm '$arm' toggle bare_model=$val (only fable is defined)"; return 2; }
     elif [[ "$key" == "oracle_open" ]]; then
       [[ "$val" == "true" ]] || { _sm_err "arm '$arm' toggle oracle_open=$val (only true is defined)"; return 2; }
+    elif [[ "$key" == "bare_sessions" ]]; then
+      [[ "$val" == "matched" ]] || { _sm_err "arm '$arm' toggle bare_sessions=$val (only matched is defined)"; return 2; }
     elif [[ "$val" != "false" ]]; then
       _sm_err "arm '$arm' toggle $key=$val (only false is defined)"; return 2
     fi
@@ -425,6 +474,12 @@ apply_arm_toggles() {
           _sm_err "oracle_open toggle: the sandbox was overlaid (mount_overlay evidence present)"; return 2
         fi
         _sm_evidence oracle_open "true"
+        ;;
+      bare_sessions)
+        # one session of a compute-matched cell (cycle-132 D-3.1): no mount, the runner plans k sessions
+        [[ "$(jq -r '.loa_mount' <<<"$toggles")" == "false" ]] \
+          || { _sm_err "arm '$arm' toggle bare_sessions=matched needs loa_mount: false in the same toggles"; return 2; }
+        _sm_evidence bare_sessions "matched"
         ;;
       *) _sm_err "arm '$arm' declares unknown toggle '$key'"; return 2 ;;
     esac
@@ -785,6 +840,34 @@ def fixture_meta(fixture):
 def in_scope(p):
     return p is not None and p.startswith(".claude/") and p != ".claude/checksums.json"
 
+# cycle-132 PREREGISTRATION §12 addendum 5 (KF-050): the pinned cheval adapters stay in the sandbox. An answer path under
+# .claude/adapters/ is never overlaid (pinned importers meeting an older loa_cheval break every dissent); the PR's own
+# versions stay visible under pr/. The reopened oracle on exactly those files is the grader detector's to report.
+# Cycle-132 PREREGISTRATION §12 addendum 9 (KF-050, smoke3 review-r14): the whole pinned .claude/ runtime stays. pr-14's
+# overlay wrote the PR's .claude/defaults/ model catalog and .claude/scripts/ at the PR's head with the adapters pinned,
+# and the pinned pipeline planned its dissent from the PR-era catalog (voices_planned 1, both gates api_failure). The
+# pipeline under test is the pinned framework in full, so no answer path under .claude/ is overlaid; the answer set holds
+# no other paths (in_scope), so the overlay writes nothing and records every PR .claude path in overlay_excluded.
+EXCLUDED_PREFIX = ".claude/"
+EXCLUDED_LIST_CAP = 20
+# test-only: the bats suites exercise the cycle-131 overlay mechanics (which still run, on an empty set, in every arm)
+# under addendum 5's narrower prefix. Honoured only with SM_TEST_MODE=1 AND a bats marker (BATS_TEST_FILENAME), and
+# only for a prefix under .claude/; when active the evidence says so (overlay_test_excluded_prefix=<prefix>).
+TEST_PREFIX = None
+if os.environ.get("SM_TEST_MODE") == "1" and os.environ.get("BATS_TEST_FILENAME") \
+        and os.environ.get("SM_TEST_EXCLUDED_PREFIX", "").startswith(".claude/") and ".." not in os.environ["SM_TEST_EXCLUDED_PREFIX"]:
+    TEST_PREFIX = EXCLUDED_PREFIX = os.environ["SM_TEST_EXCLUDED_PREFIX"]
+
+def excluded(p):
+    return p.startswith(EXCLUDED_PREFIX)
+
+def excluded_evidence(ex):
+    """overlay_excluded value: 0, or <exact count>:<the first 20 paths>[,…]"""
+    if not ex:
+        return "0"
+    s = ",".join(ex[:EXCLUDED_LIST_CAP])
+    return "%d:%s%s" % (len(ex), s, ",\u2026" if len(ex) > EXCLUDED_LIST_CAP else "")
+
 def answer_set(fixture, repo):
     """{path: "pr"|"fix"}, notes, meta"""
     notes = []
@@ -823,9 +906,13 @@ def answer_set(fixture, repo):
     hc = meta.get("head_commit")
     meta["head_available"] = bool(hc) and has_commit(repo, hc)
     entries = {}
+    meta["excluded"] = []
     for p in sorted(pr | fix):
         if in_scope(p):
-            entries[p] = "pr" if p in pr else "fix"
+            if excluded(p):
+                meta["excluded"].append(p)
+            else:
+                entries[p] = "pr" if p in pr else "fix"
     return entries, notes, meta
 
 def fixture_file(root, path):
@@ -943,6 +1030,10 @@ def cmd_overlay(ws, fixture, mode, repo):
                 gates.append(p)
         lines.append("overlay_sha256=%s=%s" % (p, state(ws, p)))
     print("mount_overlay=%s:%d" % (mode, len(entries)))
+    ex = meta["excluded"]
+    print("overlay_excluded=%s" % excluded_evidence(ex))
+    if TEST_PREFIX is not None:
+        print("overlay_test_excluded_prefix=%s" % TEST_PREFIX)
     for l in lines:
         print(l)
     print("overlay_removed=%d" % removed)
@@ -980,6 +1071,17 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
     fails = []
     if n != len(entries):
         fails.append(("a", "-", "mount_overlay names %d paths, the fixture's answer set has %d" % (n, len(entries))))
+    # addenda 5 and 9: the excluded .claude paths are the recorded ones, each still at its pinned version (or absent there)
+    ex = meta["excluded"]
+    want_ex = excluded_evidence(ex)
+    if ev.get("overlay_excluded", "0") != want_ex:
+        fails.append(("a", "-", "overlay_excluded=%s, the answer set excludes %s" % (ev.get("overlay_excluded", "<missing>"), want_ex)))
+    for p in ex:
+        tb = tree_blob(repo, source_commit, p) if has_commit(repo, source_commit) else None
+        want = sha(tb[0]) if tb else "absent"
+        got = state(ws, p)
+        if got != want:
+            fails.append(("a", p, "an excluded .claude path is %s, want the pinned %s" % (got[:12], want[:12])))
     rec = ev["overlay_sha256"]
     present = 0
     for p in sorted(entries):
@@ -1066,8 +1168,8 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
         c, p, d = fails[0]
         print("FAIL (%s) %s: %s%s" % (c, p, d, " (+%d more)" % (len(fails) - 1) if len(fails) > 1 else ""))
         sys.exit(1)
-    print("ok %s:%d answer paths (%d present), %d later-only pinned versions, sandbox git = base commit only"
-          % (mode, len(entries), present, len(later)))
+    print("ok %s:%d answer paths (%d present), %d later-only pinned versions, sandbox git = base commit only%s"
+          % (mode, len(entries), present, len(later), "; %d .claude path(s) left pinned" % len(ex) if ex else ""))
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
 if cmd == "answer-set" and len(sys.argv) == 4:
@@ -1142,16 +1244,16 @@ check_mount_closed() {
 }
 
 # apply_eval_config_variant <ws> — the cycle-131 evaluation config (FR-4, DEC-0618): both
-# gates' budget scales with the diff up to USD 6.00. Evidence config_variant=eval.
+# gates' budget scales with the diff up to USD 12.00 (cycle-132 addendum 2; was 6.00). Evidence config_variant=eval.
 apply_eval_config_variant() {
   local ws="$1" cfg="$1/.loa.config.yaml" g
   [[ -d "$ws" ]] || { _sm_err "apply_eval_config_variant: workspace not found: $ws"; return 2; }
   [[ -f "$cfg" ]] || : > "$cfg"
   for g in code_review security_audit; do
-    G="$g" yq -i '.flatline_protocol[strenv(G)].budget_scale = "diff" | .flatline_protocol[strenv(G)].budget_cents_max = 600' "$cfg" 2>/dev/null \
+    G="$g" yq -i '.flatline_protocol[strenv(G)].budget_scale = "diff" | .flatline_protocol[strenv(G)].budget_cents_max = 1200' "$cfg" 2>/dev/null \
       || { _sm_err "apply_eval_config_variant: yq failed on $cfg"; return 2; }
     [[ "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_scale' "$cfg" 2>/dev/null)" == diff \
-       && "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$cfg" 2>/dev/null)" == 600 ]] \
+       && "$(G="$g" yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$cfg" 2>/dev/null)" == 1200 ]] \
       || { _sm_err "apply_eval_config_variant: $g budget keys did not take effect"; return 2; }
   done
   _sm_evidence config_variant "eval"

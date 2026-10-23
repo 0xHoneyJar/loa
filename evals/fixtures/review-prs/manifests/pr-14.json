@@ -1,56 +1,432 @@
 {
   "fixture": "pr-14",
+  "label_set": "v2",
   "approved": true,
-  "approved_by": "lead 2026-10-19 (multi-site anchors, cycle-131 Task 1.5; curated by implementer D)",
+  "approved_by": "lead 2026-10-21",
   "record": {
     "sprint": "250",
     "record_ref": "origin/record/cycle-126-a2a",
     "head_commit": "d785fc9a20aeaddc4bc98ae52907d77a20582c01",
-    "fix_commit": "e170de3d275832105058105357845ccac704f1b3"
+    "fix_commit": "e170de3d275832105058105357845ccac704f1b3",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
   },
   "defects": [
     {
-      "id": "L01-with-set-a-write-to-whose-reads-exits-0",
-      "file": ".claude/hooks/compliance/implement-gate.sh",
-      "anchor_line": 111,
-      "anchors": [
-        111,
-        122,
-        123,
-        128,
-        129,
-        133,
-        137
-      ],
-      "must_match": "# Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)",
-      "severity": "medium",
-      "category": "security",
-      "label_source": "review",
-      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/engineer-feedback.md#L55",
-      "source_commit": "d785fc9a",
-      "synthetic": false
-    },
-    {
-      "id": "L02-the-gate-roots-its-zone-test-on-the-hook",
+      "id": "V01",
       "file": ".claude/hooks/compliance/implement-gate.sh",
       "anchor_line": 35,
       "anchors": [
         35,
-        76,
-        77,
-        89,
-        107,
-        108,
-        123,
-        133
+        36
       ],
       "must_match": "PROJECT_ROOT=\"${PROJECT_ROOT:-$(pwd)}\"",
-      "severity": "medium",
-      "category": "test",
-      "label_source": "audit",
-      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-250/auditor-sprint-feedback.md#L50",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
       "source_commit": "d785fc9a",
-      "synthetic": false
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 52,
+      "anchors": [
+        52,
+        53,
+        55,
+        56,
+        57
+      ],
+      "must_match": "# Extract file path from tool input (Write or Edit)",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H10",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; severity: codebook high (a gate that fails open is a security weakness with a plausible path to harm)",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 73,
+      "anchors": [
+        73,
+        76,
+        77,
+        78,
+        81,
+        89,
+        90,
+        97,
+        99
+      ],
+      "must_match": "@L73",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B \u2282 A); otherwise agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 123,
+      "anchors": [
+        123,
+        127,
+        128,
+        129,
+        134,
+        135
+      ],
+      "must_match": "active_skill=$(echo \"$input\" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=\"\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 134,
+      "anchors": [
+        134,
+        228
+      ],
+      "must_match": "echo \"[AUTHORITATIVE] App Zone write to '$file_path' detected during /$active_skill (not an implementation skill).\" >&2",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 135,
+      "anchors": [
+        135,
+        228,
+        230
+      ],
+      "must_match": "echo '{\"decision\":\"ask\",\"reason\":\"[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional.\"}'",
+      "severity": "high",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B adds 228, inside the hunk)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "anchor_line": 200,
+      "anchors": [
+        200,
+        202,
+        203,
+        209,
+        211,
+        212
+      ],
+      "must_match": "if [[ -f \"$RUN_DIR/simstim-state.json\" ]]; then",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H15,H16",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: security \u2014 the gate's staleness gap weakens an enforcement boundary; logic rejected; category: security, as H15 (same group D7)",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": ".claude/scripts/check-permissions.sh",
+      "anchor_line": 164,
+      "anchors": [
+        164,
+        167,
+        168,
+        169,
+        238,
+        239,
+        242,
+        246
+      ],
+      "must_match": "[[ \"$b\" == \"Bash(\"*\")\" ]] || return 1",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H21,H22,H23",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": ".claude/scripts/detect-platform-features.sh",
+      "anchor_line": 35,
+      "anchors": [
+        35,
+        36,
+        62,
+        66
+      ],
+      "must_match": "evidence=$(jq -r 'if (.active_skill_seen_at // \"\") != \"\" then \"seen \\(.active_skill_seen_at) via \\(.active_skill_source // \"unknown\")\" else empty end' \\",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H25,H26",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 62, the refresh's read site)",
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 582,
+      "anchors": [
+        582,
+        583
+      ],
+      "must_match": "PYTHONPATH=\"$SCRIPT_DIR/../adapters\" python3 - \"$PROJECT_ROOT\" \"$1\" <<'PY' 2>/dev/null",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H27",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; severity: codebook medium (missing validation, bounded impact); group D10 = this script's own site",
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": ".claude/scripts/lib-content.sh",
+      "anchor_line": 295,
+      "must_match": "local top_path_log; top_path_log=$(printf '%s' \"$top_path\" | LC_ALL=C tr -d '\\000-\\037\\177')   # stderr never gets a header's raw controls (bd-pw7e LOW-003)",
+      "severity": "low",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H30",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": ".claude/scripts/model-adapter.sh",
+      "anchor_line": 655,
+      "anchors": [
+        655,
+        656,
+        657,
+        659
+      ],
+      "must_match": "local result exit_code=0 err_file",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H32",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; category: error-handling (an unhandled mktemp failure); severity: codebook medium (uncommon path, wrong result)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": ".claude/scripts/validate-skill-capabilities.sh",
+      "anchor_line": 110,
+      "must_match": "AGENT_TYPES_FILE=\"${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}\"",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H35",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V14",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+      "anchor_line": 19,
+      "anchors": [
+        19,
+        52,
+        53
+      ],
+      "must_match": "export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H44",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (A adds 52)",
+      "review_driven": true
+    },
+    {
+      "id": "V15",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 61,
+      "anchors": [
+        61,
+        62
+      ],
+      "must_match": "python3 - \"$manifest\" \"$review\" \"$executor\" <<'PY'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H51",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: a separate site (another script) is its own group \u2014 one wrong behaviour per script, B's reading; anchors: union; severity medium for consistency with D10",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 71,
+      "anchors": [
+        71,
+        73,
+        74,
+        78
+      ],
+      "must_match": "RNG = r'(\\d{1,6})(?:\\s*[-\u2013]\\s*(\\d{1,6}))?'",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H52",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V17",
+      "file": "tools/check-prompt-budget.sh",
+      "anchor_line": 50,
+      "anchors": [
+        50,
+        51
+      ],
+      "must_match": "python3 - \"$ROOT\" \"$JSON\" \"$QUIET\" <<'PY'",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H95",
+      "source_commit": "d785fc9a",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: a separate script, own group (as H51); anchors: union; severity medium",
+      "review_driven": true
     }
   ],
   "fix_regions": [

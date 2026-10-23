@@ -1,0 +1,178 @@
+commit 58f871959c8948f8e72dde0838005668a3d72b3e
+Date: 2026-10-08T02:42:56+11:00
+
+fix(cycle-127): sprint-251 review round r251-3 — the Fable review's items: one shared is_throttle_message() in routing/ceiling.py (the probe's throttle rule + overloaded / too many requests / quota, a 429/529 in status position, never a digit inside a token count) consulted by the headless adapter before its context-limit mapping — Bedrock's "Too many tokens, please wait before trying again" is a RateLimitError again (retried, then walked), not a terminal size verdict (the r251-2 K8 regression) — and by the probe's classifier, with a probe-vs-adapter conformance test; the K9 _lookup pin reads its expectation from the catalog and the literal guard sweeps the current bound's digits (AC 3); the routing rule is provider-based under cli-only on both readers (deep-research-pro is agy-alone everywhere); the context-limit remedy for a CLI hop names the chain-head HTTP entry with --transport claude-headless; the probe suite's host-global ledger assertion is gone; cycle-124-effort-flag.bats unsets the host variables itself; AGC-6's loa-status timeout is 180 s. Docs: the cycle-126 SDD D-4.1 amendment carries the promised cycle-127 pointer (AC 4), SDD §5/§6 (effort_source incl. extra, effort_effective; resolve-time WARN; headless size verdict vs throttle; the partial flag), the superseded reprobe_trigger sentence, AC 1 / PRD SC-1 name the existing INVALID_CONFIG refusal for an absent binary, CHANGELOG and the addendum name the throttle rule; beads flushed (bd-c2rd, bd-y49y, bd-n6lk Bedrock effort, bd-rbkz probe Bisection extraction).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 539e257a..59fef198 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -355,6 +355,24 @@ _CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
+ }
+ 
+ 
++def _calibrate_hint(entry: Any, chain_entries: Any) -> Optional[str]:
++    """The ceiling-probe command for a provider size verdict on `entry` (cycle-126 D-1.1b), or None.
++
++    An HTTP hop names itself. A CLI hop carries no ceiling fields — the probe refuses it — so (review r251-3 R4) a
++    claude-headless hop names the chain's Anthropic HTTP entry with `--transport claude-headless` (the transport that
++    measured the payload), and any other CLI hop, or a chain with no such entry, gets no hint: the CLI's own window
++    refused the payload."""
++    if getattr(entry, "adapter_kind", "http") != "cli":
++        return _PROBE_COMMAND.format(model=entry.model_id)
++    if _CLI_ADAPTER_BY_PROVIDER.get(getattr(entry, "provider", "")) != "claude-headless":
++        return None
++    head = next((e for e in (chain_entries or ())
++                 if getattr(e, "adapter_kind", "http") != "cli" and getattr(e, "provider", "") == entry.provider), None)
++    if head is None:
++        return None
++    return f"{_PROBE_COMMAND.format(model=head.model_id)} --transport claude-headless"
++
++
+ _AGY_NOT_PLANNED_WARNED = False
+ 
+ 
+@@ -2227,7 +2245,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+         _calib = {
+             "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
+             "provider_limit": provider_limit, "error_class": error_class,
+-            "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
++            "calibrate": _calibrate_hint(_entry, _chain.entries), "store": _observed_store_path(),
+             "observation_recorded": _record,
+         }
+         if isinstance(_modelinv_state.get("capability_evaluation"), dict):
+@@ -2237,14 +2255,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+             "message_redacted": _msg, "observed_input_tokens": _obs, "provider_limit": provider_limit,
+         })
+         _modelinv_state["operator_visible_warn"] = True
++        # (review r251-3 R4: a CLI hop with no HTTP entry to calibrate gets no probe command — the CLI's window refused it)
++        _remedy = (f"calibrate: {_calib['calibrate']}" if _calib["calibrate"]
++                   else "the CLI's own window refused the payload (no catalog ceiling to calibrate)")
+         print(
+             f"[preflight] calibration_needed model={_entry_target} class={error_class} "
+-            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); run: {_calib['calibrate']}",
++            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); "
++            + (f"run: {_calib['calibrate']}" if _calib["calibrate"] else _remedy),
+             file=sys.stderr,
+         )
+         print(_error_json(
+             _exc.code,
+-            f"{_msg} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
++            f"{_msg} — not walked: the same payload would fail the next voice; {_remedy}",
+             retryable=False, calibration_needed=True, error_class=error_class,
+             observed_input_tokens=_obs, provider_limit=provider_limit,
+         ), file=sys.stderr)
+diff --git a/.claude/adapters/tests/test_anthropic_catalog_floor.py b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+index 792df478..4fc15c08 100644
+--- a/.claude/adapters/tests/test_anthropic_catalog_floor.py
++++ b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+@@ -179,13 +179,19 @@ def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
+ 
+ 
+ def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
+-    """review r251-2 K9 (n35): one concrete pin THROUGH `_lookup_max_input_tokens` — the other pins compare the policy
+-    against itself. claude-opus-5-5 is calibrated (1M window − 64K default output = 936,000); claude-opus-5 is not, and
+-    answers its probed value (the policy cap)."""
++    """review r251-2 K9 (n35): one concrete check THROUGH `_lookup_max_input_tokens` — the gate answers a calibrated
++    entry's catalog bound (not the policy cap). claude-opus-5-5 is calibrated; claude-opus-5 is not, and answers its
++    probed value (the policy cap). r251-3 R2 (AC 3): the expectation is READ from the catalog, so this check moves
++    with the next re-probe instead of pinning today's bound by literal."""
+     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+     monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+     monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+-    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == 936_000
++    cal = catalog["providers"]["anthropic"]["models"]["claude-opus-5-5"]
++    assert cal["ceiling_calibration"].get("calibrated_at"), "claude-opus-5-5 is expected to be calibrated"
++    want = cal["effective_input_ceiling"]
++    assert isinstance(want, int) and want != CEILING_CAP, want
++    assert input_bound(cal, max_tokens=_default_max_tokens(cal)).basis == "calibrated"
++    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == want
+     uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
+     assert not uncal["ceiling_calibration"].get("calibrated_at")
+     assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP
+diff --git a/docs/migration/v2.0-model-generation-floor.md b/docs/migration/v2.0-model-generation-floor.md
+index 3a438512..64bd6671 100644
+--- a/docs/migration/v2.0-model-generation-floor.md
++++ b/docs/migration/v2.0-model-generation-floor.md
+@@ -342,7 +342,8 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   (bound − 20,000 headroom) ÷ 1.8 = 508,000 estimated tokens for this entry. On the
+   `claude-headless` route there is no HTTP ceiling and no count: the CLI's pre-flight is
+   the backstop (no spend; the adapter maps it to the context-limit class — not walked, no
+-  breaker count). Near the window a request that slips past the HTTP gate fails cleanly
++  breaker count — unless a throttle marker is present, in which case it is a rate limit,
++  retried then walked). Near the window a request that slips past the HTTP gate fails cleanly
+   at the provider (`PROVIDER_CONTEXT_LIMIT`, one upload, not walked). The HTTP route's
+   `account_limits` tier is still `unverified`. Downstream mounts inherit the value with the catalog;
+   HTTP-route callers and mounts with a different window or tier should run
+diff --git a/tests/unit/cycle-124-effort-flag.bats b/tests/unit/cycle-124-effort-flag.bats
+index c61302c0..d9bc5f64 100644
+--- a/tests/unit/cycle-124-effort-flag.bats
++++ b/tests/unit/cycle-124-effort-flag.bats
+@@ -25,6 +25,9 @@ setup() {
+     export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
+     export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
+     unset LOA_CHEVAL_DISABLE_STREAMING LOA_CHEVAL_LEGACY_WIRE
++    # (cycle-127 r251-3 R6: hermetic to the operator's environment — a Bedrock bearer token turns on bedrock-forward
++    # routing, so `tiny` would resolve to the Bedrock haiku; a CLAUDE_HEADLESS_BIN would point the CLI hop elsewhere)
++    unset CLAUDE_HEADLESS_BIN AWS_BEARER_TOKEN_BEDROCK
+ }
+ 
+ # `run` merges stderr into $output by default; the JSON is on stdout and
+diff --git a/tests/unit/loa-status-providers.bats b/tests/unit/loa-status-providers.bats
+index 2d843d82..83d32dd2 100644
+--- a/tests/unit/loa-status-providers.bats
++++ b/tests/unit/loa-status-providers.bats
+@@ -64,7 +64,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
+   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
+ }
+ 
+-_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 936000
++_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 920000 (fixture values, not the live catalog — r251-3 R2)
+   local cal_block=""
+   if [[ -n "$2" ]]; then
+     cal_block="          source: operator_set
+@@ -77,7 +77,7 @@ _lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport
+           calibrated_at: null
+           stale_after_days: 90"
+   fi
+-  local bound=200000; [[ -n "$2" ]] && bound=936000
++  local bound=200000; [[ -n "$2" ]] && bound=920000
+   cat > "$1" <<YAML
+ aliases:
+   opus: "anthropic:claude-fixture-1"
+@@ -152,10 +152,10 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
+     _lsp5_obs "$m" 500001 PROVIDER_CONTEXT_LIMIT
+     run timeout 120 bash "$STATUS" --no-stale-check
+     [ "$status" -eq 0 ]
+-    echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++    echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+     [[ "$output" != *"below on this route"* ]]
+     run timeout 120 bash "$STATUS" --no-stale-check --json
+-    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 936000' >/dev/null
++    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 920000' >/dev/null
+   done
+ }
+ 
+@@ -167,16 +167,16 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
+   _lsp5_obs "$m" 990000 PROVIDER_CONTEXT_LIMIT
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++  echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+   # below it (a 429 row never counts): the observed bound governs and the line names both
+   _lsp5_obs "$m" 300000 RATE_LIMIT_UNVERIFIED 500001 PROVIDER_CONTEXT_LIMIT
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  echo "$output" | grep -qF "  ceiling: calibrated 936000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
++  echo "$output" | grep -qF "  ceiling: calibrated 920000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+   run timeout 120 bash "$STATUS" --no-stale-check --json
+   [ "$status" -eq 0 ]
+   echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 500000 and .calibrated == true
+-    and .calibrated_value == 936000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
++    and .calibrated_value == 920000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
+     and .calibrated_at == "2026-10-07T09:29:07Z"' >/dev/null
+ }
+ 

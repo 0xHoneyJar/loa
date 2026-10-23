@@ -1,0 +1,1780 @@
+diff --git a/evals/harness/ablation-report.py b/evals/harness/ablation-report.py
+index 7c392188..5a8e9714 100755
+--- a/evals/harness/ablation-report.py
++++ b/evals/harness/ablation-report.py
+@@ -7,14 +7,15 @@
+ # arms[], trials, cut_ladder, priority and the pre-registered `rules` block, D-A5),
+ # applies the pre-registered rules to every component arm (A2 … A7) against the
+ # control a1_full, checks H1 (a1_full vs a0_bare) and the A4 sensitivity rule, and
+-# writes report.md (and a --json twin with the same numbers).
++# writes report.md (and a --json twin with the same numbers). Reads, never writes, each batch's
++# STATUS.json and its run directories' grade.json (the batch record).
+ #
+ # Usage:
+ #   ablation-report.py --runs F [--runs F ...] --manifests DIR [--manifests DIR ...]
+ #                      --suite F --out report.md [--json report.json]
+ #                      [--seed 20261015] [--resamples N] [--level L]
+ #                      [--exclude-degraded true|false] [--partial]
+-#                      [--cuts F] [--not-run CSV]
++#                      [--cuts F] [--not-run CSV] [--suite-version N]
+ #
+ # Options:
+ #   --runs F            a runs.jsonl file (repeatable). Every non-blank line is one row
+@@ -49,6 +50,19 @@
+ #                       arm is an id (a5_no_flatline) or a label (A5); state is not_run_cut
+ #                       (default) or inconclusive_by_power (a pre-declared power cut)
+ #   --not-run CSV       arm ids or labels read as Not run (cut) with figure "--not-run"
++#   --suite-version N   the suite_version the main sections report (default: the highest
++#                       present); a version no row holds → exit 2
++#
++# Suite versions (Sprint 262): rows of different suite_version values are never pooled. The
++# main sections (Decisions, Per-arm detail, Exclusions, Cuts, Sensitivity, Rows per cell) read
++# the primary version only; every other version gets "## Suite version N (batches: …) —
++# reported separately, never pooled" with its own decision table, H1 and A4 lines, per-arm
++# figures and exclusions. The header lists each version with its batches and manifest sha256
++# (DRIFT is more than one sha256 within one version). A row without suite_version among rows of
++# two or more versions → exit 2; when one version (or none) is present, such rows join it.
++# JSON: primary_suite_version and by_suite_version {"N": {suite_version, rows, batches,
++# suite_manifest_sha256, decidable, h1, a4, decisions, arms, exclusions, listed, cap_failures}};
++# the top-level keys describe the primary version.
+ #
+ # Row treatment (DEC-0393, DEC-0417):
+ #   not decided, listed  rows of a smoke batch (manifest smoke: true), rows whose batch has
+@@ -95,10 +109,54 @@
+ #   simplify reads Inconclusive-by-power with the figure (a null result the sample could
+ #   not have detected); A8 (absent: true) reads component-absent with the suite evidence.
+ #
++# H1 and A4 lines (Sprint 262): each comparison is read, first match: not_testable (no task of
++#   the primary's types in either arm: "<metric>: not testable on suite_version N — no
++#   admissible task") → inconclusive_by_degradation (either arm's excluded share over its cells
++#   on that primary's task types > rules.exclusion.inconclusive_above_share) → degenerate (a
++#   defect_catch_rate comparison whose pairs come from one task and whose rows carry no
++#   per-defect ids: the interval is zero-variance by construction; flagged degenerate: true with
++#   degenerate_reason and read as no valid pair, also by the component decisions) → no_pair →
++#   tested. H1: established (a tested primary with lo > 0) | not established — halt before
++#   promotion (a tested primary, none with lo > 0) | inconclusive by degradation — not
++#   established (every testable primary inconclusive by degradation) | not yet decidable (no
++#   pair). A4: holds | fails — harden tasks … | inconclusive by degradation (…) — not decided |
++#   not testable on suite_version N — no admissible build task | not yet decidable (no pair).
++#   JSON h1/a4 carry state and suite_version; each comparison carries read and read_text.
++#
++# Presentation items (Sprint 262 R3, report 1.2.0; none of them changes a decision, an H1/A4 state or
++# an existing number):
++#   sensitivity H1/A4  the sensitivity figure prints the H1 and A4 lines, read the same way as the main
++#                   lines on a third Analysis with cap failures excluded and degraded rows included,
++#                   prefixed "sensitivity (decides nothing): "; per suite version. JSON sensitivity.h1 /
++#                   sensitivity.a4 (the shape of the top-level h1 / a4) and sensitivity.treatment; also
++#                   by_suite_version[N].sensitivity.
++#   ## Batch record one table row per manifest's batch, grouped by suite version, from STATUS.json beside
++#                   MANIFEST.json (read-only; absent → "no STATUS.json"; a symlink is not read): state,
++#                   trials planned / rowed, spend (rows_usd, ledger_usd, spent_usd, max_usd), extra_models,
++#                   rerowed[] and rerun[] counts with from→to tallies, drift_cleared[] and outage_history[]
++#                   counts, cuts[], paused_arms, and the grade.json grader_version tally of the rows' run
++#                   directories <batch dir>/<arm>/<task>-t<n>[-r<k>] ("n/a" without grade.json; a missing
++#                   directory is counted, never fatal). JSON batches[].
++#   precision       per-arm detail of review-catch arms: precision = Σ defects_caught ÷ (Σ defects_caught +
++#                   Σ false_positives) over the arm's valid review-catch rows with a numeric defects_caught
++#                   (cap_failure counts 0 caught; a null false_positives counts 0), null when 0; cost per
++#                   true defect = Σ cost_usd ÷ Σ defects_caught, null when 0 caught. JSON arms.<arm>.
++#                   {precision, usd_per_true_defect, true_defects, flagged_regions, precision_rows}.
++#   budget-matched  per suite version, per review-catch task: the union of a0_bare's valid trials' caught
++#                   defects (ids d1 … dN from defects_missed, as defect_vector reads them; a task whose a0
++#                   rows carry none → max over trials of the rate, "rate fallback") against a1_full's mean
++#                   per-trial catch rate, with the summed a0 cost and the mean a1 cost; "not available" when
++#                   the version has no valid a0_bare or a1_full review-catch rows. JSON budget_matched
++#                   {suite_version, available, tasks[], a0_union_mean, a1_mean, diff_mean, note} (primary
++#                   version; by_suite_version[N].budget_matched for each).
++#
+ # Exit codes:
+ #   0  report written
+-#   1  --partial and no decidable comparison (the report is still written)
+-#   2  usage error, unreadable input, unknown schema major, provenance conflict
++#   1  --partial and no decidable comparison in the primary version (the report is still
++#      written); H1 or A4 counts as decided when it reads established / not established /
++#      holds / fails / inconclusive by degradation
++#   2  usage error, unreadable input, unknown schema major, provenance conflict, a row without
++#      suite_version among two versions, --suite-version naming no row's version
+ #
+ # Tested by evals/tests/ablation-report.bats (planted rows generated by
+ # evals/tests/fixtures/ablation-report/gen-fixtures.py).
+@@ -113,7 +171,7 @@ import statistics
+ import subprocess
+ import sys
+ 
+-VERSION = "1.0.0"
++VERSION = "1.2.0"
+ REPORT_SCHEMA = 1
+ ROW_SCHEMA_MAJOR = 1
+ MANIFEST_SCHEMA_MAJOR = 1
+@@ -133,6 +191,10 @@ DISPLAY = {"investigate": "Investigate", "keep": "Keep", "inconclusive": "Inconc
+            "no_rows": "no rows"}
+ PARTIAL_LINE = "PARTIAL — rows so far, no decision is final"
+ SENS_LABEL = "sensitivity (cap failures excluded) — no decision uses this"
++SENS_PREFIX = "sensitivity (decides nothing): "
++SENS_H_TREATMENT = "cap failures excluded, degraded rows included"
++BUDGET_LABEL = "informational, decides nothing"
++GRADE_DIR = re.compile(r"(.+)-t(\d+)(?:-r(\d+))?")
+ 
+ 
+ class Fail(Exception):
+@@ -374,10 +436,17 @@ def load_cuts(path, not_run, arm_ids, labels):
+ 
+ 
+ # --------------------------------------------------------------------------- the analysis
++def usable(p):
++    """A comparison with a valid pair that is not degenerate."""
++    return p["n"] > 0 and not p.get("degenerate")
++
++
+ class Analysis:
+-    def __init__(self, suite, rows, mans, args, cap_excluded):
++    def __init__(self, suite, rows, mans, args, cap_excluded, include_degraded=False):
+         self.suite, self.rules, self.args = suite, suite["rules"], args
+         self.cap_excluded = cap_excluded
++        # include_degraded (Sprint 262 R3): the sensitivity H1/A4 lines read degraded rows as scored
++        self.exclude_degraded = bool(args.exclude_degraded) and not include_degraded
+         self.arms = {a["id"]: a for a in suite["arms"] if isinstance(a, dict) and a.get("id")}
+         ex = self.rules.get("exclusion") or {}
+         self.ex_statuses = set(ex.get("statuses") or []) | set(DEC0417_EXCLUDED)
+@@ -445,7 +514,7 @@ class Analysis:
+         reason = None
+         if st in self.ex_statuses:
+             reason = st
+-        elif self.args.exclude_degraded and row.get("degraded") is True:
++        elif self.exclude_degraded and row.get("degraded") is True:
+             reason = "degraded: " + str(row.get("degraded_reason") or "no reason recorded")
+         elif st not in SCORING:
+             reason = "status " + st
+@@ -483,8 +552,10 @@ class Analysis:
+         return [float(row[CATCH])] * n, "rate"
+ 
+     # -- shares
+-    def excluded_share(self, arm):
+-        cells = [c for (a, _), trials in self.cells.items() if a == arm for c in trials.values()]
++    def excluded_share(self, arm, types=None):
++        """Excluded cells over the arm's cells (on tasks of `types` when given: the H1/A4 guard)."""
++        cells = [c for (a, t), trials in self.cells.items() if a == arm
++                 and (types is None or self.task_type.get(t) in types) for c in trials.values()]
+         if not cells:
+             return None, 0, 0
+         ex = sum(1 for c in cells if c["valid"] is None)
+@@ -557,6 +628,15 @@ class Analysis:
+         res["lo"], res["hi"] = bootstrap(res["diffs"], self.args.resamples, self.args.level, seed)
+         res["mde"] = mde(res["diffs"], self.args.level)
+         res["half_width"] = None if res["lo"] is None else (res["hi"] - res["lo"]) / 2.0
++        # A catch-rate comparison whose pairs come from one task and whose defect vectors are the
++        # row's rate (no per-defect ids) has a zero-variance interval by construction: degenerate,
++        # read as no valid pair by H1 and by the component decision (Sprint 262).
++        res["degenerate"] = bool(metric == CATCH and n > 0 and res["n_tasks"] == 1
++                                 and "ids" not in res["defect_identity"])
++        if res["degenerate"]:
++            res["degenerate_reason"] = (
++                f"valid pairs on one task ({res['pairs'][0]['task_id']}) with no per-defect ids: every "
++                f"defect takes the row's {CATCH}, so the bootstrap interval has zero variance by construction")
+         if metric == CATCH:
+             td = res["task_diffs"]
+             lo, hi = bootstrap(td, self.args.resamples, self.args.level, seed)
+@@ -582,7 +662,7 @@ class Analysis:
+     def decide(self, arm, comps, c, w, share):
+         T = float(self.rules.get("threshold_points", 0.03))
+         C = float(self.rules.get("cost_lower_pct", 15))
+-        P = [p for p in comps if p["n"] > 0]
++        P = [p for p in comps if usable(p)]
+         nopair = len(P) < len(comps)
+         name = lambda p: p["metric"]  # noqa: E731
+         if share is not None and r9(share) > self.guard:
+@@ -600,7 +680,8 @@ class Analysis:
+         if hits:
+             clauses.append(f"d < -{T:g} ({', '.join(hits)})")
+         if nopair:
+-            clauses.append("no valid pair (" + ", ".join(name(p) for p in comps if p["n"] == 0) + ")")
++            clauses.append("no valid pair (" + ", ".join(
++                name(p) + (": degenerate" if p["n"] > 0 else "") for p in comps if not usable(p)) + ")")
+         if clauses:
+             return "inconclusive", "inconclusive: " + "; ".join(clauses), clauses
+         cost_ok = (c is not None and r9(c) <= -C) or (w is not None and r9(w) <= -C)
+@@ -647,7 +728,7 @@ class Analysis:
+             state, label = "inconclusive_by_power", DISPLAY["inconclusive_by_power"]
+         out.update(state=state, label=label, rule=rule, figure=figure,
+                    mde_flag=[p["metric"] for p in over])
+-        out["decidable"] = bool(seen) and all(p["n"] > 0 for p in comps)
++        out["decidable"] = bool(seen) and all(usable(p) for p in comps)
+         return out
+ 
+     def arm_metrics(self, arm):
+@@ -677,7 +758,31 @@ class Analysis:
+                   if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+             return mean(vs)
+ 
++        # precision and cost per true defect (Sprint 262 R3, informational): the arm's valid review-catch
++        # rows with a numeric defects_caught (a cap_failure counts 0 caught); false_positives null → 0
++        prec = {"precision": None, "usd_per_true_defect": None, "true_defects": None, "flagged_regions": None,
++                "precision_rows": 0}
++        if rc:
++            caught = fp = usd = 0.0
++            nrows = 0
++            for rs in rc.values():
++                for r in rs:
++                    c = r.get("defects_caught")
++                    if r["status"] == "cap_failure":
++                        c = 0
++                    if isinstance(c, bool) or not isinstance(c, (int, float)):
++                        continue
++                    f = r.get("false_positives")
++                    f = f if isinstance(f, (int, float)) and not isinstance(f, bool) else 0
++                    caught, fp, nrows = caught + c, fp + f, nrows + 1
++                    usd += float(r.get("cost_usd") or 0)
++            prec = {"precision": caught / (caught + fp) if caught + fp > 0 else None,
++                    "usd_per_true_defect": usd / caught if caught > 0 else None,
++                    "true_defects": int(caught) if float(caught).is_integer() else caught,
++                    "flagged_regions": int(caught + fp) if float(caught + fp).is_integer() else caught + fp,
++                    "precision_rows": nrows}
+         return {
++            **prec,
+             "rows": len(rows), "by_status": dict(sorted(status.items())),
+             "degraded_rows": sum(1 for r in rows if r.get("degraded") is True),
+             "valid_cells": len(valid),
+@@ -700,7 +805,7 @@ class Analysis:
+ def interval(p):
+     if p is None or p["n"] == 0:
+         return "no pair"
+-    return f"{f3(p['d'])} [{f3(p['lo'])}, {f3(p['hi'])}]"
++    return f"{f3(p['d'])} [{f3(p['lo'])}, {f3(p['hi'])}]" + (" (degenerate)" if p.get("degenerate") else "")
+ 
+ 
+ def comp_json(p):
+@@ -709,11 +814,568 @@ def comp_json(p):
+     out["pairs"] = [{"task_id": x["task_id"], "arm_value": j6(x["arm_value"]), "control_value": j6(x["control_value"]),
+                      "diff": j6(x["diff"]), "defects": x.get("defects"),
+                      "arm_runs": x["arm_runs"], "control_runs": x["control_runs"]} for x in p["pairs"]]
++    out["degenerate"] = bool(p.get("degenerate"))
++    if p.get("degenerate"):
++        out["degenerate_reason"] = p["degenerate_reason"]
+     if "task_level" in p:
+         out["task_level"] = {k: (j6(v) if isinstance(v, float) else v) for k, v in p["task_level"].items()}
+     return out
+ 
+ 
++def version_key(v):
++    """The partition key of a row's suite_version: 1, 1.0 and "1" are one version; None = absent."""
++    if v is None or isinstance(v, bool):
++        return None
++    if isinstance(v, int):
++        return str(v)
++    if isinstance(v, float) and v.is_integer():
++        return str(int(v))
++    if isinstance(v, str) and v.strip():
++        s = v.strip()
++        return str(int(s)) if re.fullmatch(r"\d+", s) else s
++    return None
++
++
++def version_order(k):
++    return (0, int(k), "") if k.isdigit() else (1, 0, k)
++
++
++def partition(rows, wanted):
++    """Rows by suite_version, never pooled; returns ({key: rows}, primary key)."""
++    keys = sorted({k for k in (version_key(r.get("suite_version")) for r in rows) if k is not None}, key=version_order)
++    missing = [r for r in rows if version_key(r.get("suite_version")) is None]
++    if len(keys) > 1 and missing:
++        r = missing[0]
++        raise Fail(f"{r['_where']}: row {r['run_id']} has no suite_version while the rows hold suite_version "
++                   f"{', '.join(keys)}; rows of different suite versions are never pooled, so every row must "
++                   f"name its suite_version")
++    if len(keys) <= 1:
++        groups = {(keys[0] if keys else "n/a"): list(rows)}
++    else:
++        groups = {k: [r for r in rows if version_key(r.get("suite_version")) == k] for k in keys}
++    if wanted is not None:
++        w = version_key(wanted)
++        if w not in groups:
++            raise Fail(f"--suite-version {wanted}: no row has that suite_version (present: {', '.join(groups)})")
++        return groups, w
++    return groups, max(groups, key=version_order)
++
++
++def assess(an, arm, ctrl, p):
++    """How H1/A4 reads one comparison: not_testable | inconclusive_by_degradation | degenerate | no_pair | tested."""
++    types = (REVIEW,) if p["metric"] == CATCH else BUILD_TYPES
++    if not p["pairs"] and not p["unpaired"]:
++        return "not_testable", None
++    over = []
++    for a in (arm, ctrl):
++        s, _, _ = an.excluded_share(a, types)
++        if s is not None and r9(s) > an.guard:
++            over.append(f"{a} excluded share {s:.3f} > {an.guard:g}")
++    if over:
++        return "inconclusive_by_degradation", "; ".join(over)
++    if p.get("degenerate"):
++        return "degenerate", p["degenerate_reason"]
++    if p["n"] == 0:
++        return "no_pair", None
++    return "tested", None
++
++
++def read_text(p, state, why, v):
++    base = f"{p['metric']} {interval(p)} (n = {p['n']} {p['unit']})"
++    if state == "not_testable":
++        return f"{p['metric']}: not testable on suite_version {v} — no admissible task"
++    if state == "inconclusive_by_degradation":
++        return f"{p['metric']} inconclusive by degradation ({why}); remaining pairs {interval(p)} (n = {p['n']} {p['unit']})"
++    if state == "degenerate":
++        return base + " — read as no valid pair"
++    return base
++
++
++H1_DECIDED = ("established", "not_established", "inconclusive_by_degradation")
++A4_DECIDED = ("holds", "fails", "inconclusive_by_degradation")
++
++
++def h1a4(main, v, seed):
++    """The H1 and A4 reads of one Analysis (the main one, or the sensitivity one with cap failures
++    excluded and degraded rows included, Sprint 262 R3)."""
++    h1_comps = [main.compare(CONTROL, BARE, m, seed) for m in main.primaries(CONTROL)]
++    h1_reads = [assess(main, CONTROL, BARE, p) for p in h1_comps]
++    states = [s for s, _ in h1_reads]
++    if any(s == "tested" and r9(p["lo"]) > 0 for p, (s, _) in zip(h1_comps, h1_reads)):
++        h1_state, h1_line = "established", "H1: established"
++    elif "tested" in states:
++        h1_state, h1_line = "not_established", "H1: not established — halt before promotion"
++    else:
++        live = [s for s in states if s != "not_testable"]
++        if live and all(s == "inconclusive_by_degradation" for s in live):
++            h1_state, h1_line = "inconclusive_by_degradation", "H1: inconclusive by degradation — not established"
++        else:
++            h1_state, h1_line = "not_yet_decidable", "H1: not yet decidable (no pair)"
++
++    a4, a4_read = None, (None, None)
++    if SENSITIVITY_ARM in main.arms:
++        a4 = main.compare(SENSITIVITY_ARM, CONTROL, PASS, seed)
++        a4_read = assess(main, SENSITIVITY_ARM, CONTROL, a4)
++        s, why = a4_read
++        if s == "not_testable":
++            a4_state, a4_line = "not_testable", f"A4 sensitivity: not testable on suite_version {v} — no admissible build task"
++        elif s == "inconclusive_by_degradation":
++            a4_state, a4_line = s, f"A4 sensitivity: inconclusive by degradation ({why}) — not decided"
++        elif s in ("no_pair", "degenerate"):
++            a4_state, a4_line = "not_yet_decidable", "A4 sensitivity: not yet decidable (no pair)"
++        elif r9(a4["hi"]) < 0:
++            a4_state, a4_line = "holds", "A4 sensitivity: holds"
++        else:
++            a4_state, a4_line = "fails", "A4 sensitivity: fails — harden tasks before acting on other arms"
++    else:
++        a4_state, a4_line = "no_arm", "A4 sensitivity: fails — harden tasks before acting on other arms"
++    return {"version": v, "h1_comps": h1_comps, "h1_reads": h1_reads, "h1_state": h1_state, "h1_line": h1_line,
++            "h1_ok": h1_state == "established", "a4": a4, "a4_read": a4_read, "a4_state": a4_state,
++            "a4_line": a4_line, "a4_ok": a4_state == "holds"}
++
++
++def budget_matched(an, v):
++    """The budget-matched baseline (Sprint 262 R3, informational, decides nothing): per review-catch task,
++    the union of a0_bare's valid trials' caught defects against a1_full's mean per-trial catch rate."""
++    out = {"suite_version": v, "available": False, "tasks": [], "a0_union_mean": None, "a1_mean": None,
++           "diff_mean": None, "note": None, "label": BUDGET_LABEL}
++
++    def valid(arm, task):
++        return [c["valid"] for _, c in sorted(an.cells.get((arm, task), {}).items()) if c["valid"] is not None]
++
++    tasks = sorted({t for (a, t) in an.cells if a in (BARE, CONTROL) and an.task_type.get(t) == REVIEW})
++    have = {a: any(valid(a, t) for t in tasks) for a in (BARE, CONTROL)}
++    if not (have[BARE] and have[CONTROL]):
++        missing = " and ".join(a for a in (BARE, CONTROL) if not have[a])
++        out["note"] = f"not available on suite_version {v} — no valid {missing} review-catch rows"
++        return out
++    out["available"] = True
++    for t in tasks:
++        a0, a1 = valid(BARE, t), valid(CONTROL, t)
++        e = {"task_id": t, "a0_trials": len(a0), "a1_trials": len(a1), "a0_union": None, "a0_cost_sum": None,
++             "a1_mean": None, "a1_cost_mean": None, "diff": None, "method": None, "reason": None}
++        if a0:
++            vecs = [an.defect_vector(r) for r in a0]
++            if all(vv is not None and how in ("ids", "cap") for vv, how in vecs):
++                e["a0_union"] = mean([max(vv[k] for vv, _ in vecs) for k in range(len(vecs[0][0]))])
++                e["method"] = "defect union"
++            else:
++                e["a0_union"] = max(an.catch_task_score(r) for r in a0)
++                e["method"] = "rate fallback"
++            e["a0_cost_sum"] = sum(float(r.get("cost_usd") or 0) for r in a0)
++        if a1:
++            e["a1_mean"] = mean([an.catch_task_score(r) for r in a1])
++            e["a1_cost_mean"] = mean([float(r.get("cost_usd") or 0) for r in a1])
++        if a0 and a1:
++            e["diff"] = e["a1_mean"] - e["a0_union"]
++        else:
++            e["reason"] = "; ".join(f"no valid {a} trial" for a, rs in ((BARE, a0), (CONTROL, a1)) if not rs)
++        out["tasks"].append(e)
++    both = [e for e in out["tasks"] if e["diff"] is not None]
++    if not both:
++        out["available"] = False
++        out["note"] = f"not available on suite_version {v} — no review-catch task has valid trials in both arms"
++        return out
++    out["a0_union_mean"] = mean([e["a0_union"] for e in both])
++    out["a1_mean"] = mean([e["a1_mean"] for e in both])
++    out["diff_mean"] = out["a1_mean"] - out["a0_union_mean"]
++    k = sorted({e["a0_trials"] for e in both})
++    kk = str(k[0]) if len(k) == 1 else "the"
++    x = mean([e["a0_cost_sum"] for e in both])
++    y = mean([e["a1_cost_mean"] for e in both])
++    out["a0_cost_sum_mean"], out["a1_cost_mean"] = x, y
++    out["note"] = (f"{kk} a0_bare trials cost USD {x:.2f} vs one a1_full trial USD {y:.2f} "
++                   f"(task means over {len(both)} task{'' if len(both) == 1 else 's'})")
++    return out
++
++
++def batch_record(mans, rows):
++    """Each batch's STATUS.json (beside its MANIFEST.json, read-only) and the grader versions of its rows'
++    run directories (Sprint 262 R3); a missing file or directory is reported, never fatal."""
++    out = []
++    for b, m in sorted(mans.items()):
++        d = os.path.dirname(m["_path"])
++        brows = [r for r in rows if r["batch"] == b]
++        vks = sorted({k for k in (version_key(r.get("suite_version")) for r in brows) if k is not None},
++                     key=version_order)
++        sv = version_key(m.get("suite_version")) or (", ".join(vks) if vks else "n/a")
++        e = {"batch": b, "suite_version": sv, "smoke": m.get("smoke") is True, "status_file": None,
++             "status_note": None, "state": None, "trials_planned": None, "trials_rowed": len(brows),
++             "spend": None, "extra_models": {}, "rerowed": 0, "rerowed_tally": {}, "rerun": 0,
++             "rerun_tally": {}, "drift_cleared": 0, "outage_history": 0, "cuts": [], "paused_arms": [],
++             "grader_versions": {}, "run_dirs_missing": 0}
++        sp = os.path.join(d, "STATUS.json")
++        st = None
++        if os.path.islink(sp):
++            e["status_note"] = "STATUS.json is a symlink (not read)"
++        elif not os.path.isfile(sp):
++            e["status_note"] = "no STATUS.json"
++        else:
++            try:
++                with open(sp, encoding="utf-8") as fh:
++                    st = json.load(fh)
++            except (OSError, ValueError):
++                st = None
++            if not isinstance(st, dict):
++                st, e["status_note"] = None, "STATUS.json unreadable"
++        if st is not None:
++            e["status_file"] = sp
++
++            def lst(k):
++                x = st.get(k)
++                return x if isinstance(x, list) else []
++
++            def tally(k):
++                t = {}
++                for x in lst(k):
++                    if isinstance(x, dict):
++                        key = f"{x.get('from', '?')}→{x.get('to', '?')}"
++                        t[key] = t.get(key, 0) + 1
++                return dict(sorted(t.items()))
++
++            sd = st.get("spend") if isinstance(st.get("spend"), dict) else {}
++            e.update(state=st.get("state"), trials_planned=st.get("trials_planned"),
++                     spend={k: sd.get(k) for k in ("rows_usd", "ledger_usd", "spent_usd", "max_usd")},
++                     rerowed=len(lst("rerowed")), rerowed_tally=tally("rerowed"),
++                     rerun=len(lst("rerun")), rerun_tally=tally("rerun"),
++                     drift_cleared=len(lst("drift_cleared")), outage_history=len(lst("outage_history")),
++                     cuts=[{k: c.get(k) for k in ("reason", "at_trial", "spent", "max") if k in c}
++                           for c in lst("cuts") if isinstance(c, dict)])
++            em = st.get("extra_models")
++            if isinstance(em, dict):
++                e["extra_models"] = {str(k): {"runs": (x or {}).get("runs"), "output_tokens": (x or {}).get("output_tokens")}
++                                     for k, x in sorted(em.items()) if isinstance(x, dict) or x is None}
++            pa = st.get("paused_arms")
++            e["paused_arms"] = sorted(str(x) for x in (pa if isinstance(pa, (dict, list)) else []))
++        # grader versions: <batch dir>/<arm>/<task>-t<n>[-r<k>]/grade.json
++        listing = {}
++        gv = {}
++        for r in brows:
++            ad = os.path.join(d, r["arm"])
++            if ad not in listing:
++                try:
++                    listing[ad] = sorted(x for x in os.listdir(ad) if not os.path.islink(os.path.join(ad, x))
++                                         and os.path.isdir(os.path.join(ad, x))) \
++                        if os.path.isdir(ad) and not os.path.islink(ad) else []
++                except OSError:
++                    listing[ad] = []
++            dirs = []
++            for x in listing[ad]:
++                mm = GRADE_DIR.fullmatch(x)
++                if mm and mm.group(1) == r["task_id"] and int(mm.group(2)) == r["trial"]:
++                    dirs.append(x)
++            if not dirs:
++                e["run_dirs_missing"] += 1
++            for x in dirs:
++                gp = os.path.join(ad, x, "grade.json")
++                ver = "n/a"
++                if os.path.isfile(gp) and not os.path.islink(gp):
++                    try:
++                        with open(gp, encoding="utf-8") as fh:
++                            g = json.load(fh)
++                        if isinstance(g, dict) and g.get("grader_version") not in (None, ""):
++                            ver = str(g["grader_version"])
++                    except (OSError, ValueError):
++                        pass
++                gv[ver] = gv.get(ver, 0) + 1
++        e["grader_versions"] = dict(sorted(gv.items(), key=lambda kv: (
++            kv[0] == "n/a", [int(p) if p.isdigit() else p for p in re.split(r"[.]", kv[0])])))
++        out.append(e)
++    return out
++
++
++def render_budget(L, B, h):
++    L(f"{h} Budget-matched baseline (suite_version {B['suite_version']}; {BUDGET_LABEL})")
++    L("")
++    if not B["available"]:
++        L(f"- {B['note']}")
++        L("")
++        return
++    L("Per review-catch task: the union of the defects any valid a0_bare trial caught (a defect counts once "
++      "caught by any trial; \"rate fallback\" is the best trial's rate where the rows carry no per-defect ids), "
++      "against a1_full's mean per-trial catch rate. Nothing here feeds a decision.")
++    L("")
++    L("| task | a0_bare trials | a0_bare union catch rate | a0_bare summed cost USD | a1_full trials | "
++      "a1_full mean per-trial catch rate | a1_full mean cost USD | a1 − a0 union | method |")
++    L("|---|---|---|---|---|---|---|---|---|")
++
++    def usd(x):
++        return "n/a" if x is None else f"{x:.2f}"
++
++    for e in B["tasks"]:
++        L(f"| {e['task_id']} | {e['a0_trials']} | {u3(e['a0_union'])} | {usd(e['a0_cost_sum'])} | {e['a1_trials']} | "
++          f"{u3(e['a1_mean'])} | {usd(e['a1_cost_mean'])} | {f3(e['diff'])} | "
++          f"{md_cell(e['method'] or 'n/a')}{'; ' + md_cell(e['reason']) if e['reason'] else ''} |")
++    L("")
++    L(f"- task mean (tasks with both arms): a0_bare union {u3(B['a0_union_mean'])}, a1_full per-trial "
++      f"{u3(B['a1_mean'])}, a1 − a0 union {f3(B['diff_mean'])}")
++    L(f"- matched cost: {B['note']}")
++    L("")
++
++
++def budget_json(B):
++    return {k: (j6(x) if isinstance(x, float) else
++                [{kk: (j6(y) if isinstance(y, float) else y) for kk, y in t.items()} for t in x] if k == "tasks" else x)
++            for k, x in B.items()}
++
++
++def render_batches(L, recs):
++    L("## Batch record")
++    L("")
++    L("From each batch's STATUS.json beside its MANIFEST.json (read-only) and the `grade.json` grader_version "
++      "of its rows' run directories (`<batch>/<arm>/<task>-t<n>[-r<k>]`); a tally is `from→to ×n`.")
++    L("")
++
++    def usd(x):
++        return "n/a" if not isinstance(x, (int, float)) or isinstance(x, bool) else f"{x:.2f}"
++
++    def tl(t):
++        return ", ".join(f"{k} ×{n}" for k, n in t.items())
++
++    for v in sorted({e["suite_version"] for e in recs}, key=lambda k: version_order(k) if k else (2, 0, "")):
++        L(f"### suite_version {v}")
++        L("")
++        L("| batch | state | trials planned / rowed | spend USD rows / ledger / spent / max | extra models | rerowed | "
++          "rerun | drift cleared | outages | cuts | paused arms | grader versions |")
++        L("|---|---|---|---|---|---|---|---|---|---|---|---|")
++        for e in [x for x in recs if x["suite_version"] == v]:
++            name = f"`{e['batch']}`" + (" (smoke)" if e["smoke"] else "")
++            gv = ", ".join(f"{k} ×{n}" for k, n in e["grader_versions"].items()) or "n/a"
++            if e["run_dirs_missing"]:
++                gv += f"; no run dir ×{e['run_dirs_missing']}"
++            if e["status_note"]:
++                L(f"| {name} | {md_cell(e['status_note'])} | — / {e['trials_rowed']} | — | — | — | — | — | — | — | — | "
++                  f"{md_cell(gv)} |")
++                continue
++            sp = e["spend"] or {}
++            em = ", ".join(f"{k}: runs {x.get('runs')}, output tokens {x.get('output_tokens')}"
++                           for k, x in e["extra_models"].items()) or "none"
++            cuts = "; ".join(", ".join(f"{k} {c[k]}" for k in c) for c in e["cuts"]) or "none"
++            rr = f"{e['rerowed']}" + (f" ({tl(e['rerowed_tally'])})" if e["rerowed"] else "")
++            rn = f"{e['rerun']}" + (f" ({tl(e['rerun_tally'])})" if e["rerun"] else "")
++            L(f"| {name} | {md_cell(e['state'] or 'n/a')} | {e['trials_planned'] if e['trials_planned'] is not None else 'n/a'}"
++              f" / {e['trials_rowed']} | {usd(sp.get('rows_usd'))} / {usd(sp.get('ledger_usd'))} / "
++              f"{usd(sp.get('spent_usd'))} / {usd(sp.get('max_usd'))} | {md_cell(em)} | {md_cell(rr)} | {md_cell(rn)} | "
++              f"{e['drift_cleared']} | {e['outage_history']} | {md_cell(cuts)} | "
++              f"{md_cell(', '.join(e['paused_arms']) or 'none')} | {md_cell(gv)} |")
++        L("")
++
++
++def render_sens(L, V, rules, h):
++    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
++      "wall-clock Δ % | excluded share | predicate outcome (not used) |")
++    L("|---|---|---|---|---|---|---|---|---|")
++    for d in V["sens_rows"]:
++        cp = {p["metric"]: p for p in d["comparisons"]}
++        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
++        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
++        share = "n/a" if d["excluded_share"] is None else f"{d['excluded_share']:.3f}"
++        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
++          f"{pct(d['w'])} | {share} | {d['predicate_label']} |")
++    L("")
++    L(f"{h} H1 and A4 lines, sensitivity ({SENS_H_TREATMENT}; decides nothing)")
++    L("")
++    render_h1a4(L, V["sens_h"], rules, prefix=SENS_PREFIX, suffix=f" ({SENS_H_TREATMENT})")
++
++
++def analyse(suite, vrows, mans, args, cuts, components, v):
++    """Every figure of one suite_version (the rows of no other version enter)."""
++    seed = args.seed
++    main = Analysis(suite, vrows, mans, args, cap_excluded=False)
++    sens = Analysis(suite, vrows, mans, args, cap_excluded=True)
++    decisions = [main.arm_report(a, cuts, seed) for a in components]
++    sens_rows = [sens.arm_report(a, {}, seed) for a in components]
++
++    H = h1a4(main, v, seed)
++    h1_state, a4_state = H["h1_state"], H["a4_state"]
++    sens_h = h1a4(Analysis(suite, vrows, mans, args, cap_excluded=True, include_degraded=True), v, seed)
++    decidable = any(d["decidable"] for d in decisions) or h1_state in H1_DECIDED or a4_state in A4_DECIDED
++    caps = [c["valid"] for (_, _), trials in sorted(main.cells.items()) for _, c in sorted(trials.items())
++            if c["valid"] is not None and c["valid"]["status"] == "cap_failure"]
++    batches = sorted({r["batch"] for r in vrows})
++    shas = sorted({str(mans[b].get("suite_manifest_sha256")) for b in batches
++                   if b in mans and mans[b].get("suite_manifest_sha256") not in (None, "")}
++                  | {str(r.get("suite_manifest_sha256")) for r in vrows if r.get("suite_manifest_sha256") not in (None, "")})
++    return dict(H, rows=vrows, main=main, sens=sens, decisions=decisions, sens_rows=sens_rows,
++                decidable=decidable, caps=caps, batches=batches, shas=shas, sens_h=sens_h,
++                budget=budget_matched(main, v))
++
++
++def render_decisions(L, V, absent, rules):
++    main = V["main"]
++    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
++      "wall-clock Δ % | excluded share | decision | rule matched | rows |")
++    L("|---|---|---|---|---|---|---|---|---|---|---|")
++    for d in V["decisions"]:
++        cp = {p["metric"]: p for p in d["comparisons"]}
++        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
++        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
++        share = "n/a" if d["excluded_share"] is None else \
++            f"{d['excluded_share']:.3f} ({d['excluded_cells']}/{d['cells_seen']})"
++        dec = d["label"] + (f" — {d['figure']}" if d["figure"] else "")
++        nrows = len(main.arm_rows.get(d["arm"], []))
++        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
++          f"{pct(d['w'])} | {share} | **{md_cell(dec)}** | {md_cell(d['rule'])} | {nrows} (§ Rows per cell) |")
++    for a in absent:
++        L(f"| {a.get('label', a['id'])} | `{a['id']}` | — | — | — | — | — | — | **component-absent** | "
++          f"{md_cell(a.get('evidence', 'absent: true'))} | 0 |")
++    L("")
++    render_h1a4(L, V, rules)
++
++
++def render_h1a4(L, H, rules, prefix="", suffix=""):
++    """The H1 and A4 lines of one h1a4() read; the sensitivity lines carry SENS_PREFIX."""
++    h1p = ", ".join(read_text(p, s, why, H["version"]) for p, (s, why) in zip(H["h1_comps"], H["h1_reads"]))
++    L(f"**{prefix}{H['h1_line']}** — a1_full − a0_bare: {h1p}{suffix}. Rule (rules.h1): \"{rules.get('h1', '')}\"")
++    L("")
++    a4 = H["a4"]
++    if a4 is None:
++        a4p = "no arm a4_no_gates"
++    elif H["a4_state"] in ("not_testable", "inconclusive_by_degradation"):
++        a4p = read_text(a4, H["a4_read"][0], H["a4_read"][1], H["version"])
++    else:
++        a4p = f"{PASS} {interval(a4)} (n = {a4['n']} {a4['unit']})"
++    L(f"**{prefix}{H['a4_line']}** — a4_no_gates − a1_full: {a4p}{suffix}. Rule (rules.a4_sensitivity): "
++      f"\"{rules.get('a4_sensitivity', '')}\"")
++    L("")
++
++
++def render_per_arm(L, V, detail_arms, h):
++    main = V["main"]
++    metrics = {a: main.arm_metrics(a) for a in detail_arms if a in main.arms}
++    by_arm = {d["arm"]: d for d in V["decisions"]}
++    for a in detail_arms:
++        if a not in main.arms:
++            continue
++        m = metrics[a]
++        L(f"{h} {main.arms[a].get('label', a)} `{a}`")
++        L("")
++        L(f"- runs: {m['rows']} ({', '.join(f'{k} {v}' for k, v in m['by_status'].items()) or 'none'}); "
++          f"degraded rows {m['degraded_rows']}; valid cells {m['valid_cells']}")
++        share, ex, seen = main.excluded_share(a)
++        L(f"- excluded cells: {ex} of {seen}" + ("" if share is None else f" (share {share:.3f})"))
++        exl = [e for e in main.excluded if e["arm"] == a]
++        for e in exl:
++            L(f"  - `{e['run_id']}` {e['task_id']} t{e['trial']}: {e['reason']}")
++        L(f"- applicable primaries: {', '.join(main.primaries(a))}")
++        L(f"- {PASS} (task-mean of trial means, cap failures 0): {u3(m[PASS])}; "
++          f"{CATCH}: {u3(m[CATCH])}")
++        if a in by_arm:
++            d = by_arm[a]
++            for p in d["comparisons"]:
++                L(f"- {p['metric']} vs a1_full: d [lo, hi] = {interval(p)}; n = {p['n']} {p['unit']} over "
++                  f"{p['n_tasks']} tasks; MDE {u3(p['mde'])}; bootstrap half-width {u3(p['half_width'])}")
++                if p.get("degenerate"):
++                    L(f"  - degenerate (read as no valid pair): {p['degenerate_reason']}")
++                if "task_level" in p:
++                    tl = p["task_level"]
++                    L(f"  - also_report (tasks, decides nothing): d [lo, hi] = "
++                      f"{interval(dict(tl, n=tl['n']))}; n = {tl['n']} tasks")
++                if p["defect_identity"]:
++                    L(f"  - defect identity: {', '.join(p['defect_identity'])}")
++                for u in p["unpaired"]:
++                    L(f"  - left the pair: {u['task_id']} ({u['reason']})")
++                for x in p["dropped"]:
++                    L(f"  - pairwise drop: `{x['run_id']}` ({x['arm']}, {x['task_id']} t{x['trial']})")
++            L(f"- cost Δ {pct(d['c'])}, wall-clock Δ {pct(d['w'])} over {d['cost_tasks']} paired tasks")
++            L(f"- decision: **{d['label']}**" + (f" — {d['figure']}" if d["figure"] else "") + f"; rule: {d['rule']}")
++            if d["state"] != d["predicate_state"]:
++                L(f"- predicate outcome before the cut/power state: {d['predicate_label']}; "
++                  f"{d['predicate_rule']}")
++        L(f"- secondaries: verdict accuracy {u3(m['verdict_accuracy'])} (review {u3(m['verdict_accuracy_review'])}, "
++          f"audit {u3(m['verdict_accuracy_audit'])}); regressions per run {u3(m['regressions_per_run'])}; "
++          f"churn diff_lines {u3(m['diff_lines_per_run'])}, files_changed {u3(m['files_changed_per_run'])} per run")
++        if m["false_positives_per_task"]:
++            L("- false positives per review-catch task: " + ", ".join(
++                f"{t} {u3(v)}" for t, v in m["false_positives_per_task"].items()))
++            usd = m["usd_per_true_defect"]
++            L(f"- precision ({BUDGET_LABEL}): {u3(m['precision'])} = true defects {m['true_defects']} / flagged "
++              f"regions {m['flagged_regions']} (defects caught + false positives over {m['precision_rows']} valid "
++              f"review-catch rows); cost per true defect caught: {'n/a' if usd is None else f'USD {usd:.2f}'}")
++        wall, tin, tout = m["wall_clock_ms_per_run"], m["tokens_in_per_run"], m["tokens_out_per_run"]
++        wall_s = "n/a" if wall is None else f"{wall / 60000.0:.1f} min"
++        tin_s = "n/a" if tin is None else f"{tin:.0f}"
++        tout_s = "n/a" if tout is None else f"{tout:.0f}"
++        L(f"- cost per task USD {u3(m['cost_per_task'])}, per run USD {u3(m['cost_per_run'])}; wall-clock per run "
++          f"{wall_s}; tokens in/out per run {tin_s} / {tout_s}")
++        L("")
++    return metrics
++
++
++def render_exclusions(L, V, dups, h, sub):
++    main = V["main"]
++    L(f"{h} Exclusions")
++    L("")
++    if main.excluded:
++        L("| run_id | arm | task | trial | status | reason |")
++        L("|---|---|---|---|---|---|")
++        for e in sorted(main.excluded, key=lambda e: (e["arm"], e["task_id"], e["trial"], e["run_id"])):
++            L(f"| `{e['run_id']}` | `{e['arm']}` | {e['task_id']} | {e['trial']} | {e['status']} | {md_cell(e['reason'])} |")
++    else:
++        L("No row was excluded.")
++    L("")
++    L(f"{sub} Cap failures (scored 0 on every applicable primary; the sensitivity figure excludes them)")
++    L("")
++    for r in V["caps"]:
++        L(f"- `{r['run_id']}` (`{r['arm']}`, {r['task_id']} t{r['trial']}, cap_phase {r.get('cap_phase') or 'n/a'}, "
++          f"USD {float(r.get('cost_usd') or 0):.2f})")
++    if not V["caps"]:
++        L("- none")
++    L("")
++    L(f"{sub} Rows listed, never decided")
++    L("")
++    if main.listed or dups:
++        for r, why in main.listed:
++            L(f"- `{r['run_id']}` (`{r['arm']}`, {r['task_id']}, {r['status']}): {why}")
++        for dd in dups:
++            L(f"- `{dd['run_id']}` at {dd['dropped']}: duplicate run_id, the row at {dd['kept']} is used")
++    else:
++        L("None.")
++    L("")
++
++
++def h1_json(V, rules):
++    return {"line": V["h1_line"], "established": V["h1_ok"], "state": V["h1_state"], "rule": rules.get("h1"),
++            "suite_version": V["version"],
++            "comparisons": [dict(comp_json(p), read=s, read_text=read_text(p, s, why, V["version"]))
++                            for p, (s, why) in zip(V["h1_comps"], V["h1_reads"])]}
++
++
++def a4_json(V, rules):
++    a4 = V["a4"]
++    comp = None
++    if a4 is not None:
++        s, why = V["a4_read"]
++        comp = dict(comp_json(a4), read=s, read_text=read_text(a4, s, why, V["version"]))
++    return {"line": V["a4_line"], "holds": V["a4_ok"], "state": V["a4_state"], "rule": rules.get("a4_sensitivity"),
++            "suite_version": V["version"], "comparison": comp}
++
++
++def decisions_json(ds):
++    return [{"arm": d["arm"], "arm_label": d["arm_label"], "label": d["label"], "state": d["state"], "rule": d["rule"],
++             "figure": d["figure"], "predicate_state": d["predicate_state"],
++             "predicate_rule": d["predicate_rule"], "primaries": d["primaries"],
++             "c": j6(d["c"]), "w": j6(d["w"]), "cost_tasks": d["cost_tasks"],
++             "excluded_share": j6(d["excluded_share"]), "excluded_cells": d["excluded_cells"],
++             "cells_seen": d["cells_seen"], "mde_flag": d["mde_flag"], "decidable": d["decidable"],
++             "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in ds]
++
++
++def arms_json(metrics):
++    return {a: {kk: (j6(v) if isinstance(v, float) else
++                     ({t: j6(x) for t, x in v.items()} if kk == "false_positives_per_task" else v))
++                for kk, v in metrics[a].items()} for a in metrics}
++
++
++def exclusions_json(V):
++    return sorted(V["main"].excluded, key=lambda e: (e["arm"], e["task_id"], e["trial"], e["run_id"]))
++
++
++def listed_json(V):
++    return [{"run_id": r["run_id"], "arm": r["arm"], "task_id": r["task_id"], "status": r["status"],
++             "reason": why} for r, why in V["main"].listed]
++
++
+ def build(args):
+     suite, rules_text = load_suite(args.suite)
+     rules = suite["rules"]
+@@ -735,27 +1397,16 @@ def build(args):
+         if need not in arm_ids:
+             raise Fail(f"suite has no arm {need}")
+ 
+-    main = Analysis(suite, rows, mans, args, cap_excluded=False)
+-    sens = Analysis(suite, rows, mans, args, cap_excluded=True)
+     components = [a["id"] for a in arms if a["id"] not in (CONTROL, BARE) and not a.get("absent")]
+     absent = [a for a in arms if a.get("absent")]
+     seed = args.seed
+-    decisions = [main.arm_report(a, cuts, seed) for a in components]
+-    sens_rows = [sens.arm_report(a, {}, seed) for a in components]
+-
+-    h1_comps = [main.compare(CONTROL, BARE, m, seed) for m in main.primaries(CONTROL)]
+-    h1_ok = any(p["n"] > 0 and r9(p["lo"]) > 0 for p in h1_comps)
+-    h1_line = "H1: established" if h1_ok else "H1: not established — halt before promotion"
+-    a4 = None
+-    if SENSITIVITY_ARM in main.arms:
+-        a4 = main.compare(SENSITIVITY_ARM, CONTROL, PASS, seed)
+-        a4_ok = a4["n"] > 0 and r9(a4["hi"]) < 0
+-    else:
+-        a4_ok = False
+-    a4_line = ("A4 sensitivity: holds" if a4_ok
+-               else "A4 sensitivity: fails — harden tasks before acting on other arms")
+-    decidable = (any(d["decidable"] for d in decisions) or all(p["n"] > 0 for p in h1_comps)
+-                 or (a4 is not None and a4["n"] > 0))
++    groups, primary = partition(rows, args.suite_version)
++    versions = sorted(groups, key=version_order, reverse=True)
++    others = [v for v in versions if v != primary]
++    VS = {v: analyse(suite, groups[v], mans, args, cuts, components, v) for v in versions}
++    P = VS[primary]
++    main, decisions, sens_rows = P["main"], P["decisions"], P["sens_rows"]
++    h1_comps, a4 = P["h1_comps"], P["a4"]
+ 
+     k = len(components)
+     efp = k * (1.0 - args.level) / 2.0
+@@ -786,9 +1437,17 @@ def build(args):
+     L(f"- report schema_version {REPORT_SCHEMA}; ablation-report.py {VERSION}")
+     L(f"- suite: `{args.suite}` (name {suite.get('name', 'n/a')}, suite_version {suite.get('suite_version', 'n/a')})")
+     L(f"- row suite_version: {', '.join(distinct('suite_version')) or 'n/a'}")
++    for v in versions:
++        V = VS[v]
++        role = "primary: the main sections" if v == primary else "reported separately, never pooled"
++        L(f"  - suite_version {v} ({role}): {len(V['rows'])} rows; batches {', '.join(V['batches']) or 'none'}; "
++          f"suite manifest sha256 {', '.join(V['shas']) or 'n/a'}")
+     L(f"- source commit(s): {', '.join(distinct('source_commit')) or 'n/a'}")
+     shas = distinct("suite_manifest_sha256")
+-    L(f"- suite manifest sha256: {', '.join(shas) or 'n/a'}" + (" — DRIFT: more than one" if len(shas) > 1 else ""))
++    drift = [v for v in versions if len(VS[v]["shas"]) > 1]
++    L(f"- suite manifest sha256: {', '.join(shas) or 'n/a'}" + (
++        " — DRIFT: more than one" + ("" if len(versions) == 1 else f" within suite_version {', '.join(drift)}")
++        if drift else ""))
+     L(f"- image digest(s): {', '.join(distinct('image_digest')) or 'n/a'}")
+     L(f"- cli_version(s): {', '.join(sorted({str(cli(m)) for m in used if cli(m)})) or 'n/a'}")
+     L("- batches:")
+@@ -798,8 +1457,9 @@ def build(args):
+           f"shuffle_seed {m.get('shuffle_seed', 'n/a')}, pre_registration_ref {m.get('pre_registration_ref', 'n/a')}, "
+           f"source_commit {m.get('source_commit', 'n/a')}, image_digest {m.get('image_digest', 'n/a')}, "
+           f"cli_version {cli(m) or 'n/a'}")
++    n_listed = sum(len(VS[v]["main"].listed) for v in versions)
+     L(f"- rows read: {len(rows)} from {', '.join('`' + p + '`' for p in args.runs)}; "
+-      f"{len(main.listed)} listed and never decided; {len(dups)} duplicate run_id rows dropped")
++      f"{n_listed} listed and never decided; {len(dups)} duplicate run_id rows dropped")
+ 
+     def mark(v, pre):
+         return "" if v == pre else f" (NOT the pre-registered {pre})"
+@@ -810,118 +1470,16 @@ def build(args):
+     L("")
+     L("## Decisions")
+     L("")
+-    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
+-      "wall-clock Δ % | excluded share | decision | rule matched | rows |")
+-    L("|---|---|---|---|---|---|---|---|---|---|---|")
+-    for d in decisions:
+-        cp = {p["metric"]: p for p in d["comparisons"]}
+-        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
+-        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
+-        share = "n/a" if d["excluded_share"] is None else \
+-            f"{d['excluded_share']:.3f} ({d['excluded_cells']}/{d['cells_seen']})"
+-        dec = d["label"] + (f" — {d['figure']}" if d["figure"] else "")
+-        nrows = len(main.arm_rows.get(d["arm"], []))
+-        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
+-          f"{pct(d['w'])} | {share} | **{md_cell(dec)}** | {md_cell(d['rule'])} | {nrows} (§ Rows per cell) |")
+-    for a in absent:
+-        L(f"| {a.get('label', a['id'])} | `{a['id']}` | — | — | — | — | — | — | **component-absent** | "
+-          f"{md_cell(a.get('evidence', 'absent: true'))} | 0 |")
+-    L("")
+-    h1p = ", ".join(f"{p['metric']} {interval(p)} (n = {p['n']} {p['unit']})" for p in h1_comps)
+-    L(f"**{h1_line}** — a1_full − a0_bare: {h1p}. Rule (rules.h1): \"{rules.get('h1', '')}\"")
+-    L("")
+-    a4p = "no arm a4_no_gates" if a4 is None else f"{PASS} {interval(a4)} (n = {a4['n']} {a4['unit']})"
+-    L(f"**{a4_line}** — a4_no_gates − a1_full: {a4p}. Rule (rules.a4_sensitivity): "
+-      f"\"{rules.get('a4_sensitivity', '')}\"")
+-    L("")
++    render_decisions(L, P, absent, rules)
+     L(efp_line)
+     L("")
+ 
+     L("## Per-arm detail")
+     L("")
+     detail_arms = [BARE, CONTROL] + components
+-    metrics = {a: main.arm_metrics(a) for a in detail_arms if a in main.arms}
+-    by_arm = {d["arm"]: d for d in decisions}
+-    for a in detail_arms:
+-        if a not in main.arms:
+-            continue
+-        m = metrics[a]
+-        L(f"### {main.arms[a].get('label', a)} `{a}`")
+-        L("")
+-        L(f"- runs: {m['rows']} ({', '.join(f'{k} {v}' for k, v in m['by_status'].items()) or 'none'}); "
+-          f"degraded rows {m['degraded_rows']}; valid cells {m['valid_cells']}")
+-        share, ex, seen = main.excluded_share(a)
+-        L(f"- excluded cells: {ex} of {seen}" + ("" if share is None else f" (share {share:.3f})"))
+-        exl = [e for e in main.excluded if e["arm"] == a]
+-        for e in exl:
+-            L(f"  - `{e['run_id']}` {e['task_id']} t{e['trial']}: {e['reason']}")
+-        L(f"- applicable primaries: {', '.join(main.primaries(a))}")
+-        L(f"- {PASS} (task-mean of trial means, cap failures 0): {u3(m[PASS])}; "
+-          f"{CATCH}: {u3(m[CATCH])}")
+-        if a in by_arm:
+-            d = by_arm[a]
+-            for p in d["comparisons"]:
+-                L(f"- {p['metric']} vs a1_full: d [lo, hi] = {interval(p)}; n = {p['n']} {p['unit']} over "
+-                  f"{p['n_tasks']} tasks; MDE {u3(p['mde'])}; bootstrap half-width {u3(p['half_width'])}")
+-                if "task_level" in p:
+-                    tl = p["task_level"]
+-                    L(f"  - also_report (tasks, decides nothing): d [lo, hi] = "
+-                      f"{interval(dict(tl, n=tl['n']))}; n = {tl['n']} tasks")
+-                if p["defect_identity"]:
+-                    L(f"  - defect identity: {', '.join(p['defect_identity'])}")
+-                for u in p["unpaired"]:
+-                    L(f"  - left the pair: {u['task_id']} ({u['reason']})")
+-                for x in p["dropped"]:
+-                    L(f"  - pairwise drop: `{x['run_id']}` ({x['arm']}, {x['task_id']} t{x['trial']})")
+-            L(f"- cost Δ {pct(d['c'])}, wall-clock Δ {pct(d['w'])} over {d['cost_tasks']} paired tasks")
+-            L(f"- decision: **{d['label']}**" + (f" — {d['figure']}" if d["figure"] else "") + f"; rule: {d['rule']}")
+-            if d["state"] != d["predicate_state"]:
+-                L(f"- predicate outcome before the cut/power state: {d['predicate_label']}; "
+-                  f"{d['predicate_rule']}")
+-        L(f"- secondaries: verdict accuracy {u3(m['verdict_accuracy'])} (review {u3(m['verdict_accuracy_review'])}, "
+-          f"audit {u3(m['verdict_accuracy_audit'])}); regressions per run {u3(m['regressions_per_run'])}; "
+-          f"churn diff_lines {u3(m['diff_lines_per_run'])}, files_changed {u3(m['files_changed_per_run'])} per run")
+-        if m["false_positives_per_task"]:
+-            L("- false positives per review-catch task: " + ", ".join(
+-                f"{t} {u3(v)}" for t, v in m["false_positives_per_task"].items()))
+-        wall, tin, tout = m["wall_clock_ms_per_run"], m["tokens_in_per_run"], m["tokens_out_per_run"]
+-        wall_s = "n/a" if wall is None else f"{wall / 60000.0:.1f} min"
+-        tin_s = "n/a" if tin is None else f"{tin:.0f}"
+-        tout_s = "n/a" if tout is None else f"{tout:.0f}"
+-        L(f"- cost per task USD {u3(m['cost_per_task'])}, per run USD {u3(m['cost_per_run'])}; wall-clock per run "
+-          f"{wall_s}; tokens in/out per run {tin_s} / {tout_s}")
+-        L("")
++    metrics = render_per_arm(L, P, detail_arms, "###")
+ 
+-    L("## Exclusions")
+-    L("")
+-    if main.excluded:
+-        L("| run_id | arm | task | trial | status | reason |")
+-        L("|---|---|---|---|---|---|")
+-        for e in sorted(main.excluded, key=lambda e: (e["arm"], e["task_id"], e["trial"], e["run_id"])):
+-            L(f"| `{e['run_id']}` | `{e['arm']}` | {e['task_id']} | {e['trial']} | {e['status']} | {md_cell(e['reason'])} |")
+-    else:
+-        L("No row was excluded.")
+-    L("")
+-    caps = [c["valid"] for (_, _), trials in sorted(main.cells.items()) for _, c in sorted(trials.items())
+-            if c["valid"] is not None and c["valid"]["status"] == "cap_failure"]
+-    L("### Cap failures (scored 0 on every applicable primary; the sensitivity figure excludes them)")
+-    L("")
+-    for r in caps:
+-        L(f"- `{r['run_id']}` (`{r['arm']}`, {r['task_id']} t{r['trial']}, cap_phase {r.get('cap_phase') or 'n/a'}, "
+-          f"USD {float(r.get('cost_usd') or 0):.2f})")
+-    if not caps:
+-        L("- none")
+-    L("")
+-    L("### Rows listed, never decided")
+-    L("")
+-    if main.listed or dups:
+-        for r, why in main.listed:
+-            L(f"- `{r['run_id']}` (`{r['arm']}`, {r['task_id']}, {r['status']}): {why}")
+-        for dd in dups:
+-            L(f"- `{dd['run_id']}` at {dd['dropped']}: duplicate run_id, the row at {dd['kept']} is used")
+-    else:
+-        L("None.")
+-    L("")
++    render_exclusions(L, P, dups, "##", "###")
+ 
+     L("## Cuts")
+     L("")
+@@ -938,17 +1496,9 @@ def build(args):
+ 
+     L(f"## Sensitivity figure: {SENS_LABEL}")
+     L("")
+-    L("| component | arm | n pairs | pass-rate Δ [90 % CI] | catch-rate Δ [90 % CI] (defects) | cost Δ % | "
+-      "wall-clock Δ % | excluded share | predicate outcome (not used) |")
+-    L("|---|---|---|---|---|---|---|---|---|")
+-    for d in sens_rows:
+-        cp = {p["metric"]: p for p in d["comparisons"]}
+-        npairs = ", ".join(f"{p['n']} {p['unit']}" for p in d["comparisons"])
+-        catch = interval(cp.get(CATCH)) if CATCH in cp else "n/a (build-only)"
+-        share = "n/a" if d["excluded_share"] is None else f"{d['excluded_share']:.3f}"
+-        L(f"| {d['arm_label']} | `{d['arm']}` | {npairs} | {interval(cp.get(PASS))} | {catch} | {pct(d['c'])} | "
+-          f"{pct(d['w'])} | {share} | {d['predicate_label']} |")
+-    L("")
++    render_sens(L, P, rules, "###")
++
++    render_budget(L, P["budget"], "##")
+ 
+     L("## Rows per cell")
+     L("")
+@@ -978,6 +1528,30 @@ def build(args):
+                   f"{', '.join('`' + s + '`' for s in collapse(x['control_runs']))} |")
+             L("")
+ 
++    other_metrics = {}
++    for v in others:
++        V = VS[v]
++        L(f"## Suite version {v} (batches: {', '.join(V['batches']) or 'none'}) — reported separately, never pooled")
++        L("")
++        L(f"The rows of suite_version {v} only ({len(V['rows'])} rows; suite manifest sha256 "
++          f"{', '.join(V['shas']) or 'n/a'}); the same rules, cuts and seed; no figure here is pooled with "
++          f"suite_version {primary}.")
++        L("")
++        L(f"### Decisions (suite_version {v})")
++        L("")
++        render_decisions(L, V, absent, rules)
++        L(f"### Per-arm detail (suite_version {v})")
++        L("")
++        other_metrics[v] = render_per_arm(L, V, detail_arms, "####")
++        render_exclusions(L, V, [], "###", "####")
++        L(f"### Sensitivity figure (suite_version {v}): {SENS_LABEL}")
++        L("")
++        render_sens(L, V, rules, "####")
++        render_budget(L, V["budget"], "###")
++
++    recs = batch_record(mans, rows)
++    render_batches(L, recs)
++
+     L("## Method")
+     L("")
+     L(f"The pre-registered rules block of `{args.suite}`, quoted verbatim:")
+@@ -1005,11 +1579,37 @@ def build(args):
+       f"(excluded share > {main.guard:g} reads Inconclusive-by-degradation whatever the interval, DEC-0393), then "
+       "investigate, keep, inconclusive (d < -0.03 or no valid pair), remove, simplify; Inconclusive-by-degradation is the "
+       "inconclusive outcome whose excluded-share clause matched.")
++    L("- Suite versions: rows of different suite_version values are never pooled; the main sections read the "
++      "highest suite_version present (or --suite-version), every other version has its own section.")
++    L(f"- H1 and A4 read each primary in order: not testable (no task of its type in either arm) → inconclusive "
++      f"by degradation (either arm's excluded share on that primary's task types > {main.guard:g}) → degenerate "
++      "(a catch-rate pair from one task with no per-defect ids: zero variance by construction, read as no valid "
++      "pair, also for the component decisions) → no pair → the interval. H1 is decided on the primaries left; "
++      "with none, H1 reads inconclusive by degradation when every testable primary is, else not yet decidable.")
+     L("")
+ 
++    def version_json(V, ms):
++        return {"suite_version": V["version"], "rows": len(V["rows"]), "batches": V["batches"],
++                "suite_manifest_sha256": V["shas"], "decidable": V["decidable"],
++                "h1": h1_json(V, rules), "a4": a4_json(V, rules), "decisions": decisions_json(V["decisions"]),
++                "arms": arms_json(ms), "exclusions": exclusions_json(V), "listed": listed_json(V),
++                "cap_failures": [r["run_id"] for r in V["caps"]],
++                "sensitivity": sens_json(V), "budget_matched": budget_json(V["budget"])}
++
++    def sens_json(V):
++        return {"treatment": SENS_H_TREATMENT,
++                "h1": dict(h1_json(V["sens_h"], rules), line=SENS_PREFIX + V["sens_h"]["h1_line"]),
++                "a4": dict(a4_json(V["sens_h"], rules), line=SENS_PREFIX + V["sens_h"]["a4_line"]),
++                "rows": [{"arm": d["arm"], "predicate_state": d["predicate_state"], "c": j6(d["c"]),
++                          "w": j6(d["w"]), "excluded_share": j6(d["excluded_share"]),
++                          "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in V["sens_rows"]]}
++
++    other_metrics[primary] = metrics
+     data = {
+         "schema_version": REPORT_SCHEMA, "generator": f"ablation-report.py {VERSION}", "partial": bool(args.partial),
+         "suite": {"path": args.suite, "name": suite.get("name"), "suite_version": suite.get("suite_version")},
++        "primary_suite_version": int(primary) if primary.isdigit() else (None if primary == "n/a" else primary),
++        "by_suite_version": {v: version_json(VS[v], other_metrics[v]) for v in versions},
+         "provenance": {"source_commits": distinct("source_commit"), "suite_manifest_sha256": shas,
+                        "suite_versions": distinct("suite_version"), "image_digests": distinct("image_digest"),
+                        "batches": [{"batch": b, "smoke": m.get("smoke") is True, "shuffle_seed": m.get("shuffle_seed"),
+@@ -1018,35 +1618,23 @@ def build(args):
+                                     "cli_version": cli(m), "manifest": m["_path"]} for b, m in sorted(mans.items())]},
+         "bootstrap": {"resamples": args.resamples, "level": args.level, "seed": seed},
+         "exclude_degraded": bool(args.exclude_degraded),
+-        "decisions": [{"arm": d["arm"], "arm_label": d["arm_label"], "label": d["label"], "state": d["state"], "rule": d["rule"],
+-                       "figure": d["figure"], "predicate_state": d["predicate_state"],
+-                       "predicate_rule": d["predicate_rule"], "primaries": d["primaries"],
+-                       "c": j6(d["c"]), "w": j6(d["w"]), "cost_tasks": d["cost_tasks"],
+-                       "excluded_share": j6(d["excluded_share"]), "excluded_cells": d["excluded_cells"],
+-                       "cells_seen": d["cells_seen"], "mde_flag": d["mde_flag"], "decidable": d["decidable"],
+-                       "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in decisions],
++        "decisions": decisions_json(decisions),
+         "absent": [{"arm": a["id"], "label": a.get("label"), "state": "component_absent",
+                     "evidence": a.get("evidence")} for a in absent],
+-        "h1": {"line": h1_line, "established": h1_ok, "rule": rules.get("h1"),
+-               "comparisons": [comp_json(p) for p in h1_comps]},
+-        "a4": {"line": a4_line, "holds": a4_ok, "rule": rules.get("a4_sensitivity"),
+-               "comparison": comp_json(a4) if a4 else None},
++        "h1": h1_json(P, rules),
++        "a4": a4_json(P, rules),
+         "expected_false_positives": {"components": k, "per_direction": j6(efp), "line": efp_line},
+-        "arms": {a: {kk: (j6(v) if isinstance(v, float) else
+-                          ({t: j6(x) for t, x in v.items()} if kk == "false_positives_per_task" else v))
+-                     for kk, v in metrics[a].items()} for a in metrics},
+-        "exclusions": sorted(main.excluded, key=lambda e: (e["arm"], e["task_id"], e["trial"], e["run_id"])),
+-        "listed": [{"run_id": r["run_id"], "arm": r["arm"], "task_id": r["task_id"], "status": r["status"],
+-                    "reason": why} for r, why in main.listed],
++        "arms": arms_json(metrics),
++        "exclusions": exclusions_json(P),
++        "listed": listed_json(P),
+         "duplicates": dups,
+-        "cap_failures": [r["run_id"] for r in caps],
++        "cap_failures": [r["run_id"] for r in P["caps"]],
+         "cuts": [dict(arm=a, **cuts[a]) for a in sorted(cuts)],
+-        "sensitivity": {"label": SENS_LABEL,
+-                        "rows": [{"arm": d["arm"], "predicate_state": d["predicate_state"], "c": j6(d["c"]),
+-                                  "w": j6(d["w"]), "excluded_share": j6(d["excluded_share"]),
+-                                  "comparisons": [comp_json(p) for p in d["comparisons"]]} for d in sens_rows]},
++        "sensitivity": dict(sens_json(P), label=SENS_LABEL),
++        "budget_matched": budget_json(P["budget"]),
++        "batches": recs,
+     }
+-    return "\n".join(lines) + "\n", data, decidable
++    return "\n".join(lines) + "\n", data, P["decidable"]
+ 
+ 
+ def write_out(path, text):
+@@ -1079,6 +1667,7 @@ def main(argv):
+     ap.add_argument("--partial", action="store_true")
+     ap.add_argument("--cuts")
+     ap.add_argument("--not-run")
++    ap.add_argument("--suite-version")
+     args = ap.parse_args(argv)
+     args.exclude_degraded = args.exclude_degraded == "true"
+     try:
+diff --git a/evals/harness/ablation-row.sh b/evals/harness/ablation-row.sh
+index 4f535f0e..7bdd7cad 100755
+--- a/evals/harness/ablation-row.sh
++++ b/evals/harness/ablation-row.sh
+@@ -49,6 +49,23 @@
+ #                   exist and differ byte for byte (audit MEDIUM-A1)
+ #   cost_usd        Σ phase cost_usd (result.total_cost_usd) + Σ phase ledger_cost_usd
+ #   stalls          number of phases that timed out
++#   defects_missed  grade.json `recall.missed` (the seeded defect ids the review did not
++#                   catch, e.g. ["d2","d5"]; [] when every defect was caught) on a
++#                   review-catch row; null on a build row, with no grade.json, when
++#                   `recall` is null or absent, or when `missed` is not a list of
++#                   non-empty strings (row writer 1.2, bd-yz1rd)
++#   regressions_final_green  grade.json `regressions.final_green` (boolean: the task's
++#                   own regression suite was green on the final tree); null when
++#                   `regressions` is null or absent (review-catch rows, ungraded rows)
++#                   or `final_green` is not a boolean (row writer 1.2, bd-m0hw7)
++#   Both are optional for --validate (rows written before 1.2 lack them); when present
++#   defects_missed is a list of non-empty strings or null and regressions_final_green
++#   is a boolean or null. schema_version stays 1: the fields are additive and
++#   ablation-report.py refuses any other schema_version.
++#
++# Row writer version: 1.2 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
++# envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
++# regressions_final_green, Sprint 262).
+ #
+ # Usage:
+ #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
+@@ -103,7 +120,7 @@ while [[ $# -gt 0 ]]; do
+     --out)            OUT="${2:-}"; shift 2 ;;
+     --validate)       VALIDATE="${2:-}"; shift 2 ;;
+     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
+-    -h|--help)        sed -n '2,84p' "$0"; exit 0 ;;
++    -h|--help)        sed -n '2,101p' "$0"; exit 0 ;;
+     *) usage "unknown argument: $1" ;;
+   esac
+ done
+@@ -145,6 +162,12 @@ if [[ -n "$VALIDATE" ]]; then
+       // (if ($row.arm | test("^[a-z][a-z0-9_]{0,63}$")) | not then "arm \(.arm) does not match the arm grammar" else empty end)
+       // ([("dot_claude_writes", "bash_mount_refs", "mount_changed", "envelope_mismatch") as $k
+            | select((($row.zone_violations | objects)[$k] | type) != "array") | "zone_violations.\($k) is not an array"][0])
++      // (if has("defects_missed") and .defects_missed != null
++             and ((.defects_missed | type) != "array"
++                  or any(.defects_missed[]; (type != "string") or (length == 0)))
++           then "field defects_missed has type \(.defects_missed | type), want a list of non-empty strings|null" else empty end)
++      // (if has("regressions_final_green") and ((.regressions_final_green | type) as $ty | ["boolean","null"] | index($ty)) == null
++           then "field regressions_final_green has type \(.regressions_final_green | type), want boolean|null" else empty end)
+       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
+       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
+            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
+@@ -384,6 +407,11 @@ ROW="$(jq -n -c \
+                                else first(($g.verdict_accuracy_per_gate | objects | .audit), null) | boolish end),
+       regressions: ($g.regressions // null | if type == "object" then ((.newly_failing // []) | length)
+                                             elif type == "array" then length else . end),
++      defects_missed: (if ($task.type // $p.task_type // "") != "review-catch" or $rc == null then null
++                       else first(($rc | objects | .missed), null) as $ms
++                       | if ($ms | type) == "array" and all($ms[]; type == "string" and length > 0) then $ms
++                         else null end end),
++      regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
+       diff_lines: ($g.diff_lines // null),
+       files_changed: ($g.files_changed // null),
+       cost_usd: ([$phases[] | (.cost_usd // 0) + (.ledger_cost_usd // 0)] | add // 0),
+diff --git a/evals/tests/ablation-report.bats b/evals/tests/ablation-report.bats
+index 07e4f026..4f26b664 100644
+--- a/evals/tests/ablation-report.bats
++++ b/evals/tests/ablation-report.bats
+@@ -5,8 +5,12 @@
+ #
+ # ablation-report.py on planted rows: fixtures/ablation-report/gen-fixtures.py writes four
+ # scenarios (main, boundary, exclusions, partial; the header there lists every planted
+-# number) into the file tmpdir; setup_file builds the three full reports once against the
+-# real suite file evals/suites/ablation-2.0.yaml.
++# number) into the file tmpdir; setup_file builds the full reports once against the
++# real suite file evals/suites/ablation-2.0.yaml. AR-23 … AR-30 (Sprint 262): the suite_version
++# partition, the not-testable / not-yet-decidable states (bd-wqbz3), the degradation guard on
++# the H1 and A4 lines, and the degenerate single-task rate-fallback pair. AR-31 … AR-35 (Sprint 262
++# R3, presentation only): the sensitivity H1/A4 lines, the batch record, precision and cost per true
++# defect, the budget-matched baseline.
+ # =============================================================================
+ 
+ setup_file() {
+@@ -18,7 +22,7 @@ setup_file() {
+   export FX="$BATS_FILE_TMPDIR/fx"
+   mkdir -p "$FX"
+   python3 -I "$TESTS_DIR/fixtures/ablation-report/gen-fixtures.py" "$FX"
+-  for s in main boundary exclusions; do
++  for s in main boundary exclusions versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids present; do
+     python3 -I "$REPORT" --runs "$FX/$s/runs.jsonl" --manifests "$FX/$s/manifests" --suite "$SUITE" \
+       --out "$FX/$s/report.md" --json "$FX/$s/report.json" >/dev/null
+   done
+@@ -207,7 +211,7 @@ PY
+   run python3 -I "$REPORT" --runs "$FX/partial/runs.jsonl" --manifests "$FX/partial/manifests" --suite "$SUITE" --out "$T/q2.md"
+   [ "$status" -eq 0 ]
+   ! grep -qF 'PARTIAL' "$T/q2.md" || false
+-  grep -qF 'H1: not established — halt before promotion' "$T/q2.md"
++  grep -qF 'H1: not yet decidable (no pair)' "$T/q2.md"
+ }
+ 
+ @test "AR-15 schema_version 2, a missing schema_version or a non-JSON line stops the report (exit 2, naming the row); nothing is written" {
+@@ -283,7 +287,7 @@ PY
+ }
+ 
+ @test "AR-20 the planted rows hold the real row shape (ablation-row.sh --validate)" {
+-  for s in main boundary exclusions partial; do
++  for s in main boundary exclusions partial versions degraded degraded-a4 degenerate-1 degenerate-2 degenerate-ids; do
+     run bash "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$FX/$s/runs.jsonl" --allow-ungraded
+     [ "$status" -eq 0 ]
+   done
+@@ -311,3 +315,211 @@ PY
+   [ "$(jq -r '.decisions[] | select(.arm == "a5_no_flatline") | .label' "$T/r.json")" = "Inconclusive-by-degradation" ]
+   grep -qF 'degradation guard first' "$T/r.md"
+ }
++
++@test "AR-23 two suite_versions are never pooled: main sections on v2 (catch-rate H1, pass rate and A4 not testable), v1 in its own section; --suite-version 1 flips the primary" {
++  J="$FX/versions/report.json"; M="$FX/versions/report.md"
++  [ "$(jq -r .primary_suite_version "$J")" = "2" ]
++  [ "$(jq -r '.by_suite_version | keys | join(",")' "$J")" = "1,2" ]
++  [ "$(jq -r .h1.line "$J")" = "H1: established" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "hidden_test_pass_rate") | .read' "$J")" = "not_testable" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .d' "$J")" = "0.444444" ]
++  [ "$(jq -r .a4.line "$J")" = "A4 sensitivity: not testable on suite_version 2 — no admissible build task" ]
++  [ "$(jq -r .a4.state "$J")" = "not_testable" ]
++  # the same task ids and trials in both versions: no duplicate-cell collision, no pooled rows
++  [ "$(jq '.exclusions | length' "$J")" -eq 0 ]
++  [ "$(jq -r .arms.a1_full.rows "$J")" -eq 12 ]
++  [ "$(jq -r '.by_suite_version["1"].arms.a1_full.rows' "$J")" -eq 48 ]
++  [ "$(jq -r '.by_suite_version["1"].h1.line' "$J")" = "H1: established" ]
++  [ "$(jq -r '.by_suite_version["1"].a4.line' "$J")" = "A4 sensitivity: holds" ]
++  [ "$(jq -r '.by_suite_version["2"].h1.line' "$J")" = "$(jq -r .h1.line "$J")" ]
++  [ "$(jq -r '.by_suite_version["1"].decisions | length' "$J")" -eq 6 ]
++  grep -qF 'hidden_test_pass_rate: not testable on suite_version 2 — no admissible task' "$M"
++  grep -qxF '## Suite version 1 (batches: ver-v1) — reported separately, never pooled' "$M"
++  grep -qF -- '  - suite_version 2 (primary: the main sections): 24 rows; batches ver-v2; suite manifest sha256 ddd200b3' "$M"
++  grep -qF -- '  - suite_version 1 (reported separately, never pooled): 132 rows; batches ver-v1; suite manifest sha256 30e1f2ad' "$M"
++  ! grep -qF 'DRIFT' "$M" || false
++  # the v1 section carries its own H1 and A4 lines after the main sections
++  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**H1: established** — a1_full − a0_bare: hidden_test_pass_rate +0.200 [+0.200, +0.200] (n = 12 tasks)'
++  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**A4 sensitivity: holds**'
++  report versions "$T/v1" --suite-version 1
++  [ "$status" -eq 0 ]
++  [ "$(jq -r .primary_suite_version "$T/v1.json")" = "1" ]
++  [ "$(jq -r .a4.line "$T/v1.json")" = "A4 sensitivity: holds" ]
++  [ "$(jq -r .arms.a1_full.rows "$T/v1.json")" -eq 48 ]
++  grep -qxF '## Suite version 2 (batches: ver-v2) — reported separately, never pooled' "$T/v1.md"
++  report versions "$T/v3" --suite-version 3
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"--suite-version 3: no row has that suite_version (present: 1, 2)"* ]]
++}
++
++@test "AR-24 a row without suite_version among two versions stops the report (exit 2); a single-version input without the field works as before" {
++  jq -c 'if .run_id == "ver-v2-a1_full-rc-01-t1" then del(.suite_version) else . end' "$FX/versions/runs.jsonl" > "$T/miss.jsonl"
++  run python3 -I "$REPORT" --runs "$T/miss.jsonl" --manifests "$FX/versions/manifests" --suite "$SUITE" --out "$T/miss.md"
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"row ver-v2-a1_full-rc-01-t1 has no suite_version while the rows hold suite_version 1, 2"* ]]
++  [ ! -e "$T/miss.md" ]
++  jq -c 'del(.suite_version)' "$FX/main/runs.jsonl" > "$T/one.jsonl"
++  run python3 -I "$REPORT" --runs "$T/one.jsonl" --manifests "$FX/main/manifests" --suite "$SUITE" --out "$T/one.md" --json "$T/one.json"
++  [ "$status" -eq 0 ]
++  [ "$(jq -r .h1.line "$T/one.json")" = "H1: established" ]
++  [ "$(jq -c '[.decisions[] | .state]' "$T/one.json")" = "$(jq -c '[.decisions[] | .state]' "$FX/main/report.json")" ]
++}
++
++@test "AR-25 --partial with no pair reads 'not yet decidable (no pair)', exits 1 and prints no halt phrase (bd-wqbz3)" {
++  report partial "$T/p" --partial
++  [ "$status" -eq 1 ]
++  [ "$(jq -r .h1.line "$T/p.json")" = "H1: not yet decidable (no pair)" ]
++  [ "$(jq -r .h1.state "$T/p.json")" = "not_yet_decidable" ]
++  ! grep -qF 'halt before promotion**' "$T/p.md" || false
++  ! grep -qF 'harden tasks before acting on other arms**' "$T/p.md" || false
++  # a4 rows without a1 rows: the A4 line has a task but no pair
++  cp -R "$FX/partial" "$T/pa"
++  jq -c '.arm = "a4_no_gates" | .run_id = (.run_id | sub("a0_bare"; "a4_no_gates"))' "$FX/partial/runs.jsonl" >> "$T/pa/runs.jsonl"
++  run python3 -I "$REPORT" --runs "$T/pa/runs.jsonl" --manifests "$T/pa/manifests" --suite "$SUITE" --out "$T/pa.md" --json "$T/pa.json" --partial
++  [ "$status" -eq 1 ]
++  [ "$(jq -r .a4.line "$T/pa.json")" = "A4 sensitivity: not yet decidable (no pair)" ]
++  [ "$(jq -r .h1.line "$T/pa.json")" = "H1: not yet decidable (no pair)" ]
++}
++
++@test "AR-26 the degradation guard governs H1: 9 of 12 a1 review rows degraded read inconclusive by degradation; --exclude-degraded false lets the same rows establish H1" {
++  J="$FX/degraded/report.json"
++  [ "$(jq -r .h1.line "$J")" = "H1: inconclusive by degradation — not established" ]
++  [ "$(jq -r .h1.established "$J")" = "false" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$J")" = "inconclusive_by_degradation" ]
++  grep -qF 'defect_catch_rate inconclusive by degradation (a1_full excluded share 0.750 > 0.25)' "$FX/degraded/report.md"
++  ! grep -qF '**H1: established**' "$FX/degraded/report.md" || false
++  report degraded "$T/nd" --exclude-degraded false
++  [ "$status" -eq 0 ]
++  [ "$(jq -r .h1.line "$T/nd.json")" = "H1: established" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$T/nd.json")" = "tested" ]
++}
++
++@test "AR-27 the degradation guard governs the A4 line and H1's pass rate (a1 12 of 36 build cells degraded, share 0.333); --exclude-degraded false: A4 holds, H1 established" {
++  J="$FX/degraded-a4/report.json"
++  [ "$(jq -r .a4.line "$J")" = "A4 sensitivity: inconclusive by degradation (a1_full excluded share 0.333 > 0.25) — not decided" ]
++  [ "$(jq -r .a4.holds "$J")" = "false" ]
++  [ "$(jq -r .h1.line "$J")" = "H1: inconclusive by degradation — not established" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$J")" = "not_testable" ]
++  report degraded-a4 "$T/nd" --exclude-degraded false
++  [ "$status" -eq 0 ]
++  [ "$(jq -r .a4.line "$T/nd.json")" = "A4 sensitivity: holds" ]
++  [ "$(jq -r .h1.line "$T/nd.json")" = "H1: established" ]
++}
++
++@test "AR-28 a single-task rate-fallback catch pair is degenerate: flagged, and read as no valid pair by H1 and by the component decision" {
++  J="$FX/degenerate-1/report.json"
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$J")" = "true" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .lo > 0' "$J")" = "true" ]
++  [[ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate_reason' "$J")" == "valid pairs on one task (rc-04) with no per-defect ids"* ]]
++  [ "$(jq -r .h1.line "$J")" = "H1: not yet decidable (no pair)" ]
++  [ "$(cmp_of degenerate-1 a3_one_voice defect_catch_rate .degenerate)" = "true" ]
++  [ "$(dec degenerate-1 a3_one_voice .rule)" = "inconclusive: no valid pair (hidden_test_pass_rate, defect_catch_rate: degenerate)" ]
++  [ "$(dec degenerate-1 a3_one_voice .decidable)" = "false" ]
++  grep -qF 'defect_catch_rate +0.500 [+0.500, +0.500] (degenerate) (n = 4 defects) — read as no valid pair' "$FX/degenerate-1/report.md"
++  grep -qF '  - degenerate (read as no valid pair): valid pairs on one task (rc-04)' "$FX/degenerate-1/report.md"
++}
++
++@test "AR-29 not degenerate with pairs on two tasks, or with per-defect ids on one task" {
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-2/report.json")" = "false" ]
++  [ "$(jq -r .h1.line "$FX/degenerate-2/report.json")" = "H1: established" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .degenerate' "$FX/degenerate-ids/report.json")" = "false" ]
++  [ "$(jq -r '.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degenerate-ids/report.json")" = "tested" ]
++  [ "$(jq -r .h1.line "$FX/degenerate-ids/report.json")" = "H1: not established — halt before promotion" ]
++  ! grep -qF '(degenerate)' "$FX/degenerate-2/report.md" || false
++  # a build primary is never degenerate (one task, one value per task)
++  [ "$(jq '[.. | objects | select(.metric == "hidden_test_pass_rate") | select(.degenerate == true)] | length' "$FX/main/report.json")" -eq 0 ]
++}
++
++@test "AR-30 --not-run still applies where A4 is not testable; --partial exits 0 when H1 is decided on the remaining primary" {
++  report versions "$T/c" --not-run a4_no_gates --partial
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '.decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
++  [ "$(jq -r .a4.line "$T/c.json")" = "A4 sensitivity: not testable on suite_version 2 — no admissible build task" ]
++  [ "$(jq -r '.by_suite_version["1"].decisions[] | select(.arm == "a4_no_gates") | .state' "$T/c.json")" = "not_run_cut" ]
++}
++
++@test "AR-31 the sensitivity figure prints the H1 and A4 lines per suite version, prefixed and labelled as deciding nothing" {
++  J="$FX/versions/report.json"; M="$FX/versions/report.md"
++  [ "$(jq -r .sensitivity.h1.state "$J")" = "established" ]
++  [ "$(jq -r .sensitivity.h1.line "$J")" = "sensitivity (decides nothing): H1: established" ]
++  [ "$(jq -r .sensitivity.a4.state "$J")" = "not_testable" ]
++  [ "$(jq -r .sensitivity.treatment "$J")" = "cap failures excluded, degraded rows included" ]
++  [ "$(jq -r '.sensitivity.h1 | keys | join(",")' "$J")" = "$(jq -r '.h1 | keys | join(",")' "$J")" ]
++  [ "$(jq -r '.by_suite_version["1"].sensitivity.a4.state' "$J")" = "holds" ]
++  awk '/^## Sensitivity figure/{f=1} /^## Budget-matched/{f=0} f' "$M" | grep -qF '**sensitivity (decides nothing): H1: established** — a1_full − a0_bare: hidden_test_pass_rate: not testable on suite_version 2'
++  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '**sensitivity (decides nothing): A4 sensitivity: holds** — a4_no_gates − a1_full: hidden_test_pass_rate -0.100 [-0.100, -0.100] (n = 12 tasks) (cap failures excluded, degraded rows included)'
++  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF '#### H1 and A4 lines, sensitivity (cap failures excluded, degraded rows included; decides nothing)'
++  # degraded rows included: the main H1 is inconclusive by degradation, the sensitivity H1 is established
++  [ "$(jq -r .h1.state "$FX/degraded/report.json")" = "inconclusive_by_degradation" ]
++  [ "$(jq -r .sensitivity.h1.state "$FX/degraded/report.json")" = "established" ]
++  [ "$(jq -r '.sensitivity.h1.comparisons[] | select(.metric == "defect_catch_rate") | .read' "$FX/degraded/report.json")" = "tested" ]
++}
++
++@test "AR-32 the batch record reads STATUS.json beside MANIFEST.json and grade.json grader versions; a batch without STATUS.json and missing run dirs are tolerated" {
++  J="$FX/present/report.json"; M="$FX/present/report.md"
++  b() { jq -r --arg b "$1" ".batches[] | select(.batch == \$b) | $2" "$J"; }
++  [ "$(b pr-2 .state)" = "complete" ]
++  [ "$(b pr-2 .trials_planned)" = "20" ]
++  [ "$(b pr-2 .trials_rowed)" = "18" ]
++  [ "$(b pr-2 .spend.spent_usd)" = "70.5" ]
++  [ "$(b pr-2 .rerowed)" = "3" ]
++  [ "$(b pr-2 '.rerowed_tally["contaminated→cap_failure"]')" = "1" ]
++  [ "$(b pr-2 '.rerun_tally["transport_error→completed"]')" = "1" ]
++  [ "$(b pr-2 .outage_history)" = "2" ]
++  [ "$(b pr-2 .drift_cleared)" = "1" ]
++  [ "$(b pr-2 '.paused_arms | join(",")')" = "a3_one_voice" ]
++  [ "$(b pr-2 '.grader_versions | to_entries | map("\(.key)=\(.value)") | join(",")')" = "1.2.11=1,1.2.5=1,n/a=1" ]
++  [ "$(b pr-2 .run_dirs_missing)" = "15" ]
++  [ "$(b pr-1 .status_note)" = "no STATUS.json" ]
++  [ "$(b pr-1 .suite_version)" = "1" ]
++  grep -qF '## Batch record' "$M"
++  grep -qF '| `pr-2` | complete | 20 / 18 | 69.00 / 1.50 / 70.50 / 100.00 | global.anthropic.claude-haiku-4-5-20251001-v1:0: runs 2, output tokens 900 | 3 (completed→completed ×2, contaminated→cap_failure ×1) | 1 (transport_error→completed ×1) | 1 | 2 |' "$M"
++  grep -qF '| a3_one_voice | 1.2.5 ×1, 1.2.11 ×1, n/a ×1; no run dir ×15 |' "$M"
++  grep -qF '| `pr-1` | no STATUS.json | — / 72 |' "$M"
++  awk '/^## Batch record/{f=1} /^## Method/{f=0} f' "$M" | grep -qF '### suite_version 1'
++  # the report reads, never writes, beside the manifests
++  [ ! -e "$FX/present/manifests/pr-1/STATUS.json" ]
++}
++
++@test "AR-33 precision and cost per true defect per review-catch arm (informational): false positives, none, and zero caught → null" {
++  J="$FX/present/report.json"
++  [ "$(jq -r '.arms.a0_bare | "\(.precision) \(.usd_per_true_defect) \(.true_defects) \(.flagged_regions)"' "$J")" = "0.647059 0.545455 11 17" ]
++  [ "$(jq -r '.arms.a1_full | "\(.precision) \(.usd_per_true_defect) \(.true_defects) \(.flagged_regions)"' "$J")" = "1.0 2.222222 27 27" ]
++  [ "$(jq -r '.arms.a3_one_voice | "\(.precision) \(.usd_per_true_defect) \(.true_defects)"' "$J")" = "null null 0" ]
++  [ "$(jq -r '.arms.a2_no_sprint_plan.precision' "$J")" = "null" ]
++  grep -qF -- '- precision (informational, decides nothing): 0.647 = true defects 11 / flagged regions 17 (defects caught + false positives over 6 valid review-catch rows); cost per true defect caught: USD 0.55' "$FX/present/report.md"
++  grep -qF 'cost per true defect caught: n/a' "$FX/present/report.md"
++}
++
++@test "AR-34 budget-matched baseline: the a0 union beats every single a0 trial; rate fallback without ids; a version without review rows reads not available" {
++  J="$FX/present/report.json"; M="$FX/present/report.md"
++  t() { jq -r --arg t "$1" ".budget_matched.tasks[] | select(.task_id == \$t) | $2" "$J"; }
++  [ "$(jq -r .budget_matched.suite_version "$J")" = "2" ]
++  [ "$(t rc-01 '"\(.a0_union) \(.a0_cost_sum) \(.a1_mean) \(.a1_cost_mean) \(.diff) \(.method)"')" = "1.0 3.0 0.875 10.0 -0.125 defect union" ]
++  # no single a0 trial of rc-01 caught more than half
++  [ "$(jq -r '[.[] | select(.arm == "a0_bare" and .task_id == "rc-01") | .defect_catch_rate] | max' <(jq -s . "$FX/present/runs.jsonl"))" = "0.5" ]
++  [ "$(t rc-02 .method)" = "rate fallback" ]
++  [ "$(t rc-02 .a0_union)" = "0.5" ]
++  [ "$(jq -r '"\(.budget_matched.a0_union_mean) \(.budget_matched.a1_mean)"' "$J")" = "0.75 0.9375" ]
++  [ "$(jq -r .budget_matched.note "$J")" = "3 a0_bare trials cost USD 3.00 vs one a1_full trial USD 10.00 (task means over 2 tasks)" ]
++  grep -qF '## Budget-matched baseline (suite_version 2; informational, decides nothing)' "$M"
++  grep -qF '| rc-01 | 3 | 1.000 | 3.00 | 3 | 0.875 | 10.00 | -0.125 | defect union |' "$M"
++  grep -qF '| rc-02 | 3 | 0.500 | 3.00 | 3 | 1.000 | 10.00 | +0.500 | rate fallback |' "$M"
++  [ "$(jq -r '.by_suite_version["1"].budget_matched.available' "$J")" = "false" ]
++  awk '/^## Suite version 1 /{f=1} f' "$M" | grep -qF -- '- not available on suite_version 1 — no valid a0_bare and a1_full review-catch rows'
++}
++
++@test "AR-35 the presentation items change no decision, H1/A4 state or existing number" {
++  for s in main boundary exclusions versions degraded; do
++    python3 -I - "$FX/$s/report.json" <<'PY'
++import json, sys
++d = json.load(open(sys.argv[1]))
++for k in ("budget_matched", "batches"):
++    assert k in d, k
++assert d["sensitivity"]["h1"]["state"] and d["sensitivity"]["a4"]["state"]
++PY
++  done
++  # the main H1 line ignores the sensitivity read: degraded stays inconclusive by degradation
++  [ "$(jq -r .h1.line "$FX/degraded/report.json")" = "H1: inconclusive by degradation — not established" ]
++  [ "$(jq -r '.decisions[] | select(.arm == "a3_one_voice") | .state' "$FX/present/report.json")" = "keep" ]
++}
+diff --git a/evals/tests/ablation-row.bats b/evals/tests/ablation-row.bats
+index 5b222a0a..27a1cc30 100644
+--- a/evals/tests/ablation-row.bats
++++ b/evals/tests/ablation-row.bats
+@@ -399,3 +399,81 @@ edit_pipe() {  # edit_pipe <run> <jq filter>
+   [[ "$output" == *"row build failed for abl-fixture-a1_full-bf-01-t1"* ]]
+   [ ! -s "$T/rows.jsonl" ]
+ }
++
++# --- row writer 1.2: defects_missed (bd-yz1rd) and regressions_final_green (bd-m0hw7) ---
++edit_grade() {  # edit_grade <run> <jq filter>
++  jq "$2" "$T/runs/$1/grade.json" > "$T/g.json" && mv "$T/g.json" "$T/runs/$1/grade.json"
++}
++
++@test "defects_missed: a review-catch row copies recall.missed; regressions_final_green is null" {
++  edit_grade a3-review '.recall.missed = ["d2","d5"]'
++  row a3-review "$REVIEW_TASK"
++  run "$ROW" --validate "$T/rows.jsonl"
++  [ "$status" -eq 0 ]
++  [ "$(jq -c '[.defects_missed, .regressions_final_green]' <<<"$(last)")" = '[["d2","d5"],null]' ]
++}
++
++@test "defects_missed: an empty recall.missed is [], an absent one or a null recall is null" {
++  edit_grade a3-review '.recall.missed = []'
++  row a3-review "$REVIEW_TASK"
++  [ "$(jq -c '.defects_missed' <<<"$(last)")" = '[]' ]
++  edit_grade a3-review 'del(.recall.missed)'
++  row a3-review "$REVIEW_TASK"
++  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
++  edit_grade a3-review '.recall = null'
++  row a3-review "$REVIEW_TASK"
++  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
++  edit_grade a3-review '.recall = {defects_seeded: 3, missed: "d2"}'
++  row a3-review "$REVIEW_TASK"
++  [ "$(jq -c '.defects_missed' <<<"$(last)")" = 'null' ]
++}
++
++@test "regressions_final_green: a build row copies regressions.final_green (true, false); defects_missed is null" {
++  edit_grade a1-build '.regressions.final_green = true | .recall = {missed: ["d1"]}'
++  row a1-build "$BUILD_TASK"
++  run "$ROW" --validate "$T/rows.jsonl"
++  [ "$status" -eq 0 ]
++  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[true,null]' ]
++  edit_grade a1-build '.regressions.final_green = false'
++  row a1-build "$BUILD_TASK"
++  [ "$(jq -c '[.regressions_final_green, .defects_missed]' <<<"$(last)")" = '[false,null]' ]
++  edit_grade a1-build '.regressions.final_green = "yes"'
++  row a1-build "$BUILD_TASK"
++  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
++  edit_grade a1-build '.regressions = null'
++  row a1-build "$BUILD_TASK"
++  [ "$(jq -c '.regressions_final_green' <<<"$(last)")" = 'null' ]
++  run "$ROW" --validate "$T/rows.jsonl"
++  [ "$status" -eq 0 ]
++}
++
++@test "an ungraded run has defects_missed and regressions_final_green null" {
++  [ ! -f "$T/runs/a1-review/grade.json" ]
++  row a1-review "$REVIEW_TASK"
++  row a5-build "$BUILD_TASK"
++  run "$ROW" --validate "$T/rows.jsonl" --allow-ungraded
++  [ "$status" -eq 0 ]
++  [ "$(jq -s -c 'map([has("defects_missed"), .defects_missed, has("regressions_final_green"), .regressions_final_green])' "$T/rows.jsonl")" = '[[true,null,true,null],[true,null,true,null]]' ]
++}
++
++@test "--validate: defects_missed must be a list of non-empty strings or null, regressions_final_green a boolean or null; a legacy row lacking both keys validates" {
++  edit_grade a3-review '.recall.missed = ["d2"]'
++  row a3-review "$REVIEW_TASK"
++  local good; good="$(last)"
++  jq -c '.defects_missed = "d2"' <<<"$good" > "$T/one.jsonl"
++  run "$ROW" --validate "$T/one.jsonl"
++  [ "$status" -eq 1 ] && [[ "$output" == *"one.jsonl:1: field defects_missed has type string"* ]]
++  jq -c '.defects_missed = ["d2", 3]' <<<"$good" > "$T/one.jsonl"
++  run "$ROW" --validate "$T/one.jsonl"
++  [ "$status" -eq 1 ] && [[ "$output" == *"field defects_missed has type array"* ]]
++  jq -c '.defects_missed = [""]' <<<"$good" > "$T/one.jsonl"
++  run "$ROW" --validate "$T/one.jsonl"
++  [ "$status" -eq 1 ]
++  jq -c '.regressions_final_green = "yes"' <<<"$good" > "$T/one.jsonl"
++  run "$ROW" --validate "$T/one.jsonl"
++  [ "$status" -eq 1 ] && [[ "$output" == *"field regressions_final_green has type string, want boolean|null"* ]]
++  { jq -c '.defects_missed = null | .regressions_final_green = true' <<<"$good"
++    jq -c 'del(.defects_missed) | del(.regressions_final_green)' <<<"$good"; } > "$T/two.jsonl"
++  run "$ROW" --validate "$T/two.jsonl"
++  [ "$status" -eq 0 ] && [[ "$output" == *"2 rows valid"* ]]
++}
+diff --git a/evals/tests/fixtures/ablation-report/gen-fixtures.py b/evals/tests/fixtures/ablation-report/gen-fixtures.py
+index 265970ca..423ceab0 100644
+--- a/evals/tests/fixtures/ablation-report/gen-fixtures.py
++++ b/evals/tests/fixtures/ablation-report/gen-fixtures.py
+@@ -28,6 +28,42 @@
+ #               rc-01 caught d1..d4 of 8 (a1 catches every defect): the defect unit weighs
+ #               rc-01 eight times; rc-02 rows carry no defects_missed (rate fallback)
+ #   partial     a0 rows only (no a1_full): --partial has no decidable comparison (exit 1)
++#
++# Sprint 262 (suite_version partition, read states, degradation guard on H1/A4, degenerate pairs):
++#   versions      batch ver-v1 (suite_version 1): a1/a0/a4 build rows as in main (H1 +0.20,
++#                 A4 −0.10 holds) and a1/a0 review rows; batch ver-v2 (suite_version 2, its own
++#                 manifest sha ddd200b3…): a1/a0 on the SAME review task ids and trials, a1 misses
++#                 nothing, a0 misses d1, d2 everywhere (catch d = 8/18 = +0.444, H1 established on
++#                 the catch rate); v2 has no build task (pass rate and A4 not testable)
++#   degraded      batch deg-v2 (suite_version 2): a0/a1 on rc-01..04 × 3 with ids; a1 misses
++#                 nothing, a0 misses d1, d2; 9 of 12 a1 rows degraded (rc-01..03), rc-04 valid →
++#                 a1 excluded share 0.750 (H1 inconclusive by degradation); with --exclude-degraded
++#                 false the same rows establish H1
++#   degraded-a4   batch deg-a4 (suite_version 1): build rows only, a1 base, a0 −0.20, a4 −0.10;
++#                 a1's fb-01..04 (12 of 36 cells) degraded → share 0.333 on both H1's pass rate and
++#                 A4 (both inconclusive by degradation); with false, H1 established, A4 holds
++#   degenerate-1  batch dg-1 (suite_version 2): a0/a1/a3 on rc-04 only, rows without
++#                 defects_missed (rate fallback); a1 1.0, a0 0.5, a3 0.75 → one task, zero variance:
++#                 degenerate (H1 not yet decidable; a3 inconclusive, no valid pair)
++#   degenerate-2  the same on rc-03 and rc-04 (a0 rc-03 0.75): two tasks → not degenerate, H1 established
++#   degenerate-ids  degenerate-1 with defects_missed on every row → not degenerate (ids decide)
++#
++# Sprint 262 R3 (presentation: sensitivity H1/A4 lines, batch record, precision, budget-matched):
++#   present       batch pr-2 (suite_version 2), review rows only: a0_bare (USD 1.00 per run, 1 false
++#                 positive per row) on rc-01 (8 defects) t1 misses d1..d4, t2 misses d5..d8, t3 misses
++#                 all → union catches all 8 (1.000) though no trial beats 0.500; on rc-02 (2) rows
++#                 without defects_missed at 0.5 → "rate fallback" (0.500); a1_full (USD 10.00, 0
++#                 false positives) rc-01 misses d1 each trial (0.875), rc-02 misses nothing (1.000);
++#                 a3_one_voice rc-01/rc-02 catches nothing with 0 false positives (precision and cost
++#                 per true defect null). a0 precision 11 / 17 = 0.647059, USD 6 / 11 = 0.545455; a1
++#                 precision 1.0, USD 60 / 27 = 2.222222. Budget-matched: a0 union mean 0.75, a1 mean
++#                 0.9375; "3 a0_bare trials cost USD 3.00 vs one a1_full trial USD 10.00".
++#                 manifests/pr-2/STATUS.json holds rerowed (2 completed→completed, 1 contaminated→
++#                 cap_failure), rerun (1 transport_error→completed), drift_cleared 1, outage_history 2,
++#                 extra_models, a cut and a paused arm; run dirs a0_bare/rc-01-t1 (grade.json grader
++#                 1.2.5), rc-01-t2-r2 (1.2.11), rc-01-t3 (no grade.json). Batch pr-1 (suite_version 1,
++#                 build rows of a0/a1 only, no STATUS.json, no run dirs): the budget-matched section of
++#                 suite_version 1 reads "not available".
+ # =============================================================================
+ import json
+ import os
+@@ -40,6 +76,7 @@ RC = [("rc-01", 8), ("rc-02", 2), ("rc-03", 4), ("rc-04", 4)]
+ TRIALS = (1, 2, 3)
+ SRC = "1111111111111111111111111111111111111111"
+ SHA = "30e1f2ad" + "0" * 56
++SHA2 = "ddd200b3" + "0" * 56
+ IMG = "sha256:4e37cb5f" + "0" * 56
+ 
+ 
+@@ -49,12 +86,12 @@ def base(i):
+ 
+ def row(batch, arm, task, ttype, trial, status="completed", rate=None, catch=None, seeded=None,
+         missed=None, cost=10.0, wall=1000000, degraded=False, degraded_reason=None, run_id=None,
+-        with_missed=True):
++        with_missed=True, sv=1, sha=SHA):
+     rid = run_id or f"{batch}-{arm}-{task}-t{trial}"
+     rc = ttype == "review-catch"
+     r = {
+         "schema_version": 1, "run_id": rid, "batch": batch, "arm": arm, "task_id": task, "task_type": ttype,
+-        "trial": trial, "source_commit": SRC, "suite_manifest_sha256": SHA, "suite_version": 1,
++        "trial": trial, "source_commit": SRC, "suite_manifest_sha256": sha, "suite_version": sv,
+         "host_fingerprint": "fp:planted", "image_digest": IMG, "executor_mode": "container", "agy_opt_in": False,
+         "started": "2026-10-15T00:00:00Z", "finished": "2026-10-15T00:10:00Z", "phases": [],
+         "voices_run": None,
+@@ -84,22 +121,22 @@ def rc_row(batch, arm, task, n, trial, missed, ids=True, **kw):
+                missed=missed, with_missed=ids, **kw)
+ 
+ 
+-def build_rows(batch, arm, f, cost=10.0, wall=1000000, trials=TRIALS):
+-    return [row(batch, arm, t, ty, k, rate=f(i, k), cost=cost, wall=wall)
++def build_rows(batch, arm, f, cost=10.0, wall=1000000, trials=TRIALS, **kw):
++    return [row(batch, arm, t, ty, k, rate=f(i, k), cost=cost, wall=wall, **kw)
+             for i, (t, ty) in enumerate(BUILD) for k in trials]
+ 
+ 
+ A1_MISSED_MAIN = {"rc-01": ["d1", "d2"], "rc-02": [], "rc-03": ["d4"], "rc-04": ["d1"]}
+ 
+ 
+-def rc_rows(batch, arm, missed_map, cost=10.0, wall=1000000, ids=True):
+-    return [rc_row(batch, arm, t, n, k, missed_map[t], ids=ids, cost=cost, wall=wall)
++def rc_rows(batch, arm, missed_map, cost=10.0, wall=1000000, ids=True, **kw):
++    return [rc_row(batch, arm, t, n, k, missed_map[t], ids=ids, cost=cost, wall=wall, **kw)
+             for t, n in RC for k in TRIALS]
+ 
+ 
+-def manifest(batch, smoke=False):
++def manifest(batch, smoke=False, sv=1, sha=SHA):
+     return {"schema_version": 1, "batch": batch, "smoke": smoke, "arm_map": {}, "shuffle_seed": 20261015,
+-            "source_commit": SRC, "suite_manifest_sha256": SHA, "suite_version": 1,
++            "source_commit": SRC, "suite_manifest_sha256": sha, "suite_version": sv,
+             "pre_registration_ref": "NOTES.md § Decision Log 2026-10-15T09:00:00Z",
+             "cli_version": "2.1.300 (Claude Code)", "image_digest": IMG}
+ 
+@@ -200,7 +237,93 @@ def partial_scenario():
+     return rows, {b: manifest(b)}
+ 
+ 
+-def write(out, name, rows, mans):
++V2 = {"sv": 2, "sha": SHA2}
++A0_MISS_D12 = {t: ["d1", "d2"] for t, _ in RC}
++NONE = {t: [] for t, _ in RC}
++
++
++def versions_scenario():
++    b1, b2 = "ver-v1", "ver-v2"
++    rows = []
++    rows += build_rows(b1, "a1_full", lambda i, k: base(i))
++    rows += rc_rows(b1, "a1_full", A1_MISSED_MAIN)
++    rows += build_rows(b1, "a0_bare", lambda i, k: base(i) - 0.20, cost=2.0)
++    rows += rc_rows(b1, "a0_bare", {t: ["d%d" % j for j in range(2, n + 1)] for t, n in RC}, cost=2.0)
++    rows += build_rows(b1, "a4_no_gates", lambda i, k: base(i) - 0.10, cost=3.0)
++    rows += rc_rows(b2, "a1_full", NONE, **V2)
++    rows += rc_rows(b2, "a0_bare", A0_MISS_D12, cost=1.0, **V2)
++    return rows, {b1: manifest(b1), b2: manifest(b2, **V2)}
++
++
++def degraded_scenario():
++    b = "deg-v2"
++    rows = rc_rows(b, "a0_bare", A0_MISS_D12, cost=1.0, **V2)
++    a1 = rc_rows(b, "a1_full", NONE, **V2)
++    for r in a1:
++        if r["task_id"] != "rc-04":
++            r["degraded"] = True
++            r["degraded_reason"] = "review envelope 1 of 4 voices completed; audit envelope 1 of 4 voices completed"
++    return rows + a1, {b: manifest(b, **V2)}
++
++
++def degraded_a4_scenario():
++    b = "deg-a4"
++    a1 = build_rows(b, "a1_full", lambda i, k: base(i))
++    for r in a1:
++        if r["task_id"].startswith("fb-"):
++            r["degraded"], r["degraded_reason"] = True, "IMPLEMENT models_used planted"
++    rows = a1 + build_rows(b, "a0_bare", lambda i, k: base(i) - 0.20, cost=2.0) + \
++        build_rows(b, "a4_no_gates", lambda i, k: base(i) - 0.10, cost=3.0)
++    return rows, {b: manifest(b)}
++
++
++def degenerate_scenario(batch, tasks, ids):
++    def f():
++        rows = []
++        for t, n in RC:
++            if t not in tasks:
++                continue
++            a0_miss = ["d1"] if t == "rc-03" else ["d1", "d2"]
++            for k in TRIALS:
++                rows.append(rc_row(batch, "a1_full", t, n, k, [], ids=ids, **V2))
++                rows.append(rc_row(batch, "a0_bare", t, n, k, a0_miss, ids=ids, cost=1.0, **V2))
++                rows.append(rc_row(batch, "a3_one_voice", t, n, k, ["d1"], ids=ids, **V2))
++        return rows, {batch: manifest(batch, **V2)}
++    return f
++
++
++def present_scenario():
++    b2, b1 = "pr-2", "pr-1"
++    rows = []
++    a0 = {"rc-01": (["d1", "d2", "d3", "d4"], ["d5", "d6", "d7", "d8"], ["d%d" % j for j in range(1, 9)])}
++    for k in TRIALS:
++        rows.append(rc_row(b2, "a0_bare", "rc-01", 8, k, a0["rc-01"][k - 1], cost=1.0, **V2))
++        rows.append(rc_row(b2, "a0_bare", "rc-02", 2, k, ["d2"], ids=False, cost=1.0, **V2))
++        for r in (rc_row(b2, "a1_full", "rc-01", 8, k, ["d1"], **V2), rc_row(b2, "a1_full", "rc-02", 2, k, [], **V2),
++                  rc_row(b2, "a3_one_voice", "rc-01", 8, k, ["d%d" % j for j in range(1, 9)], **V2),
++                  rc_row(b2, "a3_one_voice", "rc-02", 2, k, ["d1", "d2"], **V2)):
++            r["false_positives"] = 0
++            rows.append(r)
++    rows += build_rows(b1, "a1_full", lambda i, k: base(i))
++    rows += build_rows(b1, "a0_bare", lambda i, k: base(i) - 0.20, cost=2.0)
++    status = {"schema_version": 1, "batch": b2, "state": "complete", "trials_planned": 20,
++              "spend": {"rows_usd": 69.0, "ledger_usd": 1.5, "spent_usd": 70.5, "max_usd": 100},
++              "extra_models": {"global.anthropic.claude-haiku-4-5-20251001-v1:0": {"runs": 2, "output_tokens": 900}},
++              "rerowed": [{"run_id": "x1", "from": "completed", "to": "completed"},
++                          {"run_id": "x2", "from": "contaminated", "to": "cap_failure"},
++                          {"run_id": "x3", "from": "completed", "to": "completed"}],
++              "rerun": [{"run_id": "x4", "from": "transport_error", "to": "completed", "old_cost_usd": 0}],
++              "drift_cleared": [{"run_id": "x5"}], "outage_history": [{"at": "a"}, {"at": "b"}],
++              "cuts": [{"reason": "max_usd", "at_trial": 19, "spent": 99.5, "max": 100}],
++              "paused_arms": {"a3_one_voice": "took_effect miss"}}
++    extras = {f"{b2}/STATUS.json": status,
++              f"{b2}/a0_bare/rc-01-t1/grade.json": {"grader_version": "1.2.5"},
++              f"{b2}/a0_bare/rc-01-t2-r2/grade.json": {"grader_version": "1.2.11"},
++              f"{b2}/a0_bare/rc-01-t3": None}
++    return rows, {b2: manifest(b2, **V2), b1: manifest(b1)}, extras
++
++
++def write(out, name, rows, mans, extras=None):
+     d = os.path.join(out, name)
+     os.makedirs(d, exist_ok=True)
+     with open(os.path.join(d, "runs.jsonl"), "w", encoding="utf-8") as fh:
+@@ -212,6 +335,15 @@ def write(out, name, rows, mans):
+         with open(os.path.join(md, "MANIFEST.json"), "w", encoding="utf-8") as fh:
+             json.dump(m, fh, indent=2, sort_keys=True)
+             fh.write("\n")
++    for rel, data in sorted((extras or {}).items()):
++        path = os.path.join(d, "manifests", rel)
++        if data is None:
++            os.makedirs(path, exist_ok=True)
++            continue
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as fh:
++            json.dump(data, fh, indent=2, sort_keys=True)
++            fh.write("\n")
+ 
+ 
+ def main(argv):
+@@ -219,9 +351,14 @@ def main(argv):
+         sys.stderr.write("usage: gen-fixtures.py OUTDIR\n")
+         return 2
+     for name, fn in (("main", main_scenario), ("boundary", boundary_scenario),
+-                     ("exclusions", exclusions_scenario), ("partial", partial_scenario)):
+-        rows, mans = fn()
+-        write(argv[0], name, rows, mans)
++                     ("exclusions", exclusions_scenario), ("partial", partial_scenario),
++                     ("versions", versions_scenario), ("degraded", degraded_scenario),
++                     ("degraded-a4", degraded_a4_scenario),
++                     ("degenerate-1", degenerate_scenario("dg-1", ("rc-04",), False)),
++                     ("degenerate-2", degenerate_scenario("dg-2", ("rc-03", "rc-04"), False)),
++                     ("degenerate-ids", degenerate_scenario("dg-ids", ("rc-04",), True)),
++                     ("present", present_scenario)):
++        write(argv[0], name, *fn())
+     return 0
+ 
+ 

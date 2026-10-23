@@ -1,0 +1,129 @@
+commit befd511de798c140ba28819fd0617c8c707f3f76
+Date: 2026-10-13T18:58:27+11:00
+
+fix(cycle-128): sprint-254 audit round r254-2 — the Paranoid Cypherpunk audit's HIGH, three MEDIUMs and three LOWs closed with tests: red-test-check.sh accepts only a listed runner as the first word of the test command and of --setup (bats, pytest, python -m pytest, npm/pnpm/yarn test|run, cargo test, go test, make, mix test, bundle exec rspec; a ./ or tests/ script only when .loa.config.yaml red_test.allowed_runners names it; the exact red_test.command / red_test.setup strings) and refuses shells, env, eval, exec, inline-code interpreters and the listed runners' inline-code flags with exit 2 naming the config key; every run and --setup starts from env -i with PATH (absolute entries outside the repository and the scratch), a fresh HOME and TMPDIR per run under the scratch, LANG, LC_ALL, TERM, CI=1, no global or system git config, no terminal prompt, a failing askpass and ssh transport, plus --env-pass NAME for one caller variable (credential-shaped and contract names refused); the test runs red, green, then red again and a passing second red is DECOY (a stateful decoy); the output tails are control-stripped (C0, C1, U+2028/9), capped at 400 bytes per line and wrapped in the L6 untrusted-content fence with the authoritative verdict line printed last (--json adds red_again_exit); every git call runs with core.hooksPath=/dev/null and core.fsmonitor=false, and a snapshot of refs, HEAD, the git config files and the hooks directory taken before the runs is compared after each phase, a difference exiting 2 with the changed entries; the header states the runner, environment, shared-.git and untrusted-output contracts; .loa.config.yaml.example documents the red_test block; reviewing-code takes only the red commit SHA from reviewer.md, the test command from sprint.md or red_test.command, runs only a listed runner with --json, treats the tails as untrusted data, and its execute_commands grant is explicit (--red *), with the trust rules in resources/REFERENCE.md and the qmd step's (paths only) cue kept (RTC-1, RTC-4/5/7 re-pinned, RTC-19…26, RTC-17 extended); validate_sprint_seams tracks fences through lib/md-fence.awk and a live plan under grimoires/loa/ (not its archive) without a parseable header Date fails instead of warning (SEAMS-11/12); validate_glossary fails a glossary with more than 40 aliases in total and WARNs on a non-ASCII letter in a term or alias name (GV-25/26/27); check-glossary-terms.sh --report and --json list resolution-only and unreferenced entries, exit code unchanged (GT-29/30/31); symlink-manifest.sh links .claude/loa/GLOSSARY.md only when the pinned framework ships it and prints one notice otherwise, so an older pin gets no dangling link (symlink-manifest-glossary.bats SMG-1…5). Also: the Sprint 3 acceptance-criteria boxes ticked in sprint.md; REPO-MAP regenerated with its checksum over the final .claude/ code (--validate exit 0); .claude/checksums.json refreshed for the changed tracked files. Verification on the final tree: the 23-suite run recorded in the audit report; check-prompt-budget exit 0 (reviewing-code 16,306 of 16,384); validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; sync-fixtures --check current; bash -n on every changed script; shell-compat greps clean; check-glossary-terms.sh PASS on the live kernel; both glossaries, the sprint plan, the PRD and the SDD validate; a shell test command is refused with exit 2 on a throwaway repository.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/validate-artifact.sh b/.claude/scripts/validate-artifact.sh
+index 69b0a6f3..067c9f61 100755
+--- a/.claude/scripts/validate-artifact.sh
++++ b/.claude/scripts/validate-artifact.sh
+@@ -866,17 +866,40 @@ validate_sprint_deferred() {
+ # Gated on the plan header's **Date:** (the first one before the first H2): from
+ # SEAMS_REQUIRED_FROM on, every '## Sprint N' block (up to the next H2) must carry
+ # the block with at least one table row below its separator line; older and
+-# undated plans WARN once. Headings inside fenced code do not count.
++# undated plans WARN once, except that a live plan (under grimoires/loa/, not its
++# archive/) without a parseable header date fails. Fenced code is tracked by
++# lib/md-fence.awk (CommonMark lengths and characters); headings inside it do not count.
+ SEAMS_REQUIRED_FROM="2026-10-13"
+ 
+ validate_sprint_seams() {
++    local fence_src
++    if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
++        violations+=("cannot read ${SCRIPT_DIR}/lib/md-fence.awk; the sprint Seams check needs it (reinstall the framework scripts)")
++        return 0
++    fi
+     local plan_date
+-    plan_date="$(awk '/^## / { exit } /^\*\*Date:?\*\*:?/ { print; exit }' "$FILE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)"
++    plan_date="$(LC_ALL=C awk "$fence_src"'
++        md_fence($0) { next }
++        /^## / { exit }
++        /^\*\*Date:?\*\*:?/ { if (match($0, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) print substr($0, RSTART, RLENGTH); exit }
++    ' "$FILE")"
++    # A live plan (under grimoires/loa/, not its archive) must carry a parseable header date,
++    # or the gate below would fail open; archived plans and fixtures keep the WARN.
++    local canon="" root=""
++    canon="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)/$(basename -- "$FILE")" || canon=""
++    root="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || root=""
++    if [[ -z "$plan_date" && -n "$root" ]]; then
++        case "$canon" in
++            "${root}/grimoires/loa/archive/"*) ;;
++            "${root}/grimoires/loa/"*)
++                violations+=("a sprint plan carries **Date:** YYYY-MM-DD in its header (before the first '## ' heading); ${FILE} has none that parses, so the Seams gate (from ${SEAMS_REQUIRED_FROM}) cannot be judged")
++                return 0 ;;
++        esac
++    fi
+     local missing
+-    missing="$(awk '
++    missing="$(LC_ALL=C awk "$fence_src"'
+         function emit() { if (insp && rows < 1) printf "%s (line %d)\n", head, hl }
+-        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+-        fence { next }
++        md_fence($0) { next }
+         /^## / {
+             emit(); insp = 0
+             if ($0 ~ /^## Sprint [0-9]/) { insp = 1; head = substr($0, 4); hl = NR; rows = 0; inseam = 0 }
+@@ -1253,6 +1276,7 @@ validate_spike() {
+ # =============================================================================
+ GLOSSARY_MAX_CHARS=300
+ GLOSSARY_MAX_ALIASES=6
++GLOSSARY_MAX_ALIASES_TOTAL=40
+ 
+ validate_glossary() {
+     local kind msg fence_src
+@@ -1266,13 +1290,16 @@ validate_glossary() {
+             V) violations+=("$msg") ;;
+             W) warnings+=("$msg") ;;
+         esac
+-    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" "$fence_src"'
++    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" -v maxtotal="$GLOSSARY_MAX_ALIASES_TOTAL" "$fence_src"'
+         function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
+         function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
+         # names compare as the drift check matches them: case and "-", "_", " " folded
+         function norm(x) { x = tolower(x); gsub(/[-_ ]+/, " ", x); gsub(/^ | $/, "", x); return x }
+         function claim(x, what) {
+             if (x == "") return
++            # norm() folds ASCII only, so a look-alike letter from another
++            # script (Greek beta in "Beads") would pass the duplicate check
++            if (x ~ /[\200-\377]/) w(what " \"" x "\" has a non-ASCII character; glossary names are ASCII so a look-alike letter cannot slip past the duplicate check")
+             if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
+             else seen[norm(x)] = what " \"" x "\" (line " NR ")"
+         }
+@@ -1339,7 +1366,7 @@ validate_glossary() {
+                 for (i = 1; i <= m; i++) {
+                     p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+                     if (p == "") continue
+-                    n_alias++
++                    n_alias++; total_alias++
+                     claim(p, "alias")
+                     if (!alias_related(p, t, d)) w("alias \"" p "\" of \"" t "\" shares no word with the term or its definition and is not its initials; name it in the definition, or give it its own entry")
+                 }
+@@ -1352,6 +1379,7 @@ validate_glossary() {
+         END {
+             NR = 1
+             if (!h1) v("no H1; start with \"# Glossary: <name>\"")
++            if (total_alias > maxtotal) v("the glossary has " total_alias " aliases, over the budget of " maxtotal "; an alias names the same thing as its entry, so define distinct names as entries")
+             if (!lang_line) v("no \"## Language\" section")
+             else {
+                 if (!context) v("no context paragraph between the H1 and \"## Language\"; say whose language this is in one paragraph")
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index 2215de7d..bf3e473b 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -2891,3 +2891,23 @@ structured_handoff:
+   # skip). Read-path only — INDEX.md and read_by are untouched; old handoffs
+   # stay recoverable via the structured-handoff skill.
+   surface_max_age_days: 30
++
++# =============================================================================
++# red_test — inputs to .claude/scripts/red-test-check.sh (the /bug red-before-green check)
++# =============================================================================
++# The check runs a test command at the red commit and at the fix, under `env -i`, and accepts
++# only a known runner as the first word of the command and of --setup: bats, pytest,
++# python -m pytest, npm/pnpm/yarn test|run, cargo test, go test, make, mix test,
++# bundle exec rspec. Shells, env, eval, exec and inline-code interpreters (python -c, node -e,
++# perl -e, ruby -e) are always refused. This block widens that list for one project. Edit it as
++# the operator: the file is tracked, and a red_test change on the branch under review makes the
++# check WARN.
++#
++# red_test:
++#   # The project's test command; the exact string (whitespace-normalised) is accepted.
++#   command: "make test"
++#   # The exact --setup string accepted besides the runner list (e.g. a dependency install).
++#   setup: "npm ci"
++#   # ./... or tests/... scripts accepted as the first word, matched exactly.
++#   allowed_runners:
++#     - ./scripts/run-tests.sh

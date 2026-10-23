@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evals/harness/schemas/review-manifest.schema.json",
+  "title": "review-catch key manifest (evals/fixtures/review-prs/manifests/)",
+  "description": "cycle-132 FR-2, SDD §3.2 'manifest v2', D-2.3. Three shapes: the hand-built keys (pr-01 … pr-10: fixture and defects only; build-review-corpus.sh), the record keys built by seed-corpus-from-record.sh --build-manifest from a labels file (manifests/c131/ — the frozen cycle-131 set, byte-identical to main — and manifests/v1/), and the v2 keys (label_set v2: every defect carries annotators, agreement, adjudication and review_driven; the annotated ones have label_source fix-commit | incident | fix-commit+incident). The grader reads the label set from the key's directory, never from this field. Keywords stay inside the subset evals/analysis/c132/annotation_merge.py --validate implements.",
+  "type": "object",
+  "required": ["fixture", "defects"],
+  "additionalProperties": false,
+  "properties": {
+    "fixture": {"type": "string", "pattern": "^pr-[0-9]{2,}$"},
+    "label_set": {"const": "v2"},
+    "approved": {"type": "boolean"},
+    "approved_by": {"type": "string", "minLength": 1},
+    "record": {"$ref": "#/$defs/record"},
+    "defects": {"type": "array"},
+    "fix_regions": {"type": "array", "items": {"$ref": "#/$defs/fix_region"}}
+  },
+  "oneOf": [
+    {
+      "description": "v2: label_set present; every defect carries the four v2 fields",
+      "required": ["label_set", "approved", "approved_by", "record", "fix_regions"],
+      "properties": {"defects": {"type": "array", "items": {"$ref": "#/$defs/defect_v2"}}}
+    },
+    {
+      "description": "the hand-built and record shapes: no label_set, no v2 field, review-derived label_source only",
+      "not": {"required": ["label_set"]},
+      "properties": {
+        "defects": {"type": "array", "items": {"$ref": "#/$defs/defect_legacy"}},
+        "record": {"not": {"required": ["incidents_meta"]}}
+      }
+    }
+  ],
+  "$defs": {
+    "line": {"type": "integer", "minimum": 1},
+    "record": {
+      "type": "object",
+      "required": ["sprint", "record_ref", "head_commit", "fix_commit"],
+      "additionalProperties": false,
+      "properties": {
+        "sprint": {"type": ["string", "null"]},
+        "record_ref": {"type": ["string", "null"]},
+        "head_commit": {"type": ["string", "null"]},
+        "fix_commit": {"type": ["string", "null"]},
+        "incidents_meta": {
+          "type": "object", "required": ["main_sha"], "additionalProperties": false,
+          "properties": {"main_sha": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"}}
+        }
+      }
+    },
+    "fix_region": {
+      "type": "object",
+      "required": ["id", "file", "start", "end", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "file": {"type": "string", "minLength": 1},
+        "start": {"$ref": "#/$defs/line"},
+        "end": {"$ref": "#/$defs/line"},
+        "source": {"type": "string", "pattern": "^fix/[0-9a-f]+:[0-9]+-[0-9]+$"}
+      }
+    },
+    "defect": {
+      "type": "object",
+      "required": ["id", "file", "anchor_line", "severity", "category"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "file": {"type": "string", "minLength": 1},
+        "anchor_line": {"$ref": "#/$defs/line"},
+        "anchors": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/line"}},
+        "must_match": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "category": {"type": "string", "minLength": 1},
+        "label_source": {"enum": ["review", "audit", "bridgebuilder", "fix", "fix-commit", "incident", "fix-commit+incident"]},
+        "source": {"type": "string"},
+        "source_commit": {"type": "string"},
+        "synthetic": {"type": "boolean"},
+        "annotators": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
+        "agreement": {"enum": ["agreed", "adjudicated", null]},
+        "adjudication": {"type": ["string", "null"], "minLength": 1},
+        "review_driven": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "defect_legacy": {
+      "allOf": [
+        {"$ref": "#/$defs/defect"},
+        {"properties": {"label_source": {"enum": ["review", "audit", "bridgebuilder", "fix"]}}},
+        {"not": {"anyOf": [{"required": ["annotators"]}, {"required": ["agreement"]},
+                           {"required": ["adjudication"]}, {"required": ["review_driven"]}]}}
+      ]
+    },
+    "defect_v2": {
+      "allOf": [
+        {"$ref": "#/$defs/defect"},
+        {"required": ["must_match", "label_source", "source", "annotators", "agreement", "adjudication", "review_driven"]},
+        {"anyOf": [
+          {"properties": {"label_source": {"enum": ["review", "audit", "bridgebuilder", "fix"]}}},
+          {"properties": {
+            "label_source": {"enum": ["fix-commit", "incident", "fix-commit+incident"]},
+            "annotators": {"type": "array", "minItems": 1},
+            "agreement": {"enum": ["agreed", "adjudicated"]},
+            "review_driven": {"type": "boolean"}
+          }}
+        ]}
+      ]
+    }
+  }
+}

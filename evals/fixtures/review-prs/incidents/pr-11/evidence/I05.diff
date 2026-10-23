@@ -1,0 +1,1001 @@
+commit cbfccab2e30ef0364c24908bc4191064d1fdf736
+Date: 2026-10-08T04:26:27+11:00
+
+fix(cycle-127): sprint-251 audit round r251-4 — the audit dissent's verified items: Bridgebuilder's merge gate no longer fails open under a config read error (readError → mergeBlocked with the reason, strict mode throws; the quorum is never shrunk by unreadable config); cheval reads the agy opt-in from its own install root, never a cwd-ancestor config (a planted /tmp/.loa.config.yaml opted a host in), and refuses a foreign-owned or group/world-writable config (off, one WARN); one strict spelling rule across the three readers — the exact tag:yaml.org,2002:bool tag, and YAML alias / merge-key nodes read as off everywhere (conformance rows); the lib's include guard is shell-only (declare -F) so an exported variable cannot leave the predicates undefined, and run-preflight fails closed when the lib is missing; the catalog provider maps are never cached after a swallowed exception and both readers WARN once on the name-rule fallback (hostile-subscript test on the associative maps); the throttle-status regex needs non-word boundaries (a request id matched 529), the CLI-shape context-limit parse needs its sentence, the calibrate hint shell-quotes model ids; an implausible observed limit (< 10 % of the window or above it) is ignored with a WARN instead of wedging the route; _effort_on_wire is wrapped at the MODELINV emit site. Probe: --host-route / the resolved --cli-model / cli_version are refused on control characters or over 200 chars before the dry run (a newline rewrote effective_input_ceiling in the loaded YAML), the dry run uses the real write's kwargs, and the written catalog is re-parsed and its ceilings asserted before os.replace; CLI-reported numbers must be finite and bounded; the first step's budget estimate assumes the 1.8 tokenizer ratio until a step measures; the record stores the resolved binary ~-relative (the committed record too); the ceilingCalibration schema gains an if/then (probed_headless ⇒ claude-headless transport + probe_outcome) and maxLength on the cli_* fields; the effort dry-run test can never spawn the real CLI; AGC-6 prints its diagnostics on failure. The Fable review round 2 ticked the four acceptance criteria. Refuted or declined with evidence: 36 of the 60 run-1 findings and 6 of the 11 run-2 findings (audit-dissent-triage.md).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 59fef198..32be62fd 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -16,6 +16,7 @@ import hashlib
+ import json
+ import logging
+ import os
++import shlex
+ import stat
+ import sys
+ import traceback
+@@ -362,15 +363,16 @@ def _calibrate_hint(entry: Any, chain_entries: Any) -> Optional[str]:
+     claude-headless hop names the chain's Anthropic HTTP entry with `--transport claude-headless` (the transport that
+     measured the payload), and any other CLI hop, or a chain with no such entry, gets no hint: the CLI's own window
+     refused the payload."""
++    # (r251-4 S6, audit n4: the model id is shell-quoted — the hint is a command an operator pastes)
+     if getattr(entry, "adapter_kind", "http") != "cli":
+-        return _PROBE_COMMAND.format(model=entry.model_id)
++        return _PROBE_COMMAND.format(model=shlex.quote(str(entry.model_id)))
+     if _CLI_ADAPTER_BY_PROVIDER.get(getattr(entry, "provider", "")) != "claude-headless":
+         return None
+     head = next((e for e in (chain_entries or ())
+                  if getattr(e, "adapter_kind", "http") != "cli" and getattr(e, "provider", "") == entry.provider), None)
+     if head is None:
+         return None
+-    return f"{_PROBE_COMMAND.format(model=head.model_id)} --transport claude-headless"
++    return f"{_PROBE_COMMAND.format(model=shlex.quote(str(head.model_id)))} --transport claude-headless"
+ 
+ 
+ _AGY_NOT_PLANNED_WARNED = False
+@@ -844,7 +846,8 @@ def _lookup_max_input_tokens(
+             else _hop_max_tokens(None, provider, model_id, hounfour)
+         )
+         _decision = _ceiling_input_bound(
+-            model_config, max_tokens=_hop_budget, observed=_observed_for(provider, model_id),
++            model_config, max_tokens=_hop_budget,
++            observed=_observed_for(provider, model_id, context_window=model_config.get("context_window")),
+         )
+         _bound = _decision.value if _decision is not None else v3_ceiling
+         if _streaming_killed and provider == "anthropic":
+@@ -1782,9 +1785,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+     # The finally-clause emits a single envelope at function exit (success or
+     # failure). Pre-resolution failures (handled above) deliberately do NOT
+     # emit because no model invocation occurred. `models_requested` enumerates
+-    # the entire resolved chain so audit consumers see the FULL intended walk
+-    # shape, not just whichever entry happened to succeed.
+-    # cycle-127 review r251-1 G1: a gated agy hop is planned around before models_requested is taken.
++    # the PLANNED chain — every hop the walk may dispatch, not just whichever
++    # entry happened to succeed; `models_requested` ∪ `models_not_planned` is
++    # the full resolved chain (cycle-127 review r251-1 G1: a gated agy hop is
++    # planned around before models_requested is taken; r251-4 S8, audit n2).
+     _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
+     if _models_not_planned and _auth_type_resolved is not None:
+         _auth_type_resolved = _chain.entries[0].auth_type
+@@ -2055,7 +2059,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                     _preflight_cli_override
+                     if isinstance(_preflight_cli_override, int) and _preflight_cli_override > 0 else None
+                 ),
+-                observed=_observed_for(_preflight_head.provider, _preflight_head.model_id),
++                observed=_observed_for(_preflight_head.provider, _preflight_head.model_id,
++                                       context_window=_preflight_head_cfg.get("context_window")),
+                 policy=_ceiling_policy,
+                 counter=_counter,
+             )
+@@ -2358,7 +2363,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+             ):
+                 _hop_decision = _ceiling_input_bound(
+                     _hop_entry, max_tokens=_hop_budget,
+-                    observed=_observed_for(_entry.provider, _entry.model_id), policy=_ceiling_policy,
++                    observed=_observed_for(_entry.provider, _entry.model_id, context_window=_hop_entry.get("context_window")),
++                    policy=_ceiling_policy,
+                 )
+                 if _hop_decision is not None and not _hop_decision.calibrated and _hop_decision.probed:
+                     _hop_unverified = (_walk_estimate or 0) > _hop_decision.probed
+@@ -2932,6 +2938,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+             # parallel-dispatch races. Fail-soft; no-op when env var unset.
+             _vq_write_sidecar(_vq_envelope)
+ 
++            # cycle-127 D-2.6: the wire value on the hop that answered (the primary when none did), from that adapter's
++            # wire_effort hook (r251-1 C5). r251-4 S8 (audit n29/n30): evaluated in its OWN try — an exception here
++            # used to fall into the emit's handler and lose the whole envelope; now the field records None, said once.
++            try:
++                _effort_effective_emit = _effort_on_wire(
++                    *(_modelinv_state["final_model_id"].split(":", 1)
++                      if ":" in str(_modelinv_state.get("final_model_id") or "")
++                      else (resolved.provider, resolved.model_id)),
++                    _effort, hounfour,
++                )
++            except Exception as _ee:  # noqa: BLE001 — one field never costs the envelope
++                _effort_effective_emit = None
++                logger.warning("MODELINV effort_effective could not be derived (%s: %s) — recorded as None",
++                               type(_ee).__name__, _ee)
++
+             try:
+                 _emit_modelinv(
+                     models_requested=_modelinv_models_requested,
+@@ -2954,17 +2975,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                     effort=_effort,
+                     # cycle-127 FR-2 (SDD D-2.5): caller | catalog | extra | none.
+                     effort_source=_effort_source,
+-                    # cycle-127 D-2.6: the wire value on the hop that answered
+-                    # (the primary when none did), from that adapter's wire_effort
+-                    # hook (r251-1 C5) — None where the adapter sends no effort.
+                     # cycle-127 review r251-1 G1: hops planned around (never dispatched).
+                     models_not_planned=_models_not_planned or None,
+-                    effort_effective=_effort_on_wire(
+-                        *(_modelinv_state["final_model_id"].split(":", 1)
+-                          if ":" in str(_modelinv_state.get("final_model_id") or "")
+-                          else (resolved.provider, resolved.model_id)),
+-                        _effort, hounfour,
+-                    ),
++                    # cycle-127 D-2.6 — None where the adapter sends no effort (derived above, r251-4 S8).
++                    effort_effective=_effort_effective_emit,
+                     # cycle-124 FR-4: prompt-cache telemetry.
+                     tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
+                     tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),
+diff --git a/.claude/adapters/loa_cheval/routing/ceiling.py b/.claude/adapters/loa_cheval/routing/ceiling.py
+index ac88a81e..2ebc7958 100644
+--- a/.claude/adapters/loa_cheval/routing/ceiling.py
++++ b/.claude/adapters/loa_cheval/routing/ceiling.py
+@@ -35,6 +35,7 @@ from __future__ import annotations
+ import datetime as _dt
+ import fcntl
+ import json
++import logging
+ import os
+ import re
+ import stat as _stat
+@@ -42,6 +43,30 @@ import tempfile
+ from dataclasses import dataclass, replace
+ from typing import Any, Callable, Dict, List, Optional
+ 
++logger = logging.getLogger("loa_cheval.routing.ceiling")
++
++# r251-4 S7 (audit run-2 n38): an observation outside [floor × context_window, context_window] is not a provider verdict
++# this route can act on (a stray `observed_input_tokens: 1` row would wedge it) — ignored, said once per process.
++OBSERVED_PLAUSIBILITY_FLOOR = 0.1
++_IMPLAUSIBLE_OBSERVED_WARNED = False
++
++
++def _plausible_observed(observed: int, context_window: Optional[int]) -> bool:
++    """True unless ``context_window`` is known and ``observed`` lies outside [0.1 × window, window]."""
++    if not context_window:
++        return True
++    return OBSERVED_PLAUSIBILITY_FLOOR * context_window <= observed <= context_window
++
++
++def _warn_implausible_once(observed: int, context_window: int, where: str) -> None:
++    global _IMPLAUSIBLE_OBSERVED_WARNED
++    if _IMPLAUSIBLE_OBSERVED_WARNED:
++        return
++    _IMPLAUSIBLE_OBSERVED_WARNED = True
++    logger.warning("ignoring an implausible observed provider limit (%s): %d tokens is outside [%d, %d] "
++                   "(%.1f × context_window .. context_window) — check .run/ceiling-observed.json", where, observed,
++                   int(OBSERVED_PLAUSIBILITY_FLOOR * context_window), context_window, OBSERVED_PLAUSIBILITY_FLOOR)
++
+ FLOOR_MAX_TOKENS = 4_096
+ _TRUTHY = ("1", "true", "yes", "on")
+ 
+@@ -161,6 +186,10 @@ def input_bound(
+ 
+     # An observation tightens an uncalibrated bound, or a calibration measured
+     # on a foreign transport (r251-1); a same-route calibration ignores it.
++    # (r251-4 S7: an implausible one — below 0.1 × the window or above it — is ignored, said once)
++    if observed is not None and _pos_int(observed) and not _plausible_observed(observed, cw):
++        _warn_implausible_once(observed, cw or 0, "input_bound")
++        observed = None
+     if (not calibrated or foreign) and observed is not None and _pos_int(observed) and observed - 1 < value:
+         value, basis = observed - 1, "observed"
+ 
+@@ -200,6 +229,11 @@ _RE_INPUT_PLUS_OUTPUT = re.compile(
+ # cycle-127 r251-1 C9: the headless CLI's own pre-flight rejection (Claude Code
+ # 2.1.292): "the request is ~1065182 tokens (limit 1000000) but …".
+ _RE_CLI_TOKENS_LIMIT = re.compile(r"~?(\d[\d,]*)\s+tokens\s*\(\s*limit:?\s*(\d[\d,]*)\s*\)", re.I)
++# r251-4 S6 (audit run-2 n6): the bare "N tokens (limit M)" above is for READING the numbers only — as a classifier it
++# matched any batch counter ("processed 12 tokens (limit 100)"). Without a marker word, only the CLI's own sentence
++# ("the request is ~N tokens (limit M)") classifies a message as a context limit.
++_RE_CLI_REQUEST_SENTENCE = re.compile(
++    r"\b(?:request|prompt)\s+is\s+~?\d[\d,]*\s+tokens\s*\(\s*limit:?\s*\d[\d,]*\s*\)", re.I)
+ _CONTEXT_LIMIT_MARKERS = (
+     "prompt is too long",
+     "too many tokens",
+@@ -218,11 +252,12 @@ _CONTEXT_LIMIT_MARKERS = (
+ def is_context_limit_message(message: str) -> bool:
+     """True when a provider error message is of the prompt-too-long class
+     (a marker, or one of the size statements ``parse_context_limit`` reads —
+-    r251-3: the CLI's bare "~N tokens (limit M)" carries no marker word)."""
++    r251-3: the CLI's "the request is ~N tokens (limit M)" carries no marker
++    word; r251-4 S6: that sentence, never a bare "N tokens (limit M)")."""
+     text = message or ""
+     low = text.lower()
+     return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS) or any(
+-        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT))
++        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_REQUEST_SENTENCE))
+ 
+ 
+ # cycle-127 r251-3 R1 (SDD D-3.12): ONE throttle rule for the headless adapter and
+@@ -232,7 +267,9 @@ def is_context_limit_message(message: str) -> bool:
+ # throttle becomes a terminal size verdict. A 429 / 529 counts only in status
+ # position: never inside a token count ("1,429,000 tokens", "~1052900 tokens",
+ # "1,429.5k") and never as a count itself ("~429 tokens"); a status followed by
+-# punctuation ("API Error: 429. Too many tokens") is still a status.
++# punctuation ("API Error: 429. Too many tokens") is still a status. r251-4 S6
++# (audit run-2 n5): a whole token only — never inside a request id or a hex
++# trace ("req_a529fz01", "0x529f", "error_529x").
+ _THROTTLE_MARKERS = (
+     "throttl",            # ThrottlingException, "throttled"
+     "please wait",
+@@ -243,7 +280,7 @@ _THROTTLE_MARKERS = (
+     "too many requests",
+     "quota",
+ )
+-_RE_THROTTLE_STATUS = re.compile(r"(?<![\d,.])(?:429|529)(?!\d|[,.]\d|\s*k?\s*tokens\b)", re.I)
++_RE_THROTTLE_STATUS = re.compile(r"(?<![\w,.])(?:429|529)(?!\w|[,.]\d|\s*k?\s*tokens\b)", re.I)
+ 
+ 
+ def is_throttle_message(message: Optional[str]) -> bool:
+@@ -341,10 +378,14 @@ def load_observed(path: Optional[str] = None) -> Dict[str, Any]:
+     return data
+ 
+ 
+-def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = None) -> Optional[int]:
++def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = None, *,
++                 context_window: Optional[int] = None) -> Optional[int]:
+     """The tightest observed input for an entry: the smallest
+     ``observed_input_tokens`` a provider refused, or ``provider_limit + 1``
+-    when the provider stated its limit (so the bound becomes the limit)."""
++    when the provider stated its limit (so the bound becomes the limit).
++    With ``context_window``, a candidate outside [0.1 × window, window] is
++    skipped (said once) — a stray tiny row never masks a real one (r251-4 S7)."""
++    cw = _pos_int(context_window)
+     data = data if data is not None else load_observed()
+     best: Optional[int] = None
+     for row in data.get("entries", []):
+@@ -360,6 +401,9 @@ def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = Non
+         if lim:
+             candidates.append(lim + 1)
+         for c in candidates:
++            if not _plausible_observed(c, cw):
++                _warn_implausible_once(c, cw or 0, f"{provider}:{model}")
++                continue
+             if best is None or c < best:
+                 best = c
+     return best
+diff --git a/.claude/scripts/flatline-orchestrator.sh b/.claude/scripts/flatline-orchestrator.sh
+index 3e66df85..93704cff 100755
+--- a/.claude/scripts/flatline-orchestrator.sh
++++ b/.claude/scripts/flatline-orchestrator.sh
+@@ -527,7 +527,7 @@ _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_
+ 
+ _tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy (lib/agy-gate-lib.sh routes_to_agy:
+     # the gemini-headless hop by name, or a Google model under hounfour.headless.mode cli-only — env wins, as cheval's)
+-    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")"
++    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")" "$CONFIG_FILE"   # (r251-4: project aliases resolved first)
+ }
+ 
+ tertiary_opt_in_skip_reason() {  # prints the skip line and returns 0 when the configured tertiary is gated off
+diff --git a/.claude/scripts/loa-status.sh b/.claude/scripts/loa-status.sh
+index 4f039802..b85e6338 100755
+--- a/.claude/scripts/loa-status.sh
++++ b/.claude/scripts/loa-status.sh
+@@ -797,8 +797,18 @@ _providers_config_file() {  # the Loa config the Providers block reads (bats-gat
+   fi
+ }
+ # cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, routes_to_agy)
++# (r251-4: a partial install without the lib must not abort /loa under set -e — fail-closed stubs instead, as
++# adversarial-review.sh K4: the opt-in reads off and the gemini-headless hop is recognised by name only; said once on
++# stderr in human mode, never under --json)
+ # shellcheck source=lib/agy-gate-lib.sh
+-source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
++if ! { [[ -f "$SCRIPT_DIR/lib/agy-gate-lib.sh" ]] && source "$SCRIPT_DIR/lib/agy-gate-lib.sh"; } \
++   || ! declare -F routes_to_agy >/dev/null 2>&1; then
++  [[ "$JSON_OUTPUT" == "true" ]] || echo "WARN: $SCRIPT_DIR/lib/agy-gate-lib.sh not loaded — the agy opt-in reads off (fail closed); reinstall the framework (/update-loa)" >&2
++  AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
++  agy_opted_in() { return 1; }
++  routes_to_agy() { case "${1:-}" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac; return 1; }
++  agy_gate_warn_once() { return 0; }
++fi
+ _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+   agy_opted_in "$(_providers_config_file)"
+ }
+@@ -832,20 +842,26 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+   # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
+   # is tightened by an observation below it: basis observed, calibrated true,
+   # calibrated_value / calibration_transport / reprobe_suggested carried.
+-  local cfg model eff probed cal transport store obs=null
++  local cfg model eff probed cal transport cw store obs=null
+   cfg=$(_providers_model_config)
+   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
+   [[ -n "$model" ]] || { echo null; return 0; }
+-  eff=$(yq eval -r ".providers.anthropic.models.\"$model\".effective_input_ceiling // \"\"" "$cfg" 2>/dev/null)
+-  probed=$(yq eval -r ".providers.anthropic.models.\"$model\".probed_ceiling // \"\"" "$cfg" 2>/dev/null)
+-  cal=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.calibrated_at // \"\"" "$cfg" 2>/dev/null)
+-  transport=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.transport // \"\"" "$cfg" 2>/dev/null)
++  # (r251-4 S8, audit n11: the model reaches yq as a VALUE through strenv — never spliced into the expression text)
++  eff=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].effective_input_ceiling // ""' "$cfg" 2>/dev/null)
++  probed=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].probed_ceiling // ""' "$cfg" 2>/dev/null)
++  cal=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.calibrated_at // ""' "$cfg" 2>/dev/null)
++  transport=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.transport // ""' "$cfg" 2>/dev/null)
++  cw=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].context_window // ""' "$cfg" 2>/dev/null)
++  [[ "$cw" =~ ^[0-9]+$ ]] || cw=0
+   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
+   if [[ -f "$store" ]]; then
+-    obs=$(jq -r --arg m "$model" '[.entries[]? | select(.provider == "anthropic" and .model == $m
++    # (r251-4 S7 parity with routing.ceiling.observed_for: with a known window, a candidate outside
++    # [0.1 × context_window, context_window] is not a verdict this route acts on)
++    obs=$(jq -r --arg m "$model" --argjson cw "$cw" '[.entries[]? | select(.provider == "anthropic" and .model == $m
+             and (.error_class == "CEILING_UNVERIFIED_LIMIT" or .error_class == "PROVIDER_CONTEXT_LIMIT"))
+-            | ([.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end)] | min)] | min // null' "$store" 2>/dev/null)
++            | (.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end))
++            | select(type == "number" and . > 0 and ($cw == 0 or (. >= 0.1 * $cw and . <= $cw)))] | min // null' "$store" 2>/dev/null)
+     [[ "$obs" =~ ^[0-9]+$ ]] || obs=null
+   fi
+   jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --arg tr "$transport" --argjson obs "$obs" '
+@@ -860,7 +876,8 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+        elif $obs != null and ($p == null or ($obs - 1) < $p) then {basis: "observed", value: ($obs - 1)}
+        else {basis: "probed", value: ($p // $e)} end)
+     + {model: $m, observed: (if $obs == null then null else $obs - 1 end),
+-       calibrate: ("python3 tools/ceiling-probe-live.py --model " + $m + " --write-catalog")}' 2>/dev/null || echo null
++       calibrate: ("python3 tools/ceiling-probe-live.py --model "
++                   + (if ($m | test("^[A-Za-z0-9._:@+/-]+$")) then $m else ($m | @sh) end) + " --write-catalog")}' 2>/dev/null || echo null
+ }
+ get_providers_json() {
+   local snap provs p
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index d5404637..748c5fef 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-07T14:38:21Z",
+-  "source_hash": "3ba946ae6d2b0401b76f5c9a651849ab695ddb41493f72c5ead899c8225e48af",
++  "generated_at": "2026-10-07T17:20:51Z",
++  "source_hash": "0b13c028279fb2fd9257945e270574ba06f929711407f2467f449779d10a5757",
+   "file_count": 42,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "bd01d514a061ae8288a8edf64b5c210d90d831430f9c94902f74fcbe47823d71"
++      "sha256": "e3b92e4108564f727d229074c89996ebd0e4bddbaa5944d75a3739d94c0438ef"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+@@ -86,7 +86,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+-      "sha256": "1ca6ee3c40bbf5709a9d398bc02adbe4416cd0e71d940bfadf82f5720f962ef9"
++      "sha256": "752c6c67d0e690cd565e99c027745e81216327476707540a745691979eb2dfbe"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
+@@ -98,7 +98,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/review-verdict.ts",
+-      "sha256": "be87841aa516aae732397ab2f1c469e3ca78c206bf4d04206641078bc92475ea"
++      "sha256": "819bc7019a60a01564de366ffadb8aa28fe06b2ad906849de773f1af1a44cf4d"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",
+diff --git a/.claude/skills/bridgebuilder-review/dist/config.d.ts.map b/.claude/skills/bridgebuilder-review/dist/config.d.ts.map
+index cd5832d7..15d27a96 100644
+--- a/.claude/skills/bridgebuilder-review/dist/config.d.ts.map
++++ b/.claude/skills/bridgebuilder-review/dist/config.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"config.d.ts","sourceRoot":"","sources":["../resources/config.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"config.d.ts","sourceRoot":"","sources":["../resources/config.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/dist/config.js b/.claude/skills/bridgebuilder-review/dist/config.js
+index 7dc3ce5c..25deff93 100644
+--- a/.claude/skills/bridgebuilder-review/dist/config.js
++++ b/.claude/skills/bridgebuilder-review/dist/config.js
+@@ -125,6 +125,10 @@ export function isHeadlessModelId(modelId, provider) {
+ export function loaConfigPathFor(repoRoot) {
+     return repoRoot ? join(repoRoot, ".loa.config.yaml") : ".loa.config.yaml";
+ }
++/** The go-yq "is the key present" program — the same text as the bash lib's `_AGY_YQ_HAS` and the Python loader's
++ * `_YQ_HAS` (r251-4 S3): every level a real mapping (`kind` is "alias" for an alias node) and the explicit key only (`has`
++ * never sees a merge key's). */
++export const AGY_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))';
+ /**
+  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
+  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
+@@ -138,15 +142,22 @@ export function readAgyGate(configPath) {
+     if (existsSync(configPath)) {
+         try {
+             const out = execFileSync("yq", ["eval", "-o=json", "-I=0",
+-                '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
++                `{"has": (${AGY_YQ_HAS}), "kind": (.hounfour.headless.agy_opt_in | kind), "opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}`,
+                 configPath], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"] });
+             const parsed = JSON.parse(out);
+-            optIn = parsed.opt === true;
++            // (r251-4 S3: the key must be written at hounfour.headless itself — every level a real mapping, never an alias or a
++            // merge key's value — and its node a plain scalar of the exact bool tag; one rule with the bash and Python readers)
++            const present = parsed.has === true;
++            const alias = parsed.kind === "alias";
++            optIn = present && !alias && parsed.opt === true;
+             mode = typeof parsed.mode === "string" ? parsed.mode : "";
+-            if (typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
++            if (present && alias) {
++                typeWarning = "hounfour.headless.agy_opt_in is present but not a YAML boolean (an alias) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off";
++            }
++            else if (present && typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
+                 typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;
+             }
+-            else if (parsed.tag === "!!bool" && parsed.canon !== true) {
++            else if (present && parsed.tag === "!!bool" && parsed.canon !== true) {
+                 typeWarning = "hounfour.headless.agy_opt_in is a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off";
+             }
+         }
+diff --git a/.claude/skills/bridgebuilder-review/dist/config.js.map b/.claude/skills/bridgebuilder-review/dist/config.js.map
+index 55680d71..cc22a6c1 100644
+--- a/.claude/skills/bridgebuilder-review/dist/config.js.map
++++ b/.claude/skills/bridgebuilder-review/dist/config.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"config.js","sourceRoot":"","sources":["../resources/config.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,YAAY,EAAE,QAAQ,EAAE,MAAM,oBAAoB,CAAC;AACtE,OAAO,EAAE,SAAS,EAAE,MAAM,WAAW,CAAC;AACtC,OAAO,EAAE,QAAQ,EAAE,MAAM,kBAAkB,CAAC;AAC5C,OAAO,EAAE,UAAU,EAAE,MAAM,SAAS,CAAC;AACrC,OAAO,EAAE,IAAI,EAAE,MAAM,WAAW,CAAC;AACjC,OAAO,EAAE,CAAC,EAAE,MAAM,QAAQ,CAAC;AAE3B,OAAO,EAAE,wBAAwB,EAAE,MAAM,uBAAuB,CAAC;AAEjE,MAAM,aAAa,GAAG,SAAS,CAAC,QAAQ,CAAC,CAAC;AAE1C;;;GAGG;AACH,MAAM,uBAAuB,GAAG,CAAC,CAAC,MAAM,CAAC;IACvC,cAAc,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,GAAG,CAAC;IACvC,cAAc,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,GAAG,CAAC;IACvC,SAAS,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,GAAG,CAAC;IAClC,OAAO,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,GAAG,CAAC;CACjC,CAAC,CAAC;AAEH,MAAM,CAAC,MAAM,sBAAsB,GAAG,CAAC,CAAC,MAAM,CAAC;IAC7C,OAAO,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,KAAK,CAAC;IACnC,MAAM,EAAE,CAAC,CAAC,KAAK,CAAC,CAAC,CAAC,MAAM,CAAC;QACvB,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;QACpB,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;QACpB,IAAI,EAAE,CAAC,CAAC,IAAI,CAAC,CAAC,SAAS,EAAE,UAAU,CAAC,CAAC,CAAC,OAAO,CAAC,UAAU,CAAC;KAC1D,CAAC,CAAC,CAAC,OAAO,CAAC,EAAE,CAAC;IACf,kBAAkB,EAAE,CAAC,CAAC,KAAK,CAAC;QAC1B,CAAC,CAAC,IAAI,CAAC,CAAC,OAAO,EAAE,OAAO,CAAC,CAAC;QAC1B,CAAC,CAAC,KAAK,CAAC,CAAC,CAAC,MAAM,EAAE,CAAC;KACpB,CAAC,CAAC,OAAO,CAAC,OAAO,CAAC;IACnB,YAAY,EAAE,CAAC,CAAC,IAAI,CAAC,CAAC,UAAU,EAAE,QAAQ,CAAC,CAAC,CAAC,OAAO,CAAC,UAAU,CAAC;IAChE,SAAS,EAAE,CAAC,CAAC,MAAM,CAAC;QAClB,OAAO,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QAClC,kBAAkB,EAAE,uBAAuB,CAAC,OAAO,CACjD,GAAG,EAAE,CAAC,CAAC,EAAE,cAAc,EAAE,GAAG,EAAE,cAAc,EAAE,GAAG,EAAE,SAAS,EAAE,GAAG,EAAE,OAAO,EAAE,GAAG,EAAE,CAAC,CACnF;KACF,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,OAAO,EAAE,IAAI,EAAE,kBAAkB,EAAE,EAAE,cAAc,EAAE,GAAG,EAAE,cAAc,EAAE,GAAG,EAAE,SAAS,EAAE,GAAG,EAAE,OAAO,EAAE,GAAG,EAAE,EAAE,CAAC,CAC1H;IACD,YAAY,EAAE,CAAC,CAAC,MAAM,CAAC;QACrB,SAAS,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QAC9C,KAAK,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;KAC3C,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,SAAS,EAAE,IAAI,EAAE,KAAK,EAAE,IAAI,EAAE,CAAC,CACzC;IACD,KAAK,EAAE,CAAC,CAAC,MAAM,CAAC;QACd,oBAAoB,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QAC/C,sBAAsB,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,CAAC,CAAC;QAC7C,sBAAsB,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QACjD,mBAAmB,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;KAC/C,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,oBAAoB,EAAE,IAAI,EAAE,sBAAsB,EAAE,CAAC,EAAE,sBAAsB,EAAE,IAAI,EAAE,mBAAmB,EAAE,IAAI,EAAE,CAAC,CAC3H;IACD,UAAU,EAAE,CAAC,CAAC,MAAM,CAAC;QACnB,WAAW,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QACtC,WAAW,EAAE,CAAC,CAAC,KAAK,CAAC,CAAC,CAAC,MAAM,EAAE,CAAC,CAAC,OAAO,CAAC,EAAE,CAAC;QAC5C,2EAA2E;QAC3E,4DAA4D;QAC5D,cAAc,EAAE,CAAC,CAAC,KAAK,CAAC,CAAC,CAAC,MAAM,EAAE,CAAC,CAAC,OAAO,CAAC,EAAE,CAAC;KAChD,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,WAAW,EAAE,IAAI,EAAE,WAAW,EAAE,EAAE,EAAE,cAAc,EAAE,EAAE,EAAE,CAAC,CACnE;IACD,MAAM,EAAE,CAAC,CAAC,MAAM,CAAC;QACf,OAAO,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;QAClC,eAAe,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,EAAE,CAAC;QACvC,qBAAqB,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;KACjD,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,OAAO,EAAE,IAAI,EAAE,eAAe,EAAE,EAAE,EAAE,qBAAqB,EAAE,IAAI,EAAE,CAAC,CAC5E;IACD,QAAQ,EAAE,CAAC,CAAC,MAAM,CAAC;QACjB,OAAO,EAAE,CAAC,CAAC,OAAO,EAAE,CAAC,OAAO,CAAC,IAAI,CAAC;KACnC,CAAC,CAAC,OAAO,CACR,GAAG,EAAE,CAAC,CAAC,EAAE,OAAO,EAAE,IAAI,EAAE,CAAC,CAC1B;IACD,eAAe,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,EAAE;IACtC,UAAU,EAAE,CAAC,CAAC,MAAM,CAAC,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,CAAC,MAAM,CAAC;QACxC,KAAK,EAAE,CAAC,CAAC,MAAM,EAAE;QACjB,MAAM,EAAE,CAAC,CAAC,MAAM,EAAE;KACnB,CAAC,CAAC,CAAC,QAAQ,EAAE;CACf,CAAC,CAAC;AAEH;;;GAGG;AACH,MAAM,UAAU,oBAAoB;IAClC,IAAI,CAAC;QACH,2BAA2B;QAC3B,IAAI,CAAC;YACH,QAAQ,CAAC,eAAe,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,OAAO,EAAE,IAAI,EAAE,KAAK,EAAE,MAAM,EAAE,CAAC,CAAC;QAChF,CAAC;QAAC,MAAM,CAAC;YACP,+DAA+D;YAC/D,IAAI,CAAC;gBACH,MAAM,OAAO,GAAG,QAAQ,CAAC,+DAA+D,EAAE;oBACxF,QAAQ,EAAE,MAAM;oBAChB,OAAO,EAAE,IAAI;oBACb,KAAK,EAAE,MAAM;iBACd,CAAC,CAAC,IAAI,EAAE,CAAC;gBACV,IAAI,QAAQ,CAAC,OAAO,EAAE,EAAE,CAAC,GAAG,CAAC,EAAE,CAAC;oBAC9B,OAAO,CAAC,KAAK,CACX,uEAAuE;wBACvE,oEAAoE;wBACpE,oCAAoC,CACrC,CAAC;gBACJ,CAAC;YACH,CAAC;YAAC,MAAM,CAAC;gBACP,qBAAqB;YACvB,CAAC;YACD,OAAO,sBAAsB,CAAC,KAAK,CAAC,EAAE,CAAC,CAAC;QAC1C,CAAC;QAED,MAAM,MAAM,GAAG,QAAQ,CACrB,0EAA0E,EAC1E,EAAE,QAAQ,EAAE,MAAM,EAAE,OAAO,EAAE,IAAI,EAAE,KAAK,EAAE,MAAM,EAAE,CACnD,CAAC;QACF,IAAI,CAAC,MAAM,IAAI,MAAM,CAAC,IAAI,EAAE,KAAK,MAAM,IAAI,MAAM,CAAC,IAAI,EAAE,KAAK,EAAE,EAAE,CAAC;YAChE,OAAO,sBAAsB,CAAC,KAAK,CAAC,EAAE,CAAC,CAAC;QAC1C,CAAC;QACD,OAAO,sBAAsB,CAAC,KAAK,CAAC,IAAI,CAAC,KAAK,CAAC,MAAM,CAAC,CAAC,CAAC;IAC1D,CAAC;IAAC,OAAO,GAAG,EAAE,CAAC;QACb,gDAAgD;QAChD,IAAI,GAAG,YAAY,CAAC,CAAC,QAAQ,EAAE,CAAC;YAC9B,OAAO,CAAC,KAAK,CACX,+CAA+C,GAAG,CAAC,MAAM,CAAC,GAAG,CAAC,CAAC,CAAC,EAAE,EAAE,CAAC,CAAC,CAAC,OAAO,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,mBAAmB,CAC9G,CAAC;QACJ,CAAC;QACD,OAAO,sBAAsB,CAAC,KAAK,CAAC,EAAE,CAAC,CAAC;IAC1C,CAAC;AACH,CAAC;AAED,yEAAyE;AACzE,MAAM,CAAC,MAAM,oBAAoB,GAA2B;IAC1D,SAAS,EAAE,mBAAmB;IAC9B,MAAM,EAAE,gBAAgB;IACxB,MAAM,EAAE,gBAAgB;CACzB,CAAC;AAEF,qGAAqG;AACrG,0HAA0H;AAC1H,6HAA6H;AAC7H,6EAA6E;AAC7E,MAAM,UAAU,iBAAiB,CAAC,OAAe,EAAE,QAAiB;IAClE,IAAI,OAAO,OAAO,KAAK,QAAQ,IAAI,CAAC,YAAY,CAAC,IAAI,CAAC,OAAO,CAAC,IAAI,CAAC,MAAM,CAAC,MAAM,CAAC,wBAAwB,EAAE,OAAO,CAAC;QAAE,OAAO,KAAK,CAAC;IAClI,OAAO,QAAQ,KAAK,SAAS,IAAI,wBAAwB,CAAC,OAAO,CAAC,CAAC,QAAQ,KAAK,QAAQ,CAAC;AAC3F,CAAC;AAaD,oIAAoI;AACpI,MAAM,UAAU,gBAAgB,CAAC,QAAiB;IAChD,OAAO,QAAQ,CAAC,CAAC,CAAC,IAAI,CAAC,QAAQ,EAAE,kBAAkB,CAAC,CAAC,CAAC,CAAC,kBAAkB,CAAC;AAC5E,CAAC;AAED;;;;GAIG;AACH,MAAM,UAAU,WAAW,CAAC,UAAkB;IAC5C,IAAI,KAAK,GAAG,KAAK,CAAC;IAClB,IAAI,IAAI,GAAG,EAAE,CAAC;IACd,IAAI,SAA6B,CAAC;IAClC,IAAI,WAA+B,CAAC;IACpC,IAAI,UAAU,CAAC,UAAU,CAAC,EAAE,CAAC;QAC3B,IAAI,CAAC;YACH,MAAM,GAAG,GAAG,YAAY,CACtB,IAAI,EACJ,CAAC,MAAM,EAAE,SAAS,EAAE,MAAM;gBACxB,+PAA+P;gBAC/P,UAAU,CAAC,EACb,EAAE,QAAQ,EAAE,MAAM,EAAE,OAAO,EAAE,IAAI,EAAE,KAAK,EAAE,CAAC,QAAQ,EAAE,MAAM,EAAE,MAAM,CAAC,EAAE,CACvE,CAAC;YACF,MAAM,MAAM,GAAG,IAAI,CAAC,KAAK,CAAC,GAAG,CAAsE,CAAC;YACpG,KAAK,GAAG,MAAM,CAAC,GAAG,KAAK,IAAI,CAAC;YAC5B,IAAI,GAAG,OAAO,MAAM,CAAC,IAAI,KAAK,QAAQ,CAAC,CAAC,CAAC,MAAM,CAAC,IAAI,CAAC,CAAC,CAAC,EAAE,CAAC;YAC1D,IAAI,OAAO,MAAM,CAAC,GAAG,KAAK,QAAQ,IAAI,MAAM,CAAC,GAAG,KAAK,QAAQ,IAAI,MAAM,CAAC,GAAG,KAAK,QAAQ,EAAE,CAAC;gBACzF,WAAW,GAAG,mEAAmE,MAAM,CAAC,GAAG,yFAAyF,CAAC;YACvL,CAAC;iBAAM,IAAI,MAAM,CAAC,GAAG,KAAK,QAAQ,IAAI,MAAM,CAAC,KAAK,KAAK,IAAI,EAAE,CAAC;gBAC5D,WAAW,GAAG,2JAA2J,CAAC;YAC5K,CAAC;QACH,CAAC;QAAC,OAAO,GAAG,EAAE,CAAC;YACb,sFAAsF;YACtF,MAAM,CAAC,GAAG,GAA6C,CAAC;YACxD,MAAM,MAAM,GAAG,OAAO,CAAC,CAAC,MAAM,KAAK,QAAQ,CAAC,CAAC,CAAC,CAAC,CAAC,MAAM,CAAC,IAAI,EAAE,CAAC,CAAC,CAAC,MAAM,CAAC,QAAQ,CAAC,CAAC,CAAC,MAAM,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,MAAM,CAAC,QAAQ,CAAC,MAAM,CAAC,CAAC,IAAI,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;YAClI,SAAS,GAAG,CAAC,MAAM,IAAI,CAAC,CAAC,OAAO,IAAI,MAAM,CAAC,GAAG,CAAC,CAAC,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,EAAE,GAAG,CAAC,CAAC;QAChF,CAAC;IACH,CAAC;IACD,OAAO;QACL,KAAK,EAAE,IAAI,EAAE,OAAO,CAAC,GAAG,CAAC,iBAAiB,IAAI,IAAI,IAAI,YAAY;QAClE,GAAG,CAAC,SAAS,KAAK,SAAS,CAAC,CAAC,CAAC,EAAE,SAAS,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC,EAAE,GAAG,CAAC,WAAW,KAAK,SAAS,CAAC,CAAC,CAAC,EAAE,WAAW,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;KACzG,CAAC;AACJ,CAAC;AAED;;;GAGG;AACH,MAAM,UAAU,WAAW,CAAC,QAAgB,EAAE,OAAe,EAAE,IAAY;IACzE,IAAI,QAAQ,KAAK,QAAQ;QAAE,OAAO,KAAK,CAAC;IACxC,OAAO,iBAAiB,CAAC,OAAO,EAAE,QAAQ,CAAC,IAAI,IAAI,KAAK,UAAU,CAAC;AACrE,CAAC;AAED;;;;GAIG;AACH,MAAM,UAAU,eAAe,CAAC,MAAwB,EAAE,IAAa;IAKrE,MAAM,KAAK,GAAiD,EAAE,CAAC;IAC/D,MAAM,OAAO,GAAgD,EAAE,CAAC;IAChE,MAAM,UAAU,GAA4E,EAAE,CAAC;IAE/F,KAAK,MAAM,KAAK,IAAI,MAAM,CAAC,MAAM,EAAE,CAAC;QAClC,wHAAwH;QACxH,uHAAuH;QACvH,MAAM,KAAK,GAAG,IAAI,CAAC,SAAS,KAAK,SAAS,CAAC,CAAC,CAAC,KAAK,CAAC,QAAQ,KAAK,QAAQ,CAAC,CAAC,CAAC,WAAW,CAAC,KAAK,CAAC,QAAQ,EAAE,KAAK,CAAC,QAAQ,EAAE,IAAI,CAAC,IAAI,CAAC,CAAC;QAClI,IAAI,CAAC,IAAI,CAAC,KAAK,IAAI,KAAK,EAAE,CAAC;YACzB,UAAU,CAAC,IAAI,CAAC,EAAE,QAAQ,EAAE,KAAK,CAAC,QAAQ,EAAE,OAAO,EAAE,KAAK,CAAC,QAAQ,EAAE,MAAM,EAAE,iBAAiB,EAAE,CAAC,CAAC;YAClG,SAAS;QACX,CAAC;QACD,MAAM,MAAM,GAAG,oBAAoB,CAAC,KAAK,CAAC,QAAQ,CAAC,CAAC;QACpD,IAAI,CAAC,MAAM,EAAE,CAAC;YACZ,OAAO,CAAC,IAAI,CAAC,EAAE,QAAQ,EAAE,KAAK,CAAC,QAAQ,EAAE,MAAM,EAAE,qBAAqB,KAAK,CAAC,QAAQ,EAAE,EAAE,CAAC,CAAC;YAC1F,SAAS;QACX,CAAC;QACD,mHAAmH;QACnH,4HAA4H;QAC5H,IAAI,iBAAiB,CAAC,KAAK,CAAC,QAAQ,EAAE,KAAK,CAAC,QAAQ,CAAC,IAAI,OAAO,CAAC,GAAG,CAAC,MAAM,CAAC,EAAE,CAAC;YAC7E,KAAK,CAAC,IAAI,CAAC,EAAE,QAAQ,EAAE,KAAK,CAAC,QAAQ,EAAE,OAAO,EAAE,KAAK,CAAC,QAAQ,EAAE,CAAC,CAAC;QACpE,CAAC;aAAM,CAAC;YACN,OAAO,CAAC,IAAI,CAAC,EAAE,QAAQ,EAAE,KAAK,CAAC,QAAQ,EAAE,MAAM,EAAE,CAAC,CAAC;QACrD,CAAC;IACH,CAAC;IAED,OAAO,EAAE,KAAK,EAAE,OAAO,EAAE,UAAU,EAAE,CAAC;AACxC,CAAC;AAED;;;;GAIG;AACH,MAAM,UAAU,mBAAmB,CAAC,IAAa,EAAE,SAA6C;IAC9F,MAAM,KAAK,GAAa,EAAE,CAAC;IAC3B,IAAI,IAAI,CAAC,SAAS,KAAK,SAAS,EAAE,CAAC;QACjC,KAAK,CAAC,IAAI,CAAC,oDAAoD,IAAI,CAAC,SAAS,kFAAkF,CAAC,CAAC;IACnK,CAAC;IACD,IAAI,IAAI,CAAC,WAAW,KAAK,SAAS;QAAE,KAAK,CAAC,IAAI,CAAC,mBAAmB,IAAI,CAAC,WAAW,EAAE,CAAC,CAAC;IACtF,IAAI,SAAS,CAAC,UAAU,CAAC,MAAM,GAAG,CAAC,EAAE,CAAC;QACpC,KAAK,CAAC,IAAI,CAAC,2EAA2E,SAAS,CAAC,UAAU,CAAC,GAAG,CAAC,CAAC,CAAC,EAAE,EAAE,CAAC,GAAG,CAAC,CAAC,QAAQ,IAAI,CAAC,CAAC,OAAO,EAAE,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC;IACpK,CAAC;IACD,OAAO,KAAK,CAAC;AACf,CAAC;AAED,wDAAwD;AACxD,MAAM,QAAQ,GAAwB;IACpC,KAAK,EAAE,EAAE;IACT,6EAA6E;IAC7E,2EAA2E;IAC3E,2EAA2E;IAC3E,6EAA6E;IAC7E,KAAK,EAAE,MAAM;IACb,MAAM,EAAE,EAAE;IACV,aAAa,EAAE,EAAE;IACjB,YAAY,EAAE,OAAO;IACrB,cAAc,EAAE,OAAO;IACvB,eAAe,EAAE,MAAM;IACvB,UAAU,EAAE,CAAC,UAAU,EAAE,SAAS,EAAE,eAAe,CAAC;IACpD,YAAY,EAAE,sBAAsB;IACpC,gBAAgB,EAAE,qCAAqC;IACvD,MAAM,EAAE,KAAK;IACb,eAAe,EAAE,EAAE;IACnB,aAAa,EAAE,SAAS;IACxB,iBAAiB,EAAE,EAAE;IACrB,UAAU,EAAE,UAAU;CACvB,CAAC;AAiDF;;GAEG;AACH,MAAM,UAAU,YAAY,CAAC,IAAc;IACzC,MAAM,IAAI,GAAY,EAAE,CAAC;IAEzB,KAAK,IAAI,CAAC,GAAG,CAAC,EAAE,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC,EAAE,EAAE,CAAC;QACrC,MAAM,GAAG,GAAG,IAAI,CAAC,CAAC,CAAC,CAAC;QACpB,IAAI,GAAG,KAAK,WAAW,EAAE,CAAC;YACxB,IAAI,CAAC,MAAM,GAAG,IAAI,CAAC;QACrB,CAAC;aAAM,IAAI,GAAG,KAAK,kBAAkB,EAAE,CAAC;YACtC,IAAI,CAAC,YAAY,GAAG,IAAI,CAAC;QAC3B,CAAC;aAAM,IAAI,GAAG,KAAK,QAAQ,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACnD,IAAI,CAAC,KAAK,GAAG,IAAI,CAAC,KAAK,IAAI,EAAE,CAAC;YAC9B,IAAI,CAAC,KAAK,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;QAC7B,CAAC;aAAM,IAAI,GAAG,KAAK,MAAM,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACjD,MAAM,CAAC,GAAG,MAAM,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;YAC5B,IAAI,KAAK,CAAC,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC;gBACvB,MAAM,IAAI,KAAK,CAAC,uBAAuB,IAAI,CAAC,CAAC,CAAC,+BAA+B,CAAC,CAAC;YACjF,CAAC;YACD,IAAI,CAAC,EAAE,GAAG,CAAC,CAAC;QACd,CAAC;aAAM,IAAI,GAAG,KAAK,oBAAoB,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YAC/D,MAAM,CAAC,GAAG,MAAM,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;YAC5B,IAAI,KAAK,CAAC,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC;gBACvB,MAAM,IAAI,KAAK,CAAC,qCAAqC,IAAI,CAAC,CAAC,CAAC,+BAA+B,CAAC,CAAC;YAC/F,CAAC;YACD,IAAI,CAAC,cAAc,GAAG,CAAC,CAAC;QAC1B,CAAC;aAAM,IAAI,GAAG,KAAK,qBAAqB,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YAChE,MAAM,CAAC,GAAG,MAAM,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;YAC5B,IAAI,KAAK,CAAC,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC;gBACvB,MAAM,IAAI,KAAK,CAAC,sCAAsC,IAAI,CAAC,CAAC,CAAC,+BAA+B,CAAC,CAAC;YAChG,CAAC;YACD,IAAI,CAAC,eAAe,GAAG,CAAC,CAAC;QAC3B,CAAC;aAAM,IAAI,GAAG,KAAK,kBAAkB,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YAC7D,MAAM,CAAC,GAAG,MAAM,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;YAC5B,IAAI,KAAK,CAAC,CAAC,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC;gBACvB,MAAM,IAAI,KAAK,CAAC,mCAAmC,IAAI,CAAC,CAAC,CAAC,+BAA+B,CAAC,CAAC;YAC7F,CAAC;YACD,IAAI,CAAC,YAAY,GAAG,CAAC,CAAC;QACxB,CAAC;aAAM,IAAI,GAAG,KAAK,SAAS,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACpD,IAAI,CAAC,KAAK,GAAG,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC;QACzB,CAAC;aAAM,IAAI,GAAG,KAAK,WAAW,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACtD,IAAI,CAAC,OAAO,GAAG,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC;QAC3B,CAAC;aAAM,IAAI,GAAG,KAAK,WAAW,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACtD,IAAI,CAAC,OAAO,GAAG,IAAI,CAAC,OAAO,IAAI,EAAE,CAAC;YAClC,IAAI,CAAC,OAAO,CAAC,IAAI,CAAC,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC,CAAC;QAC/B,CAAC;aAAM,IAAI,GAAG,KAAK,qBAAqB,EAAE,CAAC;YACzC,IAAI,CAAC,eAAe,GAAG,IAAI,CAAC;QAC9B,CAAC;aAAM,IAAI,GAAG,KAAK,aAAa,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YACxD,IAAI,CAAC,QAAQ,GAAG,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC;QAC5B,CAAC;aAAM,IAAI,GAAG,KAAK,eAAe,IAAI,CAAC,GAAG,CAAC,GAAG,IAAI,CAAC,MAAM,EAAE,CAAC;YAC1D,MAAM,IAAI,GAAG,IAAI,CAAC,EAAE,CAAC,CAAC,CAAC;YACvB,IAAI,IAAI,KAAK,UAAU,IAAI,IAAI,KAAK,aAAa,EAAE,CAAC;gBAClD,MAAM,IAAI,KAAK,CAAC,gCAAgC,IAAI,wCAAwC,CAAC,CAAC;YAChG,CAAC;YACD,IAAI,CAAC,UAAU,GAAG,IAAI,CAAC;QACzB,CAAC;IACH,CAAC;IAED,OAAO,IAAI,CAAC;AACd,CAAC;AAED;;GAEG;AACH,KAAK,UAAU,cAAc;IAC3B,IAAI,CAAC;QACH,MAAM,EAAE,MAAM,EAAE,GAAG,MAAM,aAAa,CAAC,KAAK,EAAE,CAAC,QAAQ,EAAE,IAAI,CAAC,EAAE;YAC9D,OAAO,EAAE,KAAK;SACf,CAAC,CAAC;QACH,MAAM,KAAK,GAAG,MAAM,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC;QACjC,MAAM,SAAS,GAAG,uDAAuD,CAAC;QAC1E,iFAAiF;QACjF,MAAM,UAAU,GAAG,KAAK,CAAC,IAAI,CAC3B,CAAC,CAAC,EAAE,EAAE,CAAC,CAAC,CAAC,UAAU,CAAC,UAAU,CAAC,IAAI,CAAC,CAAC,QAAQ,CAAC,SAAS,CAAC,CACzD,CAAC;QACF,MAAM,UAAU,GAAG,UAAU,IAAI,KAAK,CAAC,IAAI,CAAC,CAAC,CAAC,EAAE,EAAE,CAAC,CAAC,CAAC,QAAQ,CAAC,SAAS,CAAC,CAAC,CAAC;QAC1E,MAAM,KAAK,GAAG,UAAU,EAAE,KAAK,CAAC,SAAS,CAAC,CAAC;QAC3C,IAAI,KAAK,EAAE,CAAC;YACV,OAAO,EAAE,KAAK,EAAE,KAAK,CAAC,CAAC,CAAC,EAAE,IAAI,EAAE,KAAK,CAAC,CAAC,CAAC,EAAE,CAAC;QAC7C,CAAC;QACD,OAAO,IAAI,CAAC;IACd,CAAC;IAAC,MAAM,CAAC;QACP,OAAO,IAAI,CAAC;IACd,CAAC;AACH,CAAC;AAED;;GAEG;AACH,SAAS,eAAe,CAAC,CAAS;IAChC,MAAM,KAAK,GAAG,CAAC,CAAC,KAAK,CAAC,GAAG,CAAC,CAAC;IAC3B,IAAI,KAAK,CAAC,MAAM,KAAK,CAAC,IAAI,CAAC,KAAK,CAAC,CAAC,CAAC,IAAI,CAAC,KAAK,CAAC,CAAC,CAAC,EAAE,CAAC;QACjD,MAAM,IAAI,KAAK,CACb,yBAAyB,CAAC,2BAA2B,CACtD,CAAC;IACJ,CAAC;IACD,OAAO,EAAE,KAAK,EAAE,KAAK,CAAC,CAAC,CAAC,EAAE,IAAI,EAAE,KAAK,CAAC,CAAC,CAAC,EAAE,CAAC;AAC7C,CAAC;AAED,8DAA8D;AAC9D,6EAA6E;AAC7E,mFAAmF;AACnF,+EAA+E;AAC/E,4EAA4E;AAC5E,kFAAkF;AAClF;;;;GAIG;AACH,MAAM,CAAC,KAAK,UAAU,cAAc;IAClC,IAAI,CAAC;QACH,MAAM,OAAO,GAAG,MAAM,QAAQ,CAAC,kBAAkB,EAAE,OAAO,CAAC,CAAC;QAC5D,6BAA6B;QAC7B,MAAM,KAAK,GAAG,OAAO,CAAC,KAAK,CAAC,yCAAyC,CAAC,CAAC;QACvE,IAAI,CAAC,KAAK;YAAE,OAAO,EAAE,CAAC;QAEtB,MAAM,OAAO,GAAG,KAAK,CAAC,CAAC,CAAC,CAAC;QACzB,MAAM,MAAM,GAAe,EAAE,CAAC;QAC9B,MAAM,KAAK,GAAG,OAAO,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC;QAElC,KAAK,IAAI,CAAC,GAAG,CAAC,EAAE,CAAC,GAAG,KAAK,CAAC,MAAM,EAAE,CAAC,EAAE,EAAE,CAAC;YACtC,MAAM,EAAE,GAAG,KAAK,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,sBAAsB,CAAC,CAAC;YAClD,IAAI,CAAC,EAAE;gBAAE,SAAS;YAClB,MAAM,CAAC,EAAE,GAAG,EAAE,QAAQ,CAAC,GAAG,EAAE,CAAC;YAC7B,MAAM,KAAK,GAAG,QAAQ,CAAC,OAAO,CAAC,MAAM,EAAE,EAAE,CAAC,CAAC,IAAI,EAAE,CAAC,OAAO,CAAC,cAAc,EAAE,EAAE,CAAC,CAAC;YAE9E,oDAAoD;YACpD,IAAI,KAAK,KAAK,EAAE,IAAI,KAAK,KAAK,SAAS,EAAE,CAAC;gBACxC,MAAM,KAAK,GAAa,EAAE,CAAC;gBAC3B,OAAO,CAAC,GAAG,CAAC,GAAG,KAAK,CAAC,MAAM,EAAE,CAAC;oBAC5B,MAAM,QAAQ,GAAG,KAAK,CAAC,CAAC,GAAG,CAAC,CAAC,CAAC,KAAK,CAAC,cAAc,CAAC,CAAC;oBACpD,IAAI,CAAC,QAAQ;wBAAE,MAAM;oBACrB,KAAK,CAAC,IAAI,CAAC,QAAQ,CAAC,CAAC,CAAC,CAAC,OAAO,CAAC,MAAM,EAAE,EAAE,CAAC,CAAC,IAAI,EAAE,CAAC,OAAO,CAAC,cAAc,EAAE,EAAE,CAAC,CAAC,CAAC;oBAC/E,CAAC,EAAE,CAAC;gBACN,CAAC;gBACD,IAAI,KAAK,CAAC,MAAM,GAAG,CAAC,EAAE,CAAC;oBACrB,QAAQ,GAAG,EAAE,CAAC;wBACZ,KAAK,OAAO;4BACV,MAAM,CAAC,KAAK,GAAG,KAAK,CAAC;4BACrB,MAAM;wBACR,KAAK,YAAY;4BACf,MAAM,CAAC,UAAU,GAAG,KAAK,CAAC;4BAC1B,MAAM;wBACR,KAAK,kBAAkB;4BACrB,MAAM,CAAC,gBAAgB,GAAG,KAAK,CAAC;4BAChC,MAAM;oBACV,CAAC;oBACD,SAAS;gBACX,CAAC;YACH,CAAC;YAED,QAAQ,GAAG,EAAE,CAAC;gBACZ,KAAK,SAAS;oBACZ,MAAM,CAAC,OAAO,GAAG,KAAK,KAAK,MAAM,CAAC;oBAClC,MAAM;gBACR,KAAK,OAAO;oBACV,MAAM,CAAC,KAAK,GAAG,KAAK,CAAC;oBACrB,MAAM;gBACR,KAAK,SAAS;oBACZ,MAAM,CAAC,OAAO,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBAC/B,MAAM;gBACR,KAAK,kBAAkB;oBACrB,MAAM,CAAC,gBAAgB,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBACxC,MAAM;gBACR,KAAK,gBAAgB;oBACnB,MAAM,CAAC,cAAc,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBACtC,MAAM;gBACR,KAAK,kBAAkB;oBACrB,MAAM,CAAC,gBAAgB,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBACxC,MAAM;gBACR,KAAK,mBAAmB;oBACtB,MAAM,CAAC,iBAAiB,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBACzC,MAAM;gBACR,KAAK,eAAe;oBAClB,MAAM,CAAC,aAAa,GAAG,KAAK,CAAC;oBAC7B,MAAM;gBACR,KAAK,cAAc;oBACjB,MAAM,CAAC,YAAY,GAAG,KAAK,CAAC;oBAC5B,MAAM;gBACR,KAAK,gBAAgB;oBACnB,IAAI,KAAK,KAAK,SAAS,IAAI,KAAK,KAAK,QAAQ,EAAE,CAAC;wBAC9C,MAAM,CAAC,cAAc,GAAG,KAAK,CAAC;oBAChC,CAAC;oBACD,MAAM;gBACR,KAAK,qBAAqB;oBACxB,MAAM,CAAC,mBAAmB,GAAG,MAAM,CAAC,KAAK,CAAC,CAAC;oBAC3C,MAAM;gBACR,KAAK,WAAW;oBACd,MAAM,CAAC,SAAS,GAAG,KAAK,KAAK,MAAM,CAAC;oBACpC,MAAM;gBACR,KAAK,SAAS;oBACZ,MAAM,CAAC,OAAO,GAAG,KAAK,CAAC;oBACvB,MAAM;gBACR,KAAK,aAAa;oBAChB,IAAI,KAAK,KAAK,UAAU,IAAI,KAAK,KAAK,aAAa,EAAE,CAAC;wBACpD,MAAM,CAAC,WAAW,GAAG,KAAK,CAAC;oBAC7B,CAAC;oBACD,MAAM;gBACR,KAAK,wBAAwB;oBAC3B,MAAM,CAAC,sBAAsB,GAAG,KAAK,CAAC;oBACtC,MAAM;gBACR,KAAK,qBAAqB;oBACxB,MAAM,CAAC,mBAAmB,GAAG,KAAK,KAAK,MAAM,CAAC;oBAC9C,MAAM;YACV,CAAC;QACH,CAAC;QAED,OAAO,MAAM,CAAC;IAChB,CAAC;IAAC,MAAM,CAAC;QACP,OAAO,EAAE,CAAC;IACZ,CAAC;AACH,CAAC;AAED;;;;;;;GAOG;AACH,MAAM,UAAU,eAAe,CAAC,GAAY,EAAE,GAAY;IACxD,IAAI,GAAG,CAAC,QAAQ;QAAE,OAAO,GAAG,CAAC,QAAQ,CAAC;IACtC,IAAI,GAAG,CAAC,uBAAuB;QAAE,OAAO,GAAG,CAAC,uBAAuB,CAAC;IAEpE,IAAI,CAAC;QACH,OAAO,QAAQ,CAAC,+BAA+B,EAAE;YAC/C,QAAQ,EAAE,OAAO;YACjB,OAAO,EAAE,KAAK;YACd,KAAK,EAAE,CAAC,MAAM,EAAE,MAAM,EAAE,MAAM,CAAC;SAChC,CAAC,CAAC,IAAI,EAAE,CAAC;IACZ,CAAC;IAAC,MAAM,CAAC;QACP,OAAO,SAAS,CAAC;IACnB,CAAC;AACH,CAAC;AAED;;;GAGG;AACH,SAAS,iBAAiB,CACxB,QAAiB,EACjB,GAAY,EACZ,IAAgB;IAEhB,IAAI,GAAG,CAAC,yBAAyB,KAAK,MAAM;QAAE,OAAO,IAAI,CAAC;IAC1D,IAAI,GAAG,CAAC,yBAAyB,KAAK,OAAO;QAAE,OAAO,KAAK,CAAC;IAC5D,IAAI,IAAI,CAAC,mBAAmB,IAAI,IAAI;QAAE,OAAO,IAAI,CAAC,mBAAmB,CAAC;IACtE,OAAO,IAAI,CAAC;AACd,CAAC;AAED;;;GAGG;AACH,MAAM,CAAC,KAAK,UAAU,aAAa,CACjC,OAAgB,EAChB,GAAY,EACZ,UAAuB;IAEvB,MAAM,IAAI,GAAG,UAAU,IAAI,CAAC,MAAM,cAAc,EAAE,CAAC,CAAC;IAEpD,+BAA+B;IAC/B,IAAI,IAAI,CAAC,OAAO,KAAK,KAAK,EAAE,CAAC;QAC3B,MAAM,IAAI,KAAK,CACb,2FAA2F,CAC5F,CAAC;IACJ,CAAC;IAED,0EAA0E;IAC1E,IAAI,KAAK,GAA2C,EAAE,CAAC;IACvD,IAAI,WAAW,GAAiB,SAAS,CAAC;IAE1C,sCAAsC;IACtC,IAAI,OAAO,CAAC,KAAK,EAAE,MAAM,EAAE,CAAC;QAC1B,KAAK,MAAM,CAAC,IAAI,OAAO,CAAC,KAAK,EAAE,CAAC;YAC9B,KAAK,CAAC,IAAI,CAAC,eAAe,CAAC,CAAC,CAAC,CAAC,CAAC;QACjC,CAAC;QACD,WAAW,GAAG,KAAK,CAAC;IACtB,CAAC;IAED,2EAA2E;IAC3E,IAAI,KAAK,CAAC,MAAM,KAAK,CAAC,IAAI,GAAG,CAAC,mBAAmB,EAAE,CAAC;QAClD,KAAK,MAAM,CAAC,IAAI,GAAG,CAAC,mBAAmB,CAAC,KAAK,CAAC,GAAG,CAAC,EAAE,CAAC;YACnD,MAAM,OAAO,GAAG,CAAC,CAAC,IAAI,EAAE,CAAC;YACzB,IAAI,OAAO;gBAAE,KAAK,CAAC,IAAI,CAAC,eAAe,CAAC,OAAO,CAAC,CAAC,CAAC;QACpD,CAAC;QACD,IAAI,KAAK,CAAC,MAAM,GAAG,CAAC;YAAE,WAAW,GAAG,KAAK,CAAC;IAC5C,CAAC;IAED,2DAA2D;IAC3D,IAAI,KAAK,CAAC,MAAM,KAAK,CAAC,IAAI,IAAI,CAAC,KAAK,EAAE,MAAM,EAAE,CAAC;QAC7C,KAAK,MAAM,CAAC,IAAI,IAAI,CAAC,KAAK,EAAE,CAAC;YAC3B,KAAK,CAAC,IAAI,CAAC,eAAe,CAAC,CAAC,CAAC,CAAC,CAAC;QACjC,CAAC;QACD,WAAW,GAAG,MAAM,CAAC;IACvB,CAAC;IAED,+EAA+E;IAC/E,IAAI,KAAK,CAAC,MAAM,KAAK,CAAC,IAAI,CAAC,OAAO,CAAC,YAAY,EAAE,CAAC;QAChD,MAAM,QAAQ,GAAG,MAAM,cAAc,EAAE,CAAC;QACxC,IAAI,QAAQ,EAAE,CAAC;YACb,KAAK,CAAC,IAAI,CAAC,QAAQ,CAAC,CAAC;YACrB,WAAW,GAAG,aAAa,CAAC;QAC9B,CAAC;IACH,CAAC;IAED,IAAI,KAAK,CAAC,MAAM,KAAK,CAAC,EAAE,CAAC;QACvB,MAAM,IAAI,KAAK,CACb,8FAA8F,CAC/F,CAAC;IACJ,CAAC;IAED,sDAAsD;IACtD,MAAM,WAAW,GAAiB,OAAO,CAAC,KAAK;QAC7C,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,GAAG,CAAC,mBAAmB;YACvB,CAAC,CAAC,KAAK;YACP,CAAC,CAAC,IAAI,CAAC,KAAK;gBACV,CAAC,CAAC,MAAM;gBACR,CAAC,CAAC,SAAS,CAAC;IAElB,0BAA0B;IAC1B,MAAM,YAAY,GAAiB,OAAO,CAAC,MAAM,IAAI,IAAI;QACvD,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,GAAG,CAAC,qBAAqB,KAAK,MAAM;YACpC,CAAC,CAAC,KAAK;YACP,CAAC,CAAC,SAAS,CAAC;IAEhB,8BAA8B;IAC9B,MAAM,oBAAoB,GAAiB,OAAO,CAAC,cAAc,IAAI,IAAI;QACvE,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,IAAI,CAAC,gBAAgB,IAAI,IAAI;YAC7B,CAAC,CAAC,MAAM;YACR,CAAC,CAAC,SAAS,CAAC;IAChB,MAAM,qBAAqB,GAAiB,OAAO,CAAC,eAAe,IAAI,IAAI;QACzE,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,IAAI,CAAC,iBAAiB,IAAI,IAAI;YAC9B,CAAC,CAAC,MAAM;YACR,CAAC,CAAC,SAAS,CAAC;IAChB,MAAM,kBAAkB,GAAiB,OAAO,CAAC,YAAY,IAAI,IAAI;QACnE,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,IAAI,CAAC,cAAc,IAAI,IAAI;YAC3B,CAAC,CAAC,MAAM;YACR,CAAC,CAAC,SAAS,CAAC;IAEhB,yEAAyE;IACzE,MAAM,QAAQ,GAAG,eAAe,CAAC,OAAO,EAAE,GAAG,CAAC,CAAC;IAE/C,wDAAwD;IACxD,MAAM,MAAM,GAAwB;QAClC,KAAK;QACL,QAAQ;QACR,KAAK,EACH,OAAO,CAAC,KAAK,IAAI,GAAG,CAAC,mBAAmB,IAAI,IAAI,CAAC,KAAK,IAAI,QAAQ,CAAC,KAAK;QAC1E,MAAM,EAAE,IAAI,CAAC,OAAO,IAAI,QAAQ,CAAC,MAAM;QACvC,aAAa,EAAE,IAAI,CAAC,gBAAgB,IAAI,QAAQ,CAAC,aAAa;QAC9D,YAAY,EAAE,OAAO,CAAC,YAAY,IAAI,IAAI,CAAC,cAAc,IAAI,QAAQ,CAAC,YAAY;QAClF,cAAc,EAAE,OAAO,CAAC,cAAc,IAAI,IAAI,CAAC,gBAAgB,IAAI,QAAQ,CAAC,cAAc;QAC1F,eAAe,EAAE,OAAO,CAAC,eAAe,IAAI,IAAI,CAAC,iBAAiB,IAAI,QAAQ,CAAC,eAAe;QAC9F,UAAU,EAAE,IAAI,CAAC,UAAU,IAAI,QAAQ,CAAC,UAAU;QAClD,YAAY,EAAE,IAAI,CAAC,aAAa,IAAI,QAAQ,CAAC,YAAY;QACzD,gBAAgB,EAAE,IAAI,CAAC,YAAY,IAAI,QAAQ,CAAC,gBAAgB;QAChE,MAAM,EACJ,OAAO,CAAC,MAAM;YACd,CAAC,GAAG,CAAC,qBAAqB,KAAK,MAAM,CAAC,CAAC,CAAC,IAAI,CAAC,CAAC,CAAC,SAAS,CAAC;YACzD,QAAQ,CAAC,MAAM;QACjB,eAAe,EAAE;YACf,GAAG,CAAC,IAAI,CAAC,gBAAgB,IAAI,EAAE,CAAC;YAChC,GAAG,CAAC,OAAO,CAAC,OAAO,IAAI,EAAE,CAAC;SAC3B;QACD,aAAa,EAAE,IAAI,CAAC,cAAc,IAAI,QAAQ,CAAC,aAAa;QAC5D,iBAAiB,EAAE,IAAI,CAAC,mBAAmB,IAAI,QAAQ,CAAC,iBAAiB;QACzE,GAAG,CAAC,OAAO,CAAC,EAAE,IAAI,IAAI,CAAC,CAAC,CAAC,EAAE,QAAQ,EAAE,OAAO,CAAC,EAAE,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;QACvD,GAAG,CAAC,IAAI,CAAC,SAAS,IAAI,IAAI,CAAC,CAAC,CAAC,EAAE,QAAQ,EAAE,IAAI,CAAC,SAAS,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;QAC/D,GAAG,CAAC,OAAO,CAAC,OAAO,IAAI,IAAI,IAAI,IAAI,CAAC,OAAO,IAAI,IAAI;YACjD,CAAC,CAAC,EAAE,OAAO,EAAE,OAAO,CAAC,OAAO,IAAI,IAAI,CAAC,OAAO,EAAE;YAC9C,CAAC,CAAC,EAAE,CAAC;QACP,GAAG,CAAC,IAAI,CAAC,YAAY,IAAI,IAAI;YAC3B,CAAC,CAAC,EAAE,eAAe,EAAE,IAAI,CAAC,YAAY,EAAE;YACxC,CAAC,CAAC,EAAE,CAAC;QACP,GAAG,CAAC,OAAO,CAAC,eAAe,CAAC,CAAC,CAAC,EAAE,eAAe,EAAE,IAAI,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;QAC7D,GAAG,CAAC,IAAI,CAAC,sBAAsB,IAAI,IAAI;YACrC,CAAC,CAAC,EAAE,oBAAoB,EAAE,IAAI,CAAC,sBAAsB,EAAE;YACvD,CAAC,CAAC,EAAE,CAAC;QACP,GAAG,CAAC,iBAAiB,CAAC,OAAO,EAAE,GAAG,EAAE,IAAI,CAAC,IAAI,IAAI;YAC/C,CAAC,CAAC,EAAE,UAAU,EAAE,EAAE,OAAO,EAAE,iBAAiB,CAAC,OAAO,EAAE,GAAG,EAAE,IAAI,CAAE,EAAE,EAAE;YACrE,CAAC,CAAC,EAAE,CAAC;QACP,UAAU,EACR,OAAO,CAAC,UAAU;YAClB,CAAC,GAAG,CAAC,sBAAsB,KAAK,UAAU,IAAI,GAAG,CAAC,sBAAsB,KAAK,aAAa;gBACxF,CAAC,CAAC,GAAG,CAAC,sBAAsB;gBAC5B,CAAC,CAAC,SAAS,CAAC;YACd,IAAI,CAAC,WAAW;YAChB,QAAQ,CAAC,UAAU;KACtB,CAAC;IAEF,8BAA8B;IAC9B,MAAM,gBAAgB,GAAiB,OAAO,CAAC,UAAU;QACvD,CAAC,CAAC,KAAK;QACP,CAAC,CAAC,GAAG,CAAC,sBAAsB,KAAK,UAAU,IAAI,GAAG,CAAC,sBAAsB,KAAK,aAAa;YACzF,CAAC,CAAC,KAAK;YACP,CAAC,CAAC,IAAI,CAAC,WAAW;gBAChB,CAAC,CAAC,MAAM;gBACR,CAAC,CAAC,SAAS,CAAC;IAElB,MAAM,UAAU,GAAqB;QACnC,KAAK,EAAE,WAAW;QAClB,KAAK,EAAE,WAAW;QAClB,MAAM,EAAE,YAAY;QACpB,cAAc,EAAE,oBAAoB;QACpC,eAAe,EAAE,qBAAqB;QACtC,YAAY,EAAE,kBAAkB;QAChC,UAAU,EAAE,gBAAgB;KAC7B,CAAC;IAEF,OAAO,EAAE,MAAM,EAAE,UAAU,EAAE,CAAC;AAChC,CAAC;AAED;;GAEG;AACH,MAAM,UAAU,YAAY,CAC1B,MAA2B,EAC3B,QAAiB;IAEjB,IAAI,QAAQ,IAAI,IAAI,IAAI,MAAM,CAAC,KAAK,CAAC,MAAM,GAAG,CAAC,EAAE,CAAC;QAChD,MAAM,IAAI,KAAK,CACb,QAAQ,QAAQ,kBAAkB,MAAM,CAAC,KAAK,CAAC,MAAM,qBAAqB;YACxE,gEAAgE,CACnE,CAAC;IACJ,CAAC;IACD,OAAO,MAAM,CAAC,KAAK,CAAC;AACtB,CAAC;AAcD;;;GAGG;AACH,MAAM,UAAU,qBAAqB,CACnC,MAA2B,EAC3B,UAA6B;IAE7B,MAAM,SAAS,GAAG,MAAM,CAAC,KAAK;SAC3B,GAAG,CAAC,CAAC,CAAC,EAAE,EAAE,CAAC,GAAG,CAAC,CAAC,KAAK,IAAI,CAAC,CAAC,IAAI,EAAE,CAAC;SAClC,IAAI,CAAC,IAAI,CAAC,CAAC;IACd,MAAM,CAAC,GAAG,UAAU,CAAC;IACrB,MAAM,OAAO,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,KAAK,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IACzC,MAAM,QAAQ,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,KAAK,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IAC1C,MAAM,MAAM,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,MAAM,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IACzC,MAAM,QAAQ,GAAG,MAAM,CAAC,QAAQ,IAAI,IAAI,CAAC,CAAC,CAAC,gBAAgB,MAAM,CAAC,QAAQ,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;IAClF,MAAM,QAAQ,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,cAAc,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IACnD,MAAM,SAAS,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,eAAe,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IACrD,MAAM,OAAO,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,YAAY,GAAG,CAAC,CAAC,CAAC,EAAE,CAAC;IAChD,MAAM,WAAW,GAAG,MAAM,CAAC,OAAO,CAAC,CAAC,CAAC,aAAa,MAAM,CAAC,OAAO,EAAE,CAAC,CAAC,CAAC,EAAE,CAAC;IACxE,MAAM,WAAW,GACf,MAAM,CAAC,eAAe,CAAC,MAAM,GAAG,CAAC;QAC/B,CAAC,CAAC,uBAAuB,MAAM,CAAC,eAAe,CAAC,IAAI,CAAC,IAAI,CAAC,GAAG;QAC7D,CAAC,CAAC,EAAE,CAAC;IACT,OAAO,CACL,kCAAkC,SAAS,IAAI,OAAO,IAAI;QAC1D,SAAS,MAAM,CAAC,KAAK,GAAG,QAAQ,aAAa,MAAM,CAAC,MAAM,IAAI;QAC9D,oBAAoB,MAAM,CAAC,cAAc,GAAG,QAAQ,IAAI;QACxD,qBAAqB,MAAM,CAAC,eAAe,GAAG,SAAS,IAAI;QAC3D,kBAAkB,MAAM,CAAC,YAAY,GAAG,OAAO,IAAI;QACnD,WAAW,MAAM,CAAC,MAAM,GAAG,MAAM,oBAAoB,MAAM,CAAC,aAAa,GAAG,QAAQ,EAAE;QACtF,GAAG,WAAW,GAAG,WAAW,EAAE;QAC9B,iBAAiB,MAAM,CAAC,UAAU,GAAG,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,CAAC,UAAU,GAAG,CAAC,CAAC,CAAC,EAAE,EAAE,CACrE,CAAC;AACJ,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"config.js","sourceRoot":"","sources":["../resources/config.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts.map b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts.map
+index 76d3e509..18620a9f 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts.map
++++ b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"multi-model-pipeline.d.ts","sourceRoot":"","sources":["../../resources/core/multi-model-pipeline.ts"],"names":[],"mappings":"AASA,OAAO,KAAK,EAA+B,cAAc,EAAE,MAAM,0BAA0B,CAAC;AAC5F,OAAO,KAAK,EAAE,sBAAsB,EAAE,MAAM,0BAA0B,CAAC;AACvE,OAAO,KAAK,EAAE,aAAa,EAAoB,MAAM,2BAA2B,CAAC;AACjF,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,8BAA8B,CAAC;AACrE,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,oBAAoB,CAAC;AAClD,OAAO,KAAK,EACV,mBAAmB,EAEnB,UAAU,EAEV,WAAW,EACZ,MAAM,YAAY,CAAC;AACpB,OAAO,EAA0B,KAAK,aAAa,EAAE,MAAM,qBAAqB,CAAC;AAEjF,OAAO,KAAK,EAAgC,aAAa,EAAE,MAAM,cAAc,CAAC;AAIhF,OAAO,KAAK,EAAE,SAAS,EAAE,gBAAgB,EAAE,MAAM,eAAe,CAAC;AAyCjE,wBAAgB,eAAe,CAC7B,QAAQ,EAAE,MAAM,EAChB,OAAO,EAAE,MAAM,EACf,MAAM,EAAE,mBAAmB,GAC1B,MAAM,CAQR;AAED,MAAM,WAAW,sBAAsB;IACrC,gCAAgC;IAChC,YAAY,EAAE,KAAK,CAAC;QAClB,QAAQ,EAAE,MAAM,CAAC;QACjB,KAAK,EAAE,MAAM,CAAC;QACd,QAAQ,CAAC,EAAE,cAAc,CAAC;QAC1B,KAAK,CAAC,EAAE,WAAW,CAAC;QACpB,MAAM,EAAE,OAAO,CAAC;KACjB,CAAC,CAAC;IACH,kDAAkD;IAClD,SAAS,EAAE,aAAa,CAAC;IACzB,6CAA6C;IAC7C,MAAM,EAAE,OAAO,CAAC;IAChB,wCAAwC;IACxC,eAAe,EAAE,MAAM,CAAC;IACxB,aAAa,EAAE,aAAa,CAAC;IAC7B,4HAA4H;IAC5H,UAAU,CAAC,EAAE,KAAK,CAAC;QAAE,QAAQ,EAAE,MAAM,CAAC;QAAC,OAAO,EAAE,MAAM,CAAC;QAAC,MAAM,EAAE,iBAAiB,CAAA;KAAE,CAAC,CAAC;CACtF;AAED,MAAM,WAAW,gBAAgB;IAC/B,MAAM,EAAE,aAAa,CAAC;IACtB,SAAS,EAAE,gBAAgB,CAAC;IAC5B,MAAM,EAAE,OAAO,CAAC;CACjB;AAED;;;;;;GAMG;AACH,wBAAgB,iBAAiB,CAC/B,MAAM,EAAE,aAAa,EACrB,MAAM,EAAE;IAAE,MAAM,EAAE,OAAO,CAAA;CAAE,EAC3B,MAAM,EAAE,OAAO,EACf,OAAO,EAAE,MAAM,GACd,OAAO,CAOT;AAED;;;;;;GAMG;AACH,MAAM,WAAW,iBAAiB;IAChC,gDAAgD;IAChD,QAAQ,EAAE,gBAAgB,CAAC;IAC3B,2CAA2C;IAC3C,OAAO,EAAE,MAAM,CAAC;IAChB;;;;OAIG;IACH,WAAW,CAAC,EAAE,SAAS,EAAE,CAAC;CAC3B;AAED;;;;;;;;;GASG;AACH,wBAAsB,uBAAuB,CAC3C,IAAI,EAAE,UAAU,EAChB,YAAY,EAAE,MAAM,EACpB,UAAU,EAAE,MAAM,EAClB,MAAM,EAAE,mBAAmB,EAC3B,QAAQ,EAAE,gBAAgB,EAC1B,UAAU,CAAC,EAAE,iBAAiB,GAC7B,OAAO,CAAC,sBAAsB,CAAC,CA4SjC;AAkCD;;;GAGG;AACH,wBAAgB,0BAA0B,CAAC,OAAO,EAAE,MAAM,GAAG,KAAK,CAAC;IACjE,EAAE,EAAE,MAAM,CAAC;IACX,KAAK,EAAE,MAAM,CAAC;IACd,QAAQ,EAAE,MAAM,CAAC;IACjB,QAAQ,EAAE,MAAM,CAAC;IACjB,IAAI,CAAC,EAAE,MAAM,CAAC;IACd,WAAW,EAAE,MAAM,CAAC;IACpB,UAAU,CAAC,EAAE,MAAM,CAAC;IACpB,UAAU,CAAC,EAAE,MAAM,CAAC;IACpB,CAAC,GAAG,EAAE,MAAM,GAAG,OAAO,CAAC;CACxB,CAAC,CAgBD;AAED;;GAEG;AACH;;;;;;;;;;;;;;;;;;;;;GAqBG;AACH;;;;;;;;;;GAUG;AACH,wBAAgB,6BAA6B,CAC3C,eAAe,EAAE,KAAK,CAAC;IACrB,QAAQ,EAAE,MAAM,CAAC;IACjB,OAAO,EAAE,MAAM,CAAC;IAChB,aAAa,CAAC,EAAE;QACd,OAAO,CAAC,EAAE,OAAO,CAAC;QAClB,eAAe,CAAC,EAAE,MAAM,CAAC;QACzB,cAAc,CAAC,EAAE,MAAM,CAAC;QACxB,oBAAoB,CAAC,EAAE,MAAM,CAAC;QAC9B,gBAAgB,CAAC,EAAE,OAAO,CAAC;KAC5B,CAAC;CACH,CAAC,GACD,MAAM,CA4BR;AAED;;;;;;;;;;GAUG;AACH,wBAAgB,kBAAkB,CAChC,eAAe,EAAE,KAAK,CAAC;IACrB,cAAc,CAAC,EAAE;QAAE,MAAM,CAAC,EAAE,MAAM,CAAC;QAAC,YAAY,CAAC,EAAE,MAAM,CAAA;KAAE,CAAC;CAC7D,CAAC,GACD,UAAU,GAAG,UAAU,GAAG,QAAQ,GAAG,IAAI,CAqB3C;AAED,wBAAgB,0BAA0B,CACxC,eAAe,EAAE,KAAK,CAAC;IACrB,QAAQ,EAAE,MAAM,CAAC;IACjB,OAAO,EAAE,MAAM,CAAC;IAChB,cAAc,CAAC,EAAE;QACf,MAAM,CAAC,EAAE,MAAM,CAAC;QAChB,gBAAgB,CAAC,EAAE,MAAM,CAAC;QAC1B,cAAc,CAAC,EAAE,MAAM,CAAC;QACxB,YAAY,CAAC,EAAE,MAAM,CAAC;KACvB,CAAC;CACH,CAAC,GACD,MAAM,CAwBR;AAED;;;;;;GAMG;AACH,MAAM,WAAW,qBAAqB;IACpC,IAAI,EAAE,MAAM,CAAC;IACb,YAAY,EAAE,UAAU,GAAG,QAAQ,CAAC;IACpC,kBAAkB,EAAE,MAAM,CAAC;IAC3B,aAAa,CAAC,EAAE,MAAM,EAAE,CAAC;IACzB,eAAe,EAAE,MAAM,GAAG,IAAI,CAAC;IAC/B,SAAS,EAAE,MAAM,CAAC;IAClB,EAAE,EAAE,MAAM,CAAC;CACZ;AAED;;;;;;;;;;;;;;;;;;;;;GAqBG;AACH,wBAAsB,6BAA6B,CACjD,IAAI,EAAE;IAAE,KAAK,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAC;IAAC,EAAE,EAAE;QAAE,MAAM,EAAE,MAAM,CAAA;KAAE,CAAA;CAAE,EAC7D,eAAe,EAAE,KAAK,CAAC;IAAE,cAAc,CAAC,EAAE,sBAAsB,CAAA;CAAE,CAAC,EACnE,IAAI,CAAC,EAAE;IAAE,QAAQ,CAAC,EAAE,MAAM,CAAC;IAAC,IAAI,CAAC,EAAE,MAAM,CAAA;CAAE,GAC1C,OAAO,CAAC,IAAI,CAAC,CAoCf"}
+\ No newline at end of file
++{"version":3,"file":"multi-model-pipeline.d.ts","sourceRoot":"","sources":["../../resources/core/multi-model-pipeline.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js
+index 8aeb8360..c2d29508 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js
++++ b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js
+@@ -117,6 +117,11 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
+             logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+         }
+     }
++    // (r251-4 S1, audit n22: a read error is a HOST fault, not a decision — strict mode promised every configured voice, so a
++    // voice the failed read removed refuses the review; graceful mode runs the rest but never clears the merge, below)
++    if (multiConfig.api_key_mode === "strict" && agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
++        throw new Error(`Strict mode: the Loa config is unreadable (${agyGate.readError}) — the agy gate failed closed and configured voices will not run: ${notPlannedList} (hounfour.headless.agy_opt_in)`);
++    }
+     if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
+         throw new Error(`Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`);
+     }
+@@ -264,7 +269,9 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
+         provider: r.provider,
+         modelId: r.model,
+         verdictQuality: r.response?.verdictQuality,
+-    })));
++    })), 
++    // (r251-4 S8, audit n21: the posted line names the voices that were not planned, and why)
++    keyStatus.notPlanned.map((np) => ({ provider: np.provider, modelId: np.modelId })), agyGate.readError !== undefined ? "Loa config unreadable — the agy gate failed closed" : "agy opt-in off: hounfour.headless.agy_opt_in");
+     // cycle-118 bd-bb-degraded-verdict-ts — append a DEGRADED/FAILED trajectory
+     // record (same channel/schema as the 3 bash gate writers). No-op when the
+     // aggregate band is APPROVED/clean. Fire-and-forget: never throws.
+@@ -317,8 +324,13 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
+     if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
+         reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
+     }
+-    // Incomplete or degraded participation can never clear a merge.
+-    if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||
++    // Incomplete or degraded participation can never clear a merge. A voice the opt-in decision removed is not expected; a
++    // voice a READ ERROR removed still is (r251-4 S1, audit n22: a host fault never shrinks the quorum).
++    if (agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
++        reviewVerdict.mergeBlocked = true;
++        reviewVerdict.mergeBlockedReason = `Loa config unreadable (${agyGate.readError}): the agy gate failed closed and ${notPlannedList} did not run`;
++    }
++    if (modelResults.length !== multiConfig.models.length - (agyGate.readError !== undefined ? 0 : keyStatus.notPlanned.length) ||
+         modelResults.some((result) => result.error || !result.response) ||
+         computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
+         reviewVerdict.mergeBlocked = true;
+@@ -462,7 +474,7 @@ export function computeVerdictBand(perModelResults) {
+         return "DEGRADED";
+     return "APPROVED";
+ }
+-export function formatVerdictQualityHeader(perModelResults) {
++export function formatVerdictQualityHeader(perModelResults, notPlanned = [], notPlannedReason = "agy opt-in off: hounfour.headless.agy_opt_in") {
+     const band = computeVerdictBand(perModelResults);
+     if (band === null)
+         return "";
+@@ -483,7 +495,10 @@ export function formatVerdictQualityHeader(perModelResults) {
+     else {
+         banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
+     }
+-    return `**Verdict Quality**: ${banner}\n\n`;
++    const np = notPlanned.length > 0
++        ? ` · not planned: ${notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")} (${notPlannedReason})`
++        : "";
++    return `**Verdict Quality**: ${banner}${np}\n\n`;
+ }
+ /**
+  * Append a degraded-verdict trajectory record when BB's aggregate multi-model
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map
+index f5bc8322..6728da61 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map
++++ b/.claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"multi-model-pipeline.js","sourceRoot":"","sources":["../../resources/core/multi-model-pipeline.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"multi-model-pipeline.js","sourceRoot":"","sources":["../../resources/core/multi-model-pipeline.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/resources/config.ts b/.claude/skills/bridgebuilder-review/resources/config.ts
+index ca508251..a649306b 100644
+--- a/.claude/skills/bridgebuilder-review/resources/config.ts
++++ b/.claude/skills/bridgebuilder-review/resources/config.ts
+@@ -163,6 +163,11 @@ export function loaConfigPathFor(repoRoot?: string): string {
+   return repoRoot ? join(repoRoot, ".loa.config.yaml") : ".loa.config.yaml";
+ }
+ 
++/** The go-yq "is the key present" program — the same text as the bash lib's `_AGY_YQ_HAS` and the Python loader's
++ * `_YQ_HAS` (r251-4 S3): every level a real mapping (`kind` is "alias" for an alias node) and the explicit key only (`has`
++ * never sees a merge key's). */
++export const AGY_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))';
++
+ /**
+  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
+  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
+@@ -178,16 +183,22 @@ export function readAgyGate(configPath: string): AgyGate {
+       const out = execFileSync(
+         "yq",
+         ["eval", "-o=json", "-I=0",
+-          '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
++          `{"has": (${AGY_YQ_HAS}), "kind": (.hounfour.headless.agy_opt_in | kind), "opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}`,
+           configPath],
+         { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"] },
+       );
+-      const parsed = JSON.parse(out) as { opt?: unknown; canon?: unknown; tag?: unknown; mode?: unknown };
+-      optIn = parsed.opt === true;
++      const parsed = JSON.parse(out) as { has?: unknown; kind?: unknown; opt?: unknown; canon?: unknown; tag?: unknown; mode?: unknown };
++      // (r251-4 S3: the key must be written at hounfour.headless itself — every level a real mapping, never an alias or a
++      // merge key's value — and its node a plain scalar of the exact bool tag; one rule with the bash and Python readers)
++      const present = parsed.has === true;
++      const alias = parsed.kind === "alias";
++      optIn = present && !alias && parsed.opt === true;
+       mode = typeof parsed.mode === "string" ? parsed.mode : "";
+-      if (typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
++      if (present && alias) {
++        typeWarning = "hounfour.headless.agy_opt_in is present but not a YAML boolean (an alias) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off";
++      } else if (present && typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
+         typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;
+-      } else if (parsed.tag === "!!bool" && parsed.canon !== true) {
++      } else if (present && parsed.tag === "!!bool" && parsed.canon !== true) {
+         typeWarning = "hounfour.headless.agy_opt_in is a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off";
+       }
+     } catch (err) {
+diff --git a/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts b/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts
+index 309dfec0..847160ae 100644
+--- a/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts
++++ b/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts
+@@ -189,6 +189,13 @@ export async function executeMultiModelReview(
+       logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+     }
+   }
++  // (r251-4 S1, audit n22: a read error is a HOST fault, not a decision — strict mode promised every configured voice, so a
++  // voice the failed read removed refuses the review; graceful mode runs the rest but never clears the merge, below)
++  if (multiConfig.api_key_mode === "strict" && agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
++    throw new Error(
++      `Strict mode: the Loa config is unreadable (${agyGate.readError}) — the agy gate failed closed and configured voices will not run: ${notPlannedList} (hounfour.headless.agy_opt_in)`,
++    );
++  }
+   if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
+     throw new Error(
+       `Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`,
+@@ -381,6 +388,9 @@ export async function executeMultiModelReview(
+       modelId: r.model,
+       verdictQuality: r.response?.verdictQuality,
+     })),
++    // (r251-4 S8, audit n21: the posted line names the voices that were not planned, and why)
++    keyStatus.notPlanned.map((np) => ({ provider: np.provider, modelId: np.modelId })),
++    agyGate.readError !== undefined ? "Loa config unreadable — the agy gate failed closed" : "agy opt-in off: hounfour.headless.agy_opt_in",
+   );
+   // cycle-118 bd-bb-degraded-verdict-ts — append a DEGRADED/FAILED trajectory
+   // record (same channel/schema as the 3 bash gate writers). No-op when the
+@@ -449,8 +459,13 @@ export async function executeMultiModelReview(
+   if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
+     reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
+   }
+-  // Incomplete or degraded participation can never clear a merge.
+-  if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||
++  // Incomplete or degraded participation can never clear a merge. A voice the opt-in decision removed is not expected; a
++  // voice a READ ERROR removed still is (r251-4 S1, audit n22: a host fault never shrinks the quorum).
++  if (agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
++    reviewVerdict.mergeBlocked = true;
++    reviewVerdict.mergeBlockedReason = `Loa config unreadable (${agyGate.readError}): the agy gate failed closed and ${notPlannedList} did not run`;
++  }
++  if (modelResults.length !== multiConfig.models.length - (agyGate.readError !== undefined ? 0 : keyStatus.notPlanned.length) ||
+       modelResults.some((result) => result.error || !result.response) ||
+       computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
+     reviewVerdict.mergeBlocked = true;
+@@ -657,6 +672,8 @@ export function formatVerdictQualityHeader(
+       chain_health?: string;
+     };
+   }>,
++  notPlanned: ReadonlyArray<{ provider: string; modelId: string }> = [],
++  notPlannedReason = "agy opt-in off: hounfour.headless.agy_opt_in",
+ ): string {
+   const band = computeVerdictBand(perModelResults);
+   if (band === null) return "";
+@@ -680,7 +697,10 @@ export function formatVerdictQualityHeader(
+     banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
+   }
+ 
+-  return `**Verdict Quality**: ${banner}\n\n`;
++  const np = notPlanned.length > 0
++    ? ` · not planned: ${notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")} (${notPlannedReason})`
++    : "";
++  return `**Verdict Quality**: ${banner}${np}\n\n`;
+ }
+ 
+ /**
+diff --git a/tests/unit/loa-status-providers.bats b/tests/unit/loa-status-providers.bats
+index 83d32dd2..ee0de252 100644
+--- a/tests/unit/loa-status-providers.bats
++++ b/tests/unit/loa-status-providers.bats
+@@ -204,3 +204,50 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
+   run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
+   echo "$output" | jq -e '.providers.providers.google.cli_hop == "agy" and (.providers.providers.google | has("cli_hop_note") | not)' >/dev/null
+ }
++
++@test "LSP-6 (r251-4 S8, audit n11) the opus target reaches yq as a value, never as expression text" {
++  # an alias crafted to rewrite the old interpolated expression into `… // 777 // …`
++  cat > "$T/catalog.yaml" <<'YAML'
++aliases:
++  opus: 'anthropic:zz" // 777 // ."zz'
++providers:
++  anthropic:
++    models:
++      claude-fixture-1:
++        context_window: 1000000
++        effective_input_ceiling: 200000
++        probed_ceiling: 200000
++YAML
++  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
++  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"
++  run timeout 120 bash "$STATUS" --no-stale-check --json
++  [ "$status" -eq 0 ]
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.value != 777' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
++  # (and the printed probe command quotes the id, as cheval's hint does — audit n4)
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.calibrate == ("python3 tools/ceiling-probe-live.py --model " + ("zz\" // 777 // .\"zz" | @sh) + " --write-catalog")' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
++}
++
++@test "LSP-7 (r251-4 S7 parity with routing.ceiling) an implausible observation (below 0.1 × the window) never becomes the displayed bound" {
++  _lsp5_catalog "$T/catalog.yaml" "" ""
++  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
++  local m=claude-fixture-1
++  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT 150000 PROVIDER_CONTEXT_LIMIT
++  run timeout 120 bash "$STATUS" --no-stale-check --json
++  [ "$status" -eq 0 ]
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 149999' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
++  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT
++  run timeout 120 bash "$STATUS" --no-stale-check --json
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "probed" and .value == 200000' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
++}
++
++@test "LSP-8 (r251-4, sibling of S4) without lib/agy-gate-lib.sh /loa still answers: exit 0, the agy route reads off (fail closed), one WARN in human mode, --json quiet" {
++  local S="$T/copy/.claude/scripts"; mkdir -p "$S"
++  cp -- "$STATUS" "$S/loa-status.sh"   # (no lib/ beside it — a partial install)
++  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check --json
++  [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
++  echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || { echo "$output" | jq -c '.providers.providers.google'; return 1; }
++  [[ "$stderr" != *"agy-gate-lib"* ]] || { echo "--json warned: $stderr"; return 1; }
++  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check
++  [ "$status" -eq 0 ]
++  [ "$(grep -c 'agy-gate-lib.sh.*not loaded' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
++}
+diff --git a/tools/ceiling-probe-live.py b/tools/ceiling-probe-live.py
+index c480c8b5..008a4a60 100755
+--- a/tools/ceiling-probe-live.py
++++ b/tools/ceiling-probe-live.py
+@@ -73,7 +73,20 @@ rate the CLI is billed at for the prompt (`pricing_basis: catalog_estimate`,
+   output past the cap / interrupted
+   not sent (spawn failed)           0
+ The budget cap is checked BEFORE every attempt against the estimate
+-(target × price): what an attempt will cost is unknown until it returns.
++(filler × ratio × price): what an attempt will cost is unknown until it
++returns. Until a step measures a ratio the estimate (only) assumes the Opus
++4.7+ tokenizer's 1.8 — the first step's filler is still sent blind. A CLI
++cost, token count or retry-after that is not a finite number in a sane range
++(cost < $1000, tokens < 10^9, retry-after < 3600 s) is dropped and noted in
++the sample's `dropped_values`.
++
++--host-route, the resolved --cli-model (an alias resolves through the
++wrapper's ANTHROPIC_DEFAULT_*_MODEL) and the CLI's --version reach the
++catalog's provenance text: a control or line-break character, or more than
++200 characters, is a usage error (exit 2) before any call. The writer
++re-parses the text it produced and refuses (nothing written) unless the
++entry's ceilings and calibration load as written and nothing else changed.
++The record names the binary resolved on PATH, `~`-relative under $HOME.
+ 
+ Outcome `clean` = the largest accepted step is verified, a size rejection
+ sits within --tolerance-tokens above it, and nothing was `other`,
+@@ -118,6 +131,7 @@ from __future__ import annotations
+ import argparse
+ import datetime as dt
+ import json
++import math
+ import os
+ import re
+ import shutil
+@@ -193,6 +207,7 @@ _TPM_WINDOW_S = 60
+ if sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S:  # r251-2 Q7: the schedule alone clears the window
+     raise RuntimeError("ceiling-probe-live: _TPM_BACKOFF_S must sum to at least _TPM_WINDOW_S")
+ _RETRY_WAIT_CAP_S = 180         # total sleep per step, every class
++_PRIOR_RATIO = 1.8              # measured/filler before any step measures (estimates only, r251-4 T3)
+ _RETRY_AFTER = re.compile(r"retry[-_ ]after\W{0,4}(\d+(?:\.\d+)?)", re.I)
+ # A throttle marker (verifier r251-1) wins over a context marker: Bedrock's token
+ # throttle reads "Too many tokens, please wait before trying again" — it carries
+@@ -234,6 +249,39 @@ def _cli_bin() -> str:
+     return os.environ.get("CLAUDE_HEADLESS_BIN") or "claude"
+ 
+ 
++def _home_rel(path: str) -> str:
++    """r251-4 T4 (n40): a path under the operator's home, rendered `~/…` for the record."""
++    home = os.path.expanduser("~").rstrip("/")
++    if home and path.startswith(home + "/"):
++        return "~" + path[len(home):]
++    return path
++
++
++def _recorded_bin(cli_bin: str) -> str:
++    """r251-4 T4 (n43): the binary that ran — resolved on PATH when bare — `~`-relative."""
++    return _home_rel(shutil.which(cli_bin) or cli_bin)
++
++
++# r251-4 T1 (n52): values that reach the catalog's provenance comment must be one
++# short line. C0 controls, DEL, C1 controls (NEL \x85 is a YAML line break) and the
++# Unicode line / paragraph separators all end a YAML comment.
++_UNSAFE_CHARS = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")
++_FIELD_MAX = 200
++
++
++def _unsafe_field(value) -> str | None:
++    """Why `value` may not reach the catalog text, or None when it may."""
++    if value is None:
++        return None
++    if not isinstance(value, str):
++        return f"not a string ({type(value).__name__})"
++    if _UNSAFE_CHARS.search(value):
++        return "contains a control or line-break character"
++    if len(value) > _FIELD_MAX:
++        return f"is {len(value)} characters (max {_FIELD_MAX})"
++    return None
++
++
+ def _cli_command(cli_bin: str, cli_model: str) -> list[str]:
+     """The adapter's argv (prompt on stdin) + the probe's pins: --effort low --max-turns 1."""
+     cha, _, _ = _adapters()
+@@ -302,6 +350,27 @@ def _run_capped(cmd: list[str], prompt: str, timeout: int) -> tuple[int, str, st
+ 
+ 
+ _DETAIL_CHARS = 300             # the record's `detail`; classification reads the full text
++# r251-4 T2 (n56): numbers the CLI's JSON reports are kept only when finite and sane —
++# json.loads accepts Infinity / NaN, and int(inf * 1e6) raised OverflowError in _charge.
++_MAX_COST_USD = 1000
++_MAX_TOKENS = 10 ** 9
++_MAX_RETRY_AFTER_S = 3600
++
++
++def _bounded(name: str, value, upper, dropped: list) -> int | float | None:
++    """`value` when it is a finite number in [0, upper), else None (noted in `dropped`)."""
++    if value is None:
++        return None
++    if isinstance(value, bool) or not isinstance(value, (int, float)):
++        dropped.append(f"{name}={value!r:.60}: not a number")
++        return None
++    if isinstance(value, float) and not math.isfinite(value):
++        dropped.append(f"{name}={value!r}: not finite")
++        return None
++    if not 0 <= value < upper:
++        dropped.append(f"{name}={value!r:.60}: outside [0, {upper})")
++        return None
++    return value
+ 
+ 
+ def _classify(rc: int, stdout: str, stderr: str, needle: str) -> dict:
+@@ -323,9 +392,14 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
+     except json.JSONDecodeError:
+         parsed = None
+     usage = parsed.get("usage") if isinstance(parsed, dict) else None
+-    base = {"measured_input_tokens": _measured(usage),
+-            "cli_reported_cost_usd": parsed.get("total_cost_usd") if isinstance(parsed, dict) else None,
++    dropped: list[str] = []
++    base = {"measured_input_tokens": _bounded("measured_input_tokens", _measured(usage), _MAX_TOKENS, dropped),
++            "cli_reported_cost_usd": _bounded("cli_reported_cost_usd",
++                                              parsed.get("total_cost_usd") if isinstance(parsed, dict) else None,
++                                              _MAX_COST_USD, dropped),
+             "stop_reason": parsed.get("stop_reason") if isinstance(parsed, dict) else None}
++    if dropped:
++        base["dropped_values"] = dropped
+     if rc == 0 and isinstance(parsed, dict) and not parsed.get("is_error"):
+         result = str(parsed.get("result") or "")
+         if needle in result:
+@@ -341,7 +415,11 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
+     diag = full[:_DETAIL_CHARS]          # for the record only (r251-1 P4)
+     hint = _RETRY_AFTER.search(full)
+     if hint:
+-        base["retry_after_s"] = float(hint.group(1))
++        wait_hint = _bounded("retry_after_s", float(hint.group(1)), _MAX_RETRY_AFTER_S, dropped)
++        if wait_hint is not None:
++            base["retry_after_s"] = wait_hint
++        if dropped:
++            base["dropped_values"] = dropped
+     # r251-2 Q1: the throttle verdict reads the CLI's own answer (result + api_status);
+     # stderr decides only when there is no result, so a stale "rate limit … please
+     # wait" line on stderr cannot turn a genuine context-limit result into a transient
+@@ -528,6 +606,11 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
+                          f"force_partial=True (--write-partial-as-operator-set)")
+     if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
+         raise ValueError(f"{model}: sample_size must be a non-negative integer, got {sample_size!r}")
++    for field, value in (("host_route", host_route), ("cli_model", cli_model), ("cli_version", cli_version),
++                         ("transport", transport)):
++        why = _unsafe_field(value)
++        if why or (field in ("host_route", "cli_model", "transport") and not value):
++            raise ValueError(f"{model}: {field} {why or 'is empty'} — refused before it reaches the catalog text")
+     lines = text.split("\n")
+     start = next((i for i, l in enumerate(lines) if l.rstrip() == f"      {model}:"), None)
+     if start is None:
+@@ -582,9 +665,8 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
+                   f"from the measured {measured}") if written < measured else ""
+     partial_note = ("; probe outcome partial — the operator vouches for the last verified accept"
+                     if probe_outcome == "partial" else "")
+-    provenance = (f"        # cycle-127 FR-3: bound measured {day} by tools/ceiling-probe-live.py --transport "
+-                  f"claude-headless ({route}, {cli_model}){clamp_note}{partial_note}; "
+-                  f"see ceiling_calibration.reprobe_trigger.")
++    provenance = _PROVENANCE.format(day=day, route=route, cli_model=cli_model, clamp_note=clamp_note,
++                                    partial_note=partial_note)
+     old_prov = next((i for i, l in enumerate(block) if l.startswith("        # cycle-127 FR-3: bound measured ")), None)
+     if k is not None:
+         e = k + 1
+@@ -596,7 +678,66 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
+         block[old_prov] = provenance
+     else:
+         block.insert(_find("probed_ceiling:", 8), provenance)
+-    return "\n".join(lines[:start] + block + lines[end:])
++    new = "\n".join(lines[:start] + block + lines[end:])
++    _verify_operator_set(text, new, model, written=written, measured=measured, probe_outcome=probe_outcome)
++    return new
++
++
++# The one provenance comment line of an operator_set write (a template so a test can
++# prove the re-parse below catches a defect in it).
++_PROVENANCE = ("        # cycle-127 FR-3: bound measured {day} by tools/ceiling-probe-live.py --transport "
++               "claude-headless ({route}, {cli_model}){clamp_note}{partial_note}; "
++               "see ceiling_calibration.reprobe_trigger.")
++_WRITTEN_KEYS = ("probed_ceiling", "effective_input_ceiling", "ceiling_calibration")
++
++
++def _verify_operator_set(before: str, after: str, model: str, *, written: int, measured: int,
++                         probe_outcome: str) -> None:
++    """r251-4 T1 (n52 c): re-parse the produced catalog text before it is returned (and
++    so before any write): the entry's ceilings are `written`, its calibration says
++    operator_set / probed_headless / `probe_outcome` / `measured`, and nothing outside
++    the three written keys of this one entry changed. ValueError otherwise."""
++    import yaml
++
++    def fail(why: str):
++        raise ValueError(f"{model}: re-parse of the written catalog failed — {why}; nothing written")
++
++    try:
++        b, a = yaml.safe_load(before), yaml.safe_load(after)
++    except yaml.YAMLError as e:
++        fail(f"not YAML: {str(e).splitlines()[0] if str(e) else type(e).__name__}")
++
++    def entries(doc):
++        provs = doc.get("providers") if isinstance(doc, dict) else None
++        return [(p, (pv.get("models") or {})) for p, pv in (provs or {}).items() if isinstance(pv, dict)]
++
++    hits = [(p, ms[model]) for p, ms in entries(a) if isinstance(ms, dict) and isinstance(ms.get(model), dict)]
++    if len(hits) != 1:
++        fail(f"{len(hits)} `{model}` entries after the edit")
++    entry = hits[0][1]
++    cal = entry.get("ceiling_calibration")
++    for key in ("probed_ceiling", "effective_input_ceiling"):
++        if entry.get(key) != written or isinstance(entry.get(key), bool):
++            fail(f"{key} loads as {entry.get(key)!r}, expected {written}")
++    if not isinstance(cal, dict):
++        fail("ceiling_calibration is not a mapping")
++    want = {"source": "operator_set", "method": "probed_headless", "probe_outcome": probe_outcome,
++            "measured_input_tokens": measured}
++    for key, value in want.items():
++        if cal.get(key) != value:
++            fail(f"ceiling_calibration.{key} loads as {cal.get(key)!r}, expected {value!r}")
++
++    def strip(doc):
++        import copy
++        doc = copy.deepcopy(doc)
++        for _, ms in entries(doc):
++            if isinstance(ms, dict) and isinstance(ms.get(model), dict):
++                for key in _WRITTEN_KEYS:
++                    ms[model].pop(key, None)
++        return doc
++
++    if strip(a) != strip(b):
++        fail("a key outside the entry's probed_ceiling / effective_input_ceiling / ceiling_calibration changed")
+ 
+ 
+ def _write_text_atomic(path: str, new: str) -> None:
+@@ -779,7 +920,7 @@ def _charge(res: dict, *, est_micro: int, price_in: int) -> tuple[int, str]:
+     measured = res.get("measured_input_tokens")
+     reported = res.get("cli_reported_cost_usd")
+     rep = int(reported * 1_000_000) if isinstance(reported, (int, float)) and not isinstance(reported, bool) \
+-        and reported > 0 else 0
++        and 0 < reported < _MAX_COST_USD else 0     # a range test: NaN / ±inf / a huge int all fail it
+     if res.get("not_sent"):
+         return 0, "not_sent"
+     if res.get("timed_out"):
+@@ -845,14 +986,30 @@ def _main_cli(args) -> int:
+     cli_bin = _cli_bin()
+     cli_arg = args.cli_model or args.model
+     host_route = args.host_route or _default_host_route(cli_bin)
++    cli_model = _resolved_cli_model(cli_arg)
++    # `--version` costs nothing; it runs first so the checks and the dry run below see
++    # the value the real write will carry (r251-4 T1 / n57)
++    cli_version = _cli_version(cli_bin)
++    # r251-4 T1 (n52): every value that reaches the catalog's provenance text is one short
++    # line — refused here, before the dry run and before any spend
++    alias_env = _CLI_ALIAS_ENV.get(cli_arg)
++    for flag, value in (("--host-route", host_route),
++                        (f"cli_model (resolved from {alias_env})" if alias_env and os.environ.get(alias_env)
++                         else "cli_model (--cli-model / --model)", cli_model),
++                        (f"cli_version (`{os.path.basename(cli_bin)} --version`)", cli_version)):
++        why = _unsafe_field(value)
++        if why:
++            print(f"ceiling-probe-live: {flag} {why} — no call made, nothing spent", file=sys.stderr)
++            return 2
+     if args.write_catalog:
+         # r251-1 P6: a write that cannot land must fail before any spend — dry-run
+-        # the writer (block, positive context_window for the I2 clamp, fields).
++        # the writer (block, positive context_window for the I2 clamp, fields) with
++        # the same resolved kwargs as the real write (r251-4 T1 / n57).
+         try:
+             with open(args.write_catalog, "r", encoding="utf-8") as fh:
+                 write_catalog_operator_set(fh.read(), args.model, ceiling=1, calibrated_at=started_at,
+-                                           cli_model=cli_arg, host_route=host_route, probe_outcome="clean",
+-                                           sample_size=0)
++                                           cli_model=cli_model, host_route=host_route, cli_version=cli_version,
++                                           probe_outcome="clean", sample_size=0)
+             # r251-2 Q2: the atomic write needs the directory (mkstemp + replace) and an
+             # operator-writable file; a read-only catalog must fail here, not after spend
+             cat_dir = os.path.dirname(os.path.abspath(args.write_catalog))
+@@ -873,14 +1030,18 @@ def _main_cli(args) -> int:
+     price_in = _PRICE_IN.get(args.model, 10_000_000) * 5 // 4
+     lo, hi, tol = args.min_tokens_probe, args.max_tokens_probe, args.tolerance_tokens
+     budget_micro = int(args.budget_usd * 1_000_000)
+-    worst_micro = hi * price_in // 1_000_000
++    # r251-4 T3 (n58): the first step sends `hi` filler tokens blind, which the Opus 4.7+
++    # tokenizer measures ≈1.8× heavier — the estimate (only) assumes that ratio until a
++    # step measures one; the filler sent is unchanged
++    worst_micro = int(hi * _PRIOR_RATIO) * price_in // 1_000_000
+     print(f"ceiling-probe-live: worst-case step ≈ ${worst_micro / 1e6:.2f} at the catalog price "
+           f"(${price_in * 4 / 5 / 1e6:.2f}/MTok input × 1.25 cache-write rate = ${price_in / 1e6:.2f}/MTok, "
+-          f"catalog estimate × {hi} tokens; Bedrock bills separately); "
++          f"catalog estimate × {hi} filler tokens × {_PRIOR_RATIO:g}; the estimate assumes the Opus 4.7+ "
++          f"tokenizer ratio {_PRIOR_RATIO:g} until the first measured accept (or a rejection that states its "
++          f"count); Bedrock bills separately); "
+           f"{budget_micro // worst_micro if worst_micro else 0} such steps fit in ${args.budget_usd:g} (the cap "
+           f"is checked against this estimate before every attempt; a size rejection is charged $0 unless the "
+           f"CLI reports a cost)", file=sys.stderr)
+-    cli_version = _cli_version(cli_bin)
+ 
+     # Sizes are MEASURED tokens (the CLI's usage, or the count a rejection states):
+     # --max-tokens-probe / --min-tokens-probe / --tolerance-tokens mean measured
+@@ -916,7 +1077,7 @@ def _main_cli(args) -> int:
+                   "ok": False, "verified": False, "charged_usd": 0.0, "charge_basis": None, "retry_wait_s": 0,
+                   "attempt_log": []}
+         samples.append(sample)
+-        est_measured = int(tokens * (ratio or 1.0))
++        est_measured = int(tokens * (ratio or _PRIOR_RATIO))
+         est_micro = est_measured * price_in // 1_000_000
+         charged_micro, waited, wait, kinds = 0, 0.0, 0.0, []
+         attempt = 0
+@@ -1070,10 +1231,10 @@ def _main_cli(args) -> int:
+         "estimate_usd_per_mtok": price_in / 1e6,
+         "stop": stop,
+         "interrupted": interrupted_text,
+-        "cli_bin": cli_bin,
++        "cli_bin": _recorded_bin(cli_bin),
+         "cli_version": cli_version,
+-        "cli_model": _resolved_cli_model(cli_arg),
+-        "argv": argv,
++        "cli_model": cli_model,
++        "argv": [_home_rel(argv[0]), *argv[1:]],
+         "host_route": host_route,
+         "route_env": _route_env(),
+         "samples": samples,

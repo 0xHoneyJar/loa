@@ -1,0 +1,31 @@
+name: audit-recall
+description: "cycle-124 FR-9 A/B suite: audit-recall (arm A = Sprint-2 tip prompts, arm B = audited prompts; same executor model, fixed effort)"
+version: 1
+
+tasks:
+  include:
+    - "tasks/audit-recall/**/*.yaml"
+  exclude: []
+
+defaults:
+  trials: 3
+  timeout:
+    per_trial: 1500
+    per_grader: 180
+  composite_strategy: all_must_pass
+
+# compare.sh freshness rule (evals/tests/recall-baseline-freshness.bats):
+# a baseline must be captured at or after floor_commit (the Sprint-2 landing
+# commit) on a prompt tree different from the one under comparison, with the
+# corpus frozen.
+ab:
+  floor_commit: "da3bd07f3db2fc1bd09a6761a9b96b688fa2a09e"
+  corpus_manifest: evals/fixtures/review-prs/SHA256SUMS
+
+ci:
+  gate_type: advisory
+  min_trials: 3
+  regression_threshold: 0.10
+
+execution_order: parallel
+concurrency: 2

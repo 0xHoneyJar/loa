@@ -1,0 +1,109 @@
+commit 059e26be76abba262fc8ceaf271057a0252ea08e
+Date: 2026-10-07T23:01:17+11:00
+
+fix(cycle-127): sprint-251 review dissent round r251-1 — cheval's chain walk plans around a gated agy hop (models_not_planned, reason opt_in_required, never a breaker count; a direct --model gemini-headless still refuses INVALID_CONFIG) and one routing predicate decides what the agy route is (.claude/scripts/lib/agy-gate-lib.sh + loader.routes_to_agy: the gemini-headless hop by name, or a Google voice under effective cli-only) for the dissent, Flatline, preflight, /loa, Bridgebuilder and cheval (agy-gate-conformance.bats); the opt-in is read from the project config only, a non-boolean value WARNs and stays off, the D-1.7 availability WARN exists, failure_class reaches the error envelope and MODELINV; Bridgebuilder surfaces a config read failure as such, requires the gate parameter, names the opt-in in the no-models throw. The units gap (verified: the 936,000 bound is in provider-measured tokens while cheval's estimate under-counts ~1.4x and BB budgets at chars/4): calibrated entries ask count_tokens from half the bound, BB's generated budget for a measured-unit calibration divides by 1.8 (916,000 → 508,000), a calibration measured on a foreign transport may be tightened by a verified observation on the HTTP route (rendered in /loa and --json); effort_effective is adapter-derived (wire_effort), EFFORT_LEVELS defined once and pinned to both schemas. Probe: fair charging at the 1.25x cache-write rate (CLI-local rejections cost 0), TPM-window backoff, throttle markers win over context markers, persisting token-limit = size, full-diag classification + the CLI's "~N tokens (limit M)" shape, record kept on interrupt, write prerequisites before the first call, process-group kill, anchored 5xx, api-only flags refused on the CLI transport, probe_outcome + sample_size provenance with --write-partial-as-operator-set (the live entry says probe_outcome: partial, sample_size: 5). SDD D-1.6 names INVALID_CONFIG; SDD D-1.8…D-3.12, PRD, CHANGELOG, migration addendum, sprint round section. Refuted with evidence: n1, n6, n9, n10, n12, n13, n17, n21, n28, n31, n32, n36, n43, n44, n54. Bead bd-c2rd (estimator calibration).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/adversarial-review.sh b/.claude/scripts/adversarial-review.sh
+index 1ae3491e..3ef7af4f 100755
+--- a/.claude/scripts/adversarial-review.sh
++++ b/.claude/scripts/adversarial-review.sh
+@@ -79,6 +79,12 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
+ # shellcheck source=lib/degraded-verdict-lib.sh
+ source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
+ 
++# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy).
++# Same soft-source as the libs above; the planner below fails closed (every hop agy-checked) if the lib did not load.
++_AGY_GATE_LIB_PATH="$SCRIPT_DIR/lib/agy-gate-lib.sh"
++# shellcheck source=lib/agy-gate-lib.sh
++source "$_AGY_GATE_LIB_PATH" 2>/dev/null || true
++
+ # Token budgets (with 80% safety margin per D-009)
+ DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k — non-Anthropic dissenters
+ DEFAULT_SECONDARY_TOKEN_BUDGET=12000  # 80% of 15k
+@@ -2347,17 +2353,30 @@ _adv_cli_present() {  # <family> → 0 when the family's CLI hop binary is on PA
+ 
+ # cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in. Read from the config with yq, never by
+ # spawning cheval: true only for a YAML boolean true at hounfour.headless.agy_opt_in (absent, false, a string — off). No env override.
++_adv_agy_lib() {  # 0 when the shared predicate is loaded (sourced lazily from PROJECT_ROOT under eval-based test sourcing)
++  declare -F routes_to_agy >/dev/null && return 0
++  [[ -f "${PROJECT_ROOT:-}/.claude/scripts/lib/agy-gate-lib.sh" ]] && source "$PROJECT_ROOT/.claude/scripts/lib/agy-gate-lib.sh" 2>/dev/null
++  declare -F routes_to_agy >/dev/null
++}
+ _adv_agy_opted_in() {
+-  local v=""
+-  [[ -f "${CONFIG_FILE:-}" ]] && command -v yq >/dev/null 2>&1 || return 1
+-  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
+-  [[ "$v" == "true" ]]
++  _adv_agy_lib || return 1   # (lib missing: off — fail closed)
++  agy_opted_in "${CONFIG_FILE:-}"
+ }
+ _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain without its agy hops when the opt-in is off; each drop is said once
+-  local key="$1" fam="$2" h out=""; shift 2
++  # (review r251-1 G2: a hop is agy-routed by the shared routes_to_agy — by name, alias-resolved, or a Google model under
++  # hounfour.headless.mode cli-only — tested on the hop as written and on its catalog id)
++  local key="$1" fam="$2" h c out="" mode; shift 2
++  if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (no-op when the planner already said it)
+   if _adv_agy_opted_in; then printf '%s' "$*"; return 0; fi
++  if ! _adv_agy_lib; then
++    # (no predicate to plan with: the chain is kept and cheval's own gate refuses or skips an agy hop)
++    log "WARN: lib/agy-gate-lib.sh not loaded — companion chain not agy-filtered; cheval's opt-in gate still applies"
++    printf '%s' "$*"; return 0
++  fi
++  mode=$(agy_headless_mode "${CONFIG_FILE:-}")
+   for h in "$@"; do
+-    if [[ "$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")" == "gemini-headless" ]]; then
++    c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
++    if routes_to_agy "$h" "$mode" || routes_to_agy "$c" "$mode"; then
+       log "WARN: companion hop ${h} not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — named by flatline_protocol.${key}.companion_chain.${fam}"
+     else out+="$h "; fi
+   done
+@@ -4079,6 +4098,7 @@ main() {
+     companion_chain_str=$(_companion_chain "$companion_family")
+     # cycle-127 FR-1: an agy hop with the opt-in off is not planned; a chain left empty by that is opt_in_required, not no_route
+     local _agy_pre="$companion_chain_str"
++    if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (r251-1 G12/G18: once per run, on stderr — top level, not in $(...))
+     # shellcheck disable=SC2086  # (a space-separated hop list, as everywhere it is walked)
+     [[ -z "$companion_chain_str" ]] || companion_chain_str=$(_adv_agy_filter_chain "$([[ "$type" == "audit" ]] && echo security_audit || echo code_review)" "$companion_family" $companion_chain_str)
+     if [[ -z "$companion_chain_str" && -n "$_agy_pre" ]]; then
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+index 6be6d6bd..c4809f2a 100644
+--- a/tests/unit/adversarial-review-companion.bats
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -5976,9 +5976,13 @@ EOF
+ # cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in (hounfour.headless.agy_opt_in, default
+ # false). With it off, an operator companion_chain naming the hop does not plan it: read from the config, before any dispatch.
+ _cmp_agy_chain() {  # <anthropic chain YAML list> [agy_opt_in YAML value | "absent"]
++    # (review r251-1 G13: exactly one anchor is replaced — a fixture that drifted fails here, never writes a no-op config)
+     python3 -I - "$CONFIG_FILE" "$1" "${2:-absent}" <<'PY'
+ import sys; p, chain, opt = sys.argv[1:4]; s = open(p, encoding="utf-8").read()
+-s = s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: " + chain + "\n", 1)
++anchor = "  code_review:\n    enabled: true\n"
++if s.count(anchor) != 1:
++    sys.exit(f"_cmp_agy_chain: expected exactly one code_review anchor in {p}, found {s.count(anchor)}")
++s = s.replace(anchor, anchor + "    companion_chain:\n      anthropic: " + chain + "\n", 1)
+ if opt != "absent":
+     s = "hounfour:\n  headless:\n    agy_opt_in: " + opt + "\n" + s
+ open(p, "w", encoding="utf-8").write(s)
+@@ -5987,8 +5991,9 @@ PY
+ 
+ @test "CMP-284 an operator companion_chain naming gemini-headless with the agy opt-in off → planned false, reason opt_in_required, never dispatched, a WARN naming both keys; verdict quality counts the planned voice only" {
+     local opt
++    local orig="$BATS_TEST_TMPDIR/cmp284-config.orig"
++    cp -- "$CONFIG_FILE" "$orig"   # (review r251-1 G13: save/restore the file the helper edits — $CONFIG_FILE — and fail loudly)
+     for opt in absent false '"true"'; do
+-        cp "$T/loa.config.yaml" "$T/loa.config.yaml.orig" 2>/dev/null || true
+         _cmp_agy_chain '[gemini-headless]' "$opt"
+         : > "$CALLS"
+         result=$(_run_main review)
+@@ -5999,7 +6004,7 @@ PY
+         ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+         grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log"
+         grep 'hounfour.headless.agy_opt_in' "$T/stderr.log" | grep -q 'flatline_protocol.code_review.companion_chain.anthropic'
+-        mv -f "$T/loa.config.yaml.orig" "$T/loa.config.yaml"
++        cp -- "$orig" "$CONFIG_FILE"
+     done
+ }
+ 

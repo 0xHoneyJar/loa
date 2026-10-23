@@ -254,8 +254,8 @@ integrity_in() {
 
 @test "AT-13 ablation-2.0 declares the nine canonical arms plus the four cycle-131 review-catch arms, task_types per arm, A8 absent with its evidence, integrity_clean on every runnable arm (AC-1.10; cycle-131 FR-5)" {
   S="$REPO_ROOT/$ABL_SUITE_REL"
-  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount,a8_no_ceremonies" ]   # the absent arm stays last
-  [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "review-catch") | .id] | join(",")' "$S")" = "a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount" ]
+  [ "$(yq -r '[.arms[].id] | join(",")' "$S")" = "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount,a0_bare_matched,a0_bare_fable_matched,a8_no_ceremonies" ]   # the absent arm stays last (cycle-132: the two matched arms before it)
+  [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "review-catch") | .id] | join(",")' "$S")" = "a0_bare_fable,a1_review_only,a1_no_dissent,a1_full_openmount,a0_bare_matched,a0_bare_fable_matched" ]
   [ "$(yq -r '[.arms[] | select(.eval_only == true) | .id] | join(",")' "$S")" = "a1_full_openmount" ]
   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "build") | .id] | join(",")' "$S")" = "a2_no_sprint_plan,a4_no_gates,a5_no_flatline,a6_one_window" ]
   [ "$(yq -r '[.arms[] | select((.task_types | join(",")) == "all") | .id] | join(",")' "$S")" = "a0_bare,a1_full,a3_one_voice,a7_effort_medium" ]
@@ -512,4 +512,40 @@ integrity_in() {
     [ "$status" -eq 0 ]; [ "$output" = "beads=br" ]
     ( cd "$W7" && br list --json 2>/dev/null ) | grep -q 'slugify collapses separator runs'
   fi
+}
+
+# --- cycle-132 Sprint 269 Task 1.7a (bd-gdl5s): the toggle vocabulary is one table ------------------------------------
+
+@test "AT-c132-1 print_toggle_vocabulary is the toggle table: its keys are apply_arm_toggles' case labels (both ways), the mount stub's copy is byte-equal, and neither validate-suite.sh nor pipeline-run.sh keeps a hand copy" {
+  LIB="$REPO_ROOT/evals/harness/lib/sandbox-mount.sh"
+  vocab="$(bash -c 'source "$1" && print_toggle_vocabulary' _ "$LIB")"
+  keys="$(cut -f1 <<<"$vocab" | sort)"
+  # the case labels inside apply_arm_toggles (one per toggle, six spaces of indent, before the catch-all)
+  labels="$(awk '/^apply_arm_toggles\(\) \{/ {f = 1} f && /^}/ {exit} f' "$LIB" | sed -n 's/^      \([a-z_][a-z_]*\))$/\1/p' | sort -u)"
+  [ -n "$labels" ]
+  [ "$keys" = "$labels" ] || { diff <(echo "$keys") <(echo "$labels"); false; }
+  [ "$(cut -f1 <<<"$vocab" | sort | uniq -d)" = "" ]
+  awk -F'\t' 'NF != 3 { exit 1 }' <<<"$vocab"
+  stub="$(bash -c 'source "$1" && print_toggle_vocabulary' _ "$REPO_ROOT/evals/tests/fixtures/mount-lib-stub.sh")"
+  [ "$stub" = "$vocab" ]
+  # no hand-kept copy: the old literal lists are gone
+  ! grep -q '"companion_voice", "karpathy_block"' "$REPO_ROOT/evals/harness/validate-suite.sh" || false
+  ! grep -q 'flatline_protocol.code_review.companion_voice=false' "$REPO_ROOT/evals/harness/pipeline-run.sh" || false
+  grep -q 'print_toggle_vocabulary' "$REPO_ROOT/evals/harness/validate-suite.sh"
+  grep -q 'print_toggle_vocabulary' "$REPO_ROOT/evals/harness/pipeline-run.sh"
+}
+
+@test "AT-c132-2 bare_sessions: matched (cycle-132 FR-3) applies with loa_mount: false (evidence bare_sessions=matched); without it, or with another value, the toggle is refused" {
+  mkdir -p "$WS"
+  run bash -c 'source "$1"; ARM_EVIDENCE_FILE="$2" apply_arm_toggles "$3" "{\"loa_mount\": false, \"bare_sessions\": \"matched\"}" a0_bare_matched' _ \
+    "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$T/ev.txt" "$WS"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -qx 'bare_sessions=matched' "$T/ev.txt"
+  grep -qx 'loa_mount=none' "$T/ev.txt"
+  run bash -c 'source "$1"; ARM_EVIDENCE_FILE="$2" apply_arm_toggles "$3" "{\"bare_sessions\": \"matched\"}" x' _ \
+    "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$T/ev2.txt" "$WS"
+  [ "$status" -eq 2 ]; grep -q 'needs loa_mount: false' <<<"$output"
+  run bash -c 'source "$1"; ARM_EVIDENCE_FILE="$2" apply_arm_toggles "$3" "{\"loa_mount\": false, \"bare_sessions\": \"double\"}" x' _ \
+    "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$T/ev3.txt" "$WS"
+  [ "$status" -eq 2 ]; grep -q 'bare_sessions=double (only matched is defined)' <<<"$output"
 }

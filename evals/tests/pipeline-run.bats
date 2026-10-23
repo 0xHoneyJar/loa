@@ -46,6 +46,10 @@ make_source_tree() {
     printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$s" > "$T/src/.claude/skills/$s/SKILL.md"
   done
   echo "loa" > "$T/src/.claude/loa/CLAUDE.loa.md"
+  # cycle-132 bd-56nn6: the mounted adapters the pre-launch mount_cheval probe imports (an importable package)
+  mkdir -p "$T/src/.claude/adapters/loa_cheval/providers"
+  : > "$T/src/.claude/adapters/loa_cheval/__init__.py"
+  : > "$T/src/.claude/adapters/loa_cheval/providers/__init__.py"
   printf 'flatline_protocol:\n  enabled: true\n  code_review:\n    enabled: true\n  security_audit:\n    enabled: true\n' > "$T/src/.loa.config.yaml"
   ( cd "$T/src" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init )
   # the operator's credential directories (copied per run in container mode)
@@ -1051,8 +1055,8 @@ fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -m
 
 @test "closed mount wiring: oracle_open: true skips the overlay and the check and records mount_overlay=none" {
   c131_arms
-  export STUB_MOUNT_CALLS="$T/calls" LOA_ABLATION_BATCH_CONTEXT=1   # eval_only: the batch context run-ablation.sh sets
-  run_pr a1_full_openmount "$REVIEWC"
+  export STUB_MOUNT_CALLS="$T/calls"
+  run_pr a1_full_openmount "$REVIEWC" --batch-context b1   # eval_only: the batch context run-ablation.sh passes (bd-st02i)
   [ "$status" -eq 0 ]
   [ "$(calls)" = "resolve_arm_toggles mount_prompt_surface apply_arm_toggles apply_eval_config_variant write_sandbox_grimoire init_sandbox_beads regen_sandbox_manifest" ]
   [ "$(evline mount_overlay)" = none ]
@@ -1117,7 +1121,7 @@ fresh_run() { find "$T/run" -depth -delete 2>/dev/null || true; find "$T/log" -m
   [ "$(jq -r '.phases[0].model_requested' "$T/run/meta/pipeline.json")" = global.anthropic.claude-opus-5-5 ]
 }
 
-@test "closed mount (real library): the overlaid gate script runs at the PR's version, the evidence is on disk before the first phase, and took-effect oracle_closed passes on the run" {
+@test "closed mount (real library; addendum 9): the gate script the PR touches stays at the pinned version (the whole .claude/ runtime is pinned), the evidence is on disk before the first phase, and took-effect oracle_closed passes on the run" {
   # the real mount library at the literal path; a source tree whose pinned gate script is LATER than the PR
   cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
   cp "$REPO_ROOT/evals/harness/took-effect.sh" "$H/"
@@ -1149,27 +1153,30 @@ EOF
   run "$PR" --task-yaml "$r/task.yaml" --arm a1_full --run-dir "$T/run" --run-id r-rl --trial 1 \
     --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude-ev"
   [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log"; false; }
-  [ "$(cat "$T/log/gate-at-first-phase.txt")" = "gate head" ]
+  [ "$(cat "$T/log/gate-at-first-phase.txt")" = "gate LATER fixed" ]   # addendum 9: the pinned runtime, not the PR's script
   local E="$T/log/evidence-at-first-phase.txt"
-  grep -qx 'mount_overlay=head:1' "$E"
-  grep -qx "overlay_sha256=.claude/scripts/gate.sh=$(printf 'gate head\n' | python3 -I -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')" "$E"
-  grep -qx 'gate_scripts_at_pr_version=.claude/scripts/gate.sh' "$E"
+  grep -qx 'mount_overlay=head:0' "$E"
+  grep -qx 'overlay_excluded=1:.claude/scripts/gate.sh' "$E"
+  ! grep -q '^overlay_sha256=' "$E" || false
+  grep -qx 'gate_scripts_at_pr_version=' "$E"
+  [ "$(cat "$T/run/sandbox/pr/head/.claude/scripts/gate.sh")" = "gate head" ]   # the PR's version stays under pr/
   grep -qx "copy_source=$(git -C "$T/src" rev-parse HEAD)" "$E"
   grep -qx 'config_variant=eval' "$E"
-  grep -q '^mount_closed=pre-launch head:1 answer paths (1 present), 1 later-only pinned versions' "$E"
+  grep -q '^mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 1 .claude path(s) left pinned' "$E"
   # the manifest is written before the closed check: the checked surface is the launched one
   [ "$(grep -n '^manifest_sha256=' "$E" | cut -d: -f1)" -lt "$(grep -n '^mount_closed=' "$E" | cut -d: -f1)" ]
   cp "$T/suite.yaml" "$T/suite-oc.yaml"
   yq -i '(.arms[] | select(.id == "a1_full") | .took_effect) += ["oracle_closed"]' "$T/suite-oc.yaml"
   run "$H/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-oc.yaml" --task-yaml "$r/task.yaml"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  grep -q 'oracle_closed OK ok head:1 answer paths (1 present)' <<<"$output"
+  grep -q 'oracle_closed OK ok head:0 answer paths (0 present).*1 .claude path(s) left pinned' <<<"$output"
 }
 
 # --- cycle-131 Sprint 264 Task 2.1: the four arms' dry-run plans, the eval_only refusal ------------
 
-dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
-  run "$PR" --task-yaml "$REVIEWC" --arm "$1" --run-id r --trial 1 --source-tree "$T/src" --suite-file "$T/suite.yaml" --dry-run
+dryrun_rc() {  # dryrun_rc <arm> [extra args…] — the review-catch dry run (no run dir)
+  local arm="$1"; shift
+  run "$PR" --task-yaml "$REVIEWC" --arm "$arm" --run-id r --trial 1 --source-tree "$T/src" --suite-file "$T/suite.yaml" --dry-run "$@"
 }
 
 @test "dry-run (c131): a0_bare_fable is one BARE phase on global.anthropic.claude-fable-5-1, effort high, no mount" {
@@ -1204,11 +1211,11 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
 
 @test "dry-run (c131): a1_full_openmount (eval_only) plans REVIEW,AUDIT with no overlay inside the batch context; a1_full keeps the overlay" {
   c131_arms
-  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
+  dryrun_rc a1_full_openmount --batch-context b-dry
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   grep -q 'arm a1_full_openmount .* phases REVIEW,AUDIT$' <<<"$output"
   grep -q '^sandbox: mount=loa overlay=none(oracle_open) config_variant=eval config_edits=-$' <<<"$output"
-  grep -q '^eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)$' <<<"$output"
+  grep -q '^eval_only: true (batch context b-dry)$' <<<"$output"
   dryrun_rc a1_full
   [ "$status" -eq 0 ]
   grep -q '^sandbox: mount=loa overlay=head config_variant=eval config_edits=-$' <<<"$output"
@@ -1232,9 +1239,16 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
   grep -q "eval_only arm outside an evaluation batch" <<<"$output"
   [ ! -e "$T/run" ]
   [ ! -e "$T/log/call-1.argv" ]
-  # only the exact value 1 marks the context
-  for v in 0 yes true ""; do
+  # cycle-132 bd-st02i: the inheritable variable is read no more — only the argv flag marks the context
+  for v in 1 0 yes; do
     LOA_ABLATION_BATCH_CONTEXT="$v" run_pr a1_full_openmount "$REVIEWC"
+    [ "$status" -eq 2 ]
+    grep -q "eval_only arm outside an evaluation batch" <<<"$output"
+    [ ! -e "$T/run" ]
+  done
+  # an empty or malformed id is a usage error, never a context
+  for v in "" "a b" "x;y"; do
+    run_pr a1_full_openmount "$REVIEWC" --batch-context "$v"
     [ "$status" -eq 2 ]
     [ ! -e "$T/run" ]
   done
@@ -1252,24 +1266,26 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
   grep -q "refused: arm 'x_open': eval_only arm outside an evaluation batch" <<<"$output"
   [ ! -e "$T/run" ]
   yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = "yes"' "$T/suite.yaml"
-  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
+  dryrun_rc a1_full_openmount --batch-context b1
   [ "$status" -eq 2 ]
   grep -q "eval_only must be a JSON boolean" <<<"$output"
   # a quoted "true" on the toggle is refused too (audit r1 DISS-C-001): the strict guard and the loose mount read never disagree
   yq -i '(.arms[] | select(.id == "a1_full_openmount") | .eval_only) = true | (.arms[] | select(.id == "a1_full_openmount") | .toggles.oracle_open) = "true"' "$T/suite.yaml"
-  LOA_ABLATION_BATCH_CONTEXT=1 dryrun_rc a1_full_openmount
+  dryrun_rc a1_full_openmount --batch-context b1
   [ "$status" -eq 2 ]
   grep -q "toggles.oracle_open must be a JSON boolean" <<<"$output"
 }
 
-@test "eval_only: inside the batch context (LOA_ABLATION_BATCH_CONTEXT=1) the open-mount arm runs REVIEW and AUDIT and completes" {
+@test "eval_only: inside the batch context (--batch-context, bd-st02i) the open-mount arm runs REVIEW and AUDIT and completes; the id is in the evidence" {
   c131_arms
-  LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full_openmount "$REVIEWC"
+  run_pr a1_full_openmount "$REVIEWC" --batch-context c132-g1
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
   [ "$(labels)" = "REVIEW,AUDIT" ]
   [ "$(evline mount_overlay)" = none ]
   [ "$(evline oracle_open)" = true ]
+  [ "$(evline batch_context)" = c132-g1 ]
+  [ "$(jq -r '.arm_evidence.batch_context' "$T/run/meta/pipeline.json")" = c132-g1 ]
 }
 
 @test "a1_review_only (c131): a run records exactly one REVIEW phase and never launches AUDIT" {
@@ -1279,4 +1295,176 @@ dryrun_rc() {  # dryrun_rc <arm> — the review-catch dry run (no run dir)
   [ "$(labels)" = REVIEW ]
   [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
   [ "$(grep -lx AUDIT "$T"/log/call-*.phase 2>/dev/null | wc -l | tr -d ' ')" -eq 0 ]
+}
+
+# --- cycle-132 Sprint 269 Task 1.7a: --batch-context (bd-st02i), mount_cheval (bd-56nn6), vocabulary (bd-gdl5s)
+
+# broken_cheval — the KF-050 shape in the source tree: providers imports a symbol its module lacks
+broken_cheval() {
+  printf 'def other():\n    return 1\n' > "$T/src/.claude/adapters/loa_cheval/providers/headless_cli.py"
+  printf 'from .headless_cli import private_workspace_base\n' > "$T/src/.claude/adapters/loa_cheval/providers/__init__.py"
+}
+
+@test "PR-c132-1 mount_cheval: a mounted dissent-enabled arm records mount_cheval=ok before the first phase (no bytecode in the sandbox); a0_bare records none" {
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline mount_cheval)" = ok ]
+  [ "$(jq -r '.arm_evidence.mount_cheval' "$T/run/meta/pipeline.json")" = ok ]
+  [ -z "$(find "$T/run/sandbox/.claude/adapters" -name __pycache__ 2>/dev/null)" ]
+  fresh_run
+  run_pr a0_bare "$REVIEWC"
+  [ "$status" -eq 0 ]
+  [ "$(evline mount_cheval)" = none ]
+}
+
+@test "PR-c132-2 mount_cheval broken on a dissent-enabled arm refuses the launch: exit 3, refused.json reason mount_cheval_broken, infrastructure_error, no phase ran" {
+  broken_cheval
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 3 ]
+  [ "$(jq -r '.reason' "$T/run/meta/refused.json")" = mount_cheval_broken ]
+  [[ "$(jq -r '.detail' "$T/run/meta/refused.json")" == *"cannot import name 'private_workspace_base'"* ]]
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = infrastructure_error ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == "refused: mount_cheval_broken: "* ]]
+  [[ "$(evline mount_cheval)" == "broken:ImportError: cannot import name 'private_workspace_base'"* ]]
+  [ "$(jq '.phases | length' "$T/run/meta/pipeline.json")" -eq 0 ]
+  [ ! -e "$T/log/call-1.argv" ]
+  # the audit gate keeps its dissent on a1_no_dissent: still refused
+  c131_arms
+  fresh_run
+  run_pr a1_no_dissent "$REVIEWC"
+  [ "$status" -eq 3 ]
+  # gates: false runs no dissent: the broken probe is evidence only and the run completes
+  fresh_run
+  run_pr a4_no_gates "$BUILD"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [[ "$(evline mount_cheval)" == broken:* ]]
+  [ ! -e "$T/run/meta/refused.json" ]
+}
+
+@test "PR-c132-3 mount_cheval: a mount without .claude/adapters/loa_cheval reads broken and refuses a dissent-enabled arm" {
+  find "$T/src/.claude/adapters" -depth -delete
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 3 ]
+  [ "$(evline mount_cheval)" = "broken:no .claude/adapters/loa_cheval" ]
+  [ "$(jq -r '.detail' "$T/run/meta/refused.json")" = "no .claude/adapters/loa_cheval" ]
+}
+
+@test "PR-c132-4 --batch-context: written to arm-evidence as batch_context=<id> on any arm; absent without the flag; the variable alone writes nothing" {
+  run_pr a1_full "$REVIEWC" --batch-context batch-20261021T000000Z
+  [ "$status" -eq 0 ]
+  [ "$(evline batch_context)" = batch-20261021T000000Z ]
+  fresh_run
+  LOA_ABLATION_BATCH_CONTEXT=1 run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ]
+  ! grep -q '^batch_context=' "$T/run/meta/arm-evidence.txt" || false
+  [ "$(grep -c 'LOA_ABLATION_BATCH_CONTEXT' "$REPO_ROOT/evals/harness/pipeline-run.sh")" -eq 1 ]   # the one header line saying it is read no more
+}
+
+@test "PR-c132-5 dry run config_edits come from print_toggle_vocabulary: every edit toggle at once lists each path once, in vocabulary order; a library without the function is a usage error" {
+  yq -i '.arms += [{"id": "x_all", "label": "XA", "task_types": ["all"], "toggles": {"flatline": false, "dissent": false, "gates": false, "companion_voice": false}, "took_effect": ["integrity_clean"]}]' "$T/suite.yaml"
+  run_pr x_all "$BUILD" --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -qx 'sandbox: mount=loa overlay=none(build) config_variant=eval config_edits=flatline_protocol.code_review.companion_voice=false,flatline_protocol.security_audit.companion_voice=false,flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false,flatline_protocol.enabled=false' <<<"$output"
+  # a matched arm (loa_mount: false) edits nothing
+  yq -i '.arms += [{"id": "x_matched", "label": "XM", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_sessions": "matched"}, "phases": ["BARE"], "took_effect": ["integrity_clean"]}]' "$T/suite.yaml"
+  dryrun_rc x_matched
+  [ "$status" -eq 0 ]
+  grep -qx 'sandbox: mount=none overlay=none(no mount) config_variant=none config_edits=-' <<<"$output"
+  # the stub library without the vocabulary: the mounted dry run refuses rather than guessing
+  sed -i '/^print_toggle_vocabulary() {/,/^}/d' "$H/lib/sandbox-mount.sh"
+  run_pr a1_full "$BUILD" --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'the mount library has no print_toggle_vocabulary' <<<"$output"
+}
+
+@test "PR-c132-6 a matched-arm session (toggles loa_mount: false, bare_sessions: matched) is one BARE session with evidence bare_sessions=matched" {
+  yq -i '.arms += [{"id": "a0_bare_matched", "label": "A0M", "task_types": ["review-catch"], "toggles": {"loa_mount": false, "bare_sessions": "matched"}, "phases": ["BARE"], "effort": "high", "took_effect": ["no_dot_claude", "bare_sessions_matched"]}]' "$T/suite.yaml"
+  run_pr a0_bare_matched "$REVIEWC" --batch-context b1
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(labels)" = BARE ]
+  [ "$(evline bare_sessions)" = matched ]
+  [ "$(evline mount_cheval)" = none ]
+}
+
+# --- cycle-132 round 5 (PREREGISTRATION §12 addendum 1): arm ids the PR itself names ---------------------------------
+
+# arm_named_pr — the review-catch fixture's head.diff and PR.md name a1_full and a0_bare (a PR that built the arms)
+arm_named_pr() {
+  local p="$T/prs/pr-x"
+  printf -- '--- a/lib/x.sh\n+++ b/lib/x.sh\n@@ -1 +1 @@\n-a=1\n+a=2  # run a1_full against a0_bare\n' > "$p/head.diff"
+  printf '# PR\nAdds the a1_full and a0_bare arms.\n' > "$p/PR.md"
+}
+
+@test "PR-c132-7 arm ids the PR names (head.diff, PR.md) are PR-native: the review-catch run completes with arm_ids_pr_native=a0_bare,a1_full although the id is in pr/ and in the reviewer.md the mount writes from PR.md" {
+  arm_named_pr
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_pr_native)" = "a0_bare,a1_full" ]
+  grep -q a1_full "$T/run/sandbox/pr/head.diff"
+  grep -q a1_full "$T/run/sandbox/grimoires/loa/a2a/sprint-1/reviewer.md"
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+}
+
+@test "PR-c132-8 a PR-native arm id planted outside the PR-derived files (.claude/x.md) still refuses the launch (exit 2)" {
+  arm_named_pr
+  mkdir -p "$T/src/.claude"
+  printf 'notes for a1_full\n' > "$T/src/.claude/x.md"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm x )
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"arm id appears in the sandbox: .claude/x.md"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+}
+
+@test "PR-c132-9 pr/ content is PR-derived by definition: an arm id planted only in pr/head.diff is PR-native and passes; a build task records arm_ids_pr_native=none and its sandbox guard is unchanged" {
+  printf -- '--- a/lib/x.sh\n+++ b/lib/x.sh\n@@ -1 +1 @@\n-a=1\n+a=2  # a1_review_only\n' > "$T/prs/pr-x/head.diff"
+  c131_arms
+  run_pr a1_review_only "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_pr_native)" = "a1_review_only" ]
+  fresh_run
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 0 ]
+  [ "$(evline arm_ids_pr_native)" = none ]
+}
+
+@test "PR-c132-10 the task brief stays fully strict: an arm id in the brief refuses even when the PR names the same id" {
+  arm_named_pr
+  export STUB_BRIEF_EXTRA="as a1_full"
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 2 ]
+  # the sandbox guard reaches the brief first (it is not PR-derived); either guard names the brief
+  [[ "$output" == *"arm id appears in the sandbox: grimoires/loa/context/task-brief.md"* || "$output" == *"task-brief.md leaks arm id a1_full"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+}
+
+@test "PR-c132-11 (addenda 5 and 9, KF-050) real library: a PR whose head version of .claude/adapters/loa_cheval/providers/__init__.py no longer imports, and which touches .claude/scripts/gate.sh, overlays nothing — the pinned adapters and script stay, mount_cheval=ok, the run completes, overlay_excluded names both paths" {
+  cp "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$H/lib/sandbox-mount.sh"
+  # the pinned tree: an importable cheval (make_source_tree) plus a gate script; the PR fixture rewrites providers to an
+  # import its sandbox neighbours lack (the KF-050 shape)
+  printf 'gate pinned\n' > "$T/src/.claude/scripts/gate.sh"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm pin )
+  local p="$T/prs/pr-k" r="$T/suite/tasks/rc-k" hc
+  hc="$(git -C "$T/src" rev-parse HEAD)"
+  mkdir -p "$p/base/.claude/scripts" "$p/head/.claude/scripts" "$p/base/.claude/adapters/loa_cheval/providers" "$p/head/.claude/adapters/loa_cheval/providers" "$r"
+  printf 'gate base\n' > "$p/base/.claude/scripts/gate.sh"; printf 'gate head\n' > "$p/head/.claude/scripts/gate.sh"
+  : > "$p/base/.claude/adapters/loa_cheval/providers/__init__.py"
+  printf 'from .headless_cli import private_workspace_base\n' > "$p/head/.claude/adapters/loa_cheval/providers/__init__.py"
+  printf 'diff --git a/.claude/scripts/gate.sh b/.claude/scripts/gate.sh\n--- a/.claude/scripts/gate.sh\n+++ b/.claude/scripts/gate.sh\n@@ -1 +1 @@\n-gate base\n+gate head\ndiff --git a/.claude/adapters/loa_cheval/providers/__init__.py b/.claude/adapters/loa_cheval/providers/__init__.py\n--- a/.claude/adapters/loa_cheval/providers/__init__.py\n+++ b/.claude/adapters/loa_cheval/providers/__init__.py\n@@ -0,0 +1 @@\n+from .headless_cli import private_workspace_base\n' > "$p/head.diff"
+  printf '# PR\n' > "$p/PR.md"
+  printf 'name: pr-k\nhead_commit: "%s"\n' "$hc" > "$p/fixture.yaml"
+  printf 'Review the pull request in pr/.\n' > "$r/TASK.md"
+  printf 'id: rc-k\nschema_version: 1\ntype: review-catch\ncriterion: "review the change"\nreview_catch: {fixture: "%s"}\n' "$p" > "$r/task.yaml"
+  export LOA_EVAL_BR_BIN="$T/no-br"
+  run "$PR" --task-yaml "$r/task.yaml" --arm a1_full --run-dir "$T/run" --run-id r-k --trial 1 \
+    --source-tree "$T/src" --suite-file "$T/suite.yaml" --executor host --claude-bin "$T/claude"
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$T/run/meta/mount.log" 2>/dev/null; false; }
+  [ "$(evline mount_cheval)" = ok ]
+  [ "$(evline overlay_excluded)" = "2:.claude/adapters/loa_cheval/providers/__init__.py,.claude/scripts/gate.sh" ]
+  [ "$(evline mount_overlay)" = "head:0" ]
+  [ ! -s "$T/run/sandbox/.claude/adapters/loa_cheval/providers/__init__.py" ]   # the pinned (empty) providers module
+  [ "$(cat "$T/run/sandbox/.claude/scripts/gate.sh")" = "gate pinned" ]   # addendum 9: the PR's script is not overlaid
+  [ "$(cat "$T/run/sandbox/pr/head/.claude/scripts/gate.sh")" = "gate head" ]
+  grep -q private_workspace_base "$T/run/sandbox/pr/head/.claude/adapters/loa_cheval/providers/__init__.py"
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
 }
