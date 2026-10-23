@@ -25870,3 +25870,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0797"
+    created_at: "2026-10-23T07:49:40Z"
+    updated_at: "2026-10-23T07:49:40Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Look 3 = final look (all groups, 10 valid PRs, 122 defects): INCONCLUSIVE; delta 0.097 SE 0.084; a1_full guard 0.39 tripped; positive control pass"
+    decision: "Look 3 taken 2026-10-23T07:49Z after every G3 batch resolved (g3-a2 via one --clear-arm resume, g3-b via one --resume): 140 rows (68 under REGISTRATION-8, 72 under REGISTRATION-10), 10 valid PRs, 16 valid pairs, 122 labelled defects; delta 0.0971, SE 0.0843, df 9, information fraction 1 (final look); z_yes 1.152 and z_no 0.034 against the final bound 2.262; repeated confidence interval [-0.094, 0.288]; decision INCONCLUSIVE (neither boundary crossed at the final look, row 5 of the registered table). The 25 percent guard is tripped on a1_full (11 of 28 cells excluded, 0.39; a0_bare_matched 3 of 28, 0.11), so the read is also flagged inconclusive-by-degradation. Positive control under section 8: pass (open minus closed +0.042, 90 percent [-0.034, 0.117], 11 eligible pairs over 7 PRs, exposure in 9 open runs; r11, r24, r25 saturation-exempt). Co-reads: pipeline-independent +0.294 [95 percent -0.044, 0.632] on 34 defects; cost-matched +0.081 [-0.051, 0.211] on the 7 pairs within the dollar tolerance. The registered second reads (sections 10 and addenda 8 and 9) come in Sprint 271 with --final."
+    rationale: "This is the registered stopping-rule outcome at the final look; nothing is re-decided. The point estimate is positive at every look (0.204, 0.105, 0.097) with a shrinking interval that still covers both 0 and the 0.10 MDE, and the full arm lost 39 percent of its cells mostly to oracle exposure on the PRs that modify the pipeline itself (addendum 9) and to registered contamination rules."
+    alternatives_considered:
+      - option: "read the primary on the oracle-exposed cells re-included because the guard is tripped"
+        rejected_because: "that is a registered sensitivity row, reported beside the primary in Sprint 271, never in its place"
+      - option: "run more trials or PRs to resolve the interval"
+        rejected_because: "no replacement trials and N = 14 is the corpus ceiling; the registration ends at look 3"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "3aef5b27"
+    source: "grimoires/loa/reports/ablation-2.0/c132-looks/look-3/look-3.json (Sprint 270, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T07:49:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "grimoires/loa/reports/ablation-2.0/c132-looks/look-3/{look-3.json,look-3.md,rows.jsonl,INPUTS.json}; ~/.cache/loa/cycle-132/logs/look-3.log; cycle meter USD 3,266.93 at the look"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
