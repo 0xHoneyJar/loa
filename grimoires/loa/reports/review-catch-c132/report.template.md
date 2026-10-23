@@ -157,7 +157,7 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 - **Controls:** the positive control and both placebos above (`placebo-phase1.md`, `placebo-existing/placebo-existing.md`).
 - **Judge:** `judge/result.md`, `judge/result.json`, `judge/key-summary.json`; the exploratory defect-level read in `judge-defects/`.
 - **Dissent records:** plan-stage Flatline reviews of the PRD, SDD, sprint plan and the pre-registration (`grimoires/loa/a2a/flatline/{prd,sdd,sprint,spec}-flatline-*-final_consensus.json`, `grimoires/loa/a2a/sprint-269/flatline-prereg.json`); the review and audit dissent envelopes of Sprints 269, 270 and 271 (`grimoires/loa/a2a/sprint-26{9,70}/adversarial-{review,audit}.json`, `sprint-270/` copied beside this file, `sprint-271/`); the Bridgebuilder round on the cycle PR.
-- **Registration:** `PREREGISTRATION-sha256.txt` (every pre-registration and addendum hash and every REGISTRATION-N.json hash; binding at the final read: REGISTRATION-14).
+- **Registration:** `PREREGISTRATION-sha256.txt` (every pre-registration and addendum hash and every REGISTRATION-N.json hash). The reads are bound by REGISTRATION-15 (analysis addendum 16); REGISTRATION-16 (addendum 17) binds the reproduction tooling (`evals/analysis/c132/record_lite.py`, `reproduce.sh`) at the same pipeline pin.
 - **Decisions:** DEC-0801 … DEC-0811 (the reads, the stopping-rule outcome, the placebo and positive-control verdicts, the sensitivity re-grades, the exploratory judge read, the record design), each with the alternatives rejected, in `grimoires/loa/decisions.yaml`.
 
 ## Files
