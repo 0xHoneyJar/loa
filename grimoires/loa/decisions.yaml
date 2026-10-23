@@ -28099,3 +28099,683 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0839"
+    created_at: "2026-10-23T21:57:21Z"
+    updated_at: "2026-10-23T21:57:21Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.1 Bridgebuilder fetch pages pulls/N/files itself (100 per page), filters each page, retains selected patches to max_diff_bytes; head/base pinned first"
+    decision: "getPRFiles is replaced by a paged fetch: read pulls/N with base.sha and head.sha, then page pulls/N/files (per_page=100, no --paginate), apply the Loa-tier filter, exclude_patterns and max_files_per_pr to each page's metadata, retain patch text only for selected files up to max_diff_bytes, re-check head.sha on every page; changed_files above 3,000 records degraded_reason files_list_truncated with the omitted count."
+    rationale: "The endpoint always carries patch and has no per-file mode; paging bounds memory per page without a second fetch per file, and the SHA check makes the review attributable to one commit pair."
+    alternatives_considered:
+      - option: "per-file contents fetch at base and head with a local diff"
+        rejected_because: "two API calls per selected file and a local diff that may differ from GitHub rendering; paging already bounds memory"
+      - option: "raise the buffer only"
+        rejected_because: "a 100 MB payload still has to be parsed whole and the 3,000-file cap remains unhandled"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.1 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.1 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0840"
+    created_at: "2026-10-23T21:57:24Z"
+    updated_at: "2026-10-23T21:57:24Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.2 enrichment writer role allowed only to adapters with an enforced no-tool stance; output validated by schema and semantic equality; verdict from the block"
+    decision: "Writer eligibility: claude-headless (--tools empty, plan mode), codex-headless (--sandbox read-only --ignore-user-config, tools not forwarded) and API adapters; any other adapter is refused for the role. The guard parses exactly one findings block with the zod schema, requires id, anchor, severity and verdict equality with the consensus, rejects tool-call grammar of every provider, and otherwise posts the un-enriched consensus with exit 3. Verdict precedence: blocking severity, then the block's verdict, then prose."
+    rationale: "The round-2 failure was hallucinated tool markup from an adapter whose tools were already off; only an output guard with semantic equality catches that class."
+    alternatives_considered:
+      - option: "prompt-only instruction not to use tools"
+        rejected_because: "the writer had tools disabled and still emitted the markup"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.2 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.2 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0841"
+    created_at: "2026-10-23T21:57:27Z"
+    updated_at: "2026-10-23T21:57:27Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.4 record-branch.sh ports the cycle-132 cache script with a path manifest, a staged-tree export for the secret scan and tree-bound scan acceptance"
+    decision: "The script takes --cycle, --head, --prev, --stage and a manifest of record paths (defaults derived from the ledger cycle), stages with a temporary index, exports the staged tree to a temporary directory for audit-secret-redaction-scan.sh, treats credential-shaped hit classes as non-bypassable, lets --accept-scan TREE acknowledge the other classes for that tree only, and records the accepted hits in the commit message."
+    rationale: "The scanner reads files on disk, so the exact tree to be committed is exported and scanned rather than the working tree; binding acceptance to the tree hash prevents an acknowledgment from carrying over to different content."
+    alternatives_considered:
+      - option: "scan the working tree paths as the cache script did"
+        rejected_because: "the working tree can differ from the staged blobs"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.4 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.4 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0842"
+    created_at: "2026-10-23T21:57:29Z"
+    updated_at: "2026-10-23T21:57:29Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.5 compaction hook announces RUNNING as active, HALTED/INTERRUPTED as awaiting resume, nothing for terminal states or files older than seven days"
+    decision: "pre-compact-marker.sh reads .state from the run-mode and simstim files, maps RUNNING to active, HALTED and INTERRUPTED to awaiting resume, COMPLETED and JACKED_OUT to silent, and treats a file whose last_activity is older than a configurable window (default 7 days) as stale and silent."
+    rationale: "File existence is not liveness; the state machines of both workflows name their terminal states."
+    alternatives_considered:
+      - option: "delete terminal state files at completion"
+        rejected_because: "the files are the audit record of the run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.5 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.5 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0843"
+    created_at: "2026-10-23T21:57:32Z"
+    updated_at: "2026-10-23T21:57:32Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.1 session library: ERR sentinel from the pricing helpers, watchdog refuses on it, descriptors closed from /proc/self/fd, secrecy asserted at startup"
+    decision: "price_for and price_events print ERR on any failure or semantic problem (unknown model, missing or non-finite price, invalid tokens, usage-less turn); blind-session.sh and pipeline-run.sh refuse to launch or stop the session on ERR; ENV_SHIM enumerates /proc/self/fd and closes every descriptor above 2, falling back to closerange up to the hard RLIMIT_NOFILE; a startup assertion refuses a PASS_KEYS entry matching _KEY, TOKEN, SECRET or PASSWORD unless it is in SECRET_KEYS or an explicit non-secret allowlist; pipeline-run.sh sources the lib."
+    rationale: "A sentinel the consumer cannot mistake for data is the only fail-closed shape for a shell pipeline; enumerating open descriptors is exact where a numeric range guesses."
+    alternatives_considered:
+      - option: "derive secrecy purely from the name pattern"
+        rejected_because: "token-named non-secrets exist; the assertion with an allowlist fails closed without redacting budgets"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-2.1 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-2.1 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0844"
+    created_at: "2026-10-23T21:57:35Z"
+    updated_at: "2026-10-23T21:57:35Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.2 reproduce.sh compares the working tree to the pin over harness, suites, fixtures and analysis; the field is renamed; exit codes 0/1/2/3 defined"
+    decision: "The attestation becomes pinned_trees_identical_to_worktree over evals/harness, evals/suites, evals/fixtures, the suite tasks and evals/analysis/c132, with git status --porcelain required clean for those paths unless --no-env-check (which records env_check skipped and can never assert a match); exit 0 reproduced, 1 difference, 2 environment or usage, 3 live sample requested but not run."
+    rationale: "The field must say what was compared; the exit table removes the ambiguity the dissent found."
+    alternatives_considered:
+      - option: "keep the HEAD comparison and add a dirty flag"
+        rejected_because: "the executing tree is the working tree, so the flag would be the real attestation"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-2.2 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-2.2 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0845"
+    created_at: "2026-10-23T21:57:38Z"
+    updated_at: "2026-10-23T21:57:38Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.3 refusal-fallback policy is a suite key with default exclude; rows record the policy applied, the original and fallback models, attempts and cost"
+    decision: "The suite file gains refusal_policy (exclude | keep | rerun-once) per arm with default exclude, matching the cycle-132 registered behaviour; run-ablation.sh records refusal_policy_applied beside the existing refusal_fallbacks in every row; the denominator rule per policy is documented in the harness README for the next pre-registration."
+    rationale: "Continuity with the registered behaviour keeps old rows comparable; the field makes the policy a cited fact rather than a convention."
+    alternatives_considered:
+      - option: "default rerun-once"
+        rejected_because: "a rerun changes the sample and the cost without a registration naming it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-2.3 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:57:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-2.3 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0846"
+    created_at: "2026-10-23T21:58:36Z"
+    updated_at: "2026-10-23T21:58:36Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.3 publish tags the merge commit; the ledger-archive change is a candidate patch applied by a conditional fast-forward of main after the release"
+    decision: "--generate sets target_commit to the merge sha and records the ledger-archive change as a patch with its digest; --publish verifies the remote main equals merge_sha, tags the merge, creates the release, then applies the ledger patch as a commit pushed with a conditional update (expected old value merge_sha); if main moved the ledger change is deferred to archive-cycle.sh with a notice; the sequence is idempotent and the manifest covers notes, tag target, ref updates and the patch."
+    rationale: "A tag on the merge is reachable from main by construction and the only commit that never passed CI is named in the candidate and bounded to ledger.json."
+    alternatives_considered:
+      - option: "fast-forward main to the generated commit, then tag it"
+        rejected_because: "the tag then depends on the push succeeding, and a moved main leaves no tag at all"
+      - option: "drop the ledger commit entirely"
+        rejected_because: "consumers without the archive flow would keep an active cycle forever"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.3 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:58:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.3 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0847"
+    created_at: "2026-10-23T21:58:39Z"
+    updated_at: "2026-10-23T21:58:39Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.4 batch supervisor: user systemd transient unit (watchdog fallback), flock, STATUS entries; egress via an internal network and a proxy sidecar"
+    decision: "run-ablation.sh gains --supervised: systemd-run --user when available, else a setsid watchdog loop; one owner through flock and a pid file; orphaned containers named loa-abl-<run>-* are stopped before a resume; retries recorded in STATUS.json supervisor entries with a cap. Egress: the sandbox joins a docker internal network with a proxy sidecar whose allowlist is the model registry's hosts; HTTPS_PROXY is set in the session; the suite key egress (blocked | bridge) is per arm with default blocked and recorded in MANIFEST; the image tag becomes loa-ablation:259."
+    rationale: "A transient unit survives the shell, a tool timeout and a logout; an internal network with an allowlisting proxy denies every destination by default and keeps the model endpoints reachable."
+    alternatives_considered:
+      - option: "iptables rules inside the container"
+        rejected_because: "needs CAP_NET_ADMIN in the sandbox and leaves DNS and IPv6 paths to audit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-2.4 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:58:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-2.4 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0848"
+    created_at: "2026-10-23T21:58:42Z"
+    updated_at: "2026-10-23T21:58:42Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.1 Loa reviews Loa: pinned framework in the sandbox HOME scope, PR data files at the workspace root, executable surface absent at root; spike first"
+    decision: "Design (a-prime): the pinned framework (CLAUDE.md, settings with hooks, skills, scripts via absolute paths) is installed in the sandbox HOME scope and the session runs with settings restricted to that scope; the workspace root .claude/ receives the PR's own versions of every changed path except the executable surface (skills, commands, agents, hooks, settings*), which stays absent at the root and readable under pr/head/.claude/; the detector gains a positive clause (a read returning PR bytes by hash) and keeps its negative control. Sprint 3 opens with a spike that proves, in the image, that project-scope skills, hooks and CLAUDE.md are not loaded under this layout; if the spike fails, design (c) — a reviewer read contract enforced by the harness and the skill text — is the fallback and the DEC is amended."
+    rationale: "It is the narrowest design that removes the oracle for every changed path, including executing files, while keeping PR content as data; it depends on Claude Code scope facts the spike verifies before anything is built on it."
+    alternatives_considered:
+      - option: "(b) overlay everything but the executing set"
+        rejected_because: "the executing set is exactly where the cycle-132 exposures sat (hooks, scripts), so the oracle would remain for those PRs"
+      - option: "(c) read contract only"
+        rejected_because: "rests on skill text obedience with no mechanical guarantee; kept as the fallback"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.1 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:58:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.1 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0849"
+    created_at: "2026-10-23T21:58:45Z"
+    updated_at: "2026-10-23T21:58:45Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.2 one canonical finding.schema.json v1, a markdown finding grammar with a Failure clause, verdict-derive enforcement, grader 1.5 judge hook"
+    decision: "finding.schema.json v1 defines id, anchor, failure_scenario, severity and confidence; the review and audit markdown grammar becomes a bullet with bold severity, confidence, a file:line anchor, a title and a Failure: clause that verdict-derive.sh requires for tallied findings; the adversarial finding schema and the Bridgebuilder FindingsBlockSchema reference the canonical schema with failure_mode and description as warned aliases until 2.1.0; ablation-grade.sh 1.5 accepts --judge-verdicts and reports judged recall with the unjudged count."
+    rationale: "One schema at four gates makes the scenario enforceable and makes the judge read registrable; a textual Failure clause is what a markdown feedback file can carry."
+    alternatives_considered:
+      - option: "JSON feedback files instead of markdown"
+        rejected_because: "the gate files are read by people and by the trailer parser; a clause grammar keeps both"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.2 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:58:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.2 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0850"
+    created_at: "2026-10-23T21:58:48Z"
+    updated_at: "2026-10-23T21:58:48Z"
+    phase: "architecture"
+    category: "process"
+    summary: "D-4.1 beads sweep: frozen inventory, Explore batches of at most 40 beads returning a closure manifest, lead applies, second Explore re-verifies a 10 % sample"
+    decision: "The sweep exports the open inventory to a file at its start; Explore subagents take batches of at most 40 beads and return a manifest row per bead (category, evidence, confidence); the lead applies closures and labels from the manifest with br; a second Explore re-verifies a randomised 10 % sample and any disagreement re-sweeps that batch; the report tabulates the five categories."
+    rationale: "Read-only subagents cannot close beads by accident, the manifest is reviewable before any write, and the sample bounds false closures."
+    alternatives_considered:
+      - option: "let the subagents close beads directly"
+        rejected_because: "no review point between a model judgment and a tracker write"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-4.1 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:58:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-4.1 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0851"
+    created_at: "2026-10-23T21:59:55Z"
+    updated_at: "2026-10-23T21:59:55Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.3 external seeder shares lib/corpus-seed.sh with the record seeder; git archive materialisation; SPDX allowlist; registration v2 adds looks_seen"
+    decision: "seed-corpus-from-external.sh and seed-corpus-from-record.sh share lib/corpus-seed.sh (fixture layout, labels grammar, exposure block, freeze); external trees are materialised with git archive into a temporary directory (no hooks, no submodules, size and count limits, symlink rejection), PR.md is built from the PR title and body with a leakage check against the fix diff, licences are checked against an SPDX allowlist, and registration.py schema v2 adds an optional looks_seen list validated against the committed looks inventory while v1 registrations still verify."
+    rationale: "Sharing the lib keeps the two seeders byte-compatible; git archive never runs repository code; the optional field keeps the cycle-132 chain valid."
+    alternatives_considered:
+      - option: "a separate seeder with copied code"
+        rejected_because: "two fixture writers drift, as the session library did"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.3 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:59:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.3 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0852"
+    created_at: "2026-10-23T21:59:57Z"
+    updated_at: "2026-10-23T21:59:57Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-4.2 tests/QUARANTINE.tsv (test, owner, expiry, bead, reason) read by a bats helper; CI fails on expiry; pytest globs evals/analysis/*/tests"
+    decision: "A tracked tests/QUARANTINE.tsv lists quarantined tests with owner, expiry, bead and reason; a bats helper skips listed tests with the reason; a CI step fails when any row is past its expiry and reports executed, skipped and quarantined counts; the CI pytest step globs evals/analysis/*/tests."
+    rationale: "A quarantine with an expiry the CI enforces cannot become permanent silently."
+    alternatives_considered:
+      - option: "skip annotations inside each test file"
+        rejected_because: "no single place to see or expire them"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-4.2 (cycle-133)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T21:59:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-4.2 (cycle-133)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0853"
+    created_at: "2026-10-23T22:17:30Z"
+    updated_at: "2026-10-23T22:17:30Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.7 codex-headless is out of the default writer allowlist until a test proves its native tools cannot execute; adapters self-report the no-tool stance"
+    decision: "The default writer_role_allowlist is claude-headless and the API adapters; codex-headless joins only when a vitest proves shell, file and network tools cannot execute under its dispatch; every adapter reports its enforced no-tool stance in the dispatch result and the role check verifies that report, not the adapter name; an ineligible writer is the named degradation writer_not_eligible (exit 3)."
+    rationale: "A read-only sandbox and tools not forwarded are not proof that native tools are off (SKP-001b, gpt 04)."
+    alternatives_considered:
+      - option: "allow codex-headless on the sandbox stance alone"
+        rejected_because: "the stance is a posture, not a tested capability restriction"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.7 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:17:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.7 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0854"
+    created_at: "2026-10-23T22:17:33Z"
+    updated_at: "2026-10-23T22:17:33Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-2.5 egress threat model stated; proxy validates resolved addresses and ports; sandbox DNS sinkholed; registry egress_hosts; isolation checks never quarantined"
+    decision: "The egress block defends against repository and arbitrary-destination egress from the sandbox, not against exfiltration through the allowlisted model API (the class-9 detector stays the tripwire for that; stated in the README). The proxy validates the resolved destination of every CONNECT and plain HTTP request against the allowlist and denies private, loopback, link-local and metadata ranges, restricts CONNECT to port 443, re-validates at connect time (DNS rebinding), and is attached to the internal and an external network; the sandbox gets an unroutable --dns; the model registry gains egress_hosts[] per provider including auth and token-refresh hosts; denials are attributed per run by source address; the isolation, egress-denial and mount-provenance checks are release gates that QUARANTINE.tsv may not list."
+    rationale: "Hostname allowlisting alone leaves rebinding, direct-IP and private-range paths (SKP-014, SKP-015, gpt 16, opus 21-22); naming the threat model stops the design from claiming more than it does."
+    alternatives_considered:
+      - option: "credential-owning gateway constraining API operations"
+        rejected_because: "out of scope for this cycle; recorded as the next step if exfiltration through the API must be prevented"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-2.5 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:17:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-2.5 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0855"
+    created_at: "2026-10-23T22:17:36Z"
+    updated_at: "2026-10-23T22:17:36Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.4 the measurement pin is the Sprint 3 head after every harness change; Sprint 2 ships an intermediate version; the smoke asserts the exact tree"
+    decision: "The Sprint 2 head is an intermediate pipeline version (recorded, image 259 built); the pin the smoke and any later measurement cite is the Sprint 3 head, after the mount mode, took-effect clauses, grader 1.5 and registration v2 land; reproduce.sh asserts the smoke ran that exact tree; the drift-test removal is versioned after the smoke."
+    rationale: "A pin that predates the mount and grader changes the smoke exercises would attest the wrong tree (SKP-013, gpt 21, opus 01)."
+    alternatives_considered:
+      - option: "pin at the Sprint 2 head and treat Sprint 3 as analysis-only"
+        rejected_because: "C-10 and grader 1.5 are harness changes the smoke depends on"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.4 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:17:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.4 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0856"
+    created_at: "2026-10-23T22:18:17Z"
+    updated_at: "2026-10-23T22:18:17Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-1.6 publish precondition: merge_sha ancestor of remote main; lease only on the ledger ff; deterministic ledger commit; --ledger-only; v1 refused"
+    decision: "Tag and release require git merge-base --is-ancestor merge_sha <remote main>, not equality; the ledger patch is applied onto the observed remote main and pushed with a lease against that observed sha; a lease failure leaves ledger_commit: deferred and --publish --ledger-only completes it later; the ledger commit uses the author, committer and dates recorded in the candidate so ref_updates[].new is computable at generate and verified at publish; a schema_version 1 candidate is refused with a regeneration instruction (--allow-v1 with a logged reason as the only exception); the recovery state machine accepts the original merge or the published ledger result."
+    rationale: "An equality precondition turns any later merge into a permanently unpublishable candidate (SKP-004, SKP-006); the ancestor test keeps the tag valid and the lease protects the only write to main."
+    alternatives_considered:
+      - option: "keep equality and regenerate the candidate after every merge"
+        rejected_because: "regeneration moves the target and discards the operator approval each time main advances"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-1.6 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:18:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-1.6 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0857"
+    created_at: "2026-10-23T22:18:19Z"
+    updated_at: "2026-10-23T22:18:19Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.5 a blocking bullet without a valid Failure clause still blocks (counted + violation, never APPROVE); non-defect severities exempt; blocking flag"
+    decision: "verdict-derive.sh counts a CRITICAL, HIGH or blocking bullet whose Failure clause is missing or invalid in the blocking tally and emits the violation, so the file is inconsistent and cannot derive APPROVED; PRAISE, INFO, REFRAME and SPECULATION are exempt from the clause; finding.schema.json gains blocking: boolean (voice-blocking maps to it) and a confidence normalisation (high 0.9, medium 0.6, low 0.3; validators emit the enum); shared conformance vectors under .claude/schemas/finding.vectors/ are run by the zod, jq and python validators."
+    rationale: "Excluding a malformed blocking bullet from the tally would turn a formatting slip into an approval (SKP-002, SKP-021)."
+    alternatives_considered:
+      - option: "exclude malformed bullets and only warn"
+        rejected_because: "a CRITICAL without a clause must never read as zero"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.5 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:18:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.5 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0858"
+    created_at: "2026-10-23T22:18:22Z"
+    updated_at: "2026-10-23T22:18:22Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "D-3.6 amends D-3.1: a failed scope spike HALTS for an operator decision; (c) never adopted autonomously; the surface covers every instruction and config path"
+    decision: "If the Sprint 3 spike shows any project-scope item loaded, the run HALTS with the spike record and the choice of fallback (c) is the operator's; even under (c) hooks/, settings*.json and .mcp.json are stripped from the root and a took-effect clause asserts no project hook or MCP server executed. The executable and prompt surface is extended to .mcp.json, the root CLAUDE.md and CLAUDE.local.md, .claude/CLAUDE.md, .claude/rules/**, *.local.* under .claude/ and any @-imported memory file; clause (e) asserts their absence at the root; the spike plants each with a canary; the Claude Code version inside image 259 is pinned and recorded in MANIFEST; framework hooks and scripts resolve .claude/ through one root variable."
+    rationale: "Adopting (c) autonomously would change the threat model without the operator (SKP-003, SKP-011); the surface list omitted paths Claude Code loads regardless of settings sources (SKP-001a, SKP-010, opus 02)."
+    alternatives_considered:
+      - option: "fall back to (c) autonomously as D-3.1 said"
+        rejected_because: "PR hooks would execute in the reviewing session under (c); that is a different threat model and an operator decision"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sdd.md § 11.D D-3.6 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:18:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 11.D D-3.6 and § 11.E (cycle-133 Flatline SDD review, a2a/flatline/cycle-133-sdd-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0859"
+    created_at: "2026-10-23T22:34:54Z"
+    updated_at: "2026-10-23T22:34:54Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "D-S.1 sprint Flatline folded; shares smoke 40 / BB 20 / dissent 40; the egress suite is a hard gate; a failed smoke leaves G-4 incomplete"
+    decision: "Every blocker and item of the sprint review is folded into the task text: required checks bound to the final head sha before the admin merge; the ledger patch restricted to ledger.json and the active-to-archived transition; an existing tag accepted only when target and release identity match; ancestry re-verified before each externally visible publish step; supervisor durable identity (boot id, start time, attempt id, provider request id) and process-group ownership; verdict eligibility per degraded_reason; spike canaries with filesystem effects and process capture, run inside the egress block; the surface derived from the pinned Claude Code version plus output-styles and plugins; adapters prove the no-tool stance at invocation; file-conflicting tasks sequenced with one integration owner; a Sprint 4 close task before the merge; a dissent-exhaustion HALT rule; a Bridgebuilder plateau rule; sample re-verification before closures apply; ISO quarantine expiry. The egress container suite is a hard precondition for the intermediate pin, the spike and the smoke — run on the operator host when the Docker CI job is unavailable, never satisfied by a quarantine row. The USD 100 cap is re-allocated smoke 40 (spike ≤ 2 inside it, one verification rerun reserved) / Bridgebuilder 20 / dissent 40 with a running spend line per share in every sprint report; a failed smoke leaves G-4 incomplete and the feature is deferred rather than claimed."
+    rationale: "The review ran degraded (KF-041, recurrence 11) so every concern surfaces as a blocker; read one by one each is a gap in the task text, and two change the plan's numbers (the budget shares and the smoke's acceptance)."
+    alternatives_considered:
+      - option: "keep the smoke share at USD 30 with no rerun reserve"
+        rejected_because: "a fix after a failed smoke could not be verified within the cap, so the feature would ship unproven or over budget"
+      - option: "allow a quarantine row to stand in for the egress suite"
+        rejected_because: "credential-bearing runs would start under an unproven network boundary"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1a91fceb"
+    source: "grimoires/loa/sprint.md § Appendix D (cycle-133 Flatline sprint review, a2a/flatline/cycle-133-sprint-review.json)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T22:34:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "grimoires/loa/sprint.md § Appendix D (cycle-133 Flatline sprint review, a2a/flatline/cycle-133-sprint-review.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
