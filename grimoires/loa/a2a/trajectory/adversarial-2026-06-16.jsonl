@@ -1,0 +1,6 @@
+{"timestamp":"2026-06-16T03:17:12Z","type":"review","model":"gpt-5.5","sprint_id":"pr-1057","status":"reviewed","finding_count":2,"cost_usd":0}
+{"timestamp":"2026-06-16T03:19:47Z","type":"audit","model":"claude-headless","sprint_id":"pr-1057","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-16T03:30:23Z","type":"audit","model":"claude-headless","sprint_id":"pr-1057-core","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-16T03:42:37Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"pr-1057-grok-headless","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-16T03:43:53Z","type":"audit","model":"claude-headless","sprint_id":"pr-1057-grok-gemini","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-16T03:45:37Z","type":"audit","model":"claude-headless","sprint_id":"pr-1057-grok-gem2","status":"api_failure","finding_count":0,"cost_usd":null}

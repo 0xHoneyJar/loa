@@ -1,0 +1,397 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-03-23T07:52:56Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Foundational and clearly actionable. Multiple downstream tasks depend on manifest fields, so a canonical schema prevents parser drift and integration defects across sprints. Low-to-moderate effort with very high risk reduction.",
+        "gpt_score": 930,
+        "opus_score": 850,
+        "tertiary_score": 980,
+        "delta": 80,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong cross-cutting improvement. Script pipelines without defined exit/error conventions are brittle and hard to debug. This is concrete, inexpensive to define, and materially improves reliability in Sprint 106 composition.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "tertiary_score": 950,
+        "delta": 60,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Good quality-control enhancement. Integration sprint acceptance criteria are currently vague; specifying concrete assertions and pass/fail conditions is actionable and improves test signal.",
+        "gpt_score": 710,
+        "opus_score": 750,
+        "tertiary_score": 850,
+        "delta": 40,
+        "average_score": 730,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-003",
+        "description": "High-value specification gap. Index and capability registry are explicit contracts between sprints; lacking schema/examples will cause implementation divergence. Highly actionable and directly tied to integration success.",
+        "gpt_score": 910,
+        "opus_score": 580,
+        "tertiary_score": 980,
+        "delta": 330,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Incremental index generation relies on mtime staleness detection only.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "mtime-only checks miss edge cases (clock skew, copy/restore, touched files, symlinks), leading to stale or incorrect index state that cascades into resolver and health errors.",
+        "location": "Sprint 103 T1.2, Sprint 106 T4.3",
+        "recommendation": "Use content hashing + manifest fingerprinting, track deleted constructs, and add deterministic cache invalidation rules.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Manifest and index schema/versioning are not defined (required fields, types, backward compatibility, migration rules).",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Without a versioned contract, different scripts may interpret construct metadata differently, causing resolver/composer breakage and hard-to-debug incompatibilities as formats evolve.",
+        "location": "Sprint 103 T1.1, Sprint 106 T4.4",
+        "recommendation": "Define JSON/YAML schemas with explicit version fields, validation rules, and migration strategy; enforce schema checks in CI and at runtime.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "No definition of the construct manifest schema anywhere in the sprint plan",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Every single sprint depends on reading a construct manifest (name, version, capabilities, depends fields). There is no schema definition, no versioning for the schema itself, and no validation spec. Without this, every task is building against an assumption that may differ between developers. Sprints 103-105 will all be blocked or reworked if the schema isn't locked down first.",
+        "location": "All Sprints — implicit dependency on manifest format",
+        "recommendation": "Add a Sprint 103 pre-task (T0.1) to define and commit the construct manifest JSON/YAML schema with required/optional fields, versioning, and a validation script. All other tasks should reference this schema.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Path traversal and symlink safety are not addressed when scanning construct directories.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Untrusted construct paths/symlinks can escape intended directories, exposing sensitive files or corrupting index and health results.",
+        "location": "Sprint 103 T1.1, Sprint 105 T3.2",
+        "recommendation": "Canonicalize paths, enforce root boundaries, deny dangerous symlink traversal, and validate manifests/files against allowed locations.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Remote registry referenced in resolution scope but never defined or implemented",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "T2.2 states resolution priority is 'local > pack > remote' and mentions a 'registry' as the final scope. No sprint task creates, configures, authenticates, or even mocks this remote registry. This is scope creep in disguise — either the remote scope silently fails (confusing users), or someone will try to build it mid-sprint, blowing up the timeline.",
+        "location": "Sprint 104: T2.2",
+        "recommendation": "Explicitly descope remote registry for this cycle. Document it as 'future' in the resolution rules. If it stays, add tasks for registry protocol, authentication, caching, and offline behavior.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Remote registry resolution is in scope but lacks trust, auth, and integrity requirements.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "Resolving constructs from remote sources without signature verification, pinning, and auth opens a direct supply-chain attack path.",
+        "location": "Sprint 104 T2.2 (local > pack > remote)",
+        "recommendation": "Add signed metadata/artifacts, checksum verification, TLS and trust-store rules, auth model, and allowlist/pinning requirements before enabling remote resolution.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Shell scripts (bash) as the implementation language for complex graph operations",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Sprint 104 requires topological sorting, circular dependency detection, glob version matching, and conflict resolution — all notoriously difficult and error-prone to implement correctly in bash. This is a technical debt trap that will be fragile, hard to test edge cases, and nearly impossible to maintain or extend. YAML parsing in bash (T1.3) is another red flag.",
+        "location": "Sprint 104: T2.3, T2.4; Sprint 103: T1.3",
+        "recommendation": "Evaluate whether a lightweight scripting language (Python, jq-heavy pipelines, or even a compiled tool) should handle the graph logic, with bash as a thin wrapper. At minimum, spike the topological sort and cycle detection in bash to validate feasibility before committing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Version matching semantics are undefined — 'glob version matching' is dangerously vague",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "T2.1 says 'supports glob version matching' but doesn't specify semver ranges, glob syntax, prerelease handling, or what '>=1.0 <2.0' vs '1.*' means. Version resolution is one of the hardest problems in package management (see npm, pip, cargo). Implementing it partially guarantees surprising breakage later when real-world version constraints don't match assumptions.",
+        "location": "Sprint 104: T2.1",
+        "recommendation": "Define exact version matching rules: is it semver? Shell globs? Ranges? Document supported syntax, write a version-matching unit test suite first, and consider using an existing semver library rather than rolling your own.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Version matching semantics are underspecified (glob matching can be ambiguous and unsafe).",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Ambiguous version resolution can produce non-deterministic dependency graphs and environment drift across machines/CI.",
+        "location": "Sprint 104 T2.1, T2.3",
+        "recommendation": "Define strict semantic version precedence, tie-break rules, lockfile behavior, and rejection of ambiguous matches.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " created 2026 03 23",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-03-23T07:52:56Z",
+    "metrics": {
+      "total_latency_ms": 93000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-03-23T07:58:25Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 10,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real and critical gap: multiple tasks depend on manifest semantics, and lacking a canonical schema will almost certainly cause cross-sprint integration defects. It is highly actionable with low-to-moderate effort and very high ROI.",
+        "gpt_score": 940,
+        "opus_score": 850,
+        "tertiary_score": 950,
+        "delta": 90,
+        "average_score": 895,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Defining a versioned JSON index contract before producer/consumer implementation is architecturally essential. This directly prevents rework and interface drift across sprints and is straightforward to operationalize with schema + contract tests.",
+        "gpt_score": 900,
+        "opus_score": 820,
+        "tertiary_score": 980,
+        "delta": 80,
+        "average_score": 860,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Consistent shell error/exit conventions are a concrete cross-cutting need for pipeline reliability and debuggability. The implementation cost is low and the impact on integration stability is high.",
+        "gpt_score": 840,
+        "opus_score": 740,
+        "tertiary_score": 920,
+        "delta": 100,
+        "average_score": 790,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "The local/pack/remote/registry ambiguity is a real scope-definition risk that can distort estimates and implementation behavior. Clarifying whether remote/registry is in-scope now vs deferred is highly actionable and valuable.",
+        "gpt_score": 780,
+        "opus_score": 780,
+        "tertiary_score": 960,
+        "delta": 0,
+        "average_score": 780,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Adding failure/recovery E2E scenarios is a strong quality improvement and domain-appropriate for pipeline tooling, though it increases test scope and maintenance. Valuable once core happy path stabilizes.",
+        "gpt_score": 710,
+        "opus_score": 810,
+        "tertiary_score": 790,
+        "delta": 100,
+        "average_score": 760,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Concurrency and atomicity around a shared mutable index is a realistic operational concern, especially in CI and parallel workflows. Addressing locking/atomic-write semantics is moderately complex but worthwhile.",
+        "gpt_score": 740,
+        "opus_score": 830,
+        "tertiary_score": 940,
+        "delta": 90,
+        "average_score": 785,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-006",
+        "concern": "Capability conflict detection lacks a formal compatibility model",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "The plan references \"incompatible versions\" for capability providers, but capability versioning and compatibility rules are undefined. This can lead to arbitrary conflict results and hard-to-debug operator behavior.",
+        "location": "Sprint 104, T2.4; Sprint 103, T1.3",
+        "recommendation": "Define capability identity/version contract (namespace, version, compatibility matrix, precedence). Add deterministic conflict policy and override controls.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Incremental rebuild based only on mtimes is fragile and can silently produce stale indexes",
+        "severity": "HIGH",
+        "severity_score": 725,
+        "why_matters": "mtime-based staleness fails in common scenarios (clock skew, copy operations preserving timestamps, filesystem differences). Silent stale indexes will cause incorrect resolution/composition outcomes.",
+        "location": "Sprint 103, T1.2; Sprint 106, T4.3",
+        "recommendation": "Use content hashing plus manifest dependency graph fingerprints, not mtime alone. Include explicit cache invalidation commands and stale-cache diagnostics.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Manifest and capability schema governance is missing (no explicit schema versioning/migration plan)",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Many tasks assume parseable manifests and capability fields, but there is no authoritative schema/version evolution strategy. Future changes will break backward compatibility and create fragile parsers.",
+        "location": "Sprint 103, T1.1/T1.3; Sprint 106, T4.4",
+        "recommendation": "Publish a versioned JSON/YAML schema, validation rules, deprecation policy, and migration path. Enforce schema checks in CI and health checks.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "No atomicity or locking strategy for index/cache updates under concurrent command execution",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Multiple scripts (/loa, health, resolver, CI) may read/write index data simultaneously. Without file locks and atomic writes, partial/corrupt index states can cascade into false health failures and broken resolution.",
+        "location": "Sprint 103, T1.1-T1.2; Sprint 105, T3.1-T3.2; Sprint 106, T4.3",
+        "recommendation": "Define concurrency guarantees: lock files, temp-file + atomic rename writes, cache invalidation contract, and retry behavior on contention.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "No construct manifest schema defined anywhere in the sprint plan",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Every sprint depends on reading construct manifests (name, version, capabilities, depends fields), but the manifest schema is never defined. T1.3 references a 'capabilities' field, T2.3 references a 'depends' field, but there's no task to define the manifest format itself. Without a locked schema, every script will make different assumptions about the manifest structure, leading to integration failures in Sprint 106.",
+        "location": "Missing from all sprints - manifest schema is a prerequisite for T1.1, T1.3, T2.3, T3.2",
+        "recommendation": "Add a Sprint 103 task (T1.0) to define and validate the construct manifest JSON/YAML schema before any parsing work begins. Include schema versioning.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Remote construct resolution is introduced without any trust, authentication, or signature verification model",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "Sprint 104 adds a remote registry scope, but there is no defined mechanism for provenance, tamper detection, or access control. This creates a direct supply-chain attack path where malicious constructs can be resolved and executed.",
+        "location": "Sprint 104, T2.2 (local > pack > remote); Sprint 106, T4.4 (protocol docs)",
+        "recommendation": "Define a security model before implementation: signed manifests/artifacts, trusted registry config, TLS/pinning requirements, authN/authZ, and deny-by-default behavior for untrusted sources.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Shell scripting as the foundation for a composable dependency resolution system",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Bash is being used to implement a package-manager-like system (dependency resolution, topological sort, circular dependency detection, version glob matching, conflict detection). These are algorithmically complex problems that are extremely fragile in shell. Debugging, error handling, and edge cases in bash at this complexity level will cause cascading failures and unmaintainable code. There's a reason no real package manager is written in bash.",
+        "location": "All sprints - construct-resolver.sh, construct-compose.sh, capability-aggregator.sh",
+        "recommendation": "Evaluate whether shell is the right implementation language. If constrained to shell, drastically simplify the resolution and composition logic. Otherwise, consider Python/Go for the core engine with shell wrappers.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Version glob matching in shell is a hidden complexity bomb",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "T2.1 casually mentions 'supports glob version matching' as part of name resolution. Semver-aware version matching (ranges, wildcards, caret, tilde) is notoriously complex. Implementing this correctly in bash is extremely error-prone. Even 'simple' glob matching against version strings has edge cases (pre-release tags, build metadata, non-semver versions). This single acceptance criterion could consume the entire sprint.",
+        "location": "Sprint 104, T2.1 - 'Supports glob version matching'",
+        "recommendation": "Define exactly what version matching semantics are supported. Start with exact match only in this cycle, defer glob/range matching to a future cycle. If globs are required, use a proven library.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Version matching semantics are underspecified (glob matching is ambiguous and likely incorrect for dependency resolution)",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "Using glob matching for versions can produce non-deterministic or unsafe resolutions (e.g., selecting incompatible versions). Composition and conflict detection will be unreliable without strict semver/range rules.",
+        "location": "Sprint 104, T2.1 (name@version with glob), T2.4 (incompatible versions)",
+        "recommendation": "Replace glob semantics with explicit semver range rules, deterministic tie-breaking, and lockfile behavior. Add tests for prerelease/build metadata and conflicting ranges.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "YAML parsing in shell scripts is fragile and insecure",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Multiple tasks require parsing YAML manifests in bash (T1.1, T1.3, T2.3, T3.2). Shell-based YAML parsing is notoriously unreliable - it either requires external tools (yq, python) creating dependency issues, or uses regex/sed hacks that break on multiline values, special characters, anchors, and aliases. Malformed YAML handling (T1.4 test) will be especially brittle. YAML also has known security issues (billion laughs, arbitrary code execution in some parsers).",
+        "location": "Sprint 103 T1.1, T1.3; Sprint 104 T2.3; Sprint 105 T3.2",
+        "recommendation": "Mandate a specific YAML parser tool (e.g., yq v4) as a documented dependency. Define which YAML features are supported in manifests. Consider using JSON-only manifests to avoid YAML complexity entirely.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " created 2026 03 23",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-03-23T07:58:25Z",
+    "metrics": {
+      "total_latency_ms": 151000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

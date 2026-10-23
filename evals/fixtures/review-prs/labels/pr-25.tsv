@@ -1,0 +1,57 @@
+# approved-by: lead 2026-10-21
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	high	logic	evals/harness/ablation-grade.sh	owned = {d for _s, d, f in t.overlay if not os.path.isdir(f)}	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	@L1080	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	reserved = {d.rsplit("/", 1)[-1] for d in owned if d.endswith(".py")}	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	if any(p in ("tests", "test") for p in parts):	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	reserved.update(n for n in fs if n.endswith(".py") and n not in ("__init__.py", "conftest.py"))	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	if name not in reserved:	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	if rel in owned or rel.startswith(owned_dirs) or (fx and os.path.lexists(os.path.join(fx, *rel.split("/")))):	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	found.append((rel, os.path.join(r, name)))	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V01	high	logic	evals/harness/ablation-grade.sh	@L1100	fix-commit	hunk:H04	A,B	adjudicated	anchors: union (A adds 1098, 1100)	true
+V02	critical	security	evals/harness/pipeline-run.sh	tok = data.get("tokens")	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V02	critical	security	evals/harness/pipeline-run.sh	if isinstance(tok, dict):	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V02	critical	security	evals/harness/pipeline-run.sh	if "refresh_token" in tok:	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V02	critical	security	evals/harness/pipeline-run.sh	tok["refresh_token"] = "loa-ablation-no-refresh-token"	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V02	critical	security	evals/harness/pipeline-run.sh	fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V02	critical	security	evals/harness/pipeline-run.sh	json.dump(data, out)	fix-commit	hunk:H07	A,B	adjudicated	severity: codebook critical (a credential exposed verbatim); agreed otherwise	true
+V03	medium	logic	evals/harness/run-ablation.sh	CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" <<'PY'	fix-commit	hunk:H14	A,B	adjudicated	verdict: counting already-rowed trials on --resume is a wrong behaviour of its own, distinct from the horizon formula (D3) — defect (A), own group D4	true
+V03	medium	logic	evals/harness/run-ablation.sh	auth, plan_p, suite_p, conc, skip = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5] == "true"	fix-commit	hunk:H14	A,B	adjudicated	verdict: counting already-rowed trials on --resume is a wrong behaviour of its own, distinct from the horizon formula (D3) — defect (A), own group D4	true
+V03	medium	logic	evals/harness/run-ablation.sh	required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in plan) / max(conc, 1)))	fix-commit	hunk:H14	A,B	adjudicated	verdict: counting already-rowed trials on --resume is a wrong behaviour of its own, distinct from the horizon formula (D3) — defect (A), own group D4	true
+V04	high	logic	evals/harness/run-ablation.sh	required = int(math.ceil(now + 2 * sum(float(e.get("watchdog_s") or 0) for e in plan) / max(conc, 1)))	fix-commit	hunk:H16	A,B	adjudicated	severity: codebook high — a failure on a common path (every batch runs concurrency > 1)	true
+V04	high	logic	evals/harness/run-ablation.sh	tok = (data.get("tokens") if isinstance(data, dict) else None) or {}	fix-commit	hunk:H16	A,B	adjudicated	severity: codebook high — a failure on a common path (every batch runs concurrency > 1)	true
+V04	high	logic	evals/harness/run-ablation.sh	at = tok.get("access_token") if isinstance(tok, dict) else None	fix-commit	hunk:H16	A,B	adjudicated	severity: codebook high — a failure on a common path (every batch runs concurrency > 1)	true
+V04	high	logic	evals/harness/run-ablation.sh	if not isinstance(at, str) or not at:	fix-commit	hunk:H16	A,B	adjudicated	severity: codebook high — a failure on a common path (every batch runs concurrency > 1)	true
+V04	high	logic	evals/harness/run-ablation.sh	bad("has no tokens.access_token")	fix-commit	hunk:H16	A,B	adjudicated	severity: codebook high — a failure on a common path (every batch runs concurrency > 1)	true
+F001	-	fix	evals/harness/ablation-grade.sh	# grader 1.2.11 (Sprint 261): 1.2.10's --import-mode=importlib is reverted (it broke the sibling-module imports hidden	fix	fix/e95139fee6c8:220-220	-	-	-	-
+F002	-	fix	evals/harness/ablation-grade.sh	import argparse, difflib, filecmp, json, os, re, shutil, signal, site, stat, subprocess, sys, tarfile, tempfile, threading, time	fix	fix/e95139fee6c8:299-299	-	-	-	-
+F003	-	fix	evals/harness/ablation-grade.sh	GRADER_VERSION = "1.2.11"	fix	fix/e95139fee6c8:305-305	-	-	-	-
+F004	-	fix	evals/harness/ablation-grade.sh	COLLIDING = [0]   # agent-added .py files removed for a basename collision in this grade (1.2.11)	fix	fix/e95139fee6c8:1071-1071	-	-	-	-
+F005	-	fix	evals/harness/ablation-grade.sh	"""1.2.11: a .py file at a path that is neither a hidden overlay dest nor present in the fixture, whose basename	fix	fix/e95139fee6c8:1075-1102	-	-	-	-
+F006	-	fix	evals/harness/ablation-grade.sh	g["colliding_tests_removed"] = COLLIDING[0]	fix	fix/e95139fee6c8:1773-1773	-	-	-	-
+F007	-	fix	evals/harness/pipeline-run.sh	# the run no codex credential and one WARN line). ~/.claude/.credentials.json and	fix	fix/e95139fee6c8:607-607	-	-	-	-
+F008	-	fix	evals/harness/pipeline-run.sh	tok["refresh_token"] = "loa-ablation-no-refresh-token"	fix	fix/e95139fee6c8:636-636	-	-	-	-
+F009	-	fix	evals/harness/run-ablation.sh	#      signature check) must be later than required_until = now + 2 x (sum of the plan's	fix	fix/e95139fee6c8:115-121	-	-	-	-
+F010	-	fix	evals/harness/run-ablation.sh	#   required_until (ISO or null)} (pre-flight 6; --resume keeps the start's record), environment.	fix	fix/e95139fee6c8:230-230	-	-	-	-
+F011	-	fix	evals/harness/run-ablation.sh	#   outages a later --resume cleared], extra_models: {<raw id>: {runs,	fix	fix/e95139fee6c8:242-242	-	-	-	-
+F012	-	fix	evals/harness/run-ablation.sh	#   1 … 999999 (else exit 2), EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).	fix	fix/e95139fee6c8:272-272	-	-	-	-
+F013	-	fix	evals/harness/run-ablation.sh	TOOK_TIMEOUT_S="${LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S:-300}"	fix	fix/e95139fee6c8:312-312	-	-	-	-
+F014	-	fix	evals/harness/run-ablation.sh	[[ "$TOOK_TIMEOUT_S" =~ ^[1-9][0-9]{0,5}$ ]] || die "LOA_ABLATION_TOOK_EFFECT_TIMEOUT_S must be positive whole seconds (at most 999999)"	fix	fix/e95139fee6c8:394-394	-	-	-	-
+F015	-	fix	evals/harness/run-ablation.sh	CODEX_PF="$(python3 -I - "$CODEX_AUTH" "$WORK/plan-only.json" "$WORK/suite.json" "$CONCURRENCY" "$CODEX_SKIP" <<'PY'	fix	fix/e95139fee6c8:786-788	-	-	-	-
+F016	-	fix	evals/harness/run-ablation.sh	pf = {"checked": False, "auth_file_present": present, "codex_arms": arms, "token_exp": None, "required_until": None}	fix	fix/e95139fee6c8:796-797	-	-	-	-
+F017	-	fix	evals/harness/run-ablation.sh	now = time.time()	fix	fix/e95139fee6c8:804-809	-	-	-	-
+F018	-	fix	evals/harness/run-ablation.sh	bad("is not JSON")	fix	fix/e95139fee6c8:813-817	-	-	-	-
+F019	-	fix	evals/harness/run-ablation.sh	if exp <= required:	fix	fix/e95139fee6c8:831-833	-	-	-	-
+F020	-	fix	evals/harness/run-ablation.sh	printf '%s' "$CODEX_PF" | jq -c '.preflight' > "$WORK/codex-preflight.json"	fix	fix/e95139fee6c8:837-839	-	-	-	-
+F021	-	fix	evals/harness/run-ablation.sh	--slurpfile gate_f "$WORK/gate.json" --rawfile delta "$WORK/delta.txt" --slurpfile cpf_f "$WORK/codex-preflight.json" \	fix	fix/e95139fee6c8:865-865	-	-	-	-
+F022	-	fix	evals/harness/run-ablation.sh	codex_token_exp: $cpf_f[0].token_exp, codex_preflight: $cpf_f[0],	fix	fix/e95139fee6c8:903-903	-	-	-	-
+F023	-	fix	evals/harness/run-ablation.sh	--argjson outage "$OUTAGE_JSON" --argjson ohist "$OUTAGE_HISTORY_JSON" \	fix	fix/e95139fee6c8:1076-1076	-	-	-	-
+F024	-	fix	evals/harness/run-ablation.sh	rerun: $rerun, rerun_pending: $pending, outage: $outage, outage_history: $ohist,	fix	fix/e95139fee6c8:1082-1082	-	-	-	-
+F025	-	fix	evals/tests/ablation-grade.bats	[ "$(G '.grader_version')" = 1.2.11 ]	fix	fix/e95139fee6c8:1136-1136	-	-	-	-
+F026	-	fix	evals/tests/pipeline-run.bats	grep -q 'pipeline-run: WARN codex auth.json unreadable' <<<"$output"	fix	fix/e95139fee6c8:984-984	-	-	-	-
+F027	-	fix	evals/tests/run-ablation.bats	grep -q 'codex access token expires .*Z, before the batch.s required horizon .*Z (now + 2 x summed watchdog / concurrency; KF-048) — run codex login on the host' "$RES/kf1/REFUSED.txt"	fix	fix/e95139fee6c8:886-886	-	-	-	-
+F028	-	fix	evals/tests/run-ablation.bats	[ "$(jq -c '.codex_preflight | keys' "$M")" = '["auth_file_present","checked","codex_arms","required_until","token_exp"]' ]	fix	fix/e95139fee6c8:907-907	-	-	-	-
+F029	-	fix	evals/tests/run-ablation.bats	# required_until = now + 2 x (9600 + 16800) / 3 s, about 4.9 h ahead	fix	fix/e95139fee6c8:912-912	-	-	-	-
+F030	-	fix	evals/tests/run-ablation.bats	sys.exit(0 if 17600 - 120 < d < 17600 + 5 else 1)' "$ru"	fix	fix/e95139fee6c8:918-918	-	-	-	-
+F031	-	fix	evals/tests/run-ablation.bats	[ "$(jq -c '.codex_preflight' "$M")" = '{"auth_file_present":false,"checked":false,"codex_arms":["a1_full"],"required_until":null,"token_exp":null}' ]	fix	fix/e95139fee6c8:939-939	-	-	-	-
+F032	-	fix	evals/tests/run-ablation.bats	grep -q 'is not JSON (KF-048)' "$RES/kf10/REFUSED.txt"	fix	fix/e95139fee6c8:968-968	-	-	-	-

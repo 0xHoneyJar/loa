@@ -1,0 +1,20 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T13:21:37Z",
+    "status": "budget_exceeded",
+    "reason": "budget_exceeded: estimate 955c over 2 planned voices (primary gpt-5.5-pro 718c, companion claude-headless 237c) exceeds budget 200c for the 680 KB pr/head.diff; no model was called",
+    "recorded_by": "record-fallback",
+    "displaced": null,
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": null,
+      "run_tag": null
+    },
+    "rejected_summary": [],
+    "rejected_sidecars": []
+  }
+}

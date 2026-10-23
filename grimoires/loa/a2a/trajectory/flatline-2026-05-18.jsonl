@@ -1,0 +1,262 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-17T23:37:39Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 7,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 11,
+      "model_agreement_percent": 83,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Clear spec-authority problem with low implementation cost. Leaving the defective pattern in the authoritative section is likely to produce bad implementations despite the later mitigation note.",
+        "gpt_score": 930,
+        "opus_score": 880,
+        "tertiary_score": 950,
+        "delta": 50,
+        "average_score": 905,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "MODELINV cardinality affects observability, cost signals, and invariant interpretation. The ambiguity is implementation-visible and should be resolved before coding.",
+        "gpt_score": 900,
+        "opus_score": 865,
+        "tertiary_score": 850,
+        "delta": 35,
+        "average_score": 882.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Deterministic parity fixtures should not allow token-count slack unless provider batching is explicitly modeled. The tolerance risks hiding real parser regressions.",
+        "gpt_score": 850,
+        "opus_score": 820,
+        "tertiary_score": 800,
+        "delta": 30,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "A required CI gate depending on the degraded live provider is a serious process flaw. A mock fallback or manual evidence path is needed to avoid blocking the fix path.",
+        "gpt_score": 915,
+        "opus_score": 760,
+        "tertiary_score": 880,
+        "delta": 155,
+        "average_score": 837.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good maintainability improvement with low cost. It prevents future config-field drift, though the immediate cycle risk is lower if the library is frozen.",
+        "gpt_score": 720,
+        "opus_score": 720,
+        "tertiary_score": 720,
+        "delta": 0,
+        "average_score": 720,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Fallback precedence is semantically load-bearing and easy for implementers to diverge on. Specifying the lookup chain has high ROI and low cost.",
+        "gpt_score": 825,
+        "opus_score": 800,
+        "tertiary_score": 850,
+        "delta": 25,
+        "average_score": 812.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Important documentation and behavior clarification for expensive reasoning models. The concern depends on the actual tracker implementation, but the described inconsistency is material.",
+        "gpt_score": 780,
+        "opus_score": 810,
+        "tertiary_score": 850,
+        "delta": 30,
+        "average_score": 795,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-011",
+        "description": "Pinning absent vs null vs omitted for non-streaming and kill-switch paths matters for schema validation consistency and consumer code that checks for field presence. I-5 says absent; optional schema permits omission. The gap is real but low risk in practice — most consumers will use .get() and treat missing and null equivalently. A one-line clarification in the acceptance criteria resolves it. Scored in the nice-to-have range because the blast radius of leaving it unresolved is limited.",
+        "gpt_score": 0,
+        "opus_score": 635,
+        "tertiary_score": 600,
+        "delta": 635,
+        "average_score": 635,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-012",
+        "description": "AST-comparison mitigations for duplicated deadline shims are brittle — minor formatting differences, helper extractions, or refactors will cause false failures. Behavioral conformance tests over a shared fixture set would be more robust. However, this is a mitigation strategy for a secondary risk (duplicate shim divergence), not a core acceptance criterion. The implementation cost of a full behavioral conformance harness is non-trivial, and AST comparison, while brittle, at least catches structural drift. LOW priority from the SDD is appropriate. Scored below 500 because cost likely exceeds benefit given that the underlying duplication risk can be addressed by simply not duplicating the shim.",
+        "gpt_score": 0,
+        "opus_score": 475,
+        "tertiary_score": 780,
+        "delta": 475,
+        "average_score": 475,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Abort-path MODELINV emission is underspecified and may be lost when the adapter raises before a CompletionResult exists.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "The design says abort telemetry is stashed and later passed to emit_model_invoke_complete, but also raises retryable exceptions for chain-walk. If the audit emission happens outside the adapter or only on successful results, the failed stream may never write the required streaming_recovery record.",
+        "location": "Section 3.5 Adapter-wrapper integration; Section 8 reproduction gate",
+        "recommendation": "Define the exact call path that emits MODELINV on parser exceptions. Add integration tests proving an aborted stream writes one MODELINV envelope with triggered=true before or during retry translation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Code snippet contradicts R-SDD-2 mitigation for state leakage",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Risk R-SDD-2 explicitly identifies `self._pending_streaming_recovery` as a concurrency risk and mandates using a `RecoveryTelemetryContext`. However, the canonical code pattern provided in §3.5 still mutates `self._pending_streaming_recovery = streaming_recovery_telemetry`. Developers implementing §3.5 will introduce race conditions in concurrent adapter usage.",
+        "location": "§3.5 Adapter-wrapper integration vs §11.1 R-SDD-2",
+        "recommendation": "Update the code snippet in §3.5 to reflect the `RecoveryTelemetryContext` pattern defined in R-SDD-2, completely removing the mutation of adapter instance state (`self`).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "MODELINV emit is never called on the abort path. §3.5 stashes recovery telemetry on self._pending_streaming_recovery, then immediately raises InvalidInputError/ProviderUnavailableError. The sequence diagram (§13.2) shows emit_model_invoke_complete being called 'at end of chain_walk' but no mechanism is specified for the chain-walk layer (cycle-104) to retrieve self._pending_streaming_recovery from the adapter and pass it to the emitter. The adapter raised an exception before returning — Python cannot call instance methods on an object after an exception escapes its call frame without an explicit finally/emit inside the except arm. The pseudo-code in §3.5 contains no emit call in the except arm. Result: every aborted stream produces a MODELINV record with streaming_recovery absent, directly violating I-3.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "I-3 is the load-bearing audit invariant for KF-002/KF-011 closure. If aborted streams produce no MODELINV record, or produce records without streaming_recovery, the KF closure evidence is void and the reproduction harness (§8) cannot pass its required CI check. The entire cycle-113 acceptance case rests on this emit.",
+        "location": "§3.5 Adapter-wrapper integration, §13.2 sequence diagram, I-3",
+        "recommendation": "Add an explicit emit_model_invoke_complete call inside the StreamingRecoveryAbort except arm before re-raising, passing streaming_recovery=streaming_recovery_telemetry. Do not rely on the chain-walk layer to retrieve adapter-internal state. The emit must complete regardless of whether the exception is later retried.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "OpenAI tool calls will trigger false-positive empty-content aborts",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "The SDD states tool-call arguments are NOT fed to the tracker because they aren't 'visible content'. However, large tool calls (e.g., writing a large file or generating code) will result in hundreds of tokens with empty text deltas. The tracker will trip the `empty_content_window_tokens` threshold (default 200) and abort a perfectly healthy tool-call stream, breaking agentic workflows.",
+        "location": "§3.3 OpenAI-specific design (Text-delta extraction)",
+        "recommendation": "Feed tool-call argument deltas to the tracker as visible content, or explicitly bypass/pause the empty-content-window check while the parser is accumulating a tool-call block.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Synchronous blocking in SSE shim defeats first-token deadline",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The `_iter_sse_events_with_deadline` shim calls `tracker.check_deadline()` before yielding to `next(underlying)`. However, `next(underlying)` performs blocking network I/O. If the server hangs indefinitely before sending the first byte or mid-stream, the thread will block inside `next()` and `check_deadline()` will never be evaluated. The deadline mechanism will fail to abort the stream.",
+        "location": "§3.1 Common pattern (`_iter_sse_events_with_deadline`)",
+        "recommendation": "The underlying HTTP client (e.g., httpx) must have a strict read timeout configured that is smaller than `first_token_deadline_s`, or the deadline check must be implemented asynchronously/via a background watchdog thread rather than interleaved in a synchronous generator.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The abort-first-token-deadline parity fixture requires t=31s of elapsed real time, but no time-mocking mechanism is specified. The _iter_sse_events_with_deadline shim calls time.monotonic() directly and passes it to tracker.check_deadline(now_s). The recovery.py library is frozen so its internal time calls cannot be patched via its public API. Running the parity test suite with real 31-second sleeps would make CI wall-clock cost ~186s per fixture set (6 fixtures × 3 providers × partial runs). The test design in §6.2 makes no mention of monkeypatching time.monotonic or an injectable clock parameter.",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Without time injection, the abort-first-token-deadline fixture either (a) makes CI impractical or (b) cannot test the deadline code path at all. FR-B-4 and NFR-Parity-1 require cross-provider parity for this case. If this fixture is silently skipped or converted to a real-time sleep, the deadline enforcement path goes untested before KF-011 closure.",
+        "location": "§6 Cross-Provider Parity Test Design, §6.1 abort-first-token-deadline fixture, §3.1 _iter_sse_events_with_deadline shim",
+        "recommendation": "Add a clock_fn parameter (default: time.monotonic) to each parser's parse_<provider>_stream function and thread it through _iter_sse_events_with_deadline and on_token calls. The parity test injects a monotonically-advancing fake clock that jumps past the deadline after N ticks. This is a single-file change per parser, within the authorized write set.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The authorized-write scope conflicts with the implementation plan.",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The design requires edits to anthropic_adapter.py, openai_adapter.py, google_adapter.py, modelinv schema, workflow files, tests, and a new exception module, but the documented authorized protected-file set lists only six files and omits the adapter files. This can block implementation or force unapproved changes.",
+        "location": "Sections 2.2, 3.5, 4, 7.3, 10, 13.3",
+        "recommendation": "Reconcile operator-approval.md with the SDD before implementation. Explicitly list every existing protected file that must change, including all adapter wrappers and the MODELINV schema/emitter file.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The per-provider default_streaming_recovery fallback hierarchy (model → provider → library defaults, §5.1-5.2) cannot be implemented with a frozen recovery.py. StreamingRecoveryConfig.for_model(model_data, reasoning_class) in the frozen library only reads model_data for model-level config; it has no knowledge of provider-level defaults. The adapters must pre-populate model_data with provider fallback values before calling for_model, but this pre-population logic is entirely unspecified. No new utility function, no adapter-level merge step, no schema for how the YAML provider block is read and merged — nothing.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "§5.4 requires 21 active models to have valid defaults. Models without an explicit streaming_recovery block silently receive library-hardcoded defaults rather than the operator-specified provider defaults. Operators who set default_streaming_recovery in model-config.yaml will observe no effect on any model lacking a per-model override block, causing silent threshold misconfiguration across 15+ models.",
+        "location": "§5.1 Schema decision, §5.2 YAML shape, §2.1 for_model usage",
+        "recommendation": "Specify a merge_model_data(provider_defaults, model_entry) helper in each adapter (or a shared config-loader util) that overlays provider defaults before passing model_data to for_model. Alternatively, document that for_model is expected to receive already-merged model_data — whichever is authoritative must be written down and tested.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "The proposed deadline shim cannot actually enforce first-token deadlines if the underlying byte iterator blocks inside next().",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "Calling check_deadline() before next(underlying) only detects elapsed time before entering the blocking read. If the provider stalls after that point, the process can hang indefinitely and first_token_deadline will never fire, defeating a core recovery requirement.",
+        "location": "Section 3.1 _iter_sse_events_with_deadline; FR-B first-token-deadline behavior",
+        "recommendation": "Move deadline enforcement to the transport layer with read timeouts, nonblocking iteration, select/poll, or a cancellable worker/thread timer. Add a test where byte_iter blocks longer than the deadline without yielding bytes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Using self._pending_streaming_recovery is identified as unsafe but the design still uses it in the main adapter pattern.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Shared adapter instances may handle concurrent calls. A mutable instance side-channel can leak one call's recovery telemetry into another call's MODELINV record, producing false audits and incorrect KF closure evidence.",
+        "location": "Section 3.5; Section 11.1 R-SDD-2",
+        "recommendation": "Remove the self._pending_streaming_recovery pattern from the design. Specify a per-call telemetry object passed through the exact emit path, and add a concurrent-call test.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "§3.5 pseudo-code uses self._pending_streaming_recovery (instance state) to carry recovery telemetry across the exception boundary, but R-SDD-2 mitigation says 'store on a per-call context manager, NOT on self' and 'the adapter's chat_completion method allocates a RecoveryTelemetryContext and passes it explicitly'. These two designs are irreconcilable — one is instance-mutable state (thread-unsafe for concurrent calls), the other is per-call-frame state. The SDD ships both without declaring which is authoritative.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "If self._pending_streaming_recovery is the implementation, concurrent adapter calls (e.g., two BB voices dispatching in parallel through the same adapter instance) can cross-contaminate recovery telemetry — voice A's abort reason appears in voice B's MODELINV record. The Flatline multi-voice workflow (cycle-109) is exactly this scenario.",
+        "location": "§3.5 Adapter-wrapper integration, §11.1 R-SDD-2 mitigation",
+        "recommendation": "Remove self._pending_streaming_recovery from §3.5 entirely and replace the pseudo-code with the RecoveryTelemetryContext pattern described in R-SDD-2. The context object is allocated per chat_completion call and passed explicitly to emit_model_invoke_complete, eliminating both the instance-state race and the unresolved emit-timing problem in SKP-001.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "pr",
+    "document": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/sdd.md",
+    "domain": "software development",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "autonomous",
+      "mode_reason": "CLI flag --autonomous",
+      "run_id": null
+    },
+    "timestamp": "2026-05-17T23:37:39Z",
+    "metrics": {
+      "total_latency_ms": 412000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

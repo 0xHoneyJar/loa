@@ -1,0 +1,4 @@
+interface:
+  display_name: "Organize pages"
+  short_description: "Group Pages and simplify a Space’s structure"
+  default_prompt: "Use $organize-space to organize this Space so its current work and reference pages are easy to find."

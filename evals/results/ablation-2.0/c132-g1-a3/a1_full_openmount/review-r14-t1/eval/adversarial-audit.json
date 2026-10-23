@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "anchor_type": "hunk",
+      "anchor_line": 113,
+      "anchor_line_end": 117,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implement gate now selects 'authoritative' mode solely from `.loa.config.yaml` (`implement_gate.mode`). In that mode the gate trusts `tool_input.active_skill`, which the header comment itself acknowledges is model-authored (the PreToolUse payload carries no harness-set skill field). `.loa.config.yaml` sits at the project root and is not an App-Zone path, so a Write/Edit to it passes this very hook unconditionally (non-App-Zone writes always allowed). Chain: the agent writes `implement_gate.mode: authoritative` into `.loa.config.yaml`, then emits `active_skill: implement` in subsequent Write/Edit tool_input to bypass the fail-ask fence on App-Zone writes outside /implement or /bug.",
+      "failure_mode": "C-PROC-001 fence (fail-ask on ungated App-Zone writes) is bypassable by the governed agent once the operator-only opt-in flag is set by a path the gate does not fence; the 'authoritative' label overstates the trust that a model-authored field deserves.",
+      "suggested_fix": "Either remove authoritative mode until the harness exposes a non-model-authored skill indicator, or treat `.loa.config.yaml` (and `implement_gate.*` specifically) as a fenced path in this hook and the System-Zone hook; at minimum, in authoritative mode still require corroboration from the heuristic .run/ RUNNING state before allowing, and log an audit event when active_skill is honoured.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/hooks/hook-guard.sh:hook-guard",
+      "anchor_type": "line",
+      "anchor_line": 47,
+      "anchor_line_end": 49,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "hook-guard.sh fails OPEN (exit 0, tool allowed) when the wrapped safety hook fails `bash -n`. The diff widens its documented scope to SessionStart hooks and keeps the fail-open posture for PreToolUse fences. Hook files live under `.claude/hooks/` and the constraints text in this same diff concedes that Bash-path writes to protected zones are an accepted fence gap, so a Bash-path edit that introduces a syntax error into implement-gate.sh (or any wrapped fence) silently disables that fence for the rest of the session.",
+      "failure_mode": "A single corrupted or truncated hook file converts every wrapped PreToolUse safety hook into a no-op with only a stderr warning, which the model may not surface.",
+      "suggested_fix": "Fail CLOSED (or fail-ask) for PreToolUse fences while keeping fail-open for SessionStart; alternatively, emit a structured permissionDecision 'ask' with the parse error so the human sees the degraded state rather than a silent allow.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": ".claude/data/model-permissions.yaml:anthropic:claude-headless",
+      "anchor_type": "hunk",
+      "anchor_line": 448,
+      "anchor_line_end": 471,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `anthropic:claude-headless` registry row statically declares `file_write: false`, `command_execution: false`, `network_access: false` and `execution_mode: remote_model`, but its own note admits the adapter runs a local `claude -p` process whose tool surface is widened by `extra.allowed_tools` in model-config.yaml. The permissions registry and the catalog are not cross-checked, so an operator (or a later catalog edit) can grant the headless hop Write/Bash tools while the trust registry still asserts a side-effect-free oracle. The new parity test only checks that a row exists and mirrors 4.7 scopes; it does not verify the catalog's `extra.allowed_tools` is empty.",
+      "failure_mode": "Downstream consumers of model-permissions.yaml (trust scopes, red-team/flatline routing) make decisions on a capability posture that can diverge from the actual process capability of the headless hop.",
+      "suggested_fix": "Add an assertion (e.g. in test_trust_scopes.py or the catalog floor tests) that `providers.anthropic.models.claude-headless.extra.allowed_tools` is empty or absent whenever the registry row claims `command_execution: false`/`file_write: false`, or derive the row's capabilities from the catalog at load time.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 233,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The script runs under `set -euo pipefail`. In the requirement loop, `rule_key \"$perm\"` is called as a bare statement; `rule_key` returns 1 for any rule that is not of the form `Bash(...)`. If `all_required` ever contains a non-Bash requirement (e.g. a Read/Edit rule), the whole preflight aborts mid-loop instead of reporting that rule, so the remaining required permissions are never checked. The previous `base_pattern_of` helper never returned non-zero, so this is a new failure path introduced by the grammar refactor. Also, for an exact (non-wildcard) requirement the derived base becomes `*=<cmd>`, which can never match an allow or deny key.",
+      "failure_mode": "A preflight that is supposed to surface missing or denied Bash permissions exits abnormally; depending on the caller, this is either a hard stop or a silently skipped check, and exact-form requirements are never covered by a wildcard allow.",
+      "suggested_fix": "Guard the call: `rule_key \"$perm\" || { missing_permissions+=(\"$perm\"); continue; }` and compute the base only when the key starts with `*` (wildcard requirement), or normalise the requirement list to wildcards at definition time.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:evidence-recorder",
+      "anchor_type": "hunk",
+      "anchor_line": 40,
+      "anchor_line_end": 51,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The evidence recorder runs before the file_path check, i.e. on every Write/Edit invocation, and on first sight of a model-authored `tool_input.active_skill` it rewrites `.run/platform-features.json`, merging in `active_skill_available: false`. That unconditionally clobbers whatever detect-platform-features.sh (changed in this PR but truncated from the review) previously recorded for that key. The write is triggered by model-controlled input, so the model can decide when the lead session's platform-features state is rewritten. Content is constrained to fixed strings and a timestamp, so there is no injection, but the recorder is a model-triggerable write into lead-only `.run/` state.",
+      "failure_mode": "Any other consumer of `active_skill_available` sees it flip to false after the first model-authored active_skill field, and the write occurs regardless of whether the tool call targets a fenced path.",
+      "suggested_fix": "Record only `active_skill_seen_at`/`active_skill_source` without touching `active_skill_available`, move the recorder after the file_path/App-Zone checks, and have detect-platform-features.sh own the `active_skill_available` key exclusively.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T23:14:40Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8796,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

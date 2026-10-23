@@ -1,0 +1,14 @@
+head/.claude/adapters/cheval.py:2544
+head/.claude/adapters/cheval.py:2549
+head/.claude/adapters/loa_cheval/types.py:516
+docs/migration/v2.0-model-generation-floor.md:284
+agy_headless_adapter.py:40
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124
+head/.claude/scripts/adversarial-review.sh:2360
+head/.claude/scripts/run-preflight.sh:204
+head/.claude/scripts/loa-status.sh:792
+head/.claude/adapters/tests/test_ceiling_probe_cli_transport.py:459
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/loa_cheval/audit/modelinv.py:498
+cheval.py:2834
+head/.claude/defaults/model-config.yaml:494

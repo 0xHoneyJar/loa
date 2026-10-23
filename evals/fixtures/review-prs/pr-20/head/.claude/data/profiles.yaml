@@ -1,0 +1,54 @@
+# .claude/data/profiles.yaml — `loa.profile` defaults (cycle-129 SDD D-9.1, §3.5;
+# DEC-0143, DEC-0152).
+#
+# One knob, `loa.profile: lean | standard | full` in .loa.config.yaml, sets the
+# defaults of the optional surfaces below as a set. Resolution, per key
+# (.claude/scripts/lib/profile-lib.sh `loa_knob`):
+#   1. the key set explicitly in .loa.config.yaml wins;
+#   2. else the selected profile's value (unset or unknown profile → standard);
+#   3. else the caller's fallback — never reached for a key listed here,
+#      because every profile defines every key (tests/unit/profile-lib.bats).
+#
+# `standard` is the post-cycle-129 example default of each key, written out
+# (tests/fixtures/profiles/standard-oracle.json records how each value was
+# captured). The two guardrail keys read false here because cycle-129 changed
+# their example default (D-4.4, DEC-0161): a migration item, not a profile effect.
+#
+# No floor key may appear here. The floor config keys are listed once, in
+# .claude/data/floor.yaml `floor_keys`; tests/unit/profile-floor.bats fails if a
+# profile names one, and profile-lib.sh ignores such a key with a WARN.
+# `interview.pacing` is not a profile key: `rounds` is already the default and
+# the key would not discriminate between profiles.
+schema_version: 1
+
+profiles:
+  lean:
+    known_failures.surface_at_session_start: false
+    decisions.surface_at_session_start: false
+    karpathy_principles.surgical_diff_warning: false
+    karpathy_principles.require_success_criteria: false
+    guardrails.input.enabled: false
+    guardrails.danger_level.enforce: false
+    invisible_retrospective.enabled: false
+    structured_handoff.enabled: false
+    soul_identity_doc.enabled: false
+  standard:
+    known_failures.surface_at_session_start: false
+    decisions.surface_at_session_start: false
+    karpathy_principles.surgical_diff_warning: true
+    karpathy_principles.require_success_criteria: true
+    guardrails.input.enabled: false
+    guardrails.danger_level.enforce: false
+    invisible_retrospective.enabled: true
+    structured_handoff.enabled: false
+    soul_identity_doc.enabled: false
+  full:
+    known_failures.surface_at_session_start: true
+    decisions.surface_at_session_start: true
+    karpathy_principles.surgical_diff_warning: true
+    karpathy_principles.require_success_criteria: true
+    guardrails.input.enabled: true
+    guardrails.danger_level.enforce: true
+    invisible_retrospective.enabled: true
+    structured_handoff.enabled: true
+    soul_identity_doc.enabled: true

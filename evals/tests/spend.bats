@@ -44,7 +44,7 @@ teardown() {
   [ "$(jq -r '.runs_files | length' <<<"$output")" = "2" ]
 }
 
-@test "SP-3 --since filters the ledger only (a date, a timestamp, the full history); --cap and --reserve override; headroom goes negative" {
+@test "SP-3 --since filters the ledger (a date, a timestamp, the full history); --cap and --reserve override; headroom goes negative" {
   run "$SPEND" --since 2026-10-15 --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   [ "$(jq -r '.ledger_usd' <<<"$output")" = "0.5" ]
@@ -76,8 +76,8 @@ teardown() {
 }
 
 @test "SP-8 a run rowed twice counts its larger cost, whichever row comes first" {
-  printf '%s\n' '{"run_id":"r1","cost_usd":3}' '{"run_id":"r1","cost_usd":5}' > "$T/a.jsonl"
-  printf '%s\n' '{"run_id":"r1","cost_usd":5}' '{"run_id":"r1","cost_usd":3}' > "$T/b.jsonl"
+  printf '%s\n' '{"run_id":"r1","cost_usd":3,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":5,"started":"2026-10-15T01:00:00Z"}' > "$T/a.jsonl"
+  printf '%s\n' '{"run_id":"r1","cost_usd":5,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":3,"started":"2026-10-15T01:00:00Z"}' > "$T/b.jsonl"
   for f in a b; do
     run "$SPEND" --runs "$T/$f.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
     [ "$status" -eq 0 ]
@@ -88,7 +88,7 @@ teardown() {
 }
 
 @test "SP-9 rows without a run_id each count once, with one warning naming the file" {
-  printf '%s\n' '{"cost_usd":1}' '{"run_id":"","cost_usd":2}' '{"run_id":"r1","cost_usd":4}' > "$T/anon.jsonl"
+  printf '%s\n' '{"cost_usd":1,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"","cost_usd":2,"started":"2026-10-15T01:00:00Z"}' '{"run_id":"r1","cost_usd":4,"started":"2026-10-15T01:00:00Z"}' > "$T/anon.jsonl"
   run "$SPEND" --runs "$T/anon.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   json="$(grep '^{' <<<"$output")"
@@ -119,4 +119,58 @@ teardown() {
   run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
   [ "$status" -eq 0 ]
   [ "$(jq -r '.reserve_usd' <<<"$output")" = "250" ]
+}
+
+@test "SP-10 (cycle-132) --since applies to run rows too: a row started before it is excluded, one with only finished after it counts, one without a timestamp counts with a note" {
+  printf '%s\n' '{"run_id":"old","cost_usd":100,"started":"2026-10-20T23:00:00Z","finished":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"new","cost_usd":3,"started":"2026-10-21T00:30:00Z"}' '{"run_id":"fin","cost_usd":2,"finished":"2026-10-21T02:00:00Z"}' \
+    '{"run_id":"nodate","cost_usd":5}' '{"run_id":"bad","cost_usd":7,"started":"yesterday"}' > "$T/r.jsonl"
+  : > "$T/ledger.jsonl"
+  run "$SPEND" --since 2026-10-21T00:23:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  json="$(grep '^{' <<<"$output")"
+  [ "$(jq -r '"\(.runs_usd) \(.runs_rows) \(.runs_rows_before_since) \(.runs_rows_undated) \(.complete)"' <<<"$json")" = "17 4 1 2 true" ]
+  [ "$(grep -c 'r.jsonl: 2 row(s) with no started/finished timestamp counted' <<<"$output")" -eq 1 ]
+  # an earlier kickoff counts the old row again
+  run "$SPEND" --since 2026-10-20T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$(grep '^{' <<<"$output" | jq -r '.runs_usd')" = "117" ]
+}
+
+@test "SP-11 (cycle-132 dissent DISS-002) a row's all_spend_usd is what counts when it is numeric (a matched cell's every session, a trial's earlier attempts), else cost_usd; the larger figure per run_id still wins" {
+  printf '%s\n' '{"run_id":"cell","cost_usd":5,"all_spend_usd":12.5,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"trial","cost_usd":3,"all_spend_usd":5.5,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"old-row","cost_usd":2,"started":"2026-10-21T01:00:00Z"}' \
+    '{"run_id":"weird","cost_usd":4,"all_spend_usd":"n/a","started":"2026-10-21T01:00:00Z"}' > "$T/r.jsonl"
+  : > "$T/ledger.jsonl"
+  run "$SPEND" --since 2026-10-21T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.runs_usd' <<<"$output")" = "24" ]   # 12.5 + 5.5 + 2 + 4
+  printf '%s\n' '{"run_id":"cell","cost_usd":5,"all_spend_usd":20,"started":"2026-10-21T02:00:00Z"}' >> "$T/r.jsonl"
+  run "$SPEND" --since 2026-10-21T00:00:00Z --runs "$T/r.jsonl" --ledger "$T/ledger.jsonl" --json
+  [ "$(jq -r '.runs_usd, .runs_rows_deduped' <<<"$output" | tr '\n' ' ')" = "31.5 1 " ]
+}
+
+# a copy of spend.sh in a throwaway repository layout, so its DEFAULT run-row files can be exercised
+spend_tree() {
+  R="$T/repo"; mkdir -p "$R/evals/harness" "$R/evals/results/ablation-2.0/smoke-x" "$R/grimoires/loa/reports/ablation-2.0" "$R/.run"
+  cp "$SPEND" "$R/evals/harness/spend.sh"
+  : > "$R/.run/cost-ledger.jsonl"
+}
+
+@test "SP-12 (cycle-132 addendum 3) the default run-row files include the live evals/results/ablation-2.0/runs.jsonl: a row only there counts; a row in it and in the tracked copy counts once at the larger cost" {
+  spend_tree
+  printf '%s\n' '{"run_id":"live-1","cost_usd":7.3,"started":"2026-10-21T08:00:00Z"}' \
+    '{"run_id":"both","cost_usd":10,"started":"2026-10-21T08:00:00Z"}' > "$R/evals/results/ablation-2.0/runs.jsonl"
+  printf '%s\n' '{"run_id":"both","cost_usd":4,"started":"2026-10-21T08:00:00Z"}' > "$R/grimoires/loa/reports/ablation-2.0/runs.jsonl"
+  printf '%s\n' '{"run_id":"smoke-1","cost_usd":1,"started":"2026-10-21T08:00:00Z"}' > "$R/evals/results/ablation-2.0/smoke-x/rows.jsonl"
+  run "$R/evals/harness/spend.sh" --since 2026-10-21T00:23:00Z --json
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(jq -r '.runs_usd' <<<"$output")" = "18.3" ]   # 7.3 + max(10, 4) + 1
+  [ "$(jq -r '"\(.runs_rows) \(.runs_rows_deduped) \(.runs_files | length)"' <<<"$output")" = "3 1 3" ]
+  jq -e '.runs_files | any(endswith("evals/results/ablation-2.0/runs.jsonl"))' <<<"$output" >/dev/null
+  # absent, the live file is simply not read (no error)
+  rm "$R/evals/results/ablation-2.0/runs.jsonl"
+  run "$R/evals/harness/spend.sh" --since 2026-10-21T00:23:00Z --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.runs_usd) \(.runs_files | length)"' <<<"$output")" = "5 2" ]
 }

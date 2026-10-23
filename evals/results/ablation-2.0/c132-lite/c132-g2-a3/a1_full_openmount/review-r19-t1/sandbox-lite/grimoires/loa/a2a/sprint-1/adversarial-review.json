@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 44,
+      "anchor_line_end": 49,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_files",
+      "cross_file_justification": "The floor fences (fence:FR-SZ*, fence:FR-1.2b) live in .claude/hooks/safety/block-destructive-bash.sh and are only armed by the PreToolUse:Bash registration in .claude/settings.json; neither file is in floor_files and the hook row hook:safety/block-destructive-bash.sh is floor: false in guard-origins.yaml.",
+      "description": "floor.yaml claims the floor guards cannot be weakened by a cycle task, but the protection only pins the corpus rows and the floor: true row set. A change that removes the block-destructive-bash.sh registration from settings.json and drops its hook row from guard-origins.yaml passes guard-origins.bats (floor rows unchanged), floor-snapshot.bats (no floor file touched) and the corpus replay (which executes the script directly, not via the hook registration).",
+      "failure_mode": "All sixteen fence:* floor guards become inert in live sessions while every floor test stays green; the floor gives a false guarantee.",
+      "suggested_fix": "Either pin `.claude/settings.json` (or a dedicated registrations snapshot) in floor_files, or make guard-origins.bats assert that every floor fence's owning hook row exists and still carries the PreToolUse:Bash registration.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "anchor_type": "hunk",
+      "anchor_line": 55,
+      "anchor_line_end": 60,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "cross_file_justification": "The template comment states the text after `⇐` becomes the `--deps` flag when a bead is created; the kind token is now appended after that deps segment, so any deps extractor that reads to end of line (sprint-to-beads tooling, not in the visible diff) now receives `none · kind: mechanical`.",
+      "description": "The task-line grammar changed from `… ⇐ <blockers>` to `… ⇐ <blockers> · kind: <k>`. If the existing bead-creation parser slices from `⇐` to end of line, the deps string now contains the kind suffix and `none` is no longer recognised as the no-edge sentinel.",
+      "failure_mode": "Bead creation either fails to resolve `none · kind: mechanical` as a task reference or silently creates no dependency edges, breaking the executable DAG the comment promises.",
+      "suggested_fix": "Verify the deps extractor strips a trailing ` · kind: …` segment (or stops at ` · `), and add a bats case with a template-shaped line; alternatively place the kind token before `⇐`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/loa-status.sh:display_guards_line",
+      "anchor_type": "function",
+      "anchor_line": 938,
+      "anchor_line_end": 959,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The else branch prints `30 d: no yield file (.run/guard-yield.json)` for every jq failure, including a yield file that exists but is malformed or missing `.totals`/`.window_days`. A corrupted or schema-drifted yield file is reported as absent.",
+      "failure_mode": "Operator reruns guard-yield.sh believing the file is missing; a schema mismatch between guard-yield.sh output and this reader is never surfaced.",
+      "suggested_fix": "Distinguish `[[ ! -f \"$yf\" ]]` (no yield file) from a jq parse/shape failure (`yield file unreadable`) in the fallback message.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/rules/stash-safety.md:paths",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a `paths:` frontmatter turns an always-loaded rule into a path-scoped one. Stash-safety governs `git stash` commands the model issues through the Bash tool in any session, not only edits to `*.sh`/`*.bats` files. In a session that touches no matching path the rule is not loaded at all.",
+      "failure_mode": "The model runs `git stash pop` style wraps without the rule in context; only the FR-1.2b fence (swallowed-output shapes) remains, so unswallowed but still index-shifting stash wraps are no longer discouraged.",
+      "suggested_fix": "Keep stash-safety unscoped (drop `paths:`) or add a short always-loaded pointer rule; keep the scoped frontmatter for skill-invariants.md where the scope is accurate.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "function",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Replay tagging is driven by the ambient `LOA_AUDIT_REPLAY` env var inherited by the hook process. If an operator or a shell profile exports it in a live session, every real block, override and marker row is tagged `replay: true`.",
+      "failure_mode": "guard-yield excludes genuine blocks from the 30-day yield, so the Guards line in loa-status under-reports real blocks and the register's yield data is silently wrong.",
+      "suggested_fix": "Have run-corpus.sh pass the replay flag through a dedicated channel (e.g. a `.run/audit-replay` sentinel it creates and removes, or `LOA_AUDIT_REPLAY_TOKEN` matched against a corpus-run id) and have guard-yield warn when replay rows appear outside a corpus run window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T13:06:11Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8832,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

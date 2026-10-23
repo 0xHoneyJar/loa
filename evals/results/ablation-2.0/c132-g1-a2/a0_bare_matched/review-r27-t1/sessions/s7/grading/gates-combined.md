@@ -1,0 +1,16 @@
+head/.claude/scripts/adversarial-review.sh:189
+head/.claude/scripts/adversarial-review.sh:4434
+head/.claude/scripts/adversarial-review.sh:28
+head/evals/graders/recall-vs-defects.sh:287
+head/evals/graders/recall-vs-defects.sh:214
+head/evals/graders/recall-vs-defects.sh:135
+ablation-grade.sh:1629
+head/evals/graders/recall-vs-defects.sh:426
+head/evals/graders/recall-vs-defects.sh:434
+head/evals/harness/ablation-grade.sh:1994
+head/evals/harness/ablation-grade.sh:1649
+head/evals/harness/ablation-grade.sh:2010
+head/evals/harness/ablation-report.py:1153
+head/evals/harness/ablation-row.sh:393
+head/evals/harness/took-effect.sh:389
+head/evals/suites/ablation-2.0.yaml:77

@@ -1,0 +1,19 @@
+02:24:25Z start batch=c132-g3-a3 smoke=false source=fbd36a0c9880 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
+02:24:25Z plan: 1 arms, 4 tasks, 8 trials, shuffle seed 20261015, est USD 64 (cap 1423.2479, run caps build 45 review-catch 45, in-flight reserve 45 per trial, reserve 250)
+02:24:25Z launch c132-g3-a3-a1_full_openmount-review-r22-t1 (a1_full_openmount review-r22 review-catch t1)
+02:24:25Z launch c132-g3-a3-a1_full_openmount-review-r24-t1 (a1_full_openmount review-r24 review-catch t1)
+02:24:25Z launch c132-g3-a3-a1_full_openmount-review-r11-t1 (a1_full_openmount review-r11 review-catch t1)
+02:54:40Z done c132-g3-a3-a1_full_openmount-review-r24-t1 contaminated pass=0.8889 USD 17.288650750000002 30m attempts 1
+02:54:40Z launch c132-g3-a3-a1_full_openmount-review-r20-t1 (a1_full_openmount review-r20 review-catch t1)
+03:04:47Z done c132-g3-a3-a1_full_openmount-review-r11-t1 completed pass=1.0 USD 20.260132249999998 40m attempts 1
+03:04:47Z launch c132-g3-a3-a1_full_openmount-review-r20-t2 (a1_full_openmount review-r20 review-catch t2)
+03:10:28Z done c132-g3-a3-a1_full_openmount-review-r22-t1 contaminated pass=0.45 USD 24.424093 46m attempts 1
+03:10:28Z launch c132-g3-a3-a1_full_openmount-review-r22-t2 (a1_full_openmount review-r22 review-catch t2)
+03:32:33Z done c132-g3-a3-a1_full_openmount-review-r20-t1 completed pass=0.3 USD 23.148252399999997 37m attempts 1
+03:32:33Z launch c132-g3-a3-a1_full_openmount-review-r11-t2 (a1_full_openmount review-r11 review-catch t2)
+03:45:11Z done c132-g3-a3-a1_full_openmount-review-r22-t2 contaminated pass=0.5 USD 21.32072 34m attempts 1
+03:45:11Z launch c132-g3-a3-a1_full_openmount-review-r24-t2 (a1_full_openmount review-r24 review-catch t2)
+03:54:10Z done c132-g3-a3-a1_full_openmount-review-r20-t2 completed pass=0.5 USD 25.12932025 49m attempts 1
+04:10:29Z done c132-g3-a3-a1_full_openmount-review-r24-t2 contaminated pass=0.8889 USD 16.397039149999998 25m attempts 1
+04:17:26Z done c132-g3-a3-a1_full_openmount-review-r11-t2 completed pass=1.0 USD 22.0862475 44m attempts 1
+04:17:26Z partial: all 8 trials rowed, 4 excluded (transport, infrastructure, interrupted or contaminated)

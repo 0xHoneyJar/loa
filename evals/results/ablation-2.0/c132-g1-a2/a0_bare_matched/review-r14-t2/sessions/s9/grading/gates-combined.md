@@ -1,0 +1,14 @@
+head/.claude/defaults/model-config.yaml:476
+head/.claude/scripts/flatline-validate-learning.sh:80
+head/.claude/scripts/flatline-validate-learning.sh:264
+head/.claude/scripts/flatline-proposal-review.sh:75
+head/.claude/scripts/flatline-proposal-review.sh:182
+head/.claude/scripts/flatline-learning-extractor.sh:317
+head/.claude/defaults/model-config.yaml:491
+docs/migration/v2.0-model-generation-floor.md:247
+head/.claude/hooks/compliance/implement-gate.sh:122
+head/evals/graders/recall-vs-defects.sh:74
+a.sh:40
+a.sh:2
+head/tools/check-prompt-budget.sh:53
+head/.claude/scripts/model-adapter.sh:656

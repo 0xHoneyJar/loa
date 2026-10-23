@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain page content"
+  short_description: "Keep current pages useful as new work arrives"
+  default_prompt: "Use $maintain-space to reconcile new information into this Space’s current plans and task lists."

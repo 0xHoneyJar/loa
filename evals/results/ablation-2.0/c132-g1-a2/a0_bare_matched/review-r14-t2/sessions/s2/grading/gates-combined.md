@@ -1,0 +1,12 @@
+head/.claude/defaults/model-config.yaml:477
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:343
+head/.claude/defaults/model-config.yaml:491
+head/docs/migration/v2.0-model-generation-floor.md:230
+head/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:28
+head/.claude/data/personas/alternative-model.md:30
+head/evals/graders/recall-vs-defects.sh:74
+head/a.sh:40
+foo.sh:12-14
+foo.sh:2
+head/.claude/scripts/model-adapter.sh:656
+head/.claude/scripts/check-permissions.sh:237

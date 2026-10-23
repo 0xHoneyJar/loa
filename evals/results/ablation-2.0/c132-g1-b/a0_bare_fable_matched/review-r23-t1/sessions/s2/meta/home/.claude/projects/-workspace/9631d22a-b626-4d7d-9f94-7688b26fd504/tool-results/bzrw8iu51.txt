@@ -1,0 +1,1275 @@
++
+ def unique_line(lines, needle):
+     hits = [i for i, l in enumerate(lines, 1) if needle in l]
+     return hits[0] if len(hits) == 1 else None
+@@ -210,6 +232,8 @@ def build_manifest(fx):
+         if not os.path.isfile(hp):
+             errors.append(f"{r['defect_id']}: head/{r['file']} missing"); continue
+         lines = open(hp, encoding="utf-8", errors="replace").read().splitlines()
++        if r["label_source"] == "fix" and generated_path(r["file"]):
++            note_excluded(r["file"]); continue
+         if r["label_source"] == "fix":
+             m = re.match(r"^fix/[0-9a-f]+:(\d+)-(\d+)$", r["source"])
+             if not m:
+@@ -683,6 +707,10 @@ if os.path.isfile(cur_path):
+ 
+ fix_rows = []
+ for p in head_files:
++    if generated_path(p):
++        if hunks.get(p):
++            note_excluded(p)
++        continue
+     for lo, hi in hunks.get(p, []):
+         at, t = anchor_text(head_text[p], lo, hi)
+         fix_rows.append({"id": f"F{len(fix_rows) + 1:03d}", "file": p, "must_match": t or "-",
+diff --git a/evals/harness/seed-refactor-tasks.sh b/evals/harness/seed-refactor-tasks.sh
+new file mode 100755
+index 00000000..d99fbcd3
+--- /dev/null
++++ b/evals/harness/seed-refactor-tasks.sh
+@@ -0,0 +1,67 @@
++#!/usr/bin/env bash
++# =============================================================================
++# seed-refactor-tasks.sh — cycle-130 refactor task seeder (SDD §5.14, Sprint 259 Task 2.3)
++#
++# Turns Loa refactor commits into candidate refactor tasks for the ablation
++# suite. Lists the commits since DATE whose subject starts with `refactor`,
++# `chore`, `style` or `perf`, that touch at least two source files, all under
++# the allowed roots, and NO test file (a path under a `tests/` directory,
++# `test_*.py`, `*_test.py` or `*.bats`; such a commit is skipped with the
++# reason); refuses by name any candidate touching .claude/, CLAUDE.md,
++# .loa.config.yaml, grimoires/ or .run/. For each selected candidate (the
++# first N, newest first) it writes <out>/tasks/refactor-NN/ (next free number):
++#   fixture/    from the PARENT commit: the touched source files, the other
++#               non-test files in their directories, the tests
++#               under the allowed roots that name a touched file (its basename,
++#               or a Python module's stem; at most 20), and their infrastructure
++#               (conftest.py up to the root, __init__.py, *.bash and *helper*
++#               files beside each test, root runner configs) — a plain tree
++#   hidden/     reference.patch = the commit's diff (a/ b/ prefixes, patch -p1),
++#               manifest.json {"files": []} until the structural check exists
++#   task.yaml   source {kind: loa-history, fix_commit, base_commit, date,
++#               churn: {files, insertions, deletions}} (git diff --numstat of
++#               the commit); test_command = the covering tests; structural_check
++#               null — the structural assertion is authored BY HAND (then listed
++#               in manifest.json and set in structural_check; validate-suite.sh
++#               refuses a refactor task without one)
++#   TASK.md     the subject line and the test command; never the diff
++# The proof — the fixture's own covering tests green at base AND green with
++# the reference patch, run under `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus
++# PYTHONUSERBASE and PYTHONDONTWRITEBYTECODE=1 — and a clean
++# evals/graders/no-secrets.sh scan come before the task is moved into place.
++#
++# Usage:
++#   seed-refactor-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
++#                          [--paths CSV] [--suite-version N] [--dry-run]
++#
++#   options as seed-bugfix-tasks.sh (--select default 4; a commit without a
++#   covering test is skipped and does not count); LOA_SEED_BATS likewise
++#
++# Output (stdout, one line each):
++#   candidate <sha12> <date> <subject>
++#   refused <sha12>: <path>
++#   skipped <sha12>: <reason>          (touches a test file: <path> | touches N
++#                                       source file(s), want at least 2 | …)
++#   proof refactor-NN <sha12>: green at base (N passed) / green at reference (M passed)
++#   churn refactor-NN: files F, insertions I, deletions D
++#   todo refactor-NN: author the structural check …
++#   proof-failed <sha12>: <reason>
++#   wrote <dir>
++#   seed-refactor: C candidate(s), R refused, S skipped; selected X, written W, proof failed F
++#
++# Exit: 0 done; 1 a selected candidate failed its proof; 2 usage.
++# Tested by evals/tests/seed-refactor.bats.
++# =============================================================================
++set -euo pipefail
++export LC_ALL=C
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++
++usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
++for a in "$@"; do [[ "$a" == "--help" || "$a" == "-h" ]] && usage 0; done
++[[ $# -gt 0 ]] || usage 2
++for tool in git python3; do command -v "$tool" >/dev/null 2>&1 || { echo "seed-refactor: missing tool: $tool" >&2; exit 2; }; done
++
++exec python3 -I "$SCRIPT_DIR/lib/seed_tasks.py" refactor --repo-default "$REPO_ROOT" \
++  --no-secrets "$REPO_ROOT/evals/graders/no-secrets.sh" "$@"
+diff --git a/evals/harness/validate-suite.sh b/evals/harness/validate-suite.sh
+index 18f97f69..06532c85 100755
+--- a/evals/harness/validate-suite.sh
++++ b/evals/harness/validate-suite.sh
+@@ -17,7 +17,8 @@
+ # Checks (each violation is one stdout line `<task-id>: <reason>`):
+ #   1. schema: id (= directory name), schema_version 1, type (feature-build |
+ #      bug-fix | refactor | review-catch), source {kind, date, fix_commit?,
+-#      base_commit?, bead?, origin?}, post_cutoff (bool), fixture (dir under the
++#      base_commit?, bead?, origin?, churn?} (churn: {files, insertions,
++#      deletions}, non-negative integers; Sprint 259), post_cutoff (bool), fixture (dir under the
+ #      root; null only for review-catch), criterion (agent-facing; no path, file
+ #      name or test name), success_criterion, test_command (array; null only for
+ #      review-catch), regression_command (array | null), reference_patch (hidden/…
+@@ -214,8 +215,13 @@ for line in open(tasks_tsv, encoding="utf-8"):
+             if k in src and src[k] is not None and not (isinstance(src[k], str) and re.fullmatch(r"[0-9a-f]{7,40}", src[k])):
+                 bad(tid, f"schema: source.{k} must be a hex commit id")
+         for k in src:
+-            if k not in ("kind", "date", "fix_commit", "base_commit", "bead", "origin"):
++            if k not in ("kind", "date", "fix_commit", "base_commit", "bead", "origin", "churn"):
+                 bad(tid, f"schema: source.{k} is not a known key")
++        if "churn" in src:
++            ch = src["churn"]
++            if not (isinstance(ch, dict) and set(ch) == {"files", "insertions", "deletions"}
++                    and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in ch.values())):
++                bad(tid, "schema: source.churn must be {files, insertions, deletions} (non-negative integers)")
+     if not isinstance(t.get("post_cutoff"), bool):
+         bad(tid, "schema: post_cutoff must be a boolean")
+     build = ttype in BUILD
+diff --git a/evals/tests/ablation-grade.bats b/evals/tests/ablation-grade.bats
+new file mode 100644
+index 00000000..23b6743e
+--- /dev/null
++++ b/evals/tests/ablation-grade.bats
+@@ -0,0 +1,591 @@
++#!/usr/bin/env bats
++# =============================================================================
++# evals/tests/ablation-grade.bats — cycle-130 Sprint 259 Task 2.6
++# (SDD §3.6, §5.7, D-4.7, D-4.8; sprint.md AC-2.3, AC-2.5, AC-2.6; PRD AC-6.1/6.2/6.4;
++# DEC-0401, DEC-0413, DEC-0414, DEC-0420, DEC-0491, DEC-0493)
++#
++# evals/harness/ablation-grade.sh grades run directories shaped like pipeline-run.sh's
++# (sandbox/ with its own .git, snapshots/<LABEL>.bundle + index.json, transcripts/,
++# eval/, meta/). docker is fixtures/docker-stub.sh through a wrapper that sets
++# DOCKER_STUB_PATH to $T/bin, where `python3` drops the image-only -I/-s flags (the
++# host's pytest lives in the user site) and `bats` is the operator's bats-core. The
++# tasks are built in a temporary suite root; the smoke self-checks run on a frozen copy
++# of grimoires/loa/evals/ablation-2.0/smoke/.
++# =============================================================================
++
++BATS_BIN="$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats"
++
++setup() {
++  TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++  REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
++  GRADER="$REPO_ROOT/evals/harness/ablation-grade.sh"
++  SMOKE="$REPO_ROOT/grimoires/loa/evals/ablation-2.0/smoke"
++  T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/ag.XXXXXX")"
++  S="$T/suite"
++  make_bin
++  make_bf_py
++  make_bf_sh
++  make_rf_py
++  make_rc
++}
++
++teardown() {
++  chmod -R u+rwx "$T" 2>/dev/null || true
++  find "$T" -mindepth 1 -delete 2>/dev/null || true
++  rmdir "$T" 2>/dev/null || true
++}
++
++make_bin() {
++  local ub
++  ub="$(python3 -c 'import site; print(site.getuserbase())')"
++  mkdir -p "$T/bin" "$T/dlog"
++  cat > "$T/bin/python3" <<EOF
++#!/usr/bin/env bash
++# the image's python3 stand-in: the image has pytest on its own path; the host's is in the user site
++while [[ \$# -gt 0 ]]; do case "\$1" in -I|-s|-P) shift ;; *) break ;; esac; done
++exec env PYTHONUSERBASE="$ub" /usr/bin/python3 "\$@"
++EOF
++  ln -s "$BATS_BIN" "$T/bin/bats"
++  cat > "$T/docker" <<EOF
++#!/usr/bin/env bash
++export DOCKER_STUB_LOG="$T/dlog" DOCKER_STUB_PATH="$T/bin:/usr/bin:/bin"
++[[ -f "$T/docker.env" ]] && { set -a; . "$T/docker.env"; set +a; }
++exec "$TESTS_DIR/fixtures/docker-stub.sh" "\$@"
++EOF
++  chmod +x "$T/bin/python3" "$T/docker"
++}
++
++# bf-py: the smoke slug task plus pytest.ini, a fixture test and a regression command
++make_bf_py() {
++  local d="$S/tasks/bf-py"
++  mkdir -p "$d/fixture" "$d/hidden/tests"
++  cp -a "$SMOKE/smoke-build-01/fixture/." "$d/fixture/"
++  printf '[pytest]\n' > "$d/fixture/pytest.ini"
++  printf 'from textkit.slug import slugify\n\n\ndef test_existing_one():\n    assert slugify("A") == "a"\n\n\ndef test_existing_two():\n    assert slugify("a b") == "a-b"\n' \
++    > "$d/fixture/tests/test_existing.py"
++  cp "$SMOKE/smoke-build-01/hidden/tests/test_slug.py" "$d/hidden/tests/"
++  cp "$SMOKE/smoke-build-01/hidden/reference.patch" "$d/hidden/"
++  echo '{"files": [{"src": "tests/test_slug.py", "dest": "tests/test_slug.py"}]}' > "$d/hidden/manifest.json"
++  printf 'Fix the slug helper.\n' > "$d/TASK.md"
++  cat > "$d/task.yaml" <<'YAML'
++id: bf-py
++schema_version: 1
++type: bug-fix
++fixture: tasks/bf-py/fixture
++criterion: "runs of separators become one hyphen"
++test_command: ["python3", "-m", "pytest", "-q", "tests"]
++regression_command: ["python3", "-m", "pytest", "-q", "tests/test_existing.py"]
++reference_patch: hidden/reference.patch
++grader_protected: [tests/conftest.py, pytest.ini]
++structural_check: null
++review_catch: null
++suite_version: 1
++YAML
++}
++
++# bf-sh: a bash tool with bats tests, a bats helper and a Makefile target
++make_bf_sh() {
++  local d="$S/tasks/bf-sh" w="$T/w-sh"
++  mkdir -p "$d/fixture/lib" "$d/fixture/tests" "$d/hidden/tests"
++  printf 'greet() { echo "hello $1"; }\n' > "$d/fixture/lib/greet.sh"
++  printf 'load_lib() { source "$BATS_TEST_DIRNAME/../lib/greet.sh"; }\n' > "$d/fixture/tests/helpers.bash"
++  printf 'test:\n\tbats tests\n' > "$d/fixture/Makefile"
++  cat > "$d/hidden/tests/greet.bats" <<'EOF'
++setup() { load helpers; load_lib; }
++@test "greets with a capital and punctuation" { run greet world; [ "$output" = "Hello, world!" ]; }
++@test "greets without a name" { run greet; [ "$status" -eq 0 ]; }
++@test "greets twice" { run greet a; [ "${#lines[@]}" -eq 1 ]; }
++EOF
++  echo '{"files": [{"src": "tests/greet.bats", "dest": "tests/greet.bats"}]}' > "$d/hidden/manifest.json"
++  mkdir -p "$w/a" "$w/b"; cp -a "$d/fixture/." "$w/a/"; cp -a "$d/fixture/." "$w/b/"
++  printf 'greet() { echo "Hello, $1!"; }\n' > "$w/b/lib/greet.sh"
++  (cd "$w" && diff -ruN a b > "$d/hidden/reference.patch" || true)
++  printf 'Fix the greeting.\n' > "$d/TASK.md"
++  cat > "$d/task.yaml" <<'YAML'
++id: bf-sh
++schema_version: 1
++type: bug-fix
++fixture: tasks/bf-sh/fixture
++criterion: "the greeting is capitalised and ends with an exclamation mark"
++test_command: ["bats", "tests"]
++regression_command: null
++reference_patch: hidden/reference.patch
++grader_protected: [tests/helpers.bash, Makefile]
++structural_check: null
++review_catch: null
++suite_version: 1
++YAML
++}
++
++# rf-py: a refactor (total() must reuse add()); the suite is green at both ends
++make_rf_py() {
++  local d="$S/tasks/rf-py" w="$T/w-rf"
++  mkdir -p "$d/fixture/src/calc" "$d/fixture/tests" "$d/hidden/tests" "$d/hidden/structural"
++  : > "$d/fixture/src/calc/__init__.py"
++  printf 'def add(a, b):\n    return a + b\n\n\ndef total(xs):\n    s = 0\n    for x in xs:\n        s = s + x\n    return s\n' > "$d/fixture/src/calc/ops.py"
++  printf 'import os, sys\nsys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))\n' > "$d/fixture/conftest.py"
++  printf 'from calc.ops import add, total\n\n\ndef test_add():\n    assert add(2, 3) == 5\n\n\ndef test_total():\n    assert total([1, 2, 3]) == 6\n' > "$d/hidden/tests/test_ops.py"
++  printf 'import inspect\nfrom calc import ops\n\n\ndef test_total_reuses_add():\n    assert "add(" in inspect.getsource(ops.total)\n' > "$d/hidden/structural/test_structure.py"
++  echo '{"files": [{"src": "tests/test_ops.py", "dest": "tests/test_ops.py"}, {"src": "structural/test_structure.py", "dest": "structural/test_structure.py"}]}' > "$d/hidden/manifest.json"
++  mkdir -p "$w/a" "$w/b"; cp -a "$d/fixture/." "$w/a/"; cp -a "$d/fixture/." "$w/b/"
++  printf 'def add(a, b):\n    return a + b\n\n\ndef total(xs):\n    s = 0\n    for x in xs:\n        s = add(s, x)\n    return s\n' > "$w/b/src/calc/ops.py"
++  (cd "$w" && diff -ruN a b > "$d/hidden/reference.patch" || true)
++  printf 'Make total reuse add.\n' > "$d/TASK.md"
++  cat > "$d/task.yaml" <<'YAML'
++id: rf-py
++schema_version: 1
++type: refactor
++fixture: tasks/rf-py/fixture
++criterion: "the sum reuses the pairwise helper"
++test_command: ["python3", "-m", "pytest", "-q", "tests"]
++regression_command: null
++reference_patch: hidden/reference.patch
++grader_protected: [conftest.py]
++structural_check: hidden/structural/test_structure.py
++review_catch: null
++suite_version: 1
++YAML
++}
++
++# rc-x: a review-catch task over a 30-line PR with a high and a low defect
++make_rc() {
++  local d="$S/tasks/rc-x" p="$T/prs/pr-77" i
++  mkdir -p "$d" "$p/base/lib" "$p/head/lib" "$T/manifests"
++  for i in $(seq 1 30); do echo "line_$i=1"; done > "$p/base/lib/x.sh"
++  for i in $(seq 1 30); do echo "line_$i=2"; done > "$p/head/lib/x.sh"
++  printf -- '--- a/lib/x.sh\n+++ b/lib/x.sh\n' > "$p/head.diff"
++  printf '# PR\n' > "$p/PR.md"
++  cat > "$T/manifests/pr-77.json" <<'EOF'
++{"fixture": "pr-77", "defects": [
++  {"id": "D01-overflow-guard-dropped", "file": "lib/x.sh", "anchor_line": 5, "severity": "high", "category": "logic"},
++  {"id": "D02-unquoted-expansion", "file": "lib/x.sh", "anchor_line": 20, "severity": "low", "category": "logic"}]}
++EOF
++  printf 'Review the pull request.\n' > "$d/TASK.md"
++  cat > "$d/task.yaml" <<YAML
++id: rc-x
++schema_version: 1
++type: review-catch
++fixture: null
++criterion: "review the change"
++test_command: null
++regression_command: null
++reference_patch: null
++grader_protected: []
++structural_check: null
++review_catch: {fixture: "$p", manifest: "$T/manifests/pr-77.json"}
++suite_version: 1
++YAML
++}
++
++sg() { local rd="$1"; shift; git -C "$rd/sandbox" -c user.email=e@l -c user.name=eval -c commit.gpgsign=false "$@"; }
++
++# make_run <task-id> <run-dir>: the task fixture (or the PR under pr/) committed as base
++make_run() {
++  local id="$1" rd="$2" td="$S/tasks/$1"
++  mkdir -p "$rd/sandbox" "$rd/snapshots" "$rd/transcripts" "$rd/eval" "$rd/meta"
++  echo "$id" > "$rd.task"   # beside the run dir, for apply_ref
++  if [[ -d "$td/fixture" ]]; then cp -a "$td/fixture/." "$rd/sandbox/"
++  else mkdir -p "$rd/sandbox/pr"; cp -a "$T/prs/pr-77/." "$rd/sandbox/pr/"; fi
++  sg "$rd" init -q
++  printf '%s\n' '/.claude/' '/CLAUDE.md' '/.loa.config.yaml' '/grimoires/' '/.run/' '/.beads/' '/.eval/' >> "$rd/sandbox/.git/info/exclude"
++  sg "$rd" add -A; sg "$rd" commit -q --allow-empty -m base
++  jq -n --arg b "$(sg "$rd" rev-parse HEAD)" '{base: $b}' > "$rd/snapshots/index.json"
++  mkdir -p "$rd/sandbox/grimoires/loa/a2a/sprint-1" "$rd/sandbox/.claude"
++  echo "# mount" > "$rd/sandbox/CLAUDE.md"
++  printf '{"run_id": "r-%s", "status": "completed", "arm": "a1_full"}\n' "$id" > "$rd/meta/pipeline.json"
++  echo a1_full > "$rd/meta/arm"
++}
++# snap <run-dir> <LABEL>: commit and bundle the sandbox as pipeline-run.sh does after IMPLEMENT / FIX
++snap() {
++  local rd="$1" L="$2" c k
++  sg "$rd" add -A; sg "$rd" commit -q --allow-empty -m "snapshot $L"
++  c="$(sg "$rd" rev-parse HEAD)"; k="$(printf '%s' "$L" | tr 'A-Z' 'a-z')"
++  sg "$rd" bundle create -q "$rd/snapshots/$L.bundle" HEAD
++  jq --arg k "$k" --arg c "$c" '.[$k] = $c' "$rd/snapshots/index.json" > "$rd/snapshots/i.tmp" && mv "$rd/snapshots/i.tmp" "$rd/snapshots/index.json"
++}
++# verdict <run-dir> review|audit <VERDICT> [body]
++verdict() {
++  local f=engineer-feedback.md; [[ "$2" == audit ]] && f=auditor-sprint-feedback.md
++  printf '# Feedback\n\n%s\n\n<!-- LOA-VERDICT {"gate":"%s","verdict":"%s","counts":{"critical":0,"high":1}} -->\n' "${4:-}" "$2" "$3" \
++    > "$1/sandbox/grimoires/loa/a2a/sprint-1/$f"
++}
++apply_ref() { patch -s -p1 -d "$1/sandbox" < "$S/tasks/$(cat "$1.task")/hidden/reference.patch"; }
++# tool_use <run-dir> <LABEL> <tool> <input-json>: one assistant tool_use event line
++tool_use() {
++  jq -cn --arg t "$3" --argjson i "$4" '{type: "assistant", message: {content: [{type: "tool_use", name: $t, input: $i}]}}' \
++    >> "$1/transcripts/events-$2.jsonl"
++}
++grade() { run "$GRADER" "$@" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"; }
++tree_digest() {
++  python3 -I -c '
++import hashlib, os, sys
++h = hashlib.sha256(); root = sys.argv[1]
++for r, ds, fs in os.walk(root):
++    ds.sort()
++    for n in sorted(ds + fs):
++        p = os.path.join(r, n); h.update(os.path.relpath(p, root).encode() + b"\0")
++        if os.path.islink(p): h.update(b"L" + os.readlink(p).encode())
++        elif os.path.isfile(p): h.update(open(p, "rb").read())
++print(h.hexdigest())' "$1"
++}
++G() { jq -r "$1" "$RD/grade.json"; }
++
++# --- grading trees (D-4.8) --------------------------------------------------------------------
++
++@test "AG-1 the final tree is graded under grading/final in the image; the sandbox is byte-identical before and after" {
++  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"; snap "$RD" IMPLEMENT
++  before="$(tree_digest "$RD/sandbox")"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(tree_digest "$RD/sandbox")" = "$before" ]
++  [ -f "$RD/grading/final/tests/test_slug.py" ] && [ -f "$RD/grade.json" ]
++  [ ! -e "$RD/grading/final/.git" ] && [ ! -e "$RD/grading/final/CLAUDE.md" ] && [ ! -e "$RD/grading/final/grimoires" ]
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
++  [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:258" ]
++  [ "$(G '.diff_lines')" = 2 ] && [ "$(G '.files_changed')" = 1 ]
++  # the docker argv: no network, read-only root, tmpfs, the caller's uid, one rw mount, the pytest shape
++  argv="$(tr '\0' ' ' < "$T/dlog/run-1.argv")"
++  [[ "$argv" == *"run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:258 timeout 120 python3 -I -s -m pytest -p no:cacheprovider -q --rootdir /workspace -rA tests "* ]]
++  [ "$(tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -cx -- -q)" -eq 1 ]
++}
++
++@test "AG-2 agent-edited tests/conftest.py, pytest.ini, a bats helper and a Makefile target are replaced by the fixture's copies" {
++  RD="$T/run"; make_run bf-py "$RD"
++  printf 'import sys\n' > "$RD/sandbox/tests/conftest.py"          # would break the import path
++  printf '[pytest]\naddopts = -k existing\n' > "$RD/sandbox/pytest.ini"   # would deselect the hidden tests
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  cmp "$RD/grading/final/tests/conftest.py" "$S/tasks/bf-py/fixture/tests/conftest.py"
++  cmp "$RD/grading/final/pytest.ini" "$S/tasks/bf-py/fixture/pytest.ini"
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "5/7" ]
++  RD="$T/run-sh"; make_run bf-sh "$RD"
++  printf 'load_lib() { greet() { echo "Hello, $1!"; }; }\n' > "$RD/sandbox/tests/helpers.bash"   # a helper that fakes the fix
++  printf 'test:\n\ttrue\n' > "$RD/sandbox/Makefile"
++  grade "$RD" bf-sh
++  [ "$status" -eq 0 ]
++  cmp "$RD/grading/final/tests/helpers.bash" "$S/tasks/bf-sh/fixture/tests/helpers.bash"
++  cmp "$RD/grading/final/Makefile" "$S/tasks/bf-sh/fixture/Makefile"
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "2/3" ]
++  [ "$(G '.hidden_tests.failed_names | join(",")')" = "t1" ]
++}
++
++@test "AG-3 a deleted tests/ directory is restored (protected files and the hidden overlay)" {
++  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
++  rm -rf "$RD/sandbox/tests"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ -f "$RD/grading/final/tests/conftest.py" ] && [ -f "$RD/grading/final/tests/test_slug.py" ]
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "5/5" ]
++  # the regression suite lost its file: both of its base cases are newly failing
++  [ "$(G '.regressions.newly_failing | join(",")')" = "t1,t2" ]
++}
++
++@test "AG-4 a same-named file is overwritten by the hidden copy; a symlinked test dir is replaced" {
++  RD="$T/run"; make_run bf-py "$RD"
++  printf 'def test_basic():\n    assert True\n' > "$RD/sandbox/tests/test_slug.py"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  cmp "$RD/grading/final/tests/test_slug.py" "$S/tasks/bf-py/hidden/tests/test_slug.py"
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "5/7" ]
++  [ "$(G '.hidden_tests.failed_names | join(",")')" = "t6,t7" ]
++  RD="$T/run2"; make_run bf-py "$RD"
++  mkdir -p "$T/elsewhere"; mv "$RD/sandbox/tests" "$T/elsewhere/tests"; ln -s "$T/elsewhere/tests" "$RD/sandbox/tests"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ ! -L "$RD/grading/final/tests" ] && [ -d "$RD/grading/final/tests" ]
++  [ ! -e "$T/elsewhere/tests/test_slug.py" ]
++}
++
++@test "AG-5 regressions: a fixture test the agent broke is newly failing by its base id; parse failure counts the static cases" {
++  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"
++  sed -i 's/"a-b"/"a_b"/' "$RD/sandbox/tests/test_existing.py"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.regressions.newly_failing | join(",")')" = "t2" ]
++  [ "$(G '.regressions.base | "\(.passed)/\(.total)"')" = "2/2" ]
++  [ "$(G '.regressions.final | "\(.passed)/\(.total)"')" = "1/2" ]
++  # an import the agent broke: a collection error interrupts the run; the hidden total stays the static count
++  RD="$T/run2"; make_run bf-py "$RD"
++  printf 'import nope\n' > "$RD/sandbox/src/textkit/__init__.py"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.hidden_tests.passed')" = 0 ] && [ "$(G '.hidden_tests.total')" -ge 5 ]
++}
++
++@test "AG-6 per-gate verdict accuracy against the snapshot each gate read; null when no gate ran" {
++  RD="$T/run"; make_run bf-py "$RD"
++  snap "$RD" IMPLEMENT                       # the fixture unchanged: hidden tests fail
++  verdict "$RD" review CHANGES_REQUIRED      # right
++  apply_ref "$RD"; snap "$RD" FIX1           # fixed
++  verdict "$RD" audit APPROVED               # right
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.snapshots_graded | join(",")')" = "final,implement,fix1" ]
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "true,true" ]
++  [ "$(G '.verdict_accuracy')" = true ]
++  [ "$(G '.verdict | "\(.source_file) \(.value)"')" = "auditor-sprint-feedback.md APPROVED" ]
++  [ "$(G '.snapshot_tests | "\(.implement.passed)/\(.implement.total) \(.fix1.passed)/\(.fix1.total)"')" = "5/7 7/7" ]
++  verdict "$RD" review APPROVED; verdict "$RD" audit CHANGES_REQUIRED   # both wrong
++  grade "$RD" bf-py
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "false,false" ]
++  # A4-shaped: IMPLEMENT only, no gate → null; AUDIT without FIX1 reads implement
++  RD="$T/run-a4"; make_run bf-py "$RD"; apply_ref "$RD"; snap "$RD" IMPLEMENT
++  grade "$RD" bf-py
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "null,null" ]
++  [ "$(G '.verdict_accuracy')" = null ] && [ "$(G '.verdict')" = null ]
++  [ "$(G '.snapshots_graded | join(",")')" = final ]
++  verdict "$RD" audit APPROVED
++  grade "$RD" bf-py
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "null,true" ]
++}
++
++@test "AG-7 refactor: structural check and the suite at both ends; bats TAP ids" {
++  RD="$T/run"; make_run rf-py "$RD"; apply_ref "$RD"
++  grade "$RD" rf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.structural | "\(.passed)/\(.total) \(.suite_green_base) \(.suite_green_final)"')" = "1/1 true true" ]
++  RD="$T/run2"; make_run rf-py "$RD"
++  grade "$RD" rf-py
++  [ "$(G '.structural | "\(.passed)/\(.total) \(.failed_names | join(","))"')" = "0/1 t1" ]
++  RD="$T/run-sh"; make_run bf-sh "$RD"; apply_ref "$RD"
++  grade "$RD" bf-sh
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total) \(.parse_error)"')" = "3/3 false" ]
++  cat "$T"/dlog/run-*.argv | tr '\0' ' ' | grep -q -- 'timeout 120 bats --tap tests'
++}
++
++@test "AG-18 end to end: a pipeline-run.sh run (stub CLI, stub mount library) grades with its real bundles and gate files" {
++  local H="$T/h/evals/harness" sk
++  mkdir -p "$H/lib" "$T/src/.claude/loa" "$T/home"
++  cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
++  cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
++  cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
++  for sk in planning-sprints implementing-tasks reviewing-code auditing-security; do
++    mkdir -p "$T/src/.claude/skills/$sk"; printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$sk" > "$T/src/.claude/skills/$sk/SKILL.md"
++  done
++  echo loa > "$T/src/.claude/loa/CLAUDE.loa.md"; printf 'flatline_protocol:\n  enabled: true\n' > "$T/src/.loa.config.yaml"
++  ( cd "$T/src" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init )
++  printf 'STUB_VERDICT_REVIEW=CHANGES_REQUIRED\n' > "$T/stub.env"
++  cat > "$T/claude" <<EOF
++#!/usr/bin/env bash
++set -a; . "$T/stub.env"; set +a
++exec "$TESTS_DIR/fixtures/claude-stub-pipeline.sh" "\$@"
++EOF
++  chmod +x "$T/claude"
++  LOA_EVAL_WATCHDOG_POLL_S=0.1 LOA_EVAL_CREDS_HOME="$T/home" \
++  LOA_EVAL_PRICING_JSON='{"global.anthropic.claude-opus-5-5":{"input_per_mtok":4000000,"output_per_mtok":20000000},"global.anthropic.claude-fable-5-1":{"input_per_mtok":10000000,"output_per_mtok":50000000}}' \
++    run "$H/pipeline-run.sh" --task-yaml "$S/tasks/bf-py/task.yaml" --arm a1_full --run-dir "$T/e2e" --run-id r-e2e \
++      --trial 1 --source-tree "$T/src" --suite-file "$TESTS_DIR/fixtures/ablation-runs/suite.yaml" --executor host --claude-bin "$T/claude"
++  [ "$status" -eq 0 ]
++  [ -f "$T/e2e/snapshots/IMPLEMENT.bundle" ] && [ -f "$T/e2e/snapshots/FIX1.bundle" ]
++  RD="$T/e2e"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  [ "$(G '.snapshots_graded | join(",")')" = "final,implement,fix1" ]
++  [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "5/7" ]
++  # REVIEW asked for changes on a failing tree (right); AUDIT approved a tree that still fails (wrong)
++  [ "$(G '.verdicts | "\(.review) \(.audit)"')" = "CHANGES_REQUIRED APPROVED" ]
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "true,false" ]
++  [ "$(G '.contaminated')" = null ]
++  run "$REPO_ROOT/evals/harness/ablation-row.sh" --run-dir "$RD" --task-yaml "$S/tasks/bf-py/task.yaml"
++  [ "$status" -eq 0 ]
++  [ "$(jq -r '"\(.hidden_test_pass_rate * 7 | round) \(.verdict_accuracy_review) \(.verdict_accuracy_audit) \(.regressions)"' <<<"$output")" = "5 true false 0" ]
++}
++
++# --- review-catch (DEC-0420) -----------------------------------------------------------------
++
++@test "AG-8 gates-combined.md reduces review.md, both feedback files and both eval/ envelopes; recall and deduplicated false positives" {
++  RD="$T/run"; make_run rc-x "$RD"
++  A="$RD/sandbox/grimoires/loa/a2a/sprint-1"
++  printf 'head/lib/x.sh:5 — the guard is gone\nVerdict: CHANGES_REQUIRED\n' > "$RD/sandbox/review.md"
++  verdict "$RD" review APPROVED 'lib/x.sh:12 reads a stale value'
++  verdict "$RD" audit CHANGES_REQUIRED 'pr/head/lib/x.sh:13 the same stale value'
++  echo '{"findings": [{"anchor": "lib/x.sh:20", "severity": "low"}]}' > "$RD/eval/adversarial-review.json"
++  echo '{"findings": [{"file": "lib/x.sh", "line": 28, "severity": "medium"}]}' > "$RD/eval/adversarial-audit.json"
++  # the sandbox copy of an envelope is tamperable and never read
++  echo '{"findings": [{"anchor": "lib/x.sh:2"}]}' > "$A/adversarial-review.json"
++  grade "$RD" rc-x
++  [ "$status" -eq 0 ]
++  [ "$(cat "$RD/grading/gates-combined.md" | tr '\n' ' ')" = "head/lib/x.sh:5 lib/x.sh:12 head/lib/x.sh:13 lib/x.sh:20 lib/x.sh:28 " ]
++  [ "$(G '.recall | "\(.defects_seeded) \(.defects_caught) \(.recall == 1) \(.flags) \(.missed | length)"')" = "2 2 true 5 0" ]
++  [ "$(G '.false_positives')" = 2 ]      # 12 and 13 share a ±3 region; 28 is another
++  [ "$(G '.hidden_tests')" = null ] && [ "$(G '.diff_lines')" = null ]
++  # the key holds a high defect: CHANGES_REQUIRED is accurate, APPROVED is not
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "false,true" ]
++  [ "$(G '.verdict_accuracy')" = true ]
++  # without the envelopes the low defect is missed, by position only
++  rm "$RD/eval/adversarial-review.json"
++  grade "$RD" rc-x
++  [ "$(G '.recall | "\(.defects_caught) \(.missed | join(","))"')" = "1 d2" ]
++}
++
++@test "AG-9 review-catch A0: no gate ran, review.md gives the verdict, accuracy stays null; no docker needed" {
++  RD="$T/run"; make_run rc-x "$RD"
++  printf 'head/lib/x.sh:4 — guard\nVerdict: APPROVED\n' > "$RD/sandbox/review.md"
++  echo 'DOCKER_STUB_NO_IMAGE=1' > "$T/docker.env"
++  grade "$RD" rc-x
++  [ "$status" -eq 0 ]
++  [ "$(G '.verdict | "\(.source_file) \(.value)"')" = "review.md APPROVED" ]
++  [ "$(G '.verdict_accuracy_per_gate | "\(.review),\(.audit)"')" = "null,null" ]
++  [ "$(G '.recall.defects_caught')" = 1 ]
++}
++
++# --- contamination (D-4.7, DEC-0493) --------------------------------------------------------------
++
++@test "AG-10 contamination: each pattern class, a WebFetch URL and a WebSearch query, first hit in phase order, ids only" {
++  local i=0 tool inp want
++  while IFS=$'\t' read -r tool inp want; do
++    i=$((i + 1)); RD="$T/c$i"; make_run rc-x "$RD"
++    tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
++    tool_use "$RD" IMPLEMENT "$tool" "$inp"
++    grade "$RD" rc-x
++    [ "$status" -eq 0 ]
++    [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "IMPLEMENT $want IMPLEMENT:2" ]
++    [ "$(G '.contaminated | keys | join(",")')" = "excerpt_id,pattern,phase" ]
++  done <<'EOF'
++Bash	{"command": "cat tests/HIDDEN_cases.py"}	hidden
++Read	{"file_path": "/workspace/grimoires/loa/evals/ablation-2.0/tasks/x/task.yaml"}	suite_path
++WebFetch	{"url": "https://github.com/0xHoneyJar/loa/tree/main", "prompt": "read"}	repo_name
++WebFetch	{"url": "https://example.com/hidden/answers", "prompt": "read"}	hidden
++WebSearch	{"query": "0xhoneyjar/loa ablation tasks"}	repo_name
++Bash	{"command": "git log --oneline --all | head"}	git_history
++Bash	{"command": "git reflog"}	git_history
++Read	{"file_path": "/home/operator/code/loa/README.md"}	outside_path
++Bash	{"command": "cat /home/operator/notes.txt 2>/dev/null"}	outside_path
++Glob	{"pattern": "/srv/**/*.py"}	outside_path
++EOF
++  # first hit in phase order: IMPLEMENT before REVIEW whatever the file names sort to
++  RD="$T/order"; make_run rc-x "$RD"
++  tool_use "$RD" REVIEW Bash '{"command": "git reflog"}'
++  tool_use "$RD" IMPLEMENT Bash '{"command": "ls"}'
++  tool_use "$RD" IMPLEMENT Read '{"file_path": "/root/x"}'
++  grade "$RD" rc-x
++  [ "$(G '.contaminated | "\(.phase) \(.pattern) \(.excerpt_id)"')" = "IMPLEMENT outside_path IMPLEMENT:2" ]
++  ! grep -q '/root/x' "$RD/grade.json"
++}
++
++@test "AG-11 contamination: ordinary container and host commands are clean; host paths are judged against the sandbox root" {
++  RD="$T/clean"; make_run rc-x "$RD"
++  tool_use "$RD" IMPLEMENT Bash '{"command": "cat /workspace/src/a.py 2>/dev/null | awk '"'"'/LOA-VERDICT/ {print}'"'"'; ls /usr/bin/env /tmp/x"}'
++  tool_use "$RD" IMPLEMENT Read '{"file_path": "/workspace/src/a.py"}'
++  tool_use "$RD" IMPLEMENT Grep '{"pattern": "^/api", "path": "/workspace"}'
++  tool_use "$RD" IMPLEMENT Glob '{"pattern": "**/*.py"}'
++  tool_use "$RD" IMPLEMENT WebFetch '{"url": "https://docs.python.org/3/library/re.html", "prompt": "x"}'
++  tool_use "$RD" IMPLEMENT Write '{"file_path": "/home/evaluser/.claude/x", "content": "hidden text in content is not scanned"}'
++  grade "$RD" rc-x
++  [ "$status" -eq 0 ]
++  [ "$(G '.contaminated')" = null ]
++  RD="$T/host"; make_run rc-x "$RD"
++  tool_use "$RD" IMPLEMENT Read "$(jq -cn --arg p "$RD/sandbox/lib/x.sh" '{file_path: $p}')"
++  tool_use "$RD" IMPLEMENT Read "$(jq -cn --arg p "$HOME/.claude/settings.json" '{file_path: $p}')"
++  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
++  [ "$status" -eq 0 ]
++  [ "$(G '.contaminated')" = null ] && [ "$(G '.image')" = null ] && [ "$(G '.executor_mode')" = host ]
++  tool_use "$RD" AUDIT Read '{"file_path": "/home/evaluser/x"}'
++  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
++  [ "$(G '.contaminated | "\(.phase) \(.pattern)"')" = "AUDIT outside_path" ]
++}
++
++# --- the meta/ boundary and id-only summaries (DEC-0413) ---------------------------------------------
++
++@test "AG-12 meta/ removed → byte-identical grade.json; summary fields carry ids only" {
++  RD="$T/run"; make_run bf-py "$RD"; snap "$RD" IMPLEMENT; verdict "$RD" review CHANGES_REQUIRED
++  apply_ref "$RD"; sed -i 's/"a-b"/"a_b"/' "$RD/sandbox/tests/test_existing.py"; snap "$RD" FIX1; verdict "$RD" audit APPROVED
++  tool_use "$RD" FIX1 Bash '{"command": "cat /home/operator/hidden.txt"}'
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  cp "$RD/grade.json" "$T/with-meta.json"
++  rm -rf "$RD/meta"
++  grade "$RD" bf-py
++  [ "$status" -eq 0 ]
++  cmp "$T/with-meta.json" "$RD/grade.json"
++  ! grep -n 'graded_at\|test_\|slug\|collapses\|/home/operator\|hidden.txt' "$RD/grade.json"
++  ! grep -q "$T" "$RD/grade.json"
++  RD="$T/rc"; make_run rc-x "$RD"; printf 'head/lib/x.sh:5 guard\n' > "$RD/sandbox/review.md"
++  grade "$RD" rc-x
++  ! grep -n 'D01\|D02\|overflow\|unquoted' "$RD/grade.json"
++  [ "$(G '.recall.missed | join(",")')" = d2 ]
++}
++
++@test "AG-13 the grader source never reads meta/ (only the comment saying so) and keeps the trust boundary" {
++  [ "$(grep -c 'meta/' "$GRADER")" -eq 1 ]
++  grep -n 'meta/' "$GRADER" | grep -q '^[0-9]*:# '
++  ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER"
++  ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER"
++  ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER"
++}
++
++# --- self-check (DEC-0401, AC-2.3) on the smoke tasks, through the docker stub ----------------------------
++
++@test "AG-14 --self-check base|reference on smoke-build-01 and base|reference|noisy on smoke-review-01 (frozen copy)" {
++  F="$T/frozen"; mkdir -p "$F"; cp -a "$SMOKE" "$F/smoke"
++  run bash "$REPO_ROOT/evals/harness/freeze.sh" --root "$F" --smoke --allow-partial
++  [ "$status" -eq 0 ]
++  local m
++  for m in base reference; do
++    run "$GRADER" --self-check "$m" --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --docker-bin "$T/docker"
++    [ "$status" -eq 0 ]
++    [[ "$output" == "self-check $m smoke-build-01: PASS hidden "* ]]
++  done
++  [[ "$output" == *"hidden 5/5"* ]]
++  for m in base reference noisy; do
++    run "$GRADER" --self-check "$m" --task-yaml "$F/smoke/smoke-review-01/task.yaml" --allow-partial --docker-bin "$T/docker"
++    [ "$status" -eq 0 ]
++    [[ "$output" == "self-check $m smoke-review-01: PASS recall "* ]]
++  done
++  [[ "$output" == *"vs reference 0"* ]]
++  # the self-check ran its tests in the image (stub) and left nothing behind
++  grep -q 'python3 -I -s -m pytest' <(tr '\0' ' ' < "$T/dlog/run-1.argv")
++  run "$GRADER" --self-check noisy --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --docker-bin "$T/docker"
++  [ "$status" -eq 2 ]
++}
++
++@test "AG-15 --self-check FAIL is exit 1: a reference patch that does not fix the bug, a refactor whose structural check is green at base" {
++  printf -- '--- a/src/textkit/slug.py\n+++ b/src/textkit/slug.py\n@@ -1 +1 @@\n-import re\n+import re  # noop\n' > "$S/tasks/bf-py/hidden/reference.patch"
++  run "$GRADER" --self-check reference --task-yaml "$S/tasks/bf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 1 ]
++  [[ "$output" == *"self-check reference bf-py: FAIL hidden 5/7"* ]]
++  run "$GRADER" --self-check base --task-yaml "$S/tasks/rf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 0 ]
++  [[ "$output" == *"self-check base rf-py: PASS structural 0/1, suite green"* ]]
++  run "$GRADER" --self-check reference --task-yaml "$S/tasks/rf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 0 ]
++  cp "$S/tasks/rf-py/hidden/reference.patch" "$T/p"; (cd "$S/tasks/rf-py/fixture" && patch -s -p1 < "$T/p")
++  run "$GRADER" --self-check base --task-yaml "$S/tasks/rf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 1 ]
++}
++
++# --- freeze (DEC-0414) and errors --------------------------------------------------------------------
++
++@test "AG-16 an unfrozen suite is refused without --allow-unfrozen; a drift is refused; --allow-unfrozen records suite_frozen false" {
++  RD="$T/run"; make_run rc-x "$RD"; printf 'head/lib/x.sh:5\n' > "$RD/sandbox/review.md"
++  run "$GRADER" "$RD" rc-x --suite-root "$S" --docker-bin "$T/docker"
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"suite is not frozen"* ]]
++  [ ! -e "$RD/grade.json" ]
++  grade "$RD" rc-x
++  [ "$status" -eq 0 ]
++  [ "$(G '.suite_frozen')" = false ]
++  F="$T/frozen"; mkdir -p "$F"; cp -a "$SMOKE" "$F/smoke"
++  bash "$REPO_ROOT/evals/harness/freeze.sh" --root "$F" --smoke --allow-partial >/dev/null
++  run "$GRADER" --self-check base --task-yaml "$F/smoke/smoke-review-01/task.yaml" --docker-bin "$T/docker"
++  [ "$status" -eq 2 ]                      # the four-per-type count needs --allow-partial today
++  echo "# drift" >> "$F/smoke/smoke-review-01/TASK.md"
++  run "$GRADER" --self-check base --task-yaml "$F/smoke/smoke-review-01/task.yaml" --allow-partial --docker-bin "$T/docker"
++  [ "$status" -eq 2 ]
++  [[ "$output" == *"freeze.sh --check failed"* ]]
++}
++
++@test "AG-17 errors are exit 2: missing run dir, unknown task, docker or the image missing in container mode" {
++  run "$GRADER" "$T/nope" bf-py --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 2 ]
++  RD="$T/run"; make_run bf-py "$RD"
++  run "$GRADER" "$RD" no-such-task --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 2 ] && [[ "$output" == *"task not found"* ]]
++  run "$GRADER" "$RD" bf-py --suite-root "$S" --allow-unfrozen --docker-bin "$T/no-docker"
++  [ "$status" -eq 2 ] && [[ "$output" == *"docker CLI not found"* ]]
++  echo 'DOCKER_STUB_NO_IMAGE=1' > "$T/docker.env"
++  run "$GRADER" "$RD" bf-py --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
++  [ "$status" -eq 2 ] && [[ "$output" == *"image not found"* ]]
++  run "$GRADER" "$RD" bf-py --bogus
++  [ "$status" -eq 2 ]
++}
+diff --git a/evals/tests/fixtures/docker-stub.sh b/evals/tests/fixtures/docker-stub.sh
+index 6b0db9e6..0edaae48 100755
+--- a/evals/tests/fixtures/docker-stub.sh
++++ b/evals/tests/fixtures/docker-stub.sh
+@@ -14,7 +14,10 @@
+ #                                         the environment is exactly the -e set
+ #                                         (bare `-e KEY` takes the client's value),
+ #                                         the command word `claude` maps to
+-#                                         $DOCKER_STUB_CLAUDE
++#                                         $DOCKER_STUB_CLAUDE; when $DOCKER_STUB_PATH is
++#                                         set and no -e PATH was given, PATH=<it> joins
++#                                         the environment (ablation-grade.bats: the
++#                                         image's python3/bats stand-ins)
+ set -euo pipefail
+ log="${DOCKER_STUB_LOG:-/dev/null}"
+ case "${1:-}" in
+@@ -70,6 +73,10 @@ for a in "$@"; do
+   cmd+=("$a")
+ done
+ for e in ${envs[@]+"${envs[@]}"}; do menv+=("${e%%=*}=$(map "${e#*=}")"); done
++if [[ -n "${DOCKER_STUB_PATH:-}" ]]; then
++  has_path=0; for e in ${menv[@]+"${menv[@]}"}; do [[ "$e" == PATH=* ]] && has_path=1; done
++  [[ $has_path -eq 1 ]] || menv+=("PATH=$DOCKER_STUB_PATH")
++fi
+ cd "$(map "$wd")"
+ # the container's environment is exactly the -e set (plus nothing from this host)
+ exec env -i ${menv[@]+"${menv[@]}"} "${cmd[@]}"
+diff --git a/evals/tests/pipeline-run.bats b/evals/tests/pipeline-run.bats
+index 28330164..5674ac77 100644
+--- a/evals/tests/pipeline-run.bats
++++ b/evals/tests/pipeline-run.bats
+@@ -466,6 +466,44 @@ EOF
+   done
+ }
+ 
++@test "frozen-suite layout: tasks/<id>/{task.yaml,fixture/,hidden/} — the sandbox holds no hidden* path and no file from hidden/ (AC-2.6, AC-5.5)" {
++  local d="$T/suite/tasks/bf-02" f
++  mkdir -p "$d/fixture/src" "$d/fixture/tests" "$d/hidden/tests" "$d/hidden/structural"
++  echo 'print(1)' > "$d/fixture/src/app.py"
++  printf 'import os, sys\nsys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))\n' > "$d/fixture/tests/conftest.py"
++  printf 'def test_prints_two():\n    assert "two" == "two"  # sealed-case-7f3a\n' > "$d/hidden/tests/test_app.py"
++  printf 'def test_shape():\n    pass  # sealed-shape-91c2\n' > "$d/hidden/structural/test_shape.py"
++  printf -- '--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-print(1)\n+print(2)  # sealed-patch-c0de\n' > "$d/hidden/reference.patch"
++  echo '{"files": [{"src": "tests/test_app.py", "dest": "tests/test_app.py"}]}' > "$d/hidden/manifest.json"
++  printf 'Make the app print two.\n' > "$d/TASK.md"
++  cat > "$d/task.yaml" <<'YAML'
++id: bf-02
++schema_version: 1
++type: bug-fix
++fixture: tasks/bf-02/fixture
++criterion: "the app prints two"
++test_command: ["python3", "-m", "pytest", "-q", "tests"]
++reference_patch: hidden/reference.patch
++grader_protected: [tests/conftest.py]
++YAML
++  run_pr a1_full "$d/task.yaml"
++  [ "$status" -eq 0 ]
++  [ -f "$T/run/sandbox/src/app.py" ] && [ -f "$T/run/sandbox/tests/conftest.py" ]
++  run find "$T/run/sandbox" -path "$T/run/sandbox/.git" -prune -o -iname '*hidden*' -print
++  [ -z "$output" ]
++  [ ! -e "$T/run/sandbox/tests/test_app.py" ] && [ ! -e "$T/run/sandbox/reference.patch" ] && [ ! -e "$T/run/sandbox/manifest.json" ]
++  [ ! -e "$T/run/sandbox/structural" ] && [ ! -e "$T/run/sandbox/fixture" ] && [ ! -e "$T/run/sandbox/task.yaml" ]
++  # no byte of any hidden/ file reached the sandbox, its git history or the snapshots
++  for f in sealed-case-7f3a sealed-shape-91c2 sealed-patch-c0de; do
++    ! grep -rqF "$f" "$T/run/sandbox" "$T/run/snapshots" "$T/run/transcripts"
++  done
++  # git objects are compressed: search every commit of the sandbox repository by content and by path
++  local revs; revs="$(git -C "$T/run/sandbox" rev-list --all)"
++  [ -n "$revs" ]
++  ! git -C "$T/run/sandbox" grep -q -e 'sealed-' $revs --
++  ! git -C "$T/run/sandbox" log --all --name-only --format= | grep -qi 'hidden\|test_app\|reference.patch'
++}
++
+ @test "leak guard: a task-brief naming a defect key is refused before any phase (exit 2)" {
+   export STUB_BRIEF_EXTRA="see D01-overflow"
+   run_pr a1_full
+diff --git a/evals/tests/seed-bugfix.bats b/evals/tests/seed-bugfix.bats
+new file mode 100644
+index 00000000..1527003d
+--- /dev/null
++++ b/evals/tests/seed-bugfix.bats
+@@ -0,0 +1,190 @@
++#!/usr/bin/env bats
++# =============================================================================
++# evals/tests/seed-bugfix.bats — cycle-130 Sprint 259 Task 2.2 (SDD §5.14,
++# sprint AC-2.9)
++#
++# seed-bugfix-tasks.sh over a throwaway git repo: a clean fix commit (a Python
++# module + its test, red at the parent, green at the commit) becomes a task
++# whose every field validates; a fix touching .claude/ is refused by name and
++# writes nothing; --dry-run writes nothing; a fix whose test is already green
++# at the parent fails its proof (exit 1, nothing written); a fix outside the
++# allowed roots is skipped; usage errors are exit 2.
++# =============================================================================
++
++setup() {
++  TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++  REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
++  SEED="$REPO_ROOT/evals/harness/seed-bugfix-tasks.sh"
++  VS="$REPO_ROOT/evals/harness/validate-suite.sh"
++  T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/sb.XXXXXX")"
++  G="$T/repo"; S="$T/suite"
++  export LOA_EVAL_PHASE_PROMPTS_DIR="$T/no-prompts"
++  python3 -m pytest --version >/dev/null 2>&1 || skip "pytest not importable by python3"
++  git init -q -b main "$G"
++  mkdir -p "$G/tools/mathx/tests" "$G/docs"
++  cat > "$G/tools/mathx/rounding.py" <<'PY'
++def round_half(x):
++    """Round to the nearest integer, halves away from zero."""
++    return int(x + 0.5)
++PY
++  cat > "$G/tools/mathx/tests/conftest.py" <<'PY'
++import os, sys
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
++PY
++  cat > "$G/tools/mathx/tests/test_rounding.py" <<'PY'
++from rounding import round_half
++
++def test_positive():
++    assert round_half(2.5) == 3
++PY
++  echo "notes" > "$G/docs/README"
++  gc add -A; gc commit -q -m "chore: initial"
++}
++
++teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/dev/null || true; }
++
++gc() { git -C "$G" -c user.email=t@t -c user.name=t -c commit.gpgsign=false "$@"; }
++
++# the clean fix: negative halves round away from zero; two new test cases
++commit_clean_fix() {
++  cat > "$G/tools/mathx/rounding.py" <<'PY'
++import math
++
++
++def round_half(x):
++    """Round to the nearest integer, halves away from zero."""
++    return int(math.copysign(math.floor(abs(x) + 0.5), x))
++PY
++  cat >> "$G/tools/mathx/tests/test_rounding.py" <<'PY'
++
++def test_negative_half():
++    assert round_half(-2.5) == -3
++
++def test_negative():
++    assert round_half(-1.6) == -2
++PY
++  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero"
++}
++
++commit_claude_fix() {
++  mkdir -p "$G/.claude"
++  echo 'echo hi' > "$G/.claude/x.sh"
++  printf '\ndef test_again():\n    assert round_half(1.5) == 2\n' >> "$G/tools/mathx/tests/test_rounding.py"
++  gc add -A; gc commit -q -m "fix: the framework hook"
++}
++
++@test "SB-1 a clean fix commit becomes a task: fixture from the parent, hidden tests from the commit, proof printed, validate-suite passes" {
++  commit_clean_fix
++  FIX="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
++  run "$SEED" --since 2000-01-01 --select 4 --out "$S" --repo "$G"
++  [ "$status" -eq 0 ]
++  grep -q "^candidate ${FIX:0:12} " <<<"$output"
++  grep -qx "proof bugfix-01 ${FIX:0:12}: red 2 failed / green 3 passed" <<<"$output"
++  grep -q 'selected 1, written 1, proof failed 0' <<<"$output"
++  D="$S/tasks/bugfix-01"
++  # fixture = the parent's module, the base test, the conftest; nothing else, no history
++  [ "$(cd "$D/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/mathx/rounding.py ./tools/mathx/tests/conftest.py ./tools/mathx/tests/test_rounding.py " ]
++  grep -q 'int(x + 0.5)' "$D/fixture/tools/mathx/rounding.py"
++  [ ! -e "$D/fixture/.git" ]
++  # hidden = the commit's test + manifest + the non-test diff
++  grep -q 'test_negative_half' "$D/hidden/tests/tools/mathx/tests/test_rounding.py"
++  [ "$(jq -c . "$D/hidden/manifest.json")" = '{"files":[{"src":"tests/tools/mathx/tests/test_rounding.py","dest":"tools/mathx/tests/test_rounding.py"}]}' ]
++  grep -q '^--- a/tools/mathx/rounding.py' "$D/hidden/reference.patch"
++  ! grep -q 'test_rounding' "$D/hidden/reference.patch" || false
++  # every field
++  [ "$(yq -r .type "$D/task.yaml")" = "bug-fix" ]
++  [ "$(yq -r .source.kind "$D/task.yaml")" = "loa-history" ]
++  [ "$(yq -r .source.fix_commit "$D/task.yaml")" = "$FIX" ]
++  [ "$(yq -r .source.base_commit "$D/task.yaml")" = "$BASE" ]
++  [ "$(yq -r .source.date "$D/task.yaml")" = "$(git -C "$G" log -1 --format=%cs "$FIX")" ]
++  [ "$(yq -r .fixture "$D/task.yaml")" = "tasks/bugfix-01/fixture" ]
++  [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests"]' ]
++  [ "$(yq -o=json -I=0 .grader_protected "$D/task.yaml")" = '["tools/mathx/tests/conftest.py"]' ]
++  [ "$(yq -r .reference_patch "$D/task.yaml")" = "hidden/reference.patch" ]
++  grep -q 'passes 3 of 3' "$D/task.yaml"
++  # TASK.md: subject, failure count, command; no diff, no test name
++  grep -q '^# Task: negative halves round away from zero$' "$D/TASK.md"
++  grep -q '2 of 3 checks' "$D/TASK.md"
++  grep -q 'python3 -m pytest -q tools/mathx/tests' "$D/TASK.md"
++  ! grep -qE 'test_|copysign|hidden' "$D/TASK.md" || false
++  # the written suite validates
++  run "$VS" --root "$S" --allow-partial
++  [ "$status" -eq 0 ]
++  # no stray staging dir, no caches
++  [ -z "$(find "$S" -name __pycache__ -o -name .pytest_cache)" ]
++}
++
++@test "SB-2 a fix touching .claude/ is refused by name and nothing is written for it" {
++  commit_claude_fix
++  SHA="$(git -C "$G" rev-parse HEAD)"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  [ "$status" -eq 0 ]
++  grep -qx "refused ${SHA:0:12}: .claude/x.sh" <<<"$output"
++  ! grep -q '^candidate' <<<"$output" || false
++  [ ! -e "$S/tasks" ]
++  # alongside a clean fix, only the clean one is written
++  commit_clean_fix
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  [ "$status" -eq 0 ]
++  grep -qx "refused ${SHA:0:12}: .claude/x.sh" <<<"$output"
++  [ "$(ls "$S/tasks")" = "bugfix-01" ]
++  [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" != "$SHA" ]
++}
++
++@test "SB-3 --dry-run lists candidates and refusals and writes nothing" {
++  commit_clean_fix
++  commit_claude_fix
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
++  [ "$status" -eq 0 ]
++  grep -q '^candidate ' <<<"$output"
++  grep -q '^refused .*: .claude/x.sh$' <<<"$output"
++  grep -q '1 candidate(s), 1 refused, 0 skipped; dry run, nothing written' <<<"$output"
++  [ ! -e "$S" ]
++}
++
++@test "SB-4 a fix whose test is already green at the parent fails its proof: exit 1, nothing written" {
++  printf '\ndef test_more():\n    assert round_half(0.2) == 0\n' >> "$G/tools/mathx/tests/test_rounding.py"
++  echo '# comment' >> "$G/tools/mathx/rounding.py"
++  gc add -A; gc commit -q -m "fix: a cosmetic change"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  [ "$status" -eq 1 ]
++  grep -q '^proof-failed .*: not red at base' <<<"$output"
++  [ ! -e "$S/tasks" ]
++}
++
++@test "SB-5 a fix outside the allowed roots, one without a test and a non-fix subject are not candidates" {
++  echo "more" >> "$G/docs/README"
++  printf '\ndef test_docs():\n    assert True\n' >> "$G/tools/mathx/tests/test_rounding.py"
++  gc add -A; gc commit -q -m "fix: docs and a test"
++  DOCS="$(git -C "$G" rev-parse HEAD)"
++  echo '# x' >> "$G/tools/mathx/rounding.py"; gc add -A; gc commit -q -m "fix: no test"
++  NOTEST="$(git -C "$G" rev-parse HEAD)"
++  echo '# y' >> "$G/tools/mathx/rounding.py"; gc add -A; gc commit -q -m "feat: not a fix"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
++  [ "$status" -eq 0 ]
++  grep -qx "skipped ${DOCS:0:12}: outside the allowed roots: docs/README" <<<"$output"
++  grep -qx "skipped ${NOTEST:0:12}: no test file touched" <<<"$output"
++  grep -q '0 candidate(s), 0 refused, 2 skipped' <<<"$output"
++  # --paths widens the roots; a mount-owned root is a usage error
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --paths tools,docs
++  grep -q "^candidate ${DOCS:0:12} " <<<"$output"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --paths tools,grimoires
++  [ "$status" -eq 2 ]
++}
++
++@test "SB-6 usage: no arguments, a missing --since, a bad date, a non-repository are exit 2; --help is exit 0" {
++  run "$SEED"
++  [ "$status" -eq 2 ]
++  run "$SEED" --out "$S" --repo "$G"
++  [ "$status" -eq 2 ]
++  run "$SEED" --since 2026-13-01 --out "$S" --repo "$G"
++  [ "$status" -eq 2 ]
++  grep -q 'since must be YYYY-MM-DD' <<<"$output"
++  run "$SEED" --since 2026-08-01 --out "$S" --repo "$T"
++  [ "$status" -eq 2 ]
++  run "$SEED" --since 2026-08-01 --out "$S" --repo "$G" --select 0
++  [ "$status" -eq 2 ]
++  run "$SEED" --help
++  [ "$status" -eq 0 ]
++  grep -q 'Exit: 0 done' <<<"$output"
++}
+diff --git a/evals/tests/seed-corpus.bats b/evals/tests/seed-corpus.bats
+index 7777169f..391248b2 100644
+--- a/evals/tests/seed-corpus.bats
++++ b/evals/tests/seed-corpus.bats
+@@ -160,3 +160,54 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
+   [ "$status" -eq 1 ]
+   [ ! -e "$C/pr-01/fixture.yaml" ]
+ }
++
++# --- bd-8o5rx (cycle-130 Sprint 259 Task 2.8, PRD AC-10.1): generated artefacts are never fix regions ---
++
++@test "SC-7 --build-manifest keeps generated paths out of fix_regions and prints each exclusion; defect labels are untouched" {
++  local fx="$C/pr-91" L="$C/labels/pr-91.tsv" p
++  local gen=(dist/x.js lib/y.map types/z.d.ts conf/model.yaml.checksum checksums.json REPO-MAP.md .build-manifest.json)
++  mkdir -p "$fx/head"
++  printf 'sprint: 991\nhead_commit: "%s"\nfix_commit: "%s"\nrecord_ref: "record/cycle-991-a2a"\n' "$HEAD_C" "$FIX" > "$fx/fixture.yaml"
++  for p in "${gen[@]}" src/real.sh; do mkdir -p "$fx/head/$(dirname "$p")"; printf 'line one\nline two\nline three\n' > "$fx/head/$p"; done
++  {
++    echo "# approved-by: pending"
++    printf 'defect_id\tseverity\tcategory\tfile\tmust_match\tlabel_source\tsource\n'
++    printf 'L01-real\thigh\tlogic\tsrc/real.sh\tline two\treview\treview:engineer-feedback.md\n'
++    printf 'L02-in-dist\tlow\tlogic\tdist/x.js\tline one\treview\treview:engineer-feedback.md\n'
++    local n=1
++    for p in "${gen[@]}" src/real.sh; do
++      printf 'F%03d\t-\tfix\t%s\tline one\tfix\tfix/%s:1-2\n' "$n" "$p" "${FIX:0:12}"; n=$((n + 1))
++    done
++  } > "$L"
++  run "$SEED" --corpus "$C" --build-manifest pr-91
++  [ "$status" -eq 0 ]
++  M="$C/manifests/pr-91.json"
++  [ "$(jq -r '[.fix_regions[].file] | join(",")' "$M")" = "src/real.sh" ]
++  for p in "${gen[@]}"; do
++    [ "$(grep -cxF "excluded generated path: $p" <<<"$output")" -eq 1 ]
++  done
++  ! grep -qF 'excluded generated path: src/real.sh' <<<"$output"
++  # the key defects are not filtered: both labels survive with their ids
++  [ "$(jq -r '[.defects[].id] | join(",")' "$M")" = "L01-real,L02-in-dist" ]
++}
++
++@test "SC-8 seeding writes no fix row for a generated path the fix touched and prints the exclusion" {
++  local gen=(dist/x.js lib/y.js.map types/z.d.ts conf/m.yaml.checksum tools/checksums.json web/.build-manifest.json)
++  local p HEAD2 FIX2
++  for p in "${gen[@]}"; do mkdir -p "$G/$(dirname "$p")"; printf 'one\ntwo\n' > "$G/$p"; done
++  printf '#!/usr/bin/env bash\ncheck_input() {\n  local v="$1"\n  echo "accepted: $v"\n}\n# head2\n' > "$G/scripts/a.sh"
++  gc add -A; gc commit -q -m "feat: sprint-901 generated outputs (round 1)"; HEAD2="$(git -C "$G" rev-parse HEAD)"
++  for p in "${gen[@]}"; do printf 'one\nTWO\n' > "$G/$p"; done
++  printf '#!/usr/bin/env bash\ncheck_input() {\n  local v="$1"\n  [[ -n "$v" ]] || return 1\n  echo "accepted: $v"\n}\n# head2\n' > "$G/scripts/a.sh"
++  gc add -A; gc commit -q -m "fix: sprint-901 generated outputs review round 1"; FIX2="$(git -C "$G" rev-parse HEAD)"
++  run "$SEED" 901 record/cycle-901-a2a --repo "$G" --corpus "$C" --tasks-dir "$K" --base "$FIX" --head "$HEAD2" \
++    --fix "$FIX2" --feedback engineer-feedback-r1.md --out "$C/pr-92"
++  [ "$status" -eq 0 ]
++  # the generated files are part of the fixture (scope is unchanged) but carry no fix row
++  [ -f "$C/pr-92/head/dist/x.js" ]
++  [ "$(awk -F'\t' '$6 == "fix" {print $4}' "$C/labels/pr-92.tsv" | sort -u | tr '\n' ,)" = "scripts/a.sh," ]
++  [ "$(jq -r '[.fix_regions[].file] | unique | join(",")' "$C/manifests/pr-92.json")" = "scripts/a.sh" ]
++  for p in "${gen[@]}"; do
++    [ "$(grep -cxF "excluded generated path: $p" <<<"$output")" -eq 1 ]
++  done
++}
+diff --git a/evals/tests/seed-refactor.bats b/evals/tests/seed-refactor.bats
+new file mode 100644
+index 00000000..dbb71ece
+--- /dev/null
++++ b/evals/tests/seed-refactor.bats
+@@ -0,0 +1,159 @@
++#!/usr/bin/env bats
++# =============================================================================
++# evals/tests/seed-refactor.bats — cycle-130 Sprint 259 Task 2.3 (SDD §5.14,
++# sprint AC-2.3, AC-2.9)
++#
++# seed-refactor-tasks.sh over a throwaway git repo: a refactor commit touching
++# two source files with the tests unchanged and green becomes a task with the
++# churn recorded (task.yaml source.churn and the printed churn line, equal to
++# git diff --numstat), the suite green at both ends, the structural check left
++# to author; a candidate touching a test file is skipped with the reason; one
++# touching grimoires/ is refused by name; a one-file change is skipped;
++# --dry-run writes nothing; a refactor that breaks the suite fails its proof.
++# =============================================================================
++
++setup() {
++  TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
++  REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
++  SEED="$REPO_ROOT/evals/harness/seed-refactor-tasks.sh"
++  VS="$REPO_ROOT/evals/harness/validate-suite.sh"
++  T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/sr.XXXXXX")"
++  G="$T/repo"; S="$T/suite"
++  export LOA_EVAL_PHASE_PROMPTS_DIR="$T/no-prompts"
++  python3 -m pytest --version >/dev/null 2>&1 || skip "pytest not importable by python3"
++  git init -q -b main "$G"
++  mkdir -p "$G/tools/fmt/tests"
++  cat > "$G/tools/fmt/left.py" <<'PY'
++def left(s, width):
++    s = str(s)
++    if len(s) >= width:
++        return s
++    return s + " " * (width - len(s))
++PY
++  cat > "$G/tools/fmt/right.py" <<'PY'
++def right(s, width):
++    s = str(s)
++    if len(s) >= width:
++        return s
++    return " " * (width - len(s)) + s
++PY
++  cat > "$G/tools/fmt/tests/conftest.py" <<'PY'
++import os, sys
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
++PY
++  cat > "$G/tools/fmt/tests/test_fmt.py" <<'PY'
++from left import left
++from right import right
++
++def test_left():
++    assert left("ab", 4) == "ab  "
++    assert left("abcde", 4) == "abcde"
++
++def test_right():
++    assert right(7, 3) == "  7"
++PY
++  gc add -A; gc commit -q -m "chore: initial"
++}
++
++teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/dev/null || true; }
++
++gc() { git -C "$G" -c user.email=t@t -c user.name=t -c commit.gpgsign=false "$@"; }
++
++commit_refactor() {
++  cat > "$G/tools/fmt/pad.py" <<'PY'
++def gap(s, width):
++    """The padding that brings str(s) up to width (empty when it is already wider)."""
++    return " " * max(0, width - len(str(s)))
++PY
++  printf 'from pad import gap\n\n\ndef left(s, width):\n    return str(s) + gap(s, width)\n' > "$G/tools/fmt/left.py"
++  printf 'from pad import gap\n\n\ndef right(s, width):\n    return gap(s, width) + str(s)\n' > "$G/tools/fmt/right.py"
++  gc add -A; gc commit -q -m "refactor(fmt): share the padding helper"
++}
++
++@test "SR-1 a two-source refactor with unchanged green tests becomes a task with churn recorded and printed" {
++  commit_refactor
++  SHA="$(git -C "$G" rev-parse HEAD)"; BASE="$(git -C "$G" rev-parse HEAD~1)"
++  read -r F I D < <(git -C "$G" diff --numstat "$BASE" "$SHA" | awk '{f++; i+=$1; d+=$2} END {print f, i, d}')
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  [ "$status" -eq 0 ]
++  grep -q "^candidate ${SHA:0:12} " <<<"$output"
++  grep -qx "proof refactor-01 ${SHA:0:12}: green at base (2 passed) / green at reference (2 passed)" <<<"$output"
++  grep -qx "churn refactor-01: files $F, insertions $I, deletions $D" <<<"$output"
++  grep -q '^todo refactor-01: author the structural check' <<<"$output"
++  K="$S/tasks/refactor-01"
++  [ "$(yq -o=json -I=0 .source.churn "$K/task.yaml")" = "{\"files\":$F,\"insertions\":$I,\"deletions\":$D}" ]
++  [ "$F" -eq 3 ]
++  [ "$(yq -r .type "$K/task.yaml")" = "refactor" ]
++  [ "$(yq -r .source.kind "$K/task.yaml")" = "loa-history" ]
++  [ "$(yq -r .source.fix_commit "$K/task.yaml")" = "$SHA" ]
++  [ "$(yq -r .source.base_commit "$K/task.yaml")" = "$BASE" ]
++  [ "$(yq -r .structural_check "$K/task.yaml")" = "null" ]
++  [ "$(yq -o=json -I=0 .test_command "$K/task.yaml")" = '["python3","-m","pytest","-q","tools/fmt/tests"]' ]
++  [ "$(yq -o=json -I=0 .grader_protected "$K/task.yaml")" = '["tools/fmt/tests/conftest.py"]' ]
++  # fixture = the parent's sources and the covering test, a plain tree; the reference patch applies to it
++  [ "$(cd "$K/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/fmt/left.py ./tools/fmt/right.py ./tools/fmt/tests/conftest.py ./tools/fmt/tests/test_fmt.py " ]
++  [ ! -e "$K/fixture/.git" ]
++  cp -R "$K/fixture" "$T/applied"
++  (cd "$T/applied" && patch -s -p1 < "$K/hidden/reference.patch")
++  [ -f "$T/applied/tools/fmt/pad.py" ]
++  grep -q '^# Task: share the padding helper$' "$K/TASK.md"
++  # the only violations validate-suite reports are the structural check still to author (and its manifest entry)
++  run "$VS" --root "$S" --allow-partial
++  [ "$status" -eq 1 ]
++  [ "$(grep -c '^tasks/' <<<"$output")" -eq 2 ]
++  grep -qx 'tasks/refactor-01: schema: structural_check is required for refactor' <<<"$output"
++  grep -qx 'tasks/refactor-01: hidden: manifest.json must be {"files": \[{src, dest}, ...\]}' <<<"$output"
++}
++
++@test "SR-2 a candidate touching a test file is skipped with the reason; a one-source change is skipped; grimoires/ is refused by name" {
++  printf '\ndef test_more():\n    assert left("", 1) == " "\n' >> "$G/tools/fmt/tests/test_fmt.py"
++  echo '# a' >> "$G/tools/fmt/left.py"; echo '# b' >> "$G/tools/fmt/right.py"
++  gc add -A; gc commit -q -m "refactor: tidy and test"
++  WITH_TEST="$(git -C "$G" rev-parse HEAD)"
++  echo '# c' >> "$G/tools/fmt/left.py"; gc add -A; gc commit -q -m "style: one file"
++  ONE="$(git -C "$G" rev-parse HEAD)"
++  mkdir -p "$G/grimoires/loa"; echo n > "$G/grimoires/loa/NOTES.md"
++  echo '# d' >> "$G/tools/fmt/left.py"; echo '# e' >> "$G/tools/fmt/right.py"
++  gc add -A; gc commit -q -m "chore: notes and code"
++  MOUNT="$(git -C "$G" rev-parse HEAD)"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
++  [ "$status" -eq 0 ]
++  grep -qx "skipped ${WITH_TEST:0:12}: touches a test file: tools/fmt/tests/test_fmt.py" <<<"$output"
++  grep -qx "skipped ${ONE:0:12}: touches 1 source file(s), want at least 2" <<<"$output"
++  grep -qx "refused ${MOUNT:0:12}: grimoires/loa/NOTES.md" <<<"$output"
++  grep -q '0 candidate(s), 1 refused, 3 skipped; selected 0, written 0' <<<"$output"
++  grep -q 'skipped .*: not a single-parent commit' <<<"$output"
++  [ ! -e "$S/tasks" ]
++}
++
++@test "SR-3 --dry-run writes nothing; a refactor that breaks the suite fails its proof with exit 1" {
++  commit_refactor
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
++  [ "$status" -eq 0 ]
++  grep -q '1 candidate(s), 0 refused, 1 skipped; dry run, nothing written' <<<"$output"
++  [ ! -e "$S" ]
++  printf 'def gap(s, width):\n    return ""\n' > "$G/tools/fmt/pad.py"
++  echo '# f' >> "$G/tools/fmt/right.py"
++  gc add -A; gc commit -q -m "perf: skip the padding"
++  BROKEN="$(git -C "$G" rev-parse HEAD)"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --select 1
++  [ "$status" -eq 1 ]
++  grep -q "^proof-failed ${BROKEN:0:12}: suite not green at reference" <<<"$output"
++  [ ! -e "$S/tasks" ]
++}
++
++@test "SR-4 a refactor no test names is skipped; usage errors are exit 2" {
++  mkdir -p "$G/tools/other"
++  echo 'A = 1' > "$G/tools/other/a.py"; echo 'B = 2' > "$G/tools/other/b.py"
++  gc add -A; gc commit -q -m "chore: add"
++  echo 'A = 3' > "$G/tools/other/a.py"; echo 'B = 4' > "$G/tools/other/b.py"
++  gc add -A; gc commit -q -m "refactor: renumber"
++  SHA="$(git -C "$G" rev-parse HEAD)"
++  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --select 1
++  [ "$status" -eq 0 ]
++  grep -qx "skipped ${SHA:0:12}: no test at the parent names a touched file" <<<"$output"
++  run "$SEED" --since yesterday --out "$S" --repo "$G"
++  [ "$status" -eq 2 ]
++  run "$SEED" --since 2026-08-01 --repo "$G"
++  [ "$status" -eq 2 ]
++}
+diff --git a/evals/tests/validate-suite.bats b/evals/tests/validate-suite.bats
+index 103b6e75..75027870 100644
+--- a/evals/tests/validate-suite.bats
++++ b/evals/tests/validate-suite.bats
+@@ -28,13 +28,20 @@ teardown() {
+   rmdir "$T" 2>/dev/null || true
+ }
+ 
+-@test "VS-1 the committed smoke tasks validate (--smoke --allow-partial); without --allow-partial the empty tasks/ fails the counts" {
++@test "VS-1 the committed suite (tasks/ and smoke/) validates with --allow-partial; without it, every type short of four tasks is one counts line" {
++  CR="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
++  n="$(find "$CR/tasks" "$CR/smoke" -mindepth 2 -maxdepth 2 -name task.yaml 2>/dev/null | wc -l | tr -d ' ')"
++  short=0
++  for ty in feature-build bug-fix refactor review-catch; do
++    c="$(cat "$CR"/tasks/*/task.yaml 2>/dev/null | grep -c "^type: $ty\$" || true)"
++    [ "$c" -eq 4 ] || short=$((short + 1))
++  done
+   run "$VS" --smoke --allow-partial
+   [ "$status" -eq 0 ]
+-  grep -q 'OK — 2 task(s) valid' <<<"$output"
++  grep -q "OK — $n task(s) valid" <<<"$output"
+   run "$VS" --smoke
+-  [ "$status" -eq 1 ]
+-  [ "$(grep -c 'counts:' <<<"$output")" -eq 4 ]
++  [ "$(grep -c 'counts:' <<<"$output")" -eq "$short" ]
++  if [ "$short" -gt 0 ]; then [ "$status" -eq 1 ]; else [ "$status" -eq 0 ]; fi
+ }
+ 
+ @test "VS-2 a four-by-four suite validates; one task short fails the counts unless --allow-partial; smoke tasks never count" {
+@@ -161,3 +168,26 @@ teardown() {
+   run "$VS" --root "$R" --suite-file "$T/absent.yaml"
+   [ "$status" -eq 2 ]
+ }
++
++@test "VS-11 source.churn (Sprint 259 refactor tasks): {files, insertions, deletions} of non-negative integers validates; a missing key, a negative count or a non-mapping is listed" {
++  make_task "$R" tasks refactor-01 refactor
++  yq -i '.source.churn = {"files": 2, "insertions": 30, "deletions": 41}' "$R/tasks/refactor-01/task.yaml"
++  run "$VS" --root "$R" --allow-partial
++  [ "$status" -eq 0 ]
++  yq -i '.source.churn = {"files": 2, "insertions": 30}' "$R/tasks/refactor-01/task.yaml"
++  run "$VS" --root "$R" --allow-partial
++  [ "$status" -eq 1 ]
++  grep -q 'tasks/refactor-01: schema: source.churn must be {files, insertions, deletions}' <<<"$output"
++  yq -i '.source.churn = {"files": 2, "insertions": -1, "deletions": 0}' "$R/tasks/refactor-01/task.yaml"
++  run "$VS" --root "$R" --allow-partial
++  [ "$status" -eq 1 ]
++  yq -i '.source.churn = "big"' "$R/tasks/refactor-01/task.yaml"
++  run "$VS" --root "$R" --allow-partial
++  [ "$status" -eq 1 ]
++  grep -q 'source.churn must be' <<<"$output"
++  # any other unknown source key is still refused
++  yq -i 'del(.source.churn) | .source.size = 3' "$R/tasks/refactor-01/task.yaml"
++  run "$VS" --root "$R" --allow-partial
++  [ "$status" -eq 1 ]
++  grep -q 'schema: source.size is not a known key' <<<"$output"
++}

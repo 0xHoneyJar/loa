@@ -1,0 +1,209 @@
+{
+  "context": 12,
+  "feedback_files": [
+    "grimoires/loa/a2a/sprint-252/adversarial-audit.json",
+    "grimoires/loa/a2a/sprint-252/adversarial-review.json",
+    "grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md",
+    "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-252/engineer-feedback.md"
+  ],
+  "fixture": "pr-16",
+  "hunk_count": 18,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": ".claude/scripts/grimoire-index.sh",
+      "head_end": 189,
+      "head_start": 186,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L33",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L34",
+        "grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L51",
+        "grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L53",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L43",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L55",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback.md#L18",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback.md#L52"
+      ],
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "head_end": 252,
+      "head_start": 249,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H03": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L98"
+      ],
+      "file": ".claude/scripts/lib/dec-write-lib.sh",
+      "head_end": 626,
+      "head_start": 626,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H04": {
+      "cited_by": [],
+      "file": ".claude/skills/discovering-requirements/resources/REFERENCE.md",
+      "head_end": 60,
+      "head_start": 60,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": ".loa.config.yaml.example",
+      "head_end": 100,
+      "head_start": 100,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": ".loa.config.yaml.example",
+      "head_end": 127,
+      "head_start": 127,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H07": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L25",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L26",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback.md#L18",
+        "grimoires/loa/a2a/sprint-252/adversarial-review.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L29"
+      ],
+      "file": ".loa.config.yaml.example",
+      "head_end": 140,
+      "head_start": 140,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "tests/unit/check-round-independence.bats",
+      "head_end": 137,
+      "head_start": 137,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/adversarial-review.json:DISS-C-004"
+      ],
+      "file": "tests/unit/dec-write-lib.bats",
+      "head_end": 381,
+      "head_start": 381,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H10": {
+      "cited_by": [],
+      "file": "tests/unit/dec-write-lib.bats",
+      "head_end": 417,
+      "head_start": 417,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H11": {
+      "cited_by": [],
+      "file": "tests/unit/grimoire-index.bats",
+      "head_end": 140,
+      "head_start": 140,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H12": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L42",
+        "grimoires/loa/a2a/sprint-252/adversarial-review.json:DISS-C-001"
+      ],
+      "file": "tests/unit/user-invoked-commands.bats",
+      "head_end": 69,
+      "head_start": 61,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H13": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L41",
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L42",
+        "grimoires/loa/a2a/sprint-252/adversarial-review.json:DISS-C-001"
+      ],
+      "file": "tests/unit/user-invoked-commands.bats",
+      "head_end": 75,
+      "head_start": 74,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H14": {
+      "cited_by": [],
+      "file": "tests/unit/user-invoked-commands.bats",
+      "head_end": 209,
+      "head_start": 209,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H15": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60",
+        "grimoires/loa/a2a/sprint-252/adversarial-audit.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-252/auditor-sprint-feedback.md#L69"
+      ],
+      "file": "tools/check-round-independence.sh",
+      "head_end": 65,
+      "head_start": 65,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H16": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/engineer-feedback-r1.md#L60",
+        "grimoires/loa/a2a/sprint-252/adversarial-audit.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-252/adversarial-audit.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-252/adversarial-review.json:DISS-C-002"
+      ],
+      "file": "tools/check-round-independence.sh",
+      "head_end": 83,
+      "head_start": 71,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H17": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-252/adversarial-audit.json:DISS-C-003"
+      ],
+      "file": "tools/check-round-independence.sh",
+      "head_end": 90,
+      "head_start": 90,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H18": {
+      "cited_by": [],
+      "file": "tools/check-round-independence.sh",
+      "head_end": 143,
+      "head_start": 139,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05",
+    "I06",
+    "I07",
+    "I08"
+  ],
+  "incidents": "incidents/pr-16.tsv",
+  "record_ref": "origin/record/cycle-128-a2a",
+  "review_driven_count": 9
+}

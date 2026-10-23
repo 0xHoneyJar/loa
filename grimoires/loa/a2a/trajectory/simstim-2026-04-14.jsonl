@@ -1,0 +1,1887 @@
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T14:16:58Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-13T14:16:58Z",
+  "data": {
+    "total_integrated": 17,
+    "total_disputed": 0,
+    "total_blockers": 16
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-13T23:44:01Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-13T23:44:01Z",
+  "data": {
+    "simstim_id": "simstim-20260414-1b0cf8f9",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T23:44:23Z",
+  "data": {
+    "phase": "preflight"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T23:44:28Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T23:46:35Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T23:46:59Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T00:15:54Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_resumed",
+  "timestamp": "2026-04-14T00:15:54Z",
+  "data": {
+    "from_phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T00:16:13Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T00:29:01Z",
+  "data": {
+    "blocker_id": "SKP-010",
+    "decision": "override",
+    "rationale": "Adopt degraded-but-useful SEED mode (FR-5): HARVEST summary passes forward as text context to next cycle's SEED via seed-context.md. Unblocks /spiral from #486 Vision Registry graduation. Maintainer affirms memory/learning/trajectory across context is core to spiral value; shipping without any cross-cycle signal would reduce /spiral to a loop of independent cycles.",
+    "timestamp": "2026-04-14T00:29:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T00:29:14Z",
+  "data": {
+    "blocker_id": "SKP-001",
+    "decision": "override",
+    "rationale": "AC 5 split into AC 5a (stub-backed, this cycle) and AC 5b (real-dispatch, cycle-068). FR-1.1 enumerates known unknowns stub cannot exercise (subprocess exit codes, partial stdout/stderr, timeout under load, state pollution between real cycles, error propagation from nested skill stack). FR-4b writes real-dispatch test spec this cycle for cycle-068 handoff.",
+    "timestamp": "2026-04-14T00:29:14Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T00:29:14Z",
+  "data": {
+    "blocker_id": "SKP-002",
+    "decision": "override",
+    "rationale": "FR-9 specifies durable per-phase checkpoints, trap handler on EXIT/INT/TERM, mid-loop --resume behavior matrix, at-least-once replay rules, and BATS crash-recovery test. Resume loses at most 1 in-flight cycle of simstim work. New CRASHED terminal state distinct from FAILED.",
+    "timestamp": "2026-04-14T00:29:14Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T00:29:14Z",
+  "data": {
+    "blocker_id": "SKP-007",
+    "decision": "override",
+    "rationale": "FR-8 FAANG-grade contract: structured cycle-outcome.json sidecar (versioned schema v1) as primary path, documented markdown regex fallback, fail-closed on missing/invalid/version-mismatch. Observability via trajectory events with content hashes. Parser regex patterns are readonly constants. Pattern borrowed from protobuf/thrift cross-service contracts.",
+    "timestamp": "2026-04-14T00:29:14Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T00:29:14Z",
+  "data": {
+    "blocker_id": "SKP-003",
+    "decision": "reject",
+    "rationale": "Out-of-scope: /spiral operates under single-user single-session single-host usage. No known Loa consumer runs concurrent Claude sessions against a single working directory. Adding flock would introduce macOS portability overhead (util-linux install) without mitigating any observed failure. NFR-6 documents single-process re-entrancy as safe (--status is read-only). Reconsider if telemetry shows concurrent invocations or user base expands to CI-multi-tenant.",
+    "timestamp": "2026-04-14T00:29:14Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T00:29:19Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 7,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T00:29:20Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T00:44:19Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T00:50:39Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T00:50:57Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T01:26:04Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T01:26:18Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:30:57Z",
+  "data": {
+    "blocker_id": "SKP-001-sdd",
+    "decision": "override",
+    "rationale": "SIGKILL is not trappable (POSIX). Split crash test: SIGTERM for handler assertions, SIGKILL for orphan-recovery path (no handler artifacts, resume detects stale RUNNING via PID liveness check).",
+    "timestamp": "2026-04-14T01:30:57Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:30:57Z",
+  "data": {
+    "blocker_id": "SKP-005-sdd",
+    "decision": "override",
+    "rationale": "Add cycle_id binding to parse_from_state_files: require cycle_id field in .run state matches current cycle, reject on mismatch with harvest_state_cycle_mismatch trajectory event.",
+    "timestamp": "2026-04-14T01:30:57Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:30:57Z",
+  "data": {
+    "blocker_id": "SKP-004-sdd",
+    "decision": "override",
+    "rationale": "Accept as lightweight PID guard on cmd_start: check STATE_FILE for RUNNING, read PID, test /proc/PID or kill -0. Consistent with PRD B5 rejection of full flock — this is same-user accidental re-entry, not multi-session.",
+    "timestamp": "2026-04-14T01:30:57Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:30:57Z",
+  "data": {
+    "blocker_id": "SKP-003-sdd",
+    "decision": "reject",
+    "rationale": "Already addressed by Bridgebuilder MEDIUM-2 (graceful degradation to no-op) + wall-clock budget as outer safety net. Adding hard enforcement would break macOS operability for a defense-in-depth layer that has defense-in-depth.",
+    "timestamp": "2026-04-14T01:30:57Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:30:58Z",
+  "data": {
+    "blocker_id": "SKP-002-sdd",
+    "decision": "reject",
+    "rationale": "False positive. Model confused bash variable syntax in SDD code examples with template artifacts. No {{...}} patterns exist in the SDD. grep -c confirms 0 matches.",
+    "timestamp": "2026-04-14T01:30:58Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T01:32:51Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 0,
+      "blockers": 3
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T01:32:52Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T01:33:12Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T01:33:31Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T01:33:36Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T01:35:18Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T01:35:27Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:39:42Z",
+  "data": {
+    "blocker_id": "SKP-001-sprint",
+    "decision": "reject",
+    "rationale": "Third occurrence of same concern. PRD §11 B5 explicitly rejected concurrent locking (single-session scope). Flatline SDD review raised same point. Decision stands.",
+    "timestamp": "2026-04-14T01:39:42Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:39:42Z",
+  "data": {
+    "blocker_id": "SKP-002-sprint",
+    "decision": "override",
+    "rationale": "Accept lightweight: add process start_time alongside PID in state for defense-in-depth against PID reuse. Check start_time in liveness guard.",
+    "timestamp": "2026-04-14T01:39:42Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:39:42Z",
+  "data": {
+    "blocker_id": "SKP-003-sprint",
+    "decision": "override",
+    "rationale": "Valid: EXIT trap fires on exit 0 too. Handler must check exit code: skip coalesce on 0, only coalesce on non-zero. Add AC to T2.3.",
+    "timestamp": "2026-04-14T01:39:42Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:39:43Z",
+  "data": {
+    "blocker_id": "SKP-004-sprint",
+    "decision": "override",
+    "rationale": "Valid: cycle-066 state lacks .pid, checkpoint, CRASHED. Add jq // defaults when reading state fields: .pid // 0, .checkpoint // null. Add backward compat test.",
+    "timestamp": "2026-04-14T01:39:43Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T01:39:43Z",
+  "data": {
+    "blocker_id": "SKP-005-sprint",
+    "decision": "reject",
+    "rationale": "Third occurrence (Bridgebuilder MEDIUM-2, Flatline SDD SKP-003, now this). Already addressed with graceful degradation + wall-clock outer net. Decision stands.",
+    "timestamp": "2026-04-14T01:39:43Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T01:40:38Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 4,
+      "disputed": 0,
+      "blockers": 3
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T01:40:39Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T01:40:44Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "run_mode_synced",
+  "timestamp": "2026-04-14T02:37:02Z",
+  "data": {
+    "run_mode_state": "JACKED_OUT",
+    "simstim_state": "COMPLETED",
+    "implementation_status": "completed"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T02:37:06Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-14T02:37:12Z",
+  "data": {
+    "total_integrated": 16,
+    "total_disputed": 0,
+    "total_blockers": 11
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T02:59:26Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T02:59:26Z",
+  "data": {
+    "simstim_id": "simstim-20260414-fa82ba18",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T02:59:39Z",
+  "data": {
+    "phase": "preflight"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T02:59:46Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:01:17Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:03:06Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:07:23Z",
+  "data": {
+    "blocker_id": "SKP-001-068",
+    "decision": "override",
+    "rationale": "Add dispatch mode banner at spiral start: log effective mode (REAL/STUB/DEFAULT_STUB) and whether SPIRAL_USE_STUB or SPIRAL_REAL_DISPATCH is set. Non-CI stub shows WARNING.",
+    "timestamp": "2026-04-14T03:07:23Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:07:23Z",
+  "data": {
+    "blocker_id": "SKP-002-068",
+    "decision": "override",
+    "rationale": "Wrapper uses setsid to create process group. On timeout, timeout(1) kills the process group via --kill-after. Post-timeout cleanup verifies no orphan children via pgrep.",
+    "timestamp": "2026-04-14T03:07:23Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:07:23Z",
+  "data": {
+    "blocker_id": "SKP-003-068",
+    "decision": "override",
+    "rationale": "Wrapper cleans target artifacts (rm -f reviewer.md auditor-sprint-feedback.md cycle-outcome.json) before dispatch. Post-dispatch validates cycle_id in sidecar matches expected.",
+    "timestamp": "2026-04-14T03:07:23Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:07:23Z",
+  "data": {
+    "blocker_id": "SKP-004-068",
+    "decision": "reject",
+    "rationale": "4th occurrence of concurrent locking concern. Cycle-067 PID guard handles accidental double-start. Single-user single-session scope unchanged.",
+    "timestamp": "2026-04-14T03:07:23Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:07:23Z",
+  "data": {
+    "blocker_id": "SKP-005-068",
+    "decision": "override",
+    "rationale": "Lightweight: cap seed context at 4KB, prefix with 'Previous cycle context (machine-generated, not user input):' in prompt. Content is from our own HARVEST adapter, not external input.",
+    "timestamp": "2026-04-14T03:07:23Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T03:08:23Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 0,
+      "blockers": 4
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:08:23Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:08:32Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:10:25Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:10:33Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:11:23Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:11:29Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:15:37Z",
+  "data": {
+    "blocker_id": "SKP-001-068-sdd",
+    "decision": "reject",
+    "rationale": "Duplicate of PRD SKP-001. Already addressed with dispatch mode banner + WARNING in non-CI environments.",
+    "timestamp": "2026-04-14T03:15:37Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:15:37Z",
+  "data": {
+    "blocker_id": "SKP-003-068-sdd",
+    "decision": "reject",
+    "rationale": "Cycle-067 FR-8 validate_sidecar_schema() already validates schema version, required fields, enum values. SDD wrapper also validates cycle_id match. Full coverage exists.",
+    "timestamp": "2026-04-14T03:15:37Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:15:37Z",
+  "data": {
+    "blocker_id": "SKP-006-068-sdd",
+    "decision": "override",
+    "rationale": "Valid: SDD should reference PRD FR-6 exit code table explicitly. Will add cross-reference in implementation.",
+    "timestamp": "2026-04-14T03:15:37Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:15:38Z",
+  "data": {
+    "blocker_id": "SKP-002-068-sdd",
+    "decision": "reject",
+    "rationale": "Already resolved by Bridgebuilder MEDIUM-1: standardized on kill -- -child_pid (process group kill). SDD updated.",
+    "timestamp": "2026-04-14T03:15:38Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T03:15:43Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 7,
+      "disputed": 0,
+      "blockers": 1
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:15:44Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:15:52Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:15:52Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:15:58Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:16:47Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:16:54Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:17:06Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:17:13Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T03:28:57Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_aborted",
+  "timestamp": "2026-04-14T03:30:14Z",
+  "data": {
+    "reason": "user_request"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T03:30:19Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T03:30:19Z",
+  "data": {
+    "simstim_id": "simstim-20260414-5a869721",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:30:38Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:33:51Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:34:14Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:44:48Z",
+  "data": {
+    "blocker_id": "SKP-003-069",
+    "decision": "override",
+    "rationale": "Single-user sequential execution model. Spiral phases run sequentially, bridge captures don't overlap lifecycle ops. Same as cycle-067 SKP-004 (4th occurrence). Global lock is overengineering for single-user CLI.",
+    "timestamp": "2026-04-14T03:44:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:44:50Z",
+  "data": {
+    "blocker_id": "SKP-002-069",
+    "decision": "override",
+    "rationale": "Ordered writes with idempotent recovery: (1) lore append (idempotent via vision_id), (2) status update (flock atomic), (3) index rebuild (idempotent), (4) trajectory append. Crash recovery via --rebuild-index. 2PC journal is overengineering.",
+    "timestamp": "2026-04-14T03:44:50Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:44:51Z",
+  "data": {
+    "blocker_id": "SKP-001-069",
+    "decision": "reject",
+    "rationale": "Already resolved: comma-separated grammar added to FR-1 during IMP integration.",
+    "timestamp": "2026-04-14T03:44:51Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:44:52Z",
+  "data": {
+    "blocker_id": "SKP-004-069",
+    "decision": "reject",
+    "rationale": "Already addressed by IMP-008 integration: canonical schema, strict/non-strict mode, quarantine for malformed entries.",
+    "timestamp": "2026-04-14T03:44:52Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:44:53Z",
+  "data": {
+    "blocker_id": "SKP-005-069",
+    "decision": "override",
+    "rationale": "Valid: adding explicit escaping. --reason sanitized (strip pipe/newline), JSON via jq --arg, YAML via vision_sanitize_text(). NFR-3 already mandates jq --arg for JSON.",
+    "timestamp": "2026-04-14T03:44:53Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T03:45:14Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:45:14Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:45:20Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:48:57Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:49:05Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:53:17Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:53:23Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:58:18Z",
+  "data": {
+    "blocker_id": "SKP-001-069-sdd",
+    "decision": "reject",
+    "rationale": "Already fixed by Bridgebuilder CRITICAL-1: SDD delegates lore path to vision_append_lore_entry().",
+    "timestamp": "2026-04-14T03:58:18Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:58:19Z",
+  "data": {
+    "blocker_id": "SKP-002-069-sdd",
+    "decision": "reject",
+    "rationale": "Already integrated as Flatline IMP-001: global lifecycle lock wraps entire command.",
+    "timestamp": "2026-04-14T03:58:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:58:19Z",
+  "data": {
+    "blocker_id": "SKP-003-069-sdd",
+    "decision": "reject",
+    "rationale": "PRD IMP-008 defines strict/non-strict quarantine modes. CI quarantine-rate check is overengineering for 9 entries.",
+    "timestamp": "2026-04-14T03:58:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:58:19Z",
+  "data": {
+    "blocker_id": "SKP-004-069-sdd",
+    "decision": "override",
+    "rationale": "Valid: --source filter should use grep -F -- (fixed-string, end-of-options) to prevent regex injection.",
+    "timestamp": "2026-04-14T03:58:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T03:58:19Z",
+  "data": {
+    "blocker_id": "SKP-005-069-sdd",
+    "decision": "override",
+    "rationale": "Add UTC ISO-8601 requirement note. Lexicographic comparison correct for same-format UTC strings. Epoch normalization is overengineering.",
+    "timestamp": "2026-04-14T03:58:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T03:58:35Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 4,
+      "disputed": 1,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:58:35Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:58:41Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:58:49Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:58:54Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T03:59:52Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T03:59:58Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:30Z",
+  "data": {
+    "blocker_id": "SKP-003-069-sprint",
+    "decision": "reject",
+    "rationale": "flock is kernel-level: lock auto-releases on process death. No stale lock with flock. Already integrated as IMP-001.",
+    "timestamp": "2026-04-14T04:04:30Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:31Z",
+  "data": {
+    "blocker_id": "SKP-001-069-sprint",
+    "decision": "reject",
+    "rationale": "3rd occurrence. Already addressed: PRD IMP-008 canonical schema, SDD 2.2 parser contract, sprint quarantine AC. Frontmatter is **Key**: Value markdown, not YAML.",
+    "timestamp": "2026-04-14T04:04:31Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:31Z",
+  "data": {
+    "blocker_id": "SKP-010-069-sprint",
+    "decision": "override",
+    "rationale": "Valid: add defensive check in seed_phase() — verify vision_registry.enabled before querying, fall back to degraded if disabled.",
+    "timestamp": "2026-04-14T04:04:31Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:31Z",
+  "data": {
+    "blocker_id": "SKP-004-069-sprint",
+    "decision": "reject",
+    "rationale": "vision_atomic_write() uses tmp+mv in same directory (same filesystem). Already documented.",
+    "timestamp": "2026-04-14T04:04:31Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:31Z",
+  "data": {
+    "blocker_id": "SKP-002-069-sprint",
+    "decision": "reject",
+    "rationale": "Already addressed: SDD SKP-005 override mandates UTC ISO-8601 only.",
+    "timestamp": "2026-04-14T04:04:31Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T04:04:31Z",
+  "data": {
+    "blocker_id": "SKP-006-069-sprint",
+    "decision": "reject",
+    "rationale": "Already addressed across PRD SKP-005, SDD _sanitize_reason(), SDD 4.1 input table. All JSON via jq --arg.",
+    "timestamp": "2026-04-14T04:04:31Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T04:04:42Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 3,
+      "disputed": 0,
+      "blockers": 6
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T04:04:42Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T04:04:49Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "run_mode_synced",
+  "timestamp": "2026-04-14T04:35:46Z",
+  "data": {
+    "run_mode_state": "JACKED_OUT",
+    "simstim_state": "COMPLETED",
+    "implementation_status": "completed"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T04:35:50Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-14T04:35:55Z",
+  "data": {
+    "total_integrated": 12,
+    "total_disputed": 1,
+    "total_blockers": 16
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_aborted",
+  "timestamp": "2026-04-14T05:42:47Z",
+  "data": {
+    "reason": "user_request"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T05:43:02Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T05:43:02Z",
+  "data": {
+    "simstim_id": "simstim-20260414-5e386625",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T05:43:08Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T05:47:50Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T05:48:59Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-001-070",
+    "decision": "override",
+    "rationale": "Valid but mitigated: same user perms, task from user, seed sanitized, safety hooks active. No-skip-permissions defeats autonomous operation.",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-002-070",
+    "decision": "override",
+    "rationale": "Addressed by IMP-001: rollback on 2x CHANGES_REQUIRED, comparison metrics, full rationale logging. Production KPIs need production data.",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-005-070",
+    "decision": "override",
+    "rationale": "Spiral has crash recovery (PID guard, coalescing). Add branch/PR dedup checks to FR-5.",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-003-070",
+    "decision": "override",
+    "rationale": "G1 is MVP bar. Quality parity contract (IMP-001) adds multi-cycle validation. Soak test is follow-up.",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-004-070",
+    "decision": "reject",
+    "rationale": "Already addressed by IMP-004 (strict output parsing contract).",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:01Z",
+  "data": {
+    "blocker_id": "SKP-006-070",
+    "decision": "override",
+    "rationale": "Add provider fallback to arbiter rotation. 3-model cascade, conservative auto-reject if all fail.",
+    "timestamp": "2026-04-14T05:55:01Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:02Z",
+  "data": {
+    "blocker_id": "SKP-008-070",
+    "decision": "override",
+    "rationale": "Add structured Assumptions section to autonomous PRD. Seed context reduces ambiguity. Flatline+arbiter catches hallucinations.",
+    "timestamp": "2026-04-14T05:55:02Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T05:55:02Z",
+  "data": {
+    "blocker_id": "SKP-009-070",
+    "decision": "reject",
+    "rationale": "Trajectory logs finding IDs+scores+rationale, not raw code. jq --arg prevents content interpolation.",
+    "timestamp": "2026-04-14T05:55:02Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T05:55:43Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 8
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T05:55:43Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T05:56:53Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T05:59:45Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T05:59:54Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:02:39Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:05:41Z",
+  "data": {
+    "blocker_id": "SKP-001-070-sdd",
+    "decision": "override",
+    "rationale": "Autonomous mode is prompt-level by design. Code enforcement is the review/audit gates which still run.",
+    "timestamp": "2026-04-14T06:05:41Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:05:41Z",
+  "data": {
+    "blocker_id": "SKP-002-070-sdd",
+    "decision": "override",
+    "rationale": "3rd occurrence. Same mitigation: user workspace, user task, safety hooks active.",
+    "timestamp": "2026-04-14T06:05:41Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:05:41Z",
+  "data": {
+    "blocker_id": "SKP-003-070-sdd",
+    "decision": "override",
+    "rationale": "Auto-reject means 'do not integrate suggestion', not 'remove concern'. Logged to arbiter_rejected. Next cycle re-evaluates.",
+    "timestamp": "2026-04-14T06:05:41Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:05:41Z",
+  "data": {
+    "blocker_id": "SKP-004-070-sdd",
+    "decision": "reject",
+    "rationale": "Already addressed by Bridgebuilder MEDIUM-5 (cumulative budget tracking).",
+    "timestamp": "2026-04-14T06:05:41Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:05:41Z",
+  "data": {
+    "blocker_id": "SKP-006-070-sdd",
+    "decision": "override",
+    "rationale": "Valid. Add timeout(1) wrapper around claude -p using spiral.step_timeouts.simstim_sec.",
+    "timestamp": "2026-04-14T06:05:41Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:05:58Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:05:58Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:05:58Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:06:12Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:06:18Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:13:46Z",
+  "data": {
+    "blocker_id": "SKP-budget-sprint",
+    "decision": "reject",
+    "rationale": "4th occurrence. Bridgebuilder MEDIUM-5 + PRD IMP-003 address cumulative tracking.",
+    "timestamp": "2026-04-14T06:13:46Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:13:47Z",
+  "data": {
+    "blocker_id": "SKP-prurl-sprint",
+    "decision": "reject",
+    "rationale": "3rd occurrence. PRD IMP-004 strict output schema.",
+    "timestamp": "2026-04-14T06:13:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:13:47Z",
+  "data": {
+    "blocker_id": "SKP-race-sprint",
+    "decision": "override",
+    "rationale": "Existing PID guard (cycle-067). Add single-run check in dispatch.",
+    "timestamp": "2026-04-14T06:13:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:13:47Z",
+  "data": {
+    "blocker_id": "SKP-scope-sprint",
+    "decision": "override",
+    "rationale": "Scope is ambitious. Will cut sprint 2 if it stalls. Sprint 1 alone delivers core value.",
+    "timestamp": "2026-04-14T06:13:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T06:13:47Z",
+  "data": {
+    "blocker_id": "SKP-perms-sprint",
+    "decision": "reject",
+    "rationale": "4th occurrence. User workspace, user task, safety hooks.",
+    "timestamp": "2026-04-14T06:13:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T06:13:53Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:13:53Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:14:00Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "run_mode_synced",
+  "timestamp": "2026-04-14T06:31:58Z",
+  "data": {
+    "run_mode_state": "JACKED_OUT",
+    "simstim_state": "COMPLETED",
+    "implementation_status": "completed"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:31:58Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-14T06:31:58Z",
+  "data": {
+    "total_integrated": 12,
+    "total_disputed": 0,
+    "total_blockers": 13
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T06:39:46Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T06:39:46Z",
+  "data": {
+    "simstim_id": "simstim-20260414-6a51098d",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T06:41:18Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_aborted",
+  "timestamp": "2026-04-14T06:41:39Z",
+  "data": {
+    "reason": "user_request"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T06:41:43Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T06:41:43Z",
+  "data": {
+    "simstim_id": "simstim-20260414-9ecfcb1b",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:43:09Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:43:45Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:43:50Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:43:50Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:44:09Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:44:13Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:44:14Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:44:31Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:44:35Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T06:44:36Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T06:48:47Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-14T06:48:47Z",
+  "data": {
+    "total_integrated": 0,
+    "total_disputed": 0,
+    "total_blockers": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_aborted",
+  "timestamp": "2026-04-14T07:05:44Z",
+  "data": {
+    "reason": "user_request"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-14T07:06:00Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-14T07:06:00Z",
+  "data": {
+    "simstim_id": "simstim-20260414-051ee92e",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T07:06:06Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:07:28Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T07:08:39Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T07:15:46Z",
+  "data": {
+    "blocker_id": "SKP-001-071",
+    "decision": "override",
+    "rationale": "Semantic correctness is Flatline's job. Evidence gates verify Flatline ran.",
+    "timestamp": "2026-04-14T07:15:46Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T07:15:46Z",
+  "data": {
+    "blocker_id": "SKP-002-071",
+    "decision": "override",
+    "rationale": "Append-only JSONL with monotonic seq + checksums is standard. WORM storage out of scope.",
+    "timestamp": "2026-04-14T07:15:46Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T07:15:46Z",
+  "data": {
+    "blocker_id": "SKP-003-071",
+    "decision": "reject",
+    "rationale": "5th occurrence. Same mitigation: user workspace, user task, safety hooks.",
+    "timestamp": "2026-04-14T07:15:46Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T07:15:46Z",
+  "data": {
+    "blocker_id": "SKP-004-071",
+    "decision": "override",
+    "rationale": "Add backoff note. 3 retries is small. Root-cause adaptation is future work.",
+    "timestamp": "2026-04-14T07:15:46Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-14T07:15:47Z",
+  "data": {
+    "blocker_id": "SKP-005-071",
+    "decision": "override",
+    "rationale": "Real bug. Fix review output path to use evidence dir consistently.",
+    "timestamp": "2026-04-14T07:15:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-14T07:15:47Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:47Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:47Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:47Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:48Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:48Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:48Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:15:48Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-14T07:15:55Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-14T07:27:27Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-14T07:27:27Z",
+  "data": {
+    "total_integrated": 6,
+    "total_disputed": 0,
+    "total_blockers": 5
+  }
+}

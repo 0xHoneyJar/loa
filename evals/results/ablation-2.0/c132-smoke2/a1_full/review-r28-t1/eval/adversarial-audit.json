@@ -1,0 +1,113 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/pipeline-run.sh:EVAL_ONLY",
+      "anchor_type": "hunk",
+      "anchor_line": 258,
+      "anchor_line_end": 262,
+      "scope": "cross_file",
+      "trigger_anchor": "evals/harness/pipeline-run.sh:EVAL_ONLY",
+      "cross_file_justification": "The invariant 'oracle_open: true implies eval_only: true' is enforced only in validate-suite.sh (new arm checks, VS-17). pipeline-run.sh does not call the validator; it accepts any --suite-file and reads only the declarative eval_only flag from ARM_DEF.",
+      "description": "The refusal gate keys off the declarative `eval_only` flag rather than the property that actually matters: `toggles.oracle_open == true`, which skips the answer-path overlay and exposes the oracle to the model under evaluation. A suite file passed via `--suite-file` (or an edited in-tree suite) with `toggles: {oracle_open: true}` and no `eval_only` key passes this check with EVAL_ONLY=false and runs the open mount outside any batch context, and the resulting rows carry no eval_only marker for ablation-report.py to exclude from components. The only thing preventing that is a separate validator that nothing in this run path invokes.",
+      "failure_mode": "Open-mount (answer-leaking) trials run outside the batch context and are reported as a shipped-default component, silently contaminating the ablation decision; the guard this change introduces is bypassed without touching LOA_ABLATION_BATCH_CONTEXT.",
+      "suggested_fix": "Derive the gate from the dangerous property as well as the flag: `EVAL_ONLY=true` when `.eval_only == true` OR `.toggles.oracle_open == true`, and either refuse (exit 2) or treat the arm as eval_only when oracle_open is set without eval_only. Optionally have run-ablation.sh invoke validate-suite.sh on the suite file before launching trials.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "evals/harness/pipeline-run.sh:EVAL_ONLY",
+      "anchor_type": "line",
+      "anchor_line": 259,
+      "anchor_line_end": 259,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The eval_only guard is a single, documented, unauthenticated environment variable (`LOA_ABLATION_BATCH_CONTEXT=1`). The header comments and the dry-run docs tell the operator to set it by hand, so the control is advisory: any invocation can satisfy it by prefixing the command, and an operator who `export`s it once in their shell (rather than inline as documented) disables the guard for every subsequent manual pipeline-run.sh call in that session. This is consistent with the stated design but should not be mistaken for an enforcement boundary.",
+      "failure_mode": "Eval-only / open-mount arms get run and recorded as ordinary trials by accident (lingering exported variable) or by an operator working around the message, with nothing in the run record distinguishing a guarded batch launch from a manual bypass.",
+      "suggested_fix": "Record the context in the run record (e.g. meta/arm-evidence `batch_context=1` plus the launching run-ablation.sh batch id) so ablation-report.py can exclude eval_only rows that lack a batch provenance, and prefer a per-batch token (batch id or nonce passed by run-ablation.sh and written to the run dir) over a constant `1`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T12:17:27Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 200,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 3855,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ab963f46075557063ea04dc20090351bb90e3fea053ddf47602d23f17619745a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

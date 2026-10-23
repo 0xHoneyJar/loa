@@ -1,0 +1,21 @@
+batch_context=c132-g3-b
+base_commit=6db0019272b099f7c2a65ba7c09a522760ddec66
+mount=tree
+copy_source=fbd36a0c9880b244af08133013f3b6959b085c94
+mount_overlay=head:0
+overlay_excluded=57:.claude/adapters/cheval.py,.claude/adapters/loa_cheval/metering/ledger.py,.claude/adapters/loa_cheval/metering/pricing.py,.claude/adapters/loa_cheval/providers/anthropic_adapter.py,.claude/adapters/loa_cheval/providers/base.py,.claude/adapters/loa_cheval/providers/bedrock_adapter.py,.claude/adapters/loa_cheval/providers/google_adapter.py,.claude/adapters/loa_cheval/providers/openai_adapter.py,.claude/adapters/loa_cheval/providers/retry.py,.claude/adapters/loa_cheval/routing/ceiling.py,.claude/adapters/loa_cheval/types.py,.claude/adapters/tests/conftest.py,.claude/adapters/tests/test_anthropic_catalog_floor.py,.claude/adapters/tests/test_ceiling_e2e.py,.claude/adapters/tests/test_ceiling_policy.py,.claude/adapters/tests/test_ceiling_probe_write_catalog.py,.claude/adapters/tests/test_ceiling_retry.py,.claude/adapters/tests/test_count_tokens_fallback.py,.claude/adapters/tests/test_estimator_uncertainty.py,.claude/adapters/tests/test_full_size_adapter_defaults.py,…
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-11
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-fbd36a0c9880
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=53436ffa078f381c0a2ac86c3c671aa810178b5dbb51842f34d20ac0852f300b
+mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 57 .claude path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

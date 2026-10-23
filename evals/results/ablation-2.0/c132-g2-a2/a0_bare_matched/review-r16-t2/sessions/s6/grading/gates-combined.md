@@ -1,0 +1,12 @@
+head/.claude/scripts/lib/dec-write-lib.sh:636
+head/.claude/scripts/lib/dec-write-lib.sh:624
+head/.claude/scripts/lib/dec-write-lib.sh:601
+head/.claude/scripts/lib/dec-write-lib.sh:537
+decisions.md:54-56
+render-templates.md:106
+head/.claude/scripts/lib/dec-write-lib.sh:359
+decisions.md:24-28
+head/.claude/scripts/lib/dec-write-lib.sh:655
+head/.claude/scripts/lib/dec-write-lib.sh:717
+head/.claude/scripts/lib/dec-write-lib.sh:17
+decisions.md:24-25

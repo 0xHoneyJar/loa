@@ -1,0 +1,1366 @@
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 25899,
+    "timestamp": 1770081912,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 25931
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "flatline-run-752d21ce-26d0-4962-9d12-77f9f8075385",
+    "type": "manifest",
+    "pid": 25970,
+    "timestamp": 1770081912,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "flatline-run-752d21ce-26d0-4962-9d12-77f9f8075385",
+    "type": "manifest",
+    "pid": 26021
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26067,
+    "timestamp": 1770081912,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26091
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "flatline-run-01fc918e-fef2-4e13-8af3-8115cabdbe62",
+    "type": "manifest",
+    "pid": 26162,
+    "timestamp": 1770081912,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "flatline-run-01fc918e-fef2-4e13-8af3-8115cabdbe62",
+    "type": "manifest",
+    "pid": 26186
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26209,
+    "timestamp": 1770081912,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26233
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26286,
+    "timestamp": 1770081913,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26310
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "flatline-run-7ff742e2-f2e1-401a-888a-ac9c02176b42",
+    "type": "manifest",
+    "pid": 26380,
+    "timestamp": 1770081913,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "flatline-run-7ff742e2-f2e1-401a-888a-ac9c02176b42",
+    "type": "manifest",
+    "pid": 26404
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26427,
+    "timestamp": 1770081913,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26451
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26527,
+    "timestamp": 1770081913,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26555
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "flatline-run-42185711-f351-432d-90bd-2319f636b343",
+    "type": "manifest",
+    "pid": 26596,
+    "timestamp": 1770081913,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "resource": "flatline-run-42185711-f351-432d-90bd-2319f636b343",
+    "type": "manifest",
+    "pid": 26639
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:25:14Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26788,
+    "timestamp": 1770081914,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:25:14Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 26812
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:39Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 6941,
+    "timestamp": 1770082479,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:39Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 6976,
+    "timestamp": 1770082479,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:39Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 7000,
+    "timestamp": 1770082479,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:39Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 7036
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:41Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7306,
+    "timestamp": 1770082481,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7333
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-c35aeefd-c78a-4b3a-b6b3-dd3785b716c4",
+    "type": "manifest",
+    "pid": 7368,
+    "timestamp": 1770082482,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-c35aeefd-c78a-4b3a-b6b3-dd3785b716c4",
+    "type": "manifest",
+    "pid": 7407
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7453,
+    "timestamp": 1770082482,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7477
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-f6b401e8-e870-474e-93c4-6c4c71cd7ee4",
+    "type": "manifest",
+    "pid": 7551,
+    "timestamp": 1770082482,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-f6b401e8-e870-474e-93c4-6c4c71cd7ee4",
+    "type": "manifest",
+    "pid": 7583
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7606,
+    "timestamp": 1770082482,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7630
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7687,
+    "timestamp": 1770082482,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7711
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-0aef01f3-c757-4c53-ab95-d4fab86f6b8d",
+    "type": "manifest",
+    "pid": 7784,
+    "timestamp": 1770082482,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "resource": "flatline-run-0aef01f3-c757-4c53-ab95-d4fab86f6b8d",
+    "type": "manifest",
+    "pid": 7822
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7849,
+    "timestamp": 1770082483,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7876
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7967,
+    "timestamp": 1770082483,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 7991
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "flatline-run-25fe8e23-9849-45e1-8379-c75130160e46",
+    "type": "manifest",
+    "pid": 8032,
+    "timestamp": 1770082483,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "flatline-run-25fe8e23-9849-45e1-8379-c75130160e46",
+    "type": "manifest",
+    "pid": 8071
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 8217,
+    "timestamp": 1770082483,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 8241
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 8270,
+    "timestamp": 1770082483,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:34:44Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 8342
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:38:21Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 12625,
+    "timestamp": 1770082701,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:38:21Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 12649
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:38:22Z",
+  "data": {
+    "resource": "flatline-run-50885d1f-96bf-4a7a-9275-69aedd8ee099",
+    "type": "manifest",
+    "pid": 12775,
+    "timestamp": 1770082702,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:38:22Z",
+  "data": {
+    "resource": "flatline-run-50885d1f-96bf-4a7a-9275-69aedd8ee099",
+    "type": "manifest",
+    "pid": 12804
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:38:22Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 12827,
+    "timestamp": 1770082702,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:38:22Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 12866
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 14993,
+    "timestamp": 1770082808,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 15026
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "resource": "flatline-run-73d32b5e-202c-4fad-a19e-15f2f54770bc",
+    "type": "manifest",
+    "pid": 15127,
+    "timestamp": 1770082808,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "resource": "flatline-run-73d32b5e-202c-4fad-a19e-15f2f54770bc",
+    "type": "manifest",
+    "pid": 15151
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:47Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 16130,
+    "timestamp": 1770082847,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:47Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 16171,
+    "timestamp": 1770082847,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:47Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 16217,
+    "timestamp": 1770082847,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:47Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 16267
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:49Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16530,
+    "timestamp": 1770082849,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16554
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "flatline-run-8880c580-3607-47a7-98c4-470806cf2aea",
+    "type": "manifest",
+    "pid": 16589,
+    "timestamp": 1770082850,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "flatline-run-8880c580-3607-47a7-98c4-470806cf2aea",
+    "type": "manifest",
+    "pid": 16627
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16682,
+    "timestamp": 1770082850,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16706
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "flatline-run-a25cfc07-6235-4c33-bf9b-db92dd46d94a",
+    "type": "manifest",
+    "pid": 16780,
+    "timestamp": 1770082850,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "flatline-run-a25cfc07-6235-4c33-bf9b-db92dd46d94a",
+    "type": "manifest",
+    "pid": 16804
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16827,
+    "timestamp": 1770082850,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16851
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16914,
+    "timestamp": 1770082850,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 16941
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "flatline-run-fc582c89-7f53-4f89-aa22-a98cacec25e2",
+    "type": "manifest",
+    "pid": 17012,
+    "timestamp": 1770082851,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "flatline-run-fc582c89-7f53-4f89-aa22-a98cacec25e2",
+    "type": "manifest",
+    "pid": 17036
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17060,
+    "timestamp": 1770082851,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17084
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17159,
+    "timestamp": 1770082851,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17183
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "flatline-run-cc78fa10-b39a-4aac-8c20-00d4b5e7c58b",
+    "type": "manifest",
+    "pid": 17235,
+    "timestamp": 1770082851,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "flatline-run-cc78fa10-b39a-4aac-8c20-00d4b5e7c58b",
+    "type": "manifest",
+    "pid": 17273
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17450,
+    "timestamp": 1770082851,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 17491
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:40:52Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 17524,
+    "timestamp": 1770082852,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:40:52Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 17617
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:12Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 19663,
+    "timestamp": 1770082932,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:12Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 19693,
+    "timestamp": 1770082932,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:13Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 19717,
+    "timestamp": 1770082932,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:13Z",
+  "data": {
+    "resource": "contention-test.md",
+    "type": "document",
+    "pid": 19753
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20040,
+    "timestamp": 1770082935,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20064
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "flatline-run-3d8d5a22-ecd6-47a3-8837-88da8bdbc29b",
+    "type": "manifest",
+    "pid": 20108,
+    "timestamp": 1770082935,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "flatline-run-3d8d5a22-ecd6-47a3-8837-88da8bdbc29b",
+    "type": "manifest",
+    "pid": 20164
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20214,
+    "timestamp": 1770082935,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20238
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "/tmp/flatline-test-19539/test-doc.md",
+    "type": "document",
+    "pid": 20332,
+    "timestamp": 1770082936,
+    "caller": "result-handler",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "type": "manifest",
+    "pid": 20439,
+    "timestamp": 1770082936,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "type": "manifest",
+    "pid": 20477
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "/tmp/flatline-test-19539/test-doc.md",
+    "type": "document",
+    "pid": 20516
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "type": "manifest",
+    "pid": 20553,
+    "timestamp": 1770082936,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "type": "manifest",
+    "pid": 20586
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20613,
+    "timestamp": 1770082936,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20637
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20692,
+    "timestamp": 1770082937,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20716
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "flatline-run-bff5cfd5-4091-4c73-a811-29910be1cd4d",
+    "type": "manifest",
+    "pid": 20793,
+    "timestamp": 1770082937,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "flatline-run-bff5cfd5-4091-4c73-a811-29910be1cd4d",
+    "type": "manifest",
+    "pid": 20817
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20891,
+    "timestamp": 1770082937,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 20915
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "flatline-run-1be23c06-a213-4219-b721-6ae659b0a4c3",
+    "type": "manifest",
+    "pid": 20956,
+    "timestamp": 1770082937,
+    "caller": "manifest",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "resource": "flatline-run-1be23c06-a213-4219-b721-6ae659b0a4c3",
+    "type": "manifest",
+    "pid": 20994
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:18Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 21145,
+    "timestamp": 1770082938,
+    "caller": "index",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:18Z",
+  "data": {
+    "resource": "index",
+    "type": "manifest",
+    "pid": 21170
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_acquired",
+  "timestamp": "2026-02-03T01:42:18Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 21199,
+    "timestamp": 1770082938,
+    "caller": "cli",
+    "hostname": "fukuoka"
+  }
+}
+{
+  "type": "flatline_lock",
+  "event": "lock_released",
+  "timestamp": "2026-02-03T01:42:18Z",
+  "data": {
+    "resource": "test-doc.md",
+    "type": "document",
+    "pid": 21296
+  }
+}

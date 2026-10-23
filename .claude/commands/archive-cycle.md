@@ -118,6 +118,20 @@ grimoires/loa/archive/2026-01-17-mvp-complete/
 
 **Note**: Original files are NOT deleted. This allows referencing previous work while starting a new cycle. Delete them manually if you want a clean slate.
 
+## Script Contract (`.claude/scripts/archive-cycle.sh`)
+
+The script that performs the archive (`archive-cycle.sh [--cycle N] [--retention N] [--force] [--dry-run]`) follows these rules (bug 20261021-ba367a, issue #1263):
+
+| Rule | Behaviour |
+|------|-----------|
+| Default cycle | Without `--cycle`, the ledger's `active_cycle` number. When `active_cycle` is null, the highest-numbered cycle whose `status` is not `archived`. The run is refused (exit 1) when every cycle is archived, or when the newest cycle is archived while an older one is not, which marks a stale entry. With no ledger, 1. `--cycle N` always overrides. |
+| Completeness gate | A cycle with any sprint whose `status` is not `completed` is refused (exit 1, nothing written) unless `--force` is passed. `--dry-run` reports what the gate would do. |
+| Ledger update | After a real archive the live ledger gets the changes below, under the `ledger-lib.sh` lock and through `_write_ledger`. When `ledger-lib.sh` is missing, the run is refused before anything is written. `archive_path` is relative to the repo root, or absolute with a WARN when the archive lies outside it. The `ledger.json` copied into the archive is the pre-update ledger. `--dry-run` never writes. |
+| Path safety | A ledger cycle id must be a plain slug (`cycle-N` or `cycle-N-<letters, digits, . _ ->`, no `..`), or the run is refused. The archive directory must not exist yet: it is created without `-p`, so an earlier archive is never overwritten and two concurrent runs cannot write the same one. To re-archive, remove the old directory first (`git rm` if tracked). |
+| Options | An unknown option, such as the typo `--dryrun`, exits 1 with usage and writes nothing. |
+| Retention default | Keep every archive. Pruning happens only when `--retention N` or `compound_learning.archive.retention_cycles` names N > 0 (the CLI wins over the yaml key); the newest N are kept by mtime. |
+| Tracked protection | A directory holding any git-tracked file is never deleted: it is kept with `[WARN] tracked archive kept: <path>; prune it with git`, and the dry run lists it apart from the deletion list. Outside a git work tree, or without git, the mtime rule alone applies. Any other git failure, such as dubious ownership, keeps every archive with a WARN. |
+
 ## Ledger Changes
 
 Before:
@@ -220,6 +234,11 @@ Next steps:
 |-------|-------|------------|
 | "No ledger found" | Project doesn't use Sprint Ledger | Run `/plan-and-analyze` first |
 | "No active cycle" | Cycle already archived or not created | Run `/plan-and-analyze` to start |
+| "N incomplete sprint(s); refusing to archive" | A sprint of the cycle is not `completed` | Finish the sprint, or pass `--force` to archive anyway |
+| "every cycle in the ledger is archived" / "the newest cycle (…) is archived but an older cycle (…) is not" | No safe default cycle | Pass `--cycle N` explicitly |
+| "archive already exists: …" | The cycle's archive directory is already present | Remove it (`git rm` if tracked) to re-archive, or pass another `--cycle` |
+| "ledger cycle id is not a safe slug" | The ledger id contains `/`, `..` or other characters | Fix the id in the ledger |
+| "unknown option: …" | A mistyped flag | Check `--help` |
 | "Archive already exists" | Same slug used on same date | Use a different label |
 
 ## Related Commands

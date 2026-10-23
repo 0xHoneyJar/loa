@@ -1,0 +1,148 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 90,
+    "models": 2,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real operational gap: FR-4 and FR-7 can impact every session and write path, so explicit rollback steps are high-ROI and low-cost to document.",
+      "gpt_score": 870,
+      "opus_score": 820,
+      "tertiary_score": null,
+      "delta": 50,
+      "average_score": 845,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Clear prioritization and dependency ordering is missing and materially affects sequencing risk; this is highly actionable and should be added.",
+      "gpt_score": 835,
+      "opus_score": 720,
+      "tertiary_score": null,
+      "delta": 115,
+      "average_score": 777.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Current success criteria are not measurable enough; adding baselines, measurement method, and timeout behavior is essential for objective acceptance.",
+      "gpt_score": 845,
+      "opus_score": 910,
+      "tertiary_score": null,
+      "delta": 65,
+      "average_score": 877.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Conflict handling for allowed-tools is under-specified and likely to cause regressions; defining escalation/override behavior is valuable though somewhat policy-heavy.",
+      "gpt_score": 790,
+      "opus_score": 780,
+      "tertiary_score": null,
+      "delta": 10,
+      "average_score": 785,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-005",
+      "description": "This targets the core feasibility risk of FR-7; without a concrete signal for active skill context, the design may be non-implementable.",
+      "gpt_score": 910,
+      "opus_score": 580,
+      "tertiary_score": null,
+      "delta": 330,
+      "average_score": 745,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-004",
+      "concern": "Agent-based compliance hook has no failure-mode policy (timeout/error/unavailable)",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "FR-7 introduces a blocking hook in the critical write path. If the subagent fails or times out, write operations may deadlock or become inconsistent, causing severe developer friction.",
+      "location": "Section 4 (FR-7), Section 7 (Agent hook latency risk)",
+      "recommendation": "Specify deterministic fail-open/fail-closed behavior, timeout budget tiers, circuit breaker logic, and telemetry for hook error rates.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Assumption that aliasing deprecated models to Opus 4.6 is behaviorally safe",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Model substitution may change output quality, latency, and cost unexpectedly. Teams relying on old model behavior may experience regressions despite registry validation passing.",
+      "location": "Section 4 (FR-3), Section 5 (Backward compatibility)",
+      "recommendation": "Add explicit user-facing warnings on alias resolution, capture cost/latency deltas, and define acceptance thresholds for output parity before auto-mapping.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "No phased rollout or feature flags for FR-1/FR-2 behavior changes",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "Adding restrictive `allowed-tools` and `context: fork` can silently break core workflows across multiple downstream projects. Without staged rollout, one bad frontmatter change can halt operator productivity.",
+      "location": "Section 4 (FR-1, FR-2), Section 6 (Scope)",
+      "recommendation": "Add per-skill feature flags and canary rollout (e.g., enable on 1-2 skills first), plus rollback criteria and a disable switch in config.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Path-scoped rule extraction risks moving critical safeguards out of always-on context",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "If globs do not match all relevant files or multi-file tasks, compliance and safety guidance may not load when needed. This can create silent policy gaps.",
+      "location": "Section 4 (FR-4), Section 7 (Rules trigger caveat)",
+      "recommendation": "Create a mandatory core-rules file that remains always loaded, plus rule coverage tests against representative repo paths and edge-case filenames.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Security boundary for `Bash(pattern *)` is under-specified and potentially bypassable",
+      "severity": "CRITICAL",
+      "severity_score": 930,
+      "why_matters": "Pattern-based Bash allowlists are easy to misconfigure and can permit command expansion or unsafe args. This weakens the intended least-privilege model and can reintroduce write/exfiltration risk.",
+      "location": "Section 4 (FR-1), Section 7 (Risk mitigation for allowed-tools)",
+      "recommendation": "Define a strict command policy format (command + arg schema), ban shell metacharacters by default, and add negative security tests for bypass attempts.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd-oracle-upstream-adoption.md",
+  "domain": " prd upstream platform alignment",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-03-17T23:53:12Z",
+  "metrics": {
+    "total_latency_ms": 39744000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

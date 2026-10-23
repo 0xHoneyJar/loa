@@ -1,0 +1,13 @@
+sprint: sprint-bug-268
+sprint-bug-268 (bug 20261021-7240bc) — labels files reproduce the curated manifests (@L<n> grammar, --sync-labels; bd-y4pqj)
+
+Completion timestamp: 2026-10-21T02:11:45Z
+Branch: fix/cycle-132-bugs
+Final commit: 8ba76633
+
+Lifecycle:
+  - Implementation: Opus 5.5 implementer in a linked worktree (red test commit, then fix)
+  - Engineer review: APPROVED after round 1 (engineer-feedback.md; dissent run 1 of 3)
+  - Security audit: APPROVED - LET'S FUCKING GO after round 2 (auditor-sprint-feedback.md; dissent run 2 of 3)
+  - red-test-check: VERIFIED at 8ba76633
+  - Bead: bd-y4pqj

@@ -1,0 +1,14 @@
+head/.claude/scripts/lib/dec-write-lib.sh:184
+dec-write-lib.bats:354
+head/.claude/scripts/lib/dec-write-lib.sh:600
+validate-artifact.sh:653
+head/.claude/scripts/lib/dec-write-lib.sh:601
+validate-artifact.sh:681
+head/.claude/scripts/lib/dec-write-lib.sh:663
+run-mode/resources/render-templates.md:105
+head/.claude/skills/run-mode/resources/render-templates.md:104
+dec-write-lib.sh:441
+dec-write-lib.sh:694
+head/.claude/scripts/lib/dec-write-lib.sh:513
+head/.claude/scripts/validate-artifact.sh:852
+head/tests/unit/user-invoked-harness.bats:131

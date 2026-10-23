@@ -1,0 +1,46 @@
+{
+  "name": "plugin-management",
+  "version": "0.1.0",
+  "description": "Discover relevant plugins and manage app connections, permissions, and dependencies.",
+  "author": {
+    "name": "OpenAI"
+  },
+  "homepage": "https://openai.com/",
+  "repository": "https://github.com/openai/openai/tree/master/chatgpt/oai-maintained-plugins/plugins/plugin-management",
+  "license": "Proprietary",
+  "keywords": [
+    "plugins",
+    "plugin discovery",
+    "plugin management",
+    "app integrations",
+    "connections",
+    "permissions",
+    "dependencies",
+    "settings"
+  ],
+  "skills": "./skills/",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "Plugin Management",
+    "shortDescription": "Discover and manage plugins",
+    "longDescription": "Find relevant integrations for external apps and services, suggest useful plugins, and manage plugin permissions, dependencies, and connections.",
+    "developerName": "OpenAI",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
+    "defaultPrompt": [
+      "Find a plugin that can help with my task",
+      "Show the permissions for one of my plugins",
+      "Check which apps a plugin needs"
+    ],
+    "brandColor": "#0F766E",
+    "composerIcon": "./assets/plugin-management.svg",
+    "logo": "./assets/plugin-management.svg"
+  }
+}

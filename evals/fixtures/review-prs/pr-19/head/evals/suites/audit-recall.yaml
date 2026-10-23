@@ -1,0 +1,60 @@
+name: audit-recall
+description: "cycle-124 FR-9 A/B suite: audit-recall (arm A = Sprint-2 tip prompts, arm B = audited prompts; same executor model, fixed effort)"
+version: 1
+
+tasks:
+  include:
+    - "tasks/audit-recall/**/*.yaml"
+  exclude: []
+
+defaults:
+  trials: 3
+  timeout:
+    per_trial: 1500
+    per_grader: 180
+  composite_strategy: all_must_pass
+
+# compare.sh freshness rule (evals/tests/recall-baseline-freshness.bats):
+# a baseline must be captured at or after floor_commit (the Sprint-2 landing
+# commit) on a prompt tree different from the one under comparison, with the
+# corpus frozen.
+ab:
+  floor_commit: "da3bd07f3db2fc1bd09a6761a9b96b688fa2a09e"
+  corpus_manifest: evals/fixtures/review-prs/SHA256SUMS
+
+  # cycle-129 FR-2 control arms (SDD D-2.1); see review-recall.yaml for the
+  # key reference. Toggles apply to the sandbox copy only.
+  arms:
+    - id: baseline
+      description: "the pinned source tree's prompt surface, unchanged"
+      toggles: {}
+    - id: no_audit_delta
+      description: >-
+        the audit's review-delta paragraph removed from the sandbox
+        auditing-security/SKILL.md: the paragraph containing "look for what
+        the review did not" when present, else the "Confirm the review's
+        demotions independently" paragraph (the delta instruction as written
+        at 864069f2). A missing paragraph fails the trial (exit 2).
+      toggles:
+        audit_delta_instruction: false
+
+  # Pre-registered verdict rule; same keys and meaning as review-recall.yaml.
+  threshold:
+    trials_required: 3
+    coverage_required: full
+    mean_recall_max_drop: 0.10
+    min_trial_recall_max_drop: 0.15
+    refuted_share_max_rise: 0.10
+    bootstrap:
+      method: percentile
+      level: 0.90
+      resample: fixtures
+      iterations: 2000
+
+ci:
+  gate_type: advisory
+  min_trials: 3
+  regression_threshold: 0.10
+
+execution_order: parallel
+concurrency: 2

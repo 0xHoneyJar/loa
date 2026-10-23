@@ -1,9 +1,0 @@
-head/.claude/scripts/red-test-check.sh:52
-head/.claude/skills/bug-triaging/resources/templates/micro-sprint.md:43
-head/.claude/skills/reviewing-code/SKILL.md:219
-head/.claude/skills/reviewing-code/SKILL.md:6
-head/.claude/skills/reviewing-code/SKILL.md:241
-head/.claude/skills/reviewing-code/SKILL.md:204
-head/.claude/scripts/validate-artifact.sh:1263
-head/.claude/scripts/validate-artifact.sh:897
-head/.github/workflows/check-glossary-terms.yml:16

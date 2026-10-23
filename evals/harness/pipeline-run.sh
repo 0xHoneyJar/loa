@@ -25,7 +25,8 @@
 #   pipeline-run.sh --task-yaml F --arm ID --run-dir D --run-id R --trial N \
 #                   --source-tree DIR --suite-file F [--max-run-usd 12] \
 #                   [--executor container|host] [--image IMG] [--claude-bin B] \
-#                   [--docker-bin D] [--phase-models JSON] [--phase-timeouts JSON] [--dry-run]
+#                   [--docker-bin D] [--phase-models JSON] [--phase-timeouts JSON]
+#                   [--batch-context ID] [--dry-run]
 #
 # Options:
 #   --task-yaml F       task.yaml (SDD §3.2); its directory holds TASK.md
@@ -43,12 +44,18 @@
 #   --docker-bin D      docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --phase-models JSON {"PLAN": "<model id>", …} override ($LOA_EVAL_PHASE_MODELS)
 #   --phase-timeouts JSON {"IMPLEMENT": <seconds>, …} override
+#   --batch-context ID  (cycle-132 bd-st02i) the evaluation batch this run belongs to
+#                       (^[A-Za-z0-9._-]{1,200}$; run-ablation.sh passes its batch name); written
+#                       to meta/arm-evidence.txt as batch_context=<id>; the eval_only gate below
+#                       reads it (an argv flag, never inherited by a child process)
 #   --dry-run           print the phase plan and exit 0; nothing is created. Lines:
 #                       `plan: task … arm … phases <labels>`, one `phase <n> <label> model=…
 #                       max_turns=… timeout_s=… effort=… session=…` per phase, `sandbox:
 #                       mount=loa|none overlay=head|base|none(<why>) config_variant=eval|none
-#                       config_edits=<key=value,…>|-` (the arm's sandbox .loa.config.yaml edits),
-#                       and `eval_only: true (…)` for an eval_only arm
+#                       config_edits=<key=value,…>|-` (the arm's sandbox .loa.config.yaml edits,
+#                       derived from lib/sandbox-mount.sh print_toggle_vocabulary — its order, a
+#                       repeated path once; bd-gdl5s), and `eval_only: true (batch context <id>)`
+#                       for an eval_only arm
 #
 # Run directory layout (DEC-0413 — the grader never reads meta/):
 #   sandbox/     the agent's tree (its own .git initialised at `base`)
@@ -110,7 +117,10 @@
 #   1  agent error: a phase exited non-zero or timed out        status agent_error
 #   2  infrastructure: usage, refused arm/type, mount/toggle failure, CLI/docker
 #      or image missing, fixture path rule, leak guard          status infrastructure_error
-#   3  cap failure (run stopped at the cap)                     status cap_failure
+#   3  cap failure (run stopped at the cap)                     status cap_failure;
+#      also (cycle-132 bd-56nn6) a refused launch on a broken mount: a mounted arm whose gates
+#      run a dissent and whose mount_cheval probe reads broken — meta/refused.json {arm, task_id,
+#      type, reason: "mount_cheval_broken", detail}, status infrastructure_error, no phase runs
 #   4  interrupted (SIGTERM/SIGINT/SIGHUP to the driver, or a phase killed from
 #      outside)                                                 status interrupted
 # pipeline.json is written for every exit except usage errors and --dry-run; it is
@@ -128,7 +138,7 @@
 # the clause and path, and no phase runs). An arm whose toggles set oracle_open: true (the
 # eval-only open-mount arm) skips the overlay and the check and records mount_overlay=none.
 # Every mounted arm runs the cycle-131 eval config variant (both gates' budget_scale: diff,
-# budget_cents_max 600; evidence config_variant=eval). Toggle bare_model: fable runs the BARE
+# budget_cents_max 1200 since cycle-132 addendum 2; evidence config_variant=eval). Toggle bare_model: fable runs the BARE
 # phase on global.anthropic.claude-fable-5-1 (it wins over --phase-models and the suite's
 # phase_defaults for BARE). All evidence reaches meta/arm-evidence.txt before the first phase.
 # Mount integrity (audit LOW-A2): after materialisation the sha256 of sandbox/CLAUDE.md
@@ -142,13 +152,33 @@
 # toggles set `oracle_open: true`, is
 # refused — exit 2, `refused: arm '<id>': eval_only arm outside an evaluation batch`, before the
 # run directory exists, so no pipeline.json and no infrastructure_error is ever written — unless
-# LOA_ABLATION_BATCH_CONTEXT=1 (exactly 1). run-ablation.sh exports it to every trial it launches
-# (batch and smoke); --dry-run honours the same variable, so the operator dry-runs the
-# open-mount arm with `LOA_ABLATION_BATCH_CONTEXT=1 pipeline-run.sh … --dry-run`.
+# --batch-context <id> is given (cycle-132 bd-st02i: the argv flag replaced the inheritable
+# LOA_ABLATION_BATCH_CONTEXT variable, which is read no more). run-ablation.sh passes it to every
+# trial it launches (batch and smoke); --dry-run honours the same flag, so the operator dry-runs
+# the open-mount arm with `pipeline-run.sh … --batch-context <id> --dry-run`.
+#
+# Arm-id leak guard (AC-4.2; cycle-132 round 5, PREREGISTRATION §12 addendum 1): before the first phase the running
+# arm's id may appear nowhere in the sandbox, with one exception — an id the PR content itself names
+# (arm_ids_pr_native=<sorted comma list>|none in arm-evidence: the suite's arm ids found under pr/) may appear in a
+# PR-derived file: anything under pr/, grimoires/loa/a2a/<sprint>/reviewer.md (written from pr/PR.md), and each
+# closed-mount overlay path (an overlay_sha256= line: the PR's own version of a .claude/ file). Anywhere else, or for
+# an id the PR does not name, the launch is refused as before (exit 2, infrastructure_error). The task brief and every
+# phase prompt stay fully strict: any arm id there is a leak (leak_scan). A PR that built the arms names them all, so
+# its text says nothing about which arm runs.
+#
+# mount_cheval (cycle-132 bd-56nn6, KF-050): after materialisation and before the first phase of a
+# mounted arm, `python3 -I -B -c 'import loa_cheval, loa_cheval.providers'` runs on the host with
+# sandbox/.claude/adapters first on sys.path (no bytecode is written into the sandbox; the tree is
+# the pinned source plus the PR's own .claude/ files and no agent has run yet) under timeout 60;
+# evidence mount_cheval=ok | broken:<last stderr line, ≤ 200 characters> (broken:no
+# .claude/adapters/loa_cheval when the package is absent); a loa_mount: false arm records
+# mount_cheval=none. A broken probe on an arm whose gates run a dissent (an AUDIT phase, or a
+# REVIEW phase without dissent: false; never with gates: false) refuses the launch (exit 3 above);
+# on any other arm it is evidence only.
 #
 # Env: EVAL_CLAUDE_BIN, EVAL_DOCKER_BIN, LOA_EVAL_PHASE_MODELS, LOA_EVAL_PRICING_JSON,
 # LOA_EVAL_WATCHDOG_POLL_S, LOA_EVAL_CREDS_HOME (where ~/.codex is read; default $HOME),
-# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR, LOA_ABLATION_BATCH_CONTEXT.
+# LOA_EVAL_CONTAINER_CLAUDE_BIN (default claude), LOA_EVAL_EXECUTOR.
 #
 # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
 # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
@@ -169,7 +199,7 @@ PROMPTS_DIR="$SCRIPT_DIR/lib/phase-prompts"
 TASK_YAML="" ARM="" RUN_DIR="" RUN_ID="" TRIAL="" SOURCE_TREE="" SUITE_FILE=""
 MAX_RUN_USD="" EXECUTOR="${LOA_EVAL_EXECUTOR:-container}" IMAGE="loa-ablation:258"
 CLAUDE_BIN="${EVAL_CLAUDE_BIN:-claude}" DOCKER_BIN="${EVAL_DOCKER_BIN:-docker}"
-PHASE_MODELS_JSON="${LOA_EVAL_PHASE_MODELS:-}" PHASE_TIMEOUTS_JSON="" DRY_RUN=false
+PHASE_MODELS_JSON="${LOA_EVAL_PHASE_MODELS:-}" PHASE_TIMEOUTS_JSON="" DRY_RUN=false BATCH_CONTEXT=""
 SPRINT="sprint-1"
 TOOLS_DEFAULT="Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch"
 
@@ -190,8 +220,9 @@ while [[ $# -gt 0 ]]; do
     --docker-bin)     DOCKER_BIN="${2:-}"; shift 2 ;;
     --phase-models)   PHASE_MODELS_JSON="${2:-}"; shift 2 ;;
     --phase-timeouts) PHASE_TIMEOUTS_JSON="${2:-}"; shift 2 ;;
+    --batch-context)  BATCH_CONTEXT="${2:-}"; [[ -n "$BATCH_CONTEXT" ]] || die_usage "--batch-context needs an id"; shift 2 ;;
     --dry-run)        DRY_RUN=true; shift ;;
-    -h|--help)        sed -n '2,156p' "$0"; exit 0 ;;
+    -h|--help)        sed -n "2,$(awk 'NR > 2 && /^# =====/ {print NR - 1; exit}' "$0")p" "$0"; exit 0 ;;
     *) die_usage "unknown argument: $1" ;;
   esac
 done
@@ -204,6 +235,7 @@ done
 [[ -f "$SUITE_FILE" ]] || die_usage "suite file not found: $SUITE_FILE"
 [[ -d "$SOURCE_TREE" ]] || die_usage "source tree not found: $SOURCE_TREE"
 [[ "$TRIAL" =~ ^[0-9]+$ ]] || die_usage "--trial must be an integer"
+[[ -z "$BATCH_CONTEXT" || "$BATCH_CONTEXT" =~ ^[A-Za-z0-9._-]{1,200}$ ]] || die_usage "--batch-context must match ^[A-Za-z0-9._-]{1,200}\$"
 case "$EXECUTOR" in container|host) ;; *) die_usage "--executor must be container or host" ;; esac
 for t in jq yq git timeout; do command -v "$t" >/dev/null 2>&1 || die_usage "required tool missing: $t"; done
 [[ -z "$PHASE_MODELS_JSON" ]] || jq -e 'type == "object"' >/dev/null 2>&1 <<<"$PHASE_MODELS_JSON" || die_usage "--phase-models must be a JSON object"
@@ -271,8 +303,8 @@ case "$(jq -r 'if (.toggles // {}) | has("oracle_open") then (.toggles.oracle_op
 esac
 EVAL_ONLY=false
 [[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
-if [[ "$EVAL_ONLY" == true && "${LOA_ABLATION_BATCH_CONTEXT:-}" != 1 ]]; then
-  echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh exports LOA_ABLATION_BATCH_CONTEXT=1 to its trials)" >&2
+if [[ "$EVAL_ONLY" == true && -z "$BATCH_CONTEXT" ]]; then
+  echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh passes --batch-context <batch> to its trials)" >&2
   exit 2
 fi
 
@@ -353,14 +385,21 @@ if [[ "$DRY_RUN" == true ]]; then
     if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
     elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
     else sb_overlay="$OVERLAY_MODE"; fi
-    sb_edits="$(jq -r '[ (if .companion_voice == false then "flatline_protocol.code_review.companion_voice=false", "flatline_protocol.security_audit.companion_voice=false" else empty end),
-                         (if .gates == false then "flatline_protocol.code_review.enabled=false", "flatline_protocol.security_audit.enabled=false" else empty end),
-                         (if .dissent == false and .gates != false then "flatline_protocol.code_review.enabled=false" else empty end),
-                         (if .flatline == false then "flatline_protocol.enabled=false" else empty end) ]
-                       | if length == 0 then "-" else join(",") end' <<<"$SUITE_TOGGLES")"
+    # the edits come from the library's vocabulary (bd-gdl5s): every toggle the arm sets to a defined
+    # value contributes its edits in vocabulary order, a path already listed once
+    [[ -f "$SCRIPT_DIR/lib/sandbox-mount.sh" ]] || die_usage "mount library not found: $SCRIPT_DIR/lib/sandbox-mount.sh"
+    vocab="$(cd "$SCRIPT_DIR" && source ./lib/sandbox-mount.sh && declare -F print_toggle_vocabulary >/dev/null && print_toggle_vocabulary)" \
+      || die_usage "the mount library has no print_toggle_vocabulary"
+    sb_edits="$(jq -r -R -n --argjson tg "$SUITE_TOGGLES" '
+        [inputs | split("\t") | select(length >= 3)
+         | .[0] as $k | .[1] as $vals | .[2] as $ed
+         | select(($tg | has($k)) and (($vals | split("|")) | index($tg[$k] | tostring)) != null and $ed != "-")
+         | $ed | split(",")[]]
+        | reduce .[] as $e ([]; if index([$e]) == null then . + [$e] else . end)
+        | if length == 0 then "-" else join(",") end' <<<"$vocab")"
   fi
   printf 'sandbox: mount=%s overlay=%s config_variant=%s config_edits=%s\n' "$sb_mount" "$sb_overlay" "$sb_variant" "$sb_edits"
-  [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context LOA_ABLATION_BATCH_CONTEXT=1)"
+  [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context $BATCH_CONTEXT)"
   exit 0
 fi
 
@@ -375,6 +414,7 @@ mkdir -p "$WS" "$META" "$SNAPS" "$TRANS" "$EVALD"
 printf '%s\n' "$ARM" > "$META/arm"
 PHASES_FILE="$META/phases.jsonl"; : > "$PHASES_FILE"
 export ARM_EVIDENCE_FILE="$META/arm-evidence.txt"; : > "$ARM_EVIDENCE_FILE"
+[[ -n "$BATCH_CONTEXT" ]] && printf 'batch_context=%s\n' "$BATCH_CONTEXT" >> "$ARM_EVIDENCE_FILE"
 MOUNT_LOG="$META/mount.log"; : > "$MOUNT_LOG"
 
 STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -636,6 +676,41 @@ fi
 MOUNT_SHA0_CLAUDE_MD="$(_mount_sha "$WS/CLAUDE.md")"
 MOUNT_SHA0_LOA_CONFIG="$(_mount_sha "$WS/.loa.config.yaml")"
 printf 'claude_md_sha256=%s\nloa_config_sha256=%s\n' "$MOUNT_SHA0_CLAUDE_MD" "$MOUNT_SHA0_LOA_CONFIG" >> "$ARM_EVIDENCE_FILE"
+
+# --- mount_cheval (cycle-132 bd-56nn6, KF-050): the mounted adapters import before any spend ---------
+# a dissent-enabled arm: its gates run the adversarial dissent through cheval (an AUDIT phase, or a REVIEW
+# phase whose dissent is not turned off; gates: false turns both off)
+DISSENT_ON=false
+if [[ "$LOA_MOUNT" == true && "$GATES_OFF" != true ]]; then
+  if jq -e 'map(.name) | index("AUDIT") != null' >/dev/null <<<"$PLAN_JSON" \
+     || { jq -e 'map(.name) | index("REVIEW") != null' >/dev/null <<<"$PLAN_JSON" \
+          && [[ "$(jq -r '.dissent' <<<"$TOGGLES")" != false ]]; }; then
+    DISSENT_ON=true
+  fi
+fi
+if [[ "$LOA_MOUNT" == true ]]; then
+  if [[ ! -d "$WS/.claude/adapters/loa_cheval" || -L "$WS/.claude/adapters" || -L "$WS/.claude/adapters/loa_cheval" ]]; then
+    MOUNT_CHEVAL="broken:no .claude/adapters/loa_cheval"
+  else
+    cheval_rc=0
+    cheval_err="$(env -i PATH="$PATH" LC_ALL=C timeout 60 python3 -I -B -c \
+      'import sys; sys.path.insert(0, sys.argv[1]); import loa_cheval, loa_cheval.providers' "$WS/.claude/adapters" 2>&1 >/dev/null)" \
+      || cheval_rc=$?
+    if [[ $cheval_rc -eq 0 ]]; then MOUNT_CHEVAL=ok
+    else
+      cheval_last="$(printf '%s\n' "$cheval_err" | grep -v '^[[:space:]]*$' | sed -n '$p' | tr -d '\r' | cut -c1-200)"
+      MOUNT_CHEVAL="broken:${cheval_last:-exit $cheval_rc}"
+    fi
+  fi
+else
+  MOUNT_CHEVAL=none
+fi
+printf 'mount_cheval=%s\n' "$MOUNT_CHEVAL" >> "$ARM_EVIDENCE_FILE"
+if [[ "$MOUNT_CHEVAL" == broken:* && "$DISSENT_ON" == true ]]; then
+  jq -n --arg arm "$ARM" --arg task_id "$TASK_ID" --arg type "$TASK_TYPE" --arg detail "${MOUNT_CHEVAL#broken:}" \
+    '{arm: $arm, task_id: $task_id, type: $type, reason: "mount_cheval_broken", detail: $detail}' > "$META/refused.json"
+  finish infrastructure_error 3 "refused: mount_cheval_broken: ${MOUNT_CHEVAL#broken:} (a dissent-enabled arm on a mount whose cheval does not import; KF-050)"
+fi
 mkdir -p "$WS/.eval/tmp" "$WS/.eval/gh-empty"
 : > "$WS/.eval/model-invoke.jsonl"
 : > "$WS/.eval/cost-ledger.jsonl"
@@ -644,8 +719,37 @@ mkdir -p "$WS/.eval/tmp" "$WS/.eval/gh-empty"
 hidden_hit="$(cd "$WS" && find . -path ./.git -prune -o -path ./.claude -prune -o \
   \( -iname hidden -o -iname 'hidden-tests' -o -iname 'hidden.*' \) -print | sed -n '1p')"
 [[ -z "$hidden_hit" ]] || infra "sandbox contains a hidden path: ${hidden_hit#./}"
-arm_hit="$(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | sed -n '1p' || true)"
-[[ -z "$arm_hit" ]] || infra "arm id appears in the sandbox: ${arm_hit#"$WS"/}"
+# cycle-132 round 5 (PREREGISTRATION §12 addendum 1): the arm ids the PR content itself names. A PR that built the
+# ablation arms names them in its own diff and description; such text tells the agent nothing about which arm it is
+# PR_NATIVE: every id of the suite that occurs in pr/ (PR.md, head.diff, base/, head/ — copied from the fixture,
+# before any agent ran)
+PR_NATIVE=""
+if [[ -d "$WS/pr" ]]; then
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    if grep -rIqF -e "$id" "$WS/pr" 2>/dev/null; then PR_NATIVE="$PR_NATIVE$id"$'\n'; fi
+  done <<<"$ALL_ARM_IDS"
+fi
+pr_native_csv="$(printf '%s' "$PR_NATIVE" | sed '/^$/d' | LC_ALL=C sort -u | paste -sd, - || true)"
+printf 'arm_ids_pr_native=%s\n' "${pr_native_csv:-none}" >> "$ARM_EVIDENCE_FILE"
+# the PR-derived files: anything under pr/; the review skill's report the mount library writes from pr/PR.md
+# (write_sandbox_grimoire: grimoires/loa/a2a/<sprint>/reviewer.md); the closed-mount overlay's answer paths
+# (overlay_answer_paths: each path of an overlay_sha256= evidence line, the PR's own version of a .claude/ file).
+# grimoires/loa/sprint.md is template text plus the task criterion (no PR text), so it is not PR-derived
+OVERLAY_PATHS="$(sed -n 's/^overlay_sha256=\(.*\)=[^=]*$/\1/p' "$ARM_EVIDENCE_FILE")"
+pr_derived() {  # pr_derived <path relative to the sandbox>
+  case "$1" in pr/*|"grimoires/loa/a2a/$SPRINT/reviewer.md") return 0 ;; esac
+  [[ -n "$OVERLAY_PATHS" ]] && grep -qxF -e "$1" <<<"$OVERLAY_PATHS"
+}
+ARM_PR_NATIVE=false
+grep -qxF -e "$ARM" <<<"$PR_NATIVE" && ARM_PR_NATIVE=true
+# the running arm's id in the sandbox refuses the launch, except a PR-native id in a PR-derived file
+while IFS= read -r arm_hit; do
+  [[ -n "$arm_hit" ]] || continue
+  rel="${arm_hit#"$WS"/}"
+  if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
+  infra "arm id appears in the sandbox: $rel"
+done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
 
 leak_scan() {  # leak_scan <file> — `hidden`, a defect key or any arm id → non-zero
   local f="$1" id

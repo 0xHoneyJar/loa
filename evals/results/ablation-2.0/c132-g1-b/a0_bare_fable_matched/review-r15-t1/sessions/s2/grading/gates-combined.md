@@ -1,0 +1,15 @@
+head/.claude/adapters/cheval.py:2552
+types.py:506-507
+agy_headless_adapter.py:40
+head/.claude/adapters/cheval.py:2549
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:168
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:299
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:361
+head/tests/unit/loa-status-providers.bats:81
+head/.claude/defaults/model-config.yaml:494
+head/.claude/adapters/cheval.py:2834
+loa_cheval/audit/modelinv.py:498
+head/.claude/scripts/run-preflight.sh:204
+head/.claude/adapters/loa_cheval/config/loader.py:122
+head/.claude/scripts/adversarial-review.sh:4083

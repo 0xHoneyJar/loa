@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/rules/stash-safety.md:frontmatter",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a `paths:` frontmatter to stash-safety.md turns an always-loaded rule into a conditionally loaded one that only appears when the model touches *.sh, *.bats, .claude/scripts/** or .claude/hooks/** files. The rule's main audience is the model's own `git stash push/pop` shell usage during any skill (pre-commit `--keep-index` overlap, swallowed output), which happens regardless of what file types are being edited. On a Python/TS project the rule will never be loaded. The mechanical backstop (fence:FR-1.2b) only covers the swallowed-output shape, not the pre-commit-hook index-shift hazard the rule describes.",
+      "failure_mode": "During /implement on a non-shell project the model runs a `git stash push` / `pop` pair around a commit with pre-commit hooks, never having seen the rule; pop lands on the wrong stash entry and work is silently lost in a shape FR-1.2b does not match.",
+      "suggested_fix": "Either drop the `paths:` key for stash-safety.md (keep it always-on) or add broad patterns such as `**` / `.git/**` so the rule still loads for shell-command sessions; reserve path scoping for rules that are genuinely file-type specific (skill-invariants.md is fine).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`zones.app.permission` for implementing-tasks is widened from `read` to `read-write` in a PR whose stated scope is the guard register, control arms and task kinds. The same PR rewrites reviewing-code's zone-constraints prose to defer to the frontmatter `zones:` block, so frontmatter is now being promoted to the source of truth for zone permissions; a silent widening in that same change is exactly what the register/floor work is meant to make visible. skill-invariants.md still documents `App remains read` as the baseline for review skills and gives no corresponding statement for implement.",
+      "failure_mode": "The permission widening lands unreviewed and undocumented; any tooling that later reads `zones.app.permission` (validate-skill-capabilities.sh, zone-write-guard, implement-gate) treats App as freely writable for this skill with no DEC row or PR note explaining why.",
+      "suggested_fix": "Either revert the line in this PR, or state the change in the PR description / a DEC row and update skill-invariants.md to say implement is the one skill with App read-write; confirm validate-skill-capabilities.sh does not special-case `read` for implement.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "anchor_type": "hunk",
+      "anchor_line": 58,
+      "anchor_line_end": 60,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "cross_file_justification": "The template's own comment says the `⇐ ...` suffix 'becomes the --deps flag when the task is created as a bead'; the new ` · kind: X` token is appended after the blocker list on the same line, so whatever extracts the blocker text (beads sync script or sprint-to-beads logic outside this diff) now sees `none · kind: mechanical` / `Task 1.1 · kind: judgment` instead of `none` / `Task 1.1`.",
+      "description": "The task-line grammar changed from `... ⇐ <blockers>` (end of line) to `... ⇐ <blockers> · kind: <kind>`. Any consumer that captures from `⇐` to end-of-line for the edge-or-none rule will pick up the kind suffix as part of the blocker list. validate_sprint_kinds was tested, but the deps extractor was not named in the verified suites.",
+      "failure_mode": "Bead creation either fails to resolve `Task 1.1 · kind: judgment` as a blocker (task created with no deps, breaking the DAG) or treats `none · kind: mechanical` as a non-empty blocker and errors.",
+      "suggested_fix": "Locate the `⇐` extractor (planning-sprints / beads sync) and make it stop at ` · ` or at `kind:`; add a bats case with a kind-tagged line. Alternatively place `· kind:` before the `⇐` clause so the blocker list stays terminal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/loa-status.sh:display_guards_line",
+      "anchor_type": "function",
+      "anchor_line": 953,
+      "anchor_line_end": 956,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The yield branch hard-codes the keys `.totals.real_blocks_30d` and `.totals.likely_fp_30d` while printing a dynamic `.window_days`. If guard-yield.sh ever writes a different window (or the schema drifts), `tonumber` on null makes `jq -e` fail and the else branch prints `30 d: no yield file (.run/guard-yield.json)` even though the file exists. The failure of a present-but-unreadable file is reported as absence, which hides the real problem and points the operator at the wrong fix (regenerate, which may reproduce the same shape).",
+      "failure_mode": "Operator sees 'no yield file' with the file present, regenerates, sees the same line, and concludes the status integration is broken; a stale or malformed yield file is never surfaced as such.",
+      "suggested_fix": "Distinguish the two cases: if the file exists but the jq projection fails, print `yield file unreadable` (and ideally the window_days from the file); derive the totals keys from window_days or have guard-yield.sh emit window-agnostic key names.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "function",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Replay tagging of audit rows is driven solely by the `LOA_AUDIT_REPLAY` environment variable inherited by the hook process. Two correctness gaps for the yield this feeds: (1) if the variable is exported in the Claude Code host shell (for example left over from a manual corpus run, or set in a CI job that also exercises the hook for real), every genuine block in that session is tagged `replay: true` and vanishes from `real_blocks_30d`; (2) rows written by corpus runs before this change carry no flag and will be counted as real blocks for the next 30 days, so the first month of yield numbers is polluted.",
+      "failure_mode": "The Guards status line and guard-yield.json under- or over-report real blocks with no indication, undermining the metric the register was introduced to produce.",
+      "suggested_fix": "Have the corpus runner pass an explicit, hook-specific marker (for example a dedicated `hook_input.replay` field or a distinct `cwd` under a temp dir) rather than a free-floating env var, warn in guard-yield.sh when a non-test session contains replay rows, and document that pre-change corpus rows must be excluded (date cutoff) when computing the first window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T07:16:56Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12679,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

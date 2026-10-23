@@ -1,0 +1,142 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 2,
+    "low_value_count": 0,
+    "blocker_count": 2,
+    "model_agreement_percent": 80,
+    "models": 2,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Canonical status computation would silently ignore the documented blocker_risk field and miss a FAILED condition. This is high-impact, low-cost, and affects every downstream consumer that trusts the canonical verdict.",
+      "gpt_score": 950,
+      "opus_score": 920,
+      "tertiary_score": null,
+      "delta": 30,
+      "average_score": 935,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "The break-glass audit_event_id ordering contradiction can make the workflow impossible to satisfy cleanly and invites manual bypasses. Clarifying the two-step emit-then-patch flow is important and cheap.",
+      "gpt_score": 875,
+      "opus_score": 865,
+      "tertiary_score": null,
+      "delta": 10,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "The ModelHealth pseudo-code is incomplete enough to produce direct implementation failures. The fix is straightforward, though the blast radius is narrower than the canonical verdict bug.",
+      "gpt_score": 810,
+      "opus_score": 755,
+      "tertiary_score": null,
+      "delta": 55,
+      "average_score": 782.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "The cross-chunk second-stage overflow case is plausible and currently underspecified. A deterministic degraded fallback would improve reliability, though the exact truncation policy needs careful design.",
+      "gpt_score": 715,
+      "opus_score": 715,
+      "tertiary_score": null,
+      "delta": 0,
+      "average_score": 715,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "If primitive_id validation is strict, KFAL audit emission could fail immediately. The uncertainty lowers the score slightly, but clarifying or registering the primitive before implementation is prudent and cheap.",
+      "gpt_score": 735,
+      "opus_score": 845,
+      "tertiary_score": null,
+      "delta": 110,
+      "average_score": 790,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-009",
+      "description": "A startup warning for a removed rollback flag is low-cost and prevents silent operator misunderstanding during migration. It is not core correctness, but the risk-reduction per effort is strong.",
+      "gpt_score": 640,
+      "opus_score": 0,
+      "tertiary_score": null,
+      "delta": 640,
+      "average_score": 640,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Specifying matrix parallelism would make the CI wall-time claim more credible, but this is mostly planning precision unless the suite is already timing out. Useful to add, but not urgent.",
+      "gpt_score": 535,
+      "opus_score": 0,
+      "tertiary_score": null,
+      "delta": 535,
+      "average_score": 535,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "The canonical verdict classifier is internally inconsistent with the schema and classification contract.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "Section 3.2.2 says high blocker_risk must force FAILED and consumers must trust status, but the helper in 4.4 checks a non-schema field blocker_class, never promotes high blocker_risk to FAILED, and can emit APPROVED despite schema/contract mismatch if fixtures are incomplete. This is the core safety mechanism of the cycle.",
+      "location": "§3.2.2 Classification contract; §4.4 Verdict-quality classification helper",
+      "recommendation": "Make §4.4 match §3.2.2 exactly, validate the computed status against the full envelope before emission, and add explicit fixtures for high, med, unknown, empty voices_dropped, and impossible count combinations.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The document mixes PRD versions and source paths, creating a risk that implementation targets stale requirements.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The header cites PRD v1.2, pre-flight says grimoires/loa/prd.md v1.1, and the changelog says v1.1. A substrate-hardening cycle gated by precise acceptance criteria can pass review while implementing the wrong revision.",
+      "location": "Header; §0 Pre-flight; Appendix C",
+      "recommendation": "Declare one authoritative PRD path and version, include the PRD hash, and update all references before sprint planning.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer autonomous",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-13T10:23:00Z",
+  "metrics": {
+    "total_latency_ms": 341000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,0 +1,260 @@
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-02-03T13:05:52Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 4,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-03T13:05:53Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-03T13:06:02Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-03T13:07:16Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-03T13:07:26Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_aborted",
+  "timestamp": "2026-02-04T06:27:40Z",
+  "data": {
+    "reason": "user_request"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-02-04T06:27:46Z",
+  "data": {
+    "simstim_id": "simstim-20260204-",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:27:51Z",
+  "data": {
+    "phase": "preflight"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:27:55Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:28:42Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:28:48Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-02-04T06:31:29Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 3,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:31:34Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:31:40Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:33:55Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:34:02Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-02-04T06:38:02Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 4,
+      "disputed": 0,
+      "blockers": 6
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:38:07Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:38:13Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:39:00Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:39:06Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-02-04T06:41:37Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 1,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:41:42Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-02-04T06:41:49Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-02-04T06:46:50Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-02-04T06:46:54Z",
+  "data": {
+    "total_integrated": 12,
+    "total_disputed": 1,
+    "total_blockers": 16
+  }
+}
+{
+  "type": "simstim",
+  "event": "run_mode_synced",
+  "timestamp": "2026-02-04T06:51:44Z",
+  "data": {
+    "run_mode_state": "JACKED_OUT",
+    "simstim_state": "COMPLETED",
+    "implementation_status": "completed"
+  }
+}
+{
+  "type": "simstim",
+  "event": "force_phase",
+  "timestamp": "2026-02-04T06:52:01Z",
+  "data": {
+    "from_phase": "implementation",
+    "to_phase": "planning",
+    "reason": "user_override"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-02-04T06:59:26Z",
+  "data": {
+    "simstim_id": "simstim-20260204-",
+    "from_phase": null
+  }
+}

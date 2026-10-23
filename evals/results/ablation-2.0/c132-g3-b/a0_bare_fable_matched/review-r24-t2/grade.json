@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "grader_version": "1.3.8",
+  "task_id": "review-r24",
+  "task_type": "review-catch",
+  "suite_frozen": true,
+  "union": true,
+  "bare_sessions": 3,
+  "sessions_valid": 3,
+  "sessions_graded": [
+    "s1",
+    "s2",
+    "s3"
+  ],
+  "hidden_tests": null,
+  "structural": null,
+  "regressions": null,
+  "snapshot_tests": null,
+  "recall": {
+    "defects_seeded": 9,
+    "defects_caught": 7,
+    "recall": 0.7778,
+    "flags": 16,
+    "missed": [
+      "d1",
+      "d6"
+    ],
+    "recall_pm3": 0.6667,
+    "missed_pm3": [
+      "d1",
+      "d6",
+      "d7"
+    ],
+    "recall_pm3_v1": 0.6667,
+    "missed_pm3_v1": [
+      "d1",
+      "d6",
+      "d7"
+    ],
+    "v1_manifest": false,
+    "credits_function_only": [
+      "d7"
+    ],
+    "rule": "pm3_or_same_function"
+  },
+  "false_positives": 11,
+  "false_positive_rule": "pm3",
+  "multi_credit_citations": 1,
+  "verdict": null,
+  "verdicts": {
+    "review": null,
+    "audit": null
+  },
+  "verdict_accuracy": null,
+  "verdict_accuracy_per_gate": {
+    "review": null,
+    "audit": null
+  },
+  "diff_lines": null,
+  "files_changed": null,
+  "contaminated": null,
+  "contamination_exempt": [],
+  "contamination_classes_skipped": [
+    "hidden",
+    "suite_path"
+  ],
+  "oracle_exposed_defects": [],
+  "oracle_exposed_unknown": [],
+  "corpus_sha256": "487055af100d59e06c65f8f4545c0a67f5cd2d2dabf7e3a567fc9f11653eb24f",
+  "label_set": "v2",
+  "labels_meta": [
+    {
+      "defect": "d1",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": false
+    },
+    {
+      "defect": "d2",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d3",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d4",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d5",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d6",
+      "label_source": "incident",
+      "agreement": "adjudicated",
+      "review_driven": false
+    },
+    {
+      "defect": "d7",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d8",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d9",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    }
+  ],
+  "per_session": [
+    {
+      "session": "s1",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 5.261022,
+      "recall": 0.6667,
+      "recall_pm3": 0.5556,
+      "detected": [
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d7",
+        "d8"
+      ],
+      "detected_pm3": [
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d8"
+      ],
+      "false_positives": 4,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s2",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 6.078818,
+      "recall": 0.7778,
+      "recall_pm3": 0.6667,
+      "detected": [
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "detected_pm3": [
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d8",
+        "d9"
+      ],
+      "false_positives": 0,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s3",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 5.3034,
+      "recall": 0.4444,
+      "recall_pm3": 0.4444,
+      "detected": [
+        "d2",
+        "d3",
+        "d4",
+        "d5"
+      ],
+      "detected_pm3": [
+        "d2",
+        "d3",
+        "d4",
+        "d5"
+      ],
+      "false_positives": 7,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    }
+  ],
+  "recall_session1": 0.6667,
+  "recall_pm3_session1": 0.5556,
+  "precision_session1": 0.5556
+}

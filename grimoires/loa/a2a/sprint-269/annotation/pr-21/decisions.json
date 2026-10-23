@@ -1,0 +1,447 @@
+{
+ "H01": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H02": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H09": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H12": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H13": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H14": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H15": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H16": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H17": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H19": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H22": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H23": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H24": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H30": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H31": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H32": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H37": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H38": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H40": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H41": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H42": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H43": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H46": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H47": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H48": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H50": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H51": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H52": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H53": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H54": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H55": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H56": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H57": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H58": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H60": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H61": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H62": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H63": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H70": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H71": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H74": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H75": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H76": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H77": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H79": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H80": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H82": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H83": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H84": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H85": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H86": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H88": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H89": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H03": {
+  "base": "A",
+  "category": "security",
+  "reason": "category: security (B) — the locality label feeds a trust decision"
+ },
+ "H05": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way"
+ },
+ "H06": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way"
+ },
+ "H18": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way"
+ },
+ "H26": {
+  "base": "A",
+  "reason": "category: input-validation (A) — a value accepted without a check"
+ },
+ "H34": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "follow-on: a regenerated build artefact follows every compiled change; assigned to D2 (A) for the record"
+ },
+ "H35": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "as H34"
+ },
+ "H36": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "as H34"
+ },
+ "H59": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "as H34 (source map)"
+ },
+ "H39": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a doc comment in compiled output (as pr-16 H04)"
+ },
+ "H49": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "as H39"
+ },
+ "H44": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "follow-on of D2 (B): the compiled copy of the provider-declaration parse change, which belongs to the load-time rule"
+ },
+ "H45": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "as H44"
+ },
+ "H72": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "follow-on: collection variables serve D1 and D2; A's D1 kept"
+ },
+ "H73": {
+  "base": "A",
+  "group": "D1",
+  "reason": "verdict: the site where the fallback chains are ignored is D1's wrong behaviour — defect (A); B's follow-on reading would leave D1 without a site"
+ },
+ "H81": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D8",
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way"
+ },
+ "H90": {
+  "base": "A",
+  "reason": "anchors: union; category: error-handling (A) — a failure masked as a completed degraded run"
+ }
+}

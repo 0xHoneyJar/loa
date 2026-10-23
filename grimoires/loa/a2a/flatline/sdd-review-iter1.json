@@ -1,0 +1,123 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 3,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Valuable and actionable. Mutable per-instance fallback state without declared threading semantics is a real correctness risk under concurrent use. Specifying single-threaded assumption or required locking/thread-local behavior would prevent subtle race bugs.",
+      "gpt_score": 780,
+      "opus_score": 880,
+      "tertiary_score": null,
+      "delta": 100,
+      "average_score": 830,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Critical gap with direct financial impact. 'Enforce on next call' is not a hard cap and can violate operator expectations badly on expensive models. Pre-call estimate behavior and over-cap handling should be explicitly defined.",
+      "gpt_score": 920,
+      "opus_score": 760,
+      "tertiary_score": null,
+      "delta": 160,
+      "average_score": 840,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "High-value operability fix. Cache file missing/corrupt/stale is a normal production condition, and unspecified behavior here can cause outages or unpredictable routing. Clear fail-open/fail-closed rules are essential.",
+      "gpt_score": 880,
+      "opus_score": 820,
+      "tertiary_score": null,
+      "delta": 60,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-005",
+      "concern": "Fallback hysteresis state is per-process and non-persistent, causing inconsistent behavior in multi-process environments",
+      "severity": "HIGH",
+      "severity_score": 715,
+      "why_matters": "Different processes will disagree on demotion/recovery timing, leading to route flapping, inconsistent latencies, and hard-to-debug incident behavior.",
+      "location": "Section 3.5 hysteresis state decision; Section 5.8 `_resolve_active_model`",
+      "recommendation": "Persist fallback state (shared store/file with lock) or explicitly scope and document single-process guarantees.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "OpenAI response parsing is intentionally fail-loud on unknown output types without degradation path",
+      "severity": "CRITICAL",
+      "severity_score": 865,
+      "why_matters": "If OpenAI introduces a new output type, production calls can start failing immediately with UnsupportedResponseShapeError, causing broad outage for routed aliases.",
+      "location": "Section 5.4 Response Contract Matrix; Section 6.1 Unsupported response",
+      "recommendation": "Introduce a guarded compatibility mode: preserve unknown blocks in metadata, continue with known text/tool content, and alert loudly instead of hard-failing by default.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Per-session cost cap enforcement is non-atomic and can overspend before blocking",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "The design checks cap after ledger writes and only raises on the next invocation. A single large call or concurrent calls can exceed budget by a large margin before any stop condition, creating uncontrolled cost exposure.",
+      "location": "Section 1.4.4 Cost-Cap Enforcer; Section 5.5 billing semantics",
+      "recommendation": "Add pre-flight cost estimation + hard pre-call guardrail, and make cap checks atomic across concurrent writers (file lock or centralized budget state).",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Probe cache trust boundary is undefined; fallback routing can be manipulated via local file tampering",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Google fallback decisions read `.run/model-health-cache.json` each request. If that file is stale/corrupt/tampered, traffic can be silently diverted to unintended models, impacting reliability and cost.",
+      "location": "Section 1.4.2 Google Adapter; Section 3.5 fallback behavior; Section 1.9 Security Architecture",
+      "recommendation": "Define file ownership/permissions, integrity validation (schema + timestamp freshness), and fail-safe behavior when cache is invalid.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Strict `endpoint_family` validation can create immediate post-upgrade outages for operators with custom OpenAI model blocks",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "The migration depends on all operator-defined OpenAI entries being updated. Documentation-only mitigation means first run after update can hard fail in production workflows.",
+      "location": "Section 3.3 migration policy; Section 3.4 strict validation; Risk R-S1",
+      "recommendation": "Provide an automated migrator/linter in update flow and a temporary compatibility grace mode with explicit deadline.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer deep",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T06:06:35Z",
+  "metrics": {
+    "total_latency_ms": 220000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

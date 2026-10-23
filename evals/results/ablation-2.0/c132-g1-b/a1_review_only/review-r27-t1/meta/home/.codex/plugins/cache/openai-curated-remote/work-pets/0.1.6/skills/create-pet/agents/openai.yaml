@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create pet"
+  short_description: "Create and preview a new ChatGPT Work mode pet"
+  default_prompt: "Use $create-pet to create and preview a new animated ChatGPT pet from my character idea."

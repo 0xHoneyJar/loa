@@ -1,0 +1,17 @@
+head/.claude/scripts/lib/dec-write-lib.sh:642
+head/.claude/scripts/validate-artifact.sh:686
+head/.claude/scripts/validate-artifact.sh:671
+head/.claude/scripts/lib/dec-write-lib.sh:359
+head/.claude/scripts/lib/dec-write-lib.sh:580
+head/.claude/scripts/lib/dec-write-lib.sh:601
+head/.claude/scripts/lib/dec-write-lib.sh:600
+head/.claude/skills/run-mode/resources/render-templates.md:104
+dec-write-lib.sh:441
+head/.claude/scripts/validate-artifact.sh:852
+head/.claude/scripts/validate-artifact.sh:819
+head/.loa.config.yaml.example:140
+head/.loa.config.yaml.example:127
+head/.claude/scripts/lib/dec-write-lib.sh:717
+head/.claude/scripts/lib/dec-write-lib.sh:135
+head/.claude/scripts/lib/dec-write-lib.sh:168
+head/tests/unit/user-invoked-commands.bats:65

@@ -1,0 +1,901 @@
++    d = os.path.dirname(os.path.abspath(out))
++    os.makedirs(d, exist_ok=True)
++    tmp = out + ".tmp"
++    with open(tmp, "w", encoding="utf-8") as f:
++        f.write(text)
++    os.replace(tmp, out)
++    return text
++
++
++# ------------------------------------------------------------------ self-check
++def synth_run(t, mode, root):
++    rd = os.path.join(root, f"run-{mode}")
++    sb = os.path.join(rd, "sandbox")
++    os.makedirs(sb)
++    if t.build:
++        copy_tree(t.fixture, sb)
++        if mode == "reference":
++            if not t.reference_patch or not os.path.isfile(t.reference_patch):
++                raise GradeError("self-check reference needs hidden/reference.patch (task.yaml reference_patch)")
++            p = subprocess.run(["patch", "-p1", "--batch", "--forward", "--no-backup-if-mismatch", "-s", "-i",
++                                t.reference_patch], cwd=sb, capture_output=True, text=True)
++            if p.returncode != 0:
++                raise GradeError("reference.patch does not apply to the fixture: " + (p.stdout + p.stderr).strip()[:300])
++        return rd
++    pr = resolve_pr_fixture(t)
++    copy_tree(pr, os.path.join(sb, "pr"))
++    lines = []
++    if mode == "reference":
++        for d in t.key.get("defects") or []:
++            for s in (d.get("anchors") or [d.get("anchor_line")]):
++                lines.append(f"- head/{d['file']}:{s}")
++    elif mode == "noisy":
++        head = os.path.join(sb, "pr", "head")
++        for r, ds, fs in os.walk(head):
++            ds.sort()
++            for f in sorted(fs):
++                p = os.path.join(r, f)
++                if os.path.islink(p):
++                    continue
++                n = len(open(p, "rb").read().splitlines())
++                rel = os.path.relpath(p, head)
++                lines.extend(f"- head/{rel}:{i}" for i in range(1, n + 1))
++    with open(os.path.join(sb, "review.md"), "w", encoding="utf-8") as f:
++        f.write("# Findings\n\n" + "".join(l + "\n" for l in lines))
++    return rd
++
++
++def self_check(t, mode, frozen):
++    if mode == "noisy" and t.build:
++        raise GradeError("--self-check noisy applies to review-catch tasks only")
++    root = tempfile.mkdtemp(prefix="selfcheck.", dir=SCRATCH)
++    g = grade(t, synth_run(t, mode, root), frozen)
++    ok, ev = False, ""
++    if t.type == "refactor":
++        st = g["structural"]
++        green = st["suite_green_final"]
++        ev = f"structural {st['passed']}/{st['total']}, suite {'green' if green else 'red'}"
++        if mode == "base":
++            ok = st["passed"] < st["total"] and green
++        else:
++            ok = st["passed"] >= st["total"] and not st["failed_names"] and not st["parse_error"] and green
++    elif t.build:
++        h, r = g["hidden_tests"], g["regressions"]
++        suite_green = r is None or r["final"]["passed"] >= r["final"]["total"]
++        ev = f"hidden {h['passed']}/{h['total']}" + ("" if r is None else f", fixture suite {r['final']['passed']}/{r['final']['total']}")
++        if mode == "base":
++            ok = h["passed"] < h["total"] and suite_green
++        else:
++            ok = h["passed"] >= h["total"] and not h["failed_names"] and not h["parse_error"] and suite_green
++    else:
++        rc = g["recall"]
++        ev = f"recall {rc['recall']} ({rc['defects_caught']}/{rc['defects_seeded']}), false_positives {g['false_positives']}"
++        if mode == "base":
++            ok = rc["defects_caught"] == 0 and (rc["recall"] in (0, 0.0, None))
++        elif mode == "reference":
++            ok = rc["defects_seeded"] > 0 and rc["recall"] == 1.0
++        else:
++            gr = grade(t, synth_run(t, "reference", root), frozen)
++            ev += f" vs reference {gr['false_positives']}"
++            ok = g["false_positives"] > gr["false_positives"]
++    return ok, ev, g
++
++
++# ------------------------------------------------------------------ main
++def main():
++    if A.self_check:
++        if not A.task_yaml or not os.path.isfile(A.task_yaml):
++            raise GradeError("--self-check needs --task-yaml <task.yaml>")
++        tdir = os.path.dirname(os.path.abspath(A.task_yaml))
++        suite_root = os.path.abspath(A.suite_root) if A.suite_root else os.path.dirname(os.path.dirname(tdir))
++        t = load_task(A.task_yaml, suite_root)
++        if t.id != os.path.basename(tdir):
++            raise GradeError(f"task id {t.id!r} is not its directory name")
++        frozen = freeze_check(suite_root)
++        ok, ev, g = self_check(t, A.self_check, frozen)
++        line = f"self-check {A.self_check} {t.id}: {'PASS' if ok else 'FAIL'} {ev}"
++        print(line)
++        if A.json:
++            print(json.dumps({"mode": A.self_check, "task_id": t.id, "result": "PASS" if ok else "FAIL",
++                              "evidence": ev, "grade": g}, indent=2))
++        return 0 if ok else 1
++    if not A.run_dir or not A.task_id:
++        raise GradeError("usage: ablation-grade.sh <run-dir> <task-id> [options] (see --help)")
++    if not re.match(r"^[a-z0-9][a-z0-9-]{0,63}$", A.task_id):
++        raise GradeError(f"invalid task id: {A.task_id}")
++    if not os.path.isdir(A.run_dir):
++        raise GradeError(f"run directory not found: {A.run_dir}")
++    suite_root = os.path.abspath(A.suite_root or os.path.join(REPO_ROOT, "grimoires", "loa", "evals", "ablation-2.0"))
++    ty = os.path.join(suite_root, A.tasks_dir or "tasks", A.task_id, "task.yaml")
++    if not os.path.isfile(ty):
++        raise GradeError(f"task not found: {ty}")
++    t = load_task(ty, suite_root)
++    if t.id != A.task_id:
++        raise GradeError(f"task.yaml id {t.id!r} differs from {A.task_id!r}")
++    frozen = freeze_check(suite_root)
++    g = grade(t, A.run_dir, frozen)
++    out = A.out or os.path.join(os.path.abspath(A.run_dir), "grade.json")
++    text = write_grade(g, out)
++    if A.json:
++        sys.stdout.write(text)
++    else:
++        h = g["hidden_tests"]
++        part = (f"hidden {h['passed']}/{h['total']}" if h else
++                f"recall {g['recall']['recall']} false_positives {g['false_positives']}")
++        print(f"graded {t.id}: {part}; verdict_accuracy {g['verdict_accuracy']}; "
++              f"contaminated {g['contaminated']['pattern'] if g['contaminated'] else 'no'} → {out}")
++    return 0
++
++
++try:
++    rc = main()
++except GradeError as e:
++    print(f"ablation-grade: {e}", file=sys.stderr)
++    rc = 2
++except Exception as e:  # an unexpected shape is an error (2), never a self-check FAIL (1)
++    print(f"ablation-grade: internal error: {type(e).__name__}: {e}", file=sys.stderr)
++    rc = 2
++finally:
++    try:
++        remove_path(SCRATCH)
++    except OSError:
++        pass
++sys.exit(rc)
++PY
+diff --git a/evals/harness/lib/seed_tasks.py b/evals/harness/lib/seed_tasks.py
+new file mode 100644
+index 00000000..769d8cca
+--- /dev/null
++++ b/evals/harness/lib/seed_tasks.py
+@@ -0,0 +1,628 @@
++"""seed_tasks.py — the engine behind seed-bugfix-tasks.sh and seed-refactor-tasks.sh.
++
++cycle-130 Sprint 259 Tasks 2.2 / 2.3 (SDD §5.14). Run only through the two
++wrappers (they pass --repo-default and --no-secrets); the usage, options, output
++lines and exit codes are documented in the wrappers' header blocks.
++
++Stdlib only; run as `python3 -I`. Every git call is an argument vector (no
++shell), every path read from history is checked before it touches the disk, and
++a task is built in a private temporary directory and moved into place only after
++its proof passed and the no-secrets scan came back clean.
++"""
++import argparse
++import datetime
++import json
++import os
++import re
++import shutil
++import site
++import subprocess
++import sys
++import tempfile
++
++MOUNT_OWNED = (".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run")
++DEFAULT_PATHS = "tools,evals/harness,evals/graders,tests/unit,evals/tests"
++SUBJECT = {"bugfix": re.compile(r"^(fix|bug)"), "refactor": re.compile(r"^(refactor|chore|style|perf)")}
++TYPE = {"bugfix": "bug-fix", "refactor": "refactor"}
++ID_PREFIX = {"bugfix": "bugfix", "refactor": "refactor"}
++INFRA_ROOT_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini")
++CUTOFF = "2026-08-01"
++RUN_TIMEOUT = 120
++MAX_COVERING_TESTS = 20
++
++
++class Usage(Exception):
++    pass
++
++
++def out(line):
++    print(line, flush=True)
++
++
++# ---------------------------------------------------------------- git helpers
++def git(repo, *args, binary=False):
++    cmd = ["git", "-C", repo, "-c", "core.quotepath=off", "-c", "diff.noprefix=false", *args]
++    p = subprocess.run(cmd, capture_output=True, env=_git_env())
++    if p.returncode != 0:
++        raise RuntimeError(f"git {' '.join(args[:2])} failed: {p.stderr.decode('utf-8', 'replace').strip()}")
++    return p.stdout if binary else p.stdout.decode("utf-8", "replace")
++
++
++def _git_env():
++    env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
++    env.update({"LC_ALL": "C", "GIT_CONFIG_NOSYSTEM": "1", "GIT_PAGER": "cat", "GIT_EXTERNAL_DIFF": ""})
++    return env
++
++
++def safe_path(p):
++    """A history path we are willing to write: relative, no `..`, printable, no backslash."""
++    return bool(p) and not p.startswith("/") and ".." not in p.split("/") and "\\" not in p \
++        and all(c.isprintable() for c in p)
++
++
++def mount_owned(p):
++    return any(part in MOUNT_OWNED for part in p.split("/"))
++
++
++def is_test(p):
++    parts = p.split("/")
++    base = parts[-1]
++    return "tests" in parts[:-1] or re.fullmatch(r"test_.*\.py|.*_test\.py", base) is not None or base.endswith(".bats")
++
++
++def runner_of(p):
++    if p.endswith(".bats"):
++        return "bats"
++    if p.endswith(".py") and re.fullmatch(r"test_.*\.py|.*_test\.py", p.rsplit("/", 1)[-1]):
++        return "pytest"
++    return None
++
++
++def under_roots(p, roots):
++    return any(p == r or p.startswith(r + "/") for r in roots)
++
++
++def commits_since(repo, since):
++    raw = git(repo, "log", f"--since={since}", "--no-merges", "--format=%H%x1f%P%x1f%cs%x1f%s%x1e")
++    for rec in raw.split("\x1e"):
++        rec = rec.strip("\n")
++        if not rec:
++            continue
++        sha, parents, date, subject = (rec.split("\x1f") + ["", "", ""])[:4]
++        yield sha, parents.split(), date, subject
++
++
++def changed_files(repo, parent, sha):
++    raw = git(repo, "diff", "--no-renames", "--name-status", "-z", parent, sha)
++    items = raw.split("\0")
++    files = []
++    i = 0
++    while i + 1 < len(items):
++        status, path = items[i], items[i + 1]
++        files.append((status[:1], path))
++        i += 2
++    return files
++
++
++def numstat(repo, parent, sha, paths=None):
++    args = ["diff", "--no-renames", "--numstat", parent, sha]
++    if paths:
++        args += ["--", *paths]
++    rows = []
++    for line in git(repo, *args).splitlines():
++        a, d, p = line.split("\t", 2)
++        rows.append((a, d, p))
++    return rows
++
++
++def blob(repo, commit, path):
++    """(mode, bytes) of path at commit, or None when absent."""
++    ls = git(repo, "ls-tree", "-z", commit, "--", path).split("\0")[0]
++    if not ls:
++        return None
++    meta, _ = ls.split("\t", 1)
++    mode, kind, obj = meta.split()
++    if kind != "blob":
++        return None
++    return mode, git(repo, "cat-file", "blob", obj, binary=True)
++
++
++def tree_files(repo, commit, prefix=None):
++    args = ["ls-tree", "-r", "-z", "--name-only", commit]
++    if prefix:
++        args += ["--", prefix]
++    return [p for p in git(repo, *args).split("\0") if p]
++
++
++# ---------------------------------------------------------------- materialise
++def write_file(root, rel, data):
++    if not safe_path(rel):
++        raise ValueError(f"unsafe path: {rel!r}")
++    dest = os.path.join(root, rel)
++    os.makedirs(os.path.dirname(dest), exist_ok=True)
++    with open(dest, "wb") as fh:
++        fh.write(data)
++
++
++def put_from(repo, commit, rel, root, dest_rel=None):
++    b = blob(repo, commit, rel)
++    if b is None:
++        return False
++    mode, data = b
++    if mode == "120000":
++        raise ValueError(f"symlink in history: {rel}")
++    write_file(root, dest_rel or rel, data)
++    return True
++
++
++def helper_files(repo, commit, test_paths):
++    """Test infrastructure the tests rely on: conftest.py up to the root, helpers in each test dir, root runner configs."""
++    have = set(tree_files(repo, commit))
++    found = set()
++    for t in test_paths:
++        d = os.path.dirname(t)
++        parts = d.split("/") if d else []
++        for i in range(len(parts) + 1):
++            c = "/".join(parts[:i] + ["conftest.py"])
++            if c in have:
++                found.add(c)
++        for f in have:
++            if os.path.dirname(f) == d and f not in test_paths:
++                base = os.path.basename(f)
++                if base in ("conftest.py", "__init__.py") or base.endswith(".bash") or "helper" in base:
++                    found.add(f)
++    for f in INFRA_ROOT_FILES:
++        if f in have:
++            found.add(f)
++    return sorted(found)
++
++
++def sibling_files(repo, commit, sources, roots, exclude):
++    """The other non-test files in each touched source file's directory (the modules it most likely imports)."""
++    dirs = {os.path.dirname(p) for p in sources}
++    out = []
++    for f in tree_files(repo, commit):
++        if os.path.dirname(f) in dirs and f not in exclude and not is_test(f) and safe_path(f) \
++                and not mount_owned(f) and under_roots(f, roots):
++            out.append(f)
++    return sorted(out)
++
++
++def counts(output, runner):
++    if runner == "bats":
++        passed = len(re.findall(r"^ok ", output, re.M))
++        failed = len(re.findall(r"^not ok ", output, re.M))
++        return passed, failed
++    tail = output.strip().splitlines()[-1] if output.strip() else ""
++    num = lambda w: sum(int(n) for n in re.findall(r"(\d+) " + w, tail))
++    return num("passed"), num("failed") + num("errors?")
++
++
++def run_tests(tree, cmd, runner):
++    """Run the task's test command under env -i (plus the host's user base so a user-site pytest is found)."""
++    home = tempfile.mkdtemp(prefix="seed-home.")
++    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": home, "LC_ALL": "C",
++           "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUSERBASE": site.getuserbase()}
++    argv = list(cmd)
++    if runner == "pytest":
++        argv = argv[:3] + ["-p", "no:cacheprovider"] + argv[3:]
++    elif runner == "bats" and os.environ.get("LOA_SEED_BATS"):
++        argv[0] = os.environ["LOA_SEED_BATS"]
++    try:
++        p = subprocess.run(argv, cwd=tree, env=env, capture_output=True, timeout=RUN_TIMEOUT)
++        text = (p.stdout + p.stderr).decode("utf-8", "replace")
++        rc = p.returncode
++    except subprocess.TimeoutExpired:
++        text, rc = "timeout", 124
++    except OSError as e:
++        text, rc = f"cannot run {argv[0]}: {e}", 127
++    finally:
++        shutil.rmtree(home, ignore_errors=True)
++    passed, failed = counts(text, runner)
++    return rc, passed, failed
++
++
++def apply_patch(tree, patch_file):
++    if shutil.which("patch"):
++        cmd = ["patch", "-s", "-p1", "--no-backup-if-mismatch", "-i", patch_file]
++    else:
++        cmd = ["git", "apply", "-p1", patch_file]
++    return subprocess.run(cmd, cwd=tree, capture_output=True).returncode == 0
++
++
++def overlay(task_dir, tree, manifest):
++    for e in manifest["files"]:
++        src = os.path.join(task_dir, "hidden", e["src"])
++        dest = os.path.join(tree, e["dest"])
++        os.makedirs(os.path.dirname(dest), exist_ok=True)
++        shutil.copyfile(src, dest)
++
++
++def copy_tree(src, dest):
++    shutil.copytree(src, dest, symlinks=True)
++
++
++# ---------------------------------------------------------------- text
++def subject_rest(subject):
++    m = re.match(r"^[a-z]+(\([^)]*\))?!?:\s*(.*)$", subject)
++    return (m.group(2) if m else subject).strip()
++
++
++def sanitise(text, stems):
++    """Agent-facing text from a commit subject: no control characters, paths, file names, test names, grader words."""
++    text = "".join(c if c.isprintable() else " " for c in text)
++    words = []
++    for w in text.split():
++        if "/" in w or re.search(r"\.(py|sh|bats|js|ts|mjs|json|ya?ml|md|toml|cfg|ini|txt|patch)\b", w) \
++                or re.match(r"[\W]*test_\w+", w) or "hidden" in w.lower() \
++                or any(s and s.lower() in w.lower() for s in stems):
++            words.append("…")
++        else:
++            words.append(w)
++    return re.sub(r"(… ?)+", "… ", " ".join(words)).strip() or "the change"
++
++
++def yq(v):
++    return json.dumps(v, ensure_ascii=False)
++
++
++def task_yaml(tid, mode, source, criterion, success, test_cmd, ref_patch, protected, suite_version):
++    src = "{" + ", ".join(f"{k}: {yq(v) if not isinstance(v, dict) else '{' + ', '.join(f'{a}: {b}' for a, b in v.items()) + '}'}"
++                          for k, v in source.items()) + "}"
++    lines = [
++        f"id: {tid}",
++        "schema_version: 1",
++        f"type: {TYPE[mode]}",
++        f"source: {src}",
++        f"post_cutoff: {'true' if source['date'] >= CUTOFF else 'false'}",
++        f"fixture: tasks/{tid}/fixture",
++        f"criterion: {yq(criterion)}",
++        f"success_criterion: {yq(success)}",
++        f"test_command: {yq(test_cmd)}",
++        "regression_command: null",
++        f"reference_patch: {ref_patch}",
++        f"grader_protected: {yq(protected)}",
++        "structural_check: null",
++        "bounds: {max_turns: {}, timeout_min: {}}",
++        "review_catch: null",
++        f"suite_version: {suite_version}",
++    ]
++    return "\n".join(lines) + "\n"
++
++
++# ---------------------------------------------------------------- selection
++def classify(mode, repo, sha, parents, roots):
++    """('candidate', files) | ('refused', path) | ('skipped', reason)."""
++    if len(parents) != 1:
++        return "skipped", "not a single-parent commit"
++    files = changed_files(repo, parents[0], sha)
++    for _, p in files:
++        if not safe_path(p):
++            return "refused", "unsafe path " + json.dumps(p)
++    for _, p in files:
++        if mount_owned(p):
++            return "refused", p
++    for _, p in files:
++        if not under_roots(p, roots):
++            return "skipped", f"outside the allowed roots: {p}"
++    for a, d, p in numstat(repo, parents[0], sha):
++        if a == "-" or d == "-":
++            return "skipped", f"binary change: {p}"
++    tests = [p for _, p in files if is_test(p)]
++    sources = [p for _, p in files if not is_test(p)]
++    if mode == "bugfix":
++        if not tests:
++            return "skipped", "no test file touched"
++        if not sources:
++            return "skipped", "no source file touched"
++        added_or_modified = [p for s, p in files if is_test(p) and s in "AM"]
++        runners = {runner_of(p) for p in added_or_modified} - {None}
++        if not runners:
++            return "skipped", "no runnable test file (test_*.py, *_test.py, *.bats) added or changed"
++        if len(runners) > 1:
++            return "skipped", "mixed test runners (pytest and bats)"
++    else:
++        if tests:
++            return "skipped", f"touches a test file: {tests[0]}"
++        if len(sources) < 2:
++            return "skipped", f"touches {len(sources)} source file(s), want at least 2"
++    return "candidate", files
++
++
++def next_id(tasks_dir, prefix, taken):
++    n = 1
++    while True:
++        tid = f"{prefix}-{n:02d}"
++        if tid not in taken and not os.path.exists(os.path.join(tasks_dir, tid)):
++            taken.add(tid)
++            return tid
++        n += 1
++
++
++def covering_tests(repo, parent, sources, roots):
++    """Test files at parent (under the roots) that name a touched source file."""
++    names = set()
++    for s in sources:
++        base = os.path.basename(s)
++        names.add(base)
++        if base.endswith(".py"):
++            names.add(base[:-3])
++    pats = [re.compile(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])") for n in sorted(names)]
++    hits = []
++    for r in roots:
++        for f in tree_files(repo, parent, r):
++            if not is_test(f) or runner_of(f) is None or not safe_path(f) or mount_owned(f):
++                continue
++            b = blob(repo, parent, f)
++            if b is None or b[0] == "120000":
++                continue
++            text = b[1].decode("utf-8", "replace")
++            if any(p.search(text) for p in pats):
++                hits.append(f)
++    return sorted(set(hits))[:MAX_COVERING_TESTS]
++
++
++def test_dirs(paths):
++    return sorted({os.path.dirname(p) or "." for p in paths})
++
++
++# ---------------------------------------------------------------- build one task
++def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
++    tdir = os.path.join(stage, tid)
++    fx = os.path.join(tdir, "fixture")
++    os.makedirs(fx)
++    tests_am = [p for s, p in files if is_test(p) and s in "AM"]
++    sources = [p for s, p in files if not is_test(p)]
++    runner = {runner_of(p) for p in tests_am} - {None}
++    runner = runner.pop()
++    for p in sources:
++        put_from(repo, parent, p, fx)
++    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests_am)):
++        put_from(repo, parent, p, fx)
++    for p in tests_am:
++        put_from(repo, parent, p, fx)          # the base version of a changed test (absent when added)
++    protected = [h for h in helper_files(repo, parent, tests_am) if h not in tests_am and h not in sources]
++    for h in protected:
++        put_from(repo, parent, h, fx)
++    hidden = os.path.join(tdir, "hidden")
++    manifest = {"files": []}
++    for p in tests_am:
++        put_from(repo, sha, p, hidden, "tests/" + p)
++        manifest["files"].append({"src": "tests/" + p, "dest": p})
++    write_file(hidden, "manifest.json", (json.dumps(manifest) + "\n").encode())
++    diff = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
++               parent, sha, "--", *sources, binary=True)
++    write_file(hidden, "reference.patch", diff)
++    runnable = [p for p in tests_am if runner_of(p)]
++    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(runnable)
++
++    # proof: red at base, green at reference (hidden tests overlaid on both)
++    work = tempfile.mkdtemp(prefix="seed-proof.")
++    try:
++        base, ref = os.path.join(work, "base"), os.path.join(work, "ref")
++        copy_tree(fx, base)
++        overlay(tdir, base, manifest)
++        rc_b, pass_b, fail_b = run_tests(base, test_cmd, runner)
++        copy_tree(fx, ref)
++        if not apply_patch(ref, os.path.join(hidden, "reference.patch")):
++            return None, "the reference patch does not apply to the fixture"
++        overlay(tdir, ref, manifest)
++        rc_r, pass_r, fail_r = run_tests(ref, test_cmd, runner)
++    finally:
++        shutil.rmtree(work, ignore_errors=True)
++    if rc_b == 0 or fail_b < 1:
++        return None, f"not red at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)"
++    if rc_r != 0 or fail_r > 0 or pass_r < 1:
++        return None, f"not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)"
++    proof = f"red {fail_b} failed / green {pass_r} passed"
++
++    stems = [os.path.splitext(os.path.basename(p))[0] for p in tests_am]
++    rest = sanitise(subject_rest(subject), stems)
++    criterion = f"the behaviour this change describes holds: {rest}; the checks for it pass and the existing behaviour is unchanged"
++    hidden_list = ", ".join("hidden/tests/" + p for p in runnable)
++    success = (f"{hidden_list} (overlaid at {', '.join(runnable)}) passes {pass_r} of {pass_r} under {' '.join(test_cmd)}; "
++               f"red at base ({fail_b} failed), green with hidden/reference.patch")
++    source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date}
++    write_file(tdir, "task.yaml", task_yaml(tid, "bugfix", source, criterion, success, test_cmd,
++                                           "hidden/reference.patch", protected, SUITE_VERSION).encode())
++    task_md = (f"# Task: {rest}\n\n"
++               f"**Bug (observed):** with the code as it is, {fail_b} of {fail_b + pass_b} checks for this behaviour fail "
++               f"when the test command below runs.\n\n"
++               f"**Expected:** {rest}. Every check passes and behaviour elsewhere is unchanged.\n\n"
++               f"Fix the bug in place and add a regression test of your own. Run the tests with `{' '.join(test_cmd)}`.\n")
++    write_file(tdir, "TASK.md", task_md.encode())
++    if not secrets_clean(no_secrets, tdir):
++        return "secret", "a secret pattern in the materialised task"
++    return tdir, proof
++
++
++def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
++    sources = [p for s, p in files if not is_test(p)]
++    tests = covering_tests(repo, parent, sources, roots)
++    runners = {runner_of(t) for t in tests}
++    if not tests:
++        return "skip", "no test at the parent names a touched file"
++    if len(runners) > 1:
++        return "skip", "the covering tests mix pytest and bats"
++    runner = runners.pop()
++    tdir = os.path.join(stage, tid)
++    fx = os.path.join(tdir, "fixture")
++    os.makedirs(fx)
++    for p in sources:
++        put_from(repo, parent, p, fx)
++    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests)):
++        put_from(repo, parent, p, fx)
++    for t in tests:
++        put_from(repo, parent, t, fx)
++    protected = [h for h in helper_files(repo, parent, tests) if h not in tests and h not in sources]
++    for h in protected:
++        put_from(repo, parent, h, fx)
++    hidden = os.path.join(tdir, "hidden")
++    diff = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
++               parent, sha, binary=True)
++    write_file(hidden, "reference.patch", diff)
++    write_file(hidden, "manifest.json", b'{"files": []}\n')
++    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(tests)
++
++    work = tempfile.mkdtemp(prefix="seed-proof.")
++    try:
++        base, ref = os.path.join(work, "base"), os.path.join(work, "ref")
++        copy_tree(fx, base)
++        rc_b, pass_b, fail_b = run_tests(base, test_cmd, runner)
++        copy_tree(fx, ref)
++        if not apply_patch(ref, os.path.join(hidden, "reference.patch")):
++            return None, "the reference patch does not apply to the fixture"
++        rc_r, pass_r, fail_r = run_tests(ref, test_cmd, runner)
++    finally:
++        shutil.rmtree(work, ignore_errors=True)
++    if rc_b != 0 or fail_b > 0 or pass_b < 1:
++        return None, f"suite not green at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)"
++    if rc_r != 0 or fail_r > 0 or pass_r < 1:
++        return None, f"suite not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)"
++    proof = f"green at base ({pass_b} passed) / green at reference ({pass_r} passed)"
++
++    rows = numstat(repo, parent, sha)
++    churn = {"files": len(rows), "insertions": sum(int(a) for a, _, _ in rows), "deletions": sum(int(d) for _, d, _ in rows)}
++    rest = sanitise(subject_rest(subject), [])
++    criterion = f"the structure this change describes is in place: {rest}; the existing suite stays green without edits"
++    success = (f"structural check (to be authored under hidden/structural/) red at base and green with hidden/reference.patch; "
++               f"{' '.join(test_cmd)} passes {pass_b} of {pass_b} at base and {pass_r} of {pass_r} at reference")
++    source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date, "churn": churn}
++    write_file(tdir, "task.yaml", task_yaml(tid, "refactor", source, criterion, success, test_cmd,
++                                           "hidden/reference.patch", protected, SUITE_VERSION).encode())
++    task_md = (f"# Task: {rest}\n\n"
++               f"**Refactor:** {rest}.\n\n"
++               f"**Unchanged behaviour:** the existing suite must stay green without edits. Run it with `{' '.join(test_cmd)}`.\n")
++    write_file(tdir, "TASK.md", task_md.encode())
++    if not secrets_clean(no_secrets, tdir):
++        return "secret", "a secret pattern in the materialised task"
++    return tdir, proof + "\t" + json.dumps(churn)
++
++
++def secrets_clean(no_secrets, tdir):
++    if not no_secrets:
++        return True
++    p = subprocess.run(["bash", no_secrets, tdir], capture_output=True)
++    return p.returncode == 0
++
++
++# ---------------------------------------------------------------- main
++SUITE_VERSION = 1
++
++
++def parse(argv):
++    ap = argparse.ArgumentParser(prog="seed-tasks", add_help=False)
++    ap.add_argument("mode", choices=("bugfix", "refactor"))
++    ap.add_argument("--repo-default", required=True)
++    ap.add_argument("--no-secrets", default="")
++    ap.add_argument("--since", required=True)
++    ap.add_argument("--select", type=int, default=4)
++    ap.add_argument("--out", required=True)
++    ap.add_argument("--repo")
++    ap.add_argument("--paths", default=DEFAULT_PATHS)
++    ap.add_argument("--suite-version", type=int, default=1)
++    ap.add_argument("--dry-run", action="store_true")
++    try:
++        a = ap.parse_args(argv)
++    except SystemExit:
++        raise Usage("bad arguments (see --help)")
++    try:
++        datetime.date.fromisoformat(a.since)
++    except ValueError:
++        raise Usage(f"--since must be YYYY-MM-DD, got {a.since!r}")
++    if a.select < 1:
++        raise Usage("--select must be at least 1")
++    if a.suite_version < 1:
++        raise Usage("--suite-version must be at least 1")
++    a.repo = a.repo or a.repo_default
++    if subprocess.run(["git", "-C", a.repo, "rev-parse", "--git-dir"], capture_output=True).returncode != 0:
++        raise Usage(f"not a git repository: {a.repo}")
++    roots = [r.strip().strip("/") for r in a.paths.split(",") if r.strip().strip("/")]
++    if not roots or any(not safe_path(r) or mount_owned(r) for r in roots):
++        raise Usage(f"--paths must be relative roots outside the mount-owned paths: {a.paths!r}")
++    a.roots = roots
++    return a
++
++
++def main(argv):
++    global SUITE_VERSION
++    try:
++        a = parse(argv)
++    except Usage as e:
++        print(f"seed-{a_mode(argv)}: {e}", file=sys.stderr)
++        return 2
++    SUITE_VERSION = a.suite_version
++    name = f"seed-{a.mode}"
++    cands, refused, skipped = [], 0, 0
++    for sha, parents, date, subject in commits_since(a.repo, a.since):
++        if not SUBJECT[a.mode].match(subject):
++            continue
++        verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots)
++        if verdict == "refused":
++            refused += 1
++            out(f"refused {sha[:12]}: {detail}")
++        elif verdict == "skipped":
++            skipped += 1
++            out(f"skipped {sha[:12]}: {detail}")
++        else:
++            cands.append((sha, parents[0], date, subject, detail))
++            out(f"candidate {sha[:12]} {date} {''.join(c if c.isprintable() else ' ' for c in subject)}")
++    selected = cands[: a.select]
++    if a.dry_run:
++        out(f"{name}: {len(cands)} candidate(s), {refused} refused, {skipped} skipped; dry run, nothing written")
++        return 0
++    tasks_dir = os.path.join(a.out, "tasks")
++    stage = tempfile.mkdtemp(prefix="seed-stage.")
++    written = failed = 0
++    taken = set()
++    try:
++        for sha, parent, date, subject, files in selected:
++            tid = next_id(tasks_dir, ID_PREFIX[a.mode], taken)
++            try:
++                if a.mode == "bugfix":
++                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
++                else:
++                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
++            except (ValueError, RuntimeError, OSError) as e:
++                tdir, info = None, str(e)
++            if tdir == "secret":
++                refused += 1
++                out(f"refused {sha[:12]}: {info}")
++                taken.discard(tid)
++                continue
++            if tdir == "skip":
++                skipped += 1
++                out(f"skipped {sha[:12]}: {info}")
++                taken.discard(tid)
++                continue
++            if tdir is None:
++                failed += 1
++                out(f"proof-failed {sha[:12]}: {info}")
++                taken.discard(tid)
++                continue
++            os.makedirs(tasks_dir, exist_ok=True)
++            shutil.move(tdir, os.path.join(tasks_dir, tid))
++            written += 1
++            if a.mode == "bugfix":
++                out(f"proof {tid} {sha[:12]}: {info}")
++            else:
++                proof, churn = info.split("\t")
++                c = json.loads(churn)
++                out(f"proof {tid} {sha[:12]}: {proof}")
++                out(f"churn {tid}: files {c['files']}, insertions {c['insertions']}, deletions {c['deletions']}")
++                out(f"todo {tid}: author the structural check under hidden/structural/, list it in hidden/manifest.json "
++                    f"and set structural_check (validate-suite.sh requires it for refactor)")
++            out(f"wrote {os.path.join(tasks_dir, tid)}")
++    finally:
++        shutil.rmtree(stage, ignore_errors=True)
++    out(f"{name}: {len(cands)} candidate(s), {refused} refused, {skipped} skipped; "
++        f"selected {len(selected)}, written {written}, proof failed {failed}")
++    return 1 if failed else 0
++
++
++def a_mode(argv):
++    return argv[0] if argv and argv[0] in ("bugfix", "refactor") else "tasks"
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv[1:]))
+diff --git a/evals/harness/seed-bugfix-tasks.sh b/evals/harness/seed-bugfix-tasks.sh
+new file mode 100755
+index 00000000..988783f3
+--- /dev/null
++++ b/evals/harness/seed-bugfix-tasks.sh
+@@ -0,0 +1,78 @@
++#!/usr/bin/env bash
++# =============================================================================
++# seed-bugfix-tasks.sh — cycle-130 bug-fix task seeder (SDD §5.14, Sprint 259 Task 2.2)
++#
++# Turns Loa fix commits into candidate bug-fix tasks for the ablation suite.
++# Lists the commits since DATE whose subject starts with `fix` or `bug`, whose
++# diff touched a test file (a path under a `tests/` directory, `test_*.py`,
++# `*_test.py` or `*.bats`) and whose touched files all lie under the allowed
++# roots; refuses by name any candidate touching .claude/, CLAUDE.md,
++# .loa.config.yaml, grimoires/ or .run/ (a path component equal to one of
++# those). For each selected candidate (the first N, newest first) it writes
++# <out>/tasks/bugfix-NN/ (next free number):
++#   fixture/    from the PARENT commit: the touched non-test files, the other
++#               non-test files in their directories (the modules they most
++#               likely use), the base version of each changed test, and the
++#               test infrastructure the tests rely on (conftest.py up to the
++#               root, __init__.py, *.bash and *helper* files beside each test,
++#               root pytest.ini / pyproject.toml / setup.cfg / tox.ini) — a
++#               plain tree, no .git
++#   hidden/     tests/<path> = each added or changed test at the commit,
++#               manifest.json {"files":[{src, dest}]}, reference.patch = the
++#               commit's diff of the non-test files (a/ b/ prefixes, patch -p1)
++#   task.yaml   source {kind: loa-history, fix_commit, base_commit, date};
++#               grader_protected = the infrastructure files; regression_command
++#               null; test_command = python3 -m pytest -q <test dirs> | bats <test dirs>
++#   TASK.md     the subject line, the observed failure count, the test command;
++#               never the diff, never a test name (the subject is sanitised:
++#               no paths, file names, test names or the word for grader files)
++# A task is built in a private temporary directory and moved into place only
++# after its proof passed: the test command, with the hidden tests overlaid, is
++# red at base and green with the reference patch, run on the host under
++# `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus PYTHONUSERBASE (the host's user
++# base, so a user-site pytest is found) and PYTHONDONTWRITEBYTECODE=1, and
++# evals/graders/no-secrets.sh passes on the whole task directory (a hit is a
++# refusal). The selecting lead still rewrites TASK.md's observed behaviour and
++# the criterion by hand before a task is frozen.
++#
++# Usage:
++#   seed-bugfix-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
++#                        [--paths CSV] [--suite-version N] [--dry-run]
++#
++#   --since DATE       YYYY-MM-DD; commits whose committer date is on or after it
++#   --select N         tasks to materialise (default 4); refusals and skips do not
++#                      count, a failed proof does
++#   --out DIR          suite root; tasks go to DIR/tasks/<id>/
++#   --repo DIR         git repository to read (default: this checkout)
++#   --paths CSV        allowed roots (default tools,evals/harness,evals/graders,
++#                      tests/unit,evals/tests); a mount-owned root is refused
++#   --suite-version N  suite_version written to task.yaml (default 1)
++#   --dry-run          list candidates, refusals and skips; write nothing
++#   LOA_SEED_BATS      bats binary used for the proof when bats is not on PATH
++#
++# Output (stdout, one line each):
++#   candidate <sha12> <date> <subject>
++#   refused <sha12>: <path>                 (or: a secret pattern in the materialised task)
++#   skipped <sha12>: <reason>
++#   proof bugfix-NN <sha12>: red N failed / green M passed
++#   proof-failed <sha12>: <reason>
++#   wrote <dir>
++#   seed-bugfix: C candidate(s), R refused, S skipped; selected X, written W, proof failed F
++#
++# Exit: 0 done (also when nothing qualified); 1 a selected candidate failed its
++#       proof; 2 usage (bad option or date, not a git repository, bad --paths).
++# Tested by evals/tests/seed-bugfix.bats.
++# =============================================================================
++set -euo pipefail
++export LC_ALL=C
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++
++usage() { sed -n '2,/^# =====.*$/p' "$0" | sed '1d;$d' | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
++for a in "$@"; do [[ "$a" == "--help" || "$a" == "-h" ]] && usage 0; done
++[[ $# -gt 0 ]] || usage 2
++for tool in git python3; do command -v "$tool" >/dev/null 2>&1 || { echo "seed-bugfix: missing tool: $tool" >&2; exit 2; }; done
++
++exec python3 -I "$SCRIPT_DIR/lib/seed_tasks.py" bugfix --repo-default "$REPO_ROOT" \
++  --no-secrets "$REPO_ROOT/evals/graders/no-secrets.sh" "$@"
+diff --git a/evals/harness/seed-corpus-from-record.sh b/evals/harness/seed-corpus-from-record.sh
+index e41b269d..5bbc4a15 100755
+--- a/evals/harness/seed-corpus-from-record.sh
++++ b/evals/harness/seed-corpus-from-record.sh
+@@ -41,7 +41,16 @@
+ # that cites only a file is anchored on that file's fix hunks when there are
+ # at most four, else dropped. `fix` rows cover every hunk fix_commit changed
+ # in a fixture file (source fix/<sha>:<start>-<end>); the grader uses them
+-# only for refuted share. Titles are control-stripped, capped at 160 chars,
++# only for refuted share.
++#
++# Generated artefacts never become fix regions (cycle-130 bd-8o5rx, PRD AC-10.1):
++# a path with a `dist/` component, a name ending `.map`, `.d.ts` or `.checksum`,
++# or named `checksums.json`, `REPO-MAP.md` or `.build-manifest.json` is a
++# mechanical slice of the fix commit, so a finding there must not lower the
++# refuted share. Seeding writes no `fix` row for such a path and --build-manifest
++# skips any `fix` row naming one (labels written before the rule keep theirs);
++# each excluded path is printed once on stderr as
++# `excluded generated path: <path>`. Defect labels are never filtered. Titles are control-stripped, capped at 160 chars,
+ # and a title matching a secret pattern drops its finding; every written
+ # file passes evals/graders/no-secrets.sh or the seed fails.
+ #
+@@ -190,6 +199,19 @@ def read_labels(fx):
+         rows.append(dict(zip(HEADER, cells)))
+     return approved_by, rows, text
+ 
++# bd-8o5rx: generated artefacts are never fix regions (see the header for the list)
++GENERATED_NAMES = {"checksums.json", "REPO-MAP.md", ".build-manifest.json"}
++GENERATED_SUFFIXES = (".map", ".d.ts", ".checksum")
++def generated_path(p):
++    parts = p.split("/")
++    return "dist" in parts[:-1] or parts[-1] in GENERATED_NAMES or parts[-1].endswith(GENERATED_SUFFIXES)
++
++EXCLUDED_SEEN = set()
++def note_excluded(p):
++    if p not in EXCLUDED_SEEN:
++        EXCLUDED_SEEN.add(p)
++        print(f"excluded generated path: {p}", file=sys.stderr)
++

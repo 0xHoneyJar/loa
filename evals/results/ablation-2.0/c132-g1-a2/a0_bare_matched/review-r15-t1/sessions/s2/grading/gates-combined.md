@@ -1,0 +1,17 @@
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+cheval.py:2545-2553
+head/.claude/adapters/cheval.py:2552
+head/.claude/scripts/flatline-orchestrator.sh:533
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+head/.claude/defaults/model-config.yaml:494
+tools/ceiling-probe-live.py:41-44
+head/.claude/adapters/cheval.py:1519
+head/.claude/scripts/adversarial-review.sh:2353
+flatline-orchestrator.sh:525
+loa-status.sh:801
+config.ts:166
+head/.claude/data/schemas/model-config-v3.schema.json:303
+head/tools/ceiling-probe-live.py:45
+head/.claude/scripts/run-preflight.sh:204
+head/.claude/adapters/loa_cheval/audit/modelinv.py:498
+cheval.py:2834

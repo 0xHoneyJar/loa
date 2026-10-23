@@ -1,0 +1,188 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 9,
+    "model_agreement_percent": 88,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Clear protection bypass in a destructive SQL guard, high exploitability, and low implementation cost. Looping over all DELETE matches is straightforward and directly restores the intended FR-1.6 coverage.",
+      "gpt_score": 940,
+      "opus_score": 825,
+      "tertiary_score": 900,
+      "delta": 115,
+      "average_score": 882.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "The false-positive concern is real for common home-directory cleanup workflows and can degrade trust in the hook. Integration should be careful because broad home-path allowance can weaken destructive-delete protections, but distinguishing exact home deletion from bounded subpaths is worthwhile.",
+      "gpt_score": 790,
+      "opus_score": 845,
+      "tertiary_score": 880,
+      "delta": 55,
+      "average_score": 817.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Order-independent git flags make this a real bypass of the intended branch-deletion protection. The fix is simple and the safety benefit is clear.",
+      "gpt_score": 870,
+      "opus_score": 870,
+      "tertiary_score": 820,
+      "delta": 0,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "The once-per-session warning mechanism is architecturally wrong across hook processes and could create noisy repeated warnings. The impact is operational rather than destructive-safety critical, but the fix is modest and should be made.",
+      "gpt_score": 720,
+      "opus_score": 755,
+      "tertiary_score": 850,
+      "delta": 35,
+      "average_score": 737.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-009",
+      "description": "P7 edge-case tests for dash-prefixed filenames and `git checkout -- ./-file` forms are useful behavioral pins, but the identified risk (inconsistent allow/block for dash-prefixed paths) is low-severity in the context of a destructive-command blocker. The `[^-]\\S*` refinement is already an improvement over a naive pattern; further edge-case pinning is nice-to-have. Low priority, low confidence in the harm scenario.",
+      "gpt_score": 0,
+      "opus_score": 510,
+      "tertiary_score": 550,
+      "delta": 510,
+      "average_score": 510,
+      "source": "opus_scored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Bats fail-open test has a quoting bug that makes it non-functional: `PATH=/nonexistent run bash -c 'echo {} | \"$HOOK\"'` passes `$HOOK` inside single quotes, so the bash -c subshell receives the literal string `$HOOK` rather than the expanded hook path. If `$HOOK` is not exported into the bash -c environment it resolves to empty, the null command exits with an error, and the test vacuously passes exit-0 — never actually testing the fail-open path. Additionally, `PATH=/nonexistent` as a prefix to `run` in bats sets PATH for the entire test function, which may break other bats helper invocations in the same test.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "The fail-open guarantee (FR-3) is a load-bearing safety property — if the hook exits non-zero when jq is absent, the agent cannot run any Bash command. A test that always passes vacuously provides zero confidence that this property holds across hook rewrites or bash-version upgrades.",
+      "location": "§7.3 Fail-open tests — 'fail-open: jq missing PATH exits 0 (allow)' bats test",
+      "recommendation": "Use `run env PATH=/nonexistent bash -c \"echo '{}' | '$HOOK'\"` with explicit double-quoting and escape the variable so it expands in the outer shell before being passed to bash -c. Alternatively, use a bats `setup` function to export `HOOK` and reference it via the bats `$BATS_TEST_DIRNAME` pattern.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "SQL destructive patterns miss quoted identifiers, especially for DELETE and TRUNCATE.",
+      "severity": "HIGH",
+      "severity_score": 715,
+      "why_matters": "PostgreSQL, MySQL, and SQLite all allow quoted identifiers. Commands like `DELETE FROM \"Users\"` or `TRUNCATE TABLE \"Sessions\"` can wipe data while avoiding patterns that require an unquoted `[a-zA-Z_]` table token.",
+      "location": "Sections 5.6 and 5.7, Patterns P9 and P10",
+      "recommendation": "Recognize quoted identifiers, backtick identifiers, and schema-qualified names, or conservatively block DELETE/TRUNCATE when the token after FROM/TABLE starts with a quote or backtick.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The DELETE FROM two-pass extractor (`grep -oiE '\\bDELETE\\s+FROM\\s+[^;]*' | head -1`) only checks the FIRST DELETE statement in a multi-statement command. A command like `DELETE FROM users WHERE id=1; DELETE FROM logs` passes Pass B (WHERE found in first statement), while the second `DELETE FROM logs` — a full table wipe — is silently allowed. The same gap exists for `&&`-separated statements: `DELETE FROM users WHERE 1 && DELETE FROM logs` — the `[^;]*` extractor stops at `;` but not at `&&`, so the combined string IS extracted, WHERE is found, and the second destructive delete is allowed.",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "The sole purpose of P10 is to block unscoped table deletions. A two-statement command that pairs a scoped delete with an unscoped one produces exactly the scenario P10 was designed to prevent, and it goes undetected. An agent constructing a migration script with both forms would pass all hooks.",
+      "location": "§5.7 Pattern P10 — DELETE FROM no WHERE (two-pass)",
+      "recommendation": "After Pass A fires, loop over ALL `DELETE FROM` segments in the command (split on `;`, `&&`, `||`, and pipe), run Pass B (WHERE check) on EACH segment independently, and block if ANY segment lacks WHERE. Alternatively, expand the extractor to `grep -oiE '\\bDELETE\\s+FROM\\s+[^;&|]*'` (same character class as P12's `[^;&|]*` fix) and apply WHERE check to each result.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The DELETE-without-WHERE two-pass check only evaluates the first DELETE statement and lets WHERE tokens in later shell text satisfy the safety check.",
+      "severity": "CRITICAL",
+      "severity_score": 885,
+      "why_matters": "Commands such as `psql -c \"DELETE FROM safe WHERE id=1; DELETE FROM users\"` can leave the destructive second DELETE unchecked. `psql -c \"DELETE FROM users\" && echo WHERE` can also appear safe because extraction is bounded only by semicolon, not shell operators or SQL quoting.",
+      "location": "Section 5.7, Pattern P10 DELETE FROM without WHERE",
+      "recommendation": "Evaluate every DELETE FROM segment independently. Bound extraction at SQL and shell statement boundaries, and conservatively block when the statement cannot be isolated reliably.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "The git branch force-delete rule does not cover reordered or split force-delete options.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "Git accepts options in forms beyond `-D` and `--delete --force`; variants such as `git branch --force --delete old` or `git branch -d -f old` can still force-delete unmerged work while bypassing the specified regex.",
+      "location": "Section 5.2, Pattern P5 git branch -D",
+      "recommendation": "Match split and reordered delete/force options, including `-d -f`, `-f -d`, `--force --delete`, and mixed short/long forms. Add positive and negative tests for each accepted git spelling.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The refined rm -rf flow can allow later or slash-qualified destructive rm invocations because detection and extraction are not symmetric and extraction only evaluates the first segment.",
+      "severity": "CRITICAL",
+      "severity_score": 930,
+      "why_matters": "A command like `rm -rf ./build; rm -rf /etc` can satisfy the detector, have only the first safe rm segment evaluated, and fall through. `/bin/rm -rf /etc` is also detected by the slash anchor but not extracted by the Step 2 regex, producing an empty arg list and allow.",
+      "location": "Section 5.1, Pattern P1 rm -rf implementation sketch",
+      "recommendation": "Iterate over every rm invocation segment, not `head -1`; make detector and extractor anchors identical, including slash-qualified paths; add explicit tests for safe-then-dangerous multi-statement commands and `/bin/rm`.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The regex dialect remains unsafe: the design relies on `\\s`, `\\S`, and `\\b` under `grep -E`, while also claiming GNU/BSD ERE compatibility.",
+      "severity": "CRITICAL",
+      "severity_score": 840,
+      "why_matters": "These escapes are not portable POSIX ERE and are inconsistently supported across grep implementations. On a target where they are treated literally or differently, many destructive-command patterns can silently stop matching.",
+      "location": "Sections 3, 5.0, and Appendix A regex references",
+      "recommendation": "Replace these escapes with portable forms such as `[[:space:]]`, `[^[:space:]]`, and explicit word-boundary alternatives, or add mandatory CI coverage on the exact GNU and BSD grep versions claimed.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The rm allow-list treats any `./` prefix as bounded, allowing dangerous current-worktree wipes such as `rm -rf ./*`, `rm -rf ./.git`, and possibly `rm -rf ./`.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "The SDD blocks `rm -rf *` but permits the near-equivalent `rm -rf ./*`, which can destroy the repository or active workspace. This is a trivial bypass of the catastrophic-path intent.",
+      "location": "Section 5.1, FR-2 allow-list regex",
+      "recommendation": "Do not allow bare `./` prefixes generically. Allow only known disposable directories or explicitly named child paths after excluding `./`, `./*`, `./.git`, globs, and other workspace-root erasures. Add positive block tests for these variants.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "kubectl destructive patterns miss common option placements, including global flags before `delete` and `--all` or `-A` before the resource type.",
+      "severity": "HIGH",
+      "severity_score": 775,
+      "why_matters": "Common forms such as `kubectl --context prod delete namespace prod`, `kubectl delete --all pods`, and `kubectl delete -A deployment` may execute destructive operations without matching the current patterns.",
+      "location": "Sections 5.8 and 5.9, Patterns P11 and P12",
+      "recommendation": "Allow optional kubectl/global flag tokens between `kubectl` and `delete`, and detect `--all` or `-A` both before and after the resource. Add positive tests for these common CLI forms.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+  "domain": " 3 software stack 5",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-16T11:15:00Z",
+  "metrics": {
+    "total_latency_ms": 395000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "function",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "description": "The grader-version sort produces keys containing both integers and strings. A batch containing grader_version values \"1.0.0\" and \"v1.1.0\", for example, requires Python to compare 1 with \"v1\", raising TypeError. These values are accepted without any version-format restriction.",
+      "failure_mode": "batch_record is called unconditionally during report construction, so mixed version naming formats abort the entire report before either output is written.",
+      "suggested_fix": "Use a consistently comparable sort key, such as tagged components (numeric versus textual), or sort grader-version strings lexically.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The grader_versions tally is sorted with a key that splits each grader_version on '.' and maps digit runs to int while leaving other components as str. Python 3 cannot order int against str, so two grade.json files whose grader_version strings differ in kind at the same position (e.g. \"1.2.0\" and \"1.2.0-rc1\", or \"1.0\" and \"legacy\") raise TypeError inside sorted(). The only guard is the leading `kv[0] == \"n/a\"` tuple element, which separates n/a from everything else but does nothing for two real versions. grade.json is external data read from run directories; the docstring and header promise this section is 'reported, never fatal', yet this exception propagates out of build() and aborts the entire report, including the pre-registered decisions.",
+      "failure_mode": "ablation-report.py exits with an uncaught TypeError ('<' not supported between instances of 'str' and 'int') and writes no report.md/report.json as soon as one batch's run dirs carry grader_version values with mixed numeric/non-numeric components.",
+      "suggested_fix": "Use a type-stable key, e.g. `[(0, int(p)) if p.isdigit() else (1, p) for p in kv[0].split('.')]`, or sort on the raw string, and/or wrap the tally sort in try/except TypeError falling back to plain string order so the batch record can never abort the report.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-report.py:assess",
+      "anchor_type": "line",
+      "anchor_line": 867,
+      "anchor_line_end": 868,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "not_testable is decided from `not p['pairs'] and not p['unpaired']` before the degradation guard runs. The header defines not_testable as 'no task of the primary's types in either arm', but pairs/unpaired are built from scored cells. If every cell of the relevant task type in an arm is excluded (all degraded, or all in an excluded status) and compare() does not list those tasks in `unpaired`, the comparison reads 'not testable — no admissible task' instead of 'inconclusive by degradation' even though the excluded share is 1.0. For H1 that flips a fully degraded suite from 'inconclusive by degradation — not established' (counts as decided for --partial exit) to 'not yet decidable'.",
+      "failure_mode": "A fully degraded arm is reported as having no admissible tasks; H1/A4 state and the --partial exit code differ from the documented ordering.",
+      "suggested_fix": "Decide not_testable from cell existence rather than pairs: call an.excluded_share(a, types) for both arms and return not_testable only when both report seen == 0; keep the current pairs/unpaired check only as a fallback.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": "evals/harness/ablation-report.py:render_budget",
+      "anchor_type": "line",
+      "anchor_line": 1107,
+      "anchor_line_end": 1107,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "budget_matched() leaves e['diff'] = None for any review-catch task that has valid trials in only one of a0_bare / a1_full (a normal state mid-batch), and render_budget prints every task row with `f3(e['diff'])`. Everywhere else in the file nullable figures go through u3() and f3() is only reached after an n > 0 guard (interval()). If f3 does not accept None, the first task with one-sided coverage raises TypeError during rendering and the whole report fails.",
+      "failure_mode": "TypeError in string formatting while rendering the budget-matched table when a review-catch task has valid trials in only one arm.",
+      "suggested_fix": "Print 'n/a' when e['diff'] is None (or use the nullable formatter u3 with a sign), and add a fixture task with one-sided coverage to AR-35 to lock the behaviour.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": "evals/harness/ablation-report.py:budget_matched",
+      "anchor_type": "line",
+      "anchor_line": 960,
+      "anchor_line_end": 963,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The defect-union path indexes every a0 vector with `vv[k] for k in range(len(vecs[0][0]))`, assuming all trials' vectors share the first trial's length; a 'cap' vector sized differently from an 'ids' vector raises IndexError. The rate-fallback path takes max() over catch_task_score() results and a1_mean takes mean() over them; a None from either helper raises TypeError. Both run inside build() with no guard, so an informational section can abort the decision report.",
+      "failure_mode": "IndexError or TypeError aborts the report when a0_bare trials for one task yield defect vectors of unequal length, or when catch_task_score returns None for a valid row.",
+      "suggested_fix": "Zip vectors to the shortest common length (or fall back to 'rate fallback' when lengths differ), filter None scores before max()/mean(), and set method/reason accordingly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-report.py:version_key",
+      "anchor_type": "line",
+      "anchor_line": 831,
+      "anchor_line_end": 836,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "version_key returns None for any suite_version that is not an int, integral float or non-blank string (e.g. 1.5, or a list). Such rows are then treated as rows with no suite_version: silently pooled into the single version present, or, when two or more versions exist, rejected with an exit-2 message saying the row 'has no suite_version' although it does. The message misleads the operator and the pooling case contradicts the 'never pooled' rule.",
+      "failure_mode": "A row carrying a non-integral suite_version is pooled into another version or produces a misleading exit-2 diagnostic.",
+      "suggested_fix": "Return a string key for any non-null scalar (e.g. str(v).strip()) and reserve None for null/absent, or raise Fail naming the unsupported suite_version value explicitly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T15:33:40Z",
+    "tokens_input": 149030,
+    "tokens_output": 22516,
+    "cost_usd": 0,
+    "latency_ms": 140965,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 225,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3043bf32c8327aa8433ca8b2859f4d47a158a46254db9af96766011f348e231a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,12 @@
+head/.claude/hooks/safety/block-destructive-bash.sh:538
+head/.claude/hooks/safety/block-destructive-bash.sh:732
+head/.loa.config.yaml.example:1243
+head/.claude/scripts/run-checkpoint.sh:280
+head/.claude/scripts/run-checkpoint.sh:295
+head/.claude/scripts/run-checkpoint.sh:378
+head/.claude/scripts/run-checkpoint.sh:197
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+head/tests/unit/karpathy-surgical-diff.bats:32
+head/.claude/scripts/lib/profile-lib.sh:77
+head/.claude/data/skill-includes/retrospective_postlude.md:1
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193

@@ -1,0 +1,357 @@
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-17T05:14:13Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-17T05:14:13Z",
+  "data": {
+    "simstim_id": "simstim-20260417-4a16c55f",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:16:47Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:22:23Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:22:30Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:28:18Z",
+  "data": {
+    "blocker_id": "SKP-001",
+    "decision": "defer",
+    "rationale": "Defer quantitative quality benchmark harness to a separate cycle. Captured as vision. Rollback cheapness (single PR revert) makes proportionate response a live Flatline dogfood run on this cycle's SDD (already in Success Metrics), not a benchmark build-out.",
+    "timestamp": "2026-04-17T05:28:18Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:28:18Z",
+  "data": {
+    "blocker_id": "SKP-002",
+    "decision": "override",
+    "rationale": "Loa rollback = git revert (single-PR atomic change). Kill switch = operators pin anthropic:claude-opus-4-6 in .loa.config.yaml override (registry entry retained as supported pinnable fallback). No running service = zero-downtime concerns inapplicable. Pricing identical = cost blast radius zero. PRD amended to add explicit Rollback Procedure section.",
+    "timestamp": "2026-04-17T05:28:18Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:28:19Z",
+  "data": {
+    "blocker_id": "SKP-003",
+    "decision": "override",
+    "rationale": "Legacy-alias retarget is established pattern (PR #207, PR #203). Pinned-history users should use canonical model ID (anthropic:claude-opus-4-6) directly, which remains in the registry. Amending CHANGELOG to flag retarget explicitly so operators relying on claude-opus-4.5 for historical benchmarks know to switch to the canonical form.",
+    "timestamp": "2026-04-17T05:28:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:28:19Z",
+  "data": {
+    "blocker_id": "SKP-004",
+    "decision": "accept",
+    "rationale": "PRD amended: add post-migration acceptance check to FR-8 — rg 'claude-opus-4-6' .claude/ must return only historical/alias/comment contexts.",
+    "timestamp": "2026-04-17T05:28:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:28:19Z",
+  "data": {
+    "blocker_id": "SKP-005",
+    "decision": "accept",
+    "rationale": "PRD amended: R-7 smoke test upgraded from concept to concrete gate — run .claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json and verify recorded model is claude-opus-4-7.",
+    "timestamp": "2026-04-17T05:28:19Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-17T05:28:19Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 0,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:31:14Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:31:24Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:33:55Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:34:05Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:40:30Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:40:39Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:47:24Z",
+  "data": {
+    "blocker_id": "SDD-SKP-001",
+    "decision": "accept",
+    "rationale": "Expand PRD §14 compat matrix to explicitly include tools, thinking traces, error handling. Streaming + rate-limit are vendor-behavior outside Loa scope; defer to model-eligibility cycle.",
+    "timestamp": "2026-04-17T05:47:24Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:47:25Z",
+  "data": {
+    "blocker_id": "SDD-SKP-002",
+    "decision": "override",
+    "rationale": "Identical to Bridgebuilder REFRAME-001; already captured as vision-011 (auto-generate bash maps from YAML). Not in scope for this cycle.",
+    "timestamp": "2026-04-17T05:47:24Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:47:25Z",
+  "data": {
+    "blocker_id": "SDD-SKP-003",
+    "decision": "override",
+    "rationale": "Repeat of PRD SKP-003 already overridden with rationale in PRD §16. SDD §4.2 pinned-history escape hatch addresses reproducibility need.",
+    "timestamp": "2026-04-17T05:47:25Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:47:25Z",
+  "data": {
+    "blocker_id": "SDD-SKP-004",
+    "decision": "accept",
+    "rationale": "Add cross-runtime contract test script (sprint task T-CROSS) asserting opus alias resolves identically across bash, Python, TS.",
+    "timestamp": "2026-04-17T05:47:25Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:47:25Z",
+  "data": {
+    "blocker_id": "SDD-SKP-005",
+    "decision": "override",
+    "rationale": "Solo maintainer; 8-commit bisection + validate_model_registry + grep-sweep gate provide equivalent safety at half the review overhead of a PR split.",
+    "timestamp": "2026-04-17T05:47:25Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-17T05:47:25Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 1,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:49:37Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:49:46Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:50:13Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:50:22Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T05:53:45Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-17T05:53:52Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:58:32Z",
+  "data": {
+    "blocker_id": "SPR-SKP-001",
+    "decision": "override",
+    "rationale": "Repeat of SDD SKP-005 already overridden with same rationale: solo-maintainer 8-commit bisection + validate_model_registry + grep gate provides equivalent safety at half review overhead of PR split.",
+    "timestamp": "2026-04-17T05:58:32Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:58:32Z",
+  "data": {
+    "blocker_id": "SPR-SKP-002",
+    "decision": "override",
+    "rationale": "Repeat of SDD SKP-001 already dispositioned; PRD §14 explicitly scopes out streaming + rate-limit as vendor-behavior outside Loa synchronous Flatline path.",
+    "timestamp": "2026-04-17T05:58:32Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:58:32Z",
+  "data": {
+    "blocker_id": "SPR-SKP-003",
+    "decision": "override",
+    "rationale": "Third raise of same issue (PRD SKP-003 + SDD SKP-003 both overrode). SDD §4.2 pinned-history escape hatch (provider-prefixed form bypasses alias layer) stands.",
+    "timestamp": "2026-04-17T05:58:32Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-17T05:58:32Z",
+  "data": {
+    "blocker_id": "SPR-SKP-004",
+    "decision": "accept",
+    "rationale": "Amend T-CROSS with shared normalization spec (single-source canonical-ID rules) and require wrappers be tested independently before cross-runtime contract run.",
+    "timestamp": "2026-04-17T05:58:32Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-17T05:58:32Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 1,
+      "blockers": 4
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T06:01:15Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-17T06:25:43Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_completed",
+  "timestamp": "2026-04-17T06:25:43Z",
+  "data": {
+    "total_integrated": 15,
+    "total_disputed": 2,
+    "total_blockers": 14
+  }
+}

@@ -1,6 +1,0 @@
-2026-10-20T02:58:10Z run-ablation: smoke-c131-arms-20261020T025808Z-a1_full_openmount-review-01-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_full_openmount/review-01-t1
-arm a1_full_openmount: all_phases_present OK phases REVIEW,AUDIT
-arm a1_full_openmount: oracle_open_recorded OK mount_overlay=none, oracle_open=true
-arm a1_full_openmount: integrity_clean OK 1973 manifest entries verified; manifest_sha256 b9369ceae413 (matches checksums.json)
-arm a1_full_openmount: OK
-graded review-01: recall 1.0 false_positives 13; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_full_openmount/review-01-t1/grade.json

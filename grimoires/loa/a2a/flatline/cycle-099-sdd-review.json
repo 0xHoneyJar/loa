@@ -1,0 +1,133 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 3,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "High-value and concrete. The lock/timeout behavior is underspecified for a known race surface (multi-agent startup + atomic file swap). Defining acquisition order, wait/backoff, and divergent SHA handling prevents nondeterministic startup failures and is relatively low effort.",
+      "gpt_score": 870,
+      "opus_score": 860,
+      "tertiary_score": 850,
+      "delta": 10,
+      "average_score": 865,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Critical security/operability gap. Debug traces and JSON outputs are common leak vectors, and URL userinfo/query strings are realistic secret carriers. A redaction contract is highly actionable, low complexity, and should be mandatory in a production-facing spec.",
+      "gpt_score": 900,
+      "opus_score": 820,
+      "tertiary_score": 880,
+      "delta": 80,
+      "average_score": 860,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Valuable correctness clarification. Overlap between 'extra' and 'override' is a likely operator mistake; explicit precedence or schema rejection removes ambiguity and support burden. Moderate impact, straightforward to implement.",
+      "gpt_score": 780,
+      "opus_score": 750,
+      "tertiary_score": 900,
+      "delta": 30,
+      "average_score": 765,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Core behavior is still unresolved in Open Questions (tiny-tier semantics, overrideable endpoint_family, required-vs-optional permissions, Python runtime context), which can invalidate implemented contracts late in Sprint 2/3.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "These are not cosmetic choices—they affect resolver determinism, schema compatibility, and security posture. Late decisions here can force rework across codegen, runtime hooks, tests, and docs.",
+      "location": "Section 10: Open Questions",
+      "recommendation": "Freeze these decisions before Sprint 2 implementation starts, publish final ADRs, and update schema + acceptance criteria to remove ambiguity.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Custom URL canonicalization and anti-lookalike logic is overly complex and brittle (IDN, punycode, Levenshtein checks), likely to produce bypasses or false positives.",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Security controls that are hard to implement correctly often fail open or break valid endpoints. Either outcome is severe: SSRF exposure or operator lockout.",
+      "location": "Section 6.5: URL Canonicalization Rules",
+      "recommendation": "Minimize custom logic: use strict host allowlists with exact normalized host matching, remove heuristic Levenshtein checks, and rely on mature URL/IP validation libraries.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "DD-1 Option B couples permissions schema (cycle-026) into model-config.yaml without versioning the merged schema",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The merged schema now has two evolution vectors (cycle-026 permissions + cycle-095 model attrs) with no joint versioning. When cycle-026 trust_scopes evolves (8th dimension added), every model entry must be migrated atomically. No migration framework specified. The 'thin wrapper' deletion in cycle-100 creates a one-way door.",
+      "location": "Section 3.1.1 + §11 DD-1",
+      "recommendation": "Add explicit schema_version to model-config.yaml top-level. Define migration mechanism for permissions schema evolution. Defer wrapper deletion until cycle-101 minimum to allow rollback.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Fail-closed startup behavior on lock timeout/network FS can turn environmental quirks into total system unavailability.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "In shared CI, containers, or enterprise mounts, false lock/network-FS detections can prevent any agent startup, effectively a self-inflicted outage.",
+      "location": "Sections 6.3 and 6.6",
+      "recommendation": "Introduce degraded read-only fallback with explicit warnings, add robust stale-lock recovery, and gate strict fail-closed mode behind a hardening flag.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Resolver logic is duplicated across Python, Bash, and TypeScript paths, creating high drift risk despite a shared FR-3.9 description.",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "Any small precedence mismatch can route different skills to different models under the same config, causing inconsistent behavior, hard-to-debug incidents, and trust loss.",
+      "location": "Sections 1.4.4, 1.4.5, 1.5, 8 (T2.6 'Python + bash twin')",
+      "recommendation": "Define a single canonical resolver spec executable as golden test vectors and require all runtimes to pass the exact same fixture corpus in CI.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Zero-drift goal is contradicted by rollback path `LOA_LEGACY_MODEL_PERMISSIONS=1`, reintroducing dual writable sources of truth.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "As soon as rollback is used, drift can silently return between merged SoT and legacy file, undermining the core purpose of this cycle.",
+      "location": "Section 3.1.1 (Migration/Rollback path)",
+      "recommendation": "If rollback is required, enforce one-way sync and drift alarms; do not allow independent edits in legacy mode.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer claude",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-04T13:26:14Z",
+  "metrics": {
+    "total_latency_ms": 209000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,0 +1,11 @@
+head/evals/harness/execute-agent.sh:266
+head/evals/harness/arms-report.py:301
+review-recall.yaml:61-62
+head/evals/harness/run-arms.sh:115
+arms-report.py:379
+head/evals/harness/seed-corpus-from-record.sh:134
+head/evals/harness/seed-corpus-from-record.sh:429
+head/.claude/rules/stash-safety.md:3
+head/.claude/scripts/guard-yield.sh:516
+head/.claude/scripts/loa-status.sh:953
+head/evals/harness/execute-agent.sh:243

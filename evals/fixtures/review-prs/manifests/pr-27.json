@@ -1,0 +1,557 @@
+{
+  "fixture": "pr-27",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "263",
+    "record_ref": "origin/record/cycle-131-honest-measurement",
+    "head_commit": "bb03e93192d981309d99bf2c87dfdce321a9c9c9",
+    "fix_commit": "cddec3677a58f26e8986f034419f03f559782648",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 132,
+      "anchors": [
+        132,
+        133,
+        134,
+        135,
+        136,
+        137
+      ],
+      "must_match": "head_dir=\"${EVAL_HEAD_DIR:-}\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 269,
+      "anchors": [
+        269,
+        270,
+        271,
+        272,
+        273,
+        274
+      ],
+      "must_match": "for i, l in enumerate(lines, 1):",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 298,
+      "anchors": [
+        298,
+        299
+      ],
+      "must_match": "@L298",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H04",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 303,
+      "anchors": [
+        303,
+        304,
+        308,
+        309
+      ],
+      "must_match": "last = h",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H05",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V05",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 329,
+      "anchors": [
+        329,
+        330,
+        331,
+        332,
+        333,
+        337
+      ],
+      "must_match": "hs = headers(kind, lines)",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union of both annotators' sites (B's set is a subset of A's; all inside the hunk's head context 318\u2013341); verdict, group, severity, category agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V06",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1629,
+      "anchors": [
+        1629,
+        1630,
+        1631,
+        1632,
+        1633,
+        1634,
+        1635
+      ],
+      "must_match": "env.pop(\"EVAL_HEAD_DIR\", None)",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B's 1629\u20131633 \u2282 A's 1629\u20131635; the fallback branch spans the whole block); everything else agreed",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1980,
+      "anchors": [
+        1980,
+        1981,
+        1982,
+        1985,
+        1986
+      ],
+      "must_match": "def repo_name_exempt(val):",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1986,
+      "anchors": [
+        1986,
+        1993,
+        1994,
+        1995
+      ],
+      "must_match": "for line in val.split(\"\\n\"):",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union \u2014 B's 1986 is the unit-splitting line that produces the bare token, A's 1993\u20131995 the exemption test; both inside the context 1983\u20132006",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2007,
+      "anchors": [
+        2007,
+        2008,
+        2009,
+        2010,
+        2011
+      ],
+      "must_match": "text = read_regular(p, READ_CAP, whole=True)",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V10",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2065,
+      "must_match": "SILENT_SINK = re.compile(r\"^(?:wc|cmp|true|false|test)\\b|^grep\\s+(?:-[A-Za-z]*[cql][A-Za-z]*|--count|--quiet|--files-with-matches)\\b\")",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: D9 holds H17 alone \u2014 H24 fixes a different wrong behaviour (stat-only git diff read as content) and is its own group; A's description and anchors kept",
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2159,
+      "anchors": [
+        2159,
+        2160,
+        2161
+      ],
+      "must_match": "elif depth == 0 and ch in \"\\n;&|\":",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H18",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2203,
+      "anchors": [
+        2203,
+        2204,
+        2205,
+        2241,
+        2243,
+        2244,
+        2245,
+        2246,
+        2247,
+        2338,
+        2343,
+        2390,
+        2391,
+        2392,
+        2464,
+        2465,
+        2466,
+        2467
+      ],
+      "must_match": "for v in vars_[name]:",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit+incident",
+      "source": "hunk:H19,H20,H21,H22,H23;incident:I02",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union (B's 2241 is the segment loop head, A's 2243\u20132247 the unbounded regex/expansion lines; context 2229\u20132259); group D11 in A's namespace (B's D12 is the same singleton)",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2477,
+      "anchors": [
+        2477,
+        2478,
+        2481,
+        2482,
+        2483
+      ],
+      "must_match": "is_diff = exe in DIFF_EXE or (exe == \"git\" and \"diff\" in w and \"--no-index\" in w)",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H24",
+      "source_commit": "bb03e931",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: a new group D13 (A's namespace) \u2014 the stat-only misreading is a distinct wrong behaviour at a distinct site from D9's grep-flag parsing (B's reading); the helper switch alone would be a follow-on of D9. anchors: union of A's 2477,2481\u20132483 and B's 2477,2478,2482,2483",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 77,
+      "end": 78,
+      "source": "fix/cddec3677a58:77-78"
+    },
+    {
+      "id": "F002",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 132,
+      "end": 141,
+      "source": "fix/cddec3677a58:132-141"
+    },
+    {
+      "id": "F003",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 268,
+      "end": 271,
+      "source": "fix/cddec3677a58:268-271"
+    },
+    {
+      "id": "F004",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 298,
+      "end": 298,
+      "source": "fix/cddec3677a58:298-298"
+    },
+    {
+      "id": "F005",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 303,
+      "end": 304,
+      "source": "fix/cddec3677a58:303-304"
+    },
+    {
+      "id": "F006",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 315,
+      "end": 315,
+      "source": "fix/cddec3677a58:315-315"
+    },
+    {
+      "id": "F007",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 329,
+      "end": 329,
+      "source": "fix/cddec3677a58:329-329"
+    },
+    {
+      "id": "F008",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 482,
+      "end": 482,
+      "source": "fix/cddec3677a58:482-482"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1629,
+      "end": 1629,
+      "source": "fix/cddec3677a58:1629-1629"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1809,
+      "end": 1809,
+      "source": "fix/cddec3677a58:1809-1809"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1935,
+      "end": 1935,
+      "source": "fix/cddec3677a58:1935-1935"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1980,
+      "end": 1986,
+      "source": "fix/cddec3677a58:1980-1986"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1994,
+      "end": 1994,
+      "source": "fix/cddec3677a58:1994-1994"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2007,
+      "end": 2011,
+      "source": "fix/cddec3677a58:2007-2011"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2035,
+      "end": 2035,
+      "source": "fix/cddec3677a58:2035-2035"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2052,
+      "end": 2052,
+      "source": "fix/cddec3677a58:2052-2052"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2065,
+      "end": 2066,
+      "source": "fix/cddec3677a58:2065-2066"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2158,
+      "end": 2160,
+      "source": "fix/cddec3677a58:2158-2160"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2204,
+      "end": 2204,
+      "source": "fix/cddec3677a58:2204-2204"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2241,
+      "end": 2247,
+      "source": "fix/cddec3677a58:2241-2247"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2338,
+      "end": 2338,
+      "source": "fix/cddec3677a58:2338-2338"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2392,
+      "end": 2392,
+      "source": "fix/cddec3677a58:2392-2392"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2467,
+      "end": 2467,
+      "source": "fix/cddec3677a58:2467-2467"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2482,
+      "end": 2483,
+      "source": "fix/cddec3677a58:2482-2483"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2547,
+      "end": 2547,
+      "source": "fix/cddec3677a58:2547-2547"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2626,
+      "end": 2628,
+      "source": "fix/cddec3677a58:2626-2628"
+    },
+    {
+      "id": "F027",
+      "file": "evals/tests/ablation-grade.bats",
+      "start": 1539,
+      "end": 1539,
+      "source": "fix/cddec3677a58:1539-1539"
+    },
+    {
+      "id": "F028",
+      "file": "evals/tests/eval-recall-grader.bats",
+      "start": 421,
+      "end": 421,
+      "source": "fix/cddec3677a58:421-421"
+    }
+  ]
+}

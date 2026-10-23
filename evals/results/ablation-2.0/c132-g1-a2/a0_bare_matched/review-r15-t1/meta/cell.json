@@ -1,0 +1,192 @@
+{
+  "finished": "2026-10-21T20:52:16Z",
+  "k": 12,
+  "schema_version": 1,
+  "sessions": [
+    {
+      "attempt_costs": [
+        1.478978
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.478978,
+      "id": "s1",
+      "invalid_reason": null,
+      "run_dir": "sessions/s1",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.362917
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.362917,
+      "id": "s2",
+      "invalid_reason": null,
+      "run_dir": "sessions/s2",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.392274
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.392274,
+      "id": "s3",
+      "invalid_reason": null,
+      "run_dir": "sessions/s3",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.485121
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.485121,
+      "id": "s4",
+      "invalid_reason": null,
+      "run_dir": "sessions/s4",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.214205
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.214205,
+      "id": "s5",
+      "invalid_reason": null,
+      "run_dir": "sessions/s5",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.604585
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.604585,
+      "id": "s6",
+      "invalid_reason": null,
+      "run_dir": "sessions/s6",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.33301
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.33301,
+      "id": "s7",
+      "invalid_reason": null,
+      "run_dir": "sessions/s7",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.453013
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.453013,
+      "id": "s8",
+      "invalid_reason": null,
+      "run_dir": "sessions/s8",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.102396
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.102396,
+      "id": "s9",
+      "invalid_reason": null,
+      "run_dir": "sessions/s9",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.452805
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.452805,
+      "id": "s10",
+      "invalid_reason": null,
+      "run_dir": "sessions/s10",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.50963
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.50963,
+      "id": "s11",
+      "invalid_reason": null,
+      "run_dir": "sessions/s11",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.373267
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.373267,
+      "id": "s12",
+      "invalid_reason": null,
+      "run_dir": "sessions/s12",
+      "status": "completed",
+      "valid": true
+    }
+  ],
+  "sessions_attempted": 12,
+  "sessions_valid": 12,
+  "started": "2026-10-21T20:34:36Z",
+  "task_id": "review-r15",
+  "trial": 1
+}

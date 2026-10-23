@@ -1,0 +1,185 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 237,
+      "anchor_line_end": 237,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The base-wildcard key is derived with `base=\"*${key#\\*}\"; base=\"${base%% *}\"`. That only strips a leading `*`. For a required rule written in exact form (e.g. `Bash(git status)`), rule_key yields `=git status`, so base becomes `*=git`, a key no allow or deny rule can ever produce. The header grammar added in this same diff says a wildcard rule covers a requirement whose first word matches, and the removed base_pattern_of did cover exact requirements via `Bash(git:*)`. The new code silently drops that coverage for exact-form requirements (both for allow matching and for deny-wins).",
+      "failure_mode": "Any exact-form entry in all_required that was previously satisfied by a base wildcard such as Bash(git:*) is now reported as missing (or a base-wildcard deny on it is not detected), making the preflight report disagree with the documented grammar.",
+      "suggested_fix": "Strip either prefix before computing the base: `base=\"*${key#[*=]}\"; base=\"${base%% *}\"`. Add a bats case with an exact-form requirement covered by its base wildcard.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 235,
+      "anchor_line_end": 236,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`rule_key \"$perm\"` is called as a bare statement in the requirements loop. rule_key returns 1 for anything that is not `Bash(...)`. The script runs under `set -euo pipefail`, so a non-Bash required rule (e.g. a WebFetch/Read/mcp__ requirement added to all_required later, or already present in the truncated section) aborts the whole preflight with exit 1 and no report. If set -e were not in effect, RULE_KEY would instead carry the previous iteration's value and the requirement would be matched against the wrong key.",
+      "failure_mode": "Preflight terminates mid-loop with no output, or (without set -e) a requirement is silently evaluated against a stale RULE_KEY.",
+      "suggested_fix": "Handle the return explicitly: `if ! rule_key \"$perm\"; then missing_permissions+=(\"$perm\"); continue; fi` (or treat non-Bash requirements with exact string matching as before). Reset RULE_KEY=\"\" at the top of rule_key.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "anchor_type": "line",
+      "anchor_line": 113,
+      "anchor_line_end": 116,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header added in this diff states that the PreToolUse payload carries no harness-set skill field and that tool_input is model-authored. The diff nevertheless keeps an operator opt-in (`implement_gate.mode: authoritative`) that makes the gate trust `tool_input.active_skill`. Once enabled, the model being fenced can satisfy the gate by emitting `active_skill: implement` in its own tool input, so the fence becomes self-certified. The removed audit.jsonl mode-change logging also means the switch to this weaker mode leaves no trace.",
+      "failure_mode": "An operator enabling the documented option expecting a stronger gate gets a bypassable one, with no audit record that the mode changed.",
+      "suggested_fix": "Either remove the authoritative branch until a harness-set field exists, or emit a one-time stderr/audit warning when the opt-in is active stating that the source is model-authored. Document the bypass in .loa.config.yaml.example next to the key.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/flatline-learning-extractor.sh:call_flatline_chat",
+      "anchor_type": "line",
+      "anchor_line": 317,
+      "anchor_line_end": 317,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:aliases.cheap",
+      "cross_file_justification": "The extractor now dispatches to the `cheap` alias, which this diff retargets to anthropic:claude-sonnet-5, an entry with params.thinking_adaptive: true.",
+      "description": "The call keeps the 500-token output budget that was sized for gpt-4o-mini. On an adaptive-thinking Anthropic model the thinking block is charged against max_tokens, so a 500-token budget can be consumed before any visible text is produced, yielding an empty or truncated extraction that the caller treats as a model failure.",
+      "failure_mode": "Transformation extraction returns empty/truncated JSON on Sonnet 5 and the extractor exits 4, where the previous provider returned a complete answer at the same budget.",
+      "suggested_fix": "Raise the budget for the Anthropic hop (e.g. 2000–4000) or pass an effort/thinking-off hint through call_flatline_chat, and add a bats case asserting the extractor gets a non-empty body at the configured budget.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/flatline-proposal-review.sh:GPT_MODEL",
+      "anchor_type": "line",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Defaults change from raw vendor model IDs (gpt-4o, claude-3-opus-20240229) to catalog aliases (reviewer, opus). The previous values were wire-level model names, which suggests the script sends the value directly in an API request body rather than through cheval alias resolution. If any request path in this script still passes the value verbatim to a provider endpoint, `reviewer`/`opus` are rejected as unknown models.",
+      "failure_mode": "Proposal review calls fail with a 400 unknown-model error from the provider when the default (non-overridden) model is used.",
+      "suggested_fix": "Confirm every invocation in this script goes through cheval/model-invoke (which resolves aliases). If a direct curl path remains, resolve the alias first via the generated maps or remove that path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:MODEL_TO_PROVIDER_ID",
+      "anchor_type": "line",
+      "anchor_line": 694,
+      "anchor_line_end": 702,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The fallback allowlist VALID_FLATLINE_MODELS (line 556) now admits `cheap`, `gpt-5.5`, `gpt-5.5-pro` and `gemini-3.1-pro-preview`, but the fallback MODEL_TO_PROVIDER_ID map used on the same no-generated-maps path has no entries for them. A model that passes validate_model on the fallback path then has no provider ID.",
+      "failure_mode": "When generated-model-maps.sh is absent, a config using `cheap` or the new OpenAI/Gemini IDs validates but dispatch resolves an empty provider ID.",
+      "suggested_fix": "Add matching fallback map entries for every ID in the fallback allowlist, or make the fallback allowlist derive from the fallback map's keys so they cannot drift.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T18:21:26Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16645,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

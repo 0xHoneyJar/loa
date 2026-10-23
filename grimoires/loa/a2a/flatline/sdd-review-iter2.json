@@ -1,0 +1,135 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real release blocker disguised as a TODO. Adding a hard merge gate for unresolved pricing values is low effort and directly protects FR-3 and cost-ledger correctness.",
+      "gpt_score": 890,
+      "opus_score": 850,
+      "tertiary_score": 950,
+      "delta": 40,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Excellent operational hardening item. Missing/corrupt/stale cache handling is a common runtime path, and explicit behavior here prevents undefined request-time failures.",
+      "gpt_score": 840,
+      "opus_score": 820,
+      "tertiary_score": 920,
+      "delta": 20,
+      "average_score": 830,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Important and domain-correct concern: cost-cap enforcement is concurrency-sensitive. Specifying async-safe locking and in-flight budget semantics adds complexity but is worth it for cost-control integrity.",
+      "gpt_score": 760,
+      "opus_score": 780,
+      "tertiary_score": 980,
+      "delta": 20,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "High-impact gap: fallback behavior for 429/5xx is central to reliability and currently ambiguous. Clarifying this will materially improve runtime resilience in common failure modes.",
+      "gpt_score": 860,
+      "opus_score": 880,
+      "tertiary_score": 980,
+      "delta": 20,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-005",
+      "concern": "Alias retarget precedence is counterintuitive: `prefer_pro_models` can overwrite explicit user alias overrides unless denylisted, increasing surprise and incident risk.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "Operators typically expect explicit user overrides to be highest precedence. Current semantics can unintentionally route critical workloads to expensive or behaviorally different models.",
+      "location": "Sections 5.9 and 5.10: Tier-group application and precedence",
+      "recommendation": "Invert precedence so explicit user alias overrides win by default, and add an explicit `force_retarget` list for opt-in aggressive behavior.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Default `strict` behavior for unknown `/v1/responses` shapes creates a single-vendor contract fragility that can trigger production-wide failures when OpenAI adds new output types.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "Provider-side response evolution is common. Failing loud is safe for correctness but can still halt all traffic unexpectedly, especially with no auto-canary mechanism.",
+      "location": "Section 5.4.1: Unknown-shape degradation policy",
+      "recommendation": "Introduce staged rollout policy: default to strict in CI and canary, degrade in production with alerting, plus automated fixture capture for unknown types and a feature flag with expiry.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Per-session cost cap is not globally enforced across multi-process workflows unless operators manually align `trace_id` and shared ledger usage.",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Real Loa runs may fork/parallelize. Independent process caps can multiply spend far beyond intended safety limits, undermining FR-5a financial guardrails.",
+      "location": "Section 1.4.4: Cost-Cap Enforcer concurrency note",
+      "recommendation": "Define a mandatory shared budget scope (run_id/session_id) propagated automatically across subprocesses; fail closed when cap configured but shared coordination is unavailable.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Probe cache trust checks rely on file owner/mode assumptions that may fail in containers, CI runners, or shared volumes, causing fallback logic to silently degrade to UNKNOWN behavior.",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "Security hardening can accidentally become reliability regression. If trust checks fail often in valid deployments, fallback chain becomes ineffective during outages.",
+      "location": "Section 3.5: Probe cache trust boundary",
+      "recommendation": "Specify deployment-compatible trust model (UID namespaces, container users), add signed cache or checksum-based integrity, and expose health status when trust checks disable fallback.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Strict `endpoint_family` validation can hard-fail upgraded operator environments with custom OpenAI model entries, and the compatibility env fallback has no enforced sunset or telemetry.",
+      "severity": "CRITICAL",
+      "severity_score": 905,
+      "why_matters": "A config-load failure on first run after upgrade is an operational outage. The stopgap (`LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat`) may become permanent hidden debt because there is no removal trigger or migration tracking.",
+      "location": "Section 3.4: Endpoint family strict validation + operator-migration backstop",
+      "recommendation": "Add explicit deprecation lifecycle: warning counter metrics, CI check for fallback usage, hard removal version, and a pre-upgrade validator command that blocks rollout until custom configs are migrated.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer deep",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T09:36:43Z",
+  "metrics": {
+    "total_latency_ms": 12408000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,0 +1,14 @@
+head/.claude/adapters/cheval.py:2297
+head/.claude/adapters/cheval.py:2338
+head/.claude/adapters/cheval.py:2119
+head/.claude/adapters/cheval.py:2256
+head/.claude/adapters/cheval.py:2257
+head/.claude/adapters/loa_cheval/providers/retry.py:494
+head/.claude/adapters/loa_cheval/metering/pricing.py:168
+head/.claude/defaults/model-config.yaml:569
+head/.claude/defaults/model-config.yaml:737
+head/.claude/skills/bridgebuilder-review/resources/config.ts:176
+head/.claude/skills/bridgebuilder-review/resources/config.ts:172
+head/.claude/scripts/flatline-orchestrator.sh:944
+head/.claude/scripts/loa-status.sh:813
+head/.claude/adapters/loa_cheval/providers/base.py:1000

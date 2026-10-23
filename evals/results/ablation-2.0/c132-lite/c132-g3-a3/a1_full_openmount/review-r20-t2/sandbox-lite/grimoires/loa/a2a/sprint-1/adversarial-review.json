@@ -1,0 +1,211 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:@@ -120,6 +120,649 @@",
+      "anchor_type": "hunk",
+      "anchor_line": 123,
+      "scope": "diff",
+      "description": "The new scrubber can discard executable content that is executed within the same Bash invocation. For example: `tee /tmp/payload <<'EOF'\\nif true; then rm -rf / --no-preserve-root; fi\\nEOF\\nbash /tmp/payloa?`. Assuming the glob resolves to the newly written file, `_bdb_hd_same_line_exec` misses the execution because it searches for the literal basename `payload`. `_bdb_hd_scan_body` then discards all three segments beginning with `if`, `then`, and `fi`, removing the destructive command from the scan.",
+      "failure_mode": "A destructive command previously visible to the fence disappears from `_cmd_match`, while Bash subsequently executes it. This bypass occurs within one invocation, outside the documented limitation concerning execution by a later command.",
+      "suggested_fix": "Keep the full heredoc body whenever another command in the invocation can execute a file and its target cannot be resolved conclusively. Also treat shell compound-command keywords in heredoc bodies as requiring the full scan. Add a regression case covering execution through a glob.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_segword",
+      "anchor_type": "function",
+      "anchor_line": 546,
+      "anchor_line_end": 594,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The per-segment body scan (_bdb_hd_scan_body -> _bdb_hd_segword) only strips `( { ! \\ \" '`, assignments, and the sudo/env-style wrapper list before reading the command word. Shell keywords that routinely precede a command on the same segment are NOT stripped: `then`, `do`, `else`, `elif`, `if`, `while`, `until`, and case arms like `*)`. A body line `if true; then rm -rf /; fi` splits into segments `if true` / `then rm -rf /` / `fi`; the command word of the second is `then`, which is neither a fence verb nor an interpreter, so the segment is dropped. The same happens for `for f in *; do rm -rf \"$f\"; done`, `while :; do git push --force; done`, and `*) kubectl delete ns prod;;`. The header comment promises that \"a segment whose command word is a fence verb ... is kept on its own line for the normal rules\"; for the most common script shapes (if/for/while bodies) that promise is not met, and the fence rules never see the destructive command. Because the classifier is the default (knob on), this is a regression against the pre-cycle full scan for every heredoc that is classified nonexec but whose body is later executed within the same command through a path _bdb_hd_same_line_exec does not recognise (see DISS-002), e.g. `cat <<'EOF' > x` ... `eval \"$(cat x)\"`.",
+      "failure_mode": "A heredoc written with cat/tee to a non-executable-looking path and holding `if ...; then rm -rf ...; fi` (or any keyword-prefixed destructive segment) is scrubbed to nothing; the body is then executed in the same command via `eval \"$(cat x)\"`, `bash -c \"$(<x)\"` or `bash ./*`, and the destructive-command fence that previously matched `rm -rf` anywhere in the command text no longer fires.",
+      "suggested_fix": "In _bdb_hd_segword, add the shell keywords to the prefix-stripping set (`if|then|else|elif|fi|while|until|do|done|case|esac|select|in|time|coproc|function`) and strip a leading case-arm pattern (`*)`, `pattern)`). Alternatively, in _bdb_hd_scan_body set `_hd_full=1` whenever a segment's command word is a shell keyword, so the body falls back to the full scan. Add corpus cases for if/then, for/do and case-arm bodies under cat/tee heredocs.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_same_line_exec",
+      "anchor_type": "function",
+      "anchor_line": 608,
+      "anchor_line_end": 639,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_bdb_hd_same_line_exec decides whether a heredoc's write target is executed elsewhere in the command by comparing token basenames to the target. Two blind spots let an executing reference through: (1) a target named inside a quoted substitution is one token, e.g. `eval \"$(cat x)\"` or `bash -c \"$(<x)\"`, whose stripped basename is `$(cat x)` and never equals `x`; _bdb_hd_ctx_bad treats `$(`/backtick/`<(` as unreadable, but this function does not. (2) `git` and `gh` are on the safe-reader list, yet `git -c core.sshCommand=./x fetch`, `git -c alias.r='!./x' r`, and `gh extension install ./x` run the named file. On their own these only matter when the body carries destructive text the per-segment scan drops (DISS-001), but they are the half of that bypass that makes the heredoc look nonexec.",
+      "failure_mode": "A cat/tee heredoc whose target is executed on the same command line via a quoted command substitution or a git -c/alias invocation is classified nonexec and its body is reduced to fence-verb segments instead of being scanned in full.",
+      "suggested_fix": "At the top of the per-line loop, return 0 (treat as executing) when a non-body line contains `$(`, a backtick, `<(` or `>(`, mirroring _bdb_hd_ctx_bad. Remove `git` and `gh` from _bdb_hd_is_safe_reader or restrict them to read-only subcommands (e.g. git add/diff/status/log, gh pr/issue view).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_member",
+      "anchor_type": "function",
+      "anchor_line": 361,
+      "anchor_line_end": 364,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Every allowlisted consumer is bumped to `interpreter` when any argument matches `_bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'`. That regex also matches `jq -c`, `jq -e`, `jq -rc`, `yq -e`, `grep -c`, `grep -x`, `sed -n -e '1p'`, `cat -e` and `echo -e`. `jq -c '...' <<EOF` and `jq -e` are among the most common heredoc consumers in this codebase, so the FP-reduction the classifier exists for (#1245 class) is lost for them and the body is full-scanned exactly as before. It is safe, but it defeats the stated purpose for a large share of legitimate heredocs and will keep producing the same false positives the cycle set out to remove.",
+      "failure_mode": "Legitimate `jq -c`/`jq -e`/`grep -c` heredocs whose body mentions rm/git/kubectl text are still flagged by the fence; the classifier reports interpreter for them.",
+      "suggested_fix": "Apply the generic exec-flag check only to consumers without a dedicated argv grammar, or whitelist the known-harmless short flags per command (jq/yq: -c -e -r -S -s; grep: -c -x -E; sed: -e when the script still matches the print-only grammar) before falling through to the generic `[cex]` test.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "line",
+      "anchor_line": 586,
+      "anchor_line_end": 587,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "check_implement_marker is invoked as a bare statement followed by `marker_rc=$?`. Every other predicate in this hook is called inside `if`/`&&` and every assignment is guarded with `|| default`, which is the idiom used under `set -e`/`set -euo pipefail`. If the script (or a future edit) enables errexit, the common case (no marker file, return 1) aborts the hook with exit 1 and no stdout before any ask/deny/row is emitted, which Claude Code treats as a non-blocking error, i.e. the write is allowed. I could not see the shebang/set lines in the diff, so this is conditional on the script's option state.",
+      "failure_mode": "Under errexit the gate exits 1 on every unsanctioned write with no marker, producing neither an ask nor a deny nor an audit row; the write proceeds.",
+      "suggested_fix": "Call it as `if check_implement_marker; then marker_rc=0; else marker_rc=$?; fi` or `check_implement_marker && marker_rc=0 || marker_rc=$?`, matching the rest of the file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "function",
+      "anchor_line": 545,
+      "anchor_line_end": 552,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `sanctioned_marker` path allows every App Zone write for two hours in every mode, including `deny`, when `.run/implement-active.json` carries `{skill: implement|bug, sprint, started_at}`. The marker is added to the trust-input list, but that list only governs the Write/Edit hook. Nothing in this diff stops the model from producing the marker through Bash, either by running `run-checkpoint.sh mark implement <sprint>` outside any run or by `printf '{...}' > .run/implement-active.json`. The header describes deny mode as the one configuration where the gate \"is a fence\"; with a self-issuable sanction it is a fence against Write/Edit only. The same is true of the derived cache, but the marker is new, cheaper to forge (no derive step, no RUNNING state), and sanctions regardless of position.",
+      "failure_mode": "In deny mode a single Bash command creates a fresh marker, after which all App Zone writes are allowed with decision `sanctioned_marker` for two hours; the deny decision never fires.",
+      "suggested_fix": "Have `run-checkpoint.sh mark` refuse (or the gate ignore the marker) unless the derived cache is RUNNING and fresh, so the marker can only extend an existing run; and/or add `.run/implement-active.json` and `.run/sprint-plan-state.json` as write targets the Bash fence asks on, so Bash and Write/Edit are treated alike.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/data/skill-includes/retrospective_postlude.md:hunk",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 2,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both skill includes now gate on a shell-out: `.claude/scripts/lib/profile-lib.sh knob <key> [fallback]` must print `true`. The retrospective postlude omits the fallback argument that input_guardrails.md passes, and both depend on profile-lib.sh being executable and supporting a `knob` CLI entry point alongside being sourceable (the hooks `source` it). profile-lib.sh is new and was not shown. Any mismatch (missing exec bit, `knob` requiring two args, a sourced-only lib) makes the command print nothing, and both includes fall open: guardrails are skipped and the retrospective never runs, silently, for every skill that embeds them.",
+      "failure_mode": "If the CLI contract differs from the include text, the invisible retrospective (standard profile: true) is never executed and input guardrails are never run, with no error surfaced.",
+      "suggested_fix": "Pass the fallback in the postlude too (`knob invisible_retrospective.enabled false`), confirm profile-lib.sh has the exec bit and a `[[ ${BASH_SOURCE[0]} == $0 ]]` CLI dispatcher accepting one or two args, and add a bats case that invokes the exact command string from each include.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T03:08:22Z",
+    "tokens_input": 117593,
+    "tokens_output": 43887,
+    "cost_usd": 0,
+    "latency_ms": 101387,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

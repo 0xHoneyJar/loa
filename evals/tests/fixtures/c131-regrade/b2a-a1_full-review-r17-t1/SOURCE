@@ -1,0 +1,7 @@
+Trimmed from the cycle-131 run directory evals/results/ablation-2.0/c131-b2-control-prices-a/a1_full/review-r17-t1/
+on origin/record/cycle-131-honest-measurement (d6ccba2ce1b3b2f4918ac8588945033c4c738f14), task review-r17,
+suite root grimoires/loa/evals/ablation-2.0-c131, grader 1.3.0.
+review.md   = that run's grading/gates-combined.md (the reduced citations, one path:line[-line] per line), byte for byte
+recall.json = that run's grade.json .recall block (jq '.recall')
+The citation parser reads review.md back to the same citation set, so a re-grade under the moved key
+(manifests/c131/pr-17.json) must reproduce recall.json exactly (ablation-grade.bats AG-LS2, cycle-132 Task 1.5).

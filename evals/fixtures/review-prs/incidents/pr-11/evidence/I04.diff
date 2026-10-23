@@ -1,0 +1,234 @@
+commit 58f871959c8948f8e72dde0838005668a3d72b3e
+Date: 2026-10-08T02:42:56+11:00
+
+fix(cycle-127): sprint-251 review round r251-3 — the Fable review's items: one shared is_throttle_message() in routing/ceiling.py (the probe's throttle rule + overloaded / too many requests / quota, a 429/529 in status position, never a digit inside a token count) consulted by the headless adapter before its context-limit mapping — Bedrock's "Too many tokens, please wait before trying again" is a RateLimitError again (retried, then walked), not a terminal size verdict (the r251-2 K8 regression) — and by the probe's classifier, with a probe-vs-adapter conformance test; the K9 _lookup pin reads its expectation from the catalog and the literal guard sweeps the current bound's digits (AC 3); the routing rule is provider-based under cli-only on both readers (deep-research-pro is agy-alone everywhere); the context-limit remedy for a CLI hop names the chain-head HTTP entry with --transport claude-headless; the probe suite's host-global ledger assertion is gone; cycle-124-effort-flag.bats unsets the host variables itself; AGC-6's loa-status timeout is 180 s. Docs: the cycle-126 SDD D-4.1 amendment carries the promised cycle-127 pointer (AC 4), SDD §5/§6 (effort_source incl. extra, effort_effective; resolve-time WARN; headless size verdict vs throttle; the partial flag), the superseded reprobe_trigger sentence, AC 1 / PRD SC-1 name the existing INVALID_CONFIG refusal for an absent binary, CHANGELOG and the addendum name the throttle rule; beads flushed (bd-c2rd, bd-y49y, bd-n6lk Bedrock effort, bd-rbkz probe Bisection extraction).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index 539e257a..59fef198 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -355,6 +355,24 @@ _CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
+ }
+ 
+ 
++def _calibrate_hint(entry: Any, chain_entries: Any) -> Optional[str]:
++    """The ceiling-probe command for a provider size verdict on `entry` (cycle-126 D-1.1b), or None.
++
++    An HTTP hop names itself. A CLI hop carries no ceiling fields — the probe refuses it — so (review r251-3 R4) a
++    claude-headless hop names the chain's Anthropic HTTP entry with `--transport claude-headless` (the transport that
++    measured the payload), and any other CLI hop, or a chain with no such entry, gets no hint: the CLI's own window
++    refused the payload."""
++    if getattr(entry, "adapter_kind", "http") != "cli":
++        return _PROBE_COMMAND.format(model=entry.model_id)
++    if _CLI_ADAPTER_BY_PROVIDER.get(getattr(entry, "provider", "")) != "claude-headless":
++        return None
++    head = next((e for e in (chain_entries or ())
++                 if getattr(e, "adapter_kind", "http") != "cli" and getattr(e, "provider", "") == entry.provider), None)
++    if head is None:
++        return None
++    return f"{_PROBE_COMMAND.format(model=head.model_id)} --transport claude-headless"
++
++
+ _AGY_NOT_PLANNED_WARNED = False
+ 
+ 
+@@ -2227,7 +2245,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+         _calib = {
+             "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
+             "provider_limit": provider_limit, "error_class": error_class,
+-            "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
++            "calibrate": _calibrate_hint(_entry, _chain.entries), "store": _observed_store_path(),
+             "observation_recorded": _record,
+         }
+         if isinstance(_modelinv_state.get("capability_evaluation"), dict):
+@@ -2237,14 +2255,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+             "message_redacted": _msg, "observed_input_tokens": _obs, "provider_limit": provider_limit,
+         })
+         _modelinv_state["operator_visible_warn"] = True
++        # (review r251-3 R4: a CLI hop with no HTTP entry to calibrate gets no probe command — the CLI's window refused it)
++        _remedy = (f"calibrate: {_calib['calibrate']}" if _calib["calibrate"]
++                   else "the CLI's own window refused the payload (no catalog ceiling to calibrate)")
+         print(
+             f"[preflight] calibration_needed model={_entry_target} class={error_class} "
+-            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); run: {_calib['calibrate']}",
++            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); "
++            + (f"run: {_calib['calibrate']}" if _calib["calibrate"] else _remedy),
+             file=sys.stderr,
+         )
+         print(_error_json(
+             _exc.code,
+-            f"{_msg} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
++            f"{_msg} — not walked: the same payload would fail the next voice; {_remedy}",
+             retryable=False, calibration_needed=True, error_class=error_class,
+             observed_input_tokens=_obs, provider_limit=provider_limit,
+         ), file=sys.stderr)
+diff --git a/.claude/adapters/loa_cheval/routing/ceiling.py b/.claude/adapters/loa_cheval/routing/ceiling.py
+index 946367d3..ac88a81e 100644
+--- a/.claude/adapters/loa_cheval/routing/ceiling.py
++++ b/.claude/adapters/loa_cheval/routing/ceiling.py
+@@ -216,9 +216,43 @@ _CONTEXT_LIMIT_MARKERS = (
+ 
+ 
+ def is_context_limit_message(message: str) -> bool:
+-    """True when a provider error message is of the prompt-too-long class."""
+-    low = (message or "").lower()
+-    return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS)
++    """True when a provider error message is of the prompt-too-long class
++    (a marker, or one of the size statements ``parse_context_limit`` reads —
++    r251-3: the CLI's bare "~N tokens (limit M)" carries no marker word)."""
++    text = message or ""
++    low = text.lower()
++    return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS) or any(
++        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT))
++
++
++# cycle-127 r251-3 R1 (SDD D-3.12): ONE throttle rule for the headless adapter and
++# the ceiling probe. Bedrock's tokens-per-minute throttle reads "Too many tokens,
++# please wait before trying again" — it carries the context marker `too many
++# tokens`, so a throttle marker must win over a context marker or a transient
++# throttle becomes a terminal size verdict. A 429 / 529 counts only in status
++# position: never inside a token count ("1,429,000 tokens", "~1052900 tokens",
++# "1,429.5k") and never as a count itself ("~429 tokens"); a status followed by
++# punctuation ("API Error: 429. Too many tokens") is still a status.
++_THROTTLE_MARKERS = (
++    "throttl",            # ThrottlingException, "throttled"
++    "please wait",
++    "rate limit",
++    "rate_limit",         # Anthropic's error type rate_limit_error
++    "tokens per min",     # "input tokens per minute", "tokens per min (TPM)"
++    "overloaded",
++    "too many requests",
++    "quota",
++)
++_RE_THROTTLE_STATUS = re.compile(r"(?<![\d,.])(?:429|529)(?!\d|[,.]\d|\s*k?\s*tokens\b)", re.I)
++
++
++def is_throttle_message(message: Optional[str]) -> bool:
++    """True when a provider/CLI error message is of the throttle class (a rate,
++    token-per-minute, overload or quota limit) — retried and walked, never a size
++    verdict, even when the text also reads like a context limit."""
++    text = message or ""
++    low = text.lower()
++    return any(marker in low for marker in _THROTTLE_MARKERS) or bool(_RE_THROTTLE_STATUS.search(text))
+ 
+ 
+ # A 429 whose message names a token budget (Anthropic: "... 30,000 input tokens
+diff --git a/.claude/adapters/tests/test_anthropic_catalog_floor.py b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+index 792df478..4fc15c08 100644
+--- a/.claude/adapters/tests/test_anthropic_catalog_floor.py
++++ b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+@@ -179,13 +179,19 @@ def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
+ 
+ 
+ def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
+-    """review r251-2 K9 (n35): one concrete pin THROUGH `_lookup_max_input_tokens` — the other pins compare the policy
+-    against itself. claude-opus-5-5 is calibrated (1M window − 64K default output = 936,000); claude-opus-5 is not, and
+-    answers its probed value (the policy cap)."""
++    """review r251-2 K9 (n35): one concrete check THROUGH `_lookup_max_input_tokens` — the gate answers a calibrated
++    entry's catalog bound (not the policy cap). claude-opus-5-5 is calibrated; claude-opus-5 is not, and answers its
++    probed value (the policy cap). r251-3 R2 (AC 3): the expectation is READ from the catalog, so this check moves
++    with the next re-probe instead of pinning today's bound by literal."""
+     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+     monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+     monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+-    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == 936_000
++    cal = catalog["providers"]["anthropic"]["models"]["claude-opus-5-5"]
++    assert cal["ceiling_calibration"].get("calibrated_at"), "claude-opus-5-5 is expected to be calibrated"
++    want = cal["effective_input_ceiling"]
++    assert isinstance(want, int) and want != CEILING_CAP, want
++    assert input_bound(cal, max_tokens=_default_max_tokens(cal)).basis == "calibrated"
++    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == want
+     uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
+     assert not uncal["ceiling_calibration"].get("calibrated_at")
+     assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP
+diff --git a/tests/unit/loa-status-providers.bats b/tests/unit/loa-status-providers.bats
+index 2d843d82..83d32dd2 100644
+--- a/tests/unit/loa-status-providers.bats
++++ b/tests/unit/loa-status-providers.bats
+@@ -64,7 +64,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
+   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
+ }
+ 
+-_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 936000
++_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 920000 (fixture values, not the live catalog — r251-3 R2)
+   local cal_block=""
+   if [[ -n "$2" ]]; then
+     cal_block="          source: operator_set
+@@ -77,7 +77,7 @@ _lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport
+           calibrated_at: null
+           stale_after_days: 90"
+   fi
+-  local bound=200000; [[ -n "$2" ]] && bound=936000
++  local bound=200000; [[ -n "$2" ]] && bound=920000
+   cat > "$1" <<YAML
+ aliases:
+   opus: "anthropic:claude-fixture-1"
+@@ -152,10 +152,10 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
+     _lsp5_obs "$m" 500001 PROVIDER_CONTEXT_LIMIT
+     run timeout 120 bash "$STATUS" --no-stale-check
+     [ "$status" -eq 0 ]
+-    echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++    echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+     [[ "$output" != *"below on this route"* ]]
+     run timeout 120 bash "$STATUS" --no-stale-check --json
+-    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 936000' >/dev/null
++    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 920000' >/dev/null
+   done
+ }
+ 
+@@ -167,16 +167,16 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
+   _lsp5_obs "$m" 990000 PROVIDER_CONTEXT_LIMIT
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++  echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+   # below it (a 429 row never counts): the observed bound governs and the line names both
+   _lsp5_obs "$m" 300000 RATE_LIMIT_UNVERIFIED 500001 PROVIDER_CONTEXT_LIMIT
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  echo "$output" | grep -qF "  ceiling: calibrated 936000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
++  echo "$output" | grep -qF "  ceiling: calibrated 920000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+   run timeout 120 bash "$STATUS" --no-stale-check --json
+   [ "$status" -eq 0 ]
+   echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 500000 and .calibrated == true
+-    and .calibrated_value == 936000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
++    and .calibrated_value == 920000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
+     and .calibrated_at == "2026-10-07T09:29:07Z"' >/dev/null
+ }
+ 
+diff --git a/tools/ceiling-probe-live.py b/tools/ceiling-probe-live.py
+index 40ecc836..c480c8b5 100755
+--- a/tools/ceiling-probe-live.py
++++ b/tools/ceiling-probe-live.py
+@@ -194,13 +194,12 @@ if sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S:  # r251-2 Q7: the schedule alone clears
+     raise RuntimeError("ceiling-probe-live: _TPM_BACKOFF_S must sum to at least _TPM_WINDOW_S")
+ _RETRY_WAIT_CAP_S = 180         # total sleep per step, every class
+ _RETRY_AFTER = re.compile(r"retry[-_ ]after\W{0,4}(\d+(?:\.\d+)?)", re.I)
+-# A throttle marker (verifier r251-1): Bedrock's token throttle reads "Too many
+-# tokens, please wait before trying again" — it carries the context marker
+-# `too many tokens`, so a throttle marker must win or the first throttle is a
+-# size rejection with no retry. `429` is matched as a status, never inside a
+-# token count ("429,000 tokens", "1,429.5k"); a status followed by punctuation
+-# ("API Error: 429. Too many tokens") is still a status (r251-2 Q1).
+-_THROTTLE = re.compile(r"throttl|please wait|(?<![\d,.])429(?!\d|[,.]\d)|rate limit|tokens per min", re.I)
++# A throttle marker (verifier r251-1) wins over a context marker: Bedrock's token
++# throttle reads "Too many tokens, please wait before trying again" — it carries
++# the context marker `too many tokens`, so without the rule the first throttle is
++# a size rejection with no retry. r251-3 R1: the rule lives in ONE place,
++# loa_cheval.routing.ceiling.is_throttle_message, shared with the headless
++# adapter (a 429 / 529 only in status position, never inside a token count).
+ _SLEEP = __import__("time").sleep
+ # `opus` / `sonnet` / `haiku` are resolved by the claude CLI itself from these
+ # pins (the claude-bedrock wrapper exports them); recorded when visible.
+@@ -348,7 +347,7 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
+     # wait" line on stderr cannot turn a genuine context-limit result into a transient
+     throttle_text = " ".join(x for x in (result, f"(api_status={api_status})" if api_status else "") if x) \
+         if result else full
+-    if _THROTTLE.search(throttle_text) and (ceiling.is_context_limit_message(full)
++    if ceiling.is_throttle_message(throttle_text) and (ceiling.is_context_limit_message(full)
+                                             or ceiling.is_token_limit_message(full)):
+         # a token throttle, even when it also reads like a context limit: retried on the TPM schedule
+         return {**base, "kind": "transient", "token_limit": True, "detail": diag}

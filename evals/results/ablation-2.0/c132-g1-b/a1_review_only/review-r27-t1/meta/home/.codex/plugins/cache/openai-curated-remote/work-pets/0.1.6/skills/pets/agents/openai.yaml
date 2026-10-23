@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pets"
+  short_description: "List, choose, and manage ChatGPT Work mode pets"
+  default_prompt: "Use $pets to show my available ChatGPT pets and help me choose the active one."

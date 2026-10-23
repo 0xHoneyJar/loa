@@ -1,0 +1,11 @@
+head/.claude/scripts/lib/dec-write-lib.sh:513
+head/.claude/scripts/lib/dec-write-lib.sh:509
+dec-write-lib.bats:354
+head/.claude/scripts/lib/dec-write-lib.sh:642
+head/.claude/scripts/lib/dec-write-lib.sh:359
+decisions.md:24-28
+head/.claude/scripts/lib/dec-write-lib.sh:251
+head/.claude/scripts/lib/dec-write-lib.sh:261
+head/.claude/scripts/lib/dec-write-lib.sh:255
+head/.claude/hooks/session-start/loa-decisions-surface.sh:79
+head/.claude/scripts/validate-artifact.sh:787

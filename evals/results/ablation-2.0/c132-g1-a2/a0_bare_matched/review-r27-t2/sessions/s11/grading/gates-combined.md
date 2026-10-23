@@ -1,0 +1,11 @@
+head/evals/graders/recall-vs-defects.sh:135
+head/evals/harness/ablation-grade.sh:1629-1635
+ablation-grade.sh:2624
+head/evals/graders/recall-vs-defects.sh:295
+head/evals/harness/ablation-grade.sh:1599
+head/evals/harness/ablation-grade.sh:1995
+head/evals/harness/ablation-row.sh:466
+head/.claude/scripts/adversarial-review.sh:251
+head/evals/suites/ablation-2.0.yaml:77
+head/evals/harness/ablation-report.py:766
+head/.claude/scripts/adversarial-review.sh:20

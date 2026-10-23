@@ -1,0 +1,13 @@
+head/evals/harness/pipeline-run.sh:577
+head/evals/graders/recall-vs-defects.sh:135
+ablation-grade.sh:1629-1635
+head/evals/graders/recall-vs-defects.sh:271
+doc.md:3
+head/evals/harness/ablation-report.py:1153
+head/evals/harness/lib/sandbox-mount.sh:1040
+head/evals/suites/ablation-2.0.yaml:77
+head/evals/harness/ablation-grade.sh:1656
+ablation-report.py:709
+head/evals/harness/ablation-grade.sh:1994
+head/evals/harness/ablation-grade.sh:2010
+head/.claude/scripts/adversarial-review.sh:28

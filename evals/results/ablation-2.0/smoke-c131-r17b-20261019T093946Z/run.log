@@ -1,5 +1,0 @@
-09:39:47Z start batch=smoke-c131-r17b-20261019T093946Z smoke=true source=bb03e93192d9 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=1 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-r17b-20261019T093946Z/rows.jsonl
-09:39:47Z plan: 1 arms, 1 tasks, 1 trials, shuffle seed 20261015, est USD 8 (cap 25, run caps build 15 review-catch 20, in-flight reserve 20 per trial, reserve 250)
-09:39:47Z launch smoke-c131-r17b-20261019T093946Z-a1_full-review-r17-t1 (a1_full review-r17 review-catch t1)
-10:22:10Z done smoke-c131-r17b-20261019T093946Z-a1_full-review-r17-t1 cap_failure pass=0.75 USD 22.459883750000003 42m attempts 1
-10:22:10Z failed: no trial completed (1 rowed, 0 without a row)

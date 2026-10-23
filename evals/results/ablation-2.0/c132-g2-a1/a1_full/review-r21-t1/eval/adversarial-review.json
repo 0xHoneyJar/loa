@@ -1,0 +1,177 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/adapters/loa_cheval/providers/openai_adapter.py:OpenAIAdapter._transport_policy",
+      "anchor_type": "function",
+      "anchor_line": 221,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/openai_adapter.py:OpenAIAdapter._transport_policy",
+      "cross_file_justification": "endpoint_policy.validate_providers accepts provider-level dispatch_group: local, and hop_is_local inherits that label, but _build_provider_config copies only the model-level dispatch_group into ModelConfig.",
+      "description": "Provider-level local declarations do not activate the transport policy. An authenticated provider with dispatch_group: local, an HTTPS loopback endpoint, no insecure-endpoint opt-in, and models without individual dispatch_group labels passes validation but receives policy=None.",
+      "failure_mode": "Requests use environment proxies despite being classified as local. With HTTPS_PROXY configured, prompts and credentials can pass through the proxy; the urllib fallback also retains redirect following.",
+      "suggested_fix": "Resolve effective locality consistently from both provider and model configuration, and activate TransportPolicy for every hop classified as local.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:load_config",
+      "anchor_type": "function",
+      "anchor_line": 704,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/config/loader.py:load_config",
+      "cross_file_justification": "The loader invokes validate_providers, but that function never invokes the separately defined validate_local_fallbacks check in endpoint_policy.py.",
+      "description": "The local fallback restriction is defined but disconnected from configuration loading. Under locality: local_voices, a valid local model whose fallback_chain names a hosted provider still passes the new validation gate.",
+      "failure_mode": "When the local hop fails, cheval can walk the configured fallback chain and send the prompt to the hosted provider despite the local_voices posture.",
+      "suggested_fix": "Invoke validate_local_fallbacks on the fully merged configuration after interpolation and alias resolution, before returning it from load_config.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:_build_provider_config",
+      "anchor_type": "line",
+      "anchor_line": 541,
+      "anchor_line_end": 541,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/cheval.py:_build_provider_config",
+      "cross_file_justification": "The head version of .claude/adapters/loa_cheval/config/endpoint_policy.py (_local_labels, hop_is_local, validate_local_fallbacks) treats a provider-block `dispatch_group: local` as a valid local label when the model entry is silent, and the loader admits it. cheval.py:_build_provider_config only reads `model_data.get(\"dispatch_group\")`, and modelinv.py:hop_locality_of only reads the model entry, so the adapter and the MODELINV emitter disagree with the loader/planner about the same hop.",
+      "description": "ModelConfig.dispatch_group is populated solely from the model entry. A provider whose block carries `dispatch_group: local` (accepted by the loader's _local_label_refusal when the endpoint host passes the local rule, and counted as local by hop_is_local and the planner's fallback audit) produces ModelConfig.dispatch_group=None. OpenAIAdapter._transport_policy then returns None unless allow_insecure_endpoint is also set, so an https local hop runs without TransportPolicy: proxy environment variables are honoured, redirects are followed by urllib, and the path-prefix rule is not applied. modelinv.hop_locality_of likewise records `hop_locality: hosted` for a hop the planner dispatched as local under local_voices.",
+      "failure_mode": "Under `hounfour.locality: local_voices`, a provider labelled local at the block level (https endpoint on 127.0.0.1 / RFC1918, no opt-in) is dispatched through HTTPS_PROXY / follows a 3xx off-host, and the MODELINV audit row says hop_locality=hosted while the planner's locality gate counted it as local. The D-7.2 request-time guarantees and the D-8.0 audit field are both wrong for the same hop.",
+      "suggested_fix": "In _build_provider_config fall back to `prov.get(\"dispatch_group\")` when the model entry has none (mirroring _local_labels / hop_is_local), and make modelinv.hop_locality_of delegate to endpoint_policy.hop_is_local(hounfour, provider, model_id) so there is one local-hop implementation. Add a test: provider-block label, model silent, https local endpoint, no opt-in -> TransportPolicy is non-None and MODELINV hop_locality == 'local'.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/audit/modelinv.py:destination_for",
+      "anchor_type": "line",
+      "anchor_line": 444,
+      "anchor_line_end": 445,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "destination_for returns `{host: cli-subprocess, scheme: cli}` whenever `not endpoint`, which is also the case when the provider name is not in hounfour.providers (prov == {}). The docstring and SDD reserve `cli` for `*-headless` types and `kind: cli` models. The second emit site in cmd_invoke feeds `_modelinv_state.get(\"final_model_id\")` to hop_telemetry; if that value is a server-reported model id rather than the canonical `provider:model` hop (local servers such as Ollama return ids like `llama3.1:8b`, which split into provider `llama3.1`, model `8b`), an HTTP hop to a local server is recorded as a CLI subprocess destination.",
+      "failure_mode": "The MODELINV `destination` field, the audit evidence for where a prompt went, labels an unknown or mis-keyed HTTP hop as `cli-subprocess`, hiding a real network destination behind the one value that means 'no network'.",
+      "suggested_fix": "Return `{host: unknown, scheme: unknown}` when the provider block is missing or has no type/endpoint, and only return the cli marker for `*-headless` / `kind: cli`. At the emit site pass the canonical `_entry_target` of the answering hop rather than final_model_id, or assert the value contains a configured provider prefix before deriving destination.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:module_docstring",
+      "anchor_type": "line",
+      "anchor_line": 6,
+      "anchor_line_end": 6,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The policy text states an insecure endpoint 'is never resolved through DNS, so there is no rebinding', yet `localhost` is an admitted opt-in host and the adapters hand `http://localhost:<port>/...` to httpx/urllib, which resolve it via the system resolver (/etc/hosts, nsswitch, or a stub resolver). TransportPolicy.check_url compares the string host, not the resolved address, so nothing in the Python path pins localhost to loopback.",
+      "failure_mode": "On a host where `localhost` resolves to a non-loopback address (misconfigured /etc/hosts, container DNS), an opted-in plaintext http request carrying the prompt and any headers leaves the machine while every check reports a loopback-only posture. Documentation overstates the guarantee the code provides.",
+      "suggested_fix": "Either refuse `localhost` as an opt-in host and require an IP literal (127.0.0.1 / ::1), or resolve `localhost` once at request time and refuse unless every returned address is loopback; update the docstring to describe what is actually enforced.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T07:00:32Z",
+    "tokens_input": 186493,
+    "tokens_output": 17929,
+    "cost_usd": 0,
+    "latency_ms": 103021,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 1146,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "37a749e2a07380f6ecea79b910d6761de7ab85f106422adf1a3e3e141e913029",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

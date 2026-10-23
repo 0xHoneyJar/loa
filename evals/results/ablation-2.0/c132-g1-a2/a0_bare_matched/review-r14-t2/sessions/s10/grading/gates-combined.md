@@ -1,0 +1,16 @@
+head/.claude/scripts/flatline-proposal-review.sh:233
+head/.claude/scripts/flatline-validate-learning.sh:315
+head/.claude/scripts/flatline-learning-extractor.sh:317
+head/.claude/hooks/compliance/implement-gate.sh:123
+implement-gate.bats:151
+head/tools/check-prompt-budget.sh:53
+evals/graders/recall-vs-defects.sh:103
+evals/fixtures/review-prs/manifests/pr-05.json:13
+pr-02.json:33
+head/evals/graders/recall-vs-defects.sh:74
+head/.claude/defaults/model-config.yaml:477
+head/.claude/defaults/model-config.yaml:562
+head/.claude/scripts/check-permissions.sh:167
+docs/migration/v2.0-model-generation-floor.md:258
+head/.claude/scripts/model-adapter.sh:656
+head/.claude/scripts/red-team-pipeline.sh:415

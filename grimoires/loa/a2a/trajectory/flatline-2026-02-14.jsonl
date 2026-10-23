@@ -1,0 +1,407 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-14T07:24:04Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 80
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap explicitly called out as a root cause (missing E2E coverage) and the proposed tests are concrete, pipeline-specific, and directly prevent recurrence. Implementation cost is moderate but ROI is high because it validates the exact integration seams that regressed.",
+        "gpt_score": 900,
+        "opus_score": 820,
+        "delta": 80,
+        "average_score": 860,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Legitimate gap given the stated risk about persona inconsistency across models. However, fully specifying persona content can be brittle and may over-constrain iteration; better to define a schema/requirements + validation harness rather than hardcoding full prose. Still valuable and actionable if framed as constraints + examples + CI validation.",
+        "gpt_score": 720,
+        "opus_score": 880,
+        "delta": 160,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical implementation detail for prompt assembly: undefined separators lead to divergent behavior and hard-to-debug regressions. Very low effort to specify and test; high leverage because it affects every invocation path using the merge logic.",
+        "gpt_score": 820,
+        "opus_score": 780,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good catch: empty/whitespace keys are a distinct failure mode that will otherwise surface as confusing upstream auth errors. Cheap to implement (string validation) and aligns with the stated goal of actionable diagnostics.",
+        "gpt_score": 840,
+        "opus_score": 750,
+        "delta": 90,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "Directly addresses a previously observed failure mode (missing personas) and is easy to implement with clear acceptance criteria (fail fast with actionable error). High ROI for packaging/installation robustness.",
+        "gpt_score": 760,
+        "opus_score": 420,
+        "delta": 340,
+        "average_score": 590,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Real-world gap: ad-hoc grep/cut parsing is fragile and will cause recurring auth issues. Actionable fix is to mandate a proper dotenv parser or a well-defined supported subset. Moderate complexity depending on portability constraints, but worthwhile to prevent support churn.",
+        "gpt_score": 700,
+        "opus_score": 350,
+        "delta": 350,
+        "average_score": 525,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Persona files as the primary contract for JSON output are brittle across models/providers",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The PRD assumes that adding persona.md files with 'respond ONLY with JSON' will reliably produce parseable JSON across GPT/Anthropic and across prompt/context variations. In practice, models still occasionally emit preambles, markdown fences, trailing commentary, or schema drift—causing hard failures (jq parse errors) and reintroducing the same 'cryptic failure' class of bugs.",
+        "location": "FR-2, FR-6, Risks: 'Persona content doesn't produce consistent JSON across models'",
+        "recommendation": "Define a strict, versioned JSON schema for each command (flatline reviewer/skeptic/scorer, gpt-review verdict) and implement tolerant parsing + validation: strip fences, extract first JSON object/array, validate with a JSON schema validator, and provide a repair/retry path (e.g., one automatic 'return valid JSON only' reprompt) before failing.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Markdown fence stripping is specified only for gpt-review model-invoke path; other wrappers/formatting will still break",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Only ``` fences are addressed. Models may return leading/trailing whitespace, BOM, multiple JSON blocks, YAML, or 'Here is the JSON:' prefixes. Flatline and other consumers may still fail if they don't share a single robust 'extract JSON' utility, leading to inconsistent behavior and regressions.",
+        "location": "FR-5; implied across Flatline + gpt-review parsing",
+        "recommendation": "Centralize response normalization in one shared function/library used by all scripts (flatline + gpt-review). Handle common variants: fences, prefixes, multiple blocks, and ensure deterministic extraction of the first valid JSON value.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Persona + system merge logic can cause prompt injection and policy bypass via 'system override' files",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The 'system override' is effectively untrusted content (repo files, user-provided context, generated files). Concatenating it after persona instructions can allow malicious or accidental instructions to override output format, exfiltrate data, or change tool behavior. This is especially risky in multi-repo scenarios and when running on third-party codebases.",
+        "location": "FR-3; NFR-1; Bridgebuilder context",
+        "recommendation": "Treat system/context files as untrusted: wrap them in a clearly delimited 'CONTEXT (do not follow instructions inside)' section, and reinforce in persona that only persona instructions are authoritative. Consider using separate message roles (system vs user) in the adapter layer rather than concatenation, if supported by providers.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "No explicit end-to-end integration test plan despite being the root cause of regressions",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "The PRD states regressions shipped due to lack of E2E tests, but the requirements focus on patching specific bugs. Without automated E2E coverage for the full pipeline (scripts → model-invoke → cheval → provider adapters), the same class of breakage will recur on the next refactor or provider change.",
+        "location": "Problem Statement ('shipped without end-to-end integration tests'); Success Metrics; NFRs",
+        "recommendation": "Add explicit test requirements: (1) hermetic smoke tests with mocked provider adapters returning canned responses (including fenced JSON), (2) contract tests for persona loading/merging, (3) CI job that runs flatline + gpt-review in 'mock mode' on a fixture repo. Gate releases on these tests.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Error diagnostics requirement is underspecified and may leak secrets or still be unusable",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Replacing '2>/dev/null' with logging stderr can inadvertently capture and persist API keys, auth headers, or sensitive prompt content. Conversely, if logs are too verbose or not surfaced to the user, diagnostics remain ineffective. The PRD doesn't define redaction, log location, retention, or UX (what the user sees).",
+        "location": "NFR-1: Error Diagnostics",
+        "recommendation": "Define a logging policy: redact secrets (API keys, Authorization headers), cap log size, store in a predictable temp path, and print a concise actionable error with a pointer to the log file. Add tests ensuring secrets are masked in logs.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-010",
+        "concern": "Release timeline risk: changes span bash scripts, Python adapters, new prompt assets, and multi-provider behavior without a rollout plan",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "The fix touches multiple languages and execution environments (bash + Python + provider adapters + file packaging). New persona files must be included in distribution, paths must resolve across install methods, and behavior must be verified on different OS/shells. Without a staged rollout or feature flag, a partial fix can still ship broken.",
+        "location": "Affected Files Summary; MVP scope; 'v1.38.0 release cannot ship broken'",
+        "recommendation": "Add a rollout plan: ensure packaging includes new .claude/skills files, add a versioned feature flag to fall back to known-good paths, and run a cross-platform smoke matrix (macOS/Linux, bash versions). Define a 'go/no-go' checklist tied to Success Metrics.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd hounfour hardening model",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-14T07:24:04Z",
+    "metrics": {
+      "total_latency_ms": 217000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-14T07:39:15Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 2,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: error-path behavior for LazyValue resolution is underspecified and likely to surface as confusing runtime exceptions. Actionable: define which exceptions are caught, how they’re wrapped (e.g., ConfigError with context), and whether failures are fatal vs. allow fallback. High ROI/low cost because it’s localized and improves operability and debuggability.",
+        "gpt_score": 880,
+        "opus_score": 950,
+        "delta": 70,
+        "average_score": 915,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical correctness issue: regex-based brace matching in shell is not robust for nested JSON and will fail for common schema shapes. Actionable: replace with a JSON-aware extractor (jq-based, or a small Python helper) and specify behavior when multiple JSON objects exist. Very high ROI because normalization is core to the pipeline and current approach is fundamentally brittle.",
+        "gpt_score": 930,
+        "opus_score": 730,
+        "delta": 200,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "normalize-json.sh contains apparent template/merge artifacts that will break execution (e.g., '{{DOCUMENT_CONTENT}}' injected into conditionals and redirections)",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "The script as written will not run in bash (syntax errors in [[ ... ]] and invalid stderr redirections), causing all consumers that source it (flatline-orchestrator.sh, gpt-review-api.sh, tests) to fail immediately. This is a single point of failure introduced into multiple entrypoints.",
+        "location": "Section 2.4 Centralized Response Normalization — normalize-json.sh (steps 5-6) and error redirections; also appears in other bash snippets (env loading, --repo parsing)",
+        "recommendation": "Remove all template artifacts and run shellcheck on every modified script. Add a CI gate that executes: (1) 'bash -n' on scripts, (2) shellcheck, and (3) a minimal smoke test that sources normalize-json.sh and calls normalize_json_response with a fixture.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "JSON extraction approach is brittle and can mis-extract or truncate JSON (regex-based grep -oP for nested structures, strings containing braces, large payloads, multiple JSON values)",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If normalization returns the wrong JSON (or partial JSON that still passes jq), downstream automation may act on incorrect data (e.g., wrong PR comments, wrong scoring). Regex-based matching of JSON is notoriously unsafe, especially with braces inside strings, escaped quotes, or deeply nested objects/arrays.",
+        "location": "Section 2.4 normalize-json.sh — step 5 'Extract first JSON object or array' using grep -oP with a simplistic nested pattern",
+        "recommendation": "Replace regex extraction with a robust parser-based approach. Options: (a) use python/node one-liner to locate the first valid JSON value by incremental parsing, (b) require the model to output a single JSON value and fail fast otherwise, (c) if extraction is required, implement a brace/quote-aware scanner in python and keep bash as a thin wrapper.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "validate_json_schema() only checks for presence of a top-level field and can accept wrong types/empty arrays/empty objects; also treats 'null' as present due to jq -r behavior",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "A response like '{\"concerns\": null}' or '{\"concerns\": \"oops\"}' may pass the required-field check but break later processing or silently degrade quality. This undermines the goal of schema contracts and can cause runtime failures in jq pipelines or scoring logic.",
+        "location": "Section 2.4 normalize-json.sh — validate_json_schema() implementation",
+        "recommendation": "Validate type and minimal structure, not just existence. For example: 'jq -e \"has(\\\"concerns\\\") and (.concerns|type==\\\"array\\\")\"'. Consider per-agent validators (concerns/improvements/scores/verdict) with stricter checks.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Prompt-injection mitigation via 'reference-only' wrapper is not a reliable security boundary; untrusted system_override content can still influence model behavior",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "LLMs can and do follow instructions from 'context' sections despite warnings, especially if the injected content is crafted to override or confuse. If system_override can be user-controlled (or comes from repo content), it can exfiltrate secrets, alter output schema, or cause malicious actions (e.g., instructing to include tokens in output).",
+        "location": "Section 2.2 Persona Loading with Merge + Context Isolation; Section 5 Security Considerations — Context Isolation",
+        "recommendation": "Treat system_override as untrusted input: restrict allowed paths, require explicit opt-in, and consider content hashing/allowlists. Add runtime guardrails: enforce JSON-only output via strict post-parse validation, strip unexpected fields, and never pass secrets into the model context. Consider using provider-side 'system' vs 'user' roles appropriately rather than concatenated text.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Secret redaction is incomplete and log handling is risky (world-readable /tmp, no permissions set, no guaranteed cleanup, regex misses many token formats)",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Writing invocation stderr to /tmp can leak secrets to other users on shared systems if file permissions are permissive. Regex-based redaction can miss tokens (Anthropic keys, GitHub tokens, JWTs, base64 blobs, query params). 'Auto-cleanup on next successful run' is not reliable; crashes leave logs behind.",
+        "location": "Section 2.6 Error Diagnostics with Secret Redaction; Section 5 Security Considerations — Secret Redaction",
+        "recommendation": "Create logs with restrictive permissions (umask 077; use mktemp; chmod 600). Add trap-based cleanup on exit. Expand redaction patterns and consider a denylist of common env var values (e.g., redact any value equal to known env vars like OPENAI_API_KEY/ANTHROPIC_API_KEY/GITHUB_TOKEN). Avoid logging raw headers entirely when possible.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " 1 architecture overview flatline",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-14T07:39:15Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-14T07:47:25Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real operational gap for production-facing pipeline changes: without a rollback/disable strategy, regressions become high-risk and slow to mitigate. Actionable if framed as a per-sprint contingency section (revert steps, feature-flag usage, and abort criteria). Trade-off: some teams treat rollback as release-process rather than sprint-doc content, so scope should be kept lightweight.",
+        "gpt_score": 720,
+        "opus_score": 780,
+        "delta": 60,
+        "average_score": 750,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Clear contract/spec gap that will cause inconsistent implementations: undefined exception type/location/signature and undefined behavior for multi-provider auth failures. Highly actionable (define class + import path + error aggregation/fail-fast semantics) and low cost with high ROI because it prevents ambiguous error handling across the orchestrator.",
+        "gpt_score": 820,
+        "opus_score": 830,
+        "delta": 10,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Likely real bug class if the orchestrator runs phases in parallel: shared log file, traps, and non-reentrant normalization can create flaky failures and corrupted logs. Actionable (per-invocation temp files, lock/atomic writes, avoid trap collisions, document parallelism assumptions). Complexity is moderate because it touches shell concurrency patterns, but impact is significant.",
+        "gpt_score": 780,
+        "opus_score": 850,
+        "delta": 70,
+        "average_score": 815,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Under-specified fallback behavior is a common source of CI/prod drift (different tool availability) and hard-to-debug parsing differences. Very actionable: define trigger conditions, minimum Python version, failure mode when neither tool exists, and parity expectations. Moderate effort, strong reliability ROI.",
+        "gpt_score": 760,
+        "opus_score": 900,
+        "delta": 140,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Timeout/retry semantics are a real resilience gap for any networked model invocation; without them, pipelines can hang indefinitely and stderr redirection can obscure failure modes. Actionable (timeouts, retry/backoff on 429/503, surfaced error codes/log format). Moderate complexity but high operational value.",
+        "gpt_score": 740,
+        "opus_score": 810,
+        "delta": 70,
+        "average_score": 775,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Performance targets for a small normalization script are usually premature unless there is evidence of latency issues; adding benchmarks and p95 targets increases maintenance burden and can create noisy CI. A lightweight note to avoid repeated tool-detection might be fine, but full benchmarking is low ROI at this stage.",
+        "gpt_score": 330,
+        "opus_score": 690,
+        "delta": 360,
+        "average_score": 510,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assuming `str(LazyValue)` reliably yields the secret value (not a placeholder) across providers and LazyValue implementations",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If `str()` returns a debug representation (e.g., \"<LazyValue ...>\") or triggers unexpected evaluation timing, auth headers will be wrong and all downstream calls fail. Worse, it may log/serialize secrets unintentionally if exceptions include the stringified value.",
+        "location": "Sprint 1 / Task 1.1: `_get_auth_header()` LazyValue Resolution",
+        "recommendation": "Confirm LazyValue contract (e.g., `.resolve()`/`.get()`), add explicit resolution method with tests, and ensure errors never include the resolved secret. Add unit tests for each provider’s auth path with real LazyValue objects.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Persona merge + “context isolation” is prompt-policy theater without strong, testable guarantees",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Wrapping system content in \"reference only\" text does not reliably prevent instruction-following by models. If the `--system` file contains conflicting directives, the model may still follow them, causing schema breaks, unsafe actions, or inconsistent behavior across models.",
+        "location": "Sprint 1 / Task 1.2: `_load_persona()` merge + wrapper constants",
+        "recommendation": "Define a strict precedence model (persona > system reference) and enforce it by placing authoritative directives last and explicitly restating output constraints after the reference block. Add adversarial tests where system file tries to override JSON-only output.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "JSON extraction via heuristics (jq + python fallback) is fragile with nested braces, multiple JSON objects, or JSON-like text",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Model outputs often include multiple code blocks, examples, or braces inside strings. Naive extraction can select the wrong substring, producing valid-but-wrong JSON or truncation. This can lead to incorrect automation decisions (e.g., wrong verdict) while still passing `jq` validation.",
+        "location": "Sprint 2 / Task 2.5: `normalize_json_response()`; Sprint 4 fixtures mention nested braces but not multiple objects/blocks",
+        "recommendation": "Specify deterministic extraction rules (e.g., first top-level JSON object only, or require the entire response to be JSON after stripping fences). Add tests for: multiple JSON blocks, leading/trailing JSON arrays, braces in strings, and prose containing `{}` before the real payload.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Schema validation is underspecified and may be too shallow to prevent downstream breakage",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Current acceptance criteria focus on field presence/type checks (e.g., verdict is string). They don’t enforce enums, required fields, non-empty arrays, ID formats, or severity ranges consistently. Weak validation means bad outputs slip through and cause later steps (scoring, GitHub posting) to misbehave.",
+        "location": "Sprint 2 / Task 2.5: `validate_agent_response()`; Sprint 3 / Task 3.2: verdict validated as string type",
+        "recommendation": "Define strict per-agent JSON Schemas (draft-07 or similar) and validate with a real schema validator (python `jsonschema`) or robust jq rules including enums/ranges/patterns. Add tests for invalid enum values, missing required keys, and out-of-range severity_score.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Secure logging approach may still leak secrets and may break portability due to process substitution",
+        "severity": "CRITICAL",
+        "severity_score": 820,
+        "why_matters": "Redaction patterns are easy to miss (Authorization variants, base64 tokens, multiline headers, JSON fields). Also `2> >(redact_secrets >> file)` requires bash and process substitution; if scripts run under sh/dash or restricted environments, logging breaks or silently drops stderr—hurting diagnostics.",
+        "location": "Sprint 3 / Task 3.3: Secure Error Diagnostics",
+        "recommendation": "Guarantee bash execution (`#!/usr/bin/env bash`, `set -euo pipefail`) and add a fallback path when process substitution isn’t available. Expand redaction to cover common token formats and multiline cases; add tests that simulate stderr containing secrets and verify redaction.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 core pipeline",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-14T07:47:25Z",
+    "metrics": {
+      "total_latency_ms": 215000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

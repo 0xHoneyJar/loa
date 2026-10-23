@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage schedules for this page"
+  short_description: "Create, update, or remove page schedules"
+  default_prompt: "Use $manage-schedules to manage schedules for this page."

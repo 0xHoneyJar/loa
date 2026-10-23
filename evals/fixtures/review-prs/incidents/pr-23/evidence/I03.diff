@@ -1,0 +1,88 @@
+commit baea80244306d0bee0334ba5f8238777c7cdb1e7
+Date: 2026-10-20T12:39:13+11:00
+
+fix(cycle-131): sprint-263 review round r1b — one-liner python defs, fence lengths, stat-only git diff, |&, grep-family sinks
+
+Review dissent run 2 on the r1a diff (12 findings, 3 BLOCKING, all at the edges of r1a; DEC-0643):
+- recall-vs-defects.sh: a python signature ends at the colon after its closing parenthesis, so `def f(): return 1`
+  ends on its own line (and a header with no terminator falls back to one line); a markdown fence closes only on a
+  same-character fence at least as long with nothing after it, and a backtick opener whose info string holds a
+  backtick is not a fence (RG-42 extended, RG-43).
+- ablation-grade.sh: a stat-only git diff needs a stat flag and none of -p/-u/--patch/--unified/-U<n>; `|&` is one
+  pipe with no empty segment; silent sinks include -L / --files-without-match and the egrep/fgrep/rg family
+  (AG-52 extended); AG-53's printf now emits a real line continuation.
+- Re-grade of the 36 cycle-130 runs on this grader: 36/36 regression, 0 rows changed.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/ablation-grade.sh b/evals/harness/ablation-grade.sh
+index 4100de30..7c6765a2 100755
+--- a/evals/harness/ablation-grade.sh
++++ b/evals/harness/ablation-grade.sh
+@@ -2080,8 +2080,9 @@ def silent_sink(w):
+     exe = w[0].rsplit("/", 1)[-1]
+     if exe in ("wc", "cmp", "true", "false", "test"):
+         return True
+-    if exe == "grep":
+-        return any(re.fullmatch(r"-[A-Za-z]*[cql][A-Za-z]*", x) or x in ("--count", "--quiet", "--silent", "--files-with-matches")
++    if exe in ("grep", "egrep", "fgrep", "rg"):
++        return any(re.fullmatch(r"-[A-Za-z]*[cqlL][A-Za-z]*", x)
++                   or x in ("--count", "--quiet", "--silent", "--files-with-matches", "--files-without-match")
+                    for x in w[1:])
+     return False
+ 
+@@ -2180,6 +2181,9 @@ def split_segments(cmd):
+             cur.append(ch)          # a redirection (2>&1, >&2, <&0, &>f), not a separator (review r1 DISS-001/C-001)
+         elif depth == 0 and ch in "\n;&|":
+             pipe = ch == "|" and cmd[i + 1:i + 2] != "|" and cmd[i - 1:i] != "|"
++            if ch == "|" and cmd[i + 1:i + 2] == "&":
++                pipe = True           # `|&` is bash's `2>&1 |`: one pipe, no empty segment (review r2 DISS-C-004)
++                i += 1
+             segs.append(("".join(cur), "|" if pipe else ";"))
+             cur = []
+         else:
+@@ -2503,8 +2507,8 @@ def oracle_plan(tool, inp, ws, answer):
+             nxt = seg_words(segs[k + 1][0]) if sep == "|" and k + 1 < len(segs) else []
+             if DEVNULL.search(seg) or (nxt and silent_sink(nxt)):
+                 continue
+-            if exe == "git" and any(x in DIFF_STAT_FLAGS for x in w):
+-                continue              # a stat-only git diff prints names and counts, not content
++            if exe == "git" and any(x in DIFF_STAT_FLAGS for x in w) and not any(x in ("-p", "-u", "--patch", "--unified") or re.fullmatch(r"-U\d*|--unified=\d+", x) for x in w[1:]):
++                continue              # a stat-only git diff prints names and counts, not content (with -p/-u/--patch it prints both; review r2 DISS-002)
+             toks = segment_tokens(seg, vars_, cwd, ws)
+             pr_ops = [k_ for k_, (v, c) in enumerate(toks) if c[0] == "pr" and c[1] in ("head", "base")
+                       and not v.endswith("head.diff")]
+diff --git a/evals/tests/ablation-grade.bats b/evals/tests/ablation-grade.bats
+index 0d3b0ce1..1116e74a 100644
+--- a/evals/tests/ablation-grade.bats
++++ b/evals/tests/ablation-grade.bats
+@@ -1537,7 +1537,7 @@ CASES
+   [ "$(G '.oracle_exposed_defects, .oracle_exposed_events, .corpus_sha256' | tr '\n' ' ')" = "null null null " ]
+ }
+ 
+-@test "AG-52 oracle redirections (review r1 DISS-001/C-001): 2>&1 | wc -l, &>/dev/null, 2>&1 | grep -i -c, git diff --stat print nothing; 2>&1 | head still exposes" {
++@test "AG-52 oracle redirections (review r1 DISS-001/C-001, r2 DISS-002/C-004/C-008): 2>&1 | wc -l, &>/dev/null, grep -i -c, |& wc, egrep -c, grep -L, git diff --stat print nothing; 2>&1 | head and --stat -p expose" {
+   make_oracle
+   local i=0 cmd res want
+   while IFS=$'\t' read -r cmd res want; do
+@@ -1552,14 +1552,18 @@ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh &>/dev/null; echo rc=$?	r
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | grep -i -c planted	1	diff= read= unknown= exposed=
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>/dev/null | grep --count '^>'	2	diff= read= unknown= exposed=
+ git diff --no-index --stat pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	 .claude/scripts/g.sh | 2 +-\n 1 file changed	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh |& wc -l	4	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | egrep -c planted	1	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | grep -L nothing	(standard input)	diff= read= unknown= exposed=
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh 2>&1 | head -40	20c20\n<   if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\n---\n> later	diff=d1 read= unknown= exposed=d1
++git diff --no-index --stat -p pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	 g.sh | 2 +-\n@@ -20 +20 @@\n-  if [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi\n+ later	diff=d1 read= unknown= exposed=d1
+ CASES
+ }
+ 
+ @test "AG-53 KF-046 class 7 (review r1 DISS-C-002): a bare repo-name token as a whole line (a for-list continuation, a list entry) is never exempt" {
+   RD="$T/k3"; mkdir -p "$RD/sandbox" "$RD/transcripts" "$RD/eval" "$RD/snapshots"; echo '{}' > "$RD/snapshots/index.json"; : > "$RD/sandbox/review.md"
+   RTASK=review-r18 RROOT=ablation-2.0-replication
+-  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'for r in \\\\\n  0xHoneyJar/loa\ndo gh api repos/$r/contents; done')")"
++  tool_use "$RD" REVIEW Bash "$(bash_in "$(printf 'for r in \\\n  0xHoneyJar/loa\ndo gh api repos/$r/contents; done')")"   # one backslash before the newline: a real continuation (review r2 DISS-C-009)
+   rgrade "$RD"
+   [ "$status" -eq 0 ]
+   [ "$(G '.contaminated.pattern')" = repo_name ]

@@ -1,1 +1,0 @@
-{"ts_utc":"2026-10-19T07:29:35Z","sprint_id":"sprint-1","type":"review","model":"gpt-5.3-codex","index":0,"reject_reason":"severity-not-in-enum (got: INVALID)","payload":{"id":"DISS-001","severity":"INVALID","category":"injection","description":"test","failure_mode":"crash"},"repair_attempted":true,"repair_succeeded":false,"schema_enforced":false,"parse_path":"normalized"}

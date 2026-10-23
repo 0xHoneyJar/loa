@@ -1,0 +1,10 @@
+2026-10-23T02:54:40Z run-ablation: c132-g3-a3-a1_full_openmount-review-r20-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g3-a3/a1_full_openmount/review-r20-t1
+arm a1_full_openmount: all_phases_present OK phases REVIEW,AUDIT
+arm a1_full_openmount: oracle_open_recorded OK mount_overlay=none, oracle_open=true
+arm a1_full_openmount: integrity_clean OK 1973 manifest entries verified; manifest_sha256 f8766bc315dc (matches checksums.json)
+arm a1_full_openmount: mount_cheval_ok OK mount_cheval=ok
+arm a1_full_openmount: dissent_present OK dissent ran at review audit (eval/ envelopes, voices_succeeded >= 1)
+arm a1_full_openmount: OK
+run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in REVIEW (30419 output tokens; a WebFetch summariser or built-in subagent, not drift — DEC-0545)
+run-ablation: extra model global.anthropic.claude-opus-5-5 in REVIEW,AUDIT (35580 output tokens; a WebFetch summariser or built-in subagent, not drift — DEC-0545)
+graded review-r20: recall 0.3 false_positives 27; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g3-a3/a1_full_openmount/review-r20-t1/grade.json

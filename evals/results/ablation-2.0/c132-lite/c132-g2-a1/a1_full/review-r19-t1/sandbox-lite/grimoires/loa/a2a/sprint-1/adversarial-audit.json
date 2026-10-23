@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementing-tasks skill frontmatter widens the App Zone (src, lib, app) from `permission: read` to `permission: read-write`. Nothing else in this diff (guard register, floor, task kinds) relates to implement-time write scope, and no cycle note, DEC row or test accompanies the escalation. The reviewing-code skill in the same diff was changed to defer to the frontmatter `zones:` block as the authority, so this key now carries more weight than before.",
+      "failure_mode": "If the old `read` value was the intended advisory barrier (write only through the implement gate / explicit confirmation), this silently removes the prose-level App Zone confirmation for every /implement run, including unattended run-mode runs.",
+      "suggested_fix": "Confirm the escalation is intentional and cite it in the commit/DEC row. If /implement is meant to write App code, keep read-write but add a line to the skill noting the implement gate remains the harness barrier; otherwise revert to `read`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 45,
+      "anchor_line_end": 49,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_guards",
+      "cross_file_justification": "floor.yaml marks 16 fence:FR-SZ* rows as floor; .claude/data/guard-origins.yaml gives every one of them `knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE`, and block-destructive-bash.sh (modified in this diff) implements them but is absent from floor_files.",
+      "description": "The floor is defined as the set of guards no profile, knob or task may weaken, yet every floor fence (FR-SZ*, FR-SZ2*) is disabled by a single environment variable, LOA_ALLOW_STATE_ZONE_EXEC_WRITE, which floor_keys does not list (it only covers .loa.config.yaml keys). The script that implements all 16 floor fences, block-destructive-bash.sh, is not in floor_files; only its corpus rows are pinned, so a regex change that still passes the pinned corpus rows but opens a new bypass shape is not caught by floor-snapshot.",
+      "failure_mode": "A cycle task or profile can set the env knob (e.g. via settings `env`, a wrapper, or CI) and every floor fence becomes an audited allow, with the audit row itself written to a model-writable .run/audit.jsonl. The floor then provides documentation but not enforcement.",
+      "suggested_fix": "Either add block-destructive-bash.sh to floor_files (and update the pin deliberately per cycle), or add an `floor_env` list naming LOA_ALLOW_STATE_ZONE_EXEC_WRITE and LOA_AUDIT_REPLAY so guard-origins.bats can assert no floor row's knob is a bare env var, and have profile-floor.bats refuse profiles that export them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "function",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Audit rows written by emit_block (and the FR-MERGE-2, FR-SZ and FR-SZ2 allow rows) are tagged `replay: true` whenever the environment variable LOA_AUDIT_REPLAY equals \"1\". The hook trusts the variable unconditionally; there is no check that the invocation actually came from the corpus runner (e.g. a BATS or run-corpus marker). The yield consumer presumably excludes replay rows from `real_blocks_30d`.",
+      "failure_mode": "A stale `export LOA_AUDIT_REPLAY=1` in a shell profile, CI job, or a settings.json `env` block causes every real block in that session to be classified as replay, so the Guards line in loa-status and the host yield under-report real blocks, and a bypass/allow-override row is also hidden from review.",
+      "suggested_fix": "Require a second signal before tagging replay (e.g. LOA_AUDIT_REPLAY=1 AND BATS_TEST_FILENAME set, or a nonce file the corpus runner creates under .run/), and have guard-yield.sh report the count of replay rows it dropped so a wholesale suppression is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/rules/stash-safety.md:paths",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "stash-safety.md gains a `paths:` frontmatter that scopes the rule to *.sh, *.bats, .claude/scripts/** and .claude/hooks/**. Rules without `paths` are always loaded; with it, the prose guidance against `git stash … | tail` / `|| true` swallowing is only present when those file globs are being edited. The risky pattern is a Bash command, not a file edit, and is just as likely while editing markdown, YAML or application code.",
+      "failure_mode": "The model runs an output-swallowed stash in a session that never touched a matching path, so the rule is not in context. The harness fence FR-1.2b still catches the listed swallow shapes, but any shape outside its regex (e.g. `2>&1 | grep -v`) now has no prose backstop.",
+      "suggested_fix": "Drop `paths:` for stash-safety.md (keep it always-on), or widen it to `**` and rely on prompt-budget for size, since the rule guards a shell action rather than a file type.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:checklists",
+      "anchor_type": "line",
+      "anchor_line": 284,
+      "anchor_line_end": 284,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The inline security Red Flags list (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) is removed from the reviewing-code prompt, leaving only a pointer to resources/REFERENCE.md. The Zone Constraints block likewise drops the explicit System Zone never-edit statement. Both appear to be prompt-budget trims unrelated to the cycle's goal.",
+      "failure_mode": "The review model only sees the red-flag list if it chooses to open REFERENCE.md; in budget-pressured or unattended runs the secrets/SQL/input-validation checks become optional rather than always-present, lowering review recall for exactly the categories the security audit depends on.",
+      "suggested_fix": "Keep a one-line enumerated red-flag list inline (it is well under the budget) or make the REFERENCE §Security read a required step in Phase 2 with a verifiable artefact.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T07:24:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 6646,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

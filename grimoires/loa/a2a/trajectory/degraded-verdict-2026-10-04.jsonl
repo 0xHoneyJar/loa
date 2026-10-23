@@ -1,0 +1,17 @@
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T00:27:35Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T03:54:44Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T07:27:58Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T07:45:11Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T11:29:45Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T12:25:17Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T12:42:29Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T12:59:41Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T13:16:54Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T13:34:07Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T13:51:20Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T18:11:53Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T18:43:47Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T19:01:00Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T19:18:12Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T23:06:33Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-248","ts":"2026-10-04T23:37:57Z","model_exit_code":1,"degraded_legs":["claude-headless"]}

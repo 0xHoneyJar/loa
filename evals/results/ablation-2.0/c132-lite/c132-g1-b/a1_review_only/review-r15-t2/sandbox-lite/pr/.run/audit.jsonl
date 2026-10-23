@@ -1,0 +1,1 @@
+{"ts":"2026-10-22T05:47:44Z","tool":"Bash","command":"cd pr; wc -l head.diff; echo ---; grep -E '^diff --git' head.diff | sed 's/diff --git a\\///; s/ b\\/.*//' ; echo ---STAT---; git diff --no-index --stat base head 2>/dev/null | tail -60","exit_code":0,"cwd":"/workspace/pr","model":"","provider":"","trace_id":"","team_id":"","team_member":""}

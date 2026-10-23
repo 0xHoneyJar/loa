@@ -1,0 +1,96 @@
+{
+  "type": "flatline_escalation",
+  "event": "escalation_created",
+  "timestamp": "2026-02-03T01:25:14Z",
+  "data": {
+    "run_id": "test-escalation-123",
+    "phase": "prd",
+    "reason": "BLOCKER: Missing security requirements",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "timestamp": "2026-02-03T01:25:14Z",
+    "report_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/escalation-20260203_122513.md",
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "description": "No auth",
+        "severity": "CRITICAL"
+      }
+    ],
+    "disputed": [],
+    "integrations": [],
+    "snapshots": [],
+    "status": "halted"
+  }
+}
+{
+  "type": "flatline_escalation",
+  "event": "escalation_created",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "run_id": "test-escalation-123",
+    "phase": "prd",
+    "reason": "BLOCKER: Missing security requirements",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "timestamp": "2026-02-03T01:34:43Z",
+    "report_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/escalation-20260203_123443.md",
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "description": "No auth",
+        "severity": "CRITICAL"
+      }
+    ],
+    "disputed": [],
+    "integrations": [],
+    "snapshots": [],
+    "status": "halted"
+  }
+}
+{
+  "type": "flatline_escalation",
+  "event": "escalation_created",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "run_id": "test-escalation-123",
+    "phase": "prd",
+    "reason": "BLOCKER: Missing security requirements",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "timestamp": "2026-02-03T01:40:51Z",
+    "report_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/escalation-20260203_124051.md",
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "description": "No auth",
+        "severity": "CRITICAL"
+      }
+    ],
+    "disputed": [],
+    "integrations": [],
+    "snapshots": [],
+    "status": "halted"
+  }
+}
+{
+  "type": "flatline_escalation",
+  "event": "escalation_created",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "run_id": "test-escalation-123",
+    "phase": "prd",
+    "reason": "BLOCKER: Missing security requirements",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "timestamp": "2026-02-03T01:42:17Z",
+    "report_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/escalation-20260203_124217.md",
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "description": "No auth",
+        "severity": "CRITICAL"
+      }
+    ],
+    "disputed": [],
+    "integrations": [],
+    "snapshots": [],
+    "status": "halted"
+  }
+}

@@ -1,0 +1,17 @@
+head/.github/workflows/bats-tests.yml:178
+head/evals/tests/ablation-row.bats:19
+took-effect.bats:18
+head/evals/harness/lib/sandbox-mount.sh:383
+head/evals/harness/pipeline-run.sh:586
+head/evals/harness/pipeline-run.sh:544
+head/evals/harness/ablation-row.sh:247
+head/.claude/scripts/check-loa.sh:75
+head/evals/harness/lib/sandbox-mount.sh:131
+head/tools/check-manifest-paths.sh:80
+head/evals/harness/pipeline-run.sh:506
+head/evals/harness/pipeline-run.sh:657
+head/evals/harness/pipeline-run.sh:224
+ablation-row.sh:285
+head/evals/harness/Dockerfile.ablation:20
+head/evals/harness/pipeline-run.sh:85
+Dockerfile.ablation:25

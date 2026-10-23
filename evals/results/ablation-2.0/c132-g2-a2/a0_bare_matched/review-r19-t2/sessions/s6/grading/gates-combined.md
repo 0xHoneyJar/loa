@@ -1,0 +1,9 @@
+head/tests/unit/floor-snapshot.bats:39
+head/.claude/rules/stash-safety.md:2
+head/evals/harness/compare-ab.py:71
+head/evals/harness/arms-report.py:144
+head/evals/harness/run-arms.sh:326
+head/evals/tasks/review-recall/review-pr-11.yaml:5
+head/evals/harness/seed-corpus-from-record.sh:655
+head/tools/cycle-ratio.sh:100
+head/evals/suites/review-recall.yaml:41

@@ -1,0 +1,980 @@
+{
+  "fixture": "pr-21",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "lead 2026-10-21",
+  "record": {
+    "sprint": "257",
+    "record_ref": "origin/record/cycle-129-a2a",
+    "head_commit": "163656ff763d56cc1f1fd6fed92ad78c2acc8dd6",
+    "fix_commit": "2fb03b5c0a7dedfbc6ee144c7184e47ac443aaa7",
+    "incidents_meta": {
+      "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": ".claude/adapters/cheval.py",
+      "anchor_line": 420,
+      "anchors": [
+        420,
+        422,
+        1813,
+        1814,
+        1815,
+        1817
+      ],
+      "must_match": "return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H01,H02",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V02",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "anchor_line": 474,
+      "anchors": [
+        474,
+        475,
+        476
+      ],
+      "must_match": "\"\"\"`local` when the hop's model declares dispatch_group `local` (D-8.0), else `hosted`.\"\"\"",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: security (B) \u2014 the locality label feeds a trust decision",
+      "review_driven": true
+    },
+    {
+      "id": "V03",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 138,
+      "anchors": [
+        138,
+        139,
+        140
+      ],
+      "must_match": "auth = prov.get(\"auth\")",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H07",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V04",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 153,
+      "anchors": [
+        153,
+        156,
+        157,
+        159
+      ],
+      "must_match": "if not _is_cli_provider(prov) and endpoint not in (None, \"\"):",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H09",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V05",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "anchor_line": 221,
+      "anchors": [
+        221,
+        222,
+        223,
+        224,
+        225,
+        230,
+        231,
+        232,
+        233
+      ],
+      "must_match": "@L221",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H11,H12",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V06",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "anchor_line": 704,
+      "must_match": "validate_providers(merged)",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V07",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "anchor_line": 128,
+      "anchors": [
+        128,
+        136,
+        137,
+        138,
+        139,
+        140
+      ],
+      "must_match": "def check_url(self, url: str) -> None:",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H16",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V08",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "anchor_line": 128,
+      "anchors": [
+        128,
+        140,
+        145
+      ],
+      "must_match": "def check_url(self, url: str) -> None:",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H17",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V09",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 3888,
+      "anchors": [
+        3888,
+        3889
+      ],
+      "must_match": "elif (( _bv_in == 0 && _bv_out == 0 )); then",
+      "severity": "low",
+      "category": "input-validation",
+      "label_source": "fix-commit",
+      "source": "hunk:H26",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "category: input-validation (A) \u2014 a value accepted without a check",
+      "review_driven": false
+    },
+    {
+      "id": "V10",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "anchor_line": 4849,
+      "anchors": [
+        4849,
+        4850
+      ],
+      "must_match": "if _locj=$(jq -c --slurpfile rf \"$_locf\" --arg t \"$type\" --arg s \"$_ADV_LOC_DEGRADED_SENTENCE\" \\",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H28",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": true
+    },
+    {
+      "id": "V11",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "anchor_line": 116,
+      "anchors": [
+        116,
+        117,
+        118,
+        119
+      ],
+      "must_match": "group = entry.get(\"dispatch_group\") or block.get(\"dispatch_group\") or \"\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H32",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V12",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 484,
+      "anchors": [
+        484,
+        485,
+        486,
+        487,
+        488
+      ],
+      "must_match": "if (e.models !== null && typeof e.models === \"object\" && !Array.isArray(e.models)) {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H73",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "verdict: the site where the fallback chains are ignored is D1's wrong behaviour \u2014 defect (A); B's follow-on reading would leave D1 without a site",
+      "review_driven": true
+    },
+    {
+      "id": "V13",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 671,
+      "anchors": [
+        671,
+        672,
+        673,
+        676,
+        678,
+        679,
+        681
+      ],
+      "must_match": "if (mode === \"pull-request\") {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H80",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V14",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "anchor_line": 722,
+      "anchors": [
+        722,
+        723,
+        724,
+        725,
+        726,
+        727,
+        728,
+        729,
+        730,
+        731,
+        732
+      ],
+      "must_match": "@L722",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H82",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V15",
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "anchor_line": 464,
+      "anchors": [
+        464,
+        465,
+        466
+      ],
+      "must_match": "config.trusted = trusted;",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H89",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; group: A's namespace (B's corresponds)",
+      "review_driven": true
+    },
+    {
+      "id": "V16",
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "anchor_line": 78,
+      "anchors": [
+        78,
+        79,
+        80,
+        85,
+        88,
+        89
+      ],
+      "must_match": "@L78",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H90",
+      "source_commit": "163656ff",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union; category: error-handling (A) \u2014 a failure masked as a completed degraded run",
+      "review_driven": true
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/adapters/cheval.py",
+      "start": 422,
+      "end": 422,
+      "source": "fix/2fb03b5c0a7d:422-422"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/adapters/cheval.py",
+      "start": 1813,
+      "end": 1813,
+      "source": "fix/2fb03b5c0a7d:1813-1813"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "start": 474,
+      "end": 476,
+      "source": "fix/2fb03b5c0a7d:474-476"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 25,
+      "end": 28,
+      "source": "fix/2fb03b5c0a7d:25-28"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 112,
+      "end": 112,
+      "source": "fix/2fb03b5c0a7d:112-112"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 125,
+      "end": 125,
+      "source": "fix/2fb03b5c0a7d:125-125"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 139,
+      "end": 139,
+      "source": "fix/2fb03b5c0a7d:139-139"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 144,
+      "end": 144,
+      "source": "fix/2fb03b5c0a7d:144-144"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 152,
+      "end": 152,
+      "source": "fix/2fb03b5c0a7d:152-152"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 156,
+      "end": 159,
+      "source": "fix/2fb03b5c0a7d:156-159"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 220,
+      "end": 220,
+      "source": "fix/2fb03b5c0a7d:220-220"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 225,
+      "end": 225,
+      "source": "fix/2fb03b5c0a7d:225-225"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "start": 230,
+      "end": 233,
+      "source": "fix/2fb03b5c0a7d:230-233"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 28,
+      "end": 28,
+      "source": "fix/2fb03b5c0a7d:28-28"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "start": 704,
+      "end": 704,
+      "source": "fix/2fb03b5c0a7d:704-704"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "start": 123,
+      "end": 126,
+      "source": "fix/2fb03b5c0a7d:123-126"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "start": 130,
+      "end": 130,
+      "source": "fix/2fb03b5c0a7d:130-130"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "start": 136,
+      "end": 136,
+      "source": "fix/2fb03b5c0a7d:136-136"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "start": 145,
+      "end": 145,
+      "source": "fix/2fb03b5c0a7d:145-145"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/adapters/loa_cheval/providers/openai_adapter.py",
+      "start": 220,
+      "end": 222,
+      "source": "fix/2fb03b5c0a7d:220-222"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/adapters/loa_cheval/types.py",
+      "start": 542,
+      "end": 542,
+      "source": "fix/2fb03b5c0a7d:542-542"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/adapters/tests/test_config_examples_load.py",
+      "start": 134,
+      "end": 134,
+      "source": "fix/2fb03b5c0a7d:134-134"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/adapters/tests/test_config_examples_load.py",
+      "start": 158,
+      "end": 161,
+      "source": "fix/2fb03b5c0a7d:158-161"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 66,
+      "end": 67,
+      "source": "fix/2fb03b5c0a7d:66-67"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 761,
+      "end": 761,
+      "source": "fix/2fb03b5c0a7d:761-761"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "start": 781,
+      "end": 781,
+      "source": "fix/2fb03b5c0a7d:781-781"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/loa/reference/multi-model-reference.md",
+      "start": 102,
+      "end": 104,
+      "source": "fix/2fb03b5c0a7d:102-104"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 3889,
+      "end": 3889,
+      "source": "fix/2fb03b5c0a7d:3889-3889"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 4845,
+      "end": 4845,
+      "source": "fix/2fb03b5c0a7d:4845-4845"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "start": 4850,
+      "end": 4850,
+      "source": "fix/2fb03b5c0a7d:4850-4850"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "start": 15,
+      "end": 15,
+      "source": "fix/2fb03b5c0a7d:15-15"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "start": 27,
+      "end": 28,
+      "source": "fix/2fb03b5c0a7d:27-28"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "start": 32,
+      "end": 32,
+      "source": "fix/2fb03b5c0a7d:32-32"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "start": 118,
+      "end": 118,
+      "source": "fix/2fb03b5c0a7d:118-118"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 181,
+      "end": 184,
+      "source": "fix/2fb03b5c0a7d:181-184"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 12,
+      "end": 13,
+      "source": "fix/2fb03b5c0a7d:12-13"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 18,
+      "end": 18,
+      "source": "fix/2fb03b5c0a7d:18-18"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 298,
+      "end": 298,
+      "source": "fix/2fb03b5c0a7d:298-298"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 303,
+      "end": 303,
+      "source": "fix/2fb03b5c0a7d:303-303"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 366,
+      "end": 366,
+      "source": "fix/2fb03b5c0a7d:366-366"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "start": 411,
+      "end": 411,
+      "source": "fix/2fb03b5c0a7d:411-411"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 4,
+      "end": 4,
+      "source": "fix/2fb03b5c0a7d:4-4"
+    },
+    {
+      "id": "F043",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 456,
+      "end": 456,
+      "source": "fix/2fb03b5c0a7d:456-456"
+    },
+    {
+      "id": "F044",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 483,
+      "end": 483,
+      "source": "fix/2fb03b5c0a7d:483-483"
+    },
+    {
+      "id": "F045",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 487,
+      "end": 489,
+      "source": "fix/2fb03b5c0a7d:487-489"
+    },
+    {
+      "id": "F046",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 495,
+      "end": 495,
+      "source": "fix/2fb03b5c0a7d:495-495"
+    },
+    {
+      "id": "F047",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 503,
+      "end": 503,
+      "source": "fix/2fb03b5c0a7d:503-503"
+    },
+    {
+      "id": "F048",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 508,
+      "end": 508,
+      "source": "fix/2fb03b5c0a7d:508-508"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 518,
+      "end": 518,
+      "source": "fix/2fb03b5c0a7d:518-518"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 602,
+      "end": 603,
+      "source": "fix/2fb03b5c0a7d:602-603"
+    },
+    {
+      "id": "F051",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 670,
+      "end": 674,
+      "source": "fix/2fb03b5c0a7d:670-674"
+    },
+    {
+      "id": "F052",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 678,
+      "end": 679,
+      "source": "fix/2fb03b5c0a7d:678-679"
+    },
+    {
+      "id": "F053",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 711,
+      "end": 711,
+      "source": "fix/2fb03b5c0a7d:711-711"
+    },
+    {
+      "id": "F054",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 721,
+      "end": 732,
+      "source": "fix/2fb03b5c0a7d:721-732"
+    },
+    {
+      "id": "F055",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 747,
+      "end": 748,
+      "source": "fix/2fb03b5c0a7d:747-748"
+    },
+    {
+      "id": "F056",
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "start": 775,
+      "end": 776,
+      "source": "fix/2fb03b5c0a7d:775-776"
+    },
+    {
+      "id": "F057",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+      "start": 72,
+      "end": 72,
+      "source": "fix/2fb03b5c0a7d:72-72"
+    },
+    {
+      "id": "F058",
+      "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+      "start": 94,
+      "end": 94,
+      "source": "fix/2fb03b5c0a7d:94-94"
+    },
+    {
+      "id": "F059",
+      "file": ".claude/skills/bridgebuilder-review/resources/entry.sh",
+      "start": 123,
+      "end": 123,
+      "source": "fix/2fb03b5c0a7d:123-123"
+    },
+    {
+      "id": "F060",
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "start": 24,
+      "end": 24,
+      "source": "fix/2fb03b5c0a7d:24-24"
+    },
+    {
+      "id": "F061",
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "start": 466,
+      "end": 466,
+      "source": "fix/2fb03b5c0a7d:466-466"
+    },
+    {
+      "id": "F062",
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "start": 75,
+      "end": 81,
+      "source": "fix/2fb03b5c0a7d:75-81"
+    },
+    {
+      "id": "F063",
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "start": 85,
+      "end": 85,
+      "source": "fix/2fb03b5c0a7d:85-85"
+    },
+    {
+      "id": "F064",
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "start": 89,
+      "end": 89,
+      "source": "fix/2fb03b5c0a7d:89-89"
+    },
+    {
+      "id": "F065",
+      "file": ".loa.config.yaml.example",
+      "start": 1229,
+      "end": 1230,
+      "source": "fix/2fb03b5c0a7d:1229-1230"
+    },
+    {
+      "id": "F066",
+      "file": ".loa.config.yaml.example",
+      "start": 2511,
+      "end": 2512,
+      "source": "fix/2fb03b5c0a7d:2511-2512"
+    },
+    {
+      "id": "F067",
+      "file": "tests/unit/adversarial-review-advisory.bats",
+      "start": 53,
+      "end": 53,
+      "source": "fix/2fb03b5c0a7d:53-53"
+    },
+    {
+      "id": "F068",
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "start": 27,
+      "end": 27,
+      "source": "fix/2fb03b5c0a7d:27-27"
+    },
+    {
+      "id": "F069",
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "start": 77,
+      "end": 77,
+      "source": "fix/2fb03b5c0a7d:77-77"
+    },
+    {
+      "id": "F070",
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "start": 123,
+      "end": 123,
+      "source": "fix/2fb03b5c0a7d:123-123"
+    },
+    {
+      "id": "F071",
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "start": 18,
+      "end": 18,
+      "source": "fix/2fb03b5c0a7d:18-18"
+    },
+    {
+      "id": "F072",
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "start": 26,
+      "end": 36,
+      "source": "fix/2fb03b5c0a7d:26-36"
+    },
+    {
+      "id": "F073",
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "start": 85,
+      "end": 85,
+      "source": "fix/2fb03b5c0a7d:85-85"
+    },
+    {
+      "id": "F074",
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "start": 144,
+      "end": 144,
+      "source": "fix/2fb03b5c0a7d:144-144"
+    },
+    {
+      "id": "F075",
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "start": 213,
+      "end": 213,
+      "source": "fix/2fb03b5c0a7d:213-213"
+    },
+    {
+      "id": "F076",
+      "file": "tests/unit/bb-exit-degraded-callers.bats",
+      "start": 46,
+      "end": 46,
+      "source": "fix/2fb03b5c0a7d:46-46"
+    },
+    {
+      "id": "F077",
+      "file": "tests/unit/bb-exit-degraded-callers.bats",
+      "start": 72,
+      "end": 72,
+      "source": "fix/2fb03b5c0a7d:72-72"
+    },
+    {
+      "id": "F078",
+      "file": "tests/unit/flatline-locality.bats",
+      "start": 26,
+      "end": 27,
+      "source": "fix/2fb03b5c0a7d:26-27"
+    },
+    {
+      "id": "F079",
+      "file": "tests/unit/flatline-locality.bats",
+      "start": 121,
+      "end": 121,
+      "source": "fix/2fb03b5c0a7d:121-121"
+    }
+  ]
+}

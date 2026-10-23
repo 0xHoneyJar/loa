@@ -1,0 +1,43 @@
+# Security analysis working file — sprint-1 audit (PR: cycle-127 sprint-251 operator decisions)
+
+Scope: `pr/head.diff` (45 files). Trust levels: `operator` = `.loa.config.yaml` / System catalog (operator-owned, still input); `env` = process environment (trusted in this framework, honoured by cheval); `cli` = output of a spawned CLI (untrusted); `prompt` = model prompt text (untrusted).
+
+## Sources (untrusted or semi-trusted entry points)
+
+| # | Source | Trust | Where | Status | Note |
+|---|--------|-------|-------|--------|------|
+| S1 | `hounfour.headless.agy_opt_in` from `.loa.config.yaml` | operator | `head/.claude/adapters/loa_cheval/config/loader.py:120-126`, `head/.claude/scripts/adversarial-review.sh:2351`, `head/.claude/scripts/flatline-orchestrator.sh:525`, `head/.claude/scripts/loa-status.sh:797`, `head/.claude/scripts/run-preflight.sh:154`, `head/.claude/skills/bridgebuilder-review/resources/config.ts:158` | SAFE / PARTIAL | Boolean-only in all 6 readers; no env override in any. Python reader also merges the System catalog (LOW-003). Read via cwd walk → project-layer trust (LOW-001). |
+| S2 | `LOA_HEADLESS_MODE` env | env | `flatline-orchestrator.sh:533`, `config.ts:176` | PARTIAL | Env decides whether a Google voice is "agy-routed" and therefore silently not planned (LOW-006). |
+| S3 | `params.default_effort` from catalog | operator | `head/.claude/adapters/cheval.py:914-920` | SAFE | Allow-listed against `_EFFORT_LEVELS`; warn-once on invalid. |
+| S4 | `--effort` argv (caller rung) | caller | `cheval.py:912` | PARTIAL | argparse-validated at the CLI; unvalidated for programmatic callers (LOW-004). |
+| S5 | `extra.effort` / `extra.reasoning_effort` on CLI entries | operator | `cheval.py:921-924` | SAFE | Normalised and allow-listed. |
+| S6 | Headless CLI JSON stdout / stderr in the probe | cli | `head/tools/ceiling-probe-live.py:233-272` | SAFE | JSON parsed defensively, output capped at 1 MiB per stream, diagnostics truncated to 300 chars. |
+| S7 | Catalog text parsed line-wise by the writer | operator | `ceiling-probe-live.py:380-470` | SAFE | ValueError on missing fields; ceiling type-checked; atomic replace. |
+| S8 | `config.repoRoot` for the BB gate path | operator/cli | `head/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:172` | SAFE | CLI > env > git detect (the Loa root, not the reviewed repo); passed as an argv element to `execFileSync`, no shell. |
+| S9 | `LOA_STATUS_CONFIG_FILE` | env (test seam) | `loa-status.sh:791-797` | SAFE | Gated on a bats marker; display-only effect. |
+
+## Sinks (dangerous operations)
+
+| # | Sink | Where | Status | Note |
+|---|------|-------|--------|------|
+| K1 | `agy -p <prompt>` spawn (prompt on argv, CWE-214) | `head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124-125, 156-179` | SAFE | Now behind S1; refusal before discovery/workspace/WARN/spawn; `_ARGV_PROMPT_WARNED` untouched while off (test pinned). |
+| K2 | `claude -p` spawn via `build_headless_argv` | `head/.claude/adapters/loa_cheval/providers/claude_headless_adapter.py:127-160, 295-297` | PARTIAL | Adapter passes `prompt=None` (stdin). Builder keeps an argv-prompt parameter (LOW-005). |
+| K3 | Probe subprocess `subprocess.run(cmd, env=…)` | `ceiling-probe-live.py:214-226` | CONFIRMED (MED-007) | Inherits the full environment incl. credential vars; adapter contract strips them (`build_headless_subprocess_env`). |
+| K4 | `yq` subprocess from bash readers | `adversarial-review.sh:2353`, `flatline-orchestrator.sh:528`, `loa-status.sh:800`, `run-preflight.sh:157-158` | SAFE | Fixed expression, file path argument, output compared to the literal `true`. |
+| K5 | `yq` via `execFileSync` in TS | `config.ts:162-170` | SAFE | argv array, no shell, 5 s timeout, fail-closed catch. |
+| K6 | Catalog file write | `ceiling-probe-live.py:472-477, 834-838` | SAFE | mkstemp in the same dir + `os.replace`; only on `clean` outcome. |
+| K7 | MODELINV audit emit (`effort`, `effort_source`, `effort_effective`) | `cheval.py:2830-2842`, `head/.claude/adapters/loa_cheval/audit/modelinv.py:580-586` | PARTIAL | Schema-declared; value may misreport a fallback CLI hop (MED-002); lazy import inside the emit (LOW-013). |
+| K8 | Chain-walk error surface (`_error_json`) | `cheval.py:2544-2553` | PARTIAL | `AgyOptInRequiredError.context` dropped (MED-001); any non-terminal agy hop aborts the walk (MED-006). |
+| K9 | Merge-block decision in Bridgebuilder | `multi-model-pipeline.ts:422-426` | SAFE | Empty cohort → `computeVerdictBand` returns null ≠ APPROVED → blocked; all-missing → throws at :212. |
+
+## Second-order flows checked
+
+- Catalog `effective_input_ceiling: 936000` → cheval preempt bound and BB `maxInput: 916000` → cost / 429 exposure (MED-004).
+- Calibrated state → observed-ceiling store cannot lower the bound (per LSP-5 policy comment, routing code not in PR) — recorded under MED-004.
+- `default_effort: high` → `output_config.effort` / `--effort high` → tests pin both adapters (SAFE).
+
+## Deferred / unable to assess
+
+- Untouched package files (`providers/base.py`, `routing/ceiling.py`, `headless_cli.py`, `anthropic_adapter.py`) are read from the workspace copy where present; their behaviour is assumed unchanged by this PR.
+- `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json` is referenced by the catalog comment but not in the PR; its contents could not be checked.
+- No `.reviewignore` in this workspace; nothing excluded.

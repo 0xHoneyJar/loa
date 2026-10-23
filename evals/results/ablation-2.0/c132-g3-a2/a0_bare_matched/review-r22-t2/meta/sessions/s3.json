@@ -1,0 +1,18 @@
+{
+  "id": "s3",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    9.170475
+  ],
+  "cost_usd": 9.170475,
+  "run_dir": "sessions/s3",
+  "took_effect": "ok",
+  "started": "2026-10-23T02:26:35Z",
+  "finished": "2026-10-23T02:43:11Z"
+}

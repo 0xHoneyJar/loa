@@ -1,0 +1,36 @@
+batch_context=c132-smoke3
+base_commit=7b9c957b0225f9da6eb0d6f0217c6b6a9873ef67
+mount=tree
+copy_source=9544948b6413fe838783a2f8daf4d7236efde800
+mount_overlay=head:15
+overlay_excluded=1:.claude/adapters/tests/test_pricing_resolution_ladder.py
+overlay_sha256=.claude/defaults/model-config.yaml=ba767f5384694feb85c1bf59857ff8d21172744ed54a9214e9444872597c122c
+overlay_sha256=.claude/defaults/model-config.yaml.checksum=a0dee07f255fbd80eca544db3fb01451fb658bb01172d9b94629eb88b31eab50
+overlay_sha256=.claude/loa/CLAUDE.loa.md=3ad09479fb8048385a49c117ca2fa3305145dd7fc0f79d5061b3d2cbc76c81ee
+overlay_sha256=.claude/scripts/check-loa.sh=ce696d1d806d3950beaceaff6e6fb5c2ee110d545b1a85e602735e066d6d07a6
+overlay_sha256=.claude/scripts/generated-model-maps.sh=a90828c46956ebb41b57fecdbd7fa810780c1be7f84c5d14bb1579410a06ceec
+overlay_sha256=.claude/scripts/preflight.sh=72632182348ec8b9e127da0a076c953551a17060904f0a5e851cceb60fd6610c
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/.build-manifest.json=faaf105a88657f72e8b9dd73148d2ba14a27edacda7e79a23d09a95b844599c5
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/config.generated.d.ts.map=c4aec5e0041482d08727e0fb25add105f41bcabdc745ca969e6c04da76c01bda
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/config.generated.js=52cc05ca70927e2386770b4397ff3b84d65bed07e652661fcdd28a28d66ceb09
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/config.generated.js.map=e992c9a64138ed4b2cd08abf9d2d555802068abae27e20e51dff04342ea4700d
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map=2b3e85cc309d38514d5a955ca0cec80881e8f59ce414977201ba42aa3ff62a09
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js=143d22eef520643438ff3d8006087202b0ead9cfca62b029178c9f1f51b64fb7
+overlay_sha256=.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map=20b54d5aca86e5ba5509831ed8a862169dac2958ae7d72ced5b9803004774ef2
+overlay_sha256=.claude/skills/bridgebuilder-review/resources/config.generated.ts=a01c4fa6de6ba9b2e34a7b9c26b489cae716bb06627cd77e6ad1abd7ca656497
+overlay_sha256=.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts=7678fcb3803cc57a9d9465482fc9cbd461fc52e0c0aab9aa8dc6dd9ea8a0b695
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=.claude/scripts/check-loa.sh,.claude/scripts/generated-model-maps.sh,.claude/scripts/preflight.sh
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-22
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-9544948b6413
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=32d1c7114390d2c99365c9c5f039a11a2750c6df842cfacf0ddbf037b0a65dd7
+mount_closed=pre-launch head:15 answer paths (15 present), 1 later-only pinned versions, sandbox git = base commit only; 1 adapter path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies

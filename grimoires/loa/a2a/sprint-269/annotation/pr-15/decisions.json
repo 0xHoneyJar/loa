@@ -1,0 +1,549 @@
+{
+ "H04": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H12": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H22": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H27": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H28": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H29": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H30": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H32": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D12",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H36": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D12",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H40": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H91": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H92": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H93": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H94": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H95": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H96": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H97": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H100": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H102": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D31",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H104": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H107": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H110": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H111": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H112": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H120": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H123": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H124": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H125": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H126": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H127": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D24",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H128": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H129": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H131": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H132": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H133": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H134": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H136": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H137": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H138": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H142": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H143": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H145": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H148": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H149": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D24",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H150": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D24",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H156": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H157": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H158": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H160": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H163": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H164": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H166": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H198": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D25",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H200": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H208": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D31",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H209": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H213": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D33",
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed"
+ },
+ "H214": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H215": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H218": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H224": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)"
+ },
+ "H11": {
+  "base": "A",
+  "category": "contract",
+  "reason": "group: A's namespace (B's corresponds); category: contract — an enumerated reason field carries the wrong value"
+ },
+ "H14": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D1",
+  "reason": "verdict: another code path with the same omission is a member site of D1, not a mechanical echo — defect (B), low, contract"
+ },
+ "H20": {
+  "base": "A",
+  "category": "contract",
+  "reason": "group: A's namespace (B's corresponds); category: contract — the error record's fields (error_class, failure_class) are wrong or dropped"
+ },
+ "H33": {
+  "base": "A",
+  "reason": "severity: codebook medium — a wrong result on an uncommon path (a prompt starting with '-')"
+ },
+ "H35": {
+  "base": "A",
+  "reason": "severity: codebook medium, as H33"
+ },
+ "H39": {
+  "base": "A",
+  "reason": "verdict: a site of D13's wrong behaviour (prompt in option position), not a mechanical consequence — defect member (A)"
+ },
+ "H41": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D12",
+  "reason": "verdict: a diagnostic the marker list misclassifies is a member site of D12 (the marker list), not a mechanical echo — defect (B), low, error-handling; group in A's namespace"
+ },
+ "H43": {
+  "base": "B",
+  "verdict": "not-defect",
+  "class": "refactor",
+  "reason": "class: both annotators call the intent unclear; refactor is the conservative class (no behaviour change shown)"
+ },
+ "H44": {
+  "base": "B",
+  "verdict": "not-defect",
+  "class": "refactor",
+  "reason": "as H43"
+ },
+ "H101": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds); severity medium and category contract (A): a record that omits its partial-probe provenance is a misleading record"
+ },
+ "H105": {
+  "base": "A",
+  "group": "D18",
+  "reason": "anchors: union; group: D18 in A's namespace — both annotators name the same once-per-run warning behaviour"
+ },
+ "H108": {
+  "base": "A",
+  "group": "D18",
+  "reason": "group: as H105"
+ },
+ "H113": {
+  "base": "A",
+  "group": "D18",
+  "reason": "group: as H105"
+ },
+ "H130": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D39",
+  "reason": "follow-on of D39 (the cwd-default gate defect, H159): compiled copy of the required gate parameter"
+ },
+ "H135": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D39",
+  "reason": "follow-on of D39: compiled copy of the removed cwd default"
+ },
+ "H141": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D39",
+  "reason": "follow-on of D39: compiled import of the config-path helper"
+ },
+ "H159": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D39",
+  "reason": "verdict: a wrong default (the cwd config instead of the repo root's) is a wrong behaviour of its own — defect (B), medium, logic; new group D39 in A's namespace"
+ },
+ "H161": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D22",
+  "reason": "follow-on of D22: the startup line reports the handling D22 introduces"
+ },
+ "H162": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D39",
+  "reason": "follow-on of D39: import of the config-path helper"
+ },
+ "H165": {
+  "base": "A",
+  "category": "logic",
+  "reason": "category: logic — an incomplete report is a logic defect; other is the last resort"
+ },
+ "H168": {
+  "base": "A",
+  "category": "logic",
+  "reason": "category: logic, as H165"
+ },
+ "H169": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a generated comment is text only (as pr-16 H04)"
+ },
+ "H170": {
+  "base": "A",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook high — a failure on a common path (every run of that model)"
+ },
+ "H201": {
+  "base": "A",
+  "group": "D27",
+  "reason": "group: the over-matching regex is a distinct wrong behaviour from D25's truncation/order — own group (A)"
+ },
+ "H202": {
+  "base": "A",
+  "group": "D32",
+  "reason": "anchors: union; group: A's finer split (D32: unchecked strings into the catalog text) is kept — the descriptions of D14's items differ"
+ },
+ "H205": {
+  "base": "A",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — a missing validation with a bounded impact (a lost record)"
+ },
+ "H206": {
+  "base": "A",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook high — a wrong result on a common path (provider throttling under concurrency)"
+ },
+ "H207": {
+  "base": "A",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — an uncommon path"
+ },
+ "H210": {
+  "base": "A",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — a misleading record (as H101)"
+ },
+ "H211": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D31",
+  "reason": "follow-on of D31 (partial-probe recording): the provenance template carries the partial note"
+ },
+ "H212": {
+  "base": "A",
+  "group": "D32",
+  "reason": "group: A's namespace (B's corresponds) (D32 kept, as H202); category: input-validation — a write persisted without re-parsing"
+ },
+ "H216": {
+  "base": "A",
+  "group": "D35",
+  "reason": "anchors: union; the annotators attribute the two behaviours (spend accounting; token-limit transient) to each other's hunk — A's attribution kept for the record; both behaviours are in the key (D35, D26)"
+ },
+ "H217": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D31",
+  "reason": "follow-on of D31: usage check of the partial-write flag"
+ },
+ "H219": {
+  "base": "A",
+  "group": "D35",
+  "reason": "anchors: union; group D35 (A): the budget pre-check belongs with the spend accounting"
+ },
+ "H220": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D26",
+  "reason": "follow-on of D26: the sleep site consumes the wait the D26 hunk computes"
+ },
+ "H221": {
+  "base": "A",
+  "group": "D26",
+  "reason": "anchors: union; A's attribution kept (see H216)"
+ },
+ "H223": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D40",
+  "reason": "verdict: a reason never recorded is a missing behaviour at that site — defect (B), low, error-handling; a distinct behaviour from D29's unchecked values → new group D40"
+ },
+ "H225": {
+  "base": "A",
+  "severity": "medium",
+  "reason": "anchors: union; severity: codebook medium — a misleading record on a failure path (B)"
+ }
+}

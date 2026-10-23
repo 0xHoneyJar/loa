@@ -1,0 +1,304 @@
+{
+ "H18": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": "evals/harness/ablation-report.py",
+  "description": "version_key treats a non-integer float suite_version (2.1) as absent and keeps \"2.0\" distinct from 2, and version_order only handles digit keys, so versions are mis-partitioned or mis-sorted.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   825,
+   827,
+   831,
+   832,
+   833,
+   835,
+   836,
+   839,
+   840
+  ]
+ },
+ "H19": {
+  "verdict": "not-defect",
+  "group": "D5",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Returns the new unversioned list from partition.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union",
+  "anchor_lines": []
+ },
+ "H26": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": "evals/harness/ablation-report.py",
+  "description": "h1_json emits suite_version as a string key, not a typed value.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   1117,
+   1339,
+   1351,
+   1592,
+   1611
+  ]
+ },
+ "H28": {
+  "verdict": "defect",
+  "group": "D5",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Among two or more suite versions any version-less row aborts the report with exit 2, even one (smoke batch, no manifest, arm not run) that would only be listed and never decided.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   847,
+   848,
+   849,
+   850,
+   851,
+   1403
+  ]
+ },
+ "H34": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": "evals/harness/ablation-report.py",
+  "description": "json.dumps without allow_nan=False writes non-standard NaN/Infinity tokens into report.json, and the markdown is written before the JSON is serialised.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   1675,
+   1676,
+   1677
+  ]
+ },
+ "H38": {
+  "verdict": "not-defect",
+  "group": "D9",
+  "file": "evals/harness/ablation-row.sh",
+  "description": "Defines the shared jq missed_rule used by validate and the row program.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union",
+  "anchor_lines": []
+ },
+ "H39": {
+  "verdict": "not-defect",
+  "group": "D9",
+  "file": "evals/harness/ablation-row.sh",
+  "description": "Prepends the rules definition to the validate jq program.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union",
+  "anchor_lines": []
+ },
+ "H40": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": "evals/harness/ablation-row.sh",
+  "description": "--validate accepts a defects_missed list with malformed, duplicate or out-of-range ids or one contradicting defects_seeded/defects_caught.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   165,
+   166,
+   167,
+   168
+  ]
+ },
+ "H41": {
+  "verdict": "not-defect",
+  "group": "D9",
+  "file": "evals/harness/ablation-row.sh",
+  "description": "Prepends the rules definition to the row program.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union",
+  "anchor_lines": []
+ },
+ "H42": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": "evals/harness/ablation-row.sh",
+  "description": "The row writer copies any list of non-empty strings into defects_missed, even one inconsistent with the seeded/caught counts.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   412,
+   413
+  ]
+ },
+ "H08": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Adds arm/task grammar constants used by the grader-tally path fix.",
+  "severity": null,
+  "category": null,
+  "reason": "class: the hunk only adds the grammar constants the D1 fix uses; the check itself lands in the tally hunk — follow-on (A)",
+  "anchor_lines": []
+ },
+ "H12": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": "evals/harness/ablation-report.py",
+  "description": "Extracts the provenance check and listing reasons into helpers with the same order and behaviour.",
+  "severity": null,
+  "category": null,
+  "reason": "class: extraction with the same behaviour is the codebook's refactor; follow-on is reserved for forced changes (callers, copies)",
+  "anchor_lines": []
+ },
+ "H15": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "evals/harness/ablation-report.py",
+  "description": "nums() accepts NaN/infinite floats, so per-run means become NaN.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3",
+  "anchor_lines": [
+   757,
+   758
+  ]
+ },
+ "H16": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Precision sums accept non-finite numbers and the cost read crashes on a non-numeric cost_usd.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3",
+  "anchor_lines": [
+   773,
+   776,
+   778
+  ]
+ },
+ "H17": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "evals/harness/ablation-report.py",
+  "description": "cost_per_task crashes on a non-numeric cost_usd and cost_per_run ignores bad values inconsistently/propagates NaN.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3",
+  "anchor_lines": [
+   797,
+   798
+  ]
+ },
+ "H20": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Budget-matched cost sums crash on a non-numeric cost_usd and propagate NaN.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3",
+  "anchor_lines": [
+   965,
+   968
+  ]
+ },
+ "H25": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "evals/harness/ablation-report.py",
+  "description": "Cap-failure rendering crashes on a non-numeric cost_usd.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3",
+  "anchor_lines": [
+   1321
+  ]
+ },
+ "H22": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "evals/harness/ablation-report.py",
+  "description": "The grader tally counts every matching run directory of a row (reruns counted several times), its sort key mixes int and str segments (TypeError on e.g. 1.2.0 vs 1.2.0-rc1, aborting the report), and it builds paths from unvalidated row arm/task_id that can escape the batch directory.",
+  "severity": "high",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)",
+  "anchor_lines": [
+   1054,
+   1062,
+   1063,
+   1064,
+   1065,
+   1066,
+   1067,
+   1068,
+   1069,
+   1070,
+   1080,
+   1081,
+   1082
+  ]
+ },
+ "H23": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": "evals/harness/ablation-report.py",
+  "description": "budget_json emits suite_version as a string key rather than a typed JSON value, inconsistent with primary_suite_version.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7",
+  "anchor_lines": [
+   1117
+  ]
+ },
+ "H27": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": "evals/harness/ablation-report.py",
+  "description": "a4_json emits suite_version as a string key, not a typed value.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7",
+  "anchor_lines": [
+   1351
+  ]
+ },
+ "H30": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": "evals/harness/ablation-report.py",
+  "description": "by_suite_version[N].suite_version is emitted as a string, not a typed value.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7",
+  "anchor_lines": [
+   1592
+  ]
+ },
+ "H31": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": "evals/harness/ablation-report.py",
+  "description": "primary_suite_version is a string for a non-integer numeric key such as 2.1.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7",
+  "anchor_lines": [
+   1611
+  ]
+ },
+ "H37": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": "evals/harness/ablation-row.sh",
+  "description": "Help sed range adjusted for the longer header.",
+  "severity": null,
+  "category": null,
+  "reason": "class: docs — a help-text range (as pr-16 H04)",
+  "anchor_lines": []
+ }
+}

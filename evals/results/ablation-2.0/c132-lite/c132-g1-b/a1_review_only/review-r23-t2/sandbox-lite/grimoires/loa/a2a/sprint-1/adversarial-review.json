@@ -1,0 +1,209 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:envelope_texts",
+      "anchor_type": "function",
+      "anchor_line": 865,
+      "scope": "diff",
+      "description": "Structured dissent findings with anchor=\"file:function\" and anchor_line are silently discarded. The citation parser cannot extract a numeric location from the symbolic anchor, and this fallback reads neither anchor_line nor the file portion of anchor.",
+      "failure_mode": "A correctly anchored adversarial finding contributes no citation, so a caught defect is reported as missed and review-catch recall is understated.",
+      "suggested_fix": "Support anchor_line and anchor_line_end, deriving the file from the symbolic anchor when file/path is absent.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-grade.sh:all_pass",
+      "anchor_type": "function",
+      "anchor_line": 653,
+      "scope": "diff",
+      "description": "all_pass ignores both the process return code and timed_out whenever output contains a parseable passing summary.",
+      "failure_mode": "A TAP command that prints '1..1' and 'ok 1' before hanging until timeout is classified as passing. An APPROVED gate on that snapshot consequently receives verdict_accuracy=true despite the timed-out test execution.",
+      "suggested_fix": "Require rc == 0 and timed_out == false in all_pass, and apply the same execution-success requirement to self-check acceptance.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:shape_command",
+      "anchor_type": "function",
+      "anchor_line": 492,
+      "anchor_line_end": 493,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "shape_command rewrites the task's `python3 -m pytest …` to `python3 -I -s -m pytest …` (container) or `python3 -P -m pytest …` (host). Both -I (which implies -P) and -P stop Python from prepending the current directory to sys.path, which is the one documented difference between `python -m pytest` and `pytest`. The task.yaml test_command and the seeders' proof (seed-bugfix-tasks.sh / seed-refactor-tasks.sh run the plain `python3 -m pytest -q <dirs>` under `env -i`) therefore import under different rules than the grader. Any fixture whose hidden tests import tree-root modules (`import mymodule`, `from tools.x import y`) without a conftest/pythonpath shim collects fine in the proof and fails with ModuleNotFoundError in the grader. -I also makes PYTHONPATH ignored, so there is no env-based escape hatch.",
+      "failure_mode": "Hidden tests error at collection in every tree: hidden_tests reports passed 0 / total = static count for all arms (indistinguishable from an agent that did nothing), `--self-check reference` FAILs for a task whose seeder proof passed, and `--self-check base` PASSes spuriously when regression_command is null, so the inconsistency can be frozen into the suite.",
+      "suggested_fix": "Keep cwd on sys.path for pytest: use `python3 -E -s -m pytest` (drop -I/-P) or keep isolation and add `-o pythonpath=/workspace` (host: `-o pythonpath=<tree>`) to the pytest argv. Make the seeders' proof run the exact argv shape_command produces so proof and grade cannot diverge.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:parse_pytest",
+      "anchor_type": "function",
+      "anchor_line": 561,
+      "anchor_line_end": 571,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "With `-rA`, pytest echoes the captured stdout of every passed test into the report, and conftest.py from the agent's tree is loaded unless the task lists it in grader_protected. OUTCOME_RX matches any line starting `PASSED|FAILED|ERROR <node>` and SUMMARY_RX takes the LAST `N passed … in Ns` line. Text printed by agent code (test bodies, or a conftest `pytest_unconfigure` hook that prints after the real summary) is therefore parsed as outcomes/summary, letting the final tree forge passed/total and failed_names.",
+      "failure_mode": "A tree with a conftest.py that prints `99 passed in 0.01s` on unconfigure grades as all hidden tests passing; even accidental test output beginning with PASSED/FAILED skews ids and totals.",
+      "suggested_fix": "Parse structured output instead of the terminal: add `--junitxml=/tmp/r.xml` (container tmpfs) / `-o junit_family=xunit2` and read it, or `-p no:cacheprovider --tb=no -rfE` and only accept the summary line that immediately follows the `short test summary info` block; additionally force conftest.py/pytest.ini into grader_protected by default.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:grade",
+      "anchor_type": "line",
+      "anchor_line": 1102,
+      "anchor_line_end": 1105,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "For refactor tasks prepare() overlays the hidden structural check into final and base before test_command runs (lines 1078, 1087), and suite_green_final/suite_green_base are all_pass(res)/all_pass(sbase) of that same test_command. When test_command targets a directory that contains the structural dest (e.g. `python3 -m pytest -q tests` with hidden structural check at tests/test_structure.py), the structural result is counted inside hidden_tests and both suite_green flags.",
+      "failure_mode": "The documented refactor base self-check condition 'structural red AND suite green' can never hold (the red structural test makes the suite red), so `--self-check base` FAILs for a correctly authored task; in real grading hidden_tests.total/failed_names double count the structural check.",
+      "suggested_fix": "Run test_command for the suite_green measurements on a tree without the structural overlay, or pass `--deselect`/`--ignore=<structural dest>` (pytest) / drop the structural file from the bats argv when it falls under a directory in test_command; validate at load_task that structural dest is not under any test_command path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "evals/harness/ablation-grade.sh:exec_in_tree",
+      "anchor_type": "line",
+      "anchor_line": 516,
+      "anchor_line_end": 521,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The in-container `timeout 120 <cmd>` sends SIGTERM only (no -k), and `timeout` runs as PID 1 without `--init`. If the test process ignores SIGTERM or forks a child that does, the outer subprocess.run timeout (180 s) kills the `docker run` client only; the container, mounted rw on the grading tree, keeps running indefinitely, and `--rm` never fires.",
+      "failure_mode": "Orphaned containers accumulate across a batch, keep CPU/memory, and hold the grading tree mount while the grader proceeds to delete/recreate grading/ for the next call.",
+      "suggested_fix": "Use `timeout -k 10 120`, add `--init` to docker run, give the container a `--name` derived from the scratch dir and `docker kill` it in the TimeoutExpired handler (or run `docker run --stop-timeout`).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:allowed_roots",
+      "anchor_type": "function",
+      "anchor_line": 947,
+      "anchor_line_end": 954,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "allowed_roots selects the agent's permitted absolute-path prefixes from A.executor, which describes where the GRADER runs tests, not where the agent session ran. In the default container mode the transcripts' init cwds (collected in contamination()) are discarded and only /workspace, /tmp, /home/evaluser and system dirs are allowed. Claude Code tool inputs (Read/Edit file_path) are always absolute, so a host-run session whose sandbox is outside those prefixes trips outside_path on its first Read.",
+      "failure_mode": "Every run graded with `--executor container` after a host-side pipeline run under e.g. /srv/runs/… or /data/… is reported contaminated {pattern: outside_path} on the first file read, masking real leakage and invalidating the arm.",
+      "suggested_fix": "Always union the transcripts' init cwds (and <run-dir>/sandbox + its realpath) into the allowed roots regardless of executor, or take the agent's runtime from an explicit flag/transcript field rather than from the grading executor.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T04:52:57Z",
+    "tokens_input": 185210,
+    "tokens_output": 40798,
+    "cost_usd": 0,
+    "latency_ms": 95138,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 330,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "c9a0caf85218725dce223aad9ef8bb17c2fb8a79842e4be497cacb62ad505001",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

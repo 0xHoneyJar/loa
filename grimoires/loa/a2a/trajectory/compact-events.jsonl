@@ -1,0 +1,2405 @@
+{"event":"compact_recovery","timestamp":"2026-04-15T10:04:00Z","context":{
+  "timestamp": "2026-04-15T10:02:01Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "HALTED"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-16T00:49:30Z","context":{
+  "timestamp": "2026-04-16T00:46:44Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "preflight"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-17T05:12:00Z","context":{
+  "timestamp": "2026-04-17T05:09:11Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-17T05:38:38Z","context":{
+  "timestamp": "2026-04-17T05:32:00Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-17T06:26:52Z","context":{
+  "timestamp": "2026-04-17T06:23:23Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-17T10:01:29Z","context":{
+  "timestamp": "2026-04-17T09:48:45Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T03:30:27Z","context":{
+  "timestamp": "2026-04-18T03:22:27Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T06:07:24Z","context":{
+  "timestamp": "2026-04-18T06:05:01Z",
+  "project_root": "/home/merlin/Documents/thj/code/mirror",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T07:01:29Z","context":{
+  "timestamp": "2026-04-18T06:47:24Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T08:06:00Z","context":{
+  "timestamp": "2026-04-18T07:58:04Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T09:25:38Z","context":{
+  "timestamp": "2026-04-18T09:24:34Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-18T12:59:55Z","context":{
+  "timestamp": "2026-04-18T12:57:54Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-19T00:27:23Z","context":{
+  "timestamp": "2026-04-18T23:57:05Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-19T03:51:19Z","context":{
+  "timestamp": "2026-04-19T03:43:01Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-20T00:52:51Z","context":{
+  "timestamp": "2026-04-20T00:51:23Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-24T03:05:50Z","context":{
+  "timestamp": "2026-04-24T02:57:00Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-24T04:38:57Z","context":{
+  "timestamp": "2026-04-24T04:28:20Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-24T07:49:48Z","context":{
+  "timestamp": "2026-04-24T06:20:39Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-25T07:31:07Z","context":{
+  "timestamp": "2026-04-25T07:24:55Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T00:28:19Z","context":{
+  "timestamp": "2026-04-26T00:28:05Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T00:48:32Z","context":{
+  "timestamp": "2026-04-26T00:41:21Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T02:29:01Z","context":{
+  "timestamp": "2026-04-26T02:28:49Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "complete"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T06:16:05Z","context":{
+  "timestamp": "2026-04-26T06:13:42Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T06:48:13Z","context":{
+  "timestamp": "2026-04-26T06:43:04Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T07:50:56Z","context":{
+  "timestamp": "2026-04-26T07:04:39Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-04-26T09:54:49Z","context":{
+  "timestamp": "2026-04-26T09:51:41Z",
+  "project_root": "/home/merlin/Documents/thj/code/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-02T06:35:54Z","context":{
+  "timestamp": "2026-05-02T06:13:41Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-06T08:04:05Z","context":{
+  "timestamp": "2026-05-06T08:03:28Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/dix",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-08T16:41:41Z","context":{
+  "timestamp": "2026-05-08T16:32:41Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa-hounfour",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-09T10:21:48Z","context":{
+  "timestamp": "2026-05-09T10:19:49Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa-oracle",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-11T12:22:26Z","context":{
+  "timestamp": "2026-05-11T11:47:36Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-15T00:20:48Z","context":{
+  "timestamp": "2026-05-14T23:39:15Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "HALTED"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "flatline_sprint"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-15T11:18:06Z","context":{
+  "timestamp": "2026-05-15T11:11:11Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-05-16T05:21:20Z","context":{
+  "timestamp": "2026-05-16T05:17:01Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/mirror",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-06-11T01:33:00Z","context":{
+  "timestamp": "2026-06-11T01:25:24Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-06-16T08:28:36Z","context":{
+  "timestamp": "2026-06-16T03:35:16Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-06-17T00:26:37Z","context":{
+  "timestamp": "2026-06-17T00:25:42Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ridden",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-06-19T01:16:16Z","context":{
+  "timestamp": "2026-06-19T01:13:40Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ridden",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-06-20T04:41:18Z","context":{
+  "timestamp": "2026-06-19T01:17:33Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-07-01T02:01:41Z","context":{
+  "timestamp": "2026-07-01T01:49:19Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/seen",
+  "run_mode": {
+    "active": true,
+    "state": "HALTED"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-07-07T09:36:47Z","context":{
+  "timestamp": "2026-07-07T09:15:33Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ridden",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-07-07T11:36:54Z","context":{
+  "timestamp": "2026-07-07T11:33:40Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-07-10T10:04:11Z","context":{
+  "timestamp": "2026-07-10T09:05:44Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-17T08:33:35Z","context":{
+  "timestamp": "2026-09-17T05:33:16Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-17T21:50:59Z","context":{
+  "timestamp": "2026-09-17T21:33:09Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-19T15:08:38Z","context":{
+  "timestamp": "2026-09-19T14:36:12Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-21T08:55:29Z","context":{
+  "timestamp": "2026-09-21T08:14:39Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-22T06:22:28Z","context":{
+  "timestamp": "2026-09-22T06:14:56Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-23T03:59:04Z","context":{
+  "timestamp": "2026-09-23T03:55:57Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-24T00:37:24Z","context":{
+  "timestamp": "2026-09-23T06:13:29Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-25T04:13:28Z","context":{
+  "timestamp": "2026-09-25T03:15:43Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-25T05:41:47Z","context":{
+  "timestamp": "2026-09-25T05:25:03Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-28T00:54:32Z","context":{
+  "timestamp": "2026-09-28T00:53:14Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-29T08:33:01Z","context":{
+  "timestamp": "2026-09-29T08:25:18Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-09-30T22:51:40Z","context":{
+  "timestamp": "2026-09-30T22:49:32Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T01:45:22Z","context":{
+  "timestamp": "2026-10-01T01:43:55Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T02:51:55Z","context":{
+  "timestamp": "2026-10-01T02:44:38Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T03:16:32Z","context":{
+  "timestamp": "2026-10-01T03:11:33Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T04:07:13Z","context":{
+  "timestamp": "2026-10-01T04:01:38Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/mirror",
+  "run_mode": {
+    "active": true,
+    "state": "AWAITING_HITL"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T07:03:14Z","context":{
+  "timestamp": "2026-10-01T06:45:20Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-01T07:13:12Z","context":{
+  "timestamp": "2026-10-01T07:03:21Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T06:51:26Z","context":{
+  "timestamp": "2026-10-02T06:48:10Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T07:57:23Z","context":{
+  "timestamp": "2026-10-02T07:54:56Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T08:34:00Z","context":{
+  "timestamp": "2026-10-02T08:31:03Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T09:18:10Z","context":{
+  "timestamp": "2026-10-02T09:06:25Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T10:57:16Z","context":{
+  "timestamp": "2026-10-02T10:50:39Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T11:14:02Z","context":{
+  "timestamp": "2026-10-02T11:06:10Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T11:46:09Z","context":{
+  "timestamp": "2026-10-02T11:43:04Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T12:17:09Z","context":{
+  "timestamp": "2026-10-02T12:08:44Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T13:37:51Z","context":{
+  "timestamp": "2026-10-02T13:35:46Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T13:54:52Z","context":{
+  "timestamp": "2026-10-02T13:51:25Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T14:56:20Z","context":{
+  "timestamp": "2026-10-02T14:43:22Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T15:28:40Z","context":{
+  "timestamp": "2026-10-02T15:16:18Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T16:16:10Z","context":{
+  "timestamp": "2026-10-02T16:14:07Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T17:30:03Z","context":{
+  "timestamp": "2026-10-02T17:08:56Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T17:53:43Z","context":{
+  "timestamp": "2026-10-02T17:39:55Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T18:51:43Z","context":{
+  "timestamp": "2026-10-02T18:50:13Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T20:08:37Z","context":{
+  "timestamp": "2026-10-02T19:46:28Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T21:20:49Z","context":{
+  "timestamp": "2026-10-02T21:09:26Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T22:43:55Z","context":{
+  "timestamp": "2026-10-02T22:43:28Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-02T23:40:12Z","context":{
+  "timestamp": "2026-10-02T23:34:59Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T01:51:15Z","context":{
+  "timestamp": "2026-10-03T01:46:30Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ono-sendai",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": ".claude/skills/run-mode/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T01:59:45Z","context":{
+  "timestamp": "2026-10-03T01:52:08Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T02:23:00Z","context":{
+  "timestamp": "2026-10-03T02:22:44Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ono-sendai",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": ".claude/skills/run-mode/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T02:51:29Z","context":{
+  "timestamp": "2026-10-03T02:42:46Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T04:10:08Z","context":{
+  "timestamp": "2026-10-03T03:44:13Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T04:34:00Z","context":{
+  "timestamp": "2026-10-03T04:31:16Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T05:42:53Z","context":{
+  "timestamp": "2026-10-03T05:40:53Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T06:33:52Z","context":{
+  "timestamp": "2026-10-03T06:27:18Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T06:46:09Z","context":{
+  "timestamp": "2026-10-03T06:45:50Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ono-sendai",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": ".claude/skills/run-mode/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T07:18:20Z","context":{
+  "timestamp": "2026-10-03T07:07:46Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T08:43:24Z","context":{
+  "timestamp": "2026-10-03T08:30:22Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T09:21:09Z","context":{
+  "timestamp": "2026-10-03T09:11:11Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T09:59:20Z","context":{
+  "timestamp": "2026-10-03T09:53:54Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T10:10:43Z","context":{
+  "timestamp": "2026-10-03T10:05:38Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ono-sendai",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": ".claude/skills/run-mode/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T11:05:38Z","context":{
+  "timestamp": "2026-10-03T10:43:31Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T11:47:21Z","context":{
+  "timestamp": "2026-10-03T11:25:46Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T13:55:44Z","context":{
+  "timestamp": "2026-10-03T13:48:12Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-03T14:36:43Z","context":{
+  "timestamp": "2026-10-03T14:32:14Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-04T17:34:12Z","context":{
+  "timestamp": "2026-10-04T16:46:09Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-04T19:58:26Z","context":{
+  "timestamp": "2026-10-04T18:34:14Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-04T23:53:06Z","context":{
+  "timestamp": "2026-10-04T23:27:25Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T04:13:28Z","context":{
+  "timestamp": "2026-10-05T03:58:31Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T04:56:35Z","context":{
+  "timestamp": "2026-10-05T04:54:06Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T06:11:38Z","context":{
+  "timestamp": "2026-10-05T05:11:34Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T06:27:28Z","context":{
+  "timestamp": "2026-10-05T06:21:40Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T08:42:00Z","context":{
+  "timestamp": "2026-10-05T08:33:31Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T10:33:07Z","context":{
+  "timestamp": "2026-10-05T10:10:47Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T12:03:32Z","context":{
+  "timestamp": "2026-10-05T11:35:52Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T12:15:24Z","context":{
+  "timestamp": "2026-10-05T12:05:12Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T18:44:09Z","context":{
+  "timestamp": "2026-10-05T17:23:46Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-05T22:23:36Z","context":{
+  "timestamp": "2026-10-05T21:28:31Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T03:21:49Z","context":{
+  "timestamp": "2026-10-05T22:59:21Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T08:12:44Z","context":{
+  "timestamp": "2026-10-06T08:03:09Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T08:22:51Z","context":{
+  "timestamp": "2026-10-06T08:13:09Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T08:45:24Z","context":{
+  "timestamp": "2026-10-06T08:38:34Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T09:52:42Z","context":{
+  "timestamp": "2026-10-06T09:30:32Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-06T23:58:53Z","context":{
+  "timestamp": "2026-10-06T11:13:06Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-08T03:02:29Z","context":{
+  "timestamp": "2026-10-07T10:51:29Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-13T12:43:28Z","context":{
+  "timestamp": "2026-10-13T04:37:44Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-14T03:31:58Z","context":{
+  "timestamp": "2026-10-14T01:21:16Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-14T12:39:15Z","context":{
+  "timestamp": "2026-10-14T08:21:13Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-15T03:03:37Z","context":{
+  "timestamp": "2026-10-15T01:15:19Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-15T10:47:52Z","context":{
+  "timestamp": "2026-10-15T10:26:41Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-19T06:56:41Z","context":{
+  "timestamp": "2026-10-19T06:52:04Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-19T07:21:27Z","context":{
+  "timestamp": "2026-10-19T07:21:18Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/ono-sendai",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": "",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-20T10:36:41Z","context":{
+  "timestamp": "2026-10-20T10:24:58Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-21T05:05:28Z","context":{
+  "timestamp": "2026-10-21T04:25:25Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-21T15:38:22Z","context":{
+  "timestamp": "2026-10-21T12:37:25Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-22T02:44:18Z","context":{
+  "timestamp": "2026-10-21T16:29:00Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}
+{"event":"compact_recovery","timestamp":"2026-10-22T07:00:09Z","context":{
+  "timestamp": "2026-10-22T06:17:35Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/wintermute",
+  "run_mode": {
+    "active": false,
+    "state": ""
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "bridge": {
+    "active": false,
+    "state": ""
+  },
+  "active_skill_doc": "",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}

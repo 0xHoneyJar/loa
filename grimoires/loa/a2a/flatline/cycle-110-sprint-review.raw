@@ -1,0 +1,242 @@
+WARNING: Document size 58 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/sprint.md
+[flatline] Phase: sprint
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/sprint-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=8, Opus=12 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=6 DISPUTED=4 LOW=0 BLOCKERS=5 (66% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 4,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 66,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Strong compatibility-risk mitigation with low implementation cost. The plan already relies on v1.3 reader tolerance, so making that contract executable via a regression fixture is high ROI and directly prevents silent schema drift.",
+      "gpt_score": 890,
+      "opus_score": 920,
+      "tertiary_score": 900,
+      "delta": 30,
+      "average_score": 905,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Valuable operational clarification. A measurable Sprint-2 split trigger would reduce ambiguity and late intervention risk, though the exact thresholds may require judgment and could be over-specified if the team already has informal review practices.",
+      "gpt_score": 760,
+      "opus_score": 880,
+      "tertiary_score": 880,
+      "delta": 120,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "High-value safety validation. Rollback is a core operational control, and unit/state-machine simulation is not a substitute for proving the live dispatch path returns to the baseline. Implementation cost is moderate but justified by risk reduction.",
+      "gpt_score": 875,
+      "opus_score": 870,
+      "tertiary_score": 900,
+      "delta": 5,
+      "average_score": 872.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "A concrete plateau definition would materially improve review-loop governance and prevent subjective stopping criteria. It is cheap to implement, though the definition should preserve reviewer discretion for unusual findings.",
+      "gpt_score": 790,
+      "opus_score": 890,
+      "tertiary_score": 920,
+      "delta": 100,
+      "average_score": 840,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Important lifecycle-control fix. An unbounded extension for insufficient sample size can leave the cycle indefinitely active and block planning. Defining a maximum extension and escalation path is low cost and closes a real operational gap.",
+      "gpt_score": 820,
+      "opus_score": 810,
+      "tertiary_score": 890,
+      "delta": 10,
+      "average_score": 815,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Valuable sequencing correction. Conservative deterministic defaults prevent a configuration gap if stress testing slips, while still allowing later tuning. This is a practical risk reducer with low to moderate implementation cost.",
+      "gpt_score": 780,
+      "opus_score": 720,
+      "tertiary_score": 820,
+      "delta": 60,
+      "average_score": 750,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-009",
+      "description": "Missing operator-approval marker tasks for S1/S2 parallels an existing S3 pattern. Adding them is cheap, ensures gate consistency, and reduces audit gaps.",
+      "gpt_score": 0,
+      "opus_score": 700,
+      "tertiary_score": 780,
+      "delta": 700,
+      "average_score": 700,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Merge topology ambiguity could cause validation against wrong branch. Worth clarifying, though impact is procedural rather than correctness-critical. Moderate priority.",
+      "gpt_score": 0,
+      "opus_score": 640,
+      "tertiary_score": 760,
+      "delta": 640,
+      "average_score": 640,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-011",
+      "description": "Choosing zero vs null for headless cost is a meaningful semantic decision for downstream analytics. Cheap to standardize now; expensive to fix after data accumulates.",
+      "gpt_score": 0,
+      "opus_score": 660,
+      "tertiary_score": 720,
+      "delta": 660,
+      "average_score": 660,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Bead-task mapping checklist is useful hygiene but may be handled by existing tooling/process. Lower priority than correctness fixes; nice-to-have for execution rigor.",
+      "gpt_score": 0,
+      "opus_score": 520,
+      "tertiary_score": 450,
+      "delta": 520,
+      "average_score": 520,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Headless CLI execution is not pinned or provenance-checked; commands appear to be invoked as bare `claude`, `codex`, and `gemini` from the ambient PATH.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "A PATH-hijacked or compromised CLI can exfiltrate OAuth/session credentials, prompts, model outputs, and audit metadata. Redaction protects logs after capture, but does not protect against a malicious executable or unexpected CLI version behavior.",
+      "location": "Sprint 2 T2.0, T2.9, T2.12; FR-4 doctor; headless dispatch subprocess call sites",
+      "recommendation": "Resolve CLIs via configured absolute paths, validate ownership/permissions, capture and enforce allowed version ranges, optionally verify checksums/signatures where feasible, and fail closed with `[CONFIG-INVALID]` if binary provenance checks fail.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "Mocked 50-parallel stress testing does not validate real subscription CLI session-state corruption, lock behavior, rate limits, or provider throttling.",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "The cycle thesis depends on headless CLI reliability under load, but default mocked stress tests can pass while live CLIs fail due to hidden session locks, browser-profile contention, provider limits, or local credential-store behavior.",
+      "location": "Sprint 2 AC2.10, T2.16; Sprint 3 rollout gate; G-4 empirical window",
+      "recommendation": "Make a bounded live concurrency verification mandatory before Sprint 3 for each provider, even if at low N, with operator-approved safeguards. Use mocked tests for CI but require live attestation artifacts for rollout readiness.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Symlink and tempfile handling in `.run` is risky without explicit directory ownership, permissions, and race protections.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "The plan creates transitional symlinks and a startup janitor that scans `.run/tmp-redaction-*`. If `.run` is writable by other users or subject to symlink/race manipulation, cleanup or migration logic can be abused for denial of service, state spoofing, or unsafe file operations.",
+      "location": "Sprint 1 D1.3, D1.6, T1.3, T1.4; Carry-ins C8 and C13",
+      "recommendation": "Require `.run` to be mode 0700 or otherwise owner-restricted, use `openat`/`unlinkat`-style safe path handling where possible, never follow symlinks for janitor targets, validate file ownership before deletion, and add tests for hostile symlinks and TOCTOU races.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The circuit-breaker migration rule drops legacy state when a new `(provider, http_api)` bucket exists, but does not compare timestamps, schema versions, corruption state, or semantic freshness.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "A stale or corrupt new bucket could incorrectly override a more accurate legacy circuit state, causing fail-open behavior during an active outage or losing failure history that protects downstream dispatch.",
+      "location": "Sprint 1 D1.2, AC1.4, T1.2; Carry-in C3",
+      "recommendation": "Add monotonic timestamp/schema-version comparison and integrity validation. If both states exist, choose the newest valid state, journal the decision, and quarantine rather than silently drop the losing file.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The no-op-dispatch fallback for OAuth probing is underspecified and may perform real model invocations or leak data to providers.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "If a CLI lacks a clean status command, doctor probes could consume quota, create provider-side artifacts, trigger rate limits, or send unintended prompt/context data. This is especially risky because Sprint 3 rollout is gated on doctor results.",
+      "location": "Sprint 2 D2.0, D2.10, AC2.6, T2.0, T2.9; circuit-breaker condition for FR-4.0 spike",
+      "recommendation": "Define an explicit probe contract per CLI: exact command, payload, network behavior, expected side effects, max tokens, output retention policy, and provider-side artifact expectations. Prefer documented offline auth-status APIs; require operator approval before using any probe that performs a real request.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sprint",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/sprint.md",
+  "domain": "cycle-110 sprint plan headless dispatch",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T06:16:33Z",
+  "metrics": {
+    "total_latency_ms": 94000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 94000ms

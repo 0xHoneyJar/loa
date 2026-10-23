@@ -1,0 +1,22 @@
+commit c2ef75816c89c065be6d5cfc51b8c24de31713a0
+Date: 2026-10-08T06:06:12+11:00
+
+fix(cycle-127): sprint-251 audit round r251-5 + sprint close — one permission rule across the three opt-in readers (MED-001): the bash lib and Bridgebuilder's readAgyGate now refuse, like cheval's loader, a .loa.config.yaml not owned by the current user or writable by its group or others (off, one WARN naming the file and the reason; group-writable is refused unconditionally — the private-group exception is gone, LOW-001); static-auth markers take precedence over a throttle match that rests on "please wait" alone (LOW-003); the AGC-6 batch failure's root cause (LOW-004) — loa-status fed jq a non-JSON document from workflow-state.sh under concurrent test runs — fixed in the script with a regression case; conformance rows for world-/group-writable configs on every reader; CHANGELOG, migration addendum and SDD D-1.1/D-1.11 now document the install-root anchor, the trust check, the exact-tag/alias/merge-key rule, the probe writer's input validation and re-parse, and the merge block under a config read error (LOW-002). Sprint 251 closed: ledger status completed, run state COMPLETE, epic bd-um3f and tasks closed, sprint.md round sections r251-4/r251-5; the Fable review (round 2) and audit (round 1) both APPROVED with CONSISTENT verdict trailers; COMPLETED marker written by the auditor.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+index 5585ae46..0ee50563 100644
+--- a/tests/unit/adversarial-review-companion.bats
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -49,6 +49,9 @@ _place_marker() {  # <tmp> <marker> → 0 placed; 1 (named, SPRINT cleared) when
+     mv -f -- "$1" "$2"
+ }
+ setup() {
++    # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
++    # whatever the host umask; a `>` redirect under umask 002 makes 0664)
++    umask 022
+     # the sprint id and its directory come FIRST: teardown runs on any setup failure, and a delete
+     # target derived from an unset id would be the a2a root (fourth run, chunk c C-001)
+     SPRINT="sprint-comp-$$"

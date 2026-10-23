@@ -1,0 +1,186 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 233,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the required-permission loop, `rule_key \"$perm\"` is called as a bare simple command. `rule_key` returns 1 for any rule that is not of the form `Bash(...)`, and the script runs under `set -euo pipefail`. The allow/deny ingestion loops guard this with `|| continue`, acknowledging that non-Bash rules exist, but the required-list loop does not. The replaced `base_pattern_of` never failed, so this is a new abort path.",
+      "failure_mode": "If `all_required` contains any non-Bash rule (e.g. `Read`, `WebFetch(domain:...)`, `mcp__*`), the preflight checker exits 1 silently mid-loop with no report, no `--json` output, and no missing/denied summary; every caller treating a non-zero exit as 'permissions missing' now fails on every preflight.",
+      "suggested_fix": "Guard the call: `rule_key \"$perm\" || { missing_permissions+=(\"$perm\"); continue; }` (or handle non-Bash requirements by exact-string lookup), and add a bats case with a non-Bash required rule.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 235,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`base=\"*${key#\\*}\"; base=\"${base%% *}\"` assumes the requirement key begins with `*`. For an exact required rule (key `=git status`) the result is `*=git status` → `*=git`, a key that can never exist in `allow_by`/`deny_by`. Under the old `base_pattern_of`, an exact requirement `Bash(git status)` was still covered by an allow `Bash(git:*)`.",
+      "failure_mode": "Any exact-form requirement is reported as missing even when a base wildcard allow covers it, and a base wildcard deny on it is not detected (deny no longer wins).",
+      "suggested_fix": "Compute the base from the body regardless of marker: `b=\"${key#[*=]}\"; base=\"*${b%% *}\"`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:hunk @@ -92,65 +108,12 @@",
+      "anchor_type": "line",
+      "anchor_line": 113,
+      "anchor_line_end": 117,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Authoritative mode is now selected only when `yq` is installed and `.loa.config.yaml` is present. If an operator sets `implement_gate.mode: authoritative` on a host without `yq`, the hook silently runs heuristic mode with no warning or audit event. The removed code emitted a `compliance.mode.change` audit line on downgrade; the replacement emits nothing. The `.run/.compliance-mode` cache file is also no longer written, so any other script that reads it (e.g. status reporting) sees a stale or absent value.",
+      "failure_mode": "Silent downgrade of the gate's mode on hosts lacking `yq`; stale `.compliance-mode` consumers report the pre-cycle-126 mode indefinitely.",
+      "suggested_fix": "When the config file exists but `yq` is missing, emit a stderr WARN and an audit.jsonl event; grep for other readers of `.run/.compliance-mode` and remove or re-point them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:providers.anthropic.models.claude-opus-5-5",
+      "anchor_type": "line",
+      "anchor_line": 476,
+      "anchor_line_end": 509,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new entry's comment cites the vendor page: 'Claude 4.6 and later models … include the full 1M token context window at standard pricing', and on that basis omits a `long_context` tier. The unchanged Opus 5 / Sonnet 5 / Fable 5 / Fable 5.1 entries still carry `long_context: {threshold_tokens: 200000, input_multiplier: 2.0, output_multiplier: 1.5, verified: false}`, and `test_five_family_declares_the_beta_header_list_and_the_long_context_tier` pins that. The catalog now asserts two contradictory pricing models for the same vendor statement.",
+      "failure_mode": "Metering over-charges Opus 5 / Sonnet 5 / Fable requests above 200K input by 2× (or under-charges Opus 5.5 if the older tier is correct); cost ceilings and budget gates derived from pricing are inconsistent across the family.",
+      "suggested_fix": "Either drop the `long_context` tiers from the FIVE_FAMILY entries (and update the test) with the same 2026-10-05 citation, or document why 5.5 alone is exempt.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_opus_5_5_has_the_1m_window_at_standard_pricing",
+      "anchor_type": "function",
+      "anchor_line": 343,
+      "anchor_line_end": 351,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff adds the Opus 5.5 entry with `ceiling_calibration.source: conservative_default`, `calibrated_at: null`, and the test asserts exactly that. The supplied full-file context for this test module (apparently a later revision) contains `test_a_foreign_transport_calibration_carries_its_provenance` and `test_lookup_returns_the_concrete_bound_through_the_gate_path`, both of which require `claude-opus-5-5` to be calibrated with `method: probed_headless` and `measured_input_tokens`. Against the catalog as written in this diff, those tests fail.",
+      "failure_mode": "If the full-file tests are what runs in CI, the suite is red on the uncalibrated 5.5 entry; if the diff's tests are current, the review context is stale and the ceiling provenance of 5.5 should be re-verified before merge.",
+      "suggested_fix": "Confirm which revision of test_anthropic_catalog_floor.py is on the branch and either run the probe (`tools/ceiling-probe-live.py --write-catalog`) for 5.5 or drop the calibrated-5.5 assertions.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:hunk @@ -27,6 +32,23 @@",
+      "anchor_type": "line",
+      "anchor_line": 40,
+      "anchor_line_end": 51,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The evidence recorder treats `tool_input.active_skill` as a signal and writes `active_skill_seen_at` into `.run/platform-features.json`. The header text itself notes `tool_input` is model-authored. Since the recorder runs before the file_path check, any Write/Edit call (including non-App-Zone) carrying a fabricated `active_skill` field permanently stamps the evidence file.",
+      "failure_mode": "A model-emitted `active_skill` key produces a misleading 'platform supports active_skill' evidence record that an operator may read as grounds to enable `implement_gate.mode: authoritative`, at which point the gate trusts a model-controlled field.",
+      "suggested_fix": "Record the raw payload shape alongside the timestamp (e.g. top-level keys present) so a reviewer can distinguish a harness-set field from a model-authored one, and state in the evidence record that it is non-authoritative.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T16:19:28Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12210,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

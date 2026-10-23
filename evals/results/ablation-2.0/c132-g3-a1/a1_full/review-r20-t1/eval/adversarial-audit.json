@@ -1,0 +1,259 @@
+{
+  "findings": [
+    {
+      "title": "[P1] Normalize heredoc destinations before treating them as nonexecuting",
+      "body": "The destination check matches literal path spellings, so `.git//config` bypasses the `.git/config` exclusion even though both resolve to the same file. For example, `cat <<EOF > .git//config\\n[core]\\n    fsmonitor = rm -rf /tmp/victim\\nEOF\\ngit status` is classified as nonexec: the configuration lines are discarded from the destructive-command scan because their command words are `[core]` and `fsmonitor`. Git then executes the configured fsmonitor command during `git status`, deleting the target. The basename check also misses this execution because `git status` does not explicitly name `config`. Canonicalize destinations, including repeated separators, dot components and symlinks, before applying executable-content exclusions; retain the full scan when resolution is uncertain.",
+      "severity": "HIGH",
+      "category": "authz",
+      "confidence_score": 0.94,
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_re_sys",
+      "anchor_type": "line",
+      "anchor_line": 190,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-49xzm3yk/.claude/hooks/safety/block-destructive-bash.sh",
+        "line_range": {
+          "start": 190,
+          "end": 190
+        }
+      },
+      "id": "DISS-001",
+      "description": "The destination check matches literal path spellings, so `.git//config` bypasses the `.git/config` exclusion even though both resolve to the same file. For example, `cat <<EOF > .git//config\\n[core]\\n    fsmonitor = rm -rf /tmp/victim\\nEOF\\ngit status` is classified as nonexec: the configuration lines are discarded from the destructive-command scan because their command words are `[core]` and `fsmonitor`. Git then executes the configured fsmonitor command during `git status`, deleting the target. The basename check also misses this execution because `git status` does not explicitly name `config`. Canonicalize destinations, including repeated separators, dot components and symlinks, before applying executable-content exclusions; retain the full scan when resolution is uncertain.",
+      "id_derived": true,
+      "failure_mode": "The destination check matches literal path spellings, so `.git//config` bypasses the `.git/config` exclusion even though both resolve to the same file.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_same_line_exec",
+      "anchor_type": "function",
+      "anchor_line": 608,
+      "anchor_line_end": 639,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new heredoc classifier (default on) drops most of a heredoc body from the destructive-command scan when the consumer is classed nonexec (e.g. `cat <<'EOF' > x` or `tee x`). The only guard against the same command then executing that file is _bdb_hd_same_line_exec, which flags a later line only when a token, after quote stripping and basename reduction, is byte-equal to the target basename AND the segment's command word is not a safe reader. Common execution forms escape it: `bash <(cat x)` (the `(`/`)` split puts `cat x` in its own segment whose command word `cat` is an allowlisted safe reader), `eval \"$(cat x)\"` / `sh -c \"$(<x)\"` (the quoted token is `$(cat x)`, never equal to `x`), `BASH_ENV=x bash` (assignment token), and glob execution `bash ./*` (the line does not contain the basename at all, so it is skipped). In all of these the body text never reaches the fence rules, while the command executes it in the same Bash tool call.",
+      "failure_mode": "A single Bash command writes a heredoc body to a plain file and executes it in the same invocation; body segments that the fence would have matched (anything not kept by _bdb_hd_is_destructive, see SEC-002) are removed from the scanned text, bypassing the destructive-command fence that the previous full-text scan (and the narrower #1245 scrub) would have applied.",
+      "suggested_fix": "Treat any later reference to the target as executing unless the whole segment is provably read-only: match the basename as a substring inside tokens (including `$(...)`, `<(...)`, `VAR=path`), treat process substitution and command substitution containing the target as interpreter-class, and fall back to the full scan when any later line contains a glob or an interpreter/eval command word regardless of whether the basename appears literally. Add corpus cases for `bash <(cat x)`, `eval \"$(cat x)\"`, `BASH_ENV=x bash`, and `bash ./*`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_scan_body",
+      "anchor_type": "function",
+      "anchor_line": 576,
+      "anchor_line_end": 603,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_bdb_hd_scan_body keeps a body segment only when _bdb_hd_segword resolves its first word to a fence verb. _bdb_hd_segword strips wrappers, assignments, quotes and a leading paren/brace, but not shell keywords, so `if :; then rm -rf /; fi`, `while :; do rm -rf ~; done`, `case $x in *) kubectl delete ns prod;; esac` or `else git push --force` resolve to `then`/`do`/`case`/`else` and are silently dropped. The fence verb list is also narrower than the fence's own rule set: the hook scrubs with _bdb_re_brbd (br/bd rules) yet `br`/`bd` are not in _bdb_hd_is_destructive, so `br delete …` inside a body is dropped too. _bdb_hd_ctx_bad already recognizes these keywords for header context; the body scanner does not.",
+      "failure_mode": "Combined with any same-command execution path the classifier misses (SEC-001) or the documented cross-command gap, destructive commands wrapped in a compound statement or using br/bd are not visible to the fence even though the body is executed.",
+      "suggested_fix": "In _bdb_hd_segword strip reserved words (if then else elif fi while until do done case esac in select function `!`) and `*)`-style case patterns before resolving the command word; derive _bdb_hd_is_destructive from the same verb set the fence rules use (add br, bd and any other scrubbed families); when a body segment's word is a keyword or otherwise unresolved, set _hd_full=1 rather than dropping it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_is_safe_reader",
+      "anchor_type": "function",
+      "anchor_line": 222,
+      "anchor_line_end": 227,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The safe-reader allowlist that exempts a later reference to a heredoc target from the executable check includes commands that can execute or install the referenced file: `git` (`git -c core.sshCommand=./x fetch`, `git -c alias.r='!./x' r`, `git config core.hooksPath dir`), `gh` (`gh alias set --shell`, extensions), `br`, and also writers like `touch`/`mkdir` that can change what a later path resolves to. Only the segment's first command word is consulted, so `git -c alias.go='!./x' go` is accepted as a read of `x`.",
+      "failure_mode": "A heredoc body written to a plain file is dropped from the scan and then executed via git/gh indirection in the same command, with the target reference judged as a safe read.",
+      "suggested_fix": "Restrict the safe-reader list to pure readers (cat, head, tail, wc, grep, diff, stat, file, checksum tools) and treat git, gh, br, mkdir, touch, cp, mv as non-safe for this purpose; alternatively require that no argument of the segment contains `!`, `=`, or an exec-shaped subcommand.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "function",
+      "anchor_line": 545,
+      "anchor_line_end": 594,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new deny mode is documented as a fence, but every sanction source is controllable by the agent it governs. (1) `.run/implement-active.json` is a trust input only for the Write/Edit/MultiEdit/NotebookEdit hook registrations; the same agent can create it with one Bash command (`jq -n … > .run/implement-active.json`) using skill `implement`, any sprint string and a current started_at, and all App Zone writes are then allowed for two hours with decision `sanctioned_marker`. (2) `LOA_IMPLEMENT_GATE_OVERRIDE=1` is an environment override that grants allow in every mode, unlike block-destructive-bash.sh which explicitly refuses to let an env var switch the fence off. (3) _ig_derived_ok returns success when derived_at is absent, so a forged RUNNING cache that simply omits derived_at is exempt from the new run_mode.stale_hours bound. The trust-input ask on line 340 does not cover the Bash tool, so the gate is only as strong as the agent's willingness not to touch .run/ via Bash.",
+      "failure_mode": "An agent (or a teammate, now that C-TEAM-003 is removed) under implement_gate.mode: deny writes a fresh marker file or RUNNING cache through Bash, or runs with the override in its environment, and the gate allows arbitrary App Zone writes with an `allow` audit row, defeating the operator's deny configuration.",
+      "suggested_fix": "Have run-checkpoint.sh sign the marker (e.g. HMAC over skill/sprint/started_at with a key outside the repo or via the existing audit_emit_signed chain) and verify it in check_implement_marker; require derived_at whenever deny mode is active; drop LOA_IMPLEMENT_GATE_OVERRIDE or gate it on a non-agent-controlled signal (e.g. an operator-owned file outside PROJECT_ROOT or a settings.json env that the Bash tool cannot alter); extend block-destructive-bash.sh or a Bash PreToolUse rule to refuse writes under .run/ and to .loa.config.yaml.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 138,
+      "anchor_line_end": 143,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/profiles.yaml:35",
+      "cross_file_justification": "danger-level-enforcer.sh now resolves its enable flag through loa_knob, whose default for an unset key comes from profiles.yaml; the `standard` profile (used when loa.profile is unset or unknown) sets guardrails.danger_level.enforce and guardrails.input.enabled to false, and input_guardrails.md now tells skills to skip the orchestrator unless that knob prints true.",
+      "description": "Two security controls flip from on-by-default to off-by-default. Previously danger-level enforcement defaulted to true when the key was unset (`// true`) and input guardrails ran unless explicitly disabled. After this change an unset key resolves via the `standard` profile to false, so a repository that never opted out loses both controls silently. The skill include also keeps its fail-open clause (script missing or non-zero exit → continue). In addition, danger-level-enforcer.sh sources profile-lib.sh unconditionally with no fallback; if the lib is missing or fails, the enforcer errors out instead of defaulting to enforce.",
+      "failure_mode": "Operators who relied on the prior defaults have danger-level blocking and pre-execution input guardrails disabled on upgrade without any config change on their part; a deleted or broken profile-lib.sh takes the enforcer down with it.",
+      "suggested_fix": "Keep the fallback argument to loa_knob at the secure default (true) for both guardrail keys and set `standard` to true for guardrails.danger_level.enforce (or ship a migration that writes the explicit key into existing configs); guard the `source` with `|| { echo WARN; enforce=true; }` so a missing lib fails closed; surface the flip in the upgrade notes and in `/loa` status.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/data/constraints.json:C-TEAM-005",
+      "anchor_type": "hunk",
+      "anchor_line": 1225,
+      "anchor_line_end": 1226,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/loa/CLAUDE.loa.md:120",
+      "cross_file_justification": "constraints.json deletes C-TEAM-001..005 and CLAUDE.loa.md drops the generated Agent Teams table, so the rendered agent instructions no longer tell teammates that .claude/ is lead-only or that git/beads/.run/ writes must go through the lead.",
+      "description": "Five agent-team constraints are removed, including C-TEAM-005 (severity critical: teammates MUST NOT modify the System Zone .claude/, which holds hook scripts, constraint definitions and settings) and C-TEAM-003/004 (lead-only writes to .run/ state files and lead-only git commit/push). The diff gives no replacement rule and no evidence that the referenced PreToolUse hook or team-skill-guard.sh still enforce these; the agent-teams reference was also modified but is truncated from this review. Removing the prose layer weakens defense in depth even if hooks remain, and if the hook was also relaxed, any teammate can rewrite hooks and constraints for all agents and forge the .run/ files that implement-gate.sh (SEC-004) trusts.",
+      "failure_mode": "A compromised or prompt-injected teammate edits .claude/hooks/*, .claude/data/constraints.json or .claude/settings*.json, or writes .run/sprint-plan-state.json / implement-active.json, with no instruction-level prohibition and possibly no mechanical check.",
+      "suggested_fix": "Confirm team-skill-guard.sh and the System Zone PreToolUse hook still enforce lead-only writes and keep at least C-TEAM-005 and C-TEAM-003 as rendered constraints (or move them into the Universal invariants paragraph); if the intent is to retire them, document the replacing mechanical control in guard-origins.yaml.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:load_gate_config",
+      "anchor_type": "function",
+      "anchor_line": 187,
+      "anchor_line_end": 205,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "load_gate_config returns silently with gate_mode=ask when yq or jq is missing, when .loa.config.yaml fails to parse, or when both yq invocations fail. In deny mode this is a silent downgrade of the operator's fence to advisory, and nothing is logged to audit.jsonl to indicate the downgrade (the mode field on rows will simply read `ask`).",
+      "failure_mode": "Removing yq from PATH, or introducing a YAML parse error into .loa.config.yaml via Bash, turns a configured deny into ask with no audit signal.",
+      "suggested_fix": "Log a `compliance.mode.fallback` row when config exists but cannot be read, and consider treating an unreadable config as `deny`-with-unknown-position (ask with a reason naming the parse failure) so the downgrade is visible to the user.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-008",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:_ig_replay_json",
+      "anchor_type": "line",
+      "anchor_line": 214,
+      "anchor_line_end": 215,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "LOA_AUDIT_REPLAY=1 in the hook's environment stamps every row this gate writes with `replay: true`. If the register or any downstream consumer excludes replay rows from counts or alerts (the stated purpose of the marker), an agent that can influence the hook environment can have real ask/deny/allow decisions ignored by audit tooling.",
+      "failure_mode": "Audit rows for live decisions are tagged as replay and filtered out of compliance reporting.",
+      "suggested_fix": "Derive the replay flag from an explicit replay invocation path (a CLI flag on the replay tool) rather than an ambient environment variable, or write replay rows to a separate file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T19:24:24Z",
+    "tokens_input": 126683,
+    "tokens_output": 33797,
+    "cost_usd": 0,
+    "latency_ms": 135068,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 31,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

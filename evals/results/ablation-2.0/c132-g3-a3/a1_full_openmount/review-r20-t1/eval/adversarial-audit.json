@@ -1,0 +1,243 @@
+{
+  "findings": [
+    {
+      "title": "[P1] Preserve heredoc bodies when later execution uses a glob",
+      "body": "The classifier removes executable payloads when a later interpreter references the output file through a glob. For example, `cat <<'EOF' > /tmp/guard-payload.txt\\necho \"$(rm -rf --no-preserve-root /)\"\\nEOF\\nbash /tmp/guard-payload.tx[t]` writes and executes the destructive payload. The destination passes the non-executable-path check, while `_bdb_hd_same_line_exec` misses the glob because it requires the literal basename. Since the delimiter is quoted, `_bdb_hd_scan_body` then drops the entire `echo` line, removing the destructive command from the guard's scan. Preserve the full body when subsequent interpreter invocations could consume the destination through shell expansion.",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "priority": 1,
+      "confidence_score": 0.97,
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_heredoc_scrub",
+      "anchor_type": "line",
+      "anchor_line": 1063,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-2n28mk3y/.claude/hooks/safety/block-destructive-bash.sh",
+        "line_range": {
+          "start": 1063,
+          "end": 1063
+        }
+      },
+      "id": "DISS-001",
+      "description": "The classifier removes executable payloads when a later interpreter references the output file through a glob. For example, `cat <<'EOF' > /tmp/guard-payload.txt\\necho \"$(rm -rf --no-preserve-root /)\"\\nEOF\\nbash /tmp/guard-payload.tx[t]` writes and executes the destructive payload. The destination passes the non-executable-path check, while `_bdb_hd_same_line_exec` misses the glob because it requires the literal basename. Since the delimiter is quoted, `_bdb_hd_scan_body` then drops the entire `echo` line, removing the destructive command from the guard's scan. Preserve the full body when subsequent interpreter invocations could consume the destination through shell expansion.",
+      "id_derived": true,
+      "failure_mode": "The classifier removes executable payloads when a later interpreter references the output file through a glob.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "config",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 139,
+      "anchor_line_end": 143,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Danger-level enforcement used to default to enabled when the config file or key was absent. It now falls back to false, and the standard profile in profiles.yaml also sets it false. A repo with no explicit setting silently loses enforcement. The profile library is also sourced at top level without a guard, so a missing library changes behavior unpredictably.",
+      "failure_mode": "High-danger skills run without danger-level gating on default installs and after upgrades. A single loa.profile: lean line also disables the control.",
+      "suggested_fix": "Keep the fail-closed default by using a true fallback and setting standard to true, or treat enforcement as a floor key that profiles cannot lower. Guard the source call and fail closed if profile-lib.sh is missing.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "HIGH",
+      "category": "config",
+      "anchor": ".claude/data/profiles.yaml:standard",
+      "anchor_type": "hunk",
+      "anchor_line": 36,
+      "anchor_line_end": 45,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Input guardrails previously ran unless explicitly disabled. The new include runs them only when loa_knob returns true, and the standard (default) profile returns false. The lean profile turns off every optional guard with one key. Profile selection is not protected as a floor.",
+      "failure_mode": "Prompt-injection and input screening stops running by default, a fail-open regression for every skill that includes input_guardrails.md.",
+      "suggested_fix": "Default guardrails.input.enabled to true in standard, or list the guardrail keys in floor.yaml floor_keys so profiles cannot lower them. Require an explicit per-key opt-out instead.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "function",
+      "anchor_line": 545,
+      "anchor_line_end": 552,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "A new sanction allows any App Zone write for two hours when .run/implement-active.json is well-formed. The file is listed as a trust input, but only on the Write/Edit/MultiEdit/NotebookEdit hook path. Nothing binds the marker to a real skill invocation, such as a signature, nonce or session id. The LOA_IMPLEMENT_GATE_OVERRIDE=1 env sanction is also unauthenticated.",
+      "failure_mode": "A model or teammate that can run shell commands can create the marker outside the gated tools and turn the gate, including deny mode, into allow for two hours.",
+      "suggested_fix": "Bind the marker to the session, for example with a session id from the hook payload or an HMAC from run-checkpoint.sh using a key the model cannot read. Also check for marker writes in the Bash PreToolUse guard, and log override use prominently.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/data/constraints.json:C-TEAM-005",
+      "anchor_type": "hunk",
+      "anchor_line": 1226,
+      "anchor_line_end": 1330,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "All five agent-teams constraints were deleted, along with the generated table in CLAUDE.loa.md. They covered lead-only planning, beads, state files, git, and a read-only System Zone for teammates. C-TEAM-005 was the documented authorization boundary that keeps teammates from changing hooks, constraints and settings.",
+      "failure_mode": "Teammate agents no longer get the instruction-level rule against modifying .claude/ or .run/ state. If the hook enforcement was also relaxed in the omitted files, a teammate could change guard hooks for the whole team.",
+      "suggested_fix": "Confirm that team-skill-guard.sh and the System Zone Write/Edit hook still enforce these rules. If they do, keep at least C-TEAM-005 and the state-file rule as constraints. If not, restore them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_heredoc_scrub",
+      "anchor_type": "function",
+      "anchor_line": 620,
+      "anchor_line_end": 700,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new heredoc classifier is a hand-written shell tokenizer. It removes body text from the string the destructive-command rules check: nonexec bodies keep only fence-verb segments. A gap between this tokenizer and bash's real parsing means destructive text is never scanned, which is fail-open. The header itself documents an accepted gap where a body is written by one command and run by a later one. The scope of the scrub grew from one exact cat form to a whole allowlist of consumers.",
+      "failure_mode": "A parsing difference between the classifier and bash can hide destructive content from the fence. The added parser complexity also makes future regressions likely.",
+      "suggested_fix": "Keep the original body text in the scan and add the classifier only as a way to suppress false positives for exact, tested forms. Fuzz the tokenizer differentially against bash parsing, and default the knob to off until the corpus covers adversarial cases.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_heredoc_knob_on",
+      "anchor_type": "function",
+      "anchor_line": 727,
+      "anchor_line_end": 742,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The knob's config path comes from LOA_REPO_ROOT or CLAUDE_PROJECT_DIR, falling back to the process cwd. Turning the knob off returns to the narrower #1245 scrub. The real risk is the cwd fallback: it follows cd, so the config read can come from an attacker-chosen directory and differ from the one other guards read.",
+      "failure_mode": "Inconsistent config resolution between guards. A planted .loa.config.yaml in a working directory can change scrubber behavior.",
+      "suggested_fix": "Resolve the config from the hook's own script location, as implement-gate does (see its audit MED-001 note), and never from the cwd.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:load_gate_config",
+      "anchor_type": "function",
+      "anchor_line": 187,
+      "anchor_line_end": 203,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Telemetry mode lets App Zone writes outside a run through silently. Any unreadable or unknown config value falls back to ask, never to deny. An operator who enables deny but mistypes the value, or hits a yq parse failure, gets weaker behavior with no warning.",
+      "failure_mode": "The deny-mode fence silently degrades to ask on config errors, and telemetry mode turns the gate off.",
+      "suggested_fix": "Emit a stderr warning and an audit row when implement_gate.mode is set but not recognized. Consider requiring an explicit confirmation key for telemetry.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T03:25:06Z",
+    "tokens_input": 120827,
+    "tokens_output": 16554,
+    "cost_usd": 0,
+    "latency_ms": 92222,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 22,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

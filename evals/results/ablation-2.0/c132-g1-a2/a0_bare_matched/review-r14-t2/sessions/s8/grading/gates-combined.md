@@ -1,0 +1,14 @@
+head/.claude/hooks/compliance/implement-gate.sh:128
+head/docs/migration/v2.0-model-generation-floor.md:257
+implement-gate.sh:122-130
+head/evals/graders/recall-vs-defects.sh:73
+a.sh:40
+a.sh:3
+head/evals/fixtures/review-prs/manifests/pr-05.json:13
+head/.claude/scripts/check-permissions.sh:167
+head/.claude/defaults/model-config.yaml:495
+cheval.py:587
+head/.claude/defaults/model-config.yaml:477
+head/.claude/defaults/model-config.yaml:509
+head/tools/check-prompt-budget.sh:53
+head/.claude/scripts/model-adapter.sh:656

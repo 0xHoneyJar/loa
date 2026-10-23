@@ -1,0 +1,21 @@
+batch_context=c132-g3-a1
+base_commit=2c25ddb15858175bb001405f7752e1b569020e6d
+mount=tree
+copy_source=fbd36a0c9880b244af08133013f3b6959b085c94
+mount_overlay=head:0
+overlay_excluded=44:.claude/data/constraints.json,.claude/data/guard-origins.yaml,.claude/data/profiles.yaml,.claude/data/skill-includes/input_guardrails.md,.claude/data/skill-includes/retrospective_postlude.md,.claude/hooks/compliance/implement-gate.sh,.claude/hooks/loa-kf-surface.sh,.claude/hooks/quality/karpathy-surgical-diff-check.sh,.claude/hooks/safety/block-destructive-bash.sh,.claude/hooks/session-start/loa-decisions-surface.sh,.claude/hooks/session-start/loa-l6-surface-handoffs.sh,.claude/hooks/session-start/loa-l7-surface-soul.sh,.claude/loa/CLAUDE.loa.md,.claude/loa/reference/agent-teams-reference.md,.claude/loa/reference/hooks-reference.md,.claude/rules/skill-invariants.md,.claude/scripts/danger-level-enforcer.sh,.claude/scripts/generate-constraints.sh,.claude/scripts/guardrails-orchestrator.sh,.claude/scripts/lib/heredoc-classifier.sh,…
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-20
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-fbd36a0c9880
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=e30e9540394158d55847ddd30d6e125246938d3b889fd3e9c4423feba35c99ce
+mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 44 .claude path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

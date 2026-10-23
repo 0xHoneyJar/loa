@@ -1,0 +1,100 @@
+# =============================================================================
+# evals/suites/ablation-2.0.yaml — cycle-130 Loa 2.0 component ablation suite
+#
+# SDD §3.3 (structure reproduced), extended by Sprint 258 Task 1.6: the
+# tasks block with the smoke root, phase_defaults, phase_sets, cost_hint, each
+# arm's phase-set override and took-effect rule ids, and the full pre-registered
+# rules block (D-A5; mirrored in NOTES before the first run, DEC-0383).
+#
+# Readers: execute-agent.sh / lib/sandbox-mount.sh (arms[].toggles via
+# resolve_arm_toggles), pipeline-run.sh (phase_defaults, phase_sets,
+# arms[].phases, arms[].effort), took-effect.sh (arms[].took_effect),
+# run-ablation.sh (trials, caps, priority, cut_ladder, arms[].task_types),
+# ablation-report.py (rules), validate-suite.sh (arm ids for the leakage check,
+# task_types against the known types).
+#
+# task_types: `all` | `build` (= feature-build, bug-fix, refactor) |
+#   `review-catch` | a single build type. An arm is never scheduled, and a row
+#   never reported, on a type outside its declaration (DEC-0400, DEC-0406).
+# took_effect: rule ids took-effect.sh evaluates per trial (DEC-0418); a miss is
+#   infrastructure_error and pauses the arm. `applicability_refused` is the
+#   smoke's evidence line that the planner refused the arm on a review-catch task.
+# =============================================================================
+name: ablation-2.0
+version: 1
+source_commit: "ba11b860"   # the pin: the Sprint 259 completion tree (rc.5 + the #1267 mount fix + the harness; .claude/ identical to the Sprint 258 completion tree, DEC-0529; the per-batch .claude/ delta vs 4d69c3c4 is in MANIFEST.json, DEC-0392)
+agy_opt_in: false
+tasks:
+  root: grimoires/loa/evals/ablation-2.0/tasks
+  manifest: grimoires/loa/evals/ablation-2.0/MANIFEST.sha256
+  smoke_root: grimoires/loa/evals/ablation-2.0/smoke
+suite_version: 1
+trials: {build: 3, review-catch: 3}      # D-A4: review-catch trials 3, not 5, under the gate pipeline
+cut_ladder: ["A5, A6, A7 not run", "A2 and A3 build trials 3 -> 2", "A3 review-catch trials 3 -> 2"]   # DEC-0397; A0, A1, A4 keep 3
+caps: {cycle_usd: 1500, run_usd: 12, reserve_usd: 250}   # reserve released to A7 when the re-verification rule needs no run (DEC-0398)
+priority: [a0_bare, a1_full, a2_no_sprint_plan, a3_one_voice, a4_no_gates, a7_effort_medium, a5_no_flatline, a6_one_window]
+cost_hint: {build: 7, review-catch: 8}   # USD per run before any actual exists (run-arms/run-ablation est_next fallback)
+
+# Session defaults per phase (SDD D-4.3). A6's continued session carries the
+# caps of the phase it is in; A0's BARE caps are PLAN + IMPLEMENT + 2 x FIX.
+phase_defaults:
+  models:
+    PLAN: global.anthropic.claude-opus-5-5
+    IMPLEMENT: global.anthropic.claude-opus-5-5
+    FIX: global.anthropic.claude-opus-5-5
+    BARE: global.anthropic.claude-opus-5-5
+    REVIEW: global.anthropic.claude-fable-5-1
+    AUDIT: global.anthropic.claude-fable-5-1
+  # REVIEW/AUDIT 60 turns / 30 min: the Sprint 258 smoke saw a review-catch AUDIT hit 40 turns after writing its
+  # verdict (DEC-0490); BARE stays the implementer-side sum (PLAN + IMPLEMENT + 2 x FIX)
+  max_turns: {PLAN: 30, IMPLEMENT: 60, REVIEW: 60, FIX: 40, AUDIT: 60, BARE: 170}
+  timeout_min: {PLAN: 15, IMPLEMENT: 25, REVIEW: 30, FIX: 15, AUDIT: 30, BARE: 70}
+  tools: "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch"   # identical for every arm, A0 included
+phase_sets:   # D-4.1: A1's phases per task type; FIX runs only after a CHANGES_REQUIRED gate
+  review-catch: [REVIEW, AUDIT]
+  build: [PLAN, IMPLEMENT, REVIEW, FIX, AUDIT, FIX]
+
+arms:
+  - {id: a0_bare, label: A0, task_types: [all], toggles: {loa_mount: false}, phases: [BARE], effort: high,
+     took_effect: [no_dot_claude, no_system_prompt, no_audit_rows, integrity_clean]}
+  - {id: a1_full, label: A1, task_types: [all], toggles: {}, took_effect: [all_phases_present, integrity_clean]}
+  - {id: a2_no_sprint_plan, label: A2, task_types: [build], toggles: {sprint_plan: false},
+     phases: [IMPLEMENT, REVIEW, FIX, AUDIT, FIX],
+     took_effect: [no_plan_phase, applicability_refused, integrity_clean]}
+  - {id: a3_one_voice, label: A3, task_types: [all], toggles: {companion_voice: false}, took_effect: [one_voice_planned, integrity_clean]}
+  - {id: a4_no_gates, label: A4, task_types: [build], toggles: {gates: false},
+     phases: [PLAN, IMPLEMENT],
+     took_effect: [no_gate_phases, enforce_env_false, applicability_refused, integrity_clean]}   # build only: on a review-catch task the gates are the task (DEC-0400)
+  - {id: a5_no_flatline, label: A5, task_types: [build], toggles: {flatline: false},
+     took_effect: [no_flatline_rows, applicability_refused, integrity_clean]}
+  - {id: a6_one_window, label: A6, task_types: [build], toggles: {context_resets: false},
+     took_effect: [implementer_single_session, gates_separate_sessions, applicability_refused, integrity_clean]}
+  - {id: a7_effort_medium, label: A7, task_types: [all], toggles: {effort: medium},
+     took_effect: [effort_flag_medium, skill_effort_stripped, integrity_clean]}
+  - {id: a8_no_ceremonies, label: A8, absent: true,
+     evidence: "no /meeting command, skill or sosyete config key at 4d69c3c4 (grep -rli sosyete .claude/ docs/; ls .claude/commands .claude/skills)"}
+
+rules:   # D-A5: pre-registered, mirrored in NOTES
+  threshold_points: 0.03
+  cost_lower_pct: 15
+  bootstrap: {resamples: 10000, level: 0.90, paired: true, units: {hidden_test_pass_rate: tasks, defect_catch_rate: defects}, also_report: {defect_catch_rate: tasks}}   # DEC-0399
+  primaries_by_arm: {build_only: [hidden_test_pass_rate], all_types: [hidden_test_pass_rate, defect_catch_rate]}   # DEC-0400
+  cap_failure: counts_as_failed            # 0 on each applicable primary (DEC-0393)
+  exclusion: {statuses: [degraded, contaminated, interrupted], mode: pairwise, inconclusive_above_share: 0.25}
+  sensitivity_figure: cap_failures_excluded  # printed, never decides
+  multiple_comparisons: none                 # expected false positives at 0.90 over 6 components printed
+  drift_guard: {cli_version: fixed_per_batch, model_ids: fixed_per_batch}   # DEC-0407
+  order: trial_major_seeded_shuffle_within_block
+  took_effect_per_trial: true                # a miss → infrastructure_error, arm paused until --clear-arm (DEC-0418)
+  predicates:                                # DEC-0416; d = arm − A1 point estimate, [lo, hi] its 90 % interval, c/w = cost/wall-clock Δ %
+    investigate: "any applicable primary has lo > 0"
+    keep: "else any applicable primary has d < -0.03 and hi < 0"
+    inconclusive: "else any applicable primary has d < -0.03, or the arm's excluded share > 0.25, or no valid pair"
+    remove: "else every applicable primary has d >= -0.03 and (c <= -15 or w <= -15)"
+    simplify: "else (every applicable primary within -0.03, cost similar)"
+  review_catch: {defect_counts_once_across_gates: true, false_positive_dedupe: cited_region, verdict_accurate_iff: "CHANGES_REQUIRED when the key holds a high or critical defect, APPROVED when none"}   # DEC-0420
+  inconclusive_extension_trials: 2
+  h1: "a1_full beats a0_bare on at least one primary with the interval excluding zero, else halt before promotion"
+  a4_sensitivity: "a4_no_gates worse than a1_full on hidden_test_pass_rate with the interval excluding zero, else harden tasks before acting on other arms"
+  decision_states: [investigate, keep, inconclusive, remove, simplify, not_run_cut, inconclusive_by_power]
+  mde_cut: 0.10   # sprint Task 3.4: an arm whose MDE at affordable trials exceeds this is pre-declared inconclusive_by_power and not run

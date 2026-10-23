@@ -1,0 +1,191 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_import",
+      "anchor_type": "function",
+      "anchor_line": 629,
+      "scope": "diff",
+      "description": "Import locks only the destination ledger, reads the pending file once, and later deletes that entire file.",
+      "failure_mode": "If a worker appends a pending decision after the import snapshot is read but before the pending file is removed, import succeeds and deletes the newly appended decision without importing it.",
+      "suggested_fix": "Coordinate with pending writers using the same source lock, held through snapshot acquisition and removal. Preserve any rows appended after the imported snapshot.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_reject",
+      "anchor_type": "function",
+      "anchor_line": 582,
+      "scope": "diff",
+      "description": "Rejecting a proposed replacement does not clear the original decision's supersede_proposed_by pointer.",
+      "failure_mode": "After an agent proposes a replacement and the operator rejects it, subsequent agent supersede attempts always fail with 'a replacement is already proposed', pointing to the rejected row. The original decision becomes permanently unavailable for another agent replacement proposal.",
+      "suggested_fix": "When rejecting a replacement, atomically clear the original row's supersede_proposed_by field if it points to that replacement, and include both rows in verification.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_import",
+      "anchor_type": "function",
+      "anchor_line": 618,
+      "anchor_line_end": 658,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`op_import` copies every row of the `--from` file into the live ledger verbatim (only PEND ids are rewritten). It never checks the imported rows' `status`, `decided_by`, `decided_by_ref` or `transitions`, does not require `--recorded-by decisions-command`, does not consult `is_unattended`, and does not re-sanitize text through `san1`. The header and `/decisions` doc state a row becomes `decided` only via `confirm`, and `verify_and_swap`/validate-artifact can only check shape: a hand-written row `{status: decided, decided_by: operator, decided_by_ref: cli:2026-..., transitions: [..proposed->decided by operator:decisions-command]}` is schema-valid and indistinguishable from a real confirmation. Since `import` is the documented lead flow (model-invocable, not in user-invoked-commands.txt) and a worktree agent authors the pending file, this is a second self-confirmation path that survives even if the `is_operator_call` string guard (reviewer item 4) were hardened. Related: an imported row carrying `supersedes: DEC-NNNN` lands without setting `supersede_proposed_by` on the live row, so a later `confirm` silently skips the superseded transition (the `decided|<id>` check in op_confirm fails).",
+      "failure_mode": "Any process that can write `grimoires/loa/a2a/sprint-N/decisions-pending.yaml` and run `dec-write-lib.sh import` lands `decided`/`rejected`/`superseded` rows attributed to `operator` in the live ledger with no operator action, defeating the ledger's attribution invariant; `list --not-decided-by operator` and the SDD Appendix D rendering then hide those decisions. Unsanitized summaries are also echoed raw to stderr by `confirm`.",
+      "suggested_fix": "Before `append_row`, assert for every imported row: `status` in {open, proposed}, `decided_by == null`, `supersede_proposed_by == null`, `supersedes == null` (supersede already refuses pending targets so none can exist legitimately), `rejection_rationale == null`, and `all(transitions[].to; . == \"open\" or . == \"proposed\")`; die on any violation. Re-run `san1`-equivalent cleaning (jq gsub on cntrl/C1/U+2028-9) over string fields and re-derive `recorded_by` suffix/`commit`. Consider also refusing `import` while `live_run_signal` holds, matching `confirm`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_confirm",
+      "anchor_type": "function",
+      "anchor_line": 537,
+      "anchor_line_end": 539,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "On confirm, `decided_by_ref` is only set when it is currently null, and `decided_by` is derived from whatever ref is already there. The operator's `cli:` ref (the doc's rule 3 says it \"is what records decided_by: operator\") is therefore discarded except as transition evidence whenever the proposer already attached a ref: a row created with `--as flatline --answer-ref flatline:...` ends `decided_by: flatline` after an operator confirm, and a row created interactively by an agent with a self-asserted `--answer-ref session:X#turn-N` ends `decided_by: operator` pointing at a ref the operator never produced. `.claude/commands/decisions.md` documents the opposite behaviour.",
+      "failure_mode": "Attribution in the ledger (and in `list --not-decided-by operator`, SDD Appendix D, grimoire INDEX `Decided by` column) does not reflect who actually confirmed; agents can pre-seed an operator-kind ref to make their rows read as operator-decided once rubber-stamped.",
+      "suggested_fix": "On confirm, always record the operator's ref: keep the original in e.g. `proposed_by_ref` and set `decided_by_ref = $ref`, `decided_by = operator` unconditionally (confirm is operator-only by contract). Alternatively, make `derive_attribution` reject operator-kind refs (`session:`/`debrief:`/`transcript:`/`cli:`) from non-operator callers at creation time, and update decisions.md to describe the actual rule.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_supersede",
+      "anchor_type": "function",
+      "anchor_line": 606,
+      "anchor_line_end": 611,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the operator path, `op_supersede` flips the old `decided` row to `superseded` in the same write that appends the replacement as `proposed`. If the operator never confirms (or later rejects) the replacement, the ledger has no active decision on that question and the `supersedes` chain points at a rejected row. The agent path correctly defers (sets `supersede_proposed_by`, lets `confirm` retire the old row), so the two paths produce different lineage for the same operation.",
+      "failure_mode": "A decided row is retired by a replacement that is not itself decided; downstream renderers (`list`, grimoire-index, SDD Appendix D) show no decided row for the topic.",
+      "suggested_fix": "Use the deferred path for operators too (set `supersede_proposed_by`, retire on confirm), or when the operator supersedes interactively with a `cli:` ref, confirm the replacement atomically in the same write so old=superseded and new=decided land together.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/grimoire-index.sh:to_json",
+      "anchor_type": "function",
+      "anchor_line": 203,
+      "anchor_line_end": 204,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`emit_decisions` places the free-text `source` cell in the 6th TSV column, which `to_json` treats as a comma-separated `refs` list (`split(\",\")`). A source such as `NOTES.md#foo, PR #12` or `map:epic/a,b` becomes multiple refs in `.run/grimoire-index.json`. `render_md` joins them back so the human table looks right, but machine consumers of the JSON index see fragmented sources.",
+      "failure_mode": "Incorrect `refs` arrays for decisions rows in the machine index; any tooling that resolves refs will try to resolve fragments.",
+      "suggested_fix": "Emit a dedicated `source` key for the decisions family in `to_json` (e.g. only split on commas when family != decisions), or join with a non-comma separator and split on that.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T11:45:45Z",
+    "tokens_input": 132257,
+    "tokens_output": 38943,
+    "cost_usd": 0,
+    "latency_ms": 93863,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 423,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "bc979beef1d75e3b508293c914bd464031e70f7d6a057f0ee86dd00d7d0bf798",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

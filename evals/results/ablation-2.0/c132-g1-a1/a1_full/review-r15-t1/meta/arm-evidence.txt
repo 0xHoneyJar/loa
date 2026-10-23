@@ -1,0 +1,21 @@
+batch_context=c132-g1-a1
+base_commit=af7388ee279c66bb0a64712e27823548104c3ca6
+mount=tree
+copy_source=fbd36a0c9880b244af08133013f3b6959b085c94
+mount_overlay=head:0
+overlay_excluded=39:.claude/adapters/cheval.py,.claude/adapters/loa_cheval/audit/modelinv.py,.claude/adapters/loa_cheval/config/loader.py,.claude/adapters/loa_cheval/providers/agy_headless_adapter.py,.claude/adapters/loa_cheval/providers/claude_headless_adapter.py,.claude/adapters/loa_cheval/types.py,.claude/adapters/tests/test_agy_headless_adapter.py,.claude/adapters/tests/test_agy_opt_in_gate.py,.claude/adapters/tests/test_agy_opt_in_r251_4.py,.claude/adapters/tests/test_agy_r251_6.py,.claude/adapters/tests/test_anthropic_catalog_floor.py,.claude/adapters/tests/test_ceiling_probe_cli_transport.py,.claude/adapters/tests/test_effort_catalog_default.py,.claude/adapters/tests/test_headless_argv_nul_robustness.py,.claude/adapters/tests/test_headless_shared_contract.py,.claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py,.claude/data/schemas/model-config-v3.schema.json,.claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json,.claude/defaults/model-config.yaml,.claude/defaults/model-config.yaml.checksum,…
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-15
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-fbd36a0c9880
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=dbc43f75694b480a41b0455779d1d532459808e43c3164045fbaa1479bd83ee9
+mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 39 .claude path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

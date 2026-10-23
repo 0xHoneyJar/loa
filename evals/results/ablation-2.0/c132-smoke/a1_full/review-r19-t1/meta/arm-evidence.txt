@@ -1,0 +1,33 @@
+batch_context=c132-smoke
+base_commit=c4e63dbc4059bba363a378c2a9379a81566caa5c
+mount=tree
+copy_source=664c45164764462fd4c5676f10e8cffce9c3aad6
+mount_overlay=head:13
+overlay_sha256=.claude/data/floor.yaml=bd1f22dce9b6f18a0fda36d5a65dacd8103075c66c8c649b21de04fffcc92587
+overlay_sha256=.claude/data/guard-origins.yaml=de0ef166065de119cca659ec328fbc905a90c1cd9124a86d6248d8dab5a3708c
+overlay_sha256=.claude/hooks/safety/block-destructive-bash.sh=4e9f0aa56d5461642b7729aa0524308a04fac8ee9928b5c21451b5f414ff29d7
+overlay_sha256=.claude/loa/GLOSSARY.md=dd6ebcc484a14595707d0a0eb41208e4b779178837f770083b394ecca5d353ee
+overlay_sha256=.claude/loa/reference/hooks-reference.md=307badbe7877761cc520259006f4bc175c8542f22108a0be1264d0fa3de765fe
+overlay_sha256=.claude/rules/skill-invariants.md=57f9d95e812818e90f86e12d8c7f5222f5b656b5c478239218b5b00c1682806f
+overlay_sha256=.claude/rules/stash-safety.md=3179cf15fca070892766d96a2a5e8881fefaaa045a04671e6a8065f53f72ad2d
+overlay_sha256=.claude/scripts/guard-yield.sh=6631bb681336bb235ca5b1a834d5b52a117234e0bcbb074981d2d4aad3496e38
+overlay_sha256=.claude/scripts/loa-status.sh=451d46165cde20d48ba47051e4214ece8d5db44304d491b5dac23631c70d3c25
+overlay_sha256=.claude/scripts/validate-artifact.sh=7bf7426c864e85ba4dc359377356bc1e4d6ef6a428e2324dcc280ed1fecd8d93
+overlay_sha256=.claude/skills/implementing-tasks/SKILL.md=f0b2f74007adc63e736251e5c42aaeb509623095fd922cdb33c53e2d85df2c3f
+overlay_sha256=.claude/skills/planning-sprints/resources/templates/sprint-template.md=83acda78c361ae7d87f337b62c1336ab6f6f30a14b5c3e1726b009c87aee73dd
+overlay_sha256=.claude/skills/reviewing-code/SKILL.md=2cf36d54a8939514cd30dca394f0c9999335533bc35e9f0a48db8578df296491
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=.claude/hooks/safety/block-destructive-bash.sh,.claude/scripts/guard-yield.sh,.claude/scripts/loa-status.sh,.claude/scripts/validate-artifact.sh,.claude/skills/implementing-tasks/SKILL.md,.claude/skills/reviewing-code/SKILL.md
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-19
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-664c45164764
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=82619049fac0fb33c5e20f5bc5f018e55db53b86fa5127c54e1f4b0bf6231fd5
+mount_closed=pre-launch head:13 answer paths (13 present), 8 later-only pinned versions, sandbox git = base commit only
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=4fa1d603747b6c7c03f33c5c3e2b260e8cdb651cab6935f417486b2d3e66c5c3
+mount_cheval=ok
+arm_ids_pr_native=none

@@ -1,0 +1,181 @@
+{
+ "H02": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/hooks/safety/block-destructive-bash.sh",
+  "description": "The executable-target regex omits workflow files, makefiles, justfiles, package manifests, Dockerfiles and CI/pre-commit configs, so a heredoc writing destructive content into them is classified non-executing and its body is not scanned.",
+  "severity": "medium",
+  "category": "security",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   190,
+   191
+  ]
+ },
+ "H05": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": ".claude/hooks/safety/block-destructive-bash.sh",
+  "description": "Backtick command substitutions are never normalised, so no rule anchors on them and `echo \"see `git push --force origin main`\"` (or an unquoted heredoc body with backticks) passes the fence while its $( ) twin blocks.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   1049,
+   1050,
+   1051,
+   1052,
+   1053,
+   1054,
+   1061,
+   1067,
+   1068
+  ]
+ },
+ "H14": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": ".claude/skills/auditing-security/SKILL.md",
+  "description": "allowed-tools lacks `Bash(.claude/scripts/lib/profile-lib.sh knob *)`, so the skill's postlude knob read (deny_raw_shell) is refused.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   6,
+   34,
+   35
+  ]
+ },
+ "H20": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "The example pins a profile-governed key explicitly, so a copied example overrides loa.profile and choosing lean/full has no effect on it.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   312,
+   325,
+   1358,
+   1404,
+   1432,
+   2932,
+   2950,
+   2962
+  ]
+ },
+ "H56": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": "tools/check-knob-readers.sh",
+  "description": "The knob-reader lint escapes only dots, misses reads split across a yq pipe or bracket form, and swallows grep errors (2>/dev/null, || true) so a bad pattern or missing tools/ dir reads as a clean pass.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   40,
+   41,
+   43,
+   44,
+   45
+  ]
+ },
+ "H16": {
+  "verdict": "defect",
+  "group": "D7",
+  "file": ".claude/skills/reviewing-code/SKILL.md",
+  "description": "allowed-tools lacks the profile-lib.sh knob grant that the retrospective postlude invokes, so that call is denied under deny_raw_shell.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D7",
+  "anchor_lines": [
+   6,
+   297
+  ]
+ },
+ "H21": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "decisions.surface_at_session_start is pinned in the example, overriding the profile in a copied config.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   325
+  ]
+ },
+ "H22": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "guardrails.input.enabled is pinned in the example, so the full profile cannot turn it on in a copied config.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   1358
+  ]
+ },
+ "H23": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "guardrails.danger_level.enforce is pinned in the example, overriding the profile.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   1404
+  ]
+ },
+ "H24": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "invisible_retrospective.enabled is pinned in the example, overriding the profile.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   1432
+  ]
+ },
+ "H25": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "karpathy_principles.surgical_diff_warning is pinned in the example, overriding the profile.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   2932
+  ]
+ },
+ "H26": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "karpathy_principles.require_success_criteria is pinned in the example, overriding the profile.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   2950
+  ]
+ },
+ "H27": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".loa.config.yaml.example",
+  "description": "structured_handoff.enabled is pinned in the example, overriding the profile.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: the same flaw at another site (another pinned key / another skill's grant) is a member site of the group, not a mechanical echo — defect (A); group D8",
+  "anchor_lines": [
+   2962
+  ]
+ }
+}

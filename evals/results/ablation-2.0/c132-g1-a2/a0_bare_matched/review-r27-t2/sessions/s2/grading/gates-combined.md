@@ -1,0 +1,12 @@
+head/evals/harness/pipeline-run.sh:566
+head/evals/harness/pipeline-run.sh:577
+head/evals/harness/ablation-grade.sh:2159
+head/evals/harness/ablation-grade.sh:2418
+head/evals/harness/ablation-grade.sh:1994
+head/evals/graders/recall-vs-defects.sh:135
+head/evals/harness/ablation-grade.sh:1634
+head/evals/graders/recall-vs-defects.sh:299
+head/evals/graders/recall-vs-defects.sh:283
+head/evals/graders/recall-vs-defects.sh:295
+head/evals/graders/recall-vs-defects.sh:272
+head/.claude/scripts/adversarial-review.sh:27

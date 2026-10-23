@@ -1,0 +1,5 @@
+{"timestamp":"2026-04-28T11:00:26Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-bug-121","status":"reviewed","finding_count":1,"cost_usd":0.0253}
+{"timestamp":"2026-04-28T11:40:15Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-bug-122","status":"reviewed","finding_count":2,"cost_usd":0.0409}
+{"timestamp":"2026-04-28T11:47:11Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-bug-122","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-04-28T12:25:09Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-bug-123","status":"reviewed","finding_count":1,"cost_usd":0.0440}
+{"timestamp":"2026-04-28T12:27:49Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-bug-123","status":"reviewed","finding_count":1,"cost_usd":0.0344}

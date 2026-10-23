@@ -1,0 +1,57 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	low	resource	evals/harness/ablation-grade.sh	import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time	fix-commit	hunk:H04	A,B	agreed	-	false
+V02	medium	security	evals/harness/ablation-grade.sh	HIDDEN_TOKEN = re.compile(r"HIDDEN|(?<=[/._=-])hidden\b|\bhidden(?=[/_=-]|\.[A-Za-z0-9])")	fix-commit	hunk:H05,H08	A,B	adjudicated	severity/category: codebook medium and security (B) — the contamination detector misses probe shapes; a missing validation with bounded impact; as H05 (same group D5)	true
+V02	medium	security	evals/harness/ablation-grade.sh	if HIDDEN_TOKEN.search(val):   # DEC-0551: token shapes only in command text	fix-commit	hunk:H05,H08	A,B	adjudicated	severity/category: codebook medium and security (B) — the contamination detector misses probe shapes; a missing validation with bounded impact; as H05 (same group D5)	true
+V03	medium	logic	evals/harness/ablation-grade.sh	return not (before.isspace() or before in "=(<>|;&,")	fix-commit	hunk:H06	A,B	adjudicated	anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)	true
+V03	medium	logic	evals/harness/ablation-grade.sh	def in_quotes(body, pos):   # DEC-0551: odd count of unescaped quotes before pos → inside a literal	fix-commit	hunk:H06	A,B	adjudicated	anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)	true
+V03	medium	logic	evals/harness/ablation-grade.sh	seg = body[:pos]	fix-commit	hunk:H06	A,B	adjudicated	anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)	true
+V03	medium	logic	evals/harness/ablation-grade.sh	return seg.count("'") % 2 == 1 or seg.count('"') % 2 == 1	fix-commit	hunk:H06	A,B	adjudicated	anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)	true
+V03	medium	logic	evals/harness/ablation-grade.sh	HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n(?:.*?\n)*?\s*\2[ \t]*(?=\n|$)", re.S)	fix-commit	hunk:H06	A,B	adjudicated	anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)	true
+V04	low	logic	evals/harness/ablation-grade.sh	def in_quotes(body, pos):   # DEC-0551: odd count of unescaped quotes before pos → inside a literal	fix-commit	hunk:H12	A,B	adjudicated	verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) — defect member of D3 (A)	true
+V04	low	logic	evals/harness/ablation-grade.sh	seg = body[:pos]	fix-commit	hunk:H12	A,B	adjudicated	verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) — defect member of D3 (A)	true
+V04	low	logic	evals/harness/ablation-grade.sh	return seg.count("'") % 2 == 1 or seg.count('"') % 2 == 1	fix-commit	hunk:H12	A,B	adjudicated	verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) — defect member of D3 (A)	true
+V04	low	logic	evals/harness/ablation-grade.sh	if one and in_quotes(body, m.start(1)):	fix-commit	hunk:H12	A,B	adjudicated	verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) — defect member of D3 (A)	true
+V05	medium	security	evals/harness/ablation-grade.sh	HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n(?:.*?\n)*?\s*\2[ \t]*(?=\n|$)", re.S)	fix-commit	hunk:H07	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V05	medium	security	evals/harness/ablation-grade.sh	return HEREDOC.sub("<<HEREDOC", val)	fix-commit	hunk:H07	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V06	medium	logic	evals/harness/ablation-grade.sh	if "0xhoneyjar/loa" in low:	incident	incident:I01	A,B	adjudicated	anchors: union; group: A's D10 = B's D8 (namespace only); category: logic (an incident record carries none; the scan misclassifies quoted PR text)	false
+V06	medium	logic	evals/harness/ablation-grade.sh	return "repo_name"	incident	incident:I01	A,B	adjudicated	anchors: union; group: A's D10 = B's D8 (namespace only); category: logic (an incident record carries none; the scan misclassifies quoted PR text)	false
+V07	medium	security	evals/harness/ablation-grade.sh	one = re.match(r"^/([^/]+)/?$", w)	fix-commit	hunk:H10	A,B	adjudicated	severity: codebook medium (A) — a detector bypass with bounded impact	true
+V07	medium	security	evals/harness/ablation-grade.sh	if one and one.group(1) not in SENSITIVE_SINGLE:	fix-commit	hunk:H10	A,B	adjudicated	severity: codebook medium (A) — a detector bypass with bounded impact	true
+V08	medium	security	evals/harness/ablation-grade.sh	if w.startswith("/."):	fix-commit	hunk:H11	A,B	agreed	-	true
+V09	medium	resource	evals/harness/run-ablation.sh	tout="$("$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?	fix-commit	hunk:H25,H26	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	resource	evals/harness/run-ablation.sh	if [[ $trc -eq 0 ]]; then PR_TE=ok	fix-commit	hunk:H25,H26	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	resource	evals/harness/run-ablation.sh	PR_TE=fail PR_OVERRIDE=infrastructure_error	fix-commit	hunk:H25,H26	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	resource	evals/harness/run-ablation.sh	PR_GRC=0; "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?	fix-commit	hunk:H25,H26	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V09	medium	resource	evals/harness/run-ablation.sh	if [[ $PR_GRC -ne 0 ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: grade exit %s\n' "$PR_GRC" >> "$plog"; fi	fix-commit	hunk:H25,H26	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+F001	-	fix	evals/harness/ablation-grade.sh	# case; in a Bash command only as a token: HIDDEN, or hidden next to / . _ = - — 1.2.4,	fix	fix/53600ea3168a:167-168	-	-	-	-
+F002	-	fix	evals/harness/ablation-grade.sh	# srv, 1.2.1 DEC-0540)	fix	fix/53600ea3168a:176-176	-	-	-	-
+F003	-	fix	evals/harness/ablation-grade.sh	#    contaminated}	fix	fix/53600ea3168a:200-202	-	-	-	-
+F004	-	fix	evals/harness/ablation-grade.sh	import argparse, difflib, filecmp, json, os, re, shutil, site, stat, subprocess, sys, tarfile, tempfile, threading, time	fix	fix/53600ea3168a:256-258	-	-	-	-
+F005	-	fix	evals/harness/ablation-grade.sh	# word in written prose ("any hidden interaction with store_true" in a reviewer's heredoc)	fix	fix/53600ea3168a:1328-1329	-	-	-	-
+F006	-	fix	evals/harness/ablation-grade.sh	return not (before.isspace() or before in "=(<>|;&,")	fix	fix/53600ea3168a:1369-1377	-	-	-	-
+F007	-	fix	evals/harness/ablation-grade.sh	agent reached; the hidden/suite/repo scans still read the whole value) — 1.2.2, DEC-0541"""	fix	fix/53600ea3168a:1382-1383	-	-	-	-
+F008	-	fix	evals/harness/ablation-grade.sh	if HIDDEN_TOKEN.search(val):   # DEC-0551: token shapes only in command text	fix	fix/53600ea3168a:1395-1395	-	-	-	-
+F009	-	fix	evals/harness/ablation-grade.sh	HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history	fix	fix/53600ea3168a:1404-1404	-	-	-	-
+F010	-	fix	evals/harness/ablation-grade.sh	if one and one.group(1) not in SENSITIVE_SINGLE:	fix	fix/53600ea3168a:1423-1423	-	-	-	-
+F011	-	fix	evals/harness/ablation-grade.sh	# a one-component sensitive word inside a quoted string (grep -E ' /tmp | /home ')	fix	fix/53600ea3168a:1436-1438	-	-	-	-
+F012	-	fix	evals/harness/ablation-grade.sh	if one and in_quotes(body, m.start(1)):	fix	fix/53600ea3168a:1444-1444	-	-	-	-
+F013	-	fix	evals/harness/ablation-grade.sh	"oversized_files_skipped": 0, "history_probes": 0, "contaminated": None}	fix	fix/53600ea3168a:1538-1538	-	-	-	-
+F014	-	fix	evals/harness/ablation-grade.sh	HISTORY_PROBES[0] = 0	fix	fix/53600ea3168a:1542-1542	-	-	-	-
+F015	-	fix	evals/harness/ablation-grade.sh	g["history_probes"] = HISTORY_PROBES[0]	fix	fix/53600ea3168a:1623-1623	-	-	-	-
+F016	-	fix	evals/harness/run-ablation.sh	#      paused_arms; no further trial of it launches until --resume --clear-arm ID) (DEC-0418)	fix	fix/53600ea3168a:135-135	-	-	-	-
+F017	-	fix	evals/harness/run-ablation.sh	#      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)	fix	fix/53600ea3168a:149-149	-	-	-	-
+F018	-	fix	evals/harness/run-ablation.sh	#   watchdog, pre_registration_ref, gate (null for smoke), corpus, agy_opt_in, environment.	fix	fix/53600ea3168a:187-187	-	-	-	-
+F019	-	fix	evals/harness/run-ablation.sh	#   EVAL_DOCKER_BIN, EVAL_CLAUDE_BIN (host CLI).	fix	fix/53600ea3168a:225-225	-	-	-	-
+F020	-	fix	evals/harness/run-ablation.sh	OUTAGE_BREAKER="${LOA_ABLATION_OUTAGE_BREAKER:-3}"	fix	fix/53600ea3168a:262-262	-	-	-	-
+F021	-	fix	evals/harness/run-ablation.sh	[[ "$OUTAGE_BREAKER" =~ ^[0-9]{1,4}$ ]] || die "LOA_ABLATION_OUTAGE_BREAKER must be a whole number (0 disables)"	fix	fix/53600ea3168a:341-341	-	-	-	-
+F022	-	fix	evals/harness/run-ablation.sh	--arg wdo "$WATCHDOG_OVERRIDE" --argjson grace "$WATCHDOG_GRACE" --arg prr "$PRE_REG_REF" \	fix	fix/53600ea3168a:721-721	-	-	-	-
+F023	-	fix	evals/harness/run-ablation.sh	watchdog: {multiplier: 2, override_s: (if $wdo == "" then null else ($wdo | tonumber) end), grace_s: $grace},	fix	fix/53600ea3168a:744-744	-	-	-	-
+F024	-	fix	evals/harness/run-ablation.sh	# skipped), PR_TE_REASON, PR_DRIFT (json or null), PR_EXTRA (the extra models, json),	fix	fix/53600ea3168a:967-967	-	-	-	-
+F025	-	fix	evals/harness/run-ablation.sh	tout="$("$TOOK_BIN" --run-dir "$rd" --suite-file "$SUITE_FILE" 2>&1)" || trc=$?	fix	fix/53600ea3168a:976-978	-	-	-	-
+F026	-	fix	evals/harness/run-ablation.sh	PR_GRC=0; "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?	fix	fix/53600ea3168a:996-997	-	-	-	-
+F027	-	fix	evals/tests/ablation-grade.bats	[ "$status" -eq 0 ] && [ "$(G '.executor_mode')" = container ]	fix	fix/53600ea3168a:1001-1001	-	-	-	-
+F028	-	fix	evals/tests/fixtures/ablation-grade-stub.sh	# a run_id matching the glob in STUB_GRADE_FAIL exits 2 without writing.	fix	fix/53600ea3168a:7-7	-	-	-	-
+F029	-	fix	evals/tests/fixtures/ablation-grade-stub.sh	case "$rid" in $STUB_GRADE_FAIL) echo "grade-stub: refused" >&2; exit 2 ;; esac	fix	fix/53600ea3168a:25-25	-	-	-	-
+F030	-	fix	evals/tests/run-ablation.bats	unset STUB_RULES STUB_HANG STUB_CLI STUB_COST STUB_GRADE_FAIL LOA_ABLATION_WATCHDOG_S LOA_ABLATION_WATCHDOG_GRACE_S DOCKER_STUB_NO_IMAGE LOA_ABLATION_OUTAGE_BREAKER	fix	fix/53600ea3168a:31-31	-	-	-	-
+F031	-	fix	evals/tests/run-ablation.bats	[ "$status" -eq 2 ]; grep -q 'LOA_ABLATION_OUTAGE_BREAKER must be a whole number' <<<"$output"	fix	fix/53600ea3168a:688-688	-	-	-	-

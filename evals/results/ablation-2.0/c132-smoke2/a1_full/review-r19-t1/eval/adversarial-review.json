@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/rules/stash-safety.md:frontmatter",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a `paths:` frontmatter block turns stash-safety.md from an always-loaded rule into a path-conditional one (loaded only when the model works with *.sh, *.bats, .claude/scripts or .claude/hooks files). The rule governs `git stash push/pop` shapes typed into Bash, which happen regardless of which files are being edited. In the common case (editing app code, then running `git stash pop | tail -1`) the prose guard is now absent.",
+      "failure_mode": "The prose layer behind the floor fence FR-1.2b stops reaching the model in most sessions; only the harness regex remains, and the broader guidance (do not wrap skill execution in stash) no longer applies to the sessions that most need it.",
+      "suggested_fix": "Drop `paths:` from stash-safety.md (keep it always-on), or add a broad pattern such as `**/*` if the frontmatter fields origin/version/enacted_by are the only goal of the change.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementing-tasks skill's declared app-zone permission is widened from `read` to `read-write`. This is unrelated to the guard register / task-kinds scope of the PR and is not explained in the diff. skill-invariants.md (also in this diff) documents zones as the path-level control for app-code writes, so anything that reads `zones.app.permission` (validate-skill-capabilities.sh, future implement-gate work) now sees a different declaration for the one skill that writes app code.",
+      "failure_mode": "If any validator or gate consumes the zones frontmatter, the implementing skill silently gains write permission on src/lib/app without an audited decision; if nothing consumes it, the change is undocumented drift in a security-relevant declaration.",
+      "suggested_fix": "Either revert the hunk, or move it to its own change with a DEC row and a note in skill-invariants.md explaining why /implement's app zone is read-write while the glossary says the App zone needs confirmation before a write.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 44,
+      "anchor_line_end": 48,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/guard-origins.yaml:policy:permission-deny-list",
+      "cross_file_justification": "guard-origins.yaml (in diff) marks policy:permission-deny-list, policy:operator-only-commands and 16 fence:FR-SZ* rows as floor, but floor.yaml (in diff) pins only indirect artefacts for them.",
+      "description": "floor_files pins .claude/hooks/settings.deny.json and .claude/data/user-invoked-commands.txt, but the enforced artefacts are the deny list inside .claude/settings.json and the `disable-model-invocation` frontmatter of each operator-only command file; neither is in floor_files. Likewise all FR-SZ/FR-SZ2 fence rows are `floor: true` while .claude/hooks/safety/block-destructive-bash.sh (their implementation) is not pinned; only the corpus rows under floor_corpus protect them, and tests/fixtures/fence-corpus/run-corpus.sh is itself modified in this PR and not pinned. floor_keys also lists `implement_gate.*` while gate:implement-gate and hook:compliance/implement-gate.sh are `floor: false`.",
+      "failure_mode": "A cycle task can remove deny entries from settings.json, strip `disable-model-invocation` from a command, or loosen an FR-SZ regex while floor-snapshot.bats and guard-origins.bats both pass, so the floor advertises protection it does not provide.",
+      "suggested_fix": "Add .claude/settings.json (or a test that diffs its permissions.deny against settings.deny.json), a test that cross-checks user-invoked-commands.txt against command frontmatter, and tests/fixtures/fence-corpus/run-corpus.sh to floor_files; either mark gate:implement-gate floor or drop implement_gate.* from floor_keys so the two lists agree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T10:19:55Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10099,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

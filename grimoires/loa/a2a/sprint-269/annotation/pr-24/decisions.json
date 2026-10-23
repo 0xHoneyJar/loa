@@ -1,0 +1,60 @@
+{
+ "H07": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H25": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H26": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H05": {
+  "base": "A",
+  "severity": "medium",
+  "category": "security",
+  "reason": "severity/category: codebook medium and security (B) — the contamination detector misses probe shapes; a missing validation with bounded impact"
+ },
+ "H08": {
+  "base": "A",
+  "severity": "medium",
+  "category": "security",
+  "reason": "as H05 (same group D5)"
+ },
+ "H06": {
+  "base": "A",
+  "group": "D2",
+  "reason": "anchors: union; the annotators attribute different behaviours to this hunk (A: the heredoc regex; B: the quote-parity test, A's H12) — A's attribution kept; both behaviours are in the key (D2, D3)"
+ },
+ "H10": {
+  "base": "A",
+  "reason": "severity: codebook medium (A) — a detector bypass with bounded impact"
+ },
+ "H12": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the quote-parity behaviour sits at this site in A's attribution (B places it at H06) — defect member of D3 (A)"
+ },
+ "H20": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "class: configuration variables for the D9 deadline fix are mechanical; the wrong behaviour's site is where the post-run steps run — follow-on (A)"
+ },
+ "H21": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "as H20: validation and wrapper construction for the D9 fix"
+ },
+ "I01": {
+  "base": "A",
+  "group": "D10",
+  "category": "logic",
+  "reason": "anchors: union; group: A's D10 = B's D8 (namespace only); category: logic (an incident record carries none; the scan misclassifies quoted PR text)"
+ }
+}

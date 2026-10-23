@@ -1,0 +1,175 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "function",
+      "anchor_line": 190,
+      "anchor_line_end": 191,
+      "scope": "diff",
+      "description": "The integrity check now counts Git index entries instead of files present on disk. `git ls-files` continues listing tracked files after they are deleted from the working tree.",
+      "failure_mode": "Deleting a tracked System Zone script leaves ACTUAL_COUNT unchanged, so preflight accepts an incomplete installation without the file-count mismatch that the previous implementation reported. The same problem affects files deleted inside the manifest-owning submodule.",
+      "suggested_fix": "Count only tracked paths that exist in the manifest-owning working tree, or explicitly check manifest paths for missing files before accepting the count.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "function",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In a submodule mount (.loa/.claude is a directory), any manifest path that is absent from .claude/ but present under .loa/ is now counted as informational 'not-mounted' and never fails. This treats every missing System Zone path as intentional mount scoping, with no check against the mount's actual declared link set. Before this change the same condition was 'Missing: <file>' and set drift.",
+      "failure_mode": "An agent or operator removes a linked gate/hook (e.g. .claude/hooks/implement-gate.sh symlink) in a submodule mount; check-loa.sh prints 'not-mounted: 1 path(s)' and exits 0, so the tamper is invisible to the integrity check that exists to catch exactly this.",
+      "suggested_fix": "Only classify a path as not-mounted when it is outside the mount's declared link scope (the list sandbox-mount.sh / check-manifest-paths.sh links from). A path that the mount is supposed to link but is absent should remain 'Missing' and set drift.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "function",
+      "anchor_line": 189,
+      "anchor_line_end": 197,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "ACTUAL_COUNT now comes from `git ls-files -- .claude` whenever that returns a non-zero count, and only falls back to the filesystem count when it is exactly zero. A standard-mode downstream that tracks only part of .claude/ (common: .claude/settings.json or .claude/commands/ committed, the vendored framework tree gitignored) gets a small tracked count that never equals the manifest count, so the fallback is never taken.",
+      "failure_mode": "Every preflight run in such a repo emits the 'System Zone integrity check: file count mismatch' warning even when the full tree is present and intact, where the previous find-based count matched. Persistent false warnings train operators to ignore the signal.",
+      "suggested_fix": "Take the git count only when the manifest tree is the one that owns the framework (MANIFEST_TREE != PROJECT_ROOT, i.e. a submodule mount, or when git ls-files reports the manifest file itself as tracked). Otherwise use the filesystem count, or use max(tracked, found).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-row.sh:@@ -0,0 +1,338 @@",
+      "anchor_type": "hunk",
+      "anchor_line": 220,
+      "anchor_line_end": 220,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "zone_violations.dot_claude_writes classifies any Write/Edit whose path matches `(^|/)\\.claude/` as a System Zone violation. That regex also matches the user-level Claude config directory (~/.claude/CLAUDE.md, ~/.claude/settings.json) and any .claude/ outside the run's sandbox workspace, which are not the Loa System Zone.",
+      "failure_mode": "A phase that legitimately edits the home-level ~/.claude/ config is recorded as a zone violation, biasing ablation arms that touch user config and inflating the violation metric the SDD §3.1 row feeds into.",
+      "suggested_fix": "Anchor the match to the sandbox workspace root (pass the sandbox path as --arg and test for `^<sandbox>/.claude/` after normalising relative paths), or at minimum exclude paths under $HOME/.claude/.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:gpt-6.1-sol",
+      "anchor_type": "hunk",
+      "anchor_line": 122,
+      "anchor_line_end": 149,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:gpt-6.1-sol",
+      "cross_file_justification": "check_integrity in .claude/scripts/check-loa.sh (touched in this diff) verifies sha256 of every path in .claude/checksums.json; this diff modifies several of those paths (model-config.yaml, check-loa.sh, preflight.sh, generated-model-maps.sh, bridgebuilder-review dist/resources) but .claude/checksums.json is not among the changed files listed.",
+      "description": "System Zone files are modified while the sha256 manifest they are checked against is not regenerated in this change set. Only model-config.yaml.checksum (a separate per-file receipt) was updated.",
+      "failure_mode": "If .claude/checksums.json is committed rather than produced at release time, check-loa.sh reports 'Tampered:' for every modified path after this merge and drift is set, failing the integrity check on a clean checkout.",
+      "suggested_fix": "Run tools/gen-checksums.sh and commit the regenerated .claude/checksums.json alongside these changes, or confirm in the PR that the manifest is produced by the release pipeline and not tracked.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T07:06:42Z",
+    "tokens_input": 150776,
+    "tokens_output": 23240,
+    "cost_usd": 0,
+    "latency_ms": 48776,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 761,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f804aa14b6270cb8a95c7185a475c7b82355b82e9e82142bc978d7ead802f7c5",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

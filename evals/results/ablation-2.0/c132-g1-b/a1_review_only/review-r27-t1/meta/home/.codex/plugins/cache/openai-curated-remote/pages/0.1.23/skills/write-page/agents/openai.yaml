@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write and edit a page"
+  short_description: "Create and edit content with native page tools"
+  default_prompt: "Use $write-page to edit this page using supported page features while preserving my requested style and scope."

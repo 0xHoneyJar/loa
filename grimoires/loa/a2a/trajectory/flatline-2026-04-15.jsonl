@@ -1,0 +1,783 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-15T00:46:25Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and high-impact gap for runtime determinism: gate failure behavior must be explicitly defined to avoid inconsistent outcomes and wasted spend. Actionable with clear state transitions and retry/abort rules.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "tertiary_score": null,
+        "delta": 60,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical for unattended LLM operations: target costs without enforcement are insufficient. Per-cycle and per-window hard caps with live metering provide strong ROI and low ambiguity.",
+        "gpt_score": 940,
+        "opus_score": 900,
+        "tertiary_score": null,
+        "delta": 40,
+        "average_score": 920,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Security-relevant and currently underspecified: a blocking secret check needs concrete detector/tooling and false-positive handling to be reliable. Highly actionable and domain-appropriate.",
+        "gpt_score": 840,
+        "opus_score": 780,
+        "tertiary_score": null,
+        "delta": 60,
+        "average_score": 810,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Strong operational gap: PID-only guards are fragile for unattended schedulers. Lock lifecycle, stale lock recovery, and cross-trigger conflict policy are essential for correctness.",
+        "gpt_score": 890,
+        "opus_score": 870,
+        "tertiary_score": null,
+        "delta": 20,
+        "average_score": 880,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Valuable operational improvement: unattended runs need event notifications and warning channels. Not strictly core logic, but materially improves usability and incident response.",
+        "gpt_score": 760,
+        "opus_score": 830,
+        "tertiary_score": null,
+        "delta": 70,
+        "average_score": 795,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Valuable for evidentiary benchmarking: controlled comparison criteria prevent anecdotal conclusions. Moderate effort, clear benefit to decision quality.",
+        "gpt_score": 720,
+        "opus_score": 730,
+        "tertiary_score": null,
+        "delta": 10,
+        "average_score": 725,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Mechanical dispatch is not actually guaranteed by architecture; it still depends on agent compliance and prompt-layer constraints.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The core problem statement is bypass risk, but the proposed enforcement (SKILL.md + constraint + guard) is still soft-control. If any layer is skipped or regresses, code can again be implemented in-conversation, invalidating the primary goal.",
+        "location": "FR-1 Mechanical Dispatch; Risks table ('three-layer defense')",
+        "recommendation": "Move enforcement to a hard runtime control: command router/interceptor that rejects task execution unless subprocess PID + expected flight recorder artifacts are present. Add negative tests proving bypass is impossible.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Quality target is likely incompatible with the new 'light' and 'standard' profiles that remove Flatline gates.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "The PRD expects benchmark-level quality while explicitly skipping PRD/SDD/Sprint gates (or all gates). This is a major assumption that may fail in non-trivial tasks, causing defects and rework that erase cost savings.",
+        "location": "Goals/Success Metrics; FR-2 Pipeline Profiles",
+        "recommendation": "Define strict eligibility rules for profile selection, add auto-escalation triggers (e.g., security-sensitive files, schema changes), and set separate quality SLOs per profile instead of one global target.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Rate-limit handling relies on headers that may be missing, stale, or not representative across all call paths.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Stopping/resume logic and warnings depend on these headers, but the PRD already notes some subprocess paths do not expose them. This can cause false confidence, unexpected halts, or overage.",
+        "location": "Assumptions (rate-limit headers available); FR-4 Rate-limit header tracking; Risks table",
+        "recommendation": "Define fallback accounting (local token estimates + budget guard), explicit behavior when headers absent, and conformance tests per execution path.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Resume/idempotency guarantees are underspecified for HALTED spirals and scheduler retries.",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "If resume replays steps or creates duplicate PRs/commits, the system can corrupt state and burn cost. PID guard alone does not protect against crashes, stale locks, or concurrent triggers across hosts.",
+        "location": "FR-4 Scheduler wrapper; AC-10 resume HALTED spiral",
+        "recommendation": "Define a durable state machine with run IDs, lock leasing, replay-safe checkpoints, and exactly-once semantics for side effects (PR creation, branch updates).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Security controls are superficial: secret scanning is 'obvious secrets' only, while scripts get broad System Zone write authorization.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Granting write access to orchestration scripts increases blast radius. Weak secret checks and no explicit supply-chain controls (script integrity, provenance, permission boundaries) create high-risk compromise paths.",
+        "location": "FR-3 Pre-review check; FR-6 System Zone Authorization",
+        "recommendation": "Require robust secret scanning (entropy + detectors), script checksum/signature verification, least-privilege execution, and explicit threat model for System Zone modifications.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Task complexity classification is undefined, creating hidden scope creep and misrouting risk.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Without deterministic criteria, users/agents will pick profiles inconsistently. Simple tasks can hide architectural impact, while complex tasks may be routed to light mode, leading to failures and expensive reruns.",
+        "location": "FR-2 Pipeline Profiles; Risks ('Profile selection wrong for task complexity')",
+        "recommendation": "Add a mandatory classifier step with hard rules (changed file patterns, dependency graph impact, security touchpoints) and default fail-safe to higher profile on ambiguity.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document spiral",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-15T00:46:25Z",
+    "metrics": {
+      "total_latency_ms": 244000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-15T01:15:38Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 2,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical operational gap. Resume/rollback semantics are essential for correctness in interrupted multi-phase pipelines, and the current ambiguity can cause inconsistent state or duplicate actions.",
+        "gpt_score": 910,
+        "opus_score": 950,
+        "tertiary_score": null,
+        "delta": 40,
+        "average_score": 930,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value and low-cost hardening. Atomic sidecar writes plus malformed/missing-file fallback are standard reliability controls for budget enforcement paths.",
+        "gpt_score": 870,
+        "opus_score": 870,
+        "tertiary_score": null,
+        "delta": 0,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong concurrency concern with a real TOCTOU risk. The scheduler lock does not fully protect manual invocation paths, so documenting or mitigating duplicate PR creation is worthwhile.",
+        "gpt_score": 790,
+        "opus_score": 820,
+        "tertiary_score": null,
+        "delta": 30,
+        "average_score": 805,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important security-timing gap. If early-cycle escalation checks are no-ops, sensitive work may proceed without intended governance. Actionable with clear fallback logic.",
+        "gpt_score": 835,
+        "opus_score": 780,
+        "tertiary_score": null,
+        "delta": 55,
+        "average_score": 807.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Valuable quality improvement. For a chained orchestrator/scheduler/harness system, at least smoke-level integration tests are justified beyond isolated unit coverage.",
+        "gpt_score": 780,
+        "opus_score": 750,
+        "tertiary_score": null,
+        "delta": 30,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good spec completeness fix. Declaring per-phase caps without defining values/configuration and over-cap behavior leaves a shipped feature underspecified.",
+        "gpt_score": 760,
+        "opus_score": 810,
+        "tertiary_score": null,
+        "delta": 50,
+        "average_score": 785,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Auto-escalation depends on startup-time signals that can miss real security-sensitive changes",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "If `git diff main...BRANCH` is unavailable/incomplete at startup or sensitive work emerges later, full profile gates are not applied. Post-implementation warning is advisory and too late to enforce missed gates.",
+        "location": "Section 2.2 Auto-Escalation Classifier",
+        "recommendation": "Require conservative escalation defaults when branch diff is unavailable, and add mandatory mid-pipeline re-evaluation points that can still enforce additional gates before merge.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Mechanical dispatch is still soft enforcement and can be bypassed by agent behavior drift",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The core control objective is to force execution through `spiral-harness.sh`, but SKILL.md + policy text are non-binding. If bypassed, all gates, cost controls, and audit trails are skipped, invalidating the architecture.",
+        "location": "Section 2.9 Mechanical Dispatch in SKILL.md; Bridgebuilder REFRAME-1",
+        "recommendation": "Implement a hard technical gate (e.g., PreToolUse hook or command allowlist) that blocks direct implementation paths and only permits harness-mediated execution.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Rate-limit protection is deferred, but stopping-condition/error model still assumes it exists",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "Design says `rate_limit_exhausted` is deferred, yet error handling and scheduling rationale treat it as active defense. This mismatch creates false confidence and exposure to API throttling failures/runaway retries.",
+        "location": "Sections 2.4, 2.7, 6 Error Handling",
+        "recommendation": "Remove rate-limit halt claims until implemented, and define an explicit temporary substitute (e.g., conservative request/token pacing plus retry backoff policy).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Secret scanning chain is brittle and can produce both false negatives and dangerous false allowlisting",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Tool availability is optional, fallback regex is narrow, and allowlist regex over matched content can suppress true positives. This creates a realistic path for secrets to pass review.",
+        "location": "Sections 2.3, 4.1 Secret Scanning",
+        "recommendation": "Define strict allowlist governance (owner, expiry, justification), validate against sampled secret corpora, and fail closed when scanner tooling is missing in protected branches.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Template artifacts (`{{DOCUMENT_CONTENT}}`) appear inside shell conditionals and likely break runtime behavior",
+        "severity": "CRITICAL",
+        "severity_score": 940,
+        "why_matters": "Malformed shell snippets in escalation, locking, and token-window checks can produce syntax errors or wrong branching. This can silently disable safety controls (escalation, lock handling, stop conditions).",
+        "location": "Sections 2.2, 2.6, 2.7 code snippets",
+        "recommendation": "Add a pre-merge lint gate (`shellcheck`, `bash -n`) and remove all templating placeholders from executable script paths before implementation approval.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " 1 system architecture architecture",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-15T01:15:38Z",
+    "metrics": {
+      "total_latency_ms": 215000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-15T01:22:41Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real cross-cutting reliability gap with strong ROI: explicit rollback/recovery paths reduce corruption risk and are especially important for unattended off-hours runs.",
+        "gpt_score": 840,
+        "opus_score": 875,
+        "tertiary_score": 950,
+        "delta": 35,
+        "average_score": 857.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical omission: the sprint’s cost-optimization objective is undermined if budget thresholds and enforcement actions are undefined.",
+        "gpt_score": 940,
+        "opus_score": 830,
+        "tertiary_score": 1000,
+        "delta": 110,
+        "average_score": 885,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-value, domain-appropriate concern: race windows and stale lock semantics are classic scheduler failure modes and should be specified precisely.",
+        "gpt_score": 880,
+        "opus_score": 760,
+        "tertiary_score": 920,
+        "delta": 120,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Strong testing gap: end-to-end failures are likely at task boundaries, and a small integration suite would provide disproportionate risk reduction.",
+        "gpt_score": 770,
+        "opus_score": 790,
+        "tertiary_score": 930,
+        "delta": 20,
+        "average_score": 780,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Important shared-contract issue: without a defined JSONL schema, downstream tooling and cost reconciliation become brittle and inconsistent.",
+        "gpt_score": 810,
+        "opus_score": 720,
+        "tertiary_score": 880,
+        "delta": 90,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Practical safeguard with low implementation cost: warning/flagging around fail-open $0 defaults prevents silent masking of potential overruns.",
+        "gpt_score": 790,
+        "opus_score": 750,
+        "tertiary_score": 930,
+        "delta": 40,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Cost enforcement is fail-open (`cycle-cost.json` missing/malformed defaults to 0), enabling silent budget bypass.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Any write/read/parsing issue can make expensive cycles appear free, defeating the core cost-optimization objective and masking runaway spend.",
+        "location": "Task 1.4: Cost Sidecar + Cross-Cycle Reconciliation (AC: missing/malformed defaults to 0)",
+        "recommendation": "Use fail-closed for enforcement paths: treat missing/malformed cost as UNKNOWN and block new cycles unless explicitly overridden; add checksum/version fields and error telemetry.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Scheduler locking and stale lock reclamation are high-risk for race conditions and duplicate runs.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Incorrect stale-PID detection in containerized/ephemeral environments can start concurrent orchestrations, causing conflicting writes, duplicate PR activity, or budget overrun.",
+        "location": "Task 3.1: Scheduler Wrapper (flock + stale lock reclaim)",
+        "recommendation": "Define lock protocol with PID+host+start-time fingerprint, monotonic heartbeat, and conservative reclaim rules; add integration tests for crash/restart and concurrent cron triggers.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Secret scanning design is underspecified and likely brittle (tool availability, output normalization, regex fallback quality, allowlist format mismatch).",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "False negatives leak secrets; false positives block delivery. The plan references a `.txt` path but says YAML content, which is a parsing/operational ambiguity.",
+        "location": "Task 2.2: Pre-Review Check + Secret Scanning",
+        "recommendation": "Define strict scanner precedence, normalized finding schema, timeout behavior, and exact allowlist schema/path (e.g., `.yaml`); add regression fixtures for real secret patterns and benign cases.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security escalation can be explicitly overridden by `--profile`, allowing risky changes to run with reduced gates.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Operator override creates a policy escape hatch; accidental or intentional misuse can bypass full security checks on auth/crypto/secret changes.",
+        "location": "Task 1.2: Auto-Escalation Classifier (AC: explicit `--profile` overrides auto-escalation)",
+        "recommendation": "Introduce a non-bypassable policy mode for protected paths (auth/crypto/secrets/system scripts), or require a signed/justified override with audit trail and secondary approval.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " flatline auto integrated findings",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-15T01:22:41Z",
+    "metrics": {
+      "total_latency_ms": 245000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-15T04:22:57Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical gap and highly actionable. The sprint explicitly depends on `loa-setup-check.sh` output but does not define existence, contract, or validation. This can block core test cases and create non-deterministic implementation outcomes.",
+        "gpt_score": 930,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 925,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value improvement. Core config generation logic should not depend on a draft external artifact without freezing the mapping in the sprint scope. Including the matrix makes implementation and review deterministic.",
+        "gpt_score": 900,
+        "opus_score": 830,
+        "tertiary_score": 920,
+        "delta": 70,
+        "average_score": 865,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong production-safety recommendation with low cost. In-place config mutation without backup is a real operational risk; timestamped backup is a standard, practical safeguard.",
+        "gpt_score": 870,
+        "opus_score": 750,
+        "tertiary_score": 900,
+        "delta": 120,
+        "average_score": 810,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Valuable edge-case definition for conversational UX. Abandonment/quit behavior is common and currently ambiguous; explicit criteria would reduce inconsistent implementations.",
+        "gpt_score": 740,
+        "opus_score": 810,
+        "tertiary_score": 1000,
+        "delta": 70,
+        "average_score": 775,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Technically valid but low ROI for this sprint. Branch isolation and normal git workflow usually mitigate this risk; adding explicit concurrency guards here feels disproportionate.",
+        "gpt_score": 320,
+        "opus_score": 690,
+        "tertiary_score": 880,
+        "delta": 370,
+        "average_score": 505,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Requirements baseline is unstable (PRD/SDD are still Draft and no Flatline review has run).",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The sprint is implementing detailed content and behavior mappings from documents that may still change, creating high rework risk and invalidating acceptance criteria mid-cycle.",
+        "location": "Flatline AUTO-INTEGRATED Findings + header metadata (PRD/SDD Draft, no review results)",
+        "recommendation": "Freeze PRD/SDD sections used by this sprint or run a pre-sprint bridge/Flatline review and lock a tagged baseline before implementation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Validation strategy is mostly grep/manual checks and does not verify semantic correctness.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "A file can pass grep while still containing wrong mappings, invalid YAML examples, broken decision logic, or contradictory cost/risk statements.",
+        "location": "Acceptance criteria across T1.x, T3.x, T4.1 (grep-heavy checks)",
+        "recommendation": "Add semantic validation gates: markdown link checker, YAML parse/lint for embedded examples, scripted assertions for required mappings, and golden transcript tests for wizard flows.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Wizard runtime depends on external tools/scripts without compatibility guarantees.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "If `loa-setup-check.sh`, `yq`, `jq`, or shell features differ by environment, onboarding can fail or degrade into unsafe/manual behavior inconsistently.",
+        "location": "Task 2.1 and 2.2 (Phase 1/3 instructions and fallbacks)",
+        "recommendation": "Define a strict compatibility matrix (shell, yq/jq versions), add deterministic fallback paths, and include explicit failure messaging plus no-write safe mode.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "“Documentation-only” is a false assumption; SKILL.md changes alter runtime assistant behavior.",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "Wizard and /loa behavior is effectively code-by-instruction. Incorrect directives can create unsafe writes, bad configs, or misleading cost guidance without any executable code changes to catch it.",
+        "location": "Scope Summary + Sprint 2/3/4 SKILL.md deliverables",
+        "recommendation": "Treat SKILL.md updates as behavior changes: require behavioral test transcripts, negative-path tests, and explicit review sign-off equivalent to code changes.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " flatline auto integrated findings",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-15T04:22:57Z",
+    "metrics": {
+      "total_latency_ms": 223000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-15T06:27:59Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real contract gap on a critical-path dependency. The parser is treated as a black box while downstream tasks assume stable fields/flags; that is high integration risk and low effort to fix by documenting input/output/exit semantics.",
+        "gpt_score": 910,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 915,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical specification hole: acceptance criteria assert resolved IDs, but no step defines how they are computed/populated. This will cause ambiguous implementations and likely test failures. High impact, straightforward to specify.",
+        "gpt_score": 945,
+        "opus_score": 780,
+        "tertiary_score": 980,
+        "delta": 165,
+        "average_score": 862.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good clarification request. Current logic allows budget overshoot unless intentionally tolerated. Defining pre-flight vs post-spend checks and overshoot policy improves predictability, though it is a policy choice rather than a hard defect.",
+        "gpt_score": 730,
+        "opus_score": 830,
+        "tertiary_score": 880,
+        "delta": 100,
+        "average_score": 780,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Strong catch: possible NFR/dependency inconsistency around `bc`. This is actionable and important for portability/reproducibility. Either document `bc` as allowed or switch arithmetic strategy using existing dependencies.",
+        "gpt_score": 790,
+        "opus_score": 720,
+        "tertiary_score": 790,
+        "delta": 70,
+        "average_score": 755,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "High-priority inconsistency: triage rules and test case expectations conflict. Contradictory requirements will produce implementation churn and failing tests. Must be resolved in spec.",
+        "gpt_score": 940,
+        "opus_score": 580,
+        "tertiary_score": 900,
+        "delta": 360,
+        "average_score": 760,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Core behavior depends on undocumented interfaces of external scripts (`entry.sh`, `bridge-findings-parser.sh`, `post-pr-triage.sh`) that are explicitly marked as needing confirmation.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "If CLI flags, output paths, or JSON schemas differ from assumptions, the fix loop will silently no-op or misclassify findings, making the feature appear to work while doing nothing useful.",
+        "location": "Notes for Implementor; Task 5.1 steps i/k/l; Task 1.2",
+        "recommendation": "Create explicit interface contracts (inputs/outputs/exit codes) and add contract tests against real scripts before implementing loop logic.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Prompt-injection risk remains high because untrusted finding text is embedded into a single LLM prompt (`findings | tostring`) without semantic filtering.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "A malicious finding could instruct the model to ignore constraints, leak secrets, or modify prohibited files; JSON escaping prevents shell injection but not model-level prompt injection.",
+        "location": "Task 3.1 Step C (`fix_prompt` construction)",
+        "recommendation": "Implement prompt hardening: strict schema extraction, allowlisted fields, system-level immutable constraints, and post-change policy validation that blocks forbidden file edits.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Resume protocol is brittle because it reconstructs state by grepping/parsing free-form `verdict` strings rather than stable structured fields.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Any wording change in `_record_action` output breaks replay logic, causing duplicate iterations, incorrect spend totals, or missed stuck findings.",
+        "location": "Task 5.2 Steps 3 and 4",
+        "recommendation": "Store structured JSON keys for iteration, finding_id, and spend_usd in flight recorder events and replay only typed fields.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Sprint document contains templating corruption (`{{DOCUMENT_CONTENT}}`) inside shell snippets, indicating copy/render defects that can translate into invalid implementation.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "If these artifacts are copied into `spiral-harness.sh`, the script will fail syntax/runtime checks and the entire pipeline stage can break immediately.",
+        "location": "Task 3.1 Step B, Task 5.2 Step 3, Task 7.3 verification command blocks",
+        "recommendation": "Clean and re-validate all snippets before coding; add a pre-merge lint gate that rejects unresolved template markers and run `bash -n` on generated changes.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint plan cycle 074",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-15T06:27:59Z",
+    "metrics": {
+      "total_latency_ms": 224000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

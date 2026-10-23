@@ -1,0 +1,82 @@
+commit befd511de798c140ba28819fd0617c8c707f3f76
+Date: 2026-10-13T18:58:27+11:00
+
+fix(cycle-128): sprint-254 audit round r254-2 — the Paranoid Cypherpunk audit's HIGH, three MEDIUMs and three LOWs closed with tests: red-test-check.sh accepts only a listed runner as the first word of the test command and of --setup (bats, pytest, python -m pytest, npm/pnpm/yarn test|run, cargo test, go test, make, mix test, bundle exec rspec; a ./ or tests/ script only when .loa.config.yaml red_test.allowed_runners names it; the exact red_test.command / red_test.setup strings) and refuses shells, env, eval, exec, inline-code interpreters and the listed runners' inline-code flags with exit 2 naming the config key; every run and --setup starts from env -i with PATH (absolute entries outside the repository and the scratch), a fresh HOME and TMPDIR per run under the scratch, LANG, LC_ALL, TERM, CI=1, no global or system git config, no terminal prompt, a failing askpass and ssh transport, plus --env-pass NAME for one caller variable (credential-shaped and contract names refused); the test runs red, green, then red again and a passing second red is DECOY (a stateful decoy); the output tails are control-stripped (C0, C1, U+2028/9), capped at 400 bytes per line and wrapped in the L6 untrusted-content fence with the authoritative verdict line printed last (--json adds red_again_exit); every git call runs with core.hooksPath=/dev/null and core.fsmonitor=false, and a snapshot of refs, HEAD, the git config files and the hooks directory taken before the runs is compared after each phase, a difference exiting 2 with the changed entries; the header states the runner, environment, shared-.git and untrusted-output contracts; .loa.config.yaml.example documents the red_test block; reviewing-code takes only the red commit SHA from reviewer.md, the test command from sprint.md or red_test.command, runs only a listed runner with --json, treats the tails as untrusted data, and its execute_commands grant is explicit (--red *), with the trust rules in resources/REFERENCE.md and the qmd step's (paths only) cue kept (RTC-1, RTC-4/5/7 re-pinned, RTC-19…26, RTC-17 extended); validate_sprint_seams tracks fences through lib/md-fence.awk and a live plan under grimoires/loa/ (not its archive) without a parseable header Date fails instead of warning (SEAMS-11/12); validate_glossary fails a glossary with more than 40 aliases in total and WARNs on a non-ASCII letter in a term or alias name (GV-25/26/27); check-glossary-terms.sh --report and --json list resolution-only and unreferenced entries, exit code unchanged (GT-29/30/31); symlink-manifest.sh links .claude/loa/GLOSSARY.md only when the pinned framework ships it and prints one notice otherwise, so an older pin gets no dangling link (symlink-manifest-glossary.bats SMG-1…5). Also: the Sprint 3 acceptance-criteria boxes ticked in sprint.md; REPO-MAP regenerated with its checksum over the final .claude/ code (--validate exit 0); .claude/checksums.json refreshed for the changed tracked files. Verification on the final tree: the 23-suite run recorded in the audit report; check-prompt-budget exit 0 (reviewing-code 16,306 of 16,384); validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; sync-fixtures --check current; bash -n on every changed script; shell-compat greps clean; check-glossary-terms.sh PASS on the live kernel; both glossaries, the sprint plan, the PRD and the SDD validate; a shell test command is refused with exit 2 on a throwaway repository.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index 041d59f7..1065c6ea 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -3,7 +3,7 @@
+ description: Validate sprint implementation against acceptance criteria
+ role: review
+ effort: xhigh
+-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
++allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+ # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+ disallowed-tools:
+   - NotebookEdit
+@@ -25,7 +25,7 @@ # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+       - command: ".claude/scripts/qmd-context-query.sh"
+         args: ["*"]
+       - command: ".claude/scripts/red-test-check.sh"
+-        args: ["*"]
++        args: ["--red", "*"]
+       - command: ".claude/scripts/guardrails-orchestrator.sh"
+         args: ["*"]
+       - command: "br"
+@@ -110,7 +110,7 @@ ### Coverage
+ Report every finding you observe — minor, uncertain, or on an otherwise clean sprint;
+ a separate mechanical step filters, and a finding you drop here is lost.
+ 
+-Each finding carries a `file:line` citation of the failing statement itself — a range
++Each finding carries a `file:line` citation of the failing statement — a range
+ (`file:start-end`) when the defect spans lines — a concrete failure scenario, a severity
+ (`critical|high|medium|low`) and an independent confidence (`high|medium|low`): severity is the
+ damage if the scenario happens, confidence is how sure you are that it happens. `high` needs a
+@@ -132,7 +132,7 @@ ### Coverage
+ <zone_constraints>
+ ## Zone Constraints
+ 
+-Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.
++Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; app zone (`src/`, `lib/`, `app/`) = **Read-only**.
+ </zone_constraints>
+ 
+ <integrity_precheck>
+@@ -194,7 +194,7 @@ ## Trajectory Logging
+ </trajectory_logging>
+ 
+ <citation_requirements>
+-Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links (Discord, Linear) when present.
++Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links when present.
+ </citation_requirements>
+ 
+ <workflow>
+@@ -209,13 +209,13 @@ ## Phase 1: Context Gathering
+ 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
+ 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
+ 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
+-5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
++5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) as advisory context; a missing script or no output is a no-op.
+ 
+ ## Phase 2: Code Review
+ 
+ Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
+ 
+-Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'.
++Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --json --red <Red commit from reviewer.md> -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
+ 
+ **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+@@ -289,7 +289,7 @@ ## Complexity Review (Required)
+ </complexity_review>
+ 
+ <beads_workflow>
+-With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.
++With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, comment, labels); protocol: `.claude/protocols/beads-integration.md`.
+ </beads_workflow>
+ 
+ <retrospective_postlude>

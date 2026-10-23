@@ -1,0 +1,92 @@
+# approved-by: lead 2026-10-21
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	security	.claude/scripts/guard-yield.sh	abs="$ROOT/.claude/$rel"	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	if [[ -L "$abs" ]]; then	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	tgt="$(readlink "$abs")"	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	case "$tgt" in /*) ;; *) tgt="$(dirname "$abs")/$tgt" ;; esac	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	tdir="$(cd "$(dirname "$tgt")" 2>/dev/null && pwd -P)" || tdir=""	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	canon="$tdir/$(basename "$tgt")"	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	case "$canon" in	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	"$ROOT/.claude/"*) rel="${canon#"$ROOT/.claude/"}"; abs="$canon" ;;	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	*) echo "hook script .claude/$rel is a symlink that leaves .claude/ (registered for $ev)" >> "$ERRORS"; continue ;;	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	@L228	fix-commit	hunk:H01	A,B	agreed	-	true
+V01	medium	security	.claude/scripts/guard-yield.sh	@L229	fix-commit	hunk:H01	A,B	agreed	-	true
+V02	high	security	.claude/scripts/guard-yield.sh	while IFS= read -r spath; do	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	[[ -n "$spath" ]] || continue	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	case "$spath" in /*|*..*) echo "gate or policy script '$spath' must be a repository-relative path" >> "$ERRORS"; continue ;; esac	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	[[ -f "$ROOT/$spath" ]] || echo "gate or policy script $spath does not exist" >> "$ERRORS"	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	done < <(jq -r '.guards[] | select(.kind == "gate" or .kind == "policy") | .script' <<<"$MAP_JSON")	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	@L334	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V02	high	security	.claude/scripts/guard-yield.sh	@L335	fix-commit	hunk:H02	A,B	adjudicated	anchors: union; group: A's namespace (B's corresponds)	true
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	nb="$(grep -c '^<!-- guard-register:begin -->$' "$HOOKS_REF" || true)"	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	ne="$(grep -c '^<!-- guard-register:end -->$' "$HOOKS_REF" || true)"	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	[[ "$nb" == "1" && "$ne" == "1" ]] \	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	|| die 3 "$HOOKS_REF needs exactly one <!-- guard-register:begin --> and one <!-- guard-register:end --> line (found $nb and $ne)"	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	awk -v blockfile="$block" '	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	/^<!-- guard-register:begin -->$/ { while ((getline l < blockfile) > 0) print l; skip = 1; next }	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	/^<!-- guard-register:end -->$/ { skip = 0; next }	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	!skip { print }	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V03	medium	input-validation	.claude/scripts/guard-yield.sh	' "$HOOKS_REF" > "$dest"	fix-commit	hunk:H03	A,B	adjudicated	category: input-validation — a missing check of the markers' order (B)	false
+V04	medium	other	.github/workflows/bats-tests.yml	- uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1	fix-commit	hunk:H04	A,B	agreed	-	true
+V04	medium	other	.github/workflows/bats-tests.yml	@L91	fix-commit	hunk:H04	A,B	agreed	-	true
+V05	medium	logic	evals/harness/execute-agent.sh	if [[ -n "${LOA_EVAL_ARM_TOGGLES:-}" ]]; then	fix-commit	hunk:H05	A,B	adjudicated	severity: codebook medium — a wrong result on an uncommon path (an inherited variable)	true
+V05	medium	logic	evals/harness/execute-agent.sh	jq -ce 'if type == "object" then . else error("not an object") end' <<<"$LOA_EVAL_ARM_TOGGLES" 2>/dev/null \	fix-commit	hunk:H05	A,B	adjudicated	severity: codebook medium — a wrong result on an uncommon path (an inherited variable)	true
+V05	medium	logic	evals/harness/execute-agent.sh	|| { echo "ERROR: LOA_EVAL_ARM_TOGGLES is not a JSON object" >&2; return 2; }	fix-commit	hunk:H05	A,B	adjudicated	severity: codebook medium — a wrong result on an uncommon path (an inherited variable)	true
+V05	medium	logic	evals/harness/execute-agent.sh	@L166	fix-commit	hunk:H05	A,B	adjudicated	severity: codebook medium — a wrong result on an uncommon path (an inherited variable)	true
+V06	medium	error-handling	evals/harness/execute-agent.sh	local cj="$WORKSPACE/.claude/data/constraints.json"	fix-commit	hunk:H06	A,B	agreed	-	true
+V06	medium	error-handling	evals/harness/execute-agent.sh	if [[ -f "$cj" ]]; then	fix-commit	hunk:H06	A,B	agreed	-	true
+V06	medium	error-handling	evals/harness/execute-agent.sh	jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" && mv "$cj.tmp" "$cj"	fix-commit	hunk:H06	A,B	agreed	-	true
+V06	medium	error-handling	evals/harness/execute-agent.sh	@L257	fix-commit	hunk:H06	A,B	agreed	-	true
+V06	medium	error-handling	evals/harness/execute-agent.sh	_evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md"	fix-commit	hunk:H06	A,B	agreed	-	true
+V07	medium	input-validation	evals/harness/execute-agent.sh	prompt_tree_sha="$(git -C "$PROMPT_TREE" rev-parse HEAD:.claude 2>/dev/null || echo unknown)"	fix-commit	hunk:H07	A,B	agreed	-	true
+V07	medium	input-validation	evals/harness/execute-agent.sh	prompt_tree_commit="$(git -C "$PROMPT_TREE" rev-parse HEAD 2>/dev/null || echo unknown)"	fix-commit	hunk:H07	A,B	agreed	-	true
+V08	medium	other	evals/harness/run-arms.sh	DEFAULT_MODEL="claude-fable-5-1"	fix-commit	hunk:H09	A,B	agreed	-	true
+V09	medium	input-validation	evals/harness/run-arms.sh	[[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"	fix-commit	hunk:H10	A,B	agreed	-	true
+V09	medium	input-validation	evals/harness/run-arms.sh	SUITE_DIR="$RESULTS_ROOT/$SUITE"	fix-commit	hunk:H10	A,B	agreed	-	true
+V09	medium	input-validation	evals/harness/run-arms.sh	BATCH_DIR="$SUITE_DIR/$BATCH"	fix-commit	hunk:H10	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	for line in raw.decode("utf-8").splitlines():	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	if not line.strip():	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	@L143	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	digest, rel = line.split("  ", 1)	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	if only and not (rel.startswith(only + "/") or rel == f"manifests/{only}.json" or rel == "corpus.tsv"	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	or rel.startswith(f"labels/{only}.")):	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	@L147	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	p = os.path.join(corpus, rel)	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	if not os.path.isfile(p) or hashlib.sha256(open(p, "rb").read()).hexdigest() != digest:	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	bad.append(rel)	fix-commit	hunk:H11	A,B	agreed	-	true
+V10	medium	security	evals/harness/run-arms.sh	if bad:	fix-commit	hunk:H11	A,B	agreed	-	true
+V11	medium	logic	evals/harness/run-arms.sh	[[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]] \	fix-commit	hunk:H12	A,B	agreed	-	true
+V11	medium	logic	evals/harness/run-arms.sh	|| die "$WORKTREE has local changes; the pinned source must be pristine"	fix-commit	hunk:H12	A,B	agreed	-	true
+V12	medium	security	evals/harness/run-arms.sh	grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|network|socket hang up|5[0-9][0-9] ' \	fix-commit	hunk:H13	A,B	adjudicated	category: security (A) — the agent under test can influence the harness's retry decision; an integrity boundary	true
+V12	medium	security	evals/harness/run-arms.sh	"$err" "$out" 2>/dev/null && return 0	fix-commit	hunk:H13	A,B	adjudicated	category: security (A) — the agent under test can influence the harness's retry decision; an integrity boundary	true
+V13	medium	logic	evals/harness/run-arms.sh	EVAL_PROMPT_TREE="$WORKTREE" EVAL_MODEL="$MODEL" LOA_EVAL_ARM="$arm" LOA_EVAL_SUITE_FILE="$SUITE_FILE" \	fix-commit	hunk:H14	A,B	adjudicated	severity: codebook medium, as H05	true
+V13	medium	logic	evals/harness/run-arms.sh	LOA_EVAL_SOURCE_COMMIT="$SRC_FULL" LOA_AUDIT_REPLAY=1 \	fix-commit	hunk:H14	A,B	adjudicated	severity: codebook medium, as H05	true
+V13	medium	logic	evals/harness/run-arms.sh	"$SCRIPT_DIR/execute-agent.sh" --task-yaml "$task" --workspace "$ws" \	fix-commit	hunk:H14	A,B	adjudicated	severity: codebook medium, as H05	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	return s if len(s) <= cap else s[: cap - 1].rstrip() + "…"	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	@L112	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	SECRET_RX = [re.compile(p) for p in (	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	r"AKIA[0-9A-Z]{16}", r"sk-[a-zA-Z0-9]{20,}", r"ghp_[a-zA-Z0-9]{36}", r"gho_[a-zA-Z0-9]{36}",	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	r"glpat-[a-zA-Z0-9\-]{20,}", r"xox[bpors]-[a-zA-Z0-9\-]+", r"sk-ant-[a-zA-Z0-9\-]{20,}",	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V14	high	security	evals/harness/seed-corpus-from-record.sh	r"password\s*[:=]\s*[\"'][^\"']{8,}", r"secret\s*[:=]\s*[\"'][^\"']{8,}")]	fix-commit	hunk:H15	A,B	adjudicated	anchors: union; severity: codebook high (A) — a security weakness with a plausible path to harm	true
+V15	medium	security	evals/harness/seed-corpus-from-record.sh	@L307	fix-commit	hunk:H16	A,B	adjudicated	anchors: union; severity: codebook medium (A) — a missing exclusion with a bounded impact	false
+V15	medium	security	evals/harness/seed-corpus-from-record.sh	EXCL = re.compile(r"^(grimoires/|\.beads/|\.run/|evals/results/|CHANGELOG\.md$|\.claude/checksums\.json$|(.*/)?REPO-MAP\.md$|.*\.lock$|(.*/)?package-lock\.json$)")	fix-commit	hunk:H16	A,B	adjudicated	anchors: union; severity: codebook medium (A) — a missing exclusion with a bounded impact	false
+F001	-	fix	.claude/scripts/guard-yield.sh	if [[ -L "$abs" ]]; then	fix	fix/b6802e4f392a:220-229	-	-	-	-
+F002	-	fix	.claude/scripts/guard-yield.sh	done < <(jq -r '.guards[] | select(.kind == "gate" or .kind == "policy") | .script' <<<"$MAP_JSON")	fix	fix/b6802e4f392a:334-334	-	-	-	-
+F003	-	fix	.claude/scripts/guard-yield.sh	|| die 3 "$HOOKS_REF needs exactly one <!-- guard-register:begin --> and one <!-- guard-register:end --> line (found $nb and $ne)"	fix	fix/b6802e4f392a:393-393	-	-	-	-
+F004	-	fix	.github/workflows/bats-tests.yml	- uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1	fix	fix/b6802e4f392a:91-91	-	-	-	-
+F005	-	fix	evals/harness/execute-agent.sh	resolve_toggles() {	fix	fix/b6802e4f392a:162-165	-	-	-	-
+F006	-	fix	evals/harness/execute-agent.sh	local cj="$WORKSPACE/.claude/data/constraints.json"	fix	fix/b6802e4f392a:254-258	-	-	-	-
+F007	-	fix	evals/harness/execute-agent.sh	prompt_tree_commit="$(git -C "$PROMPT_TREE" rev-parse HEAD 2>/dev/null || echo unknown)"	fix	fix/b6802e4f392a:289-289	-	-	-	-
+F008	-	fix	evals/harness/run-arms.sh	# Executor: Fable 5.1 (D33, DEC-0164); the default --model is the id the	fix	fix/b6802e4f392a:45-46	-	-	-	-
+F009	-	fix	evals/harness/run-arms.sh	DEFAULT_MODEL="claude-fable-5-1"	fix	fix/b6802e4f392a:56-56	-	-	-	-
+F010	-	fix	evals/harness/run-arms.sh	[[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"	fix	fix/b6802e4f392a:127-127	-	-	-	-
+F011	-	fix	evals/harness/run-arms.sh	bad.append(rel)	fix	fix/b6802e4f392a:150-150	-	-	-	-
+F012	-	fix	evals/harness/run-arms.sh	[[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]] \	fix	fix/b6802e4f392a:231-232	-	-	-	-
+F013	-	fix	evals/harness/run-arms.sh	grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|network|socket hang up|5[0-9][0-9] ' \	fix	fix/b6802e4f392a:314-315	-	-	-	-
+F014	-	fix	evals/harness/run-arms.sh	EVAL_PROMPT_TREE="$WORKTREE" EVAL_MODEL="$MODEL" LOA_EVAL_ARM="$arm" LOA_EVAL_SUITE_FILE="$SUITE_FILE" \	fix	fix/b6802e4f392a:336-336	-	-	-	-
+F015	-	fix	evals/harness/seed-corpus-from-record.sh	s = re.sub(r"\s+", " ", s).strip()	fix	fix/b6802e4f392a:110-114	-	-	-	-
+F016	-	fix	evals/harness/seed-corpus-from-record.sh	record_name = record_ref.split("origin/", 1)[-1]	fix	fix/b6802e4f392a:307-307	-	-	-	-
+F017	-	fix	evals/tests/arm-toggles.bats	LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT=864069f2 \	fix	fix/b6802e4f392a:194-194	-	-	-	-
+F018	-	fix	evals/tests/arm-toggles.bats	[ "$(jq -r '.source_commit' "$WS/.eval/executor.json")" = "864069f2" ]	fix	fix/b6802e4f392a:199-199	-	-	-	-
+F019	-	fix	evals/tests/run-arms.bats	[ "$(jq -r '.model_id' "$M")" = "claude-fable-5-1" ]	fix	fix/b6802e4f392a:52-52	-	-	-	-
+F020	-	fix	tests/unit/floor-snapshot.bats	@test "FS-3 the register disables nothing: settings.json hook registrations are identical to origin/main" {	fix	fix/b6802e4f392a:44-50	-	-	-	-

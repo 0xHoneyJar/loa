@@ -1,8 +1,0 @@
-2026-10-20T02:58:10Z run-ablation: smoke-c131-arms-20261020T025808Z-a1_no_dissent-review-01-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_no_dissent/review-01-t1
-arm a1_no_dissent: all_phases_present OK phases REVIEW,AUDIT
-arm a1_no_dissent: no_review_dissent_envelope OK no review envelope; code_review.enabled false; audit voices_succeeded 2
-arm a1_no_dissent: oracle_closed OK ok head:3 answer paths (3 present), 3 later-only pinned versions, sandbox git = base commit only
-arm a1_no_dissent: integrity_clean OK 1973 manifest entries verified; manifest_sha256 9558cdb3965e (matches checksums.json)
-arm a1_no_dissent: OK
-run-ablation: extra model global.anthropic.claude-opus-5-5 in REVIEW (14682 output tokens; a WebFetch summariser or built-in subagent, not drift — DEC-0545)
-graded review-01: recall 1.0 false_positives 6; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_no_dissent/review-01-t1/grade.json

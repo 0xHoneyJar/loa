@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "run_id": "c132-g1-b-a0_bare_fable_matched-review-r23-t2-s2",
+  "arm": "a0_bare_fable_matched",
+  "task_id": "review-r23",
+  "task_type": "review-catch",
+  "trial": 2,
+  "source_commit": "fbd36a0c9880b244af08133013f3b6959b085c94",
+  "suite_version": 2,
+  "status": "completed",
+  "cap_phase": null,
+  "cap_turn": null,
+  "reason": null,
+  "max_run_usd": 45,
+  "spent_usd": 5.563981,
+  "arm_toggles": {
+    "loa_mount": false,
+    "bare_model": "fable",
+    "bare_sessions": "matched"
+  },
+  "effort_flag": "high",
+  "arm_evidence": {
+    "batch_context": "c132-g1-b",
+    "base_commit": "7b22f2706c71bbdca6a807e4d86eb20995fb328b",
+    "loa_mount": "none",
+    "bare_model": "fable",
+    "bare_sessions": "matched",
+    "claude_md_sha256": "absent",
+    "loa_config_sha256": "absent",
+    "mount_cheval": "none",
+    "arm_ids_pr_native": "a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies"
+  },
+  "executor_mode": "container",
+  "image_digest": "sha256:4e37cb5fd4d85c3231b3ef11a0d6179b5a5452bc024c23a26a1bea2668e86f5f",
+  "fingerprint": "fp:8dfb834943502988e6759b6a1b262ce93acc56015e92e3daeaebdb8cd913c9cc",
+  "sandbox_fingerprint": "fp:8dfb834943502988e6759b6a1b262ce93acc56015e92e3daeaebdb8cd913c9cc",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "snapshots": {},
+  "phases": [
+    {
+      "name": "BARE",
+      "label": "BARE",
+      "skipped": false,
+      "session_id": "e12161db-350c-4063-95b8-a54bb067cfb2",
+      "resumed_from": null,
+      "model_requested": "global.anthropic.claude-fable-5-1",
+      "models_used": {
+        "global.anthropic.claude-fable-5-1": 54155
+      },
+      "effort_requested": "high",
+      "tokens_in": 994,
+      "tokens_out": 54155,
+      "cache_read_tokens": 3313762,
+      "cache_creation_tokens": 161428,
+      "cost_usd": 5.5639805,
+      "cost_source": "result",
+      "ledger_cost_usd": 0,
+      "duration_ms": 939313,
+      "wall_ms": 942924,
+      "num_turns": 44,
+      "max_turns": 170,
+      "timeout_s": 4200,
+      "exit": 0,
+      "cli_exit": 0,
+      "timed_out": false,
+      "is_error": false,
+      "result_subtype": "success",
+      "turn_cap_hit": false,
+      "gate_recovered": false,
+      "refusal_fallbacks": [],
+      "modelinv_lines": {
+        "from": 1,
+        "to": 0
+      },
+      "ledger_lines_from": 1,
+      "snapshot": null,
+      "verdict": null,
+      "watchdog": {
+        "priced": true,
+        "estimate_usd": 5.349602,
+        "turns_seen": 32,
+        "killed": false,
+        "cap_turn": null
+      },
+      "started": "2026-10-22T04:28:07Z",
+      "finished": "2026-10-22T04:43:50Z"
+    }
+  ],
+  "mount_integrity": {
+    "claude_md": "absent",
+    "loa_config": "absent"
+  },
+  "started": "2026-10-22T04:28:06Z",
+  "finished": "2026-10-22T04:43:50Z"
+}

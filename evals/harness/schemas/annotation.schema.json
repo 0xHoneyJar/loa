@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xHoneyJar/loa/evals/harness/schemas/annotation.schema.json",
+  "title": "Blind annotator label file (cycle-132 FR-2, SDD §1.4 Annotation packets and merge)",
+  "description": "One file per annotator per fixture. Keys are the packet's hunk ids (H01 …) and incident ids (I01 …). Anchors are head-side line numbers of the wrong behaviour. The codebook is evals/harness/annotation/codebook.md. Keywords stay inside the subset annotation_merge.py validates (no if/then, no propertyNames): each entry is exactly one oneOf branch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hunks",
+    "incidents"
+  ],
+  "properties": {
+    "hunks": {
+      "type": "object",
+      "patternProperties": {
+        "^H[0-9]{2,}$": {
+          "$ref": "#/$defs/hunk"
+        }
+      },
+      "additionalProperties": false
+    },
+    "incidents": {
+      "type": "object",
+      "patternProperties": {
+        "^I[0-9]{2,}$": {
+          "$ref": "#/$defs/incident"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "hunk": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "not_defect_class",
+            "group",
+            "file",
+            "anchor_lines",
+            "description",
+            "severity",
+            "category"
+          ],
+          "properties": {
+            "verdict": {
+              "const": "defect"
+            },
+            "not_defect_class": {
+              "type": "null"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^D[1-9][0-9]*$"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+              }
+            },
+            "anchor_lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "category": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "not_defect_class",
+            "group",
+            "file",
+            "anchor_lines",
+            "description",
+            "severity",
+            "category"
+          ],
+          "properties": {
+            "verdict": {
+              "const": "not-defect"
+            },
+            "not_defect_class": {
+              "enum": [
+                "test",
+                "docs",
+                "refactor",
+                "style"
+              ]
+            },
+            "group": {
+              "type": "null"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+              }
+            },
+            "anchor_lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "uniqueItems": true
+            },
+            "description": {
+              "type": "string"
+            },
+            "severity": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                }
+              ]
+            },
+            "category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "not_defect_class",
+            "group",
+            "file",
+            "anchor_lines",
+            "description",
+            "severity",
+            "category"
+          ],
+          "properties": {
+            "verdict": {
+              "const": "not-defect"
+            },
+            "not_defect_class": {
+              "const": "follow-on"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^D[1-9][0-9]*$"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+              }
+            },
+            "anchor_lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "uniqueItems": true
+            },
+            "description": {
+              "type": "string"
+            },
+            "severity": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                }
+              ]
+            },
+            "category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "incident": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "group",
+            "file",
+            "anchor_lines",
+            "description",
+            "severity"
+          ],
+          "properties": {
+            "verdict": {
+              "const": "defect-at-head"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^D[1-9][0-9]*$"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+              }
+            },
+            "anchor_lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "group",
+            "file",
+            "anchor_lines",
+            "description",
+            "severity"
+          ],
+          "properties": {
+            "verdict": {
+              "const": "not-at-head"
+            },
+            "group": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^D[1-9][0-9]*$"
+                }
+              ]
+            },
+            "file": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+                  }
+                }
+              ]
+            },
+            "anchor_lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "uniqueItems": true
+            },
+            "description": {
+              "type": "string"
+            },
+            "severity": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

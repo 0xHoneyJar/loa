@@ -1,0 +1,174 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/graders/recall-vs-defects.sh:close_line",
+      "anchor_type": "function",
+      "anchor_line": 308,
+      "scope": "diff",
+      "description": "Python scope detection treats the closing line of a multiline function signature as leaving the function. For a conventional `def check(\\n    value,\\n):`, the unindented `):` makes close_line return line 2, excluding the entire function body from its scope.",
+      "failure_mode": "A citation and planted defect in the same function body, more than three lines apart, receive no same-function credit. This incorrectly lowers recall and can fail a review that satisfies the new grading rule. Dedented lines inside multiline string literals cause the same premature termination.",
+      "suggested_fix": "Determine Python function spans with ast or tokenize so signature continuations and multiline strings are handled correctly. Add coverage for a multiline signature with citation and defect sites separated by more than three lines.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/graders/recall-vs-defects.sh:headers",
+      "anchor_type": "line",
+      "anchor_line": 210,
+      "anchor_line_end": 211,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "BASH_HDR[0] is `^(\\s*)(?:function\\s+)?[A-Za-z_][A-Za-z0-9_.:-]*\\s*\\(\\)\\s*\\{?`. The NAME class admits `.` and the brace is optional, so any statement that is a bare zero-argument method call matches as a bash definition header: `out.pop()`, `conn.close()`, `f.flush()`, `lst.sort()`. These are common inside the Python heredocs that this repo's .sh files embed (recall-vs-defects.sh itself has `out.pop()` at indent 28 inside head_lines). headers() is applied to every line of a bash-kind file with no heredoc awareness. In scope_map the bogus header's span runs to the next header with lv2 <= lv, and close_line only ends it on a `}` at exactly that deep indentation (almost never present), so the span is NOT clipped to the enclosing function's real `}`. Later headers overwrite earlier tags, so (a) sites later in the enclosing function get the bogus narrower scope and citations earlier in the function no longer credit them, and (b) top-level lines between the function's `}` and the next header, which should have scope None (±3 only), receive the bogus scope and are credited by any citation anywhere from the method-call line onward.",
+      "failure_mode": "Grader 1.3.0 same-scope credit is both inflated (top-level sites between functions credited by unrelated citations) and deflated (sites after an embedded `.pop()`/`.close()` line lose their real function scope) for every .sh fixture containing a Python heredoc, which is the dominant file type in this corpus. recall and credits_function_only drift from the documented rule without any error.",
+      "suggested_fix": "Require the header to begin the statement and look like a bash function: disallow `.` in NAME (bash function names cannot start a dotted call in practice; use `[A-Za-z_][A-Za-z0-9_:-]*`), and require either a trailing `{` on the same line or a `{` as the first non-blank token on the next line. Additionally clip each nested span to its enclosing span's end (min(end, parent_end)) so a mis-detected inner header can never extend past the outer function's `}`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "evals/harness/ablation-row.sh:hunk @@ -328,12 +385,23 @@",
+      "anchor_type": "hunk",
+      "anchor_line": 393,
+      "anchor_line_end": 396,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The 1.4 row writer reads $RUN_DIR/sandbox/.loa.config.yaml and uses its flatline_protocol block to decide dissent_absent_reason = \"disabled\" (planned absence) versus \"error\"/\"none\". The sandbox tree is the agent-writable surface; ablation-grade.sh's own header states that sandbox copies are tamperable and only the harness copies under eval/ are authoritative. An agent that edits the sandbox config during or after the gate (e.g. sets flatline_protocol.enabled: false after REVIEW ran and failed) flips the row from \"error\" to \"disabled\", and dissent_absent_gates then reports a planned absence. The mount_integrity sha256 check records a mismatch elsewhere but this field does not consult it.",
+      "failure_mode": "dissent_absent_reason and dissent_absent_gates in ablation rows can be steered by the graded agent, so a gate failure is reported as an intentional disable and the report's absence accounting is wrong for that arm.",
+      "suggested_fix": "Derive the disabled signal from harness-owned evidence only: meta/arm-evidence.txt lines (dissent=false, and have apply_arm_toggles/apply_eval_config_variant print the gate enabled flags they wrote), or a harness-side copy of the config taken at mount time. If the sandbox file must be read, require pipeline.json.mount_integrity to report the config unchanged before honouring it, else fall back to \"error\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_budget_effective",
+      "anchor_type": "function",
+      "anchor_line": 189,
+      "anchor_line_end": 199,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Under budget_scale: diff the effective budget is min(max(conf, ceil(est*1.2)), max). Because ceil(est*1.2) >= est for every est >= 0, max(conf, ceil(est*1.2)) >= est always, so the comparison `est > effective` is true exactly when est > budget_cents_max. The configured budget_cents (including a CLI --budget) and the 1.2 multiplier therefore never influence the refuse/allow decision; the gate degenerates to `estimate <= budget_cents_max`. Two consequences: (1) an operator passing --budget 1000 with the default max 600 is silently clamped to 600 and refused at 601c, the opposite of raising the budget; (2) budget_cents_effective in the envelope reports a number that is a function of the estimate itself, not a limit that was applied, so graders reading it as the gate's budget are misled. The documentation in both ADVERSARIAL-REVIEW.md files and the header comment present budget_cents as a floor that matters.",
+      "failure_mode": "Operators enabling diff scaling with a budget_cents or --budget above budget_cents_max get a lower ceiling than they configured; the envelope's budget_cents_effective is not the number the gate actually enforced (that is budget_cents_max), so cost-governance dashboards built on it are wrong.",
+      "suggested_fix": "Either make the ceiling max(budget_cents, budget_cents_max) so an explicit budget is never reduced, or document plainly that under diff the only enforced limit is budget_cents_max and report that as budget_cents_effective. If the 1.2 headroom is meant to matter, compare the estimate against the scaled value of a *different* quantity (e.g. the diff-size-derived baseline) rather than against its own estimate times 1.2.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/schemas/adversarial-finding.schema.json:metadata",
+      "anchor_type": "line",
+      "anchor_line": 248,
+      "anchor_line_end": 262,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/adversarial-review.sh:main",
+      "cross_file_justification": "The budget gate in main() now emits metadata.reason = \"budget\" on the budget_exceeded envelope when budget_scale is written; the schema file is in the same diff and was extended for budget_scale/budget_cents_effective/budget_cents_max but not for reason.",
+      "description": "The diff adds budget_scale, budget_cents_effective and budget_cents_max to the metadata schema (which has additionalProperties: false) but the same change set also emits `reason: \"budget\"` on the budget_exceeded envelope and leaves metadata.status's enum at api_failure|malformed_response|clean|reviewed, with no budget_exceeded. The documented contract that the ADVERSARIAL-REVIEW.md pages point to therefore rejects the exact envelope the script now produces, and ablation-row.sh keys on `status == \"budget_exceeded\"` which the contract says cannot occur.",
+      "failure_mode": "Any consumer that validates envelopes against the documentation schema (CI schema checks, external tooling) rejects every budget_exceeded envelope written under budget_scale, and the status enum misdocuments the state machine that ablation-row.sh depends on.",
+      "suggested_fix": "Add \"budget_exceeded\" to metadata.status's enum and add `reason` (enum [\"budget\"]), plus the pre-existing estimated_cents, budget_cents and estimate_voices keys, to the metadata properties so the documented contract matches what the gate writes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T00:08:32Z",
+    "tokens_input": 219915,
+    "tokens_output": 29702,
+    "cost_usd": 0,
+    "latency_ms": 74352,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 620,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a4788d762243b7f382fd44517454ce63f4cab7b7c0b097bac906dcb617f5c7b2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

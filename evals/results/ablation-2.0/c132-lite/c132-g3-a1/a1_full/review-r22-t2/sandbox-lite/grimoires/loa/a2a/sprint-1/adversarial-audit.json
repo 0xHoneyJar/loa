@@ -1,0 +1,185 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "line",
+      "anchor_line": 190,
+      "anchor_line_end": 191,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The System Zone file-count check now counts only git-tracked files (`git ls-files -- .claude`) instead of every file on disk. An untracked file planted under `.claude/` (a new hook, skill, or script that later gets sourced/executed by the framework) no longer changes ACTUAL_COUNT, so the mismatch warning that previously fired for any added file is silently suppressed. The legacy `find` path is only used when the tracked count is exactly 0, so in the normal case the on-disk tree is never inspected.",
+      "failure_mode": "An attacker (or a compromised agent run) drops an untracked executable into .claude/scripts/ or .claude/hooks/; preflight reports no integrity mismatch because the manifest count and tracked count still agree. The one guard that looked at the actual filesystem has been removed.",
+      "suggested_fix": "Keep the tracked-file count for parity with gen-checksums.sh but additionally diff `git ls-files` against the on-disk `find` listing (minus overrides/ and checksums.json) and warn on any untracked file under .claude/. Better: replace the count heuristic with a real sha256 pass using the manifest, which check-loa.sh already implements.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "line",
+      "anchor_line": 64,
+      "anchor_line_end": 87,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two weakenings of the sha256 integrity check. (1) The submodule-mount detection is the heuristic `[[ -d .loa/.claude ]]`; if that directory exists and `.loa/<path>` is a regular file, a manifest path that is absent from `.claude/` is counted as informational `not-mounted` instead of `Missing`, and never affects the exit code. Anyone who can delete a System Zone file (e.g. a gate or guard script) can also create `.loa/.claude/` plus a shadow copy under `.loa/<path>` to downgrade the deletion from a failure to a log line, including in non-submodule mounts. (2) The function now ends with an unconditional `return 0`, so the caller cannot distinguish drift from success via the function's status; correctness of the exit code now depends entirely on `fail` tracking a global, which is not visible in this diff.",
+      "failure_mode": "Deletion of a System Zone guard script passes `check-loa.sh` as informational. If `fail` only prints, tampered/missing files no longer produce a non-zero exit at all.",
+      "suggested_fix": "Detect a submodule mount from `.gitmodules`/`git submodule status` or by checking that `.claude` entries are symlinks into `.loa/`, not by directory existence. Treat an absent path as not-mounted only when the corresponding `.claude/<path>` would be a symlink per the mount manifest. Return `[[ $drift == false ]]` (or propagate a counter) instead of `return 0`, and confirm `fail` sets the script exit code.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-row.sh:envelope",
+      "anchor_type": "line",
+      "anchor_line": 200,
+      "anchor_line_end": 206,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header explicitly states the arm is never read from `sandbox/` (DEC-0413) because the sandbox is written by the agent under evaluation, yet `envelope()` reads `adversarial-review.json` / `adversarial-audit.json` from `sandbox/grimoires/loa/a2a/sprint-1/` first and only falls back to `eval/`. The row's `degraded`, `degraded_reason`, and `voices_run` fields are derived from those files. An agent under test can write or overwrite these JSON files during the implement phase (they are inside its writable workspace) to make its run look non-degraded, inflate completed voices, or inject a forged envelope in arms where no gate ran.",
+      "failure_mode": "Eval metrics (degraded flag, voices_run) are controllable by the system being measured, so a run that gamed or skipped the review/audit gates can be recorded as clean in runs.jsonl.",
+      "suggested_fix": "Have the gate phases (run by the harness, not the agent) copy their envelopes into `eval/` immediately after they finish, and read only from `eval/` in ablation-row.sh. If the sandbox path must remain a fallback, mark rows sourced from sandbox with a provenance field and treat them as untrusted in spend.sh/aggregation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-row.sh:DOT_WRITES",
+      "anchor_type": "line",
+      "anchor_line": 216,
+      "anchor_line_end": 221,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`zone_violations.dot_claude_writes` only inspects `Write`/`Edit`/`MultiEdit`/`NotebookEdit` tool_use blocks and matches `file_path`/`notebook_path` against `(^|/)\\.claude/`. Writes performed via the `Bash` tool (`echo > .claude/x`, `sed -i`, `cp`), via symlinks that resolve into `.claude/`, or with path forms like `.claude/../.claude/x` written through a different prefix are not recorded. The regex also false-positives on any nested `foo/.claude/` directory. Since this is the field the ablation uses to detect System Zone tampering by the agent, the gap means an agent can edit `.claude/` without the violation appearing in runs.jsonl.",
+      "failure_mode": "Zone violations under-reported; an agent that used Bash to modify .claude/ is scored as compliant.",
+      "suggested_fix": "Also scan Bash tool inputs for `.claude/` tokens (redirections, sed -i, cp/mv targets) and, more robustly, diff the sandbox `.claude/` tree against its pre-run snapshot after each phase and record any changed path. Anchor the regex to the workspace root rather than any path segment.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "evals/harness/fingerprint.sh:BATS_BIN",
+      "anchor_type": "line",
+      "anchor_line": 52,
+      "anchor_line_end": 55,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When `bats` is not on PATH the script defaults to and executes a hardcoded operator-specific path under `$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats`. The script executes whatever is at that path (`\"$BATS_BIN\" --version`) if it is executable. This bakes one developer's home layout into a shared harness and runs an arbitrary binary from a user-writable location; on another host anything placed at that path runs with the harness's privileges.",
+      "failure_mode": "Unexpected code execution from a user-writable path during fingerprinting; non-reproducible fingerprints across operators.",
+      "suggested_fix": "Drop the hardcoded fallback; report `bats=absent` when neither `LOA_EVAL_BATS_BIN` nor PATH provides it, and let the operator set the env var explicitly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/defaults/model-config.yaml:gpt-6.1-sol",
+      "anchor_type": "line",
+      "anchor_line": 134,
+      "anchor_line_end": 149,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `gpt-6.1-sol` HTTP entry falls back to `openai:codex-headless`, whose `cli_model` is itself `gpt-6.1-sol`. An API-key failure (quota, revoked key, model not entitled) therefore transparently re-runs the same request through the operator's ChatGPT subscription credentials on the local codex CLI. Pricing for the entry is an acknowledged placeholder copied from gpt-5.5, and the hop bills the subscription rather than the ledger, so cost estimates and any spend caps computed from MODELINV rows do not reflect real spend for this path.",
+      "failure_mode": "API credential problems are masked by silently crossing into a different billing/credential boundary; spend tracking for gpt-6.1-sol is knowingly inaccurate until the rate card lands.",
+      "suggested_fix": "Emit a visible degraded/fallback marker when the chain crosses from http_api to a CLI hop (the ablation-row.sh `refusal_fallbacks` path already surfaces this for phases; ensure cheval records it), and track the placeholder pricing bead so estimates are corrected before cost-gated decisions rely on them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T19:44:08Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 761,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 13645,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f804aa14b6270cb8a95c7185a475c7b82355b82e9e82142bc978d7ead802f7c5",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,327 @@
+{
+  "context": 12,
+  "feedback_files": [
+    "grimoires/loa/a2a/sprint-261/adversarial-audit.json",
+    "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json",
+    "grimoires/loa/a2a/sprint-261/adversarial-review.json",
+    "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md",
+    "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-261/engineer-feedback-r2.md",
+    "grimoires/loa/a2a/sprint-261/engineer-feedback.md"
+  ],
+  "fixture": "pr-25",
+  "hunk_count": 29,
+  "hunks": {
+    "H01": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-261/adversarial-audit.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L16",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L12"
+      ],
+      "file": "evals/harness/ablation-grade.sh",
+      "head_end": 220,
+      "head_start": 220,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "evals/harness/ablation-grade.sh",
+      "head_end": 299,
+      "head_start": 299,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "evals/harness/ablation-grade.sh",
+      "head_end": 305,
+      "head_start": 305,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L16",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L21",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L11",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L12"
+      ],
+      "file": "evals/harness/ablation-grade.sh",
+      "head_end": 1102,
+      "head_start": 1071,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H05": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L16",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L17"
+      ],
+      "file": "evals/harness/ablation-grade.sh",
+      "head_end": 1773,
+      "head_start": 1773,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H06": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L14",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L21"
+      ],
+      "file": "evals/harness/pipeline-run.sh",
+      "head_end": 607,
+      "head_start": 607,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H07": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L14",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L21"
+      ],
+      "file": "evals/harness/pipeline-run.sh",
+      "head_end": 636,
+      "head_start": 636,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H08": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L14",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L21"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 121,
+      "head_start": 115,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H09": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 230,
+      "head_start": 230,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H10": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 242,
+      "head_start": 242,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H11": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 272,
+      "head_start": 272,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H12": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 312,
+      "head_start": 312,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H13": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 394,
+      "head_start": 394,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H14": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 788,
+      "head_start": 786,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H15": {
+      "cited_by": [],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 797,
+      "head_start": 796,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H16": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L14",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L21"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 817,
+      "head_start": 805,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H17": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/adversarial-review-r1.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 839,
+      "head_start": 832,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H18": {
+      "cited_by": [],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 865,
+      "head_start": 865,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H19": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 903,
+      "head_start": 903,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H20": {
+      "cited_by": [],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 1076,
+      "head_start": 1076,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H21": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L18"
+      ],
+      "file": "evals/harness/run-ablation.sh",
+      "head_end": 1082,
+      "head_start": 1082,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H22": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback.md#L13",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback.md#L9"
+      ],
+      "file": "evals/tests/ablation-grade.bats",
+      "head_end": 1136,
+      "head_start": 1136,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H23": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L14"
+      ],
+      "file": "evals/tests/pipeline-run.bats",
+      "head_end": 984,
+      "head_start": 984,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H24": {
+      "cited_by": [],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 886,
+      "head_start": 886,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H25": {
+      "cited_by": [],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 907,
+      "head_start": 907,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H26": {
+      "cited_by": [],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 912,
+      "head_start": 912,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H27": {
+      "cited_by": [],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 918,
+      "head_start": 918,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H28": {
+      "cited_by": [],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 939,
+      "head_start": 939,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H29": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-261/engineer-feedback.md#L15",
+        "grimoires/loa/a2a/sprint-261/engineer-feedback.md#L16"
+      ],
+      "file": "evals/tests/run-ablation.bats",
+      "head_end": 968,
+      "head_start": 968,
+      "insertion": true,
+      "review_driven": true
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05",
+    "I06",
+    "I07",
+    "I08",
+    "I09",
+    "I10"
+  ],
+  "incidents": "incidents/pr-25.tsv",
+  "record_ref": "origin/record/cycle-130-a2a",
+  "review_driven_count": 19
+}

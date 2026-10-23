@@ -1,0 +1,5 @@
+# pr-22 sprint-258: findings that did not become labels
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md#L13 [medium] cites no file: carries a dead build stage that fails under the legacy builder.
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L25 [low] no locator (19 fix hunks in evals/harness/ablation-row.sh): the row's `arm` is not validated against the arm grammar (DISS-C-007, confirmed).
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L27 [low] first cited file is not part of this fixture (v1.13.0): the image's Python dependencies and bats are not pinned (auditor).
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md#L21 [low] duplicate of L09-passes-the-arm-s-to-argv-without-its-own (same anchor): an inherited `LOA_ADVERSARIAL_REVIEW_ENFORCE` reaches the baseline executor (DISS-C-005, confirmed).

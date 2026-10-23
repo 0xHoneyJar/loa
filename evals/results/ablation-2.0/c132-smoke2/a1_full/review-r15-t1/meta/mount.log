@@ -1,0 +1,3 @@
+sandbox-mount: overlay: removed .claude/adapters/tests/test_agy_opt_in_r251_4.py (fix; no head_commit version)
+sandbox-mount: overlay: removed .claude/adapters/tests/test_agy_r251_6.py (fix; no head_commit version)
+sandbox-mount: overlay: removed .claude/scripts/lib/agy-gate-lib.sh (fix; no head_commit version)

@@ -1,0 +1,239 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": ".claude/adapters/cheval.py:_calibration_needed_exit",
+      "anchor_type": "function",
+      "anchor_line": 2022,
+      "anchor_line_end": 2035,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/anthropic_adapter.py:AnthropicAdapter.complete",
+      "cross_file_justification": "anthropic_adapter.py (diff-touched) builds ProviderContextLimitError.message from the raw provider HTTP error body (`f\"HTTP {status} context-limit: {_msg}\"`); cheval.py's new _calibration_needed_exit writes str(_exc) into models_failed.message_redacted and into the stderr JSON without passing it through the redaction helper.",
+      "description": "The new non-walkable exit path records the provider's raw error text as `message_redacted` and echoes it into the `_error_json` stderr envelope. Unlike other models_failed rows the string is never run through the project's redaction helper, so anything a provider or intermediary proxy echoes back (request fragments, key-shaped tokens, account identifiers) lands verbatim in the MODELINV audit log and operator stderr. The head test `test_calibration_exit_redacts_secret_shapes_in_the_recorded_message` asserts redaction here, which this diff does not implement.",
+      "failure_mode": "A 400/413 response body containing a secret-shaped or sensitive fragment is persisted unredacted into the audit chain and operator logs, defeating the redaction guarantee the field name promises.",
+      "suggested_fix": "Route str(_exc) through the same redaction helper used for other models_failed rows (redact_payload_strings / the redaction module) before placing it in `message_redacted` and before formatting the `_error_json` message; keep only the classification and parsed numbers in the stderr line.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/cheval.py:_calibration_needed_exit",
+      "anchor_type": "function",
+      "anchor_line": 2005,
+      "anchor_line_end": 2010,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/anthropic_adapter.py:AnthropicAdapter.complete",
+      "cross_file_justification": "anthropic_adapter.py (diff-touched) derives input_tokens/limit by regex-parsing the provider's free-text error message (parse_context_limit) and raises ProviderContextLimitError; cheval.py passes those numbers straight into _ceiling_record_observed, which persists them to the observed-bound store that _lookup_max_input_tokens and the pre-flight gate then treat as the model's input bound on every later call.",
+      "description": "Numbers scraped from a provider (or proxy) error message are written to `.run/ceiling-observed.json` with no plausibility bounds and immediately become the effective input ceiling for that (provider, model) via `_observed_for`. A single malformed or hostile 400 such as `prompt is too long: 5 tokens > 1 maximum` sets the bound to 2 tokens, after which every request to that model is preempted locally (exit 7) until an operator runs the probe tool. The store also grows without bound on repeated errors. The tests show observed_for returning limit+1 with no lower clamp.",
+      "failure_mode": "Persistent local denial of service of a catalog entry (and its fallbacks if they share the store key) from one bogus provider/proxy error; the pre-flight gate, not the provider, then rejects all traffic.",
+      "suggested_fix": "Clamp observations to a sane range (e.g. ignore limits below FLOOR_MAX_TOKENS or far below the probed value, and never lower the bound below some fraction of probed_ceiling); require input_tokens to be consistent with cheval's own estimate (within the estimator's uncertainty) before recording; cap the entries list; and surface the lowered bound in the envelope so operators notice.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/adapters/cheval.py:_calibration_needed_exit",
+      "anchor_type": "line",
+      "anchor_line": 2007,
+      "anchor_line_end": 2010,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/conftest.py:_LEDGER_ENV",
+      "cross_file_justification": "conftest.py (diff-touched) shows the observed store path is env-controlled via LOA_CHEVAL_CEILING_OBSERVED_PATH; the writer `record_observed` lives in routing/ceiling.py, which was truncated from this review, so its path safety could not be verified against the ledger.py pattern (realpath, symlink refusal, O_NOFOLLOW, regular-file check).",
+      "description": "The new observed-ceiling store is a third env-redirectable state file written during dispatch, alongside the cost ledger and MODELINV log. ledger.py hardens its writes (symlink rejection, O_NOFOLLOW, parent must exist, regular-file check). The diff gives no evidence the ceiling store applies the same guards, and the error path swallows every exception from the write, so a rejected or redirected write would be silent.",
+      "failure_mode": "If record_observed opens the env-supplied path without O_NOFOLLOW/realpath checks, a planted symlink in a shared `.run/` or an attacker-influenced env could redirect a JSON overwrite to an arbitrary file the operator can write.",
+      "suggested_fix": "Reuse the resolve/open discipline from metering/ledger.py (resolve_cost_ledger_path-style validation plus O_NOFOLLOW and atomic temp-file rename) in routing/ceiling.py's store writer, and split the diff so ceiling.py can be reviewed in full.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": ".claude/adapters/loa_cheval/providers/base.py:http_get",
+      "anchor_type": "line",
+      "anchor_line": 340,
+      "anchor_line_end": 342,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The urllib fallback in the new `http_get` uses `urllib.request.urlopen`, whose default HTTPRedirectHandler follows 3xx responses and re-sends the original headers, including `x-api-key`, to the redirect target. The httpx branch does not follow redirects, so behaviour differs by installed client. `health_check` now calls this against `{endpoint}/models` with the live key on every probe.",
+      "failure_mode": "A misconfigured or compromised proxy endpoint that answers the models probe with a redirect to another host receives the Anthropic API key.",
+      "suggested_fix": "Install an opener with a redirect handler that refuses redirects (or strips auth headers on host change) in both http_get and http_post, or compare the final URL host to the configured endpoint before trusting the response.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/loa_cheval/metering/pricing.py:_long_context_fields",
+      "anchor_type": "function",
+      "anchor_line": 290,
+      "anchor_line_end": 295,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_mult` accepts any positive float: a YAML `.inf` multiplier passes `m > 0` and `int(inp_cost * inf)` raises OverflowError inside calculate_total_cost, which runs after the billed call and aborts ledger creation (the row and daily-spend update are lost). Multipliers below 1.0 are also accepted, silently under-billing the premium tier against the daily budget.",
+      "failure_mode": "A catalog typo turns every long-context call into an unrecorded spend or a crash after the provider has already been billed.",
+      "suggested_fix": "Reject non-finite values (math.isfinite) and require multipliers >= 1.0 (or log and fall back to 1.0), and validate the block at catalog load time rather than at ledger-write time.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/metering/pricing.py:calculate_total_cost",
+      "anchor_type": "line",
+      "anchor_line": 168,
+      "anchor_line_end": 168,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The premium trigger compares only `input_tokens` to the threshold, but per the ledger docstring cache_read/cache_creation tokens are not part of input_tokens. Anthropic applies the long-context rate on total prompt size including cached tokens, so a request with e.g. 150K uncached + 100K cached input is billed at base rates here while the provider charges the premium.",
+      "failure_mode": "Systematic under-recording of spend on cached long-context requests, letting the daily budget enforcer admit more spend than the operator configured.",
+      "suggested_fix": "Compute the threshold test on input_tokens + cache_read_tokens + cache_creation_tokens.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "rate-limiting",
+      "anchor": ".claude/adapters/cheval.py:cmd_invoke",
+      "anchor_type": "line",
+      "anchor_line": 2297,
+      "anchor_line_end": 2307,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When `_ceiling_unverified` is set, every RateLimitError ends the invocation and writes a calibration record, not just the token-limit class, and the flag is derived once from the head entry and never reset per hop. A plain requests-per-minute 429 on the head (or on any later hop) therefore skips the fallback chain and poisons the observed store with a RATE_LIMIT_UNVERIFIED row. The head tests (`test_request_rate_429_while_unverified_walks_to_the_next_hop`, `test_unverified_status_is_per_hop_not_inherited_from_the_head`) encode the intended behaviour, which this diff does not implement.",
+      "failure_mode": "An ordinary rate-limit burst on the primary voice disables fallback for every opt-in request, turning a transient 429 into a hard failure and leaving spurious calibration records.",
+      "suggested_fix": "Gate the short-circuit on `getattr(_e, 'token_limited', False)` and compute the unverified flag per hop (from that hop's own bound versus the walk estimate) instead of inheriting the head's pre-flight outcome.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gemini-3.1-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T13:07:16Z",
+    "status": "reviewed",
+    "degraded": false,
+    "error": "API call failed with exit code 2",
+    "model_attempts": [
+      "gpt-5.5-pro:api_failure",
+      "gpt-5.5:api_failure",
+      "gemini-3.1-pro:api_failure",
+      "claude-headless:skipped_shared_with_companion"
+    ],
+    "final_model": "claude-headless",
+    "budget_scale": "diff",
+    "budget_cents_effective": 670,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10404,
+    "primary_voice": {
+      "status": "ceded",
+      "hop": "claude-headless",
+      "model": "gemini-3.1-pro"
+    },
+    "status_note": "primary ceded claude-headless to the companion, which answered with it; findings are the companion voice's alone",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": null,
+      "counted_as": "sole_voice",
+      "primary_succeeded_model": null,
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a8993939d4f899de83ab69e80d0d4dcbb4afb05b620e8d272e194acf3919ef3f",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 4,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "claude-headless"
+    ],
+    "voices_dropped": [
+      {
+        "voice": "codex-headless",
+        "reason": "ChainExhausted",
+        "exit_code": 1,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "openai:codex-headless",
+          "openai:gpt-5.5-pro"
+        ]
+      },
+      {
+        "voice": "codex-headless",
+        "reason": "ChainExhausted",
+        "exit_code": 1,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "openai:codex-headless",
+          "openai:gpt-5.5"
+        ]
+      },
+      {
+        "voice": "gemini-3.1-pro-preview",
+        "reason": "ChainExhausted",
+        "exit_code": 12,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "google:gemini-3.1-pro-preview"
+        ]
+      }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "low",
+    "rationale": "multi-voice aggregate (1/4 succeeded); chain_health=degraded; dropped: codex-headless(ChainExhausted/high), codex-headless(ChainExhausted/high), gemini-3.1-pro-preview(ChainExhausted/high)",
+    "single_voice_call": false,
+    "status": "FAILED"
+  }
+}

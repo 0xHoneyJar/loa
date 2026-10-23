@@ -1,0 +1,194 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "function",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "description": "The grader-version sort key mixes integers and strings within lists. A batch containing grader versions \"1.2.0\" and \"1.2.0-rc1\" produces keys [1, 2, 0] and [1, 2, \"0-rc1\"], which Python cannot compare.",
+      "failure_mode": "Sorting raises TypeError, aborting report generation before either output is written. Adding a prerelease grader version to an otherwise reportable batch therefore breaks the entire report.",
+      "suggested_fix": "Use consistently comparable version components, such as tagged tuples for numeric and textual segments, with a string fallback for unrecognized version formats.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-report.py:version_key",
+      "anchor_type": "function",
+      "anchor_line": 835,
+      "anchor_line_end": 861,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "version_key() promises that 1, 1.0 and \"1\" are one version, but only an integer-looking string is normalised (re.fullmatch(r\"\\d+\")). The string \"1.0\" (a quoted suite_version in a task yaml or manifest, or the CLI value --suite-version 1.0) is returned verbatim, so \"1.0\" and 1 partition into two versions. version_order() then ranks every non-digit key as (1, 0, k), above every integer key (0, n, \"\"), and partition() picks the primary with max(groups, key=version_order). So rows with suite_version \"1.0\" alongside rows with 2 make \"1.0\" the primary: the Decisions, H1/A4, Exclusions and Cuts sections report the older rows while version 2 is relegated to a 'reported separately' section, contradicting the documented default 'the highest present'.",
+      "failure_mode": "Mixed numeric/string suite_version values: rows that are the same version are split (and any row lacking suite_version then exits 2 as 'two versions present'); a string version becomes the primary over a higher integer version; --suite-version 1.0 fails with 'no row has that suite_version' when rows hold 1.",
+      "suggested_fix": "Normalise numeric strings in version_key: try float(s) and, if it is_integer(), return str(int(...)); otherwise keep the string. Make version_order rank non-numeric keys below numeric ones (e.g. (0, k) for strings, (1, n, '') for ints) or parse dotted versions into an int tuple, so a string key can never win the 'highest present' default. Add a fixture row with suite_version \"2.0\" next to 2 asserting one version.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The grader_versions tally is sorted with key (kv[0] == \"n/a\", [int(p) if p.isdigit() else p for p in re.split(r\"[.]\", kv[0])]). When two grade.json files in one batch carry versions whose same-position segments are one numeric and one not (\"1.2\" vs \"1.2rc1\", \"2.0\" vs \"2.x\"), the list comparison compares int with str and raises TypeError. The exception is not a Fail, so it escapes main()'s handler: traceback, no report.md and no --json written. The header explicitly says the batch record is informational and 'never fatal'.",
+      "failure_mode": "A batch mixing grader_version strings of different shapes crashes ablation-report.py with an uncaught TypeError instead of writing the report.",
+      "suggested_fix": "Use a type-stable key, e.g. tuple((0, int(p)) if p.isdigit() else (1, p) for p in re.split(r\"[.]\", kv[0])), or sort by the plain string. Wrap the whole per-batch block so any exception becomes a status_note rather than a crash.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-report.py:render_per_arm",
+      "anchor_type": "line",
+      "anchor_line": 1287,
+      "anchor_line_end": 1293,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new precision / cost-per-true-defect line is emitted only inside `if m[\"false_positives_per_task\"]:`. arm_metrics computes precision for every arm with review-catch rows, counting a null false_positives as 0, so an arm whose review rows all carry false_positives null (or whose per-task map is empty) gets precision, usd_per_true_defect and precision_rows in report.json but no line in report.md. The header documents precision as part of the per-arm detail of review-catch arms without that condition, and the markdown and JSON are meant to carry the same numbers.",
+      "failure_mode": "report.md silently omits precision and cost per true defect for a review-catch arm while report.json reports them; the two artifacts disagree.",
+      "suggested_fix": "Gate the precision line on m[\"precision_rows\"] > 0 (or on rc being non-empty) independently of the false-positives-per-task line.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1054,
+      "anchor_line_end": 1059,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "batch_record() does os.path.join(d, r[\"arm\"]) for every row of the batch, including listed rows whose arm is not a suite arm. The report does not apply the arm grammar (^[a-z][a-z0-9_]{0,63}$) that ablation-row.sh --validate enforces, so a row with arm \"../x\" or an absolute path makes the report list directories outside the batch directory (os.path.join discards d for an absolute component) and open any <task>-t<n>/grade.json it finds there. Read-only, and the only value surfaced is grader_version, but the batch record is documented as reading the batch directory only.",
+      "failure_mode": "A runs.jsonl row with a path-like arm steers the batch record's directory listing and grade.json reads outside <batch dir>.",
+      "suggested_fix": "Skip rows whose arm is not in the suite's arm ids (or does not match the arm grammar) before joining paths, and assert os.path.realpath(ad) stays under os.path.realpath(d).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-report.py:budget_matched",
+      "anchor_type": "line",
+      "anchor_line": 963,
+      "anchor_line_end": 968,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "budget_matched() takes every valid cell of a0_bare and a1_full and feeds them to max(an.catch_task_score(r) ...) and mean([an.catch_task_score(r) ...]) without filtering rows that have no catch score. compare() tolerates such rows (they appear as 'pairwise drop' entries), so a valid review-catch row with defect_catch_rate null is an accepted input elsewhere. If catch_task_score returns None for it, max() over a mixed None/float generator raises TypeError, and a single-trial None propagates into e[\"diff\"] = a1_mean - a0_union (TypeError). The rate-fallback branch is also reached when defect_vector returns None for some trials, which is exactly the missing-metric case.",
+      "failure_mode": "A valid review-catch row without a catch score in a0_bare or a1_full crashes the informational budget-matched section, and with it the whole report, instead of being listed as dropped.",
+      "suggested_fix": "Filter a0/a1 to rows where catch_task_score(r) is not None (mirroring compare()'s drop rule) and record the dropped run_ids in the task entry's reason; guard mean([]) / len(vecs[0][0]) == 0.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T17:17:24Z",
+    "tokens_input": 195576,
+    "tokens_output": 31803,
+    "cost_usd": 0,
+    "latency_ms": 112546,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 225,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3043bf32c8327aa8433ca8b2859f4d47a158a46254db9af96766011f348e231a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

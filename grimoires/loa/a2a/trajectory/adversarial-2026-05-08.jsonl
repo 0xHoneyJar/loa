@@ -1,0 +1,9 @@
+{"timestamp":"2026-05-08T00:29:45Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-142","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-08T01:05:24Z","type":"review","model":"gpt-5.5-pro","sprint_id":"issue-782-verify","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-08T06:40:23Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-1","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-08T08:07:07Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-144","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-08T08:13:07Z","type":"review","model":"claude-opus-4-7","sprint_id":"sprint-144","status":"reviewed","finding_count":6,"cost_usd":0.2660}
+{"timestamp":"2026-05-08T08:33:46Z","type":"audit","model":"claude-opus-4-7","sprint_id":"sprint-144","status":"reviewed","finding_count":0,"cost_usd":0.2733}
+{"timestamp":"2026-05-08T10:28:08Z","type":"review","model":"claude-opus-4-7","sprint_id":"sprint-145","status":"reviewed","finding_count":7,"cost_usd":0.2389}
+{"timestamp":"2026-05-08T10:42:16Z","type":"audit","model":"claude-opus-4-7","sprint_id":"sprint-145","status":"reviewed","finding_count":0,"cost_usd":0.2542}
+{"timestamp":"2026-05-08T11:50:46Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-145-test","status":"api_failure","finding_count":0,"cost_usd":null}

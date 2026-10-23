@@ -1,0 +1,174 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_same_line_exec",
+      "anchor_type": "function",
+      "anchor_line": 626,
+      "scope": "diff",
+      "description": "The execution check requires a token's basename to equal the destination basename exactly. A quoted shell program containing that path and subsequent commands fails this comparison, allowing executable heredoc content to be scrubbed.",
+      "failure_mode": "A single Bash tool payload such as `tee /tmp/loa-payload <<'EOF'; bash -c 'source /tmp/loa-payload; true'\\nif true; then rm -rf /; fi\\nEOF` bypasses the destructive-command scan. The quoted argument's basename becomes `loa-payload; true`, so execution is missed. The body scanner then discards all three segments because their command words are `if`, `then`, and `fi`, removing the destructive command before matching. The previous quoted-cat-only scrub preserved this tee body.",
+      "suggested_fix": "Conservatively preserve the full heredoc body when its destination appears inside a shell/interpreter argument, including quoted command strings. Add a regression case covering this complete Bash payload.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "function",
+      "anchor_line": 545,
+      "anchor_line_end": 552,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new sanctioned_marker path grants an allow in every mode (including deny, the only mode the header calls a fence) based solely on a plain JSON file in .run/ whose contents are not authenticated (no signature, no writer identity, only a shape check and a two-hour window). The trust-input ask added for .run/implement-active.json only covers the Write/Edit/MultiEdit/NotebookEdit hook registrations; the file can be created or refreshed through other tool paths without any gate consulting this hook. The sprint-plan-state.json RUNNING heuristic already had this weakness, but the marker widens it: it does not require any derived run position at all.",
+      "failure_mode": "Under implement_gate.mode: deny the fence's strength is bounded by whether .run/ is writable by the fenced session, which it is; a stale or hand-authored marker converts a deny into a silent allow with a decision row that reads sanctioned_marker.",
+      "suggested_fix": "Have run-checkpoint.sh mark write the marker through the signed audit_emit chain (or include an HMAC over skill|sprint|started_at keyed on a lead-only secret) and verify it in check_implement_marker; alternatively, under deny treat the marker as tightening-only (it can confirm a RUNNING cache but cannot sanction on its own), and document the Bash-path gap next to the trust-input list.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 138,
+      "anchor_line_end": 143,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/profiles.yaml:profiles",
+      "cross_file_justification": "profiles.yaml sets guardrails.danger_level.enforce: false for both lean and standard; danger-level-enforcer.sh now resolves the key through loa_knob with fallback false instead of the previous `// true` and the previous no-config default of enabled.",
+      "description": "Three behaviour changes land together in a safety guard: (1) with no .loa.config.yaml the old code returned enabled, the new code returns the standard profile value, false; (2) the unconditional `source \"$SCRIPT_DIR/lib/profile-lib.sh\"` has no error handling, so a partial install or an older checkout missing the lib aborts the script, and guardrails-orchestrator treats a non-zero exit as fail-open (\"Continue\"); (3) the old reader honoured CONFIG_FILE, the new one reads whatever path profile-lib resolves, so any caller or test that pointed CONFIG_FILE elsewhere now reads a different file.",
+      "failure_mode": "Repositories that relied on the implicit-on default (no config, or config without the key) silently lose danger-level enforcement after upgrade; a missing lib turns the enforcer into a no-op rather than a loud failure.",
+      "suggested_fix": "Guard the source (`source … || { echo … >&2; exit 2; }` so the orchestrator does not fail open), pass CONFIG_FILE through LOA_PROFILE_CONFIG_FILE when it is set, and call out the default flip in the migration notes / CHANGELOG so operators on standard know to set guardrails.danger_level.enforce: true explicitly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:_ig_within",
+      "anchor_type": "function",
+      "anchor_line": 475,
+      "anchor_line_end": 480,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_ig_within only normalises a trailing `.fffZ` and then relies on jq fromdateiso8601, which accepts the `YYYY-MM-DDTHH:MM:SSZ` form only. A derived_at or started_at written with a numeric offset (`+00:00`), without the Z, or with a space separator parses to null and is treated as not-within. Because _ig_derived_ok treats a present-but-unparseable derived_at as stale, a RUNNING cache that previously sanctioned writes now fails sanction and the write asks (or, under deny with a readable position, is denied).",
+      "failure_mode": "Any producer of derived_at/started_at that does not emit the exact Z-suffixed format (GNU `date -Is`, Python isoformat(), yq/jq `now | todate` is fine but `strftime` variants are not) silently downgrades every App-Zone write from allow to ask/deny with decision rows that look like genuine staleness.",
+      "suggested_fix": "Normalise offsets before fromdateiso8601 (e.g. `sub(\"[+-]00:?00$\"; \"Z\")`, or convert `±HH:MM` to seconds and adjust), and make the stale_marker / unknown_position rows record the raw timestamp so the cause is diagnosable; add a bats case with an offset timestamp.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": ".claude/hooks/loa-kf-surface.sh:hunk@58",
+      "anchor_type": "hunk",
+      "anchor_line": 61,
+      "anchor_line_end": 64,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new read is `source profile-lib.sh 2>/dev/null && enabled=\"$(loa_knob …)\"` with no reset of `enabled` beforehand. If the source fails (lib missing, syntax error, older install), `enabled` keeps whatever value it had before this branch rather than the documented default of false. The sibling change in loa-l6-surface-handoffs.sh explicitly sets `enabled=\"false\"` first; this hook and loa-decisions-surface.sh do not.",
+      "failure_mode": "When profile-lib.sh is absent or unreadable, `enabled` is unset (or inherits an earlier assignment); under `set -u` the following `[[ \"$enabled\" == \"true\" ]]` aborts the hook, and without `set -u` the behaviour depends on earlier code rather than the stated default.",
+      "suggested_fix": "Mirror loa-l6-surface-handoffs.sh: assign `enabled=\"false\"` immediately before the `source … &&` line in both loa-kf-surface.sh and loa-decisions-surface.sh.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T18:57:33Z",
+    "tokens_input": 208569,
+    "tokens_output": 28008,
+    "cost_usd": 0,
+    "latency_ms": 155694,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,17 @@
+head/.claude/scripts/lib/dec-write-lib.sh:634
+head/.claude/scripts/lib/dec-write-lib.sh:250
+head/.claude/scripts/lib/dec-write-lib.sh:606
+head/.claude/scripts/lib/dec-write-lib.sh:600-602
+head/.claude/scripts/lib/dec-write-lib.sh:496
+head/.claude/scripts/lib/dec-write-lib.sh:435
+head/.claude/scripts/lib/dec-write-lib.sh:628
+head/.claude/scripts/lib/dec-write-lib.sh:629
+head/.claude/scripts/lib/dec-write-lib.sh:655
+head/.claude/scripts/lib/dec-write-lib.sh:694
+decisions.md:68
+head/.claude/scripts/validate-artifact.sh:787
+head/.claude/scripts/validate-artifact.sh:852
+head/.loa.config.yaml.example:140
+head/.loa.config.yaml.example:127
+head/tests/unit/user-invoked-harness.bats:135
+head/tests/unit/user-invoked-commands.bats:65

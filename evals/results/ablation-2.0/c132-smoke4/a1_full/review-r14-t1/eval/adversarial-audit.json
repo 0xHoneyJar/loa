@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "anchor_type": "hunk",
+      "anchor_line": 114,
+      "anchor_line_end": 118,
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "cross_file_justification": null,
+      "description": "The rewritten mode selector sets compliance_mode=authoritative whenever .loa.config.yaml carries implement_gate.mode: authoritative. In authoritative mode the gate decides App-Zone Write/Edit fail-ask based on tool_input.active_skill, which the hook's own header comment states is model-authored (the PreToolUse payload carries no harness-set skill field). .loa.config.yaml lives at the project root, outside the App Zone this gate fences, so the agent being fenced can Edit the config to enable authoritative mode and then self-attest active_skill: implement on subsequent writes. The prior design at least tied the mode to a detection artifact; the new design is a single operator flag with no integrity check on the attestation source.",
+      "failure_mode": "An agent (or prompt-injected session) edits .loa.config.yaml to set implement_gate.mode: authoritative, then emits Write/Edit calls with tool_input.active_skill set to implement or bug; the fail-ask fence on App-Zone writes is silently bypassed without any /implement or /bug skill actually running.",
+      "suggested_fix": "Do not honour tool_input.active_skill as an authorization signal at all until the harness exposes a harness-set field; if the opt-in must remain, require corroboration from .run/ RUNNING state (heuristic AND attestation), log every authoritative-mode allow to audit.jsonl with the attested skill, and treat .loa.config.yaml implement_gate edits as App-Zone writes for the purpose of this gate.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 237,
+      "anchor_line_end": 237,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "cross_file_justification": null,
+      "description": "rule_key() emits \"*<body>\" for wildcard rules and \"=<body>\" for exact rules. The requirement loop derives the base wildcard with base=\"*${key#\\*}\" then strips at the first space. For an exact requirement the key begins with \"=\", so the leading-star strip is a no-op and base becomes \"*=<cmd>\", a key no settings rule can ever normalise to. Consequently exact requirements never receive base-wildcard coverage from allow rules, and a wildcard deny such as Bash(rm:*) is not recognised as denying an exact requirement Bash(rm -rf /); the checker reports it as missing instead of denied, contradicting the grammar documented in the header.",
+      "failure_mode": "Preflight output misclassifies exact-form requirements: a deny that should surface as a denied_lines entry is reported as a missing permission, so operators lose the signal that a layer explicitly forbids the command. Fails toward 'missing' rather than 'allowed', so no silent grant.",
+      "suggested_fix": "Compute the base from the body regardless of key type: body=\"${key#[*=]}\"; base=\"*${body%% *}\". Add a bats case with an exact requirement and a wildcard deny asserting the denied path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/data/model-permissions.yaml:anthropic:claude-headless",
+      "anchor_type": "hunk",
+      "anchor_line": 447,
+      "anchor_line_end": 471,
+      "scope": "diff",
+      "trigger_anchor": ".claude/data/model-permissions.yaml:anthropic:claude-headless",
+      "cross_file_justification": null,
+      "description": "The new anthropic:claude-headless registry row hardcodes capabilities file_read/file_write/command_execution/network_access: false and execution_mode: remote_model. Unlike the HTTP rows, this hop is a local `claude -p` subprocess, and the row's own notes concede that an operator-set extra.allowed_tools in the catalog re-enables the CLI tool loop. The registry therefore asserts a no-side-effect posture that is not enforced by, or derived from, the catalog entry that actually controls the process's capabilities.",
+      "failure_mode": "Any consumer of model-permissions.yaml (trust-scope checks, governance reporting, the new parity test) treats the headless hop as a pure remote oracle even after an operator widens allowed_tools, so a CLI hop with file-write or shell access runs under a registry row that says it has none.",
+      "suggested_fix": "Either have the headless adapter refuse to run when extra.allowed_tools is non-empty unless a matching registry row (e.g. anthropic:claude-headless-tools) exists, or add a validation step that fails when the catalog's claude-headless extra.allowed_tools is set while this row still declares all capabilities false.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T15:56:31Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8592,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

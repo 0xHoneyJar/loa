@@ -1,0 +1,14 @@
+head/.gitignore:150
+dec-write-lib.sh:271
+grimoire-index.bats:80
+validate-artifact.bats:630
+head/.claude/scripts/lib/dec-write-lib.sh:513
+head/.claude/scripts/lib/dec-write-lib.sh:580
+head/.claude/scripts/lib/dec-write-lib.sh:606
+decisions.md:107
+head/.claude/scripts/lib/dec-write-lib.sh:359
+decisions.md:3
+decisions.md:27
+head/.claude/scripts/lib/dec-write-lib.sh:250
+head/.claude/scripts/validate-artifact.sh:852
+head/.claude/skills/run-mode/resources/render-templates.md:104

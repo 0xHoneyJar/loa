@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "line",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The System Zone integrity check now treats any manifest-listed path that is absent from .claude/ as informational ('not-mounted') whenever `.loa/.claude` is a directory and a file with the same relative path exists under `.loa/`. The check cannot distinguish a path the mount intentionally did not link from one that was deliberately unlinked. Because every Loa-managed file is present under `.loa/` by construction, removing (or replacing the symlink of) any enforcement script such as a hook, gate, or verdict-derive helper in a submodule mount is no longer reported as Missing or Tampered and never changes the exit code. The `-d .loa/.claude` probe is also satisfiable by a symlink or a freshly created directory, so a non-submodule checkout can be flipped into the lenient mode by creating `.loa/.claude/` and dropping copies under `.loa/<path>`.",
+      "failure_mode": "An agent or process that unlinks `.claude/hooks/implement-gate.sh` (or any other enforcing script) in a mounted workspace causes check-loa.sh to print a single 'not-mounted: N path(s)' line and report 'Integrity verified' with exit 0, silently disabling the gate the check exists to protect.",
+      "suggested_fix": "Compare absent paths against the mount's declared link set (the scope used by sandbox-mount.sh / check-loa-mount-scope) rather than against 'exists anywhere under .loa/'. Fail on absent paths that the mount scope says should be linked. Detect a submodule mount via the .gitmodules entry or a marker file rather than `-d .loa/.claude`, and reject a symlinked `.loa/.claude`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "line",
+      "anchor_line": 189,
+      "anchor_line_end": 197,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The preflight file-count check previously counted every file on disk under .claude/ (minus overrides and the manifest), so an untracked file dropped into .claude/ produced a count mismatch warning. It now counts `git ls-files -- .claude`, which only sees tracked paths. Untracked additions to the System Zone (a new hook script, a new skill, a planted helper sourced by an existing script) no longer perturb the count and are invisible to this check. Combined with SEC-001, neither integrity pass now detects additions to .claude/, and check-loa.sh only hashes manifest-listed files.",
+      "failure_mode": "A file written to `.claude/scripts/lib/evil.sh` or `.claude/hooks/new-hook.sh` in the working tree passes preflight without the previous 'file count mismatch' warning, and no other check in the diff covers additions.",
+      "suggested_fix": "Keep the on-disk count (or better, a full on-disk listing) and compare it to the manifest keys, reporting both missing and extra paths. If the tracked count is needed for the submodule case, run both and warn when the on-disk set contains paths not in the manifest.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "line",
+      "anchor_line": 183,
+      "anchor_line_end": 190,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When `.claude/checksums.json` is a symlink, preflight resolves it with readlink, cd's to its parent's parent, and runs `git -C <that dir> rev-parse` and `git ls-files` there. The symlink target is not validated to lie inside PROJECT_ROOT or `.loa/`. Git honours repository-local config such as `core.fsmonitor` and hook paths in the target tree; the safe.directory ownership guard only applies when the tree is owned by a different user. A workspace in which the symlink has been repointed at a crafted repository causes preflight to execute that repository's configured commands under the operator's account.",
+      "failure_mode": "Replace `.claude/checksums.json` with a symlink to `/tmp/x/.claude/checksums.json` where `/tmp/x/.git/config` sets `core.fsmonitor = <cmd>`; the next preflight run executes `<cmd>`.",
+      "suggested_fix": "Resolve the symlink with `readlink -f`, require the resolved path to be under `${PROJECT_ROOT}/.loa/` (or PROJECT_ROOT), and otherwise fall back to the legacy on-disk count. Consider passing `-c core.fsmonitor= -c core.hooksPath=/dev/null` to the git invocations.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-row.sh:envelope",
+      "anchor_type": "function",
+      "anchor_line": 199,
+      "anchor_line_end": 205,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The row builder deliberately refuses to take the arm from sandbox/ (DEC-0413) but still reads the dissent envelopes from `sandbox/grimoires/loa/a2a/sprint-1/adversarial-{review,audit}.json`, a path the agent under evaluation can write. `voices_run`, the DEGRADED flag, and the voice-count mismatch in `degraded_reason` are all derived from these files. An evaluated agent (or a contaminated run) can plant well-formed envelopes claiming full voice completion and a clean verdict_quality, masking a degraded run, or omit them to yield `voices_run: null`. The eval-owned copy under `eval/` is only consulted when the sandbox file is absent, so the untrusted source wins.",
+      "failure_mode": "The implement phase writes `sandbox/grimoires/loa/a2a/sprint-1/adversarial-review.json` with `verdict_quality.status = OK` and `voices_succeeded = voices_planned`; the resulting runs.jsonl row reports degraded=false regardless of what the review gate actually did.",
+      "suggested_fix": "Prefer the harness-owned `eval/adversarial-*.json` copy and only fall back to sandbox/ when it is absent, or have pipeline-run.sh copy the envelope out of the sandbox at gate completion and record its sha256 in meta/pipeline.json so ablation-row.sh can verify it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "rate-limiting",
+      "anchor": ".claude/defaults/model-config.yaml:providers.openai.models.gpt-6.1-sol.pricing",
+      "anchor_type": "line",
+      "anchor_line": 143,
+      "anchor_line_end": 149,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new gpt-6.1-sol entry carries placeholder pricing copied from gpt-5.5 and is now the target of the codex-headless hop, so every codex CLI estimate and MODELINV cost row in the fleet prices through it. Spend accounting and any budget caps derived from the cost ledger (spend.sh, batch cost fields in runs.jsonl) will be computed from an unconfirmed rate card. If the real gpt-6.1 rate is higher, caps under-fire and estimated spend is understated; the comment acknowledges the placeholder but nothing marks the resulting ledger rows as provisional.",
+      "failure_mode": "A batch budgeted against estimated cost_usd runs past its intended ceiling because gpt-6.1-sol tokens are priced at the gpt-5.5 placeholder rate.",
+      "suggested_fix": "Add a `pricing_provisional: true` (or similar) flag to the entry and surface it on ledger rows via `cost_estimated`/`pricing_source`, or set the placeholder to a conservative upper bound until the rate card is confirmed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T03:31:24Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 761,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11174,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f804aa14b6270cb8a95c7185a475c7b82355b82e9e82142bc978d7ead802f7c5",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

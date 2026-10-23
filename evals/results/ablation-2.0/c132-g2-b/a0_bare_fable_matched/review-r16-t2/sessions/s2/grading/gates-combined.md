@@ -1,0 +1,11 @@
+head/.gitignore:150
+dec-write-lib.sh:271
+dec-write-lib.bats:28
+validate-artifact.bats:642
+grimoire-index.bats:80
+head/.claude/scripts/lib/dec-write-lib.sh:313
+head/.claude/scripts/lib/dec-write-lib.sh:581
+head/.claude/scripts/lib/dec-write-lib.sh:449
+head/.claude/scripts/lib/dec-write-lib.sh:694
+head/.loa.config.yaml.example:140
+head/.claude/scripts/grimoire-index.sh:217

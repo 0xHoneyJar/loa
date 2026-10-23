@@ -1,0 +1,11 @@
+{"timestamp":"2026-05-17T05:39:22Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-166","status":"reviewed","finding_count":1,"cost_usd":0}
+{"timestamp":"2026-05-17T05:44:09Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-166-iter2","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-17T05:46:07Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-bug-166","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-17T07:31:12Z","type":"review","model":"gemini-3.1-pro","sprint_id":"sprint-166","status":"malformed_response","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-17T08:26:16Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-kf011-repro","status":"reviewed","finding_count":1,"cost_usd":0}
+{"timestamp":"2026-05-17T08:35:44Z","type":"review","model":"gemini-3.1-pro","sprint_id":"sprint-kf011-repro-large","status":"malformed_response","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-05-17T08:39:33Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-kf011-repro-large-fix","status":"reviewed","finding_count":2,"cost_usd":0}
+{"timestamp":"2026-05-17T10:14:29Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-168","status":"reviewed","finding_count":1,"cost_usd":0}
+{"timestamp":"2026-05-17T10:20:21Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-168","status":"reviewed","finding_count":1,"cost_usd":0}
+{"timestamp":"2026-05-17T10:48:13Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-169","status":"reviewed","finding_count":1,"cost_usd":0}
+{"timestamp":"2026-05-17T10:52:40Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-169","status":"reviewed","finding_count":1,"cost_usd":0}

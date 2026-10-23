@@ -1,0 +1,5 @@
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"RateLimited","sprint_id":"sprint-248","ts":"2026-09-26T03:00:51Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-248","ts":"2026-09-26T03:01:09Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-248","ts":"2026-09-26T03:01:27Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-248","ts":"2026-09-26T03:01:44Z","model_exit_code":1,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-248","ts":"2026-09-26T03:02:01Z","model_exit_code":1,"degraded_legs":["claude-headless"]}

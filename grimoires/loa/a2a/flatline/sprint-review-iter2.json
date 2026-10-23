@@ -1,0 +1,146 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 3,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 90,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real operational gap: Sprint 1 can ship independently, so rollback criteria must exist for the Sprint-1-only failure window. The current degrade policy is not equivalent to rollback guidance. Actionable and low cost to document.",
+      "gpt_score": 860,
+      "opus_score": 840,
+      "tertiary_score": 950,
+      "delta": 20,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong improvement. Partial-metric failure handling is where release gates usually become subjective. A named decision tree with waiver rules and thresholds would materially improve consistency and SLA execution.",
+      "gpt_score": 820,
+      "opus_score": 720,
+      "tertiary_score": 920,
+      "delta": 100,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Valuable reliability hardening. Corrupted persisted state is a realistic failure mode, and behavior should be deterministic. Not as critical as routing/concurrency, but still important and implementable with clear fallback semantics.",
+      "gpt_score": 740,
+      "opus_score": 780,
+      "tertiary_score": 880,
+      "delta": 40,
+      "average_score": 760,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-003",
+      "description": "Critical technical precision issue. `threading.Lock` alone is insufficient if async execution is possible; mixed sync/async atomicity must be explicitly defined. High impact, domain-accurate, and directly actionable in design + tests.",
+      "gpt_score": 910,
+      "opus_score": 520,
+      "tertiary_score": 900,
+      "delta": 390,
+      "average_score": 715,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Atomic migration assumption is brittle outside ideal submodule update flows",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "The plan assumes code+config always move together, but downstream teams may cherry-pick, vendor files, or stage partial rollouts. If strict `endpoint_family` validation lands before full config migration in those environments, startup/config validation failures can block production usage.",
+      "location": "Migration ordering invariant (load-bearing), Sprint 1 Tasks 1.2-1.3",
+      "recommendation": "Add a transitional compatibility mode with explicit deprecation window, plus a preflight migration command that rewrites missing `endpoint_family` fields before strict mode is enforced.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Cost-cap enforcement is explicitly per-process, creating uncontrolled aggregate spend in parallel workloads",
+      "severity": "CRITICAL",
+      "severity_score": 940,
+      "why_matters": "The plan acknowledges soft semantics across processes, but enterprise CI and multi-runner environments are exactly where budget overruns happen. Per-process caps can still produce severe total overspend and erode trust in guardrails.",
+      "location": "Sprint 2 Security Considerations: Cost-cap atomicity semantics; Task 2.7",
+      "recommendation": "Implement optional shared, transactional budget backend (file lock + shared ledger minimum; redis/sql preferred) and make distributed mode mandatory when concurrency >1 is detected.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Frozen pricing snapshots can make pre-call estimates materially wrong, breaking both cap accuracy and billing expectations",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "If provider prices change after freeze, pre-call guardrails may under-block (overspend risk) or over-block (availability risk). This also invalidates cost comparisons and can trigger operational incidents.",
+      "location": "Sprint 2 Task 2.3, Task 2.4, Security Considerations (pricing frozen into YAML)",
+      "recommendation": "Add price versioning with validity timestamps and runtime stale-price warnings; support optional periodic price refresh with signed snapshot updates.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Removing `probe_required: true` for gpt-5.5 in Sprint 2 weakens fail-fast guarantees at the exact moment defaults flip",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "You are increasing traffic to new defaults while simultaneously reducing health-gating strictness. Provider-side regressions could degrade behavior or create intermittent failures before detection, especially during rollout.",
+      "location": "Sprint 2 Deliverables and Task 2.1",
+      "recommendation": "Keep `probe_required` enabled through soak, then remove only after stability evidence. Alternatively gate alias flip behind probe health threshold over a rolling window.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Strict unknown-shape failure on `/v1/responses` is an availability risk under provider drift",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "The plan intentionally fails loudly for a 7th shape, which is safe for correctness but can cause immediate outages when OpenAI evolves response schema. Opt-in degrade mode may be unknown to operators until failure occurs.",
+      "location": "Sprint 1 Task 1.6, Risks table (`7th /v1/responses shape arrives`)",
+      "recommendation": "Introduce guarded degrade-by-default in production with telemetry, and strict mode in CI/test. At minimum, add automatic fallback path plus alerting before hard-fail.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "Timeline is likely underestimated for scope and cross-cutting complexity",
+      "severity": "CRITICAL",
+      "severity_score": 885,
+      "why_matters": "26 tasks across adapters, loader, metering, CLI, generated maps, docs, multiple new integration tests, and external provider probes in ~5 calendar days is aggressive. Schedule slip threatens soak quality and increases defect leakage.",
+      "location": "Executive Summary (Estimated Completion 2026-05-05), Sprint sizing and durations",
+      "recommendation": "Reduce scope for Cycle-095 (defer non-critical surfaces like full dry-run lineage), or add buffer and explicit hardening sprint before Sprint 3 activation.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sprint",
+  "document": "grimoires/loa/sprint.md",
+  "domain": " executive summary sprint sizing",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T09:58:43Z",
+  "metrics": {
+    "total_latency_ms": 221000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

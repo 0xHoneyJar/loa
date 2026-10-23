@@ -1,0 +1,17 @@
+head/evals/graders/recall-vs-defects.sh:74
+x.sh:120
+x.sh:3
+x.sh:40
+head/evals/graders/recall-vs-defects.sh:75
+head/evals/fixtures/review-prs/manifests/pr-05.json:13
+head/evals/fixtures/review-prs/manifests/pr-02.json:33
+head/.claude/scripts/flatline-proposal-review.sh:75
+head/.claude/scripts/flatline-proposal-review.sh:182
+head/.claude/scripts/flatline-validate-learning.sh:80
+head/.claude/scripts/flatline-validate-learning.sh:264
+head/.claude/scripts/flatline-learning-extractor.sh:317
+head/.claude/hooks/compliance/implement-gate.sh:128
+head/tests/fixtures/pretooluse-payloads/expected.tsv:11
+head/.claude/scripts/check-permissions.sh:163
+head/docs/migration/v2.0-model-generation-floor.md:258
+head/.claude/defaults/model-config.yaml:493

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "c132-g2-a1",
+  "smoke": false,
+  "state": "partial",
+  "per_arm": {
+    "a1_full": {
+      "trials_planned": 8,
+      "launched": 8,
+      "completed": 7,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 176.3687895,
+    "ledger_usd": 0,
+    "spent_usd": 176.3687895,
+    "max_usd": 2699.4858,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 8,
+  "resume_cursor": 8,
+  "drift": null,
+  "drift_cleared": [],
+  "rerowed": [],
+  "rerun": [],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": "chatgpt",
+    "checked": true,
+    "codex_arms": [
+      "a1_full"
+    ],
+    "horizon_source": "plan",
+    "required_until": "2026-10-22T22:35:47Z",
+    "token_exp": "2026-10-28T04:44:32Z",
+    "trials_counted": 8
+  },
+  "extra_models": {},
+  "extra_models_by_run": {},
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "fbd36a0c9880b244af08133013f3b6959b085c94",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl",
+  "started": "2026-10-22T06:35:46Z",
+  "finished": "2026-10-22T08:41:22Z"
+}

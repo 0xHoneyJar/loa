@@ -1,0 +1,68 @@
+{
+  "type": "flatline_learning_extractor",
+  "event": "flatline_learning_extracted",
+  "timestamp": "2026-02-03T09:29:55Z",
+  "data": {
+    "trigger": "When handling API errors",
+    "solution": " add retry logic with exponential backoff",
+    "transform_method": "pattern_when",
+    "id": "learn-flatline-1770110995-1672",
+    "source": "flatline",
+    "source_id": "IMP-001",
+    "consensus_score": 820,
+    "category": "resilience",
+    "extracted_at": "2026-02-03T09:29:55Z"
+  }
+}
+{
+  "type": "flatline_learning_extractor",
+  "event": "extraction_complete",
+  "timestamp": "2026-02-03T09:29:55Z",
+  "data": {
+    "extracted": 0,
+    "skipped": 0,
+    "failed": 0
+  }
+}
+{
+  "type": "flatline_learning_extractor",
+  "event": "flatline_learning_extracted",
+  "timestamp": "2026-02-03T09:30:44Z",
+  "data": {
+    "trigger": "When handling API errors",
+    "solution": " add retry logic with exponential backoff",
+    "transform_method": "pattern_when",
+    "id": "learn-flatline-1770111044-4420",
+    "source": "flatline",
+    "source_id": "IMP-001",
+    "consensus_score": 820,
+    "category": "resilience",
+    "extracted_at": "2026-02-03T09:30:44Z"
+  }
+}
+{
+  "type": "flatline_learning_extractor",
+  "event": "flatline_learning_extracted",
+  "timestamp": "2026-02-03T09:30:44Z",
+  "data": {
+    "trigger": "When user data",
+    "solution": "Add input validation",
+    "transform_method": "pattern_add_for",
+    "id": "learn-flatline-1770111044-30373",
+    "source": "flatline",
+    "source_id": "IMP-002",
+    "consensus_score": 900,
+    "category": "security",
+    "extracted_at": "2026-02-03T09:30:44Z"
+  }
+}
+{
+  "type": "flatline_learning_extractor",
+  "event": "extraction_complete",
+  "timestamp": "2026-02-03T09:30:44Z",
+  "data": {
+    "extracted": 2,
+    "skipped": 0,
+    "failed": 0
+  }
+}

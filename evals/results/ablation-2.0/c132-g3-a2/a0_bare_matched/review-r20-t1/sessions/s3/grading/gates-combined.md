@@ -1,0 +1,16 @@
+head/.claude/scripts/run-checkpoint.sh:378
+head/.claude/scripts/run-checkpoint.sh:327
+SKILL.md:121
+hooks-reference.md:109
+head/.claude/scripts/lib/profile-lib.sh:78
+head/.loa.config.yaml.example:33
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:132
+state-schemas.md:107
+SKILL.md:211
+SKILL.md:220
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193
+head/.claude/hooks/compliance/implement-gate.sh:550
+head/.claude/hooks/compliance/implement-gate.sh:510
+head/.claude/scripts/lib/profile-lib.sh:61
+head/.claude/scripts/lib/profile-lib.sh:227
+head/.claude/scripts/test-lint-invariants.sh:320

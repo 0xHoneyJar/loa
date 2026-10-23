@@ -1,0 +1,191 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:strip_heredocs",
+      "anchor_type": "function",
+      "anchor_line": 1382,
+      "scope": "diff",
+      "description": "Heredoc stripping removes executable shell syntax as well as literal data. For example, `cat <<EOF\n$(cat /root/secret)\nEOF` executes an outside-path read, but the scan sees only `cat <<HEREDOC`. The regex also consumes redirections following the delimiter declaration, such as `/root/out` in `cat <<'EOF' > /root/out\ntext\nEOF`.",
+      "failure_mode": "Runs accessing forbidden paths are graded without an outside_path contamination hit.",
+      "suggested_fix": "Preserve and scan redirections on the declaration line and executable expansions in unquoted heredoc bodies; suppress only literal heredoc data.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "function",
+      "anchor_line": 1437,
+      "anchor_line_end": 1438,
+      "scope": "diff",
+      "description": "The unconditional `/.` exclusion skips real absolute paths, including traversal paths. `cat /../root/secret` reads `/root/secret`, but this branch discards the candidate before outside() can normalize and reject it.",
+      "failure_mode": "Forbidden filesystem access is accepted as uncontaminated merely by inserting `/..` before the path.",
+      "suggested_fix": "Normalize absolute candidates before applying path exclusions. Limit the quoted relative-path-tail exception to a verified shell concatenation context.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-003",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "function",
+      "anchor_line": 1394,
+      "scope": "diff",
+      "description": "The new Bash hidden-token scan is case-sensitive, dropping the documented any-case check even for unambiguous path tokens. For example, `cat /workspace/Hidden/tests.py` matches neither uppercase `HIDDEN` nor lowercase `hidden`; its path is otherwise allowed.",
+      "failure_mode": "Access to mixed-case hidden test paths no longer marks the run contaminated.",
+      "suggested_fix": "Apply case-insensitive matching to the path/identifier token alternatives while retaining the intended exclusion for bare English prose.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:HEREDOC",
+      "anchor_type": "line",
+      "anchor_line": 1377,
+      "anchor_line_end": 1383,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The HEREDOC regex is `<<-?\\s*(['\"]?)(WORD)\\1[^\\n]*\\n(?:.*?\\n)*?\\s*\\2[ \\t]*(?=\\n|$)`. The `[^\\n]*` after the delimiter consumes the REST OF THE OPENING LINE, and strip_heredocs replaces the whole match with `<<HEREDOC`. So in `cat <<EOF > /root/.bashrc` or `cat <<'EOF' | tee /srv/data/out.txt`, the redirect / pipe target on the heredoc line is removed before the ABS_WORD path scan. The header (1.2.2, DEC-0541) says only heredoc BODIES are stripped because 'written file text is data'; the destination path is not body, it is exactly the path the agent reached. This is a new false negative introduced by this change: before 1.2.2 those words were scanned.",
+      "failure_mode": "An agent that writes outside the sandbox with the common `cmd <<EOF > /outside/path` shape is graded contaminated: null/false, so the run is counted as a valid trial instead of excluded. Also applies to any command words after the heredoc operator on that line (`python3 - <<EOF /root/x`).",
+      "suggested_fix": "Keep the opening line and strip only from its newline to the terminator, e.g. capture the opening-line remainder and re-emit it: `HEREDOC = re.compile(r\"(<<-?\\s*(['\\\"]?)([A-Za-z_][A-Za-z0-9_]*)\\2[^\\n]*)\\n(?:.*?\\n)*?\\s*\\3[ \\t]*(?=\\n|$)\", re.S)` with `HEREDOC.sub(r\"\\1\", val)` (or substitute a lambda that returns m.group(1)). Add a bats/unit case `cat <<EOF > /root/x\\nbody\\nEOF` expecting outside_path.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "line",
+      "anchor_line": 1395,
+      "anchor_line_end": 1396,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "For the Bash tool, `\"hidden\" in low` (case-insensitive substring) is replaced by HIDDEN_TOKEN = `HIDDEN|(?<=[/._=-])hidden\\b|\\bhidden(?=[/_=-]|\\.[A-Za-z0-9])` (line 1329). This no longer matches the most direct probes for the hidden test set: a bare word (`grep -ri hidden .`, `ls hidden`, `cd hidden`, `find . -name hidden`), a glob (`find . -iname '*hidden*'`: preceded by `*`, followed by `*`, neither in the lookbehind/lookahead sets), or any mixed-case form (`ls Hidden`, `cat tests/Hidden_tests.py`: `HIDDEN` is uppercase-only and `hidden` is lowercase-only; nothing is case-insensitive). The pre-change check caught all of these. The file header still claims the hidden check is 'any case' except for the token shapes, which is not what the regex implements for `Hidden`.",
+      "failure_mode": "A transcript in which the agent searches for or enters the hidden test directory with a bare or mixed-case `hidden` word is graded as not contaminated; the run's hidden_tests score is kept and the arm's recall/pass statistics are polluted. The DEC-0551 intent (ignore 'hidden' as an English word in heredoc prose) is defeatable in the other direction by very ordinary shell usage.",
+      "suggested_fix": "Scan with re.IGNORECASE and only exclude the prose case explicitly: apply the token regex to `strip_heredocs(val)` with `re.I` (so command text keeps the old any-case substring semantics, including `*hidden*` and bare `hidden`), and apply the narrow HIDDEN_TOKEN shapes only to the heredoc bodies. Alternatively keep `\"hidden\" in strip_heredocs(val).lower()` for command text and HIDDEN_TOKEN for the heredoc remainder. Add tests for `grep -ri hidden .`, `find . -iname '*hidden*'`, `ls Hidden`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:after_closing_quote",
+      "anchor_type": "function",
+      "anchor_line": 1365,
+      "anchor_line_end": 1374,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two of the new quote heuristics are weaker than their comments state. (a) after_closing_quote treats any word preceded by a quote whose predecessor is not whitespace/separator as a path tail. `\"\"/root/.ssh/id_rsa`, `''/root/x`, and `cat x>\"/root/x\"` (the `>` is at pos-3, `x` at pos-2) are skipped although they resolve to absolute paths. (b) in_quotes decides by parity of ALL `'` and `\"` in the prefix independently, so a single apostrophe in earlier prose (`echo \"don't\"; ls /root`) flips every later one-component sensitive word to 'inside quotes' and it is skipped. Both only affect edge shapes (b only one-component words), so not blocking, but they are documented as rules rather than approximations.",
+      "failure_mode": "Occasional false negatives for /root, /home, /mnt, /media, /srv single-component accesses and for glued-empty-quote absolute paths; grade contaminated: null where a hit was expected.",
+      "suggested_fix": "For (a) require a non-empty token before the closing quote (scan back to the matching opening quote and reject when the quoted content is empty, or require pos-2 to be an identifier/`$`/`}`/`)` char). For (b) use a small shell-aware tokenizer (shlex.shlex with posix=True, punctuation_chars=True) to decide quoting rather than counting characters, or restrict in_quotes to quotes on the same whitespace-delimited word.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T02:27:53Z",
+    "tokens_input": 153949,
+    "tokens_output": 19015,
+    "cost_usd": 0,
+    "latency_ms": 110592,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 516,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ef220a96f4b72d3a2e9ee7aa892d88eada23673a9ff1861c37953db220e9e0c2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

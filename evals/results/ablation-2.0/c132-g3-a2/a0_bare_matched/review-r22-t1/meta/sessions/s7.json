@@ -1,0 +1,18 @@
+{
+  "id": "s7",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    8.857746
+  ],
+  "cost_usd": 8.857746,
+  "run_dir": "sessions/s7",
+  "took_effect": "ok",
+  "started": "2026-10-22T22:55:03Z",
+  "finished": "2026-10-22T23:11:42Z"
+}

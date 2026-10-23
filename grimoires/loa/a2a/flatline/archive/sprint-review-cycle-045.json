@@ -1,0 +1,28 @@
+{
+  "phase": "sprint",
+  "document": "grimoires/loa/sprint.md",
+  "cycle": "cycle-045",
+  "timestamp": "2026-02-28T08:45:00Z",
+  "models": ["claude-opus-4-6"],
+  "findings": [
+    {
+      "id": "HC-1",
+      "category": "HIGH_CONSENSUS",
+      "score": 720,
+      "title": "T2.1 missing --token-budget passthrough",
+      "action": "auto_integrated"
+    },
+    {
+      "id": "HC-2",
+      "category": "HIGH_CONSENSUS",
+      "score": 700,
+      "title": "T1.4 needs explicit jq guidance",
+      "action": "auto_integrated"
+    }
+  ],
+  "summary": {
+    "high_consensus_integrated": 2,
+    "disputed_decided": 0,
+    "low_value_skipped": 0
+  }
+}

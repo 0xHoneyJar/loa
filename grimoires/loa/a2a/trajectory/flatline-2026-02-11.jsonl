@@ -1,0 +1,1178 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-10T22:40:09Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the PRD acknowledges abuse of /bug but leaves triage classification as a vague statement. Adding concrete, enforceable criteria (deviation from existing behavior, repro/expected vs actual, version/commit, escalation path) is actionable and low-to-moderate effort with high ROI because it prevents systematic workflow bypass and reduces triage churn.",
+        "gpt_score": 820,
+        "opus_score": 820,
+        "delta": 0,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Important integration ambiguity: adding work into an active sprint without defining preemption/queuing, branch strategy, and what happens during review/audit will cause inconsistent implementations and operational friction. Some of this may be process-dependent, but the PRD should at least define default behavior and override knobs.",
+        "gpt_score": 760,
+        "opus_score": 780,
+        "delta": 20,
+        "average_score": 770,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Critical boundary definition: triage→implement handoff without a schema/contract is a common failure mode in modular systems. Defining required fields (repro, expected/actual, suspected files, test target, commands, constraints) is highly actionable and prevents incompatible assumptions between components.",
+        "gpt_score": 880,
+        "opus_score": 830,
+        "delta": 50,
+        "average_score": 855,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-005",
+        "description": "High-severity inconsistency: 'fix-only mode' directly contradicts stated goals/metrics (test-first, 100% regression). If this exception exists, it must be formalized with entry criteria, modified gates, tracking/metrics impact, and explicit user acknowledgment. Otherwise teams will implement it inconsistently and undermine the core promise.",
+        "gpt_score": 900,
+        "opus_score": 580,
+        "delta": 320,
+        "average_score": 740,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Bug vs feature classification is underspecified and easy to game, creating a planning bypass loophole",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If users can route feature work through /bug, the PRD/SDD gates effectively collapse. Even well-intentioned users will label small features as 'bugs' to save time, undermining governance and making future audits inconsistent.",
+        "location": "Section 6: FR6 Process Compliance Amendment; Section 7: R1 mitigation",
+        "recommendation": "Define a strict bug eligibility policy (e.g., must reference an observed failure, failing test, stack trace, or regression from a known baseline). Add explicit rejection criteria and an escalation path: if triage cannot produce a reproducible failing test within N minutes/steps, require /plan. Log the classification decision in triage.md.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Test-first enforcement conflicts with real-world bug types (UI, distributed systems, flaky/integration-only, production-only) and the 'degraded fix-only mode' undermines success metrics",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "The PRD targets 100% test-first and 100% regression tests, but also allows skipping tests when infrastructure is missing. Many bugs cannot be reliably reproduced in unit tests quickly, so the workflow will either stall or silently degrade, failing the core promise and metrics.",
+        "location": "Section 2: Goals G5 and Metrics M3; Section 7: R3 mitigation; FR2",
+        "recommendation": "Specify acceptable test types (unit/integration/e2e/contract) and a hierarchy of evidence. Define a mandatory minimum: at least one automated check (even if not a new test) plus a documented reproduction script. Update metrics to reflect reality (e.g., % with automated reproduction or guard test).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Micro-sprint semantics are ambiguous and may break sprint lifecycle invariants (completion markers, review/audit scope, and 'active sprint' detection)",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "The system currently assumes a sprint plan artifact and a known lifecycle. Introducing micro-sprints with minimal sprint.md and different completion rules can cause state confusion (especially after context compaction), double-counting, or blocking/incorrectly unblocking other sprints.",
+        "location": "FR1.4 Sprint Integration; TNF3 Sprint Ledger Integration; TNF5 Golden Path Awareness; US2 acceptance criteria",
+        "recommendation": "Define micro-sprint lifecycle precisely: naming, start/end conditions, how COMPLETED is determined, and how it interacts with an existing active sprint. Add explicit rules for whether review/audit applies to the micro-sprint only or the parent sprint, and how ledger entries are reconciled.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Artifact ID derivation from bug description can cause collisions, path issues, and potential path traversal if not sanitized",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Using user-provided text to derive directory names risks collisions (same title), invalid filesystem characters, overly long paths, and security issues if any tooling interprets paths unsafely. It also harms traceability if IDs change when titles change.",
+        "location": "FR5 Artifact Trail ('{id} derived from bug description or issue number')",
+        "recommendation": "Specify an ID scheme: stable, unique, sanitized (e.g., timestamp + short hash + optional issue number). Enforce a strict slug function and length limits. Store the human-readable title inside triage.md, not in the path.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Autonomous mode can create unsafe or low-quality changes without explicit human checkpoints, especially when reproduction is weak or environment-specific",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "A 2-hour autonomous loop that writes tests and code can still produce incorrect fixes, brittle tests, or overfitting. Review/audit are automated skills too; without a required human approval gate, the system may generate a convincing but wrong patch and a misleading test.",
+        "location": "FR4 Autonomous Mode; US3 acceptance criteria; TNF2 Run Mode Extension",
+        "recommendation": "Require a human confirmation step before opening/marking a PR as ready (e.g., 'ready-for-human-review' state). Add explicit 'confidence signals' (repro strength, test type, coverage touched, risk level) and block autonomous completion for high-risk areas (auth, payments, data migrations) unless user opts in.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd bug mode lightweight",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-10T22:40:09Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-10T22:53:37Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the phases describe mostly happy-path and rely on external commands/files that will fail in practice. Actionable to add per-phase failure modes, retry/abort rules, and user prompts. Moderate effort because it touches multiple phases, but it will materially reduce inconsistent implementations and silent failures.",
+        "gpt_score": 780,
+        "opus_score": 920,
+        "delta": 140,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical correctness issue: the spec claims independence while using a single shared state file, which guarantees corruption/overwrites under concurrent use. Highly actionable: either explicitly prohibit concurrency with a lock/guard or define per-bug state isolation (e.g., .run/bug-state/{bug_id}.json) and selection rules. High ROI, low-to-moderate spec change.",
+        "gpt_score": 910,
+        "opus_score": 850,
+        "delta": 60,
+        "average_score": 880,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Legitimate gap: the scoring threshold and tie/ambiguous cases can reject valid bugs and will create inconsistent triage outcomes. Actionable to add calibration examples and a deterministic rule (e.g., score==1 requires confirmation, or regression override). Some subjectivity remains (policy choice), so not quite critical but still valuable.",
+        "gpt_score": 720,
+        "opus_score": 810,
+        "delta": 90,
+        "average_score": 765,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical integration boundary is underspecified. If triage.md is the contract between producer and /implement, the consumer-side validation and required fields must be explicit to avoid brittle coupling and runtime failures. Very actionable: define schema, required/optional fields, versioning, and /implement preflight validation behavior.",
+        "gpt_score": 880,
+        "opus_score": 780,
+        "delta": 100,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring is too subjective and easy to game, enabling feature work to bypass PRD/SDD gates",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "The core promise is “bug fixes can bypass planning without reducing quality.” If eligibility can be satisfied by superficial signals (e.g., attaching any stack trace, claiming regression), teams will route feature work through /bug to skip governance, creating uncontrolled scope and architectural drift.",
+        "location": "Section 3.1.2 Phase 1: Eligibility Check; Section 3.4 Process Compliance Amendments (C-PROC-015); Section 5 Security Considerations",
+        "recommendation": "Tighten eligibility to require at least one verifiable artifact: a failing test name, reproducible steps that can be executed, or a linked production incident with logs. Add explicit disqualifiers (new endpoint, new UI flow, schema change, cross-service changes). Require reviewer sign-off on eligibility for autonomous mode.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Concurrency and state corruption risks with a single global .run/bug-state.json and shared grimoires/loa/sprint.md",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Multiple bug fixes (or parallel runs by different users/agents/CI) will overwrite the same state file and sprint.md, causing lost progress, incorrect routing in golden path, wrong branch/PR association, and potentially closing the wrong Beads task.",
+        "location": "Section 3.2.4 State File; Section 3.3 Micro-Sprint Lifecycle; Section 3.6 Golden Path Awareness",
+        "recommendation": "Namespace runtime state per bug_id (e.g., .run/bugs/{bug_id}/state.json) and make sprint artifacts per bug (e.g., grimoires/loa/a2a/bug-{id}/sprint.md) with an index/ledger pointer. Add file locking or atomic write strategy and define behavior when an active bug already exists.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Golden path script changes contain syntax/templating artifacts that will break routing and status detection",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "The SDD includes literal \"{{DOCUMENT_CONTENT}}\" tokens and malformed bash conditionals/grep lines. If implemented as-is, /loa and /build routing may fail, mis-detect active bugs, or always return true/false, derailing the workflow and confusing users.",
+        "location": "Section 3.6.1 New Functions in golden-path.sh",
+        "recommendation": "Provide tested, copy-pastable bash with shellcheck compliance. Add unit/integration tests for golden-path functions (fixtures for .run/bug-state.json and sprint.md). Ensure templating placeholders are removed from the final SDD and implementation.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "External toolchain dependencies (gh, br, jq, grep/glob) are assumed present and authenticated, with no failure-mode design",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Autonomous mode and triage rely on GitHub CLI, Beads CLI, jq, and repo permissions. Missing binaries, expired tokens, rate limits, private repo restrictions, or network failures will cause partial execution (e.g., branch created but no PR; task created but not linked), leaving inconsistent state.",
+        "location": "Section 3.1.2 Phase 1 step 2 (gh issue view); Section 3.6 (jq usage); Section 3.7 Beads Integration; Section 3.8 PR creation",
+        "recommendation": "Define a dependency check at entry (versions, auth scopes, connectivity). Specify fallback behaviors (manual paste of issue content, skip Beads, local-only mode). Add explicit error handling and rollback steps for each external call.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Micro-sprint independence conflicts with “add to active sprint” behavior; pausing/resuming semantics are underspecified and likely to cause process deadlocks",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "The doc claims micro-sprints are fully independent, but also allows injecting a bug into an active sprint and “pausing” it. Without explicit rules for ownership, ordering, and how sprint.md is mutated/restored, teams can end up with corrupted sprint plans, duplicated tasks, or lost acceptance criteria.",
+        "location": "Section 3.3.4 Interaction with Active Feature Sprints; Section 3.1.2 Phase 4 Sprint Integration",
+        "recommendation": "Choose one model: always micro-sprint for bugs, or define a strict transaction for modifying an active sprint (append-only log, reversible patch, explicit resume marker). Document how to restore the original task queue and how to handle multiple bugs queued.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Security/PII handling is incomplete: PII filter only covers user input, not imported issue comments/logs or generated artifacts",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Fetching GitHub issues/comments can pull secrets, tokens, emails, customer data, stack traces with credentials, etc. Writing triage.md and PR bodies can exfiltrate sensitive data into the repo and GitHub PR metadata. Injection detection thresholding is also unspecified and may be bypassed.",
+        "location": "Section 3.1.1 input_guardrails; Section 3.1.2 Phase 1 step 2 (gh issue view ... comments); Section 5 Security Considerations; Section 3.8.1 PR body generation",
+        "recommendation": "Apply redaction/scanning to all imported content (issue body/comments) and all outputs (triage.md, PR body). Add secret scanning patterns (API keys, JWTs) and a quarantine mode that halts and asks for manual sanitization. Define logging policy and retention for .run state.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " author architecture phase architect",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-10T22:53:37Z",
+    "metrics": {
+      "total_latency_ms": 209000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-10T23:07:01Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 26,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap for a multi-artifact, stateful workflow: partial writes can leave orphaned state.json/ledger/markdown artifacts and break subsequent runs. Actionable via atomic write pattern (temp + rename), idempotency keys, and a defined cleanup/rollback procedure. High ROI and low-to-moderate effort.",
+        "gpt_score": 860,
+        "opus_score": 920,
+        "delta": 60,
+        "average_score": 890,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Ambiguity risk: referencing an external schema for acceptance criteria makes the sprint plan hard to implement/review and invites drift. Actionable to inline the v1 fields (or include an appendix) and define validation rules. Moderate doc effort, high clarity payoff.",
+        "gpt_score": 780,
+        "opus_score": 870,
+        "delta": 90,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Concurrency semantics are a genuine architectural gap given shared state.json/ledger writes and upcoming autonomous mode. Actionable by defining single-active-bug rule, per-bug locks, file locking strategy, and conflict resolution. Effort moderate but prevents hard-to-debug corruption.",
+        "gpt_score": 820,
+        "opus_score": 780,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "PII redaction/scan is currently untestable without explicit rules and patterns; this is a compliance/safety requirement that needs determinism. Actionable by specifying what to redact, regex/pattern sets, false-positive handling, and how validation is performed in CI/CLI. High impact, reasonable effort.",
+        "gpt_score": 840,
+        "opus_score": 830,
+        "delta": 10,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "State.json is an implicit contract between sprints; without a schema and lifecycle transitions, Sprint 2 features (golden path/autonomy) risk rework. Actionable by defining fields, enums, and allowed transitions. Moderate effort, high integration value.",
+        "gpt_score": 760,
+        "opus_score": 750,
+        "delta": 10,
+        "average_score": 755,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Sprint 1 claims 'Dependencies: None' but hard-depends on local tooling, repo layout, and existing skills behaving as assumed",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The plan HALTs on missing jq/git and HALTs if no test runner is detected, and also assumes existing /implement, /review-sprint, /audit-sprint, ledger, and golden-path conventions. Any mismatch in environment (CI, contributor machines) or repo structure will block the workflow and make Sprint 1 unusable.",
+        "location": "Sprint 1: Dependencies; Task 1.2; Task 1.5; Sprint Goal (reuses existing skills)",
+        "recommendation": "Replace 'Dependencies: None' with an explicit dependency matrix (tools, OS, shells, repo paths, existing command contracts). Add a preflight script and a documented supported environment (e.g., bash version, jq version, gh version). Provide non-HALT fallbacks where feasible (e.g., allow triage without tests but mark as 'cannot execute TDD').",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction requirement is underspecified and likely to be ineffective or dangerously overzealous",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The plan requires PII redaction for imported GitHub content and all outputs, plus a 'PII scan' gate, but does not define what counts as PII/secrets, how to detect them, false-positive handling, or how to ensure redaction doesn't destroy debugging artifacts (stack traces, emails in repro, tokens in logs). This can either leak sensitive data or make triage unusable.",
+        "location": "Task 1.3 (PII redaction); Task 1.6 (PII redaction + outputs pass PII scan); Task 2.4 (PII redaction)",
+        "recommendation": "Define a concrete redaction spec (patterns for tokens/keys, emails, phone numbers, IPs, cookies, Authorization headers), include allowlists for common non-sensitive strings, and add a 'redaction report' section in triage.md showing what was removed. Add tests/fixtures for redaction and a manual override flow when redaction breaks repro fidelity.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Eligibility scoring and disqualifiers are subjective and may reject legitimate bugs or accept feature work disguised as bugs",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "A numeric score (<2 reject, ==2 confirm, >2 accept) without a defined rubric invites inconsistent outcomes. Disqualifiers like 'new endpoint' or 'schema change' can still be required for bug fixes (e.g., missing validation endpoint, backward-compatible schema fix). This can stall real incidents or create policy fights.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Publish a deterministic rubric with examples for each score dimension and explicit exceptions (e.g., backward-compatible schema change allowed if required to fix data corruption). Add an appeal/override mechanism requiring explicit user confirmation and logging. Track eligibility outcomes to calibrate thresholds.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "HALT if no test runner found conflicts with goal of making bug mode usable and may block many real repos",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Many codebases have nonstandard test commands, monorepos with per-package runners, or rely on CI-only runners. A hard HALT will prevent triage-to-micro-sprint flow, undermining Sprint 1 success metrics and the 'lightweight' promise.",
+        "location": "Task 1.5: Test infrastructure detection (HALT if no test runner found); Final Sprint validation (TDD requirement)",
+        "recommendation": "Downgrade to 'DEGRADED MODE' when no runner is detected: still create micro-sprint and triage contract, but mark test_plan as 'pending' with guidance. Support configurable test commands via repo config (e.g., .loa/config.json) and monorepo detection (package.json workspaces, pnpm, bazel, nx).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Micro-sprint and state/ledger/beads writes introduce concurrency and consistency risks (especially with multiple bugs)",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The plan writes to shared files/paths (.run/bugs, ledger.json, beads tasks) and later 'most recently modified' determines active bug. Concurrent runs (two developers, CI, or parallel /run --bug) can corrupt ledger, collide on counters, or mis-detect the active bug, causing wrong routing in /build and wrong status in /loa.",
+        "location": "Task 1.6 (state.json, ledger update, beads); Task 2.3 (global counter); Task 2.5 (concurrent bugs -> most recently modified)",
+        "recommendation": "Add locking/atomic write strategy (file locks or atomic rename), define ledger update semantics (append-only with UUIDs), and avoid global counters without transactional guarantees. Define explicit 'active' state transitions in state.json rather than relying on mtime.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "Security model for autonomous mode is incomplete: branch protections, token scopes, and supply-chain risks are not fully addressed",
+        "severity": "CRITICAL",
+        "severity_score": 840,
+        "why_matters": "Creating draft PRs and running automation touches git credentials and potentially CI. 'ICE prevents push to protected branches' is vague; without explicit enforcement, the tool could push to main or leak tokens in logs. High-risk detection based on file paths is easy to bypass (auth logic in non-auth paths).",
+        "location": "Task 2.1 (ICE git safety, draft PR); Task 2.2 (high-risk detection + --allow-high)",
+        "recommendation": "Define explicit git safety checks (current branch must be non-protected, remote default branch detection, require new branch creation). Enforce least-privilege token scopes for gh. Implement risk detection using code ownership / CODEOWNERS, dependency graph, and sensitive API usage patterns, not just file paths. Add secret scanning on generated artifacts and PR body.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Eligibility scoring system is undefined and subjective",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.3 references a scoring system (<2 REJECT, ==2 CONFIRM, >2 ACCEPT) but never defines what contributes points, how points are weighted, or what the maximum score is. Different implementations could produce wildly different eligibility outcomes. The calibration examples in the acceptance criteria (e.g., 'Login fails with + in email' + stack trace → score 3+) imply a specific rubric that doesn't exist in the sprint plan. This will cause inconsistent triage behavior and likely require rework.",
+        "location": "Task 1.3: Eligibility Check",
+        "recommendation": "Define the explicit scoring rubric: enumerate each artifact type and its point value, define disqualifier weights, and document the scoring algorithm in the triage skill SKILL.md before implementation begins.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PII redaction is referenced repeatedly but never specified",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Tasks 1.3, 1.6, and 2.4 all require 'PII redaction' on imported content and output files. There is no specification of what constitutes PII in this context, what redaction engine or patterns to use, how to handle false positives (redacting code that looks like PII), or how to validate redaction completeness. This is a security-critical feature being treated as a simple checkbox. A naive regex approach will miss edge cases; an aggressive approach will corrupt stack traces and code references.",
+        "location": "Tasks 1.3, 1.6, 2.4 — PII redaction requirements",
+        "recommendation": "Add a dedicated sub-task defining: PII categories to detect (emails, API keys, tokens, IPs, names), the redaction mechanism (regex patterns, AST-aware, or external tool), a test suite for PII edge cases, and a false-positive handling strategy.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 core bug",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-10T23:07:01Z",
+    "metrics": {
+      "total_latency_ms": 89000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-11T01:11:16Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 7,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real architectural gap. The PRD’s core workflow depends on how the agent is invoked (API vs CLI vs MCP session) because it drives isolation model, cost, latency, auth/secrets handling, and reproducibility. Leaving it as a black box makes downstream estimates and NFRs effectively meaningless. Actionable: specify invocation contract, inputs/outputs, lifecycle, and sandbox boundary.",
+        "gpt_score": 920,
+        "opus_score": 890,
+        "delta": 30,
+        "average_score": 905,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Performance targets are underspecified without an explicit concurrency model. Whether tasks/trials run serially or in parallel changes feasibility, resource sizing, and isolation requirements (ports, temp dirs, rate limits). This is directly tied to stated timing goals, so it’s not optional. Actionable: define max concurrency, scheduling policy, and isolation constraints under parallelism.",
+        "gpt_score": 860,
+        "opus_score": 850,
+        "delta": 10,
+        "average_score": 855,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Core correctness gap. If multiple graders exist, the aggregation semantics determine pass/fail and regression detection, which is the product’s primary purpose. Without a formal schema and aggregation rules (e.g., all-must-pass, min score, weighted average, veto graders), results are not comparable or trustworthy. Low/moderate effort to specify; high ROI.",
+        "gpt_score": 900,
+        "opus_score": 780,
+        "delta": 120,
+        "average_score": 840,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important for baseline integrity. Task version exists but semantics are missing; comparing results across changed tasks will create false regressions or hide real ones. Actionable: define what constitutes a breaking task change, when to bump version, baseline invalidation rules, and cross-version comparison policy (usually disallow or require explicit mapping).",
+        "gpt_score": 820,
+        "opus_score": 750,
+        "delta": 70,
+        "average_score": 785,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Production reliability and cost-control requirement. Timeouts/quotas are necessary for CI safety and to meet the stated $/run budget. Also clarifies behavior on hang vs failure (error classification affects regression logic). Actionable: per-trial/per-grader timeouts, CPU/mem/disk limits, and standardized timeout outcomes.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Valuable for CI usability and correctness of reporting. Partial failure semantics (continue vs abort, retries, classification of infra vs product regressions) materially affect developer trust and the false-positive rate. Actionable: define error taxonomy, retry policy, suite exit codes, and whether to publish partial results.",
+        "gpt_score": 760,
+        "opus_score": 830,
+        "delta": 70,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "High-impact ambiguity. Dependency installation/caching interacts with determinism, network restrictions, and runtime. If fixtures require npm/pip installs, the PRD must define when/how that happens (prebaked images, vendored deps, offline caches) and what ‘no network’ applies to. Actionable and important for reproducibility.",
+        "gpt_score": 790,
+        "opus_score": 810,
+        "delta": 20,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Determinism goal conflicts with real-world agent execution and 'latest model' assumption",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "PRD promises 'same task + same skill version = same grading result' and 100% deterministic graders, but Phase 3 relies on non-deterministic LLM behavior and also defaults to evaluating against the latest model. Model updates, sampling variance, and tool timing differences will create flakiness, baseline churn, and false regressions that block merges or force frequent baseline updates.",
+        "location": "Section 2 (G1, M5), Section 7 (Q3, Q2), Section 5 (Determinism), Section 6 (Phase 3)",
+        "recommendation": "Define determinism boundaries explicitly: deterministic for framework-correctness and grader outputs only; for agent evals, require pinned model+params per baseline (model version, temperature, top_p, tool versions), and specify statistical decision rules (confidence intervals, minimum trials, rerun-on-fail policy) plus an explicit flake-handling workflow.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "CI security risk: executing untrusted code from PRs via fixtures/graders/agent tool calls",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The system runs shell/TS graders and potentially executes project tests (npm/pytest) inside CI. On PRs, attackers can modify graders, harness scripts, or tasks to exfiltrate secrets, mine crypto, or pivot. Even with 'no network access' as a requirement, GitHub-hosted runners typically have outbound network by default, and PR workflows often have access to repo contents and sometimes tokens. Running arbitrary tests in fixtures can also execute malicious postinstall scripts.",
+        "location": "Section 4 (FR3, FR6), Section 5 (Security), Directory Structure (graders/harness are in-repo)",
+        "recommendation": "Threat-model PR execution. Lock down CI: use GitHub Actions permissions minimal, do not expose secrets to fork PRs, run evals in a hardened container with egress blocked, disable npm lifecycle scripts, pin dependencies, and ensure graders/harness used in CI come from the base branch (not the PR) or are code-reviewed separately. Add explicit sandboxing requirements (containerization, seccomp/apparmor where possible).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Baseline management is underspecified and likely to become a constant source of churn and disputes",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Baselines are committed YAML pass rates, but there is no defined governance: who can update, when updates are allowed, how to review baseline changes, how to handle improvements that reduce pass rate on some tasks but improve others, or how to prevent 'baseline gaming'. Without a clear policy, teams will either block progress or rubber-stamp baseline updates, defeating regression protection.",
+        "location": "Section 4 (FR4.2-FR4.4), Section 7 (Q4), Section 10 (regression.threshold/block_merge)",
+        "recommendation": "Define baseline lifecycle: approval rules, required evidence, automatic vs manual updates, per-task vs suite-level thresholds, and a 'quarantine' mode for new/unstable tasks. Add signed/attested baseline updates and require baseline diffs in PR review with rationale.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Performance targets are optimistic given cloning fixtures, running tests, multiple trials, and transcript capture",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Even Phase 2 regression suite (<15 min for 20 tasks) can blow up due to dependency installs, cold caches, and test runtime variance. Phase 3 targets (<45 min for 10 tasks x 3 trials) may be unrealistic once you include model latency, tool execution, and retries. Slow CI will cause developer frustration and pressure to weaken gates.",
+        "location": "Section 5 (Performance), Section 4 (FR1.3, FR2.3, FR6.6)",
+        "recommendation": "Specify caching strategy in detail (package manager caches, fixture snapshots, prebuilt docker images), parallelism limits, and a hard timeout policy per task/trial. Add a tiered gating plan: required checks only for a minimal smoke/regression subset; run the rest asynchronously with non-blocking reporting.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Sandbox isolation is described but not enforceable with 'temp directories' alone",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Temp-dir isolation does not prevent reading/writing outside the workspace, accessing environment variables, or using system resources. Graders and tests can still traverse filesystem, spawn processes, or access network. This undermines both security and determinism (e.g., reading global caches, user config, time, locale).",
+        "location": "Section 5 (Security: Sandbox isolation, PATH_SAFETY), Section 4 (FR1.2, FR2.3)",
+        "recommendation": "Require container-based sandboxing with a read-only root filesystem where possible, explicit mount of workspace only, controlled env vars, fixed locale/timezone, and optional network namespace egress blocking. Document the minimum viable sandbox for local vs CI.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd eval sandbox benchmarking",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-11T01:11:16Z",
+    "metrics": {
+      "total_latency_ms": 215000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-11T01:16:27Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real blocking gap. The PRD can’t be estimated or implemented without a concrete agent invocation model (API vs CLI vs existing runner), because it determines isolation, auth/secrets, streaming logs, retries, and cost accounting. This is a foundational interface/architecture decision with high ROI and low doc-cost to clarify.",
+        "gpt_score": 920,
+        "opus_score": 820,
+        "delta": 100,
+        "average_score": 870,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong data-contract gap. Multiple downstream consumers (baseline compare, reporting, PR comments, cost tracking) require a stable schema; listing fields without a canonical JSONL example/schema invites divergence and rework. Actionable to add JSON Schema + example entries (including nested grader outputs and hashes).",
+        "gpt_score": 880,
+        "opus_score": 870,
+        "delta": 10,
+        "average_score": 875,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical correctness issue. Multi-grader aggregation defines what ‘pass’ means and directly affects regression detection and false positives. Without a specified aggregation rule (all-pass, threshold, weighted score, veto graders), implementers will guess and results won’t be comparable over time.",
+        "gpt_score": 860,
+        "opus_score": 900,
+        "delta": 40,
+        "average_score": 880,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "High-value statistical/metrics alignment fix. With 1–3 trials, a 10% regression threshold is effectively meaningless and will cause either noisy failures or missed regressions. Needs a defined method (min trials, Wilson interval/binomial test, sequential testing, or deterministic grading) tied to CI vs nightly modes.",
+        "gpt_score": 840,
+        "opus_score": 750,
+        "delta": 90,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "Near-critical security gap depending on threat model. Running untrusted code requires enforceable isolation (containers/VMs, seccomp, no-network enforcement, resource limits). If this is intended for CI on shared runners, it’s essential; if strictly local/dev, could be lighter. PRD should at least pick an enforcement mechanism and minimum guarantees.",
+        "gpt_score": 790,
+        "opus_score": 380,
+        "delta": 410,
+        "average_score": 585,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Determinism goal conflicts with agent non-determinism and 'latest model' assumption",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The PRD promises reproducible evaluation (G1, M5) while also planning to run skill-quality evals against non-deterministic models and explicitly defaulting to 'latest' model versions (Q3). Even with code-based graders, the agent output is the input to those graders; model drift or sampling variance can flip outcomes and create noisy baselines, undermining trust and blocking merges unpredictably.",
+        "location": "Section 2 (G1, M5), Section 7 Open Questions (Q3), FR1.3, FR4.2-4.4, NFR Determinism",
+        "recommendation": "Define a reproducibility strategy: pin model + parameters for CI baselines (model version, temperature, top_p, system prompt hash), separate 'canary/latest' runs from gating runs, and specify statistical decision rules (confidence intervals, minimum effect size) rather than raw pass-rate deltas.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security model for running untrusted code in CI is under-specified (RCE/supply-chain risk)",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Fixtures and tasks will execute arbitrary project commands (e.g., npm test/pytest) and potentially agent-generated code. In PR contexts, this is effectively untrusted code execution. 'Temp directories' and 'no network calls' are not sufficient isolation. Without containerization, syscall restrictions, and strict permissions, a malicious fixture/task or compromised dependency can exfiltrate secrets, tamper with the runner, or pivot to GitHub tokens.",
+        "location": "FR2, FR3.2 (test execution), FR6 (CI), NFR Security",
+        "recommendation": "Mandate hardened sandboxing: run each task in a locked-down container (no Docker socket), read-only mounts where possible, non-root user, seccomp/apparmor (or GitHub-hosted runner constraints), explicit egress blocking, and minimal GitHub token permissions. Document a threat model and required controls.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Baseline management workflow is vulnerable to 'baseline laundering' and review bypass",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "The PRD allows `/eval --update-baseline` and an `eval-skip` label. Without governance, contributors can update baselines to accept regressions or bypass gates, defeating the core purpose (G2). Baselines committed in-repo also create merge conflicts and incentives to 'make CI green' by adjusting expectations.",
+        "location": "FR4.4, FR5.5, FR6.5, Section 10 config (block_merge, skip_label)",
+        "recommendation": "Define baseline governance: restrict baseline updates to maintainers, require separate PRs with explicit approval, enforce CODEOWNERS on `evals/baselines/**`, log baseline diffs in PR comments, and limit `eval-skip` to trusted actors with justification.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "CI runtime and cost targets are likely unrealistic once fixtures and dependency installs are included",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Targets like <15 minutes for 20 tasks assume fast setup. Realistic runs will include cloning/copying fixtures, installing dependencies (npm/pip), building, and running tests. Caching helps but is brittle across lockfile changes. If CI regularly exceeds targets, developers will disable or bypass it, and the system will atrophy.",
+        "location": "NFR Performance, FR6.6, FR2 fixtures, FR3.2 test execution",
+        "recommendation": "Specify performance budgets per task (setup vs execution), require pre-built fixture dependency caches (e.g., vendored node_modules or lockfile-pinned cache keys), parallelize tasks with a max concurrency cap, and define a 'fast gating suite' with strict limits and a separate nightly/full suite.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Task definitions lack a stable contract for environment setup (Node/Python versions, OS, tooling)",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Deterministic graders and fixtures still depend on runtime versions (node, npm, python, bash, grep differences on macOS vs Linux). Without explicit environment pinning, local `/eval` results will diverge from CI, causing confusion and false regressions.",
+        "location": "FR1 task schema, FR2 fixtures, FR3 graders, FR5 CLI, FR6 CI",
+        "recommendation": "Add required task/fixture metadata for runtime (container image or toolchain versions), standardize execution via a single container image for CI and optional local use, and record environment fingerprints in results (OS, tool versions).",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd eval sandbox benchmarking",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-11T01:16:27Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-11T01:30:07Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: suite YAML is referenced as a primary control surface (which tasks run, defaults, ordering) but the schema is missing. Highly actionable (define fields + example) and low effort with high ROI because it unblocks implementers and reduces ambiguity/fragmentation across suites.",
+        "gpt_score": 900,
+        "opus_score": 920,
+        "delta": 20,
+        "average_score": 910,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Core loop is incomplete without an explicit agent invocation contract (inputs, prompt assembly, workspace handoff, output capture, retries/timeouts). This is a fundamental architectural requirement for Phase 2+ and impacts scheduler, sandboxing, and graders. High ROI and must be specified to implement correctly.",
+        "gpt_score": 950,
+        "opus_score": 900,
+        "delta": 50,
+        "average_score": 925,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Concurrency is already exposed in config, so lack of a defined parallelism model is a real design hole. Actionable (define unit of parallelism, isolation strategy, and write/aggregation semantics). Moderate complexity but high impact for CI performance and correctness (ledger races, sandbox collisions).",
+        "gpt_score": 820,
+        "opus_score": 850,
+        "delta": 30,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Document signals cost tracking/budget enforcement but doesn’t define measurement or enforcement points. This is important for agent-invoking runs, but implementation complexity varies by provider (token accounting APIs, streaming, retries). Valuable to specify now, though could be staged if Phase 2 scope is tightly controlled.",
+        "gpt_score": 720,
+        "opus_score": 830,
+        "delta": 110,
+        "average_score": 775,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Model version skew is a common real-world scenario and directly affects baseline validity. The system already includes pinning, so comparison behavior must be explicit (warn/skip/quarantine/new baseline). Low effort to specify and prevents misleading regressions/false alarms.",
+        "gpt_score": 860,
+        "opus_score": 750,
+        "delta": 110,
+        "average_score": 805,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "A task schema for agent-executed evaluations without an instruction/prompt field is a blocking omission. While 'input' could theoretically embed it, that’s ambiguous and non-standard. Adding an explicit prompt/instruction field is straightforward and essential for interoperability and clarity.",
+        "gpt_score": 920,
+        "opus_score": 770,
+        "delta": 150,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "CI trust model is incomplete: untrusted PR code can still execute via tasks/fixtures even if harness/graders come from base",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "Copying base harness/graders reduces risk, but the harness will still read and act on PR-controlled YAML (tasks/suites), fixture contents, and potentially commands invoked by graders (e.g., tests). A malicious PR can craft a task that causes the trusted harness to execute attacker-controlled binaries/scripts inside the workspace, attempt data exfiltration via logs/artifacts, or DoS the runner. With container sandboxing deferred to Phase 3+, the local/CI temp-dir sandbox is not a security boundary.",
+        "location": "Section 3.3 Sandbox Manager (CI mode Phase 3+), Section 3.4 Graders (tests-pass.sh auto-detect), Section 3.9 CI Pipeline (base harness + PR tasks/fixtures)",
+        "recommendation": "Treat PR content as hostile: (1) enable container sandboxing in CI for MVP (Phase 2) with network disabled and strict mounts; (2) add an allowlist of permitted grader types and permitted commands (no auto-detect) and disallow arbitrary task-provided commands; (3) run eval job with minimal permissions and no write access to repo; (4) add explicit policy checks in validate-task.sh to reject dangerous fields/paths and to cap file sizes and fixture contents.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Determinism assumptions are likely wrong (prebaked deps, toolchain drift, OS differences, timestamps, and auto-detected test runners)",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The design claims determinism while relying on host-provided runtimes (node-20, python) and auto-detection of test frameworks. GitHub Actions images change over time; local machines vary. Prebaked node_modules can contain native binaries and platform-specific artifacts. Even with TZ/LC_ALL set, test ordering, filesystem ordering, and tool versions can change outcomes, causing flaky baselines and constant churn.",
+        "location": "Section 3.3 Local mode sandbox, Section 3.4 tests-pass.sh auto-detects npm/pytest/cargo, Section 5 fixtures with prebaked node_modules, Section 12 risk mitigation (determinism)",
+        "recommendation": "Pin and verify toolchains: use containers in CI now; record and enforce runtime versions (node/python) and package manager versions; remove auto-detect in favor of explicit test commands per fixture; add a determinism checklist per fixture (no native deps unless containerized); record environment fingerprint in run-meta.json and fail/neutral when it differs from baseline constraints.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Baseline comparison logic is statistically weak and will misclassify regressions/improvements with low trial counts (CI=1) and noisy tasks",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Using pass_rate deltas with a fixed 10% threshold and CI trials=1 makes the regression gate extremely sensitive to randomness and small-sample variance. A single failure in CI becomes 0% pass_rate and can look like a massive regression. Conversely, a single pass can mask real degradation. Flake detection requires last 3 runs from a ledger that is not persisted in CI (results are gitignored).",
+        "location": "Section 3.6 Comparison logic + flake detection, Section 7 config trials.ci=1, Section 3.5 results gitignored",
+        "recommendation": "Adopt statistical tests/intervals or minimum trial counts for gating (e.g., Wilson interval, sequential probability ratio, or require N>=3 for regression classification). Separate 'signal' (score) from 'gate' (confidence). Persist ledger in CI as an artifact or external store, or disable flake detection until history exists.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Result ledger and flake detection depend on state that is not available in CI and may be inconsistent locally",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The ledger is append-only JSONL under evals/results/ which is gitignored. In CI, each run starts fresh unless artifacts are downloaded. That makes 'last 3 runs' unavailable, quarantine recommendations meaningless, and baseline update decisions uninformed. Locally, multiple developers will have divergent ledgers, producing inconsistent flake flags and comparisons.",
+        "location": "Section 3.5 Result Storage (gitignore), Section 3.6 Flake detection uses ledger history",
+        "recommendation": "Define a canonical storage for historical runs (CI artifacts with retention, S3/GCS bucket, or GitHub Releases) and a retrieval step in CI. Alternatively, remove ledger-based flake detection from MVP and rely on per-run variance metrics until persistence exists.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " sdd eval sandbox benchmarking",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-11T01:30:07Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-11T01:39:25Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real operational gap: timeouts are part of the execution contract and directly affect CI reliability and debuggability. Actionable (define defaults + overrides at grader/task/pipeline levels) and low cost to document/implement. Without it, hangs and inconsistent kills are likely.",
+        "gpt_score": 820,
+        "opus_score": 870,
+        "delta": 50,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Important missing semantics for parallel execution: how infra errors vs task failures propagate, whether to continue, and how to record partials in the ledger. Actionable via explicit exit-code policy + retry/backoff rules + ledger fields. Moderate complexity but high impact on signal quality and flake handling.",
+        "gpt_score": 780,
+        "opus_score": 820,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Schema/versioning for JSONL results is foundational: downstream compare/report tooling will otherwise ossify around implicit fields and break silently. Actionable (JSON Schema + version field + validation step in CI). Moderate effort, high long-term payoff.",
+        "gpt_score": 840,
+        "opus_score": 720,
+        "delta": 120,
+        "average_score": 780,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Key architectural boundary: Sprint 1 builds the harness execution loop, but without defining the runner interface it risks rework when Sprint 2 introduces agent invocation. Actionable as an explicit 'trial runner' contract (command, inputs/outputs, env vars, exit codes). High leverage for extensibility.",
+        "gpt_score": 800,
+        "opus_score": 780,
+        "delta": 20,
+        "average_score": 790,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Project-management hygiene (estimates/critical path) can help, but it's not strictly a product/architecture gap and may be outside the sprint doc’s intended scope. Actionable, but benefit varies by team process; lower ROI than technical contract clarifications.",
+        "gpt_score": 430,
+        "opus_score": 830,
+        "delta": 400,
+        "average_score": 630,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Shell-script harness will be brittle across environments (GNU vs BSD tools, missing deps, different `timeout`, `flock`, `xargs -P` semantics)",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The entire pipeline depends on non-portable CLI behavior. A harness that works on one dev machine may fail in CI runners or contributor machines, creating false regressions and blocking adoption.",
+        "location": "Task 1.1 (run-eval.sh), Task 1.4 (timeout), Task 1.5 (flock), Task 1.6 (color output)",
+        "recommendation": "Define and enforce a single supported runtime (e.g., Linux + pinned coreutils) for Sprint 1, or move orchestration to a portable language (Python/Node). Add a preflight check that validates presence/versions of required tools and fails with config error (exit code 3).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Concurrency + shared ledger writes risk corruption, partial writes, and nondeterministic ordering even with `flock`",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "JSONL append under parallel execution can still produce interleaving if not carefully implemented (subshells, buffered output, NFS/FS semantics). Corrupted ledgers break baseline comparisons and CI reporting.",
+        "location": "Task 1.1 (parallel execution), Task 1.5 (eval-ledger.jsonl with flock)",
+        "recommendation": "Write per-task/per-trial result files first, then merge deterministically in a single-threaded finalize step. If keeping JSONL append, ensure each append is a single atomic write (no pipes), and validate ledger integrity after run.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Security model is incomplete for running untrusted fixture code locally in Sprint 1 (no container, no network limits, no syscall/file restrictions)",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "Even “deterministic” tasks can execute arbitrary commands via graders or fixture tests. Without isolation, a malicious or compromised fixture can exfiltrate secrets, modify developer machines, or tamper with baselines/results.",
+        "location": "Task 1.3 (local sandbox), Task 1.4 (graders), Task 2.3 (container only in Sprint 2)",
+        "recommendation": "Treat Sprint 1 local mode as trusted-only and explicitly gate it (refuse to run fixtures unless `--i-understand-risk` or running in container). Backport minimal isolation now: run as unprivileged user, set restrictive umask, clear env, disable network where possible, and document threat model.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Allowlist approach for grader commands is underspecified and easy to bypass (args injection, shell evaluation, PATH hijacking)",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "If grader scripts accept arbitrary args or invoke shells, an attacker can execute disallowed commands. Even benign mistakes can lead to graders behaving differently across machines, undermining determinism.",
+        "location": "Task 1.2 (grader args allowlist), Task 1.4 (grader implementations)",
+        "recommendation": "Define a strict execution model: no `eval`, no unquoted expansions, no `sh -c`, and resolve commands to absolute paths inside a controlled PATH. Validate args structurally (schema per grader) rather than string allowlisting. Add a security test that attempts common bypasses.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Baseline format and update workflow can create noisy churn and accidental acceptance of regressions",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "`--update-baseline` is powerful; without guardrails, developers may update baselines to “make CI green,” masking real regressions. Also, storing model_version and recorded_at can cause frequent diffs unrelated to behavior.",
+        "location": "Task 1.5 (baseline YAML), Task 2.7 (C-EVAL-001 baseline updates as PRs)",
+        "recommendation": "Require explicit justification metadata per baseline change (reason, link to issue). Separate stable baseline metrics from volatile metadata (timestamps) or keep metadata in a separate file. In CI, disallow baseline updates unless a label/approval is present.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-010",
+        "concern": "CI integration plan has gaps: base-branch trusted harness vs PR code mixing, artifact trust, and fork handling may still allow supply-chain issues or false results",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Checking out base branch for graders/harness and PR branch for code is good, but details matter: path confusion, symlink attacks in PR branch, and untrusted artifacts (previous ledger) can poison comparisons. Also, blocking fork PRs reduces coverage and may be unacceptable.",
+        "location": "Task 2.4 (CI pipeline), Task 2.3 (container), Task 2.5 (PR comments), Task 1.3 (PATH_SAFETY only for fixtures)",
+        "recommendation": "In CI, mount PR workspace read-only where possible, disable symlinks or validate no symlinks escape workspace, and treat downloaded ledger artifacts as untrusted (validate JSONL, ignore if invalid). Define a strategy for fork PRs (e.g., run limited non-secret evals with no write permissions).",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 eval harness",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-11T01:39:25Z",
+    "metrics": {
+      "total_latency_ms": 213000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

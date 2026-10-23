@@ -1,0 +1,1140 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T00:37:05Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and critical gap: the PRD references “3-way agreement” but doesn’t define the decision rule. This is core product logic that directly impacts quality, determinism, and reproducibility. Highly actionable (define majority/threshold/weights + tie-breakers) with low doc cost and high ROI.",
+        "gpt_score": 920,
+        "opus_score": 780,
+        "delta": 140,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Important edge case that will occur in production: mid-loop or mid-phase provider failure changes the semantics of scoring and can create inconsistent outputs. Actionable to specify continuation/restart rules and how partial results are treated. Moderate implementation impact but worth it for correctness and operability.",
+        "gpt_score": 860,
+        "opus_score": 850,
+        "delta": 10,
+        "average_score": 855,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Clear failure-mode gap: hitting iteration cap without a defined output policy makes downstream behavior ambiguous (do we emit something, fail, or escalate). This is essential for consumers and for SLOs. Very actionable and low cost to specify; high ROI.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable but slightly more PRD-expansive: adding explicit end-to-end validation scenarios for a 3-provider orchestration materially reduces integration risk and regressions. Actionable as a test matrix; moderate effort to implement but appropriate given the combinatorial failure modes.",
+        "gpt_score": 720,
+        "opus_score": 750,
+        "delta": 30,
+        "average_score": 735,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Concrete inconsistency that can cause immediate runtime failure (configured default tertiary model vs models being registered). This is a real gap, easy to fix, and high impact. Strong domain/implementation awareness.",
+        "gpt_score": 840,
+        "opus_score": 900,
+        "delta": 60,
+        "average_score": 870,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "High leverage for operating/debugging a multi-model iterative system. Structured logs/metrics for iteration progression, consensus deltas, and degradation events are domain-appropriate and prevent ‘black box’ behavior. Some orgs keep this out of PRDs, but here complexity justifies it.",
+        "gpt_score": 760,
+        "opus_score": 810,
+        "delta": 50,
+        "average_score": 785,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Consensus/triangular scoring algorithm underspecified (what constitutes agreement, tie-breaking, partial failures)",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "“3-way agreement” and “triangular scoring produces consensus” are ambiguous. Without a precise scoring rubric (scale, thresholds, tie-breakers, weighting, handling missing scores), the system may oscillate, fail to converge, or produce inconsistent outputs across runs.",
+        "location": "FR-2 (Consensus calculation uses 3-way agreement), FR-3 (iteration cap), Goals/Success Metrics",
+        "recommendation": "Define the consensus algorithm formally: score ranges, normalization, agreement threshold, how to handle 2-of-3 vs 3-of-3, and deterministic tie-break rules. Add golden test fixtures for known scenarios (all agree, 2-of-3 agree, one model missing, contradictory scores).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Graceful degradation is stated but not fully specified (what happens mid-run, per-phase, per-call failures)",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "If Gemini fails after Phase 1 but before Phase 2, or only skeptic/reviewer calls fail, the orchestrator may produce malformed consensus inputs or crash. “Fall back to 2-model mode” needs clear rules about when and how to recompute scoring and whether to re-run phases.",
+        "location": "FR-2 (Graceful degradation), Section 6 Risks (missing GOOGLE_API_KEY)",
+        "recommendation": "Specify failure modes and transitions: (a) missing key at startup, (b) transient 429/5xx, (c) invalid JSON, (d) timeout. Define whether to proceed with partial data, re-run missing calls, or restart the iteration in 2-model mode. Add integration tests that simulate each failure.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Model naming/version mismatch and incomplete registry coverage (Gemini 2.5 default vs only Gemini 3 registration work)",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "The PRD sets the tertiary default to `gemini-2.5-pro` but the explicit registry work focuses on adding `gemini-3-flash`/`gemini-3-pro`. If `gemini-2.5-pro` is not already registered everywhere the orchestrator/adapter expects (provider IDs, aliases, pricing, VALID_FLATLINE_MODELS), Flatline will fail at runtime or silently skip tertiary, defeating the main goal.",
+        "location": "Section 3 (Gemini tertiary), FR-2, FR-4, Implementation Notes",
+        "recommendation": "Explicitly enumerate required registry entries for `gemini-2.5-pro` (not just Gemini 3). Add an acceptance test that runs Flatline with tertiary enabled and asserts the tertiary call actually executed and was included in consensus.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Parallel call explosion and rate-limit/quotas not addressed (12 calls per iteration + retries)",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "FR-2 implies 6 parallel calls in Phase 1 and 6 in Phase 2 per iteration. With max_iterations=5, worst case is 60 model calls per run (plus retries). This can easily hit provider RPM/TPM limits, cause cascading failures, and make results nondeterministic due to throttling/backoff timing.",
+        "location": "FR-2 (6 parallel + 6 cross-scoring), FR-3 (max_iterations)",
+        "recommendation": "Add explicit rate-limit handling requirements: concurrency caps per provider, exponential backoff with jitter, and a global budget/timeout per run. Include load tests or a dry-run mode that estimates call counts and expected tokens.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security risk: Google API key passed as URL parameter (leakage via logs/proxies/metrics)",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Putting `GOOGLE_API_KEY` in the query string is commonly captured by HTTP logs, reverse proxies, APM tools, browser-like tooling, and shell debug output. This can lead to credential compromise and account takeover/billing abuse.",
+        "location": "Section 5 Technical Constraints (Gemini API: key as URL parameter), call_google_api() mention",
+        "recommendation": "Require using an Authorization header (or Google-recommended header) if supported; otherwise mandate strict log redaction, disable shell tracing around calls, and ensure no request URLs are printed. Add a security requirement and a regression test that greps logs for the key pattern.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd multi model adversarial",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T00:37:05Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T00:42:29Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 80,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap with high operational risk: secondary model failures (429s, malformed/partial Responses API payloads) can be silently swallowed by the jq fallback to `empty`, producing undefined behavior and hard-to-debug consensus results. Actionable to specify retry/backoff, fallback-to-primary behavior, abort criteria, and logging/metrics. Low-to-moderate effort with strong ROI.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Underspecified runtime behavior change. A config reader without explicit loop enforcement, exit semantics, and partial-result handling is not implementable with confidence and risks infinite/overlong runs. Very actionable: define check location, termination behavior, exit code, and what gets persisted/logged when cap is hit. High value, moderate effort.",
+        "gpt_score": 820,
+        "opus_score": 880,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical contract gap: tertiary model JSON being 'valid' is insufficient if it doesn't conform to the Flatline scoring schema used by triangular cross-scoring. Without explicit schema + validation/failure handling, consensus can break or degrade silently. Actionable: define JSON schema, required fields/ranges, and validation + fallback behavior. High ROI.",
+        "gpt_score": 860,
+        "opus_score": 810,
+        "delta": 50,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "Somewhat generic tuning guidance. Role-specific reasoning effort can matter, but it’s often an optimization rather than a correctness requirement, and may be better handled via experimentation rather than SDD prescription. Could be included as a default + note on configurability, but not high priority.",
+        "gpt_score": 430,
+        "opus_score": 790,
+        "delta": 360,
+        "average_score": 610,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Low-to-moderate value. Mixed-config mid-run behavior is plausible, but often acceptable if config is read once at startup; without evidence of per-phase re-reads, this is speculative. Adding a brief note is cheap, but expanding into a migration section may be disproportionate for this change set.",
+        "gpt_score": 360,
+        "opus_score": 720,
+        "delta": 360,
+        "average_score": 540,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assumption that GPT-5.3-codex can be reliably detected via substring match '*codex*' and always requires Responses API",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Routing is controlled by a brittle naming heuristic. If OpenAI changes naming, introduces non-codex models containing 'codex', or codex models that don't match the pattern, requests may hit the wrong endpoint and fail hard (or silently degrade output parsing). This can break all review flows because GPT-5.3-codex becomes the default in multiple places.",
+        "location": "Section 2.1 + Section 4 (model-adapter.sh.legacy codex detection; openai_adapter.py _is_codex_model())",
+        "recommendation": "Replace substring detection with an explicit capability registry (per model: endpoint type, request schema, response schema). Add a startup self-test that calls a lightweight request per configured OpenAI model and validates parsing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Codex string matching is brittle and will break with future model names",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "The routing logic uses `if [[ \"$model_id\" == *\"codex\"* ]]` to decide between Chat Completions and Responses API. This glob match is fragile — any future model with 'codex' in the name (e.g., a non-Responses-API model) would be misrouted, and any future OpenAI model that uses the Responses API but doesn't contain 'codex' would also be misrouted. This is a technical debt trap that will compound with every model upgrade cycle.",
+        "location": "Section 2.1, Section 4 (model-adapter.sh.legacy:249-279)",
+        "recommendation": "Replace string matching with an explicit model-to-API-type mapping (e.g., a MODEL_API_TYPE associative array) so routing is declarative, not inferred from naming conventions.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Gemini API auth via URL query parameter risks key leakage via logs, proxies, and shell tracing",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "API keys in URLs are commonly logged by HTTP clients, reverse proxies, CI logs, and shell debug output. A leaked GOOGLE_API_KEY compromises billing and potentially data access. The SDD treats this as 'already working' but does not address operational security.",
+        "location": "Section 4 (Gemini endpoint/auth) + call_google_api() in model-adapter.sh.legacy",
+        "recommendation": "Move to Authorization header if supported; otherwise ensure curl is invoked without verbose output, redact URLs in logs, disable xtrace around calls, and document key-handling requirements. Add a CI check preventing accidental logging of keys.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Graceful degradation to 2-model mode may invalidate FR-3 scoring assumptions and produce inconsistent outputs",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "The system claims tertiary is optional, but FR-3 triangular scoring and consensus logic may implicitly assume 3 participants (e.g., weights, thresholds, tie-breaking). If tertiary drops mid-run (rate limit, transient failure), you can get non-comparable scores or consensus behavior that differs from intended design.",
+        "location": "Section 2.2 (Graceful degradation) + flatline-orchestrator.sh consensus/FR-3 logic references",
+        "recommendation": "Define explicit 2-model consensus rules and ensure they are mathematically/behaviorally consistent with 3-model mode. Add tests for: tertiary missing at start, tertiary fails after Phase 1, tertiary returns malformed JSON.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Hard dependency on PR #413 with no verification gate",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "The entire SDD assumes PR #413's dual-path Responses API routing is merged and working correctly. If PR #413 has bugs in its codex detection (`*codex*` glob matching) or response parsing jq fallback chain, every GPT-5.3-codex call across all 8+ contexts will fail silently or return malformed data. There is no explicit verification step that PR #413 is merged and tested before this cycle begins.",
+        "location": "Section 1: Architecture Overview, Section 2.1, Section 4",
+        "recommendation": "Add an explicit pre-condition gate: verify PR #413 is merged, its test suite passes, and the Responses API dual-path routing is validated in staging before any cycle-040 changes are applied. Include a smoke test specifically for the jq fallback chain at model-adapter.sh.legacy:557-563.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Iteration cap is underspecified and may cause premature termination without a clear 'failure' state",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "A hard cap of 5 loops can stop the process before consensus, but the SDD doesn't specify what output is produced (best-so-far? last? marked incomplete?) or how callers should interpret it. This can create false confidence and downstream automation errors.",
+        "location": "Section 2.7 (Flatline Iteration Cap) + flatline-orchestrator.sh main loop behavior",
+        "recommendation": "Define termination semantics: emit an explicit status (e.g., CONSENSUS_REACHED=false, reason=MAX_ITERATIONS), include partial artifacts, and set a non-zero exit code when consensus is not reached (or document otherwise).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Response parsing fallback chain can silently return empty content without failing the run",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The jq expression ends with 'empty'. If the response shape changes (or an error payload is returned), 'content' may become empty and downstream scoring/consensus could proceed with blank text, producing misleading consensus or false 'agreement'. This is a classic silent failure mode.",
+        "location": "Section 2.1 + Section 4 (model-adapter.sh.legacy:557-563 jq parsing)",
+        "recommendation": "Fail fast when parsed content is empty: capture raw response, detect error objects, and exit non-zero with a clear diagnostic. Add contract tests with representative Responses API payloads and error payloads.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Triangular 3-way consensus scoring is untested with a real tertiary model",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The FR-3 triangular scoring infrastructure is described as 'dormant' — it has never been activated with a real third model. Phase 2 jumps from 2 cross-scoring calls to 6, and the 3-way consensus calculation is unproven. Edge cases like 2-vs-1 disagreements, Gemini returning differently-structured JSON, or wildly divergent scores from three different model families could produce nonsensical consensus results or orchestrator hangs. The testing strategy only mentions 'dry-run' and existing test suites, which have never exercised the tertiary path with live API responses.",
+        "location": "Section 2.2 (flatline-orchestrator.sh:988-1024), Section 6",
+        "recommendation": "Add integration tests that exercise the full 3-model Flatline pipeline with mocked but realistic API responses from all three providers. Include edge cases: one model fails, two models disagree with third, all three disagree, Gemini returns unexpected JSON structure.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " 1 architecture overview this",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T00:42:29Z",
+    "metrics": {
+      "total_latency_ms": 153000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T00:45:30Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the plan references validation but lacks an explicit dependency gate between registration and downstream config. Actionable and low-cost (smoke test + pipeline dependency). High ROI by preventing cascading misconfigurations (aliases/IDs) across multiple tasks.",
+        "gpt_score": 820,
+        "opus_score": 850,
+        "delta": 30,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Real operational gap: 'instant rollback via config revert' is underspecified given many files and multiple contexts. Actionable to document either a single revert-commit strategy or ordered rollback steps and what to do about registry/alias changes. Moderate effort, high incident-prevention value.",
+        "gpt_score": 780,
+        "opus_score": 870,
+        "delta": 90,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Good gap: acceptance criteria should verify the tertiary model is actually callable (auth, request shape, endpoint) rather than only configured. Actionable via a dry-run/integration call in CI or a scripted smoke test. Some trade-off (test flakiness/cost), but worth it for net-new dependency.",
+        "gpt_score": 740,
+        "opus_score": 820,
+        "delta": 80,
+        "average_score": 780,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Critical reliability gap: adding a tertiary model introduces new failure modes; behavior on errors/unavailability must be defined (degrade to 2-model, retry policy, fail-fast). Actionable via orchestrator logic + acceptance tests. High ROI by preventing availability regressions.",
+        "gpt_score": 860,
+        "opus_score": 750,
+        "delta": 110,
+        "average_score": 805,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Assumes model names/IDs are valid and stable across providers and internal adapters",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "If any of `gpt-5.3-codex`, `gemini-2.5-pro`, `gemini-3-flash`, or `gemini-3-pro` are misnamed, deprecated, gated, or require different identifiers (region/project-specific), production flows will fail at runtime (often after deployment).",
+        "location": "Sprint Goal; T2, T3, T4, T5, T6, T7, T8",
+        "recommendation": "Add an explicit verification step: run a smoke test that performs a real API call for each model via both adapters (legacy + shim) in CI or a staging environment; document required provider entitlements.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Config/alias changes can have unintended blast radius across many agents and workflows",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "T6 changes `reviewer` and `reasoning` aliases and expects many downstream bindings to inherit. Any workflow relying on previous model behavior, context window, tool support, or output formatting may regress. Alias-based inheritance can also mask which model is actually used.",
+        "location": "T6",
+        "recommendation": "Inventory all consumers of these aliases and run a regression suite. Add a command to print resolved model per agent at runtime and include it in logs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Dual adapter registries (legacy + shim) risk drift and inconsistent behavior",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Registering Gemini 3 in two separate scripts with different mapping structures (4 maps vs alias map) invites mismatches (provider, ID, cost, alias). Some code paths may use legacy while others use shim, leading to hard-to-debug discrepancies.",
+        "location": "T2, T3",
+        "recommendation": "Create a single source of truth (generated registry) or add a CI check that compares canonical model lists across adapters and fails on divergence.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Flatline call-count increase may exceed rate limits, timeouts, or latency SLOs",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "T5 explicitly increases calls (Phase 1: 6 calls; Phase 2: 6 cross-scoring calls). With retries, tool calls, or longer contexts, this can blow up runtime and hit provider QPS/TPM limits, causing partial results or cascading failures.",
+        "location": "T5 Acceptance Criteria; Flatline protocol behavior",
+        "recommendation": "Add performance acceptance criteria: max wall-clock time, max retries, and rate-limit handling. Run a load test or at least a timed integration test with realistic payload sizes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Gemini 2.5 Pro as tertiary model has no registration task but is being activated",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "T2 and T3 register Gemini 3 models (flash and pro), but T5 activates 'gemini-2.5-pro' as the flatline tertiary model. There is no task to verify that gemini-2.5-pro is already registered in both adapters with correct aliases and pricing. If it's not registered, T5 will silently fail or produce runtime errors.",
+        "location": "T5: Gemini tertiary model activation vs T2/T3: Gemini 3 registration",
+        "recommendation": "Add explicit verification that gemini-2.5-pro already exists in both model-adapter.sh and model-adapter.sh.legacy. If not, add a registration task for it. Document why Gemini 3 is being registered but Gemini 2.5 Pro is the one being activated.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "No validation that GPT-5.3-codex or Gemini 2.5 Pro actually work end-to-end",
+        "severity": "CRITICAL",
+        "severity_score": 800,
+        "why_matters": "The sprint is described as 'config/registration' with 'no new logic,' but swapping to a new model version can introduce behavioral regressions (different output formats, token limits, rate limits, API parameter changes). There are no smoke tests or integration tests defined to verify the new models actually produce valid review/audit/flatline outputs.",
+        "location": "Sprint Goal, T4-T8",
+        "recommendation": "Add a T13: End-to-end smoke test that runs at least one flatline cycle, one GPT review, and one red team pass with the new models and validates output structure. This should be P0.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Single blocker dependency on PR #413 with no contingency plan",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "The entire sprint is blocked by PR #413. If it has unresolved review comments, merge conflicts, CI failures, or the maintainer is unavailable, zero tasks can begin. There is no fallback plan or deadline for escalation.",
+        "location": "T1: Merge or rebase on PR #413",
+        "recommendation": "Define a hard deadline (e.g., Day 1 EOD) for PR #413 merge. If not met, have a contingency: either cherry-pick the relevant gpt-5.2→5.3 changes into a local branch or restructure T2/T3 to proceed independently and rebase later.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Single blocking dependency (PR #413) can stall or invalidate the entire sprint",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If PR #413 is delayed, changes, or conflicts with this work, every downstream task is blocked or requires rework. The plan assumes a clean merge/rebase and that the gpt-5.3-codex changes are exactly what this sprint needs.",
+        "location": "T1 + Dependency Graph",
+        "recommendation": "Add a contingency plan: (a) define a cutoff date to pivot, (b) identify minimal subset that can ship without #413, (c) pre-validate conflicts by rebasing early and pinning exact commit SHA.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint goal task breakdown",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T00:45:30Z",
+    "metrics": {
+      "total_latency_ms": 84000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T02:15:22Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and critical gap. Introducing model + provider changes without an explicit rollback path is operationally risky. Actionable with clear runbook-style acceptance criteria and high ROI.",
+        "gpt_score": 910,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 915,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value domain-specific concern. Raw threshold consensus across heterogeneous models is likely to bias outcomes without calibration. This directly affects decision correctness and should be specified.",
+        "gpt_score": 890,
+        "opus_score": 850,
+        "tertiary_score": 920,
+        "delta": 40,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong improvement. The suggested smoke/integration tests are concrete and map directly to stated failure/degradation behaviors. Prevents fragile manual validation of complex orchestration logic.",
+        "gpt_score": 860,
+        "opus_score": 750,
+        "tertiary_score": 880,
+        "delta": 110,
+        "average_score": 805,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important consistency fix. Model version/registration ambiguity can cause immediate runtime failures in the default path. Low effort, high impact to implementation correctness.",
+        "gpt_score": 835,
+        "opus_score": 830,
+        "tertiary_score": 900,
+        "delta": 5,
+        "average_score": 832.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Practical reliability/performance gap. Global caps are insufficient without per-call timeouts to bound worst-case wall-clock time. Clear to implement and test.",
+        "gpt_score": 745,
+        "opus_score": 870,
+        "tertiary_score": 980,
+        "delta": 125,
+        "average_score": 807.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Consensus rule is vulnerable to single-model false blockers",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The rule 'any 1 skeptic concern >700 => BLOCKER' gives veto power to one noisy or misbehaving model. In adversarial or low-quality outputs, this can cause repeated non-convergence and cap-hit outcomes, reducing system utility.",
+        "location": "Section 4, FR-2 (3-Way Consensus Decision Rule, Flatline IMP-001)",
+        "recommendation": "Require blocker corroboration (e.g., 2-of-3 for blocking, or one blocker plus confidence threshold/history), and define anti-flake logic for outlier filtering.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Dependency on PR #413 introduces sequencing and compatibility failure risk",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "This PRD assumes PR #413 behavior and branch state are stable. If #413 changes response parsing or model routing, this PR can silently break defaults or dual-path API handling.",
+        "location": "Section 3 (Dependency on PR #413), Section 7 (Implementation Notes)",
+        "recommendation": "Add explicit integration contract checks (required functions, response schema expectations) and gate merge on a compatibility test matrix against #413 final commit.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "No explicit test plan for consensus correctness and degradation paths",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The PRD changes scoring logic, fallback behavior, and iteration stop conditions, but does not define deterministic test cases (e.g., missing scores, conflicting blockers, partial failures). This can ship a logically incorrect consensus engine that appears to work in happy-path runs.",
+        "location": "Section 4 (FR-2, FR-3), Section 6 (Risks)",
+        "recommendation": "Add mandatory test requirements: unit tests for decision rules, simulation tests for missing/invalid outputs, and end-to-end fixtures covering 2-model fallback, cap-hit output, and blocker conflict scenarios.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Performance and latency risk is understated for 60-call worst-case runs",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "The PRD states a 60-call ceiling but lacks target runtime/SLO and queue behavior under provider throttling. Backoff + retries across three providers can push runs beyond practical CI/CD or developer feedback windows.",
+        "location": "Section 4 (Rate Limit Handling), Section 5 (Technical Constraints)",
+        "recommendation": "Define hard runtime SLOs, per-phase timeout budgets, retry caps per provider, and behavior when SLO is exceeded (early stop, partial verdict, or explicit failure mode).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Security assumptions around URL-parameter API keys may leak via logs/proxies",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Even with xtrace disabled, URL query parameters are commonly captured by reverse proxies, HTTP logs, and APM tools. This creates a key exfiltration path not addressed by masking/redaction requirements.",
+        "location": "Section 5 (Gemini API auth approach)",
+        "recommendation": "Add explicit log redaction requirements, prohibit full URL logging, rotate keys automatically, and document a migration path to safer auth when available.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd multi model adversarial",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T02:15:22Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T02:52:14Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 7,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Core ranking behavior is currently under-specified. This is a real functional gap that will create inconsistent implementations and untestable relevance outcomes. High ROI, low documentation cost.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Defines the input contract for matching, which is essential for determinism and testing. Without this, FR-1 is ambiguous at runtime and in QA. Strong, actionable improvement.",
+        "gpt_score": 895,
+        "opus_score": 780,
+        "tertiary_score": 960,
+        "delta": 115,
+        "average_score": 837.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Practical resilience requirement for file-based registries. Per-entry degradation is domain-appropriate and prevents full pipeline failure from common markdown drift issues.",
+        "gpt_score": 830,
+        "opus_score": 820,
+        "tertiary_score": 900,
+        "delta": 10,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Most critical data-contract gap in the PRD. Multiple features depend on shared assumptions about index and entry formats; formal schema is foundational for interoperability and future maintenance.",
+        "gpt_score": 940,
+        "opus_score": 720,
+        "tertiary_score": 940,
+        "delta": 220,
+        "average_score": 830,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good product-governance addition. Shadow mode without clear graduation criteria risks becoming ceremonial. Defining validation signals is actionable and improves rollout quality.",
+        "gpt_score": 710,
+        "opus_score": 850,
+        "tertiary_score": 980,
+        "delta": 140,
+        "average_score": 780,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Important clarification: explanation generation affects trust, performance, and security constraints. Explicit mechanism avoids accidental LLM dependency and keeps NFRs coherent.",
+        "gpt_score": 770,
+        "opus_score": 810,
+        "tertiary_score": 880,
+        "delta": 40,
+        "average_score": 790,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "High-value given this initiative spans scripts, configs, and file contracts. End-to-end tests directly target the historical seam failure described in the problem statement.",
+        "gpt_score": 805,
+        "opus_score": 920,
+        "tertiary_score": 890,
+        "delta": 115,
+        "average_score": 862.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "No formal schema is defined for `visions/index.md` and entry files, yet multiple features depend on parsing them reliably.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Markdown-structure drift, malformed entries, or partial manual edits can silently break matching, ranking, provenance, and status transitions.",
+        "location": "Section 4 (FR-1, FR-2, FR-5, FR-7)",
+        "recommendation": "Define and enforce a versioned machine-readable schema (YAML/JSON), add validation on read/write, and fail safely with explicit errors.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Reference count updates and status transitions appear file-based with no concurrency strategy.",
+        "severity": "CRITICAL",
+        "severity_score": 845,
+        "why_matters": "Parallel runs, retries, or multi-agent execution can corrupt counters/status, causing inconsistent lifecycle state and broken trust in provenance.",
+        "location": "Section 4 (FR-2, FR-5), Section 7 (Dependencies)",
+        "recommendation": "Introduce atomic writes/locking or a transactional store, plus idempotent update semantics and conflict-resolution rules.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Relevance matching is tag-overlap based with no taxonomy governance, synonym handling, or quality controls.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "Inconsistent tags will produce false positives/negatives, making suggestions feel noisy or useless and undermining user trust/adoption.",
+        "location": "Section 4 (FR-1, FR-7), Section 7 (Risk: Vision noise)",
+        "recommendation": "Define a controlled tag vocabulary, normalization rules, synonym maps, and precision/recall evaluation thresholds before broad rollout.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "Sprint scope is likely underestimated, especially FR-4 (vision-inspired requirements + provenance + PRD rendering).",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "This is effectively a second requirement-generation pathway with review UX, traceability, and rejection behavior—high hidden complexity and timeline risk.",
+        "location": "Section 4 (FR-4), Section 6 (Sprint 3)",
+        "recommendation": "De-scope FR-4 to a narrow pilot with hard guardrails, and require post-Sprint-2 evidence before implementation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "The PRD assumes `check_relevant_visions()` and `record_reference()` are production-ready for planning, but they were built for capture workflows.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Reusing shell functions across contexts creates tight coupling and brittle integration; capture-script changes can break planning unexpectedly.",
+        "location": "Section 4 (FR-1, FR-5), Section 7 (Dependencies)",
+        "recommendation": "Extract shared logic into a stable library/module with versioned interfaces, tests, and backward-compatibility guarantees.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Vision content is treated as trusted local data, but no prompt-injection or content-sanitization controls are specified.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "A malicious or malformed vision entry could manipulate planning behavior, contaminate generated requirements, or bypass intended HITL controls.",
+        "location": "Section 5 (Security), Section 4 (FR-2, FR-4)",
+        "recommendation": "Add sanitization and prompt-boundary rules for loaded vision text, including stripping executable instructions and enforcing structured extraction.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd vision aware planning",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T02:52:14Z",
+    "metrics": {
+      "total_latency_ms": 218000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T03:04:40Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and high-impact gap. Tag derivation is the root input to ranking, and the current wording is too ambiguous to implement consistently. Low-to-moderate effort to fix (ordered rules + examples) with very high ROI.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong architectural concern. Mixing mutable runtime state into config is error-prone, and concurrency risk is credible in multi-session operation. Clear, actionable fix (separate state store + atomic updates).",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 60,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable operational hardening. External tool dependencies (jq/yq) need explicit prereq checks and failure behavior. Straightforward to implement; moderate impact because failures are otherwise abrupt and hard to diagnose.",
+        "gpt_score": 790,
+        "opus_score": 750,
+        "tertiary_score": 880,
+        "delta": 40,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important consistency issue: scoring logic depends on a field that is optional in schema. This can silently distort ranking quality. Easy to fix by requiring Date or defining deterministic fallback behavior.",
+        "gpt_score": 840,
+        "opus_score": 850,
+        "tertiary_score": 930,
+        "delta": 10,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Good catch on internal contradiction. Fallback behavior must be explicit and consistent with refactor goals; otherwise failure modes are unpredictable. Moderate effort, meaningful reliability gain.",
+        "gpt_score": 770,
+        "opus_score": 720,
+        "tertiary_score": 780,
+        "delta": 50,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Prudent forward-compatibility recommendation. Not immediately critical if schema is stable, but version handling should be defined before evolution begins to avoid brittle upgrades.",
+        "gpt_score": 570,
+        "opus_score": 900,
+        "tertiary_score": 450,
+        "delta": 330,
+        "average_score": 735,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Concurrency safety is overstated: tmp+mv alone does not prevent lost updates during concurrent read-modify-write operations on `index.md`.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Two processes can read the same old file, each write a different update, and the last writer wins. Reference counts/status transitions can silently regress, corrupting registry state.",
+        "location": "Section 2.1 (`vision_record_ref`), Section 5 (Concurrency Safety)",
+        "recommendation": "Add file locking (`flock`) around critical sections, plus retry/backoff. Include concurrency stress tests with parallel writers.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Markdown-table parsing with `grep|awk|xargs` is brittle and will mis-parse valid content containing pipes, commas, extra spaces, or escaped characters.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Registry rows can be silently skipped or malformed, causing inconsistent query results and incorrect scores/ref counts.",
+        "location": "Section 2.1 (`vision_load_index`), Section 4 (Index Format)",
+        "recommendation": "Replace ad-hoc parsing with a stable storage format (JSON/YAML) or a robust markdown parser; add fuzz tests for edge-case rows.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Prompt-injection sanitization is too narrow and regex-based, leaving bypass vectors in markdown, encoded payloads, and indirect instruction formats.",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "If malicious vision content reaches planning context, it can steer agent behavior despite 'quoted markdown' intentions. Current stripping only handles a few literal patterns.",
+        "location": "Section 2.1 (`vision_sanitize_text`), Section 5 (Content Sanitization)",
+        "recommendation": "Move to strict allowlist extraction from parsed sections/fields, normalize/decode text before checks, and add adversarial test corpus for injection variants.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "The SDD/code examples contain unresolved template artifacts (`{{DOCUMENT_CONTENT}}`) and malformed shell syntax that would break implementation if copied literally.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "This indicates document generation corruption and makes key functions (e.g., validation conditionals, redirections) syntactically invalid. Teams may implement from broken examples, causing immediate runtime failure and debugging churn.",
+        "location": "Section 2.1 (`vision_load_index`, `vision_match_tags`), Section 4 (`vision_validate_entry`), Section 8 heading",
+        "recommendation": "Publish a corrected SDD revision before coding. Add a pre-merge lint step that validates all embedded shell snippets for syntax correctness.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Toolchain/version assumptions are undocumented (`jq`, `yq`, GNU/BSD `sed/awk` differences), risking cross-environment breakage.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Scripts may pass in one developer CI image and fail on another machine, delaying rollout and creating non-reproducible behavior.",
+        "location": "Section 2, 2.3, 2.4 script examples",
+        "recommendation": "Define minimum supported versions and OS matrix, add startup dependency checks, and run CI on Linux/macOS variants.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " 1 architecture overview tags",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T03:04:40Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-26T03:11:51Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and high-impact gap. Refactoring a critical bridge script without explicit rollback/recovery steps is risky, and adding a documented rollback path plus safety signals is low-to-moderate effort with strong operational ROI.",
+        "gpt_score": 840,
+        "opus_score": 950,
+        "tertiary_score": 950,
+        "delta": 110,
+        "average_score": 895,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical specification gap. Tag derivation is a core algorithm that drives match quality; without concrete rules/examples, implementations will diverge and downstream scoring becomes unreliable. Highly actionable and essential.",
+        "gpt_score": 920,
+        "opus_score": 820,
+        "tertiary_score": 980,
+        "delta": 100,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable and domain-appropriate for AI-assisted workflows. Prompt-injection-style semantic threats are a real concern beyond basic sanitization, though full threat modeling adds moderate complexity and should be right-sized.",
+        "gpt_score": 760,
+        "opus_score": 720,
+        "tertiary_score": 920,
+        "delta": 40,
+        "average_score": 740,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good, practical safeguard. Cross-sprint regression coverage for the same script is actionable and reduces compounded regressions; cost is moderate and justified for a critical path component.",
+        "gpt_score": 710,
+        "opus_score": 750,
+        "tertiary_score": 900,
+        "delta": 40,
+        "average_score": 730,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "High-value correctness concern. Concurrency handling for JSONL/state files is a real data integrity risk if parallel runs occur. Explicit locking or documented single-writer assumptions should be added.",
+        "gpt_score": 830,
+        "opus_score": 420,
+        "tertiary_score": 870,
+        "delta": 410,
+        "average_score": 625,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Configuration task contains unresolved placeholder (`{{DOCUMENT_CONTENT}}`) indicating template leakage",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Template artifacts in task definitions are a strong signal of incomplete planning and can cause implementation ambiguity, broken automation, or accidental commits of invalid config schemas.",
+        "location": "Sprint 1, T5 title: `Configuration {{DOCUMENT_CONTENT}} feature flags`",
+        "recommendation": "Resolve and validate templated fields before sprint start; add CI check that fails on unreplaced placeholders.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Core assumptions depend on undocumented PRD/SDD details that are not visible in this plan",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "The sprint references PRD/SDD v1.1 but does not restate key non-functional requirements, constraints, or acceptance boundaries. If those assumptions are wrong or stale, teams can build the wrong thing while still passing local acceptance tests.",
+        "location": "Header references to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md`",
+        "recommendation": "Inline a sprint-level requirements contract: explicit NFRs, compatibility targets, threat model, and out-of-scope list so execution is not blocked by missing context.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Locking strategy is fragile across environments and may not prevent race conditions",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "Using `flock` with file-based locks and 5-second timeout may fail under CI load, containerized volumes, or non-Linux filesystems. Timeouts can produce dropped updates or partial state transitions.",
+        "location": "Sprint 1 T7 (`vision_record_ref`, `vision_update_status`, `{index_file}.lock`)",
+        "recommendation": "Specify lock behavior per runtime, implement retry/backoff + idempotency, and add conflict telemetry with deterministic recovery path.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Markdown-as-database design introduces hidden parsing complexity and data integrity risk",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "The plan relies on parsing `index.md` and entry markdown for schema validation, scoring, refs, status transitions, and recency. Markdown format drift, malformed tables, heading variants, or encoding edge cases can silently corrupt behavior.",
+        "location": "Sprint 1 T3/T4 schema and query design; Sprint 2 T3 sanitization",
+        "recommendation": "Define a canonical machine-readable store (JSON/YAML) with strict schema validation; treat markdown as rendered view, not source of truth.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-009",
+        "concern": "Scope creep risk: Sprint 3 introduces generative requirement synthesis before foundational reliability is proven",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Proposing new requirements, provenance flows, user decision loops, and lore elevation significantly expand product and UX complexity. If activated too early, this can destabilize core capture/query workflows.",
+        "location": "Sprint 3 T1/T2 experimental features",
+        "recommendation": "Gate Sprint 3 behind explicit reliability KPIs from Sprint 1/2 (error rates, relevance scores, concurrency stability) and keep experimental rollout opt-in.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Security model focuses on content sanitization but omits broader trust boundaries",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "Sanitizing `## Insight` text is necessary but insufficient. Untrusted tags, IDs, file paths, and config values can still lead to command/argument injection, path traversal, or unsafe script invocation in shell-based tooling.",
+        "location": "Sprint 2 T3 sanitization; scripts across Sprint 1/2 invoking jq/yq/flock",
+        "recommendation": "Add explicit threat model and secure coding checklist for shell: strict quoting, allowlisted paths, input normalization for all fields, and security tests for CLI argument/path abuse.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 global sprint",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-26T03:11:51Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

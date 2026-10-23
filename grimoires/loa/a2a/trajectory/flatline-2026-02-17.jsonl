@@ -1,0 +1,1036 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:12:59Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 10,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the PRD introduces a confidence score and thresholds but doesn’t define how it’s computed, making routing nondeterministic and the thresholds meaningless. Highly actionable (define signal weights/combiner + examples) and central to correctness/ROI with relatively low spec effort.",
+        "gpt_score": 900,
+        "opus_score": 820,
+        "delta": 80,
+        "average_score": 860,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical security/privacy gap: filing stack traces/snippets/env details to third-party repos can leak secrets and proprietary data. Actionable (redaction rules + mandatory preview/confirm + allowlist/denylist fields) and high impact; cost is moderate but justified.",
+        "gpt_score": 920,
+        "opus_score": 900,
+        "delta": 20,
+        "average_score": 910,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important product/logic gap: real findings often span multiple constructs and project code; assuming 1:1 attribution will misroute and frustrate users/vendors. Actionable via explicit rules (primary vs secondary attribution, split/duplicate filing, or route-to-project when mixed) with moderate complexity.",
+        "gpt_score": 820,
+        "opus_score": 760,
+        "delta": 60,
+        "average_score": 790,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Real integration gap: adding `source_repo` without schema/validation/versioning guidance risks ecosystem breakage and inconsistent parsing. Actionable (schema, accepted formats, backward compatibility behavior, error handling). Moderate complexity; good ROI.",
+        "gpt_score": 720,
+        "opus_score": 740,
+        "delta": 20,
+        "average_score": 730,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assumes users can file issues on vendor repos, but most users will not have write access; the primary path may fail frequently",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If the common case is 'no permission', routing becomes a dead-end and the ecosystem feedback loop still doesn't happen. Clipboard fallback is not equivalent to upstream filing and will be ignored most of the time.",
+        "location": "NFR-1: Permission Safety; FR-4/FR-5: create GitHub issue via `gh issue create`",
+        "recommendation": "Support a permissionless upstream path: create an issue in the user's repo that pings/links the vendor repo, or open a PR/patch file, or file to a central Loa intake repo that vendors can subscribe to. At minimum, support filing to vendor repo via fork + issue in fork (or discussion) and provide a one-click URL prefill for GitHub issue creation when write access is missing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Attribution confidence model is underspecified and likely brittle; false positives/negatives will be common",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Routing depends on confidence > 0.7, but the PRD doesn't define how confidence is computed, how signals are weighted, or how to handle ambiguous matches (multiple packs, shared skill names, vendored copies). Misrouting erodes trust and increases noise for vendors.",
+        "location": "FR-1: Attribution signals; FR-3: priority when confidence > 0.7",
+        "recommendation": "Define deterministic rules and tie-breakers: exact path match > manifest mapping > stack trace > NLP mention. Provide multi-attribution support (one finding can map to multiple constructs) and require user selection when ambiguity exists. Add a test corpus and target precision/recall metrics, not just 'correctly attributed >90%'.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Attribution confidence scoring is undefined — 'confidence: 0.0-1.0' has no specification",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "The entire routing decision hinges on a confidence score exceeding 0.7, but the PRD never defines how to calculate this score. What weight does a file path match get vs. a skill name mention vs. a stack trace reference? Without a defined scoring algorithm, implementation will be ad-hoc and the 0.7 threshold is meaningless. This is the core logic of the feature and it's completely unspecified.",
+        "location": "FR-1, FR-3 (attribution_threshold: 0.7)",
+        "recommendation": "Define explicit scoring rules: e.g., file path match in construct directory = 0.9, skill name keyword match = 0.5, user mention of construct name = 0.6, stack trace reference = 0.8. Define how multiple signals combine (max? weighted average?). Validate threshold against real feedback samples.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Duplicate/notification spam risk: automated pipelines can repeatedly file similar issues without deduplication or rate limiting",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Bridgebuilder/audit/review runs can happen frequently (CI, local iterations). Without dedupe, vendors get flooded, will disable issues, or block Loa. Users will also get prompt fatigue from repeated confirmations.",
+        "location": "FR-5: automated pipeline routing; Open Question #1 deferred",
+        "recommendation": "Make deduplication MVP: compute a stable fingerprint (construct+file+rule+snippet hash), store locally, and update existing issues (comment) instead of creating new ones. Add rate limits and batching windows per repo.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "No spam/abuse protection for construct vendor repos",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Any user can trigger issue creation on any repo declared as a `source_repo` in a manifest. A malicious or compromised construct could declare `source_repo: torvalds/linux` and Loa would happily file issues there after user confirmation. Users may not scrutinize the target repo. Even without malice, a popular construct could receive hundreds of duplicate or low-quality issues from many Loa users, effectively DDoSing a vendor's issue tracker. The PRD explicitly defers duplicate tracking to a 'follow-up cycle' — this is a day-one abuse vector.",
+        "location": "FR-4, FR-5, Section 7 (Open Questions #1)",
+        "recommendation": "Implement duplicate detection before MVP launch (hash-based fingerprinting of findings). Add a construct repo allowlist or domain verification mechanism so `source_repo` can be validated against the actual construct vendor identity. Rate-limit issue creation per repo per time window.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Privacy/compliance gap: issue payload may include proprietary code, secrets, or sensitive environment details; no redaction policy defined",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "Filing to third-party repos can leak confidential source, customer data, tokens in stack traces, internal URLs, or security findings. This is a major adoption blocker for companies and could create legal exposure.",
+        "location": "FR-6: issue format includes code snippets/repro/environment; FR-5: includes links back to local sprint/PR context",
+        "recommendation": "Add a mandatory redaction/preview step: secret scanning (common token patterns), configurable scrubbing rules, and a 'safe mode' that excludes snippets by default. Provide per-org policy toggles (never include environment, never include file contents, etc.).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security risk: untrusted `source_repo` in local manifests can redirect users to file issues to attacker-controlled repos (social engineering / data exfiltration)",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Constructs are third-party code. A malicious pack can set `source_repo` to a lookalike repo and trick users into posting sensitive logs, stack traces, or proprietary code snippets. User confirmation helps but doesn't prevent deception.",
+        "location": "FR-2: `source_repo` field in manifest; FR-4/FR-5: prompt then file issue; FR-6: issue includes environment/context",
+        "recommendation": "Add trust and validation: display full repo URL + owner, require explicit 'I trust this vendor' allowlist per vendor/repo, warn on mismatched vendor/name, optionally verify repo via signed manifest or registry metadata, and redact/preview sensitive content with a 'contains secrets?' scan before allowing external filing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Security: Untrusted manifest.yaml controls where issues are filed",
+        "severity": "CRITICAL",
+        "severity_score": 830,
+        "why_matters": "The `source_repo` field in `manifest.yaml` is written by construct vendors and lives in the user's local filesystem. There is no validation that this field points to a legitimate repo owned by the declared vendor. A supply-chain attack could modify a construct's manifest to redirect feedback (containing potentially sensitive code snippets, file paths, and environment details) to an attacker-controlled repo. The issue format (FR-6) includes code snippets, file:line references, Loa version, and environment details — this is an information exfiltration vector.",
+        "location": "FR-2, FR-6, NFR-1",
+        "recommendation": "Validate `source_repo` against a registry-signed manifest or checksum. At minimum, display the FULL target repo URL prominently in the confirmation prompt and warn if it doesn't match the vendor's known organization. Consider stripping sensitive environment details by default.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "The MVP scope is enormous for a P2 feature — 7 functional requirements spanning 5+ feedback pipelines",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "This PRD bundles together: an attribution engine, manifest schema extension, classifier rewrite, `/feedback` command changes, AND integration with 4 separate automated pipelines (Bridgebuilder, audit-sprint, review-sprint, bug triage). Each pipeline integration is its own integration surface with its own edge cases. For a P2 priority feature, this scope suggests multi-cycle delivery but is framed as a single cycle. The 'In Scope (MVP)' section literally includes everything.",
+        "location": "Section 6 (Scope & Prioritization)",
+        "recommendation": "Split into phases. Phase 1: attribution engine + `/feedback` routing only (FR-1, FR-2, FR-4). Phase 2: classifier extension (FR-3). Phase 3: automated pipeline integration (FR-5). This lets you validate the core attribution logic before wiring it into every pipeline.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "bash-based classifier extension will not scale to handle confidence scoring and manifest parsing",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The existing system is `feedback-classifier.sh` — a bash script doing keyword matching against 4 hardcoded repos. The PRD proposes extending this to: parse YAML manifests, compute floating-point confidence scores from multiple attribution signals, resolve construct hierarchies (packs containing skills), and handle priority ordering between categories. Bash is fundamentally wrong for this complexity. You'll either end up with an unmaintainable 500-line bash script or secretly rewriting the classifier in another language, which is a hidden scope item.",
+        "location": "FR-3, FR-1",
+        "recommendation": "Acknowledge that this is a classifier rewrite, not an extension. Decide upfront whether to rewrite in Python/Node/etc. and budget accordingly. If staying in bash, dramatically simplify the attribution logic (e.g., path-match only, no confidence scores).",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd cross codebase feedback",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:12:59Z",
+    "metrics": {
+      "total_latency_ms": 97000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:15:09Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real core gap: the PRD defines signals and a threshold but not the combination logic, making routing behavior non-deterministic and the 0.7 cutoff meaningless. Highly actionable (document scoring/weights, precedence rules, calibration approach) and low-to-moderate effort with very high ROI because it drives correctness and consistency across implementations.",
+        "gpt_score": 900,
+        "opus_score": 820,
+        "delta": 80,
+        "average_score": 860,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical domain-appropriate risk: cross-repo issue filing is an exfiltration vector via malicious/compromised manifests or social engineering. The PRD needs explicit controls (allowlists, prominent repo identity, content minimization, policy defaults). Actionable and high impact; not addressing it can cause severe trust/security incidents.",
+        "gpt_score": 930,
+        "opus_score": 910,
+        "delta": 20,
+        "average_score": 920,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Important ecosystem-safety gap: without dedup/rate limiting, the feature can spam vendor repos, harming adoption and relationships. Actionable MVP options exist (local ledger keyed by finding+repo, lightweight GitHub search before filing, per-repo quotas). Moderate complexity due to GitHub API limits/permissions, but strong ROI.",
+        "gpt_score": 820,
+        "opus_score": 780,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Measurability gap: a >90% attribution accuracy metric without a definition of 'correct' and a test harness is not enforceable. Actionable (golden fixtures per signal, ambiguous-case policy, CI gating) and proportionate given attribution is central to the feature’s value and safety.",
+        "gpt_score": 860,
+        "opus_score": 750,
+        "delta": 110,
+        "average_score": 805,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Practical implementation gap: schema/format validation and versioning for `source_repo` prevents runtime failures and inconsistent behavior. Actionable (define allowed formats, validation time, error handling, backward compatibility). Moderate ROI; not catastrophic but will reduce support burden and edge-case bugs.",
+        "gpt_score": 720,
+        "opus_score": 860,
+        "delta": 140,
+        "average_score": 790,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Important product/ops gap: '100% confirmation' conflicts with CI/non-interactive runs; without a defined UX/policy, teams will disable the feature or it will block pipelines. Actionable (batch prompts, non-interactive modes, fail-closed vs queue-for-later, config flags). Moderate complexity but high usability impact.",
+        "gpt_score": 760,
+        "opus_score": 920,
+        "delta": 160,
+        "average_score": 840,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assumes users can file issues to vendor repos, but most consumers will not have GitHub write access (and many repos will disable issues or require templates)",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The core value proposition (routing feedback upstream) collapses if the common case is 'no permission' or 'issues disabled'. Clipboard fallback does not create an upstream feedback loop and will be ignored most of the time.",
+        "location": "NFR-1 Permission Safety; FR-4/FR-5 create issues via `gh issue create`",
+        "recommendation": "Support alternative upstream delivery paths: create a PR with a markdown report, open a discussion, or file to a central Loa repo that pings vendor via CODEOWNERS/maintainers list. Detect 'issues disabled' and required issue forms; provide a guided manual flow with prefilled URL and body.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Attribution confidence scoring is hand-waved with no defined algorithm",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "FR-1 outputs a confidence score 0.0-1.0 and FR-3 gates routing on >0.7 threshold, but the PRD never defines how confidence is calculated. Are file path matches 1.0? What about fuzzy 'user mentions a construct name' signals? Without a defined algorithm, every implementer will invent their own, leading to inconsistent routing, false positives filing issues on random vendor repos, and false negatives silently swallowing construct feedback. This is the core logic of the entire feature and it's unspecified.",
+        "location": "FR-1: Construct Attribution — 'Output: An attribution record {confidence: 0.0-1.0, signals: [...]}'",
+        "recommendation": "Define a concrete scoring model: assign weights to each signal type (exact path match = 0.9, stack trace reference = 0.8, user mention = 0.5, etc.), specify aggregation logic (max? weighted sum? any-above-threshold?), and write test cases for each signal combination with expected confidence outputs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Attribution engine is underspecified and likely to be noisy; confidence threshold (0.7) is arbitrary without a calibration plan",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "False positives create misfiled issues (vendor frustration) and false negatives keep feedback local (no ecosystem loop). Without a defined algorithm, test corpus, and evaluation method, the >90% success metric is not actionable.",
+        "location": "FR-1 Attribution signals; FR-3 threshold; Success Metrics",
+        "recommendation": "Define deterministic attribution rules first (path-based precedence), then optional heuristics. Provide a labeled test set and acceptance criteria (precision/recall). Log attribution decisions and signals for debugging. Make threshold configurable per user/org and per feedback type.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Filing issues on external repos is a spam/abuse vector with no rate limiting or anti-abuse controls",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Any user with gh write access to a construct repo can file structured issues. A malicious or buggy Loa installation could flood a vendor's repo with garbage issues. The 'user confirmation' gate only prevents accidental filing — it doesn't prevent intentional abuse or a compromised/modified Loa instance. Vendors have no way to verify the issue came from a legitimate Loa installation. Once this ships, construct vendors may get spammed and disable issues entirely, killing the feedback loop for everyone.",
+        "location": "FR-4, FR-5, FR-6 — issue filing on external repos",
+        "recommendation": "Add rate limiting (max N issues per repo per day per user), include a verifiable Loa installation signature or version hash in filed issues, define a vendor-side opt-in mechanism (e.g., a `.loa-feedback` file in the repo root), and consider a cooldown period for duplicate-like filings against the same repo.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Privacy/compliance requirements are missing (PII, secrets, proprietary code) despite proposing to include environment and snippets in external issues",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Bridgebuilder/audit outputs may contain customer data, internal URLs, tokens, or proprietary code. Filing to third-party repos can violate policies and create irreversible leakage.",
+        "location": "FR-6 issue template; FR-7 include_environment; FR-5 automated routing",
+        "recommendation": "Add explicit redaction and consent requirements: secret scanning (tokens/keys), PII detection, configurable allow/deny lists for fields, and a 'preview diff' that highlights what will be shared. Default `include_environment` to false unless user opts in.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security: `source_repo` in local manifests is an untrusted input that can exfiltrate sensitive data to an attacker-controlled repo",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "A malicious construct can set `source_repo` to an attacker repo; the user is prompted, but the prompt may be habituated/unclear. The issue body may include code snippets, file paths, stack traces, environment details, and vulnerability findings—high-value data leakage.",
+        "location": "FR-2 manifest `source_repo`; FR-6 issue format; FR-4/FR-5 prompt + filing",
+        "recommendation": "Treat `source_repo` as potentially malicious: display full owner/repo + link + verification signals (signed manifest, registry-verified vendor, allowlist). Add redaction rules and a 'sensitive content' detector; default to minimal content until user expands. Consider requiring explicit trust of a construct/vendor before enabling external routing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Sensitive information leakage in externally filed issues",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "FR-5 and FR-6 automatically include 'file:line references, code snippets, reproduction steps, stack traces, and environment details' in issues filed on PUBLIC external repos. The user's project code, internal file paths, environment variables, API keys in stack traces, proprietary business logic, and infrastructure details could all be exposed. The user 'confirmation' step shows what will be filed, but users routinely click through confirmation dialogs without reading. One leaked secret in a public GitHub issue is irrecoverable.",
+        "location": "FR-6: Issue Format for Construct Repos — 'Details: file:line references, code snippets, reproduction steps'",
+        "recommendation": "Implement a secrets scanner on issue content before presenting for confirmation (check for API keys, tokens, connection strings, internal URLs). Strip or redact file paths outside the construct directory. Show a prominent warning when filing to a public repo. Consider a 'preview mode' that defaults to minimal context with opt-in to include more detail.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "source_repo in manifest.yaml is vendor-controlled and can point anywhere",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "A malicious construct vendor could set source_repo to any GitHub repository — a competitor's repo, a popular open source project, or a repo designed to harvest user information from filed issues. Since FR-2 trusts the local manifest blindly and NFR-3 prohibits registry API validation, there's no verification that source_repo actually belongs to the construct vendor. Users would be prompted to file issues on repos that have nothing to do with the construct.",
+        "location": "FR-2: Source Repo Resolution — 'Primary source: source_repo field in construct's manifest.yaml'",
+        "recommendation": "Add validation that source_repo matches the vendor's namespace or is on an allowlist. Consider a registry-signed manifest where source_repo is verified at publish time. At minimum, show the full repo URL prominently in the confirmation dialog and warn if the repo org doesn't match the vendor name.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd cross codebase feedback",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:15:09Z",
+    "metrics": {
+      "total_latency_ms": 107000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:16:50Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 90,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the PRD uses a numeric confidence threshold (0.7) but doesn’t define how confidence is computed, making the threshold non-actionable and risking inconsistent implementations. Actionable to specify a deterministic scoring/weighting scheme (even if later tuned). Moderate effort, high impact on routing correctness.",
+        "gpt_score": 820,
+        "opus_score": 820,
+        "delta": 0,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Likely real edge case in composable ecosystems (overlapping constructs, transitive deps). Needs defined behavior to avoid misrouting or duplicate filing. Implementation complexity is moderate (disambiguation UI/heuristics), but worth addressing at least with a deterministic tie-break + optional user prompt.",
+        "gpt_score": 720,
+        "opus_score": 750,
+        "delta": 30,
+        "average_score": 735,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Important ecosystem-safety gap: without throttling/dedup, the feature can spam vendor repos and erode trust. Actionable NFRs (caps, cooldown, basic dedup) are feasible. Some trade-offs (might suppress legitimate reports), but overall high ROI.",
+        "gpt_score": 780,
+        "opus_score": 730,
+        "delta": 50,
+        "average_score": 755,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical security gap: vendor-supplied repo target used for external issue creation is a clear injection/misdirection vector. Validation, allowlisting/ownership checks, and shell-safe invocation are straightforward and high impact. This should be explicitly specified in the PRD.",
+        "gpt_score": 900,
+        "opus_score": 870,
+        "delta": 30,
+        "average_score": 885,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Critical privacy/security gap: the PRD proposes posting file paths/snippets/repro steps to external repos, which can leak private code and internal links. Requires explicit redaction policy + user review/confirmation. High impact if missed; implementation is manageable (template rules + opt-in snippet sharing).",
+        "gpt_score": 950,
+        "opus_score": 850,
+        "delta": 100,
+        "average_score": 900,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "High ROI MVP improvement: basic dedup (search existing issues before filing) is feasible and materially reduces vendor spam from day one. Not perfect (search quality, false matches), but better than deferring entirely.",
+        "gpt_score": 760,
+        "opus_score": 420,
+        "delta": 340,
+        "average_score": 590,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assumes `source_repo` is trustworthy; enables repo-spoofing and data exfiltration via malicious constructs",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "A construct can set `source_repo` to an attacker-controlled repo. Even with user confirmation, the UX may nudge users to file issues that include sensitive snippets, stack traces, file paths, environment details, or security findings—effectively a social-engineering exfiltration channel.",
+        "location": "FR-2 (source_repo in manifest), FR-4/FR-5 (issue creation), FR-6 (issue content), NFR-1 (permission safety)",
+        "recommendation": "Add trust and validation requirements: display full repo URL + owner prominently; require explicit user confirmation with a 'this is external/untrusted' warning; allow allowlist/denylist of orgs; optionally verify repo matches registry metadata or signed manifests; default to redacting sensitive content unless user expands.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Attribution confidence scoring is undefined — no algorithm, no training data, no validation",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "FR-1 outputs a confidence score from 0.0-1.0 and FR-3 gates routing on a 0.7 threshold, but the PRD never defines HOW confidence is calculated. Is a file path match alone 1.0? Is a user mentioning a pack name 0.5? Without a defined algorithm, this will either be a hardcoded heuristic that breaks constantly or a handwave that gets punted to implementation where every developer interprets it differently. This is the single most important technical decision in the system and it's completely unspecified.",
+        "location": "FR-1: Construct Attribution — confidence: 0.0-1.0 output",
+        "recommendation": "Define explicit scoring rules: e.g., file path match = 0.9, stack trace reference = 0.8, skill name mention = 0.6, user mentions pack name = 0.5. Define how signals combine (additive? max? weighted?). Add test cases with expected confidence outputs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Attribution engine is underspecified; 90% correctness target lacks measurable definition and test strategy",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Signals listed (paths, stack traces, skill names, user mentions) are ambiguous and can conflict. Without a deterministic algorithm, ground truth definition, and test corpus, routing will be inconsistent, hard to debug, and will erode trust (users will disable it).",
+        "location": "FR-1 (signals/confidence), Success Metrics (>90% attribution)",
+        "recommendation": "Specify attribution algorithm (scoring weights, tie-breakers, multi-construct handling), define 'correctly attributed' ground truth, add fixtures from real findings, and require explainability output (why it chose X) in the UI/logs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Filing issues on external repos is a spam/abuse vector with no rate limiting or anti-abuse controls",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Any user with gh write access to a construct repo can file structured issues on it. A malicious or confused user could flood a vendor's repo with garbage issues. The 'Filed automatically by Loa Framework' footer makes this worse — it gives the appearance of legitimacy. Vendors who receive low-quality automated issues will add Loa to their mental blocklist. There's no rate limiting, no deduplication (explicitly deferred), and no vendor opt-in/opt-out mechanism (also deferred). This could poison the ecosystem reputation before it gets traction.",
+        "location": "FR-4, FR-5, FR-6, and Open Question #2",
+        "recommendation": "Add rate limiting (max N issues per repo per time window). Implement local dedup tracking in MVP, not as follow-up. Allow vendors to declare a `feedback: disabled` field in manifest. Consider a lightweight verification step (e.g., issue template validation) before filing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Multi-construct and transitive dependency cases are not handled (one finding may involve multiple packs/vendors)",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Findings can span shared files, generated artifacts, or interactions between constructs. A single consolidated issue per construct repo (FR-5) can misattribute responsibility or duplicate content across repos, creating noise and vendor friction.",
+        "location": "FR-1 (single attribution record), FR-5 (grouped summary, one issue per construct repo)",
+        "recommendation": "Support multiple attributions per finding with confidence per construct; allow user to split/merge before filing; include cross-links; define behavior when confidence is split or below threshold for all.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "No defined redaction policy for secrets/PII in findings; structured issue format may leak sensitive data",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Audit findings, stack traces, and code snippets frequently contain secrets (tokens, keys), internal URLs, customer data, or proprietary code. Filing to third-party repos can create irreversible leakage and compliance incidents.",
+        "location": "FR-5 (audit/review routing), FR-6 (issue template), FR-7 (include_environment)",
+        "recommendation": "Define mandatory redaction/sanitization: secret scanning before filing, default omit code snippets, truncate logs, remove absolute paths/usernames, configurable redaction rules, and a preview diff showing exactly what will be posted.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Scope is massive for a P2 feature — 7 functional requirements touching 4+ existing pipelines",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "This PRD defines a construct attribution engine, a manifest schema extension, a classifier rewrite, modifications to /feedback, /audit-sprint, /review-sprint, /bug, and Bridgebuilder — plus a new issue format spec and configuration system. For a P2 'enhances ecosystem feedback loop' feature, this is an enormous surface area. FR-5 alone touches four different automated pipelines, each with its own trigger logic and output format. The 'MVP' is really 3-4 features bundled together. Timeline risk is severe.",
+        "location": "Section 6: Scope & Prioritization — everything is 'In Scope (MVP)'",
+        "recommendation": "True MVP should be FR-1 + FR-2 + FR-4 only (attribution + resolution + /feedback command). FR-5 (automated pipeline routing) should be Phase 2. FR-3 (classifier extension) can ship with FR-4. Cut the MVP scope by ~40%.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The source_repo field in manifest.yaml is unauthenticated and attacker-controllable",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "A malicious construct vendor can set source_repo to ANY GitHub repo — e.g., 'microsoft/vscode' or a competitor's repo. When users encounter issues with this malicious construct, Loa will helpfully suggest filing issues on the victim repo, complete with structured formatting that looks legitimate. The PRD has zero validation that source_repo actually belongs to the vendor. This is a directed spam cannon disguised as a feedback feature.",
+        "location": "FR-2: Source Repo Resolution — source_repo field in manifest.yaml",
+        "recommendation": "Validate that source_repo org/owner matches the construct vendor identity. Or verify source_repo contains a .loa-feedback-enabled marker file. At minimum, display a warning for repos outside the vendor's namespace.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd cross codebase feedback",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:16:50Z",
+    "metrics": {
+      "total_latency_ms": 95000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:19:07Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and material gap: the PRD defines a confidence score and threshold-driven routing but not how the score is computed. This blocks consistent implementation, makes QA impossible, and undermines the stated accuracy metric. Actionable to specify a deterministic rule (weights, tie-breakers, calibration) and acceptance tests around the 0.7 threshold.",
+        "gpt_score": 900,
+        "opus_score": 850,
+        "delta": 50,
+        "average_score": 875,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High ROI ecosystem-protection item. Without dedupe/rate limiting, the feature can spam vendor repos and create reputational risk. Actionable: local ledger keyed by (construct, fingerprint), throttles per repo/user/time window, and “already filed” UX. Some trade-offs (missed legitimate distinct reports) but worth it for MVP safety.",
+        "gpt_score": 820,
+        "opus_score": 880,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical security gap: untrusted manifest-controlled routing to external repos is a classic injection/poisoning vector, especially if issue bodies may include sensitive context. Actionable controls include strict URL parsing, allowlisting GitHub (or approved forges), org/owner verification, and prominent warnings/confirmation when repo is unexpected. Strong domain-appropriate threat modeling.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Top-tier critical: filing to third-party repos without explicit redaction rules risks leaking proprietary code, secrets, internal paths, and environment details. This is a trust boundary and likely a blocker for enterprise adoption. Actionable: explicit allow/deny fields, secret scanning/redaction, construct-only snippet inclusion, and user preview/edit requirements.",
+        "gpt_score": 930,
+        "opus_score": 760,
+        "delta": 170,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Assumes users can file issues on vendor repos, but most users will not have write access; the fallback (clipboard) undermines the core value",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The primary workflow (routing upstream) will fail for the majority of users if vendor repos don’t allow issue creation via the user’s token/permissions. Clipboard fallback shifts work back to the user and likely results in low follow-through, collapsing the feedback loop the feature is meant to create.",
+        "location": "NFR-1: Permission Safety; FR-4/FR-5: create GitHub issue via gh",
+        "recommendation": "Clarify the permission model: GitHub issues typically require only issue creation permission, not repo write. Validate exact required scopes/permissions for gh issue create. Add support for filing issues without requiring collaborator access (public repos with issues enabled), and explicitly handle private repos. Consider an alternative routing mechanism (e.g., user creates issue in their own repo with a link/template for upstream, or optional vendor-provided intake repo).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Attribution confidence model is underspecified and likely to misroute in real-world cases (monorepos, vendored code, renamed packs, overlapping skill names)",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Misrouting creates vendor noise, user distrust, and potential leakage of proprietary project context to third parties. Signals like 'skill name matches' and 'user mentions pack name' are ambiguous and can collide across vendors/packs. Stack traces and paths can be rewritten by tooling.",
+        "location": "FR-1: Attribution signals; FR-3: threshold > 0.7 priority",
+        "recommendation": "Define a deterministic attribution algorithm with precedence rules, weighting, and explainability. Prefer path-based attribution anchored to the local constructs directory with exact pack identity (vendor+pack+version). Require multiple independent signals above threshold for non-path cases. Provide a UI/CLI explanation of why it thinks it’s a construct and allow user override per finding.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Attribution confidence scoring is undefined — no algorithm, no training data, no validation",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "FR-1 outputs a confidence score (0.0-1.0) and FR-3 gates routing on >0.7 threshold, but the PRD never defines HOW confidence is calculated. Are we doing weighted signal counts? ML? Heuristics? A user mentions 'observer' in feedback about their own code that happens to share a name — what score does that get? Without a defined algorithm, every implementer will guess differently, and the 90% correct attribution success metric is unmeasurable. This is the core engine of the entire feature and it's a black box.",
+        "location": "FR-1: Construct Attribution, FR-3 threshold logic",
+        "recommendation": "Define the attribution algorithm explicitly: enumerate signals, assign weights, specify how confidence is computed. Build a test corpus of 50+ real feedback examples with expected attribution outcomes before implementing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Filing issues on external repos is a spam/abuse vector with no rate limiting or anti-abuse controls",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "Any user with write access to a construct's repo can trigger automated issue creation. A malicious or careless user could flood a vendor's repo with junk issues. The structured format even includes 'Filed automatically by Loa Framework' — making Loa the attack tool. GitHub could rate-limit or flag the Loa project itself. There's no mention of rate limiting, deduplication, or any abuse prevention. The PRD even defers duplicate tracking to a 'follow-up cycle', meaning MVP ships without it.",
+        "location": "FR-4, FR-5, FR-6, Open Questions #1",
+        "recommendation": "Add rate limiting (max N construct issues per repo per day), implement local dedup tracking from day one (not deferred), and consider requiring a minimum number of corroborating signals before allowing external filing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Privacy/compliance gap: issue format may include sensitive data (file paths, snippets, environment) with no redaction policy",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Audit findings and review excerpts often contain proprietary code, secrets, internal URLs, customer data, or vulnerability details. Posting publicly to vendor repos can violate policies and create security incidents.",
+        "location": "FR-6: structured issue format; FR-5: include excerpts/snippets; FR-7: include_environment default true",
+        "recommendation": "Add explicit data-handling requirements: default to minimal disclosure, redact secrets (API keys, tokens, private URLs) and optionally omit code snippets unless user opts in. Provide a preview with highlighted sensitive sections. Add config defaults to conservative values (include_environment=false, include_snippets=false) and a policy hook for orgs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Scope is MVP in name only — 7 functional requirements spanning 5 feedback pipelines is a large surface area",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The 'MVP' includes: a new attribution engine, manifest schema changes, classifier extension, modifications to /feedback, /audit-sprint, /review-sprint, /bug, AND Bridgebuilder reviews, plus a new issue format, plus configuration. That's touching at least 6-8 existing systems. Each pipeline integration (FR-5) is its own mini-project with unique data shapes and edge cases. This is 3-4 sprints of work labeled as one feature. The P2 priority rating suggests this isn't urgent, but the scope suggests it will consume significant engineering time.",
+        "location": "Section 6: Scope & Prioritization, FR-5",
+        "recommendation": "True MVP: FR-1 + FR-2 + FR-4 only (attribution + resolution + /feedback command). Defer FR-5 pipeline integrations to a fast-follow. Ship, validate that attribution works and vendors respond, THEN wire up automated pipelines.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security risk: untrusted manifest.yaml can exfiltrate sensitive findings to attacker-controlled repos (supply-chain style)",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "Constructs are third-party content. If a malicious or compromised construct sets source_repo to an attacker repo, Loa will encourage users to send potentially sensitive audit findings, code snippets, file paths, environment details, or reproduction steps externally. User confirmation helps but is not sufficient against social engineering and habituation.",
+        "location": "FR-2: source_repo from manifest.yaml; FR-4/FR-5/FR-6: issue creation and included context",
+        "recommendation": "Add trust and validation requirements: display repo owner/org prominently; require explicit user confirmation with a clear warning when routing to a repo not previously trusted; maintain an allowlist/denylist and “first-time external destination” friction; sanitize/redact secrets by default; add a config to disable including snippets/environment; optionally verify source_repo against a signed manifest or registry metadata when available (even if not required).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Vendor opt-in assumption for source_repo means the feature may have near-zero utility at launch",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "The entire feature depends on vendors adding a `source_repo` field to their manifest.yaml. This is a classic chicken-and-egg problem: vendors won't add the field until they see value from feedback, but feedback can't route until vendors add the field. The PRD acknowledges 'Medium' likelihood of vendors not declaring source_repo but treats it as a graceful degradation case. If 80% of constructs lack this field at launch, the feature is effectively dead on arrival, and the engineering investment is wasted.",
+        "location": "FR-2, Risks table, Dependencies table",
+        "recommendation": "Ship with a registry-level default mapping (org → repo conventions), or pre-populate source_repo for known constructs. Consider a construct submission requirement that mandates source_repo for new registry entries. Define an adoption target (e.g., 50% of top-20 constructs have source_repo within 30 days).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "source_repo is a trust-the-manifest field with no validation — constructs can point feedback at arbitrary repos",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "A malicious construct vendor could set `source_repo` to any GitHub repo (e.g., `microsoft/vscode`, a competitor's repo, a political target). When a user confirms routing, Loa dutifully files an issue there. The PRD has zero validation that the source_repo actually belongs to the construct vendor. Combined with the structured '[Loa Feedback]' format, this becomes a credible-looking spam/harassment tool. The user confirmation step is weak mitigation — users will click through, especially on automated pipeline findings (FR-5) where there may be many grouped findings.",
+        "location": "FR-2, FR-6, NFR-1",
+        "recommendation": "Validate source_repo against the construct vendor's known GitHub org/user. Add registry-level verification of source_repo ownership. Display prominent warnings when source_repo org doesn't match vendor identity. Consider an allowlist approach for external repos.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd cross codebase feedback",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:19:07Z",
+    "metrics": {
+      "total_latency_ms": 104000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:32:48Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the SDD references disambiguation behavior but the algorithm/output contract doesn’t define tie-breaking, ambiguity reporting, or a user-facing resolution path. This will surface quickly in real repos with overlapping constructs and leads to inconsistent routing. Actionable: define deterministic tie-break rules + explicit output schema for ambiguity + UX behavior in feedback.md.",
+        "gpt_score": 820,
+        "opus_score": 900,
+        "delta": 80,
+        "average_score": 860,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical for operability: these scripts are part of a pipeline and need a clear failure contract (exit codes, stderr messages, retryability) for the caller to branch correctly. The listed failure modes are realistic (missing jq/yq, malformed JSON/YAML, gh failures, classifier errors). Low/moderate effort, high ROI, and improves debuggability and automation reliability.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Security-relevant gap: regex-only redaction is predictably leaky, and this feature gates data leaving the local environment. A second-pass validation (entropy scanning, allowlist/denylist checks, or at least a redaction confidence + user confirmation on low confidence) is actionable and materially reduces risk. Trade-off: added complexity and potential false positives, so not always “low cost,” but still valuable.",
+        "gpt_score": 760,
+        "opus_score": 850,
+        "delta": 90,
+        "average_score": 805,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Attribution algorithm can misroute feedback due to weak/ambiguous signals and lack of deterministic tie-breaking",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Routing to the wrong external repo is a trust-breaking failure mode: it leaks context to the wrong vendor, wastes maintainer time, and makes users stop using /feedback. The scoring model (path/vendor/skill-name/explicit mention) is easy to trigger accidentally (e.g., vendor string appears in unrelated text) and the SDD mentions 'disambiguation' in tests but does not define how to select among multiple matches or how to handle near-equal confidence.",
+        "location": "Section 2.1: construct-attribution.sh (Algorithm); Section 6: Unit Tests ('multiple matches')",
+        "recommendation": "Define deterministic selection rules: (1) explicit mention beats path beats skill-name beats vendor; (2) require minimum margin vs runner-up; (3) if multiple candidates above threshold, force user selection with clear repo list; (4) log attribution decision with signals and candidate scores for audit.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Attribution scoring algorithm produces false positives from incidental string matches",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "The scoring algorithm matches vendor names and skill names as simple substring searches against feedback context. Common words used as vendor/skill names (e.g., 'core', 'utils', 'build', 'test', 'observer') will match incidentally in normal feedback text. With a threshold of 0.33 (1.0 out of 3.0), a single vendor_name match (0.4) exceeds the threshold and triggers construct routing. This means feedback about an unrelated project bug that happens to mention the word 'observer' gets misrouted to an external repo. The user confirmation mitigates this but creates confirmation fatigue.",
+        "location": "Section 2.1 construct-attribution.sh — Algorithm steps 3-4, Section 5 attribution_threshold: 0.33",
+        "recommendation": "Use word-boundary matching instead of substring contains. Require at least two independent signals (e.g., path match + name match) before routing to external. Raise the default threshold to at least 0.5. Consider requiring the path_match signal as a mandatory condition for external routing, with name-only matches triggering a softer suggestion rather than a default route.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Cross-platform date command incompatibility will break rate limiting",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The rate limit check uses `date -u -d '24 hours ago'` which is GNU coreutils syntax. On macOS (BSD date), this flag doesn't exist — the equivalent is `date -u -v-24H`. Since this tooling runs in developer environments, macOS is a primary target. The rate limiting and dedup features will silently fail or crash on macOS, leaving no protection against spam/abuse on those systems. The SDD also uses `sha256sum` which is `shasum -a 256` on macOS.",
+        "location": "Section 2.5 feedback-ledger.json — Rate limit check bash snippet",
+        "recommendation": "Use portable date arithmetic (e.g., Python one-liner, or `date -u -v-24H` with fallback) or abstract date handling into a utility function that detects the platform. Replace `sha256sum` with a portable wrapper. Add macOS to CI testing matrix.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Dedup and rate-limiting design is inconsistent with config and has concurrency/corruption risks",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Config includes dedup_window_hours, but the dedup check shown matches any historical submission (no time window filter). Rate limit tests mention '20th issue in 7d' but implementation uses 24 hours. Ledger writes are append operations to a JSON file without file locking/atomic update; concurrent runs can corrupt JSON or lose entries. Corruption breaks routing flow and can disable protections.",
+        "location": "Section 2.5: feedback-ledger.json; Section 2.4 Phase 5.1; Section 5 rate_limits; Section 6 tests",
+        "recommendation": "Align implementation with config: apply dedup window filter and define rate-limit windows precisely; implement atomic updates (write temp + mv) and file locking (flock) around read-modify-write; add schema validation and recovery (if JSON invalid, back up and recreate).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Filing issues on arbitrary external repos is a significant security attack surface via manifest poisoning",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "A malicious construct author can set `source_repo` in manifest.yaml to point to ANY GitHub repo. The trust validation only checks if the repo org matches the vendor name — but the vendor name is also controlled by the construct author. An attacker can set vendor: 'microsoft' and source_repo: 'microsoft/vscode' and the trust check passes. This enables targeted spam/abuse of legitimate repos, social engineering (issues appearing to come from a tool the target repo knows nothing about), and potential information exfiltration to attacker-controlled repos even after redaction.",
+        "location": "Section 2.1 Trust validation (FR-2) and Section 4 manifest.yaml Extension",
+        "recommendation": "Implement a trusted registry or allowlist of verified source_repo mappings that is NOT controlled by the construct author alone. Consider requiring source_repo to be verified against an external registry or requiring the target repo to have a reciprocal marker (e.g., a topic tag or file) acknowledging it accepts Loa feedback. At minimum, display the full repo URL prominently and require explicit user confirmation with a warning for first-time repos.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Redaction engine relies on regex pattern matching — known to be insufficient for secret detection",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Regex-based secret detection has well-documented bypass techniques. A secret formatted slightly differently (e.g., base64-encoded, split across lines, stored in a variable, or using a non-standard key prefix) will sail through redaction and be posted publicly to an external repo. This is an irreversible data leak — once a GitHub issue is created, the content is in public commit history even if deleted. The SDD explicitly lists 'Information exfiltration via feedback' as a threat but the control (regex patterns) is fundamentally inadequate as a sole defense.",
+        "location": "Section 2.2 feedback-redaction.sh — Redaction rules table",
+        "recommendation": "Add defense-in-depth: (1) Default to NOT including code snippets and environment info (already done, good), (2) Add a mandatory dry-run/preview step that the user must explicitly approve before any external submission (partially exists but should be non-bypassable), (3) Consider an allowlist approach rather than denylist — only forward explicitly marked content rather than trying to strip all secrets from arbitrary text, (4) Add post-redaction entropy analysis to flag high-entropy strings that may be secrets not matching known patterns.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Redaction is regex-based and likely to miss secrets or over-redact critical debugging context",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Regex redaction will have both false negatives (missed secrets: non-AKIA keys, GitHub fine-grained tokens with different formats, OAuth tokens, private keys, multiline JWTs, base64 blobs, config files pasted) and false positives (redacting benign strings that match patterns). Stripping all fenced code blocks when include_snippets=false can remove the only reproducible details, causing vendor issues to be un-actionable and increasing back-and-forth (or users bypassing the tool).",
+        "location": "Section 2.2: feedback-redaction.sh (rules, toggles)",
+        "recommendation": "Define a redaction policy with test corpus and measurable goals; add detection for PEM blocks, common cloud keys beyond AWS, GitHub classic tokens, Slack tokens, etc.; implement structured redaction with context-aware parsing (e.g., YAML/ENV blocks) where possible; provide a 'review and edit' step allowing users to selectively re-include specific snippets after warnings.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Shell implementation has portability and correctness hazards (bash/awk/yq/jq/date differences) and contains an apparent templating/typo bug",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The classifier snippet includes `if [[ \"$attributed\" == \"true\" ]] {{DOCUMENT_CONTENT}}{{DOCUMENT_CONTENT}} \\\n       awk ...` which looks like an unresolved template artifact and would break execution. Additionally, `date -d` is GNU-specific (fails on macOS BSD date), `sha256sum` may not exist (macOS uses shasum), and yq variants differ widely. These issues can cause the feature to fail for many users.",
+        "location": "Section 2.3: feedback-classifier.sh new routing logic; Section 2.5 dedup/rate limit snippets",
+        "recommendation": "Remove template artifacts; add shellcheck and strict mode; standardize on portable utilities (or provide compatibility shims); document required tool versions; add CI tests on macOS/Linux; avoid awk float comparisons by using jq for numeric comparisons.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Trust validation is superficial (org != vendor) and does not prevent malicious or incorrect source_repo routing",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "A pack can set source_repo to any GitHub repo. The current control only warns if repo org string differs from vendor string, which is not a security boundary (vendors can differ from org names; attackers can choose matching strings). This enables exfiltration of redacted-but-still-sensitive info to attacker-controlled repos and creates a phishing vector via 'Route to {source_repo}' default.",
+        "location": "Section 2.1: Trust validation (FR-2); Section 2.4: feedback.md default routing to source_repo",
+        "recommendation": "Introduce an allowlist/verification mechanism: require source_repo to match the install source, registry signature, or a pinned mapping in .constructs-meta.json; optionally require user opt-in per new repo (first-time confirmation with repo URL display); consider blocking non-HTTPS GitHub repos and enforcing org allowlist in config.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " 1 architecture overview dependencies",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:32:48Z",
+    "metrics": {
+      "total_latency_ms": 115000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-17T01:38:41Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 80,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real integration gap: Sprint 2 depends on an attribution object, but without a single authoritative JSON schema you’ll get mismatched field names/semantics across scripts. Highly actionable (define schema + examples + versioning) and low cost with high ROI.",
+        "gpt_score": 900,
+        "opus_score": 870,
+        "delta": 30,
+        "average_score": 885,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Operationally important and currently underspecified: path, schema, and retention/rotation directly affect correctness (dedup/rate limit) and performance over time. Actionable (define location, JSON structure, pruning rules) with clear acceptance criteria and low-to-moderate effort.",
+        "gpt_score": 820,
+        "opus_score": 780,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable: these scripts implement non-trivial logic (scoring + security redaction) where regressions are likely; bash -n is insufficient. Slightly higher effort to build fixtures/harness, but still proportionate given risk. Would add at least golden-file tests and a few adversarial redaction cases.",
+        "gpt_score": 760,
+        "opus_score": 830,
+        "delta": 70,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-004",
+        "description": "Core correctness gap: dedup behavior is undefined without a fingerprint spec, leading to either suppressed legitimate feedback or duplicate spam. Very actionable (canonicalization + hash inputs + versioning) and moderate effort with high ROI.",
+        "gpt_score": 840,
+        "opus_score": 480,
+        "delta": 360,
+        "average_score": 660,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Potential blocker: constructs-lib.sh is referenced but not defined as an existing artifact or a task, creating immediate Sprint 1 ambiguity. Documenting/adding the dependency contract (or adding a task to create it) is high ROI and prevents schedule slip.",
+        "gpt_score": 880,
+        "opus_score": 550,
+        "delta": 330,
+        "average_score": 715,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Attribution scoring/normalization is under-specified and likely to misattribute in real text",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The plan hard-codes weights and normalizes by 3.0, but doesn't define how multiple signals combine (sum? max? per-construct aggregation?), how repeated matches affect score, or how to handle multiple constructs referenced in one feedback. Misattribution routes issues to the wrong repo, eroding trust and creating operational churn.",
+        "location": "Sprint 1, Task 1.1: weighted signal scoring + normalization + disambiguation",
+        "recommendation": "Define an explicit scoring model (aggregation rules, caps per signal type, handling repeats, multi-construct mentions). Add a small gold test corpus with expected attributions and ambiguity outcomes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Ledger atomicity and concurrency are not actually solved with tmp+mv; race conditions will corrupt or lose events",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Two feedback submissions in parallel can read the same ledger state, both pass dedup/rate-limit, then both write, losing one entry or allowing duplicates. tmp+mv is atomic for a single writer, not for read-modify-write without locking.",
+        "location": "Sprint 2, Task 2.2: atomic writes (write-to-tmp + mv); dedup/rate-limit checks",
+        "recommendation": "Add file locking (e.g., `flock` where available) or a lock-directory strategy portable across macOS/Linux. Perform dedup/rate-limit check and record within the same critical section.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "No clear JSON contract and error-handling contract between scripts and the feedback command",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Multiple components exchange structured data (classifier output, attribution object, redaction preview/diff, ledger checks). Without a versioned schema and strict parsing rules, small output changes will break downstream steps, especially in bash where parsing JSON is brittle.",
+        "location": "Sprint 1 Task 1.1 output; Sprint 1 Task 1.2 preview diff; Sprint 2 Task 2.1 output changes; Sprint 3 Task 3.1 integration",
+        "recommendation": "Define stable JSON schemas for each script (inputs/outputs), including required fields, optional fields, and error payloads. Enforce with `jq -e` validation in tests. Avoid human-oriented diff output in machine pipelines; separate `--json` from `--preview`.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Redaction approach (regex + entropy) risks both false negatives (leaks) and false positives (destroys useful context)",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Regexes miss many secret formats (provider-specific tokens, private keys, multiline secrets), while entropy heuristics can redact legitimate identifiers (URLs with long query params, stack traces, base64 blobs) or fail on structured secrets with low entropy. A single leak to external repos is a serious incident; excessive redaction makes issues unusable.",
+        "location": "Sprint 1, Task 1.2: regex-based first pass; entropy-based second pass; allowlist",
+        "recommendation": "Add explicit patterns for common key types (PEM blocks, OAuth tokens, Slack, Stripe, etc.), multiline handling, and unit tests with known secret fixtures. Provide a 'redaction report' listing what was removed and why. Consider a conservative mode that blocks submission if high-risk patterns are detected unless user overrides.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Redaction regex patterns will have critical gaps — false negatives leak secrets",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The redaction engine is a security boundary. Regex-based secret detection is notoriously incomplete. AWS keys have multiple formats (AKIA*, session tokens, assumed-role credentials). GitHub tokens have evolved formats (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_). JWTs can be split across lines. 'Generic secrets' is unbounded. A single missed pattern means sensitive data gets filed as a public GitHub issue on a third-party repository. This is a data breach vector disguised as a feature.",
+        "location": "Sprint 1, Task 1.2 — Regex-based first pass",
+        "recommendation": "Treat redaction as defense-in-depth, not a guarantee. Default to NOT including raw feedback text in external issues. Require explicit user confirmation of the redacted output before submission. Add a 'paranoid mode' that strips all strings matching common secret lengths/encodings. Document clearly that redaction is best-effort.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Shannon entropy calculation in pure Bash is fragile and slow",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Task 1.2 requires computing Shannon entropy per character for strings >20 chars. Bash has no native floating-point math — you'll need awk/bc pipelines for logarithms and character frequency counting. This is a hidden complexity monster: it will be slow on large feedback payloads, difficult to get numerically correct, and nearly impossible to unit test properly in a shell context. The 4.5 bits/char threshold will need careful tuning, and false positives (e.g., base64-encoded but non-secret content, minified JS) will erode user trust.",
+        "location": "Sprint 1, Task 1.2 — Entropy-based second pass",
+        "recommendation": "Spike the entropy calculation first to validate feasibility in pure Bash/awk. Define a max input size. Consider whether a simpler heuristic (regex for high-entropy patterns like hex strings of certain lengths) achieves 90% of the value at 10% of the complexity.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Trust validation is described as 'non-blocking' but has no threat model; can be abused for repo hijacking",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "If `source_repo` can be influenced via construct metadata (manifest) and validation is non-blocking, an attacker could craft a construct that routes feedback to an arbitrary repo (exfiltration / spam / social engineering). Even if only warnings are shown, users may click through.",
+        "location": "Sprint 1, Task 1.1: resolves source_repo + 3-level trust validation (non-blocking); Sprint 3 routing options",
+        "recommendation": "Define a strict allow policy: only route to repos under approved org(s) unless user explicitly opts-in each time. Persist user-approved repos. Make 'repo-exists' and 'org-match' blocking for auto-route; require explicit confirmation for untrusted repos.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "gh issue create on arbitrary third-party repos will frequently fail",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Sprint 3 assumes the user's gh CLI can create issues on the construct's source_repo. In practice: the user may not have a GitHub account, gh may not be installed, the token may lack 'repo' scope for public repos (only needs 'public_repo' but many tokens are scoped narrowly), the repo may have issues disabled, the repo may require issue templates, the repo may have branch protection or organization policies that reject the API call. The plan only mentions 'gh lacks write access' as one failure mode, but there are at least 6 distinct failure modes, each needing different error messages and fallbacks.",
+        "location": "Sprint 3, Task 3.1 — gh issue create",
+        "recommendation": "Enumerate all gh failure modes and map each to a specific error message. Test with: no gh installed, gh not authenticated, authenticated but no repo access, repo with issues disabled, repo not found (deleted/renamed). The clipboard fallback should be the robust default, not the exception path.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 attribution engine",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-17T01:38:41Z",
+    "metrics": {
+      "total_latency_ms": 107000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

@@ -1,0 +1,16 @@
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+.loa.config.yaml.example:728
+head/.claude/scripts/flatline-orchestrator.sh:534
+head/.claude/adapters/cheval.py:2544
+head/.claude/adapters/loa_cheval/types.py:507
+cheval.py:2544
+head/.claude/defaults/model-config.yaml:504
+head/.claude/adapters/loa_cheval/config/loader.py:122
+head/.claude/adapters/cheval.py:908
+head/.claude/adapters/loa_cheval/audit/modelinv.py:498
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/tests/test_ceiling_probe_cli_transport.py:459
+head/tools/ceiling-probe-live.py:469
+model-config.yaml:496-501
+head/.claude/skills/bridgebuilder-review/resources/config.ts:190
+multi-model-pipeline.ts:172

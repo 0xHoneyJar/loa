@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-07-29T07:56:33Z",
+  "event": "context_clear",
+  "post_pr_id": "post-pr-20260729-2ab3b23b",
+  "pr_url": "https://github.com/0xHoneyJar/loa/pull/1238",
+  "state": "CONTEXT_CLEAR",
+  "phase": "CONTEXT_CLEAR",
+  "action": "checkpoint_written",
+  "message": "Context clear checkpoint - ready for /clear and resume"
+}

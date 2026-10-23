@@ -1,0 +1,206 @@
+WARNING: Document size 79 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/sdd-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=12, Opus=10 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=4 DISPUTED=3 LOW=0 BLOCKERS=5 (75% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 3,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 75,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "High-value clarification of core configuration semantics. Per-role overrides plus null-default derivation are likely to affect real operator behavior and cross-implementation consistency. Cost is low: define precedence order, null handling, and examples. This should be integrated before implementation hardens.",
+      "gpt_score": 910,
+      "opus_score": 920,
+      "tertiary_score": 950,
+      "delta": 10,
+      "average_score": 915,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Critical robustness gap. Auto-mode depending on JSONL history must define behavior for missing, malformed, truncated, or unreadable logs; otherwise failures may be nondeterministic or unsafe. Implementation cost is modest and the desired behavior can be specified cleanly as ignore-bad-lines, cold-start, or fail-closed by category.",
+      "gpt_score": 870,
+      "opus_score": 830,
+      "tertiary_score": 880,
+      "delta": 40,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Critical because redaction false positives can corrupt auditability, traceability, and identifiers, while false negatives can leak secrets. A defensive entropy scrubber needs precise matching rules, threshold, and allowlist/exemptions. The benefit is high and the cost is mostly specification plus tests.",
+      "gpt_score": 900,
+      "opus_score": 780,
+      "tertiary_score": 900,
+      "delta": 120,
+      "average_score": 840,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Strong caller-error handling improvement. Unknown model_id is a plausible and easy-to-trigger failure mode, and a defined error category/marker prevents confusing fallback behavior. Low implementation cost and improves debuggability substantially.",
+      "gpt_score": 760,
+      "opus_score": 720,
+      "tertiary_score": 820,
+      "delta": 40,
+      "average_score": 740,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-010",
+      "description": "High-value determinism concern. Minute-boundary cache keys and evaluation timestamps can produce replica divergence even with otherwise identical inputs. Since deterministic auto-selection appears to be a core property, the spec should define timestamp normalization, injected clock behavior, or acceptable nondeterminism. Worth integrating.",
+      "gpt_score": 830,
+      "opus_score": 520,
+      "tertiary_score": 890,
+      "delta": 310,
+      "average_score": 675,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-011",
+      "description": "Nice-to-have race hardening. The scenario is plausible but narrower than the other issues and may already be mitigated if flocking covers the whole migration. If not, idempotent symlink creation is cheap, but confidence and impact are moderate-low.",
+      "gpt_score": 500,
+      "opus_score": 0,
+      "tertiary_score": 680,
+      "delta": 500,
+      "average_score": 500,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Valuable semantic clarification. audited_review_skills and dispatch_preference can conflict in ways that affect audit integrity and operator expectations. Cost is low: define whether audited mode overrides or composes with dispatch preference and add examples/tests. Worth integrating.",
+      "gpt_score": 690,
+      "opus_score": 0,
+      "tertiary_score": 800,
+      "delta": 690,
+      "average_score": 690,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-003",
+      "concern": "The SDD contains contradictory concurrency-semaphore decisions: §5.6 says cross-process N-slot semaphore is always introduced by default, while §1.4.4 and §8 T2.14 still say the module is conditional and may not be introduced if stress tests pass; §10.1 also preserves an obsolete `threading.Semaphore` default / flock opt-in statement.",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Conflicting implementation guidance can cause the safety-critical cross-process concurrency limiter to be omitted or made opt-in, recreating the session-state corruption risk the revision claims to close.",
+      "location": "§1.4.4 Headless adapter concurrency semaphore; §5.6 Concurrency semaphore design; §8 Phase 2 T2.14; §10.1 Resolved questions Q6",
+      "recommendation": "Normalize all sections to one authoritative decision: cross-process N-slot semaphore is mandatory/default, process-local throttling is secondary, and FR-8.6 only determines per-CLI N values rather than whether the module exists.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The `auto` algorithm compares auth_type buckets keyed by the same `model_id`, but headless and HTTP/API paths appear to use different model IDs such as `claude-headless` versus `claude-opus-4-7`; no model-family or equivalence mapping is defined.",
+      "severity": "CRITICAL",
+      "severity_score": 875,
+      "why_matters": "Auto-mode may never have comparable headless and http_api samples for the same `(role, model_id, provider)` tuple, forcing cold-start behavior or biased single-bucket selection indefinitely. This undermines G-4 measurement, rollout decisions, and the claimed deterministic empirical routing.",
+      "location": "§5.2 `read_per_auth_type_window(role, model_id, provider, ...)`; §3.2 model-config examples; §1.5 Data Flow",
+      "recommendation": "Introduce an explicit comparison key such as `model_family`, `dispatch_group`, or `advisor_strategy_group` in model-config, and have MODELINV aggregation compare auth_types within that group rather than exact model_id. Add tests with distinct headless/http_api model IDs in the same comparison group.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The fail-closed redaction pipeline captures subprocess stdout/stderr before redaction and only then truncates or scrubs, leaving large or secret-bearing outputs resident in process memory and risking memory exhaustion before the >1MB truncation rule applies.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "A misbehaving CLI or model can emit unbounded stderr/stdout containing tokens or binary data. Capturing it fully with `communicate()` can OOM the process, hang cleanup, or expand the blast radius of secret material before the redaction boundary.",
+      "location": "§1.9.1 Fail-closed redaction pipeline; §5.4 `probe_cli`; §6.3 Logging strategy",
+      "recommendation": "Implement bounded streaming reads with a hard byte cap before buffering, redact incrementally or from capped temp files with mode 0600, and enforce limits at the pipe-read boundary rather than after `communicate()` returns.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "The redaction invariant states raw model output never reaches stdout unless redacted, but the dispatch path must return raw model output to skill callers to function; the boundary between caller response and audit/doctor output is ambiguous.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "If implemented literally, model completions may be redacted before being returned to skills, breaking normal operation. If implemented loosely, developers may accidentally log raw output to audit because the invariant is not scoped precisely.",
+      "location": "§1.9.1 Fail-closed redaction pipeline; §1.5 Data Flow; §5.5 auto_selection_inputs redaction policy",
+      "recommendation": "Define separate data boundaries: raw completion may be returned in-memory to the immediate caller, but any persisted log, journal, doctor stdout, or audit envelope must pass through fail-closed redaction. Add tests proving raw completion is not persisted while caller response remains intact.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The resolver requires `model_id` as an input while also being responsible for selecting/filtering the resolved model chain, creating a circular dependency that is not resolved in the design.",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "If callers do not already know the final model before calling `resolve()`, implementations may either guess, bypass the resolver, or resolve against the wrong model. This can break the central headless/http_api routing guarantee and cause incorrect auth_type selection, circuit-breaker checks, and MODELINV attribution.",
+      "location": "§5.1 `AdvisorStrategyConfig.resolve()` mutated signature; §1.5 Data Flow; §5.2 auto-mode algorithm",
+      "recommendation": "Redesign the resolver contract so it accepts role/skill/provider and candidate tier or capability constraints, then internally expands candidate model entries with their auth_type. If a model hint is needed, make it optional and clearly define whether it is a constraint, preference, or already-resolved primary.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md",
+  "domain": "advisor-strategy headless dispatch SDD v1.1",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T05:51:38Z",
+  "metrics": {
+    "total_latency_ms": 89000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 89000ms

@@ -1,0 +1,18 @@
+{
+  "id": "s8",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    3.539701
+  ],
+  "cost_usd": 3.539701,
+  "run_dir": "sessions/s8",
+  "took_effect": "ok",
+  "started": "2026-10-22T23:09:55Z",
+  "finished": "2026-10-22T23:24:08Z"
+}

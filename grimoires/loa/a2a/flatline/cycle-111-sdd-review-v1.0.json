@@ -1,0 +1,177 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 8,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Clear contradiction in a load-bearing migration path, with low documentation cost and high implementation-risk reduction. Direct callsites are likely the cleaner canonical choice because they preserve specific pattern_id semantics.",
+      "gpt_score": 940,
+      "opus_score": 830,
+      "tertiary_score": 900,
+      "delta": 110,
+      "average_score": 885,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong finding. The allow path is the relevant hot path for the latency NFR, and the current analysis appears to undercount subprocess work. Needs a microbenchmark against the actual safe-command path before claiming compliance.",
+      "gpt_score": 920,
+      "opus_score": 875,
+      "tertiary_score": 850,
+      "delta": 45,
+      "average_score": 897.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Valuable because it fixes rule attribution, audit quality, and operator messaging for long-form rm flags. It is less critical than safety-path issues because the command still blocks, but it should be corrected.",
+      "gpt_score": 760,
+      "opus_score": 710,
+      "tertiary_score": 800,
+      "delta": 50,
+      "average_score": 735,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Good low-cost hardening. The implicit free-variable dependency is easy to miss during implementation or extraction into helpers, and the resulting failure would damage audit usefulness while leaving the block behavior superficially working.",
+      "gpt_score": 830,
+      "opus_score": 740,
+      "tertiary_score": 820,
+      "delta": 90,
+      "average_score": 785,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Valuable invariant to document and test. Redact-before-truncate is security-relevant, and adding a longer-input latency or unit case guards against future performance-motivated regressions. Slightly less urgent because the current implied order is already safe.",
+      "gpt_score": 780,
+      "opus_score": 800,
+      "tertiary_score": 950,
+      "delta": 20,
+      "average_score": 790,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "EPOCHREALTIME latency microbenchmark has a unit conversion bug that makes it always pass with p95=0",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "The test in §7.4 computes `${EPOCHREALTIME//./}` to strip the decimal from a value like `1716889001.234567`, yielding `1716889001234567` (units: microseconds since epoch). The elapsed difference for a 5ms invocation is ~5000 (microseconds). The code then divides by 1,000,000: `$(( (end_ns - start_ns) / 1000000 ))` → bash integer division of 5000/1,000,000 = 0. All 100 samples will be 0 or 1, so p95 is always 0 and the assertion `[ 0 -lt 20 ]` always passes regardless of actual hook latency. The latency gate provides false assurance.",
+      "location": "§7.4 latency microbenchmark; NFR-2 (prd.md:L122-124)",
+      "recommendation": "Divide by 1000 (not 1,000,000) to convert microseconds to milliseconds: `$(( (end_ns - start_ns) / 1000 ))`. Add a sanity-assertion that at least one sample is > 0 to catch the zero-truncation failure mode in future refactors.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "P12 ERE contains unbounded .* that matches across statement boundaries, producing cross-statement false positives",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The P12 ERE `kubectl\\s+delete\\s+\\S+.*(\\ --all\\b|\\ -A\\b)` uses `.*` between the resource type and the flag. In a compound command like `kubectl delete pods; describe service -A`, the `.*` greedily matches `; describe service` and the trailing `-A` flag fires the block even though the delete command never had `--all`. The block message incorrectly attributes `--all` to the `kubectl delete pods` invocation, and the operator has no recourse short of splitting the command.",
+      "location": "§5.9 Pattern P12; Appendix A row 14",
+      "recommendation": "Replace `.*` with `[^;|&]*` to prevent the match from crossing shell statement boundaries (semicolons, pipes, and `&&`/`||` separators). Additionally add a negative-control bats test that pins the compound-command non-match: `kubectl delete pods; kubectl describe service -A` must not block.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The SDD claims POSIX ERE compatibility but most proposed regexes use non-POSIX tokens such as \\s, \\S, and \\b.",
+      "severity": "CRITICAL",
+      "severity_score": 920,
+      "why_matters": "On BSD/macOS grep and strictly POSIX grep implementations, these tokens may be treated differently or literally, causing dangerous commands to bypass the hook or safe commands to be blocked unpredictably.",
+      "location": "Sections 3, 5, Appendix A",
+      "recommendation": "Rewrite all patterns using POSIX classes such as [[:space:]], [^[:space:]], and explicit boundary groups. Add CI coverage against both GNU grep and BSD/macOS-compatible grep behavior.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The audit path is described as fail-open, but jq is used both for parsing input and emitting audit rows without clearly separating parse failure from block failure.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "If jq is missing or broken, the hook may allow all Bash commands, including known destructive commands. That preserves fail-open behavior but creates a major silent safety degradation unless surfaced clearly.",
+      "location": "Sections 3, 6.1, 7.3",
+      "recommendation": "Emit a minimal diagnostic when jq is unavailable, add a health-check test, and document that jq absence disables protection. Consider a minimal shell fallback parser for tool_input.command if the hook is security-critical.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-008",
+      "concern": "The redaction sequence sanitizes the full command but does not sanitize the matched substring before writing it to audit.jsonl.",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "Secrets present in the matched segment could be logged through the matched field even when command is redacted, violating FR-4’s sanitization intent.",
+      "location": "Sections 4.3 and 6.1 emit_block helper",
+      "recommendation": "Pass matched through the same redactor before truncation and jq emission. Add a test where the matched substring itself contains a secret-like token.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The rm -rf argument extraction is too fragile for real shell syntax.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "Commands such as rm -rf -- /, rm -r -f /, rm -rf \"$HOME\", rm -rf ${HOME}, rm -rf ~/ .ssh variants, or multiple path arguments may be misparsed, allowing catastrophic deletion or blocking benign cleanup inconsistently.",
+      "location": "Section 5.1 Pattern P1 refined rm -rf",
+      "recommendation": "Replace the single grep/awk extraction with a conservative tokenizer or multiple explicit detector patterns. Treat any rm command with recursive+force and any unparsed or multiple target form as block unless clearly allowlisted.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "emit_block uses raw >> append to audit.jsonl, bypassing audit_emit and breaking the hash chain",
+      "severity": "CRITICAL",
+      "severity_score": 950,
+      "why_matters": "CLAUDE.loa.md explicitly states 'ALWAYS use audit_emit (or audit_emit_signed) for L1-L7 audit writes — never >> directly' because direct appends race concurrent writers and corrupt the hash chain (CC-3). The SDD's §6.1 emit_block uses `>> .run/audit.jsonl` with no flock and no prev_hash computation. Consumers that rely on chain continuity will see the block-emission rows as a chain break, potentially triggering [STRIP-ATTACK-DETECTED] or silent integrity failures. The existing mutation-logger.sh also uses raw append but that is a separate known debt — this SDD should not repeat the pattern.",
+      "location": "§6.1 emit_block helper; §4.3 sanitization sequence; CLAUDE.loa.md Audit Envelope Constraints",
+      "recommendation": "Replace the raw >> append with a call to audit_emit (sourcing lib/audit-envelope-lib.sh). If audit_emit adds unacceptable latency on the block path, emit to a separate sidecar log (e.g. .run/safety-blocks.jsonl) with its own flock, and document explicitly that this log is NOT hash-chained — then open a follow-on ticket to unify. Do not silently break the main chain.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "rm_arg extraction in FR-2 is fragile and bypassable via quoted paths, multiple args, and split-flag form",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "The extraction `grep -oE 'rm\\s+-[a-zA-Z]*\\s+[^\\s|;&]+' | head -1 | awk '{print $NF}'` fails in four documented shapes: (1) `rm -rf \"my dir\"` — the path includes an opening quote but not the closing one, changing allow/block classification; (2) `rm -rf path1 path2` — only `path2` is extracted (awk $NF), so a catastrophic second argument like `$HOME` after a safe first argument is missed; (3) `rm -r -f /etc` — separate flags don't match `-[a-zA-Z]*` (requires flags concatenated); (4) `rm --recursive --force /` — the long-form detector in Step 1 fires but the arg extractor regex requires the short `-flags` form and produces an empty `rm_arg`, causing an empty-string match against the block list. An empty string falls into the AMBIGUOUS branch but the block message cites an empty path, confusing the operator.",
+      "location": "§5.1 Pattern P1 (FR-2) — implementation sketch Step 2 and Step 3",
+      "recommendation": "Use a purpose-built argument extractor that (1) handles both short and long flag forms, (2) checks ALL positional args (not just the last), and (3) treats any unquoted glob as catastrophic. Alternatively, simplify: block all `rm -rf` that do NOT match the explicit allow-list suffix, using a flag-stripping `sed` pass rather than a fragile grep-awk chain. Add bats positive controls for each of the four failure shapes above.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+  "domain": " 3 software stack 5",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-16T10:50:44Z",
+  "metrics": {
+    "total_latency_ms": 2223000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

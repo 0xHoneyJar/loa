@@ -1,6 +1,0 @@
-self-check base review-r17: PASS recall 0.0 (0/20), false_positives 0
-self-check reference review-r17: PASS recall 1.0 (20/20), false_positives 0
-self-check noisy review-r17: PASS recall 1.0 (20/20), false_positives 68 vs reference 0
-self-check base review-r18: PASS recall 0.0 (0/8), false_positives 0
-self-check reference review-r18: PASS recall 1.0 (8/8), false_positives 0
-self-check noisy review-r18: PASS recall 1.0 (8/8), false_positives 47 vs reference 0

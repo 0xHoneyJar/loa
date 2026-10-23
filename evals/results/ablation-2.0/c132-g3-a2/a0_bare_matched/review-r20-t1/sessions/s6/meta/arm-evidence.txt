@@ -1,0 +1,9 @@
+batch_context=c132-g3-a2
+base_commit=f4b82fc616434a5f40f920253cb52a619225c846
+loa_mount=none
+bare_sessions=matched
+loa_mount=none
+claude_md_sha256=absent
+loa_config_sha256=absent
+mount_cheval=none
+arm_ids_pr_native=none

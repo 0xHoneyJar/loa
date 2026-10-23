@@ -1,0 +1,157 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Real correctness gap with clear operational impact. If stream=true behavior is undefined, clients can get silent misbehavior or cost surprises. Low effort to document and enforce at adapter boundary with explicit error semantics.",
+      "gpt_score": 880,
+      "opus_score": 920,
+      "tertiary_score": 950,
+      "delta": 40,
+      "average_score": 900,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Critical control-plane ambiguity. A single precedence table across kill-switch, user overrides, denylist, flags, and legacy maps is essential for incident response and predictable runtime behavior. High ROI and straightforward to add.",
+      "gpt_score": 920,
+      "opus_score": 880,
+      "tertiary_score": 980,
+      "delta": 40,
+      "average_score": 900,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valuable, but 'lock pricing at PRD time' can be brittle if vendor pricing changes. Best version is owner/date-bound pricing snapshots plus update policy. Strongly improves verifiability of cost-cap and changelog requirements.",
+      "gpt_score": 720,
+      "opus_score": 810,
+      "tertiary_score": 960,
+      "delta": 90,
+      "average_score": 765,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Important runtime design gap. Demotion/recovery without TTL, probe cadence, and scope definitions causes flaky failover behavior. Actionable as a small state-machine spec with acceptance tests.",
+      "gpt_score": 870,
+      "opus_score": 830,
+      "tertiary_score": 920,
+      "delta": 40,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Good domain-specific compatibility check. Tool-call ID and argument shape mismatches are subtle but break agents in production. Golden fixtures and explicit compatibility criteria are practical and valuable.",
+      "gpt_score": 760,
+      "opus_score": 720,
+      "tertiary_score": 880,
+      "delta": 40,
+      "average_score": 740,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Conflicting requirement for `reasoning` alias target (`gpt-5.5-pro` vs `gpt-5.5`) creates ambiguous implementation.",
+      "severity": "CRITICAL",
+      "severity_score": 930,
+      "why_matters": "The PRD specifies two different expected outcomes (Goals G-2 says `reasoning -> gpt-5.5-pro`, FR-2 says `reasoning -> gpt-5.5`). Teams can implement opposite behaviors, causing failed acceptance tests, cost surprises, and release delays.",
+      "location": "Goals & Success Metrics (G-2) vs Functional Requirements FR-2",
+      "recommendation": "Resolve to a single canonical behavior and update all sections/tests/changelog language to match that decision before implementation starts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Contradictory `endpoint_family` behavior (strict validation fail vs default-to-chat fallback) risks undefined routing behavior.",
+      "severity": "CRITICAL",
+      "severity_score": 905,
+      "why_matters": "FR-1 requires missing `endpoint_family` to fail validation, while Architecture Notes still mention defaulting to `chat` if absent. This can cause production/runtime mismatch, silent misroutes, or CI passing while real calls fail.",
+      "location": "FR-1 Acceptance Criteria vs Technical Considerations > Architecture Notes",
+      "recommendation": "Choose one policy (strict required is safer), remove contradictory text, and enforce via a single validation path plus migration lint in CI.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Gemini fallback depends on probe-state transitions, but request-time failure modes are not covered.",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "Preview models can fail intermittently (429/5xx/timeout) while probe still says AVAILABLE. Without request-level retry/demotion policy, `fast-thinker` can still fail in real workloads despite configured fallback chains.",
+      "location": "FR-4 Acceptance Criteria (probe-driven demotion design)",
+      "recommendation": "Add runtime fallback rules for transient/provider errors (with bounded retries and cooldown), not only probe status transitions.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Per-session cost cap is underspecified (session identity, concurrency, multi-process accounting), making guardrails unreliable.",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "If 'session' boundaries are not deterministic, the cost cap can be bypassed or over-triggered. In parallel runs or subprocess-heavy workflows, spend can exceed intended limits despite guardrails existing on paper.",
+      "location": "FR-5a and FR-5 (`max_cost_per_session_micro_usd` requirements)",
+      "recommendation": "Define session scope, storage backend, concurrency model, and reset semantics; add tests for parallel invocations and process restarts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "Pricing source-of-truth is unstable (`live-fetch during sprint`) and can desynchronize ledger math from committed config.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "If provider pricing changes between implementation and release, billing calculations and comparison tables can become inaccurate or non-reproducible, undermining trust in cost guardrails.",
+      "location": "FR-3 Acceptance Criteria and KPI/CHANGELOG cost comparison requirements",
+      "recommendation": "Pin pricing snapshots at release cut time, record retrieval timestamp/source, and add automated checks for stale pricing metadata.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Unknown `/v1/responses` output types hard-fail (`UnsupportedResponseShapeError`) with no degraded path or feature flag fallback.",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "OpenAI can introduce new output block types without notice. Hard-fail behavior can create sudden production outages rather than partial functionality.",
+      "location": "Scope section: 'Future OpenAI response object types' behavior",
+      "recommendation": "Implement a safe-degradation parser mode (extract known text/tool blocks, preserve unknown blocks in metadata, warn loudly) behind a strictness flag.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " product requirements document model",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T05:39:52Z",
+  "metrics": {
+    "total_latency_ms": 218000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

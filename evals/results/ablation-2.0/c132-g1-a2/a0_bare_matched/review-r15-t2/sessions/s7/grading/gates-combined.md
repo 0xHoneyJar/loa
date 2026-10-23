@@ -1,0 +1,12 @@
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+head/.claude/adapters/loa_cheval/types.py:516
+head/.claude/scripts/flatline-orchestrator.sh:534
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+__tests__/multi-model-agy-opt-in.test.ts:61
+head/.claude/defaults/model-config.yaml:494
+head/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:34
+head/docs/migration/v2.0-model-generation-floor.md:304
+head/tools/ceiling-probe-live.py:45
+head/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:422
+head/.claude/adapters/cheval.py:1519
+head/.claude/scripts/run-preflight.sh:190

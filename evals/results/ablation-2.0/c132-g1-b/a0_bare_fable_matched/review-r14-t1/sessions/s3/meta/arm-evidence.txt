@@ -1,0 +1,10 @@
+batch_context=c132-g1-b
+base_commit=22c1059863172e326cc70143af1099cd44c76b78
+loa_mount=none
+bare_model=fable
+bare_sessions=matched
+loa_mount=none
+claude_md_sha256=absent
+loa_config_sha256=absent
+mount_cheval=none
+arm_ids_pr_native=none

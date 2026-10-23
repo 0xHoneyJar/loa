@@ -1,0 +1,14 @@
+head/.claude/scripts/lib/dec-write-lib.sh:513
+head/.claude/scripts/lib/dec-write-lib.sh:538
+head/.claude/scripts/lib/dec-write-lib.sh:601
+validate-artifact.sh:681
+head/.claude/scripts/lib/dec-write-lib.sh:250
+head/.claude/scripts/lib/dec-write-lib.sh:572
+head/.claude/scripts/lib/dec-write-lib.sh:694
+head/.claude/skills/run-mode/resources/render-templates.md:104
+dec-write-lib.sh:361
+head/.claude/scripts/validate-artifact.sh:787
+head/.claude/scripts/validate-artifact.sh:852
+head/.claude/skills/discovering-requirements/SKILL.md:130
+REFERENCE.md:477
+validate-artifact.sh:734

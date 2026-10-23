@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "grader_version": "1.3.8",
+  "task_id": "review-r19",
+  "task_type": "review-catch",
+  "suite_frozen": true,
+  "union": true,
+  "bare_sessions": 3,
+  "sessions_valid": 2,
+  "sessions_graded": [
+    "s2",
+    "s3"
+  ],
+  "hidden_tests": null,
+  "structural": null,
+  "regressions": null,
+  "snapshot_tests": null,
+  "recall": {
+    "defects_seeded": 11,
+    "defects_caught": 2,
+    "recall": 0.1818,
+    "flags": 16,
+    "missed": [
+      "d1",
+      "d2",
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d8",
+      "d9",
+      "d11"
+    ],
+    "recall_pm3": 0.0909,
+    "missed_pm3": [
+      "d1",
+      "d2",
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d8",
+      "d9",
+      "d10",
+      "d11"
+    ],
+    "recall_pm3_v1": 0.0909,
+    "missed_pm3_v1": [
+      "d1",
+      "d2",
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d8",
+      "d9",
+      "d10",
+      "d11"
+    ],
+    "v1_manifest": false,
+    "credits_function_only": [
+      "d10"
+    ],
+    "rule": "pm3_or_same_function"
+  },
+  "false_positives": 15,
+  "false_positive_rule": "pm3",
+  "multi_credit_citations": 0,
+  "verdict": null,
+  "verdicts": {
+    "review": null,
+    "audit": null
+  },
+  "verdict_accuracy": null,
+  "verdict_accuracy_per_gate": {
+    "review": null,
+    "audit": null
+  },
+  "diff_lines": null,
+  "files_changed": null,
+  "contaminated": null,
+  "contamination_exempt": [],
+  "contamination_classes_skipped": [
+    "hidden",
+    "suite_path"
+  ],
+  "oracle_exposed_defects": [],
+  "oracle_exposed_unknown": [],
+  "corpus_sha256": "487055af100d59e06c65f8f4545c0a67f5cd2d2dabf7e3a567fc9f11653eb24f",
+  "label_set": "review",
+  "labels_meta": [
+    {
+      "defect": "d1",
+      "label_source": "review",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d2",
+      "label_source": "review",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d3",
+      "label_source": "review",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d4",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d5",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d6",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d7",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d8",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d9",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d10",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d11",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    }
+  ],
+  "per_session": [
+    {
+      "session": "s1",
+      "status": "contaminated",
+      "valid": false,
+      "cost_usd": 14.990876,
+      "recall": null,
+      "recall_pm3": null,
+      "detected": null,
+      "detected_pm3": null,
+      "false_positives": null,
+      "verdict": null,
+      "grader_version": null
+    },
+    {
+      "session": "s2",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 6.892724,
+      "recall": 0.1818,
+      "recall_pm3": 0.0909,
+      "detected": [
+        "d7",
+        "d10"
+      ],
+      "detected_pm3": [
+        "d7"
+      ],
+      "false_positives": 9,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s3",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 8.881895,
+      "recall": 0.0909,
+      "recall_pm3": 0.0,
+      "detected": [
+        "d10"
+      ],
+      "detected_pm3": [],
+      "false_positives": 8,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    }
+  ],
+  "recall_session1": null,
+  "recall_pm3_session1": null,
+  "precision_session1": null
+}

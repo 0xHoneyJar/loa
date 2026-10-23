@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The grader_versions tally is sorted with a key that splits each grader_version string on '.' and converts digit-only segments to int while leaving others as str. Python 3 cannot compare int with str, so two grade.json files whose grader_version values differ in segment type at the same position (e.g. \"1.2\" and \"1.x\", or \"2\" and \"beta\") raise TypeError inside sorted(). grade.json is per-run-directory data the report reads without validation, and the header explicitly promises the batch record is 'never fatal'. The surrounding try/except only wraps the open/json.load, not the sort, so a single malformed or hostile grade.json aborts the whole report (and the --json twin) for every suite version.",
+      "failure_mode": "A run directory with grader_version \"1.x\" alongside normal \"1.2\" rows makes ablation-report.py crash with an uncaught TypeError after all analysis has been computed; no report.md or report.json is written, blocking the promotion decision.",
+      "suggested_fix": "Use a type-stable sort key, e.g. tuple of (0, int(p)) for digit segments and (1, p) otherwise, or sort grader versions as plain strings after the 'n/a' flag. Alternatively wrap the tally sort in the same never-fatal handling and fall back to string order.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1054,
+      "anchor_line_end": 1070,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "batch_record builds the run-directory path as os.path.join(<batch dir>, row['arm']) and then os.listdir()s it and opens <dir>/<task>-t<n>/grade.json. The arm value comes straight from runs.jsonl rows; the arm grammar (^[a-z][a-z0-9_]{0,63}$) is only enforced by ablation-row.sh --validate, which the report does not run, and an absolute arm such as \"/tmp/x\" makes os.path.join discard the batch dir entirely. The symlink checks guard entries but not the arm segment itself. Impact is bounded: only directories matching <task_id>-t<trial> are considered and only the grader_version string of a grade.json inside them reaches the report, so this is a directory-probe rather than a read of arbitrary content.",
+      "failure_mode": "A crafted row with arm \"../../other-batch\" or \"/some/path\" causes the report to list and open grade.json files outside the batch directory, leaking the existence of directories and their grader_version values into report.md/report.json.",
+      "suggested_fix": "Reject or skip rows whose arm does not match the suite's arm ids (self.arms) or the arm grammar before building paths; additionally assert the resolved path stays under the batch directory (os.path.commonpath) before listing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "xss",
+      "anchor": "evals/harness/ablation-report.py:render_batches",
+      "anchor_type": "line",
+      "anchor_line": 1142,
+      "anchor_line_end": 1159,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The batch-record table interpolates several STATUS.json / manifest values without md_cell(): trials_planned is emitted raw (it is any JSON value from STATUS.json, including a string containing '|', newlines or markdown), and the batch name is wrapped in backticks but not escaped, so a batch id containing a backtick or pipe breaks out of the cell. Elsewhere in the new code (render_decisions, render_exclusions, render_per_arm) the same classes of value go through md_cell. Since report.md is the artifact humans read to decide promotion, a STATUS.json or manifest under attacker control can inject rows or hide columns in the table.",
+      "failure_mode": "A STATUS.json with trials_planned \"3 | green | ... |\" or a batch directory named with a pipe produces a malformed or misleading Batch record table in the published report.",
+      "suggested_fix": "Pass trials_planned and the batch name through md_cell (and coerce trials_planned to int or 'n/a' when it is not a non-bool int), matching the treatment of the other cells.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-row.sh:ROW",
+      "anchor_type": "line",
+      "anchor_line": 410,
+      "anchor_line_end": 413,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "defects_missed accepts any list of non-empty strings from grade.json recall.missed and writes it into the row verbatim; the --validate branch mirrors this. Nothing checks the ids against the task's seeded defect id grammar (d1 … dN), their count, or their length, so an arbitrary-length or non-id string set reaches runs.jsonl and from there the report's defect_vector / budget_matched defect-union logic and the markdown output. Because the report partitions and renders based on these values, a malformed grade.json can carry unexpected content into the decision artifact without any validation layer rejecting it.",
+      "failure_mode": "A grade.json with recall.missed [\"<very long or markdown string>\"] is accepted by the row writer and by --validate, and later rendered/consumed by ablation-report.py with no bound or grammar check.",
+      "suggested_fix": "In both the row writer and the --validate check, constrain each id to the defect id grammar (e.g. test(\"^d[0-9]+$\")), bound the list length to the task's defect count, and dedupe; null the field otherwise as already done for non-string entries.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T10:40:37Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 225,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8747,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3043bf32c8327aa8433ca8b2859f4d47a158a46254db9af96766011f348e231a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

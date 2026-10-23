@@ -1,0 +1,10 @@
+head/evals/harness/execute-agent.sh:266
+head/evals/harness/execute-agent.sh:256
+head/evals/harness/run-arms.sh:251
+head/evals/harness/arms-report.py:237
+head/evals/harness/arms-report.py:302
+head/evals/harness/compare-ab.py:155
+head/evals/harness/run-arms.sh:314
+head/evals/harness/seed-corpus-from-record.sh:655
+head/.claude/rules/stash-safety.md:3
+head/.claude/data/floor.yaml:10

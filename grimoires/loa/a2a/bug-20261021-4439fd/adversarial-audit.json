@@ -1,0 +1,181 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "anchor_type": "hunk",
+      "anchor_line": 504,
+      "anchor_line_end": 505,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The ok) branch derives the verdict with `jq -er '.verdict_quality.status | strings'` and compares the captured string to APPROVED. jq evaluates every top-level JSON value in the file, `-e` reports the status of the LAST output, and `$(...)` strips trailing newlines. If the captured stdout holds more than one JSON document, for example `{\"verdict_quality\":{\"status\":\"APPROVED\"}}` followed by any object without a string status (a progress line, telemetry, a trailing `{}`), the second document emits nothing, jq exits 0, and vq_status is exactly `APPROVED`. The phase then records completed and adds PR-VALIDATED although the envelope was ambiguous, which the new doc-comment says must fail closed as no_verdict_quality. Only the reverse ordering (APPROVED after a non-verdict object, or two statuses) fails closed. `_flatline_pr_not_green` has the mirror weakness: `jq -c '.verdict_quality'` on a multi-document file returns several lines and `--argjson vq` rejects them, so the degraded summary is dropped.",
+      "failure_mode": "A single stray JSON line on the Flatline orchestrator's stdout, now captured wholesale under --json, turns a non-verdict into a green PR-VALIDATED marker. The gate is only as strict as the producer's stdout hygiene, which the orchestrator does not verify.",
+      "suggested_fix": "Slurp and require exactly one object: `vq_status=$(jq -ers 'if length == 1 and (.[0] | type) == \"object\" then .[0].verdict_quality.status | strings else empty end' \"$flatline_output\")`, treating any other shape as no_verdict_quality. Use the same `-s` / `length == 1` discipline for the vq and degraded_models reads in _flatline_pr_not_green so multi-document files can never yield multi-line values.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "anchor_type": "line",
+      "anchor_line": 510,
+      "anchor_line_end": 515,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Green requires only `verdict_quality.status == \"APPROVED\"`. The same envelope (see the test fixture _envelope and the reads in _flatline_pr_not_green) also carries `degraded`, `degraded_models` and `blockers`, none of which are consulted on the green path. If the producer ever emits APPROVED together with a non-empty degraded_models (quorum reached after a voice was dropped) or a non-empty blockers list alongside exit 0, the phase records completed and adds PR-VALIDATED. The exit classifier only sees the exit code, so the envelope is the last line of defence and it is checked on a single field.",
+      "failure_mode": "A partially degraded review whose quality status still reads APPROVED is marked PR-VALIDATED, which is the one-voice-missing outcome sprint-bug-267 is meant to prevent.",
+      "suggested_fix": "On the APPROVED path additionally require `(.degraded // false) == false and ((.degraded_models // []) | length) == 0 and ((.blockers // []) | length) == 0`; route any inconsistency to `_flatline_pr_not_green \"envelope_inconsistent\"`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "anchor_type": "line",
+      "anchor_line": 478,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`flatline_output_tmp=$(mktemp \"${flatline_output}.XXXXXX\")` has no failure check, unlike every other mktemp in this file (`|| return 1` or `if summary_tmp=$(mktemp ...)`). If mktemp fails (unwritable .run/, ENOSPC, EMFILE) the variable is empty, `> \"\"` is an ambiguous-redirect error so the Flatline orchestrator never runs, flatline_result becomes 1, and `mv -f \"\" ...` prints an error. The result lands in the `*` class as `exit_1`, so it fails closed only by accident and with a reason that blames Flatline rather than the harness.",
+      "failure_mode": "Capture-setup failures are indistinguishable from Flatline failures in the summary and logs. Any future change to how exit 1 is classified would silently remove the accidental fail-closed outcome.",
+      "suggested_fix": "`flatline_output_tmp=$(mktemp \"${flatline_output}.XXXXXX\") || { log_error \"Could not create Flatline capture file\"; rm -f \"$flatline_stderr\"; _flatline_pr_not_green \"capture_setup_failed\" \"$flatline_output\" \"$degraded_summary\"; return 0; }`",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:_flatline_pr_not_green",
+      "anchor_type": "hunk",
+      "anchor_line": 388,
+      "anchor_line_end": 389,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "After the `type == \"object\"` guard, `vq=$(jq -c '.verdict_quality' ...)` and `degraded_models=$(jq -c '.degraded_models // [(.verdict_quality.voices_dropped // [])[] | .voice? // empty]' ...)` run unguarded. The second expression errors when voices_dropped is a string or number (`.[]` on a non-iterable), and both yield multiple lines on multi-document input. Either case leaves an empty or multi-line value that is passed to `--argjson`, which makes the `jq -n` fail. The summary is then never written, so surface_degraded_handoff prints nothing about Flatline even though the phase is failed. The marker and phase state stay correct, but the hand-off loses the only record of status, voices and reason.",
+      "failure_mode": "Degraded reviews reach READY_FOR_HITL with FLATLINE-PR-DEGRADED in state but no summary or hand-off explanation, so the reviewer sees a marker with no evidence behind it.",
+      "suggested_fix": "Guard each read with a safe default: `vq=$(jq -c '.verdict_quality' \"$f\") || vq='{}'`; `degraded_models=$(jq -c '(.degraded_models | arrays) // [((.verdict_quality.voices_dropped | arrays) // [])[] | .voice? | strings]' \"$f\") || degraded_models='[]'`. Combine with the `-s` / `.[0]` single-document rule from SEC-001.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_bridgebuilder_review",
+      "anchor_type": "hunk",
+      "anchor_line": 720,
+      "anchor_line_end": 724,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The DEGRADED-convergence write composes the new summary with `--argjson previous \"$previous_summary\"`, redirects `jq -n` straight into summary_tmp, then `mv -f` unconditionally. If previous_summary is empty (the `jq -c` on line 714 failed after the `-e` check passed: file truncated or replaced between the two reads, I/O error) or `$iter` is ever non-numeric, `jq -n` fails and leaves an empty temp file that is moved over .run/post-pr-degraded-summary.json. Both the Bridgebuilder DEGRADED record and the Flatline summary the code was trying to preserve are lost at once. Because surface_degraded_handoff guards on `-s`, an empty file produces no hand-off warning at all. _flatline_pr_not_green already demonstrates the correct guarded pattern.",
+      "failure_mode": "A write error in the Bridgebuilder phase erases evidence of two degraded reviews, and READY_FOR_HITL is reached with no DEGRADED notice while state still carries FLATLINE-PR-DEGRADED.",
+      "suggested_fix": "Default on failure (`previous_summary=$(jq -c ...) || previous_summary='null'`), wrap the `jq -n` in the same `if jq ...; then mv -f ...; else rm -f ...; log_error ...; fi` used by _flatline_pr_not_green, and have surface_degraded_handoff warn when the summary file exists but is empty or unparseable instead of staying silent.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_bridgebuilder_review",
+      "anchor_type": "hunk",
+      "anchor_line": 584,
+      "anchor_line_end": 597,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "phase_bridgebuilder_review now preserves any summary whose `.phase` or `.previous.phase` is flatline_pr without checking that it belongs to this run or this PR. The only places that clear the file are phase_flatline_pr and the skip branch in run_orchestration, neither of which executes when the orchestrator is started with --resume from a state after FLATLINE_PR, or when a previous PR's run died after FLATLINE_PR. A leftover .run/post-pr-degraded-summary.json from another PR is then carried under .previous and surfaced by surface_degraded_handoff as a DEGRADED Flatline review of the current PR. The direction is conservative, but the hand-off message is the control this change exists to protect, and wrong-PR attribution trains reviewers to ignore it.",
+      "failure_mode": "Reviewers see DEGRADED Flatline warnings for PRs whose Flatline phase was green or never ran, eroding trust in the hand-off signal that is meant to force human attention.",
+      "suggested_fix": "Drop a kept summary whose `.pr_number` differs from `\"$STATE_SCRIPT\" get pr_number`, and clear .run/post-pr-degraded-summary.json and .run/post-pr-flatline-pr.json in the state init path so a new PR never inherits them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-267",
+    "timestamp": "2026-10-21T01:47:06Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 23800,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d145f2d3c331c079d27315b58597770424c1b1b935c25e272e05c59764c76b66",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

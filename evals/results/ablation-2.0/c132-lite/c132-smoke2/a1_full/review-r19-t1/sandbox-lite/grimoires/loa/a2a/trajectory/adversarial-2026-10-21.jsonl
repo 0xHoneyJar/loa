@@ -1,0 +1,2 @@
+{"timestamp":"2026-10-21T10:19:55Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-1","status":"clean","finding_count":3,"cost_usd":0}
+{"timestamp":"2026-10-21T10:31:39Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-1","status":"clean","finding_count":5,"cost_usd":0}

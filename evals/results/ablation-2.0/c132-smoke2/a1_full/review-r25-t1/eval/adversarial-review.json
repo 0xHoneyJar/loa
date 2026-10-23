@@ -1,0 +1,171 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "function",
+      "anchor_line": 1099,
+      "scope": "diff",
+      "description": "The basename filter deletes implementation modules even when their qualified import names cannot collide with hidden tests. For example, a hidden tests/helpers.py causes an agent-added pkg/helpers.py to be deleted, although helpers and pkg.helpers are separate modules.",
+      "failure_mode": "A correct solution loses required implementation files before grading and fails imports or tests. Hidden overlay __init__.py files also reserve __init__.py globally, potentially stripping agent-added package initializers.",
+      "suggested_fix": "Restrict removal to files pytest would collect as test modules and verify an actual import-name collision. Preserve implementation modules and package initializers.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "function",
+      "anchor_line": 1080,
+      "scope": "diff",
+      "description": "Directory overlays contribute no basenames to reserved: owned excludes directories, and reserved is derived exclusively from owned. owned_dirs only protects overlay contents from deletion; it never discovers their Python filenames.",
+      "failure_mode": "When hidden tests are installed through a directory overlay, an agent-added test with the same basename survives cleanup. Pytest's default import mode can still abort with an import-file-mismatch error, incorrectly failing the solution.",
+      "suggested_fix": "Recursively enumerate Python files inside directory overlays when constructing the reserved test-module names.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-003",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/run-ablation.sh:suite_kind_cap",
+      "anchor_type": "function",
+      "anchor_line": 501,
+      "scope": "diff",
+      "description": "The jq fallback operator treats false as absent. Consequently, run_usd_by_type: false and entries such as build: false silently select the fallback cap instead of triggering the documented usage error for a present malformed value.",
+      "failure_mode": "A malformed budget configuration launches trials using an unintended cap rather than refusing the batch.",
+      "suggested_fix": "Check field presence and types explicitly before applying defaults; reject boolean values for both the map and individual cap entries.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "function",
+      "anchor_line": 1081,
+      "anchor_line_end": 1096,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "remove_colliding builds `reserved` from EVERY .py basename found under a tests/ or test/ directory of the fixture (only __init__.py and conftest.py are excluded), plus every .py basename in the hidden overlay (with no exclusion at all, so an overlay `tests/__init__.py` reserves `__init__.py`). It then walks the WHOLE grading tree, not just directories pytest collects, and unlinks any agent-added file whose basename matches. The header comment itself says fixture suites ship sibling helper modules (`_oracle_x`, `helpers`). So a fixture `tests/helpers.py` or `tests/utils.py` causes an agent-added `src/<pkg>/helpers.py` or `src/<pkg>/utils.py` to be deleted before the hidden suite runs, and an overlay `__init__.py` causes every new package marker the agent created (e.g. `src/newpkg/__init__.py`) to be deleted. Neither of these files can trigger pytest's basename-collision abort: that abort only concerns collected test modules in package-less directories (and conftest). Deleting them breaks the agent's own imports and grades a correct solution as failing, which is the exact failure mode 1.2.11 was introduced to prevent, and it is silent apart from a count in grade.json.",
+      "failure_mode": "A correct agent solution that adds a module whose basename equals a non-test helper in the fixture's tests/ dir (helpers.py, utils.py, common.py, fixtures.py…) or adds any new package __init__.py when the overlay carries one, loses that file in grading/final; the hidden suite then fails with ImportError/ModuleNotFoundError and the row records hidden_tests failed with colliding_tests_removed > 0. Results of the Sprint 261 calibration batch are skewed against arms that add modules.",
+      "suggested_fix": "Restrict `reserved` to names pytest would actually collect as test modules: filter both the overlay-derived and fixture-derived sets to `test_*.py` / `*_test.py` (and drop `__init__.py` from the overlay-derived set, e.g. `if d.endswith('.py') and os.path.basename(d) not in ('__init__.py','conftest.py')`). Additionally only unlink candidates that pytest would import by basename, i.e. files in a package-less directory (no `__init__.py` sibling) under a collected test root; skip files that live inside a package. Add a bats case with a fixture `tests/helpers.py` plus an agent-added `src/pkg/helpers.py` asserting it survives.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "line",
+      "anchor_line": 1079,
+      "anchor_line_end": 1081,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Hidden overlay entries that are directories (`os.path.isdir(f)`) are only used for `owned_dirs` protection; their contents are never enumerated into `reserved`. A hidden test module shipped inside a directory overlay (e.g. overlay dest `tests/hidden/` containing `test_slug.py`) therefore does not reserve its basename, so an agent-added `tests/extra/test_slug.py` is kept and the import-file-mismatch abort that 1.2.11 claims to fix still happens for those tasks. The docstring and header comment say 'a hidden overlay .py file', but the suite's overlay shape per task is not checked here, so coverage of the fix depends on every task using file overlays.",
+      "failure_mode": "For any task whose hidden tests are delivered as a directory overlay, the collision guard is a no-op and the hidden suite still aborts collection when the agent reuses a hidden test basename elsewhere, grading a correct solution as failing with colliding_tests_removed = 0.",
+      "suggested_fix": "When `os.path.isdir(f)`, `os.walk(f)` and add the basenames of its collected test files (`test_*.py` / `*_test.py`) to `reserved`, so file and directory overlays are treated the same; cover with a bats case using a directory overlay.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T11:16:43Z",
+    "tokens_input": 109640,
+    "tokens_output": 15198,
+    "cost_usd": 0,
+    "latency_ms": 67184,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 234,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "03d612cd00d8922ecd2c39a14760938723d505ac4f0ad70e7b5420c886156ffd",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

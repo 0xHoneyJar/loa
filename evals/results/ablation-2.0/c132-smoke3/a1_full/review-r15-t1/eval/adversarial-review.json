@@ -1,0 +1,201 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "anchor_type": "function",
+      "anchor_line": 885,
+      "anchor_line_end": 920,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "cross_file_justification": "resolve_effort (diff) returns a fourth effort_source value, \"extra\", that flows unchanged into emit_model_invoke_complete (loa_cheval/audit/modelinv.py, diff) and from there into the MODELINV payload validated against .claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json (changed in this PR but truncated).",
+      "description": "resolve_effort has four rungs and returns source strings caller | catalog | extra | none. Every other place in the same diff documents the contract as three values: the modelinv.py parameter comment says \"caller | catalog | none\", and the cmd_invoke emit comment says \"cycle-127 FR-2: caller | catalog | none\". The payload schema was authored in this PR against that documented three-value contract. A CLI entry (kind: cli / auth_type: headless) carrying a legacy extra.effort or extra.reasoning_effort, with no --effort and no params.default_effort, produces effort_source=\"extra\" on the wire.",
+      "failure_mode": "If the payload schema enumerates effort_source as the documented three values, every MODELINV emit for a headless hop that resolved its effort from extra.* fails schema validation (or is recorded as an invalid event), after the model call has already been paid for. Even if the schema is permissive, the documented contract and the emitted values disagree, so downstream readers keyed on the documented enum silently mis-bucket these invocations.",
+      "suggested_fix": "Pick one contract. Either add \"extra\" to the modelinv.py docstring, the cmd_invoke comment and the payload schema enum, or collapse the extra rung to effort_source=\"catalog\" (it is a catalog-sourced value) and keep the three-value enum. Add a test that emits with a CLI entry resolving from extra.effort and validates the payload against the schema.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:cmd_invoke",
+      "anchor_type": "hunk",
+      "anchor_line": 1514,
+      "anchor_line_end": 1523,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Effort is resolved once against the primary (alias-followed) entry and the single value is placed on the CompletionRequest that every fallback hop receives. Before this change only an explicit --effort travelled on the request, so a fallback claude-headless hop fell through to its own extra.effort via _resolve_effort(request, model_config). Now a primary with params.default_effort shadows the fallback entry's own params.default_effort / extra.effort, and effort_source=\"catalog\" in MODELINV describes the primary's catalog, not the answering hop's.",
+      "failure_mode": "A fallback hop runs at an effort its own catalog entry did not ask for (e.g. an xhigh primary default forwarded as --effort xhigh to a CLI model whose entry says medium). The audit record attributes the value to \"catalog\" even though the answering entry's catalog said something else, so the per-entry default is unobservable for fallbacks.",
+      "suggested_fix": "Re-run resolve_effort per hop against the hop's resolved entry when the caller gave no explicit --effort (caller rung stays global), or document in D-2.2 that fallbacks inherit the primary's catalog default and record effort_source as \"primary_catalog\" for them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "anchor_line": 113,
+      "anchor_line_end": 127,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The docstring promises the gate fails closed on any config problem, but _find_project_root() is evaluated outside the try/except. Only the two load_* calls and the merge are guarded.",
+      "failure_mode": "If the cwd walk raises (no project marker found and the helper raises, or a PermissionError walking parents), AgyHeadlessAdapter.complete() propagates a raw exception instead of AgyOptInRequiredError, so the chain walker sees an unclassified error rather than the opt_in_required seam planners are told to read.",
+      "suggested_fix": "Move `root = project_root or _find_project_root()` inside the try block so every failure path returns False.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:_effort_on_wire",
+      "anchor_type": "function",
+      "anchor_line": 929,
+      "anchor_line_end": 941,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "effort_effective is derived from the provider *name* (`provider == \"anthropic\"`) and from _is_cli_entry alone. Two inaccuracies follow: (1) an anthropic-type provider registered under another name (the tests reference a `claude-bedrock` route) returns None although its adapter applies the same per-family mapping; (2) any CLI entry returns the effort unchanged, but the agy adapter's _build_command never forwards effort (and codex/cursor/grok are not shown to), so effort_effective claims a wire value that was never sent.",
+      "failure_mode": "The MODELINV field intended to record what was actually put on the wire is wrong for non-\"anthropic\"-named Anthropic providers and for every non-claude CLI hop, defeating the D-2.6 purpose of the field.",
+      "suggested_fix": "Branch on the resolved provider type (the catalog `type` of the provider entry), and only pass through for CLI adapters that actually forward effort (claude-headless); return None for agy/codex/cursor/grok hops.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_the_write_clamps_to_the_i2_invariant_and_keeps_the_raw_measurement",
+      "anchor_type": "function",
+      "anchor_line": 557,
+      "anchor_line_end": 578,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_the_write_clamps_to_the_i2_invariant_and_keeps_the_raw_measurement",
+      "cross_file_justification": "The test pins the catalog writer (tools/ceiling-probe-live.py, truncated) to write the I2-clamped value into probed_ceiling while the raw accept goes only to ceiling_calibration.measured_input_tokens; test_anthropic_catalog_floor.py (diff) then asserts probed_ceiling == effective_input_ceiling for measured entries, and the v3 schema description (truncated) is reported to say the measured value is what is written to probed_ceiling.",
+      "description": "Under the clamp, probed_ceiling (936000) no longer holds the probed value (972887); the two fields the catalog has always kept distinct (what was measured vs. what routing may use) now collapse to the same clamped number, with the real measurement moved to a calibration sub-key. Any reader comparing probed_ceiling across re-probes, or the schema text that defines probed_ceiling as the measured value, is now misled.",
+      "failure_mode": "A re-probe that measures 972887 again will look like a change relative to probed_ceiling=936000 (false re-calibration signal), and the catalog's own schema description contradicts the catalog's content.",
+      "suggested_fix": "Write the raw measurement to probed_ceiling and the clamped value to effective_input_ceiling, then relax the measured-entry assertions in test_anthropic_catalog_floor.py to `effective_input_ceiling == min(probed_ceiling, context_window - default_max_tokens)`; or, if the clamp must land in probed_ceiling, update the v3 schema description to say so.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gemini-3.1-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T13:43:25Z",
+    "status": "reviewed",
+    "degraded": false,
+    "error": "API call failed with exit code 2",
+    "model_attempts": [
+      "gpt-5.5-pro:api_failure",
+      "gpt-5.5:api_failure",
+      "gemini-3.1-pro:api_failure",
+      "claude-headless:skipped_shared_with_companion"
+    ],
+    "final_model": "claude-headless",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 14338,
+    "primary_voice": {
+      "status": "ceded",
+      "hop": "claude-headless",
+      "model": "gemini-3.1-pro"
+    },
+    "status_note": "primary ceded claude-headless to the companion, which answered with it; findings are the companion voice's alone",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": null,
+      "counted_as": "sole_voice",
+      "primary_succeeded_model": null,
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a7ef6850b567a4361fa27da85eede914fdd5e5388f4308f1934811f10ee48127",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 4,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "claude-headless"
+    ],
+    "voices_dropped": [
+      {
+        "voice": "codex-headless",
+        "reason": "ChainExhausted",
+        "exit_code": 1,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "openai:codex-headless",
+          "openai:gpt-5.5-pro"
+        ]
+      },
+      {
+        "voice": "codex-headless",
+        "reason": "ChainExhausted",
+        "exit_code": 1,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "openai:codex-headless",
+          "openai:gpt-5.5"
+        ]
+      },
+      {
+        "voice": "gemini-3.1-pro-preview",
+        "reason": "ChainExhausted",
+        "exit_code": 12,
+        "blocker_risk": "high",
+        "chain_walk": [
+          "google:gemini-3.1-pro-preview"
+        ]
+      }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "low",
+    "rationale": "multi-voice aggregate (1/4 succeeded); chain_health=degraded; dropped: codex-headless(ChainExhausted/high), codex-headless(ChainExhausted/high), gemini-3.1-pro-preview(ChainExhausted/high)",
+    "single_voice_call": false,
+    "status": "FAILED"
+  }
+}

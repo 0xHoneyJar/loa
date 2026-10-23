@@ -1,0 +1,15 @@
+head/.claude/skills/bridgebuilder-review/resources/config.ts:685
+head/.claude/skills/bridgebuilder-review/resources/config.ts:482
+head/.claude/adapters/loa_cheval/providers/openai_streaming.py:213
+head/.claude/scripts/model-health-probe.sh:1546
+README.md:30
+.loa.config.yaml.example:818
+multi-model-reference.md:102
+scripts-reference.md:73
+head/.claude/scripts/model-health-probe.sh:1469
+head/.claude/scripts/lib/hop-locality.py:116
+modelinv.py:476
+openai_adapter.py:221
+head/.claude/loa/reference/scripts-reference.md:74
+head/.claude/loa/reference/scripts-reference.md:73
+model-health-probe.sh:1546

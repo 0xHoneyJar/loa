@@ -1,0 +1,14 @@
+head/.claude/defaults/model-config.yaml:477
+head/.claude/defaults/model-config.yaml:408
+head/.claude/defaults/model-config.yaml:465
+head/.claude/defaults/model-config.yaml:562
+head/.claude/defaults/model-config.yaml:772
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:343
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:326
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:277
+head/.claude/defaults/model-config.yaml:491
+head/.claude/hooks/compliance/implement-gate.sh:128
+head/.claude/scripts/check-permissions.sh:167
+head/.claude/scripts/detect-platform-features.sh:59
+head/.claude/scripts/model-adapter.sh:656
+head/tools/check-prompt-budget.sh:53

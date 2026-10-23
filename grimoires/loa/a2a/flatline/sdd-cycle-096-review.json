@@ -1,0 +1,147 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real rollout-risk gap and highly actionable. A simple runtime flag strategy for Bedrock enablement and parser-path selection gives fast blast-radius control without emergency reverts, especially important for submodule consumers. High impact, low-to-moderate implementation cost.",
+      "gpt_score": 870,
+      "opus_score": 780,
+      "tertiary_score": 950,
+      "delta": 90,
+      "average_score": 825,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong, domain-appropriate concern. A process-scoped circuit-breaker flag without concurrency semantics is ambiguous and can fail under parallel calls. Specifying lock/atomic behavior (or explicitly accepting racy semantics) is concrete and materially reduces production uncertainty.",
+      "gpt_score": 840,
+      "opus_score": 820,
+      "tertiary_score": 920,
+      "delta": 20,
+      "average_score": 830,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valuable and nuanced. The interaction between env-based lazy token loading and value-cached redaction is a realistic long-running process issue. Defining token-rotation and cache invalidation behavior is actionable, though moderate complexity and likely not day-one critical for all deployments.",
+      "gpt_score": 760,
+      "opus_score": 750,
+      "tertiary_score": 900,
+      "delta": 10,
+      "average_score": 755,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Important functional clarity gap. Either streaming must be specified (normalization/chunk handling) or explicitly declared out of scope with clear caller behavior. Silence here causes integration ambiguity and surprises for clients expecting feature parity.",
+      "gpt_score": 820,
+      "opus_score": 800,
+      "tertiary_score": 920,
+      "delta": 20,
+      "average_score": 810,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "High-value reliability/usability clarification. Retry multiplied by per-attempt timeout can create unacceptable tail latency in CI/CLI contexts. Adding total deadline semantics or explicit worst-case budget is very actionable and prevents operational confusion.",
+      "gpt_score": 790,
+      "opus_score": 720,
+      "tertiary_score": 820,
+      "delta": 70,
+      "average_score": 755,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Bedrock API Key prefix regex (ABSKY) is unverified and may be wrong or change",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "If AWS uses a different prefix (e.g., 'ABSK' or evolves the format), the Layer 1 regex redaction silently fails to catch tokens in logs, leaking credentials. OQ-5 acknowledges this is unverified yet it's coded into NFR-Sec2.",
+      "location": "Section 1.9 Security Architecture, Section 6 Error Handling, OQ-5",
+      "recommendation": "Block Sprint 1 on Sprint 0 G-S0-2 probe #1 capturing actual token shape. Add a secondary length-based fallback regex and a unit test that asserts redaction works against a real (rotated) sample. Consider using a broader match plus value-based redaction as primary defense.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Compliance-aware fallback mapping is brittle and can route to incorrect or non-equivalent models",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Mapping logic currently relies on simple naming heuristics (e.g., stripping region prefix). If model naming changes or custom models are added, fallback can silently fail or pick an unintended model, undermining quality, cost predictability, and compliance intent.",
+      "location": "Section 6.2: Compliance-Aware Fallback; Section 8 Phase 1 fallback deliverable",
+      "recommendation": "Require an explicit, versioned fallback mapping table in the registry; reject fallback when no exact declared equivalence exists.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Core Bedrock contract details are still unresolved but implementation is tightly coupled to them",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "Open questions include exact model IDs, endpoint pattern, pricing, token regex shape, and thinking-trace behavior. If any assumption is wrong, Sprint 1 code and tests will be invalid, causing rework and potential schedule failure.",
+      "location": "Section 10: Open Questions (OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-9, OQ-10)",
+      "recommendation": "Make Sprint 0 outputs hard gates with explicit go/no-go criteria and freeze a versioned Bedrock contract artifact before Sprint 1 coding starts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Recurring CI contract smoke has blind spots and can provide false confidence",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "Workflow skips cleanly when secret is absent and only runs two probes on one low-cost model. Vendor drift in other models/capabilities may go undetected while the project assumes integration safety.",
+      "location": "Section 1.4.4 and Section 5.5: bedrock-contract-smoke.yml",
+      "recommendation": "Add a required status signal for scheduled runs, enforce secret presence in main repo, and rotate sampled models/capabilities weekly to broaden drift detection.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "v1 auth strategy depends on long-lived bearer tokens without strong runtime lifecycle controls",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "Bearer tokens are high-blast-radius secrets. The design documents manual rotation and revocation, but lacks enforced expiration checks, automated rotation hooks, and token-scope validation. A leaked token can lead to prolonged abuse and compliance incidents.",
+      "location": "Section 1.9: Security Architecture; Section 4.3: Token compromise flow; Section 6.4: Logging",
+      "recommendation": "Add mandatory token age/expiry metadata checks, automated rotation reminders enforced by runtime warnings/failures, and optional short-lived credential mode as a pre-v1.1 requirement.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer deep",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-01T15:47:31Z",
+  "metrics": {
+    "total_latency_ms": 158000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

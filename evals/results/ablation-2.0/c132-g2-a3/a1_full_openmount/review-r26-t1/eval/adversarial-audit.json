@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1054,
+      "anchor_line_end": 1080,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "batch_record builds a filesystem path from a row-supplied value: `ad = os.path.join(d, r[\"arm\"])`, where `r[\"arm\"]` comes straight from runs.jsonl. os.path.join discards `d` when the arm is absolute, and `../` segments walk out of the batch directory. The code then lists that directory and opens `<dir>/<task>-t<n>/grade.json`, surfacing the file's `grader_version` string in report.md and report.json. The symlink guards (`islink` then `open`) are also check-then-use and can be raced. Only the arm grammar in ablation-row.sh (`^[a-z][a-z0-9_]{0,63}$`) constrains arm names, and the report does not re-apply it; rows can be hand-written or come from an older writer.",
+      "failure_mode": "A crafted or corrupted runs.jsonl row with an arm like `../../../some/dir` or `/abs/path` makes the report enumerate an arbitrary directory and read any JSON file named grade.json there, leaking its grader_version into the published report. Disclosure is narrow (directory existence plus one string field) but the path is fully attacker-controlled.",
+      "suggested_fix": "Validate `r[\"arm\"]` against the suite's arm ids (or the same `^[a-z][a-z0-9_]{0,63}$` grammar) before joining, and assert the resolved path stays under `d` (`os.path.realpath(ad).startswith(os.path.realpath(d) + os.sep)`). Open STATUS.json and grade.json with `os.open(..., O_NOFOLLOW)` instead of a separate islink check.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:version_order",
+      "anchor_type": "line",
+      "anchor_line": 840,
+      "anchor_line_end": 840,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Several new sort keys use `str.isdigit()` to decide whether to call `int()`, but the two disagree: `isdigit()` is true for characters like superscript digits (e.g. `²`) that `int()` rejects, and `version_key` only normalises `\\d+` matches (Unicode Nd), so such a string passes through as a non-normalised key. `version_order` (line 840) then raises ValueError. The grader_version sort key in batch_record (lines 1081-1082) has a second failure: `[int(p) if p.isdigit() else p ...]` yields mixed int/str lists, so grade.json files with grader_version `1.2` and `1.a` in one batch make `sorted()` raise TypeError. Neither exception is caught by the `Fail` handler in main.",
+      "failure_mode": "A single row or grade.json with an odd suite_version / grader_version string aborts ablation-report.py with a traceback instead of the documented exit 2, so no report is written. That turns untrusted batch-record content into an availability failure of the decision report.",
+      "suggested_fix": "Replace `isdigit()` guards with `re.fullmatch(r\"[0-9]+\", s)` and normalise the grader_version key to a homogeneous tuple (e.g. `(0, int(p))` for numeric parts, `(1, p)` otherwise). Catch ValueError/TypeError at the partition and batch-record boundaries and raise `Fail` with the offending value.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "xss",
+      "anchor": "evals/harness/ablation-report.py:render_batches",
+      "anchor_type": "line",
+      "anchor_line": 1156,
+      "anchor_line_end": 1157,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Markdown injection into report.md from untrusted batch-record content. In render_batches, `e['trials_planned']` (read verbatim from STATUS.json) is interpolated into a table row without `md_cell`, while every neighbouring field is escaped. In render_budget (line 1106) `e['task_id']` is placed in a table cell unescaped, and render_per_arm prints `p['degenerate_reason']` (which embeds a row task_id) as a raw bullet. A value containing `|` or a newline breaks the table or injects arbitrary markdown/HTML into the report that downstream readers render.",
+      "failure_mode": "A STATUS.json with `\"trials_planned\": \"3 | **Keep** | ...\\n## Decisions\"` rewrites the Batch record table and can forge decision-looking text; if report.md is rendered as HTML, an injected `<img>`/`<a>` tag executes in the viewer's context.",
+      "suggested_fix": "Route `trials_planned`, `task_id`, and `degenerate_reason` through `md_cell` (or a non-table escape that strips newlines) like the other fields; coerce `trials_planned` to int or 'n/a' before rendering.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T12:51:23Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 225,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10967,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3043bf32c8327aa8433ca8b2859f4d47a158a46254db9af96766011f348e231a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

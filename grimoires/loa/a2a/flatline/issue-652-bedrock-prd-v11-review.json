@@ -1,0 +1,135 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Real gating gap with clear delivery risk: a hard respondent threshold without fallback can stall Sprint 0 indefinitely. Actionable to add timeout/fallback decision rules and owner. Low implementation cost, high planning ROI.",
+      "gpt_score": 830,
+      "opus_score": 820,
+      "tertiary_score": 950,
+      "delta": 10,
+      "average_score": 825,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Security-critical and concrete. Redaction patterns cannot remain undefined behind a future verification note. Either lock an initial regex now or make Sprint 0 discovery an explicit required artifact. High impact, low-to-moderate effort.",
+      "gpt_score": 890,
+      "opus_score": 720,
+      "tertiary_score": 980,
+      "delta": 170,
+      "average_score": 805,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Good contract-hardening improvement. If multiple NFRs depend on ledger queries, schema ambiguity will create inconsistent telemetry and auditability. Moderate effort but strong downstream value.",
+      "gpt_score": 760,
+      "opus_score": 780,
+      "tertiary_score": 940,
+      "delta": 20,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "High-value operational realism. Live integration tests fail in practice without secret handling, fork behavior, and cost controls. This is specific, actionable, and prevents CI fragility and runaway spend.",
+      "gpt_score": 850,
+      "opus_score": 750,
+      "tertiary_score": 960,
+      "delta": 100,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-003",
+      "concern": "Bearer-token-only v1 may not satisfy enterprise Bedrock deployments that rely on cross-account ARNs and IAM controls",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Many AWS organizations enforce IAM role-based access and cross-account inference profiles. Deferring SigV4 may make v1 unusable for the exact high-value users requesting Bedrock support.",
+      "location": "Executive Summary (v2 deferred), FR-3, FR-4, FR-12 out-of-scope note",
+      "recommendation": "Define explicit v1 support boundaries in release criteria and add a contingency: if Sprint 0 detects cross-account/SigV4 dependency, re-scope to minimal SigV4 MVP in this cycle.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "Colon-bearing model IDs introduce multi-language parsing/escaping risk across Bash and Python layers",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "The design depends on first-colon split semantics across generators, loaders, adapters, and shell maps. Any inconsistency can break model resolution, permissions, or cost mapping in subtle ways.",
+      "location": "FR-1 acceptance criteria (colon handling), generated-model-maps/model-adapter integration points",
+      "recommendation": "Centralize parsing into one canonical utility shared by all paths (or generate pre-split fields), and add end-to-end property tests across Bash/Python boundaries.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Compliance fallback defaults are internally ambiguous and risk accidental cross-provider egress",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "The PRD references both 'none default for pre-cycle users' and 'bedrock_only default for Bedrock-configured users'. Ambiguity in migration/default semantics can cause non-compliant fallback behavior in regulated environments.",
+      "location": "G-S0-3 Compliance Profile Decision; NFR-R1 revised behavior",
+      "recommendation": "Specify deterministic defaulting/migration logic per user state, and add automated migration tests proving no silent fallback under compliance-sensitive configurations.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Critical Bedrock contract verification is manual and non-repeatable in CI",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "Core assumptions (endpoints, response shapes, thinking traces, tool schema behavior) are validated once by a maintainer-side probe. AWS behavior can drift by region/time; without automated regression checks, the integration can silently rot and fail after release.",
+      "location": "Pre-Sprint-1 Validation Gate: G-S0-2 Live API Contract Verification; FR-10 Tests",
+      "recommendation": "Promote a subset of contract probes into recurring, key-gated CI smoke tests with fixture diffing and alerting on shape changes.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Sprint 0 user-validation sample is too small and may misclassify the primary auth mode",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "The plan gates v1 auth direction on feedback from only >=2 users. If those users are not representative, the team could ship Bearer-token v1 while most real adopters require SigV4/IAM, forcing a costly rework and failed launch.",
+      "location": "Pre-Sprint-1 Validation Gate: G-S0-1 Auth-Modality User Confirmation",
+      "recommendation": "Increase validation to a broader sample (e.g., all known Bedrock users + at least one enterprise platform owner), and add a hard go/no-go threshold by user share (e.g., >=70% Bearer-token to keep FR-3 as v1).",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/issue-652-bedrock-prd.md",
+  "domain": " product requirements document aws",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-01T15:15:33Z",
+  "metrics": {
+    "total_latency_ms": 222000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

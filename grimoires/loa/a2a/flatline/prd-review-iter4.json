@@ -1,0 +1,145 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real reliability gap. Moving endpoints without explicitly defining retry, timeout, backoff, and 429/5xx handling leaves production behavior ambiguous and untestable. Low-to-moderate implementation cost, high operational impact.",
+      "gpt_score": 910,
+      "opus_score": 920,
+      "tertiary_score": 950,
+      "delta": 10,
+      "average_score": 915,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong and actionable. One-time migrations are high-risk failure points; idempotency, ordering, validation, and partial-failure handling should be explicit in acceptance criteria. High ROI for Sprint 1 safety.",
+      "gpt_score": 895,
+      "opus_score": 900,
+      "tertiary_score": 980,
+      "delta": 5,
+      "average_score": 897.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Important incident-response ambiguity. Kill-switch versus user pin precedence must be deterministic and documented, otherwise operators cannot reliably mitigate risk during outages or regressions.",
+      "gpt_score": 860,
+      "opus_score": 810,
+      "tertiary_score": 920,
+      "delta": 50,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Strong improvement. Cost-cap behavior is safety-critical; undefined mid-cycle handling can cause partial-state failures. Per-workflow failure/recovery contract should be explicit and testable.",
+      "gpt_score": 830,
+      "opus_score": 800,
+      "tertiary_score": 960,
+      "delta": 30,
+      "average_score": 815,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-004",
+      "concern": "Cost cap requirement is underspecified (session boundary, parallel workers, shared ledger consistency).",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "A per-session cap can be bypassed or enforced inconsistently in concurrent runs, leading to unexpected spend despite apparent guardrails.",
+      "location": "FR-5a and FR-5 (max_cost_per_session_micro_usd)",
+      "recommendation": "Define canonical session ID, ledger isolation rules, concurrency-safe accounting, and behavior for distributed/multi-process execution.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Gemini fallback demotion lacks hysteresis/cooldown semantics and may thrash between primary and fallback.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "Probe state flapping can cause non-deterministic model routing between calls, making outputs inconsistent and debugging nearly impossible.",
+      "location": "FR-4 (automatic fallback); Risks (preview instability)",
+      "recommendation": "Define fallback state machine with cooldown window, minimum healthy probes before restore, and sticky session behavior.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Kill-switch behavior is internally contradictory (alias rollback vs endpoint forcing).",
+      "severity": "CRITICAL",
+      "severity_score": 930,
+      "why_matters": "The PRD states the kill-switch must operate at alias resolution only, but FR-1 test criteria also says it should force /chat/completions for gpt-5.5. If implemented incorrectly, incident rollback will create guaranteed 400 failures for gpt-5.5 traffic.",
+      "location": "FR-1 Acceptance Criteria; Risks & Mitigation (kill-switch notes)",
+      "recommendation": "Resolve to one contract: alias-level rollback only. Remove endpoint-force language and add explicit negative test asserting kill-switch does NOT alter endpoint routing logic.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-009",
+      "concern": "SSOT-to-generated-map synchronization is not transactionally enforced, risking runtime drift between Python and bash call paths.",
+      "severity": "CRITICAL",
+      "severity_score": 820,
+      "why_matters": "If model-config.yaml changes land without regenerated maps (or vice versa), different execution paths can resolve models/costs differently, causing hard-to-diagnose production bugs.",
+      "location": "FR-2 Acceptance Criteria (map regeneration); Technical Constraints (Bash + Python consume SSOT)",
+      "recommendation": "Make map generation a mandatory CI gate with checksum verification and fail merges when generated artifacts are stale.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Unknown /v1/responses output shapes are configured to hard-fail, creating outage risk on provider contract evolution.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "OpenAI can introduce new block types; immediate UnsupportedResponseShapeError would break production flows even when a usable text answer exists.",
+      "location": "Scope (unknown future object types); Technical Considerations §3.1",
+      "recommendation": "Add forward-compatible parsing: preserve known blocks, ignore unknown non-critical blocks with WARN telemetry, and fail only when no valid content can be extracted.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Using rolling model aliases as production defaults without a canary strategy creates uncontrolled behavior drift.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Provider-side behavior can change without code changes. A sudden model update could impact quality, latency, safety, or cost across all users simultaneously.",
+      "location": "Constraints (Snapshot pinning policy); Compliance (Stay rolling)",
+      "recommendation": "Add staged rollout requirements: canary cohort, percentage-based rollout, and automatic rollback thresholds for error/cost/latency regressions.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " product requirements document model",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T05:35:21Z",
+  "metrics": {
+    "total_latency_ms": 214000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

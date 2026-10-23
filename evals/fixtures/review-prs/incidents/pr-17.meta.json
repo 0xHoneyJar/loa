@@ -1,0 +1,102 @@
+{
+  "changed_files": 41,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 7,
+    "issue": 3,
+    "kf": 0
+  },
+  "fixture": "pr-17",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 5,
+      "kept": 3,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \".gitignore\" OR \".loa.config.yaml.example\" OR \"AGENTS.md\" OR \"AGENTS.md.checksum\" OR \"README.md\"",
+      "total_count": 5
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"REFERENCE.md\" OR \"SKILL.md\" OR \"agent-types.yaml\" OR \"agents-md-gen.bats\" OR \"block-destructive-bash.sh\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"br-stub.sh\" OR \"chart-frontier.bats\" OR \"chart-frontier.sh\" OR \"chart-guard.sh\" OR \"chart-researcher.md\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"chart-ticket.sh\" OR \"chart-unblock-probe.sh\" OR \"chart.md\" OR \"charting-decisions.bats\" OR \"charting-lint.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"corpus.jsonl\" OR \"create-sprint-task.sh\" OR \"get-ready-work.sh\" OR \"golden-path-charting.bats\" OR \"golden-path.sh\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 3,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"implement.md\" OR \"map.md\" OR \"plan-and-analyze.md\" OR \"plan.md\" OR \"run-mode-ice.bats\"",
+      "total_count": 3
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"run-mode-ice.sh\" OR \"skill-capabilities.bats\" OR \"spike-validator.bats\" OR \"unattended-prototype.bats\" OR \"validate-artifact.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-13 \"validate-artifact.sh\"",
+      "total_count": 1
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 7,
+  "merge_commit": "6056a37271ed7cf54f3a44d2534c04ebe30833dd",
+  "merge_date": "2026-10-13T10:52:13Z",
+  "pr": 1279,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:26:38Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-13T10:52:13Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:26:38Z"
+  }
+}

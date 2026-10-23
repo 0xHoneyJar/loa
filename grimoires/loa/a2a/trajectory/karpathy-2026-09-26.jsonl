@@ -1,0 +1,7 @@
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:34:05Z","files_modified":1099,"lines_total":102115,"threshold":100,"verdict":"warn","tool_call_count":2254,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:34:14Z","files_modified":1099,"lines_total":102117,"threshold":100,"verdict":"warn","tool_call_count":2255,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:34:17Z","files_modified":1099,"lines_total":102118,"threshold":100,"verdict":"warn","tool_call_count":2256,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:34:27Z","files_modified":1099,"lines_total":102121,"threshold":100,"verdict":"warn","tool_call_count":2257,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:38:09Z","files_modified":1099,"lines_total":102122,"threshold":100,"verdict":"warn","tool_call_count":2258,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:38:14Z","files_modified":1099,"lines_total":102123,"threshold":100,"verdict":"warn","tool_call_count":2259,"session_id":"merlin-20260926"}
+{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-09-26T02:49:37Z","files_modified":1100,"lines_total":102246,"threshold":100,"verdict":"warn","tool_call_count":2260,"session_id":"merlin-20260926"}

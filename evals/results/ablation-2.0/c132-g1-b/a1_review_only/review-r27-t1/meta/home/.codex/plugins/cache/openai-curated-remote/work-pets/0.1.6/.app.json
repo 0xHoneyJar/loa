@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "chatgpt_pets": {
+      "id": "connector_openai_chatgpt_pets",
+      "required": true
+    }
+  }
+}

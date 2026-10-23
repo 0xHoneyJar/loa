@@ -1,0 +1,197 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 10,
+    "low_value_count": 0,
+    "blocker_count": 4,
+    "model_agreement_percent": 0,
+    "models": 2,
+    "tertiary_items": 0,
+    "confidence": "single_model"
+  },
+  "high_consensus": [],
+  "disputed": [
+    {
+      "id": "IMP-001",
+      "description": "Schema consumers drifting against an undefined field is a structural correctness hazard, not a documentation gap. FR-5 health classification becomes unreliable without a canonical status enum. Implementation cost is low (schema amendment + fixture updates), and the 0.96 confidence is well-earned — the gap is plainly visible in the SDD cross-references. This is the kind of upstream ambiguity that produces silent divergence across independent sprint implementations.",
+      "gpt_score": 0,
+      "opus_score": 875,
+      "tertiary_score": null,
+      "delta": 875,
+      "average_score": 875,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Token estimation is the load-bearing gate for FR-1 and FR-4 correctness. An underspecified algorithm means each runtime will produce a different estimate, leading to non-deterministic preemption and chunking behavior across Python/bash/TS consumers. The 0.93 confidence is appropriate — the SDD cannot be considered complete without specifying the estimation algorithm, tokenizer choice, and overhead accounting. Implementation cost is medium (research + document + parity tests), but the risk of false preemption or empty-content loops without it is concrete.",
+      "gpt_score": 0,
+      "opus_score": 830,
+      "tertiary_score": null,
+      "delta": 830,
+      "average_score": 830,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-003",
+      "description": "The constraint restatement is a useful scoping clarification, but it is primarily a documentation and reviewer-comprehension issue rather than a functional gap. The implementation cost is very low. The main value is preventing scope confusion during approval and ownership assignment, which matters more for System Zone changes. Scored slightly below 'Valuable' threshold due to the lack of functional risk — this cannot cause a runtime failure, only review friction.",
+      "gpt_score": 0,
+      "opus_score": 665,
+      "tertiary_score": null,
+      "delta": 665,
+      "average_score": 665,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Shipping a documented operator interface that is not actually wired to any CLI router is a credibility failure, not just a documentation gap. The SDD defines the script but the dispatch path is absent. Implementation cost is medium (identify router, specify argument contract, add integration tests), and the risk of an unusable `loa substrate` command in production is concrete. The 0.90 confidence is reasonable given the absence of any routing specification in the reviewed sections.",
+      "gpt_score": 0,
+      "opus_score": 750,
+      "tertiary_score": null,
+      "delta": 750,
+      "average_score": 750,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-005",
+      "description": "A ceiling override bypasses the primary safety gate protecting against context-overflow failures and cost overruns. Leaving the authorization model as an open question means this bypass can be exercised by any caller, including automation, without an audit trail or identity requirement. This is a security design gap, not a feature gap. Implementation cost is medium (design decision + audit field spec), but the risk surface is high — an untracked operator override will appear in no audit log and leave no recoverable trail for postmortems.",
+      "gpt_score": 0,
+      "opus_score": 858,
+      "tertiary_score": null,
+      "delta": 858,
+      "average_score": 858,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Contradictory policy between §5.4 (truncate by priority) and §6.1 (ChunkingExceeded when truncation forbidden) without a flag or default will cause inconsistent behavior across callers. Large PR reviews are exactly the scenario where this ambiguity manifests with real correctness consequences. Picking one policy and propagating it to exit codes, verdict quality, and operator output is low-cost relative to the risk of divergent implementations. The 0.91 confidence correctly identifies this as a concrete specification defect.",
+      "gpt_score": 0,
+      "opus_score": 842,
+      "tertiary_score": null,
+      "delta": 842,
+      "average_score": 842,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-007",
+      "description": "The Sprint 2 producer-first rollout assumption that additive JSON is safe is only valid if all consumers are verified against that assumption. Shell consumers using jq paths and TS consumers using strict deserialization can fail silently on shape changes. Implementation cost is medium (consumer survey + fixture tests), and the risk is bounded to Sprint 2 integration scope. The 0.84 confidence appropriately reflects uncertainty about which consumers are actually strict — that uncertainty is exactly why the survey is needed.",
+      "gpt_score": 0,
+      "opus_score": 718,
+      "tertiary_score": null,
+      "delta": 718,
+      "average_score": 718,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Empirical calibration being load-bearing but procedurally underspecified is a reproducibility and auditability concern. Without a defined prompt corpus, success criteria, and cost limit, two operators running calibration will produce different ceilings, undermining the feature's core value proposition. Implementation cost is medium-high because it requires empirical work, not just documentation. The 0.86 confidence is appropriate — the gap is real but the severity is bounded if a reasonable ad-hoc procedure happens to be consistent in practice.",
+      "gpt_score": 0,
+      "opus_score": 698,
+      "tertiary_score": null,
+      "delta": 698,
+      "average_score": 698,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-009",
+      "description": "An 810-cell matrix without a specified sharding strategy is a CI feasibility concern, but it may be premature to fully specify partitioning before observing actual fixture execution times. The risk is that FR-3.5 becomes too slow to mandate, but this is a configuration problem that can be addressed iteratively after initial CI runs. Implementation cost is medium. Scored below 700 because the failure mode (slow but not broken CI) is recoverable without shipping a specification now, unlike the schema and authorization gaps above.",
+      "gpt_score": 0,
+      "opus_score": 648,
+      "tertiary_score": null,
+      "delta": 648,
+      "average_score": 648,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "A field present in MODELINV examples but absent from the schema will cause strict-mode validation failures silently in some consumers and disappear from audit logs in others. With the audit infrastructure's emphasis on envelope integrity, a schema-vs-payload mismatch is exactly the class of defect the audit chain is designed to prevent — making it ironic for the schema itself to be inconsistent. Implementation cost is very low (add field or remove from examples). The 0.92 confidence correctly reflects that the mismatch is directly visible in the cross-referenced sections.",
+      "gpt_score": 0,
+      "opus_score": 803,
+      "tertiary_score": null,
+      "delta": 803,
+      "average_score": 803,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-003",
+      "concern": "--ceiling-override bypasses the main safety gate but authentication, authorization, bounds, and audit semantics are left as an open question.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "An unaudited override can reintroduce empty-content failures, runaway cost, and misleading verdicts, especially in automated or CI contexts.",
+      "location": "§4.1 Cheval CLI surface and §10 Open questions",
+      "recommendation": "Make ceiling override fail-closed unless an operator slug, reason, expiry, and signed audit event are present; cap overrides to a configured maximum and add CI tests for unauthorized use.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Operator overrides win unconditionally over KF-derived downgrades, including potentially critical open failures.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "A stale or overly broad override can force-retain a model for roles where known security or reliability failures are still unresolved.",
+      "location": "§3.5.1 Operator-override precedence",
+      "recommendation": "Require overrides to reference the KF IDs they waive, expire by default, reject force_retain for CRITICAL unresolved KFs unless explicitly break-glass audited, and surface active waivers in every MODELINV envelope.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The classifier checks voices_dropped[].blocker_class, but the schema disallows unknown properties and does not define blocker_class.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "The documented safety condition for dropped BLOCKER-capable voices is impossible to represent, so approval logic can diverge from the stated contract or fail schema validation.",
+      "location": "§3.2.1 schema and §4.4 compute_verdict_status",
+      "recommendation": "Either add a defined blocker_risk or dropped_role field to voices_dropped and test it, or remove that branch and replace it with a representable conservative rule.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The verdict-quality schema does not define a canonical status field, while health aggregation reads verdict_quality.status or an unspecified outcome field.",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "Consumers may recompute, omit, or misread verdict status differently, recreating the exact 'clean despite degraded substrate' failure the cycle is meant to eliminate.",
+      "location": "§3.2 Verdict-quality envelope schema, §4.4 classification helper, §5.5.2 health aggregation",
+      "recommendation": "Add required canonical status to the envelope schema, restrict it to APPROVED|DEGRADED|FAILED, require cheval to emit it, and make all consumers read that field instead of recomputing unless explicitly in tests.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "single_model",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer autonomous",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-13T07:38:13Z",
+  "metrics": {
+    "total_latency_ms": 961000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

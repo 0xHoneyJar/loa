@@ -1,0 +1,18 @@
+{
+  "id": "s8",
+  "status": "completed",
+  "valid": true,
+  "invalid_reason": null,
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    1.565068
+  ],
+  "cost_usd": 1.565068,
+  "run_dir": "sessions/s8",
+  "took_effect": "ok",
+  "started": "2026-10-21T22:34:07Z",
+  "finished": "2026-10-21T22:39:08Z"
+}

@@ -1,0 +1,36 @@
+WARNING: Document size 76 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: interactive
+[flatline] Timeout: 1200s
+[flatline] Budget: 1000 cents
+[flatline] Extracted domain:  author architecture designer autonomous
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Warning: 2 of 6 Phase 1 calls failed (degraded mode)
+[flatline]   tertiary-review stderr: ERROR: model-invoke failed (exit 1).
+  Details: /tmp/loa-flatline-review-gemini-3.1-pro-preview-szWlRD.log
+[flatline]   tertiary-skeptic stderr: ERROR: model-invoke failed (exit 1).
+  Details: /tmp/loa-flatline-skeptic-gemini-3.1-pro-preview-1SpH3f.log
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (2 parallel calls)
+[flatline] Phase 2 complete (2 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[scoring-engine] Input items: GPT=0, Opus=10 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] Consensus: HIGH=0 DISPUTED=10 LOW=0 BLOCKERS=4 (0% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 961000ms

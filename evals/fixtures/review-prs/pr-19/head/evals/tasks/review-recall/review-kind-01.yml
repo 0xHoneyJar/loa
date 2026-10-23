@@ -1,0 +1,32 @@
+id: review-kind-01
+schema_version: 1
+skill: reviewing-code
+category: skill-quality
+fixture: review-kinds/kind-01
+# The .yml extension keeps this task out of evals/suites/review-recall.yaml
+# (its include glob is tasks/review-recall/**/*.yaml), so no suite, arm run
+# or CI job picks it up; run it on purpose with
+#   evals/harness/run-eval.sh --task review-kind-01
+description: "task-kind review axis (cycle-129 FR-10, AC-10.2): a kind: mechanical task shipped as skill prose must draw a MEDIUM under the Karpathy ladder; NOT wired into any suite or CI run, kept for a later cycle to grade the axis"
+prompt: "Read REVIEW-INSTRUCTIONS.md in this directory and carry it out."
+agent:
+  skill: reviewing-code
+  artifacts: [review.md]
+trials: 3
+timeout:
+  per_trial: 1500
+  per_grader: 60
+graders:
+  # a MEDIUM entry (the skill's entry format) that names the mechanical kind
+  # on the same line (validate-task.sh refuses | and \ in grader args, so the
+  # pattern uses bracket classes, not alternation)
+  - type: code
+    script: pattern-match.sh
+    args: ["[*][*]MEDIUM[*][*].*[Mm]echanical", "review.md"]
+    weight: 1.0
+  - type: code
+    script: verdict-consistency.sh
+    args: ["review.md", "review"]
+    weight: 0.5
+difficulty: intermediate
+tags: ["cycle-129", "fr-10", "task-kinds", "not-in-ci"]

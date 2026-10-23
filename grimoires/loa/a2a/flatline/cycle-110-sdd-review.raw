@@ -1,0 +1,336 @@
+WARNING: Document size 94 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/sdd-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=10, Opus=14 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=8 DISPUTED=4 LOW=0 BLOCKERS=12 (71% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 8,
+    "disputed_count": 4,
+    "low_value_count": 0,
+    "blocker_count": 12,
+    "model_agreement_percent": 71,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-002",
+      "description": "Strong operational hardening. A per-process TTL cache without a max size can become an avoidable memory-growth risk in daemon or high-cardinality usage. Specifying LRU plus a bounded entry count is low cost and closes a concrete production reliability gap.",
+      "gpt_score": 820,
+      "opus_score": 850,
+      "tertiary_score": 880,
+      "delta": 30,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Important usability and observability fix. Explicit operator hints being silently ignored after auth_type filtering could cause confusing model selection behavior. Defining a reason code and log marker is inexpensive and materially improves debuggability.",
+      "gpt_score": 850,
+      "opus_score": 940,
+      "tertiary_score": 950,
+      "delta": 90,
+      "average_score": 895,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Critical robustness gap. Missing MODELINV logs are expected on fresh installs, and corrupted JSONL is plausible after interrupted writes. Defining degraded-read behavior, parse-error handling, and a clear marker prevents brittle auto-mode behavior and improves supportability at low implementation cost.",
+      "gpt_score": 900,
+      "opus_score": 890,
+      "tertiary_score": 900,
+      "delta": 10,
+      "average_score": 895,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Valuable process/design control. If the spike gates downstream doctor implementation, explicit acceptance criteria reduce the risk of vague spike output failing to unblock later work. Benefit is meaningful, though it is primarily project-management/spec quality rather than core runtime correctness.",
+      "gpt_score": 720,
+      "opus_score": 820,
+      "tertiary_score": 820,
+      "delta": 100,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Good migration safety clarification. The asymmetric rollback risk is real: reverting schema data while keeping loader enforcement could break all loads. Pinning commit ordering or requiring the migration and enforcement in the same PR is low-cost and helps avoid mid-sprint outage scenarios.",
+      "gpt_score": 760,
+      "opus_score": 830,
+      "tertiary_score": 840,
+      "delta": 70,
+      "average_score": 795,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "High-value schema semantics fix. When both global dispatch_preference and per-role overrides exist, precedence must be explicit to avoid inconsistent implementations and surprising operator behavior. The interaction with cross-auth fallback derivation makes this especially important.",
+      "gpt_score": 880,
+      "opus_score": 720,
+      "tertiary_score": 860,
+      "delta": 160,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Valuable dispatch-sequencing clarification. Acquiring the headless semaphore before resolution could waste scarce headless capacity if fallback selects HTTP. Specifying acquisition only after a headless ResolvedEntry is clear, low cost, and prevents inefficient concurrency behavior. Just below critical because it is likely an implementation detail unless current text is actively ambiguous to implementers.",
+      "gpt_score": 790,
+      "opus_score": 810,
+      "tertiary_score": 890,
+      "delta": 20,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-009",
+      "description": "Strong test coverage improvement. The 2 percentage-point headless-margin guard encodes a subtle strategic selection rule and is easy to regress without fixture coverage. Adding explicit boundary-style bats cases is low cost and directly protects intended behavior.",
+      "gpt_score": 810,
+      "opus_score": 860,
+      "tertiary_score": 780,
+      "delta": 50,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-011",
+      "description": "Example/threshold mismatch is a small clarity fix. Low risk individually but examples do become test templates. Trivial cost, modest benefit.",
+      "gpt_score": 0,
+      "opus_score": 620,
+      "tertiary_score": 650,
+      "delta": 620,
+      "average_score": 620,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Exit-code semantics gate rollout automation. Defining partial-readiness behavior prevents CI/operator confusion. Moderate value, low cost.",
+      "gpt_score": 0,
+      "opus_score": 700,
+      "tertiary_score": 760,
+      "delta": 700,
+      "average_score": 700,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-013",
+      "description": "Subscription cost representation affects analytics fidelity but is not on the critical correctness path for v1.4. Worth defining to avoid misleading dashboards. Moderate priority.",
+      "gpt_score": 0,
+      "opus_score": 650,
+      "tertiary_score": 680,
+      "delta": 650,
+      "average_score": 650,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-014",
+      "description": "Legacy MODELINV dispatch_group derivation tests close a real rollout risk for auto-mode statistics. Acceptance tests are low-cost and high-leverage for preventing silent bucket loss.",
+      "gpt_score": 0,
+      "opus_score": 780,
+      "tertiary_score": 810,
+      "delta": 780,
+      "average_score": 780,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Auto-mode sample starvation (mathematical impossibility of exiting cold-start)",
+      "severity": "CRITICAL",
+      "severity_score": 950,
+      "why_matters": "The condition `min(b[\"n\"] for b in buckets_24h.values()) < SAMPLE_GATE_N` requires ALL buckets to have >= 20 samples to enter band comparison. However, cold-start statically routes to a single default (`headless` or `recommended_for`). Because the non-default bucket receives zero traffic, it will never reach 20 samples, permanently locking the system in cold-start and defeating the entire auto-mode mechanism.",
+      "location": "§5.2 `_resolve_auto`",
+      "recommendation": "Change the sample gate logic to evaluate the default bucket's success rate first, and implement an epsilon-greedy exploration strategy (e.g., route 5% of traffic to the starved bucket) to organically build the required sample size for comparison.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Circuit-breaker migration can overwrite or discard newer `(provider,http_api)` state when a legacy file or transitional symlink is present after new-shape state already exists.",
+      "severity": "HIGH",
+      "severity_score": 790,
+      "why_matters": "A migration race can reset an OPEN circuit to CLOSED or preserve stale failure state over current state, causing either outage amplification or unnecessary provider blackouts. The SDD lists this as a carry-in rather than defining safe semantics.",
+      "location": "§3.3 Circuit-breaker state file schema; §5.3 `_migrate_legacy_state_if_present`; §10.5 SKP-001 v1.2",
+      "recommendation": "Define idempotent migration rules normatively: if the new http_api bucket exists, it wins; legacy files are ignored or archived, never copied over active state. Explicitly exclude symlinks from legacy-file migration scans and add race tests for preexisting new state.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Destructive stress-test backup/restore risks permanent data loss",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "The live stress test uses `rsync` to move `$ORIG_HOME/.config/<cli>` and relies on a `trap` to restore it. If the test runner suffers a hard crash (SIGKILL, OOM, power loss), the trap will not execute, permanently deleting the operator's real CLI authentication state and tokens.",
+      "location": "§7.6 Stress-test isolation",
+      "recommendation": "Do not move or modify the original directory. Instead, copy the original config to the ephemeral `$HOME`, run the test against the ephemeral `$HOME`, and simply delete the ephemeral directory afterward.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "In-memory token leak via Doctor CLI `hint` field",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "§5.4 states stderr is piped through the log-redactor 'before any audit/journal write', but `_classify_failure` extracts a `hint` from stderr which is returned in-memory and printed to stdout by the `doctor` CLI. If the redactor only protects disk writes, raw tokens in stderr will leak directly to the operator's terminal.",
+      "location": "§5.4 `probe_cli` and §4.2 Doctor CLI output",
+      "recommendation": "Ensure the `hint` string is explicitly passed through the redaction pipeline in-memory before being attached to the `ProbeResult` object and printed to stdout.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The SDD explicitly carries unresolved CRITICAL/HIGH findings into implementation while declaring the SDD gate closed, including legacy MODELINV dispatch_group derivation, unsafe subprocess buffering, and circuit-breaker migration idempotency.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "Critical architecture and safety issues deferred to implementation can invalidate core contracts after work begins. Autonomous workflows may proceed with known blockers that affect security, migration correctness, and resolver behavior.",
+      "location": "§10.5 Flatline v1.2-review carry-ins; Version header; §11.C changelog",
+      "recommendation": "Do not close the SDD gate while CRITICAL carry-ins remain. Promote all CRITICAL items into normative sections with finalized contracts and acceptance tests, or explicitly downgrade only after concrete design changes are incorporated and reviewed.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-008",
+      "concern": "The SDD introduces concurrency settings (`headless_concurrency_scope`, `headless_concurrency_limit`, `auto_mode.headless_margin_bps`) but the advisor-strategy schema/dataclass does not define them normatively.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Operators and implementers have no reliable schema contract for critical runtime behavior. Config may be rejected, ignored, or inconsistently parsed across Python and bash paths.",
+      "location": "§3.1 advisor-strategy YAML schema extension; §5.2 headless-margin guard; §5.6 semaphore design; §10.5 SKP-005 v1.2",
+      "recommendation": "Add these fields to the YAML schema, dataclass, validation rules, defaults, and downgrade semantics. Include invalid-value tests for each field.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The auto-mode pseudocode still references an undefined `model_id` after the resolver was changed to operate on `dispatch_group`, including calls to `_cold_start_fallback(role, model_id, ...)`.",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "This is not a minor typo; it indicates the core resolver algorithm remains inconsistent after the signature change. Implementers could reintroduce model_id-based aggregation or ship broken code paths in cold-start and circuit-open scenarios.",
+      "location": "§5.2 `auto`-mode deterministic algorithm pseudocode",
+      "recommendation": "Update all auto-mode pseudocode and contracts to use `dispatch_group` consistently. Add tests for insufficient samples, empty buckets, and all-circuit-open paths to prove no model_id dependency remains.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The doctor CLI contract still uses `proc.communicate()` with stdout/stderr buffering, contradicting the fail-closed bounded streaming redaction requirement.",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "A malicious or malfunctioning CLI can emit unbounded output before redaction, causing memory exhaustion or leaking sensitive OAuth/session output through crash paths. The document acknowledges this as a CRITICAL carry-in but leaves unsafe pseudocode normative.",
+      "location": "§5.4 `loa substrate doctor` CLI contract; §1.9.1 Fail-closed redaction pipeline; §10.5 SKP-003 v1.2",
+      "recommendation": "Replace §5.4 pseudocode with the bounded streaming `_capture_with_byte_cap_and_redact` contract. Require all probe and dispatch subprocess paths to use the same primitive, with tests that large stdout/stderr never reside in an unbounded buffer.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The headless concurrency module is internally contradictory: §1.4.4 says it is mandatory, then says it is activated only if stress tests find corruption and may not be introduced if all CLIs pass.",
+      "severity": "CRITICAL",
+      "severity_score": 875,
+      "why_matters": "Conflicting requirements will produce divergent implementations. Some implementers may omit the semaphore entirely, leaving multi-process OAuth/session-state corruption unprotected despite later sections requiring it.",
+      "location": "§1.4.4 Headless adapter concurrency semaphore; §5.6 Concurrency semaphore design; §8 T2.14; §10.5 SKP-004 carry-in",
+      "recommendation": "Rewrite §1.4.4 as a single unambiguous contract: the cross-process N-slot semaphore is always introduced, enabled by default, and stress tests only tune per-CLI limits. Remove all conditional/YAGNI language.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "The transitional symlink `.run/circuit-breaker-{provider}.json -> circuit-breaker-{provider}-http_api.json` may be mistaken for a legacy file during later migration scans.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "Migration code that treats the symlink as legacy can self-copy, unlink compatibility links unexpectedly, or corrupt state under repeated first-read/migration attempts.",
+      "location": "§3.3 Transitional symlink; §5.3 `_migrate_legacy_state_if_present`",
+      "recommendation": "Add an explicit version marker or migration sentinel and require migration code to use `lstat` to skip symlinks. Test repeated migration calls after symlink creation.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-009",
+      "concern": "`allow_cross_auth_fallback` default derivation is repeatedly delegated to the PRD but not specified in the SDD itself.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "Fallback behavior controls whether headless-only failures silently fall back to HTTP/API billing or fail closed. Ambiguous defaults can cause unexpected cost exposure or hidden reliability changes.",
+      "location": "§3.1 advisor-strategy YAML schema extension; §5.1 Per-entry filter semantics; §6.4 rollback path",
+      "recommendation": "Define the default table in the SDD: for each dispatch_preference value, specify the derived fallback boolean. Add tests for every `(dispatch_preference, allow_cross_auth_fallback=null|true|false)` combination.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "`dispatch_group` is declared required on every model entry, but the validation pseudocode and drift-gate requirements only enforce `auth_type`.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Auto-mode depends on dispatch_group for bucket comparison. Missing or malformed dispatch_group values will silently collapse comparisons, bias cold-start behavior, or make resolver output non-deterministic.",
+      "location": "§3.2 model-config.yaml `auth_type` annotation; §7.4 CI/CD integration; §8 T2.4",
+      "recommendation": "Extend loader validation and drift-gate checks to require `dispatch_group` on every model entry, validate non-empty normalized values, and enforce expected equivalence classes for migrated entries.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md",
+  "domain": "advisor-strategy headless dispatch SDD v1.3",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T06:02:01Z",
+  "metrics": {
+    "total_latency_ms": 95000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 95000ms

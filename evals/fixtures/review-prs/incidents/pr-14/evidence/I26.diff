@@ -1,0 +1,42 @@
+commit 98b2781110067edfe2167e297349da639d285dd7
+Date: 2026-10-21T12:29:25+11:00
+
+fix(evals): labels files reproduce the curated manifests byte for byte — @L<n> explicit-line must_match, --sync-labels pr-NN, eight labels files synced, SHA256SUMS refrozen — sprint-bug-268, bug 20261021-7240bc, bd-y4pqj
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/fixtures/review-prs/SHA256SUMS b/evals/fixtures/review-prs/SHA256SUMS
+index e44c2f05..3a74cfb3 100644
+--- a/evals/fixtures/review-prs/SHA256SUMS
++++ b/evals/fixtures/review-prs/SHA256SUMS
+@@ -1,21 +1,21 @@
+ ed0c0ac16687ae399c303a45abb4a421bbd18e517bc4f0229048e2114db7666a  corpus.tsv
+ 3662616e9773cc3a05d6675e630d94782a8e3d189806b8b5fe6962b59da953af  labels/curation.tsv
+ 8cdb3d3e6357535ba28b01c7ce4d611e68e96a4ff68243663e2c300760eb016c  labels/pr-11.dropped.txt
+-79cda5889afb7d6ee9f264d2d2452a9be1bd93c8919fbe76d0ce0f07f434ef0f  labels/pr-11.tsv
++eada19d329f76f06e22f8790cac70920c623eb8815f124e05bd03d315c9073ba  labels/pr-11.tsv
+ d9d9ebd1631d9cc8e892f3e141ee90507244a0bd8c6df6be92a5a733a112e860  labels/pr-12.dropped.txt
+-6c7e288a31cc033c9e369cf727ea82b01e0a7ad63d2b2e201cd0c04c37e7bc45  labels/pr-12.tsv
++4a2aa475082bd9fd99c6a7b8f71f15e7417a5e9de441a836e78df95e5c68b465  labels/pr-12.tsv
+ b608b0351b64e52f2aa4e7bb22dbed942cacfd22383408109f7c5235bce592cb  labels/pr-13.dropped.txt
+-feb586b72d8f648c0e3a14ffb23a394b31168c52f9b37d99f5fd620518b8ee17  labels/pr-13.tsv
++90eceb33fcdc0adc9f89b0e8577be744e0e5e78d2dd42d8f023e5055701b2c9f  labels/pr-13.tsv
+ f6c2167b83b6df43f5aff2f219a81834b4b56f3c22f8eda2994fe4e64378f6b4  labels/pr-14.dropped.txt
+-7f728eec36606caf710e86dbe8047e9ec6067e9cb9a7f9976a97001e84b07d80  labels/pr-14.tsv
++011eff3e310e4b50d9467e098392374cf5cd5a31fae0334b8b90c001d90793e4  labels/pr-14.tsv
+ 1f9ec491fd004261a0529e0949e14b53d8b1c5df69f1d5d22b7f1e6918758d96  labels/pr-15.dropped.txt
+-b4f406df61e1aad1ad28412bb2dd622d9ac42b6ebe7c977400aadc0d16720f84  labels/pr-15.tsv
++24b1902c0ffcfeff0e033b665fb68f1f9bd660ffa5c709b52faa55b43ced0e6a  labels/pr-15.tsv
+ d70c3714af9e8f7607b44f29a6d0d1dca483604fe2af7d9ad56f49dea21ea89a  labels/pr-16.dropped.txt
+-8d2523569c5add133fc2fb2b626baf998e7a2cbf6eebc46ceb6ced4d13cad970  labels/pr-16.tsv
++bbb6c92e2af879148eab39554161ebb687e097f0536f44a313814518adaafb98  labels/pr-16.tsv
+ c54cd6d7bd72fe7389d7e51db6d3a91947a2abed2c723c2b4f4611f9d26195f5  labels/pr-17.dropped.txt
+-e8b9b99d0a23e8acd59deed74a34cf82eee7a9ff9f124e4f198b9ded9ebb44ff  labels/pr-17.tsv
++1a21736f9162a8c1db61310142f4af7ef5b6d8ebfc1455e6e887d353691c1fd7  labels/pr-17.tsv
+ ccb7f1e4f696d88e9d34bc00a4684f95a1440bd77a9ef8f25d45087dc9c86e61  labels/pr-18.dropped.txt
+-6956af6831e7034b3881b843c506716b3848f7220221faa7942df4c762ac3562  labels/pr-18.tsv
++8674a3ed26a8bb5ee6848d3d9b4b8e2fdf9863a6bd406b407f4465d6b6598da1  labels/pr-18.tsv
+ 0684b576c424db3cc51b6db1b9d174607ad972a8963f243db2a93453ee3e4dfd  manifests/pr-01.json
+ 3a2b3f2b74da2ed56184b5acfbffbd71846544209447e76e4283eea3a050f45c  manifests/pr-02.json
+ a9c05524566b6c4456d966d1cc76c68086aa45bf4217cf5f81221bfd871000f7  manifests/pr-03.json

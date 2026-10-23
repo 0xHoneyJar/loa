@@ -1,0 +1,691 @@
+#!/usr/bin/env bash
+# =============================================================================
+# model-adapter.sh - Compatibility shim for Flatline Protocol (SDD §4.4.3)
+# =============================================================================
+# Version: 2.0.0
+# Part of: Hounfour Upstream Extraction (Sprint 2)
+#
+# This shim provides backward compatibility for callers that use the legacy
+# model-adapter.sh interface (--model/--mode flags). It translates calls to
+# model-invoke (cheval.py), including fixture-backed mock requests.
+#
+# Usage:
+#   model-adapter.sh --model <model> --mode <mode> [options]
+#
+# The former flatline_routing dispatch switch and legacy implementation were
+# removed in cycle-109. Rollback uses git revert; there is no legacy runtime path.
+#
+# Mode → Agent Mapping:
+#   review   → flatline-reviewer
+#   skeptic  → flatline-skeptic
+#   score    → flatline-scorer
+#   dissent  → flatline-dissenter
+#
+# Exit codes match legacy (SDD §4.4.3):
+#   0 - Success
+#   1 - API error
+#   2 - Invalid input
+#   3 - Timeout
+#   4 - Missing API key
+#   5 - Invalid response format
+# =============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): LEGACY_ADAPTER and the
+# delegate_to_legacy() function were removed alongside the deletion of
+# .claude/scripts/model-adapter.sh.legacy. cheval (model-invoke) is the
+# sole substrate dispatch path. See grimoires/loa/runbooks/cycle-109-rollback.md
+# for the git-revert rollback model.
+# Cycle-112 D-6 (#931) — honor env override so test harnesses can
+# substitute a recording shim. Mirrors the long-standing pattern in
+# flatline-orchestrator.sh (line 97). Production callers don't set
+# MODEL_INVOKE and get the canonical path.
+MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
+
+# cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
+# (MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT). The local
+# MODEL_TO_ALIAS map below is preserved for the test contract in
+# tests/unit/model-adapter-aliases.bats (T8 greps the file for keys),
+# but lookups now prefer resolve_provider_id at the call site (line ~470)
+# so retired aliases fail loudly at the codegen layer instead of silent-
+# routing through a stale local entry.
+# shellcheck source=lib/model-resolver.sh
+source "$SCRIPT_DIR/lib/model-resolver.sh"
+
+# cycle-099 sprint-2C (T2.5): source the operator-extras-aware overlay
+# helper. Sourcing this file only declares functions and resolves the
+# (readonly) merged/lockfile/python3 paths — it does NOT touch the
+# filesystem or invoke the hook. The actual init (`loa_overlay_init`)
+# happens INSIDE `main()` only when v2.0 routing is enabled, so the
+# default legacy path stays bit-identical to pre-cycle-099 behavior
+# (per GP-F2 / CYP-F11 dual-review fix).
+# shellcheck source=lib/overlay-source-helper.sh
+source "$SCRIPT_DIR/lib/overlay-source-helper.sh"
+
+# cycle-109 Sprint 3 T3.8 (commit E): is_flatline_routing_enabled()
+# definition removed from this file. After T3.7 deleted the legacy
+# adapter, this helper had no internal consumer in model-adapter.sh.
+# Other files (gpt-review-api.sh, lib-route-table.sh, lib-curl-fallback.sh,
+# red-team-model-adapter.sh) define + consume their own copies of the
+# helper; cleanup of those is tracked as a follow-up since they still
+# branch on the value for their own historical reasons.
+
+# =============================================================================
+# Legacy Delegation
+# =============================================================================
+
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): delegate_to_legacy() removed.
+# The legacy adapter file was deleted; cheval is the sole substrate
+# dispatch path. Callers that previously invoked this function have been
+# migrated:
+#   - main() feature-flag guard (T3.6 commit C): removed
+#   - mock-mode delegation (T3.7 this commit): migrated to cheval
+#     --mock-fixture-dir at tests/fixtures/cycle-109/mock-mode/<mode>/
+
+# =============================================================================
+# Mode → Agent Mapping
+# =============================================================================
+
+declare -A MODE_TO_AGENT=(
+    ["review"]="flatline-reviewer"
+    ["skeptic"]="flatline-skeptic"
+    ["score"]="flatline-scorer"
+    ["dissent"]="flatline-dissenter"
+)
+
+# =============================================================================
+# Legacy Model Name → model-invoke Alias Translation
+# =============================================================================
+
+# The legacy adapter uses model names like "gpt-5.2" and "opus" directly.
+# model-invoke uses aliases (reviewer, reasoning, opus, cheap) or
+# provider:model-id format. This maps legacy names to model-invoke format.
+declare -A MODEL_TO_ALIAS=(
+    ["gpt-5.2"]="openai:gpt-5.2"
+    ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
+    ["gpt-5.2-codex"]="openai:gpt-5.3-codex"    # Backward compat alias
+    ["opus"]="anthropic:claude-opus-5-5"               # Current Opus (cycle-126, bd-2fti)
+    ["fable"]="anthropic:claude-fable-5-1"
+    ["claude-opus-5-5"]="anthropic:claude-opus-5-5"
+    ["claude-opus-5"]="anthropic:claude-opus-5"
+    ["claude-sonnet-5"]="anthropic:claude-sonnet-5"
+    ["claude-fable-5-1"]="anthropic:claude-fable-5-1"
+    # 4.x history: same targets as backward_compat_aliases in model-config.yaml
+    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.5"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-5"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.1"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-1"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.0"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-0"]="anthropic:claude-opus-4-7"
+    ["gemini-2.0"]="google:gemini-2.0-flash"
+    ["gemini-2.5-flash"]="google:gemini-2.5-flash"
+    ["gemini-2.5-pro"]="google:gemini-2.5-pro"
+    # gemini-3-flash, gemini-3-pro, gemini-3.1-pro removed per #574 —
+    # they passed allowlist but Google v1beta returned NOT_FOUND. Re-add
+    # when vendor confirms availability (smoke test via live API first).
+)
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+log() {
+    echo "[model-adapter:shim] $*" >&2
+}
+
+error() {
+    echo "ERROR: $*" >&2
+}
+
+# _trap_body "<trap -p output>" — the handler text of a `trap -- '<body>' SIG`
+# line (trap -p quotes it for re-input), so a new handler can chain it.
+_trap_body() {
+    eval "set -- $1"
+    printf '%s' "${3:-}"
+}
+
+# =============================================================================
+# Probe-cache integration (Sprint 3B Task 3B.7 — SDD §5.1 row 4-5, §6.2)
+# =============================================================================
+
+PROBE_CACHE_PATH="${LOA_CACHE_DIR:-.run}/model-health-cache.json"
+PROBE_SCRIPT="${LOA_PROBE_SCRIPT:-$(dirname "${BASH_SOURCE[0]}")/model-health-probe.sh}"
+
+# Honor LOA_PROBE_BYPASS in the adapter as well — the probe script handles the
+# audit + TTL on bypass set; the adapter only reads the env var to decide
+# whether to consult the cache at all. The probe-side `_check_bypass` already
+# refused-with-audit when no reason is given.
+_adapter_bypass_active() {
+    [[ "${LOA_PROBE_BYPASS:-0}" == "1" ]] && [[ -n "${LOA_PROBE_BYPASS_REASON:-}" ]]
+}
+
+# Lock-free cache read with one parse-retry (SDD §3.6 Pattern 2).
+# Stdout: full cache JSON, or empty shell on read/parse failure.
+_adapter_cache_read() {
+    local attempt=0 cache
+    [[ -f "$PROBE_CACHE_PATH" ]] || { echo '{"schema_version":"1.0","entries":{}}'; return 0; }
+    while [[ $attempt -lt 2 ]]; do
+        cache="$(cat "$PROBE_CACHE_PATH" 2>/dev/null)" || { attempt=$((attempt+1)); sleep 0.05; continue; }
+        if echo "$cache" | jq empty 2>/dev/null; then
+            echo "$cache"
+            return 0
+        fi
+        attempt=$((attempt+1))
+        sleep 0.05
+    done
+    # Two failed attempts -> treat as cold-start; never block adapter on read.
+    # Surface to stderr (review iter-2 S-2 — observability gap fix).
+    error "model-health-cache.json corrupt or torn after retry; treating as cold-start. Run \`.claude/scripts/model-health-probe.sh --invalidate\` to regenerate."
+    echo '{"schema_version":"1.0","entries":{}}'
+}
+
+# Spawn a background re-probe if no probe is already running for the provider.
+# Uses the same PID sentinel as model-health-probe.sh's _spawn_bg_probe_if_none_running,
+# including the `set -C` atomic-claim race fix (review iter-2 B-2).
+_adapter_spawn_bg_probe() {
+    local provider="$1"
+    local sentinel="${LOA_CACHE_DIR:-.run}/model-health-probe.${provider}.pid"
+    [[ -x "$PROBE_SCRIPT" ]] || return 0  # probe missing -> no-op
+
+    # Stale-sentinel cleanup: PID dead OR file >10min old (defensive).
+    if [[ -f "$sentinel" ]]; then
+        local pid age_s
+        pid="$(cat "$sentinel" 2>/dev/null || echo "")"
+        age_s=$(( $(date +%s) - $(stat -c %Y "$sentinel" 2>/dev/null || stat -f %m "$sentinel" 2>/dev/null || echo 0) ))
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && (( age_s < 600 )); then
+            return 0   # already running
+        fi
+        rm -f "$sentinel"
+    fi
+
+    # Atomic claim — `set -C` (noclobber) makes `>` fail if the file exists,
+    # closing the TOCTOU race when multiple adapter calls reach this point
+    # simultaneously. First caller wins; the rest dedup silently.
+    if ! ( set -C; echo "$$" > "$sentinel" ) 2>/dev/null; then
+        return 0
+    fi
+
+    (
+        # Replace the parent's PID with the subshell's so kill -0 reflects probe liveness.
+        echo "$$" > "$sentinel"
+        trap 'rm -f "$sentinel"' EXIT
+        "$PROBE_SCRIPT" --provider "$provider" --once --quiet >/dev/null 2>&1 || true
+    ) &
+    disown 2>/dev/null || true
+}
+
+# Pre-flight cache consult — SDD §5.1 row 4-5, §6.2.
+# Returns 0 if model is OK to use; returns 1 with actionable stderr otherwise.
+# Best-effort: cache absent / jq missing / parse failure -> fail-open.
+_probe_cache_check() {
+    local provider_model_id="$1"
+    [[ -z "$provider_model_id" || "$provider_model_id" != *":"* ]] && return 0
+
+    if _adapter_bypass_active; then
+        log "LOA_PROBE_BYPASS=1 with reason; skipping cache check"
+        return 0
+    fi
+
+    command -v jq >/dev/null 2>&1 || return 0  # jq missing -> fail-open
+    [[ -f "$PROBE_CACHE_PATH" ]] || return 0   # cold-start -> fail-open
+
+    local cache state reason probed_at
+    cache="$(_adapter_cache_read)"
+    state="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].state // empty')"
+    reason="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].reason // empty')"
+    probed_at="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].probed_at // empty')"
+
+    # Async re-probe if entry exists and is stale-ish (>= positive_ttl).
+    if [[ -n "$state" ]]; then
+        local provider="${provider_model_id%%:*}"
+        local probed_epoch now age_h
+        probed_epoch="$(date -u -d "$probed_at" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$probed_at" +%s 2>/dev/null || echo 0)"
+        if [[ "$probed_epoch" -gt 0 ]]; then
+            now="$(date +%s)"
+            age_h=$(( (now - probed_epoch) / 3600 ))
+            # Spawn bg re-probe if entry is older than ~24h (positive_ttl boundary).
+            if (( age_h >= 24 )); then
+                _adapter_spawn_bg_probe "$provider"
+            fi
+        fi
+    fi
+
+    case "$state" in
+        AVAILABLE|"")
+            return 0
+            ;;
+        UNAVAILABLE)
+            error "Model '$provider_model_id' marked UNAVAILABLE by probe on ${probed_at}: ${reason}"
+            error "  Run: .claude/scripts/model-health-probe.sh --invalidate ${provider_model_id##*:}"
+            error "  Or:  set LOA_PROBE_BYPASS=1 with LOA_PROBE_BYPASS_REASON to override (24h TTL, audit-logged)"
+            return 1
+            ;;
+        UNKNOWN)
+            local degraded_ok="true"
+            if command -v yq >/dev/null 2>&1 && [[ -f "${LOA_CONFIG:-.loa.config.yaml}" ]]; then
+                local v
+                v="$(yq eval '.model_health_probe.degraded_ok' "${LOA_CONFIG:-.loa.config.yaml}" 2>/dev/null)"
+                [[ "$v" == "false" ]] && degraded_ok="false"
+            fi
+            if [[ "$degraded_ok" == "true" ]]; then
+                log "Model '$provider_model_id' state UNKNOWN; proceeding (degraded_ok=true; reason: ${reason})"
+                return 0
+            else
+                error "Model '$provider_model_id' state UNKNOWN and degraded_ok=false: ${reason}"
+                error "  Run: .claude/scripts/model-health-probe.sh --invalidate ${provider_model_id##*:}"
+                return 1
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# =============================================================================
+# Output Format Translation
+# =============================================================================
+
+# Translate model-invoke JSON output to legacy format.
+# Legacy: {content, tokens_input, tokens_output, latency_ms, retries, model, mode, phase, cost_usd}
+# model-invoke: {content, model, provider, usage: {input_tokens, output_tokens}, latency_ms}
+translate_output() {
+    local model="$1"
+    local mode="$2"
+    local phase="$3"
+
+    jq \
+        --arg model "$model" \
+        --arg mode "$mode" \
+        --arg phase "$phase" \
+        '{
+            content: .content,
+            tokens_input: (.usage.input_tokens // 0),
+            tokens_output: (.usage.output_tokens // 0),
+            latency_ms: (.latency_ms // 0),
+            retries: 0,
+            model: $model,
+            mode: $mode,
+            phase: $phase,
+            cost_usd: 0,
+            schema_enforced: (.schema_enforced // false),
+            stop_reason: (.stop_reason // null)
+        }'
+}
+
+# =============================================================================
+# Shim Main
+# =============================================================================
+
+# cycle-124 FR-9 (SDD §3.6): effort resolution for the cheval hop.
+#   resolve_effort <arg> <skill> <skills-dir>
+# Precedence: --effort arg > the skill's SKILL.md frontmatter `effort:` (the
+# key validate-skill-capabilities.sh already validates) > none. Anything that
+# is not one of low|medium|high|xhigh|max resolves to nothing (no flag), and a
+# skill name that is not a bare directory name is ignored (no path walk).
+resolve_effort() {
+    local arg="${1:-}" skill="${2:-}" skills_dir="${3:-}" cand="" fm
+    if [[ -n "$arg" ]]; then
+        cand="$arg"
+    elif [[ -n "$skill" && "$skill" =~ ^[A-Za-z0-9_-]+$ && -f "$skills_dir/$skill/SKILL.md" ]]; then
+        fm=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$skills_dir/$skill/SKILL.md")
+        cand=$(printf '%s\n' "$fm" | grep -E '^effort:' | head -1 \
+               | sed -E 's/^effort:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]+$//; s/^"(.*)"$/\1/')
+    fi
+    case "$cand" in
+        low|medium|high|xhigh|max) printf '%s' "$cand" ;;
+        *) printf '' ;;
+    esac
+}
+
+usage() {
+    cat <<EOF
+Usage: model-adapter.sh --model <model> --mode <mode> [options]
+
+Compatibility shim (v2.0.0) — routes through model-invoke when
+hounfour.flatline_routing is enabled, otherwise uses legacy adapter.
+
+Models:
+  gpt-5.2                    OpenAI GPT-5.2
+  gpt-5.3-codex              OpenAI GPT-5.3 Codex
+  opus, claude-opus-5-5      Claude Opus 5.5 (current)
+  fable, claude-fable-5-1    Claude Fable 5.1
+  claude-sonnet-5            Claude Sonnet 5 (the cheap alias)
+  claude-opus-5              Claude Opus 5 (pinnable; 4.x names keep their catalog targets)
+  (Full model list depends on routing path)
+
+Modes:
+  review                     Generate improvements (→ flatline-reviewer)
+  skeptic                    Generate concerns (→ flatline-skeptic)
+  score                      Score items (→ flatline-scorer)
+  dissent                    Adversarial review (→ flatline-dissenter)
+
+Options:
+  --input <file>             Input document/items to process (required)
+  --phase <type>             Phase: prd, sdd, sprint (default: prd)
+  --context <file>           Knowledge context file
+  --prompt <file>            Custom prompt template
+  --timeout <seconds>        API timeout (default: 60)
+  --max-retries <n>          Max retry attempts (default: 3)
+  --json                     Output as JSON (default)
+  --dry-run                  Validate without calling API
+
+Feature flag:
+  hounfour.flatline_routing: true   Route through model-invoke
+  hounfour.flatline_routing: false  Use legacy adapter (default)
+  HOUNFOUR_FLATLINE_ROUTING=true    Environment override
+
+Exit codes:
+  0 - Success
+  1 - API error
+  2 - Invalid input
+  3 - Timeout
+  4 - Missing API key
+  5 - Invalid response format
+EOF
+}
+
+main() {
+    # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
+    # pre-fix feature-flag early-exit to delegate_to_legacy was removed.
+    # cheval is now the unconditional default for operator-facing dispatch.
+    # The flag-helper function is retained for other callers (gpt-review-
+    # api, lib-route-table, lib-curl-fallback, red-team-model-adapter);
+    # T3.8 cleans those up after T3.7 destructive legacy deletion under
+    # C109.OP-S3 operator-approval marker.
+    log "Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)"
+
+    # cycle-099 sprint-2C (T2.5): initialize the operator-extras-aware
+    # overlay. Best-effort — if the merged file is unavailable and the
+    # hook regen also fails, the framework-only model-resolver.sh resolver
+    # below remains the resolution path.
+    loa_overlay_init || true
+
+    # Parse arguments (same interface as legacy)
+    local model=""
+    local mode=""
+    local input_file=""
+    local phase="prd"
+    local context_file=""
+    local prompt_file=""
+    local timeout="60"
+    local dry_run=false
+    # Cycle-112 D-6 (#931) — caller-supplied skill name for MODELINV
+    # attribution. Empty default preserves backward-compat: when caller
+    # omits --skill, model-invoke (cheval) falls back to --agent name
+    # as calling_primitive.
+    local skill=""
+    local max_tokens=""
+    local json_schema=""
+    local effort_arg=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --model)
+                model="$2"
+                shift 2
+                ;;
+            --mode)
+                mode="$2"
+                shift 2
+                ;;
+            --input)
+                input_file="$2"
+                shift 2
+                ;;
+            --phase)
+                phase="$2"
+                shift 2
+                ;;
+            --context)
+                context_file="$2"
+                shift 2
+                ;;
+            --prompt)
+                prompt_file="$2"
+                shift 2
+                ;;
+            --timeout)
+                timeout="$2"
+                shift 2
+                ;;
+            --skill)
+                # cycle-112 D-6 — forwarded to MODEL_INVOKE for
+                # calling_primitive attribution
+                skill="$2"
+                shift 2
+                ;;
+            --max-tokens)
+                # cycle-124 FR-2 — forwarded to MODEL_INVOKE; callers with a
+                # bounded output shape (adversarial dissent) pass it explicitly
+                # so cheval's per-model default (Anthropic 64K) does not apply.
+                max_tokens="$2"
+                shift 2
+                ;;
+            --json-schema)
+                # cycle-124 FR-7 — wire schema file forwarded to MODEL_INVOKE;
+                # cheval enforces it where the hop can and reports schema_enforced.
+                json_schema="$2"
+                shift 2
+                ;;
+            --effort)
+                # cycle-124 FR-9 — caller override; otherwise the skill's
+                # frontmatter `effort:` decides (resolve_effort below).
+                effort_arg="$2"
+                shift 2
+                ;;
+            --max-retries)
+                # Consumed but not passed through — model-invoke handles retry internally
+                shift 2
+                ;;
+            --json)
+                # Default behavior in both paths
+                shift
+                ;;
+            --dry-run)
+                dry_run=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                error "Unknown option: $1"
+                usage
+                exit 2
+                ;;
+        esac
+    done
+
+    # Validate required arguments
+    if [[ -z "$model" ]]; then
+        error "Model required (--model)"
+        usage
+        exit 2
+    fi
+
+    if [[ -z "$mode" ]]; then
+        error "Mode required (--mode)"
+        usage
+        exit 2
+    fi
+
+    # Validate mode and resolve agent
+    local agent="${MODE_TO_AGENT[$mode]:-}"
+    if [[ -z "$agent" ]]; then
+        error "Invalid mode: $mode"
+        echo "Valid modes: review, skeptic, score, dissent" >&2
+        exit 2
+    fi
+
+    if [[ -z "$input_file" ]]; then
+        error "Input file required (--input)"
+        exit 2
+    fi
+
+    if [[ ! -f "$input_file" ]]; then
+        error "Input file not found: $input_file"
+        exit 2
+    fi
+
+    if [[ ! -x "$MODEL_INVOKE" ]]; then
+        error "model-invoke not found or not executable: $MODEL_INVOKE"
+        exit 2
+    fi
+
+    # cycle-099 sprint-2C (T2.5) + sprint-1B (T1.8): resolution chain in
+    # precedence order:
+    #   (a) overlay-source-helper.sh::loa_overlay_resolve_provider_id —
+    #       operator-extras-aware (.run/merged-model-aliases.sh, when present);
+    #       includes both framework defaults AND `model_aliases_extra` entries.
+    #   (b) model-resolver.sh::resolve_provider_id — framework-only canonical
+    #       map; hits when overlay is unavailable.
+    #   (c) local MODEL_TO_ALIAS — backward-compat retargets (4.0-4.5 → 4.7).
+    #   (d) pass-through — last resort; may already be `provider:model_id`.
+    #
+    # Defense: refresh-if-stale picks up cross-process regen between adapter
+    # invocations (NFR-Compat-X loader contract per SDD §6.3.4). Cheap header
+    # read; no-op when overlay is unavailable.
+    loa_overlay_refresh_if_stale 2>/dev/null || true
+
+    local model_override
+    if model_override="$(loa_overlay_resolve_provider_id "$model" 2>/dev/null)"; then
+        : # operator-extras-aware overlay resolved
+    elif model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
+        : # framework canonical alias resolved
+    elif [[ -n "${MODEL_TO_ALIAS[$model]:-}" ]]; then
+        model_override="${MODEL_TO_ALIAS[$model]}"
+    else
+        model_override="$model"
+    fi
+
+    log "Mode '$mode' → Agent '$agent'"
+    log "Model: $model → $model_override, Phase: $phase"
+
+    # Probe-cache pre-flight (Sprint 3B Task 3B.7) — short-circuit on
+    # UNAVAILABLE before spending an API call. Skipped in mock and dry-run.
+    if [[ "${FLATLINE_MOCK_MODE:-}" != "true" ]] && [[ "$dry_run" != "true" ]]; then
+        if ! _probe_cache_check "$model_override"; then
+            exit 4   # Same code as missing-key family — model not usable
+        fi
+    fi
+
+    # Build model-invoke arguments
+    local -a invoke_args=(
+        --agent "$agent"
+        --input "$input_file"
+        --model "$model_override"
+        --output-format json
+        --json-errors
+        --timeout "$timeout"
+    )
+
+    # Cycle-112 D-6 (#931) — forward caller-supplied skill to MODEL_INVOKE
+    # for calling_primitive attribution. Backward-compat: when --skill
+    # was not passed to model-adapter, cheval falls back to agent name.
+    if [[ -n "$skill" ]]; then
+        invoke_args+=(--skill "$skill")
+    fi
+    if [[ -n "$max_tokens" ]]; then
+        invoke_args+=(--max-tokens "$max_tokens")
+    fi
+    if [[ -n "$json_schema" ]]; then
+        invoke_args+=(--json-schema "$json_schema")
+    fi
+    # cycle-124 FR-9: effort is a pure function of (arg, skill) — never per
+    # attempt — so it cannot invalidate the cached prompt prefix (FR-4).
+    local effort
+    effort="$(resolve_effort "$effort_arg" "$skill" "$SCRIPT_DIR/../skills")"
+    if [[ -n "$effort" ]]; then
+        invoke_args+=(--effort "$effort")
+    fi
+
+    # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's
+    # --mock-fixture-dir instead of the (now-deleted) legacy adapter's
+    # get_mock_response synthetic-content generator.
+    #
+    # Lookup precedence:
+    #   1. $FLATLINE_MOCK_DIR/$mode/response.json     (test override + per-mode)
+    #   2. $FLATLINE_MOCK_DIR/response.json           (test override, flat)
+    #   3. tests/fixtures/cycle-109/mock-mode/$mode/  (default canonical)
+    #
+    # Backward-compat: tests that set FLATLINE_MOCK_DIR but place files
+    # there with names cheval doesn't recognize (e.g., legacy's pre-T3.7
+    # convention `<model>-<mode>-response.json`) fall through to the
+    # default canonical per-mode fixture. This preserves behavior for
+    # tests that previously hit the legacy synthetic-content fallback.
+    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
+        local default_mock_root="$PROJECT_ROOT/tests/fixtures/cycle-109/mock-mode"
+        local mock_subdir=""
+        if [[ -n "${FLATLINE_MOCK_DIR:-}" ]]; then
+            if [[ -f "$FLATLINE_MOCK_DIR/$mode/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR/$mode"
+            elif [[ -f "$FLATLINE_MOCK_DIR/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR"
+            fi
+        fi
+        if [[ -z "$mock_subdir" ]]; then
+            # Default canonical per-mode fixture
+            mock_subdir="$default_mock_root/$mode"
+        fi
+        log "Mock mode — routing via cheval --mock-fixture-dir=$mock_subdir"
+        invoke_args+=(--mock-fixture-dir "$mock_subdir")
+    fi
+
+    # Map --context to --system (context file becomes system prompt for model-invoke)
+    if [[ -n "$context_file" && -f "$context_file" ]]; then
+        invoke_args+=(--system "$context_file")
+    fi
+
+    # Map --prompt to --system (custom prompt takes precedence over context)
+    if [[ -n "$prompt_file" && -f "$prompt_file" ]]; then
+        invoke_args+=(--system "$prompt_file")
+    fi
+
+    # Dry run
+    if [[ "$dry_run" == "true" ]]; then
+        log "Dry run — validating through model-invoke"
+        "$MODEL_INVOKE" --agent "$agent" --model "$model_override" --dry-run
+        exit $?
+    fi
+
+    # Call model-invoke and translate output
+    # cheval's stderr stays out of the caller's view except the agy argv-exposure
+    # WARN, which is the operator-facing half of that mitigation (bd-pw7e LOW-001).
+    # An unusable TMPDIR must not abort the call: without a temp file stderr is
+    # discarded as before; the EXIT trap removes the file on a caller's TERM too
+    # (sprint-250 review run 1, n15). It chains any EXIT trap already set and
+    # restores it afterwards, never clearing it (sprint-250 review run 2, #6);
+    # the fallback says so on stderr (run 2, #7).
+    local result exit_code=0 err_file="" prev_exit_trap="" prev_exit_body=""
+    err_file="$(mktemp "${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX" 2>/dev/null)" || err_file=""
+    if [[ -n "$err_file" ]]; then
+        prev_exit_trap="$(trap -p EXIT)"
+        [[ -n "$prev_exit_trap" ]] && prev_exit_body="$(_trap_body "$prev_exit_trap")"
+        trap 'rm -f -- "$err_file"'"${prev_exit_body:+; $prev_exit_body}" EXIT
+        result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>"$err_file") || exit_code=$?
+        grep -F -- 'gemini-headless dispatches agy' "$err_file" | cut -c1-600 >&2 || :
+        rm -f -- "$err_file"
+        if [[ -n "$prev_exit_trap" ]]; then eval "$prev_exit_trap"; else trap - EXIT; fi
+    else
+        echo "WARN: model-adapter: stderr capture disabled (mktemp failed under ${TMPDIR:-/tmp}); the agy argv-exposure WARN will not be relayed" >&2
+        result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>/dev/null) || exit_code=$?
+    fi
+
+    if [[ $exit_code -ne 0 ]]; then
+        error "model-invoke failed with exit code $exit_code"
+        exit $exit_code
+    fi
+
+    # Translate output format for backward compatibility
+    echo "$result" | translate_output "$model" "$mode" "$phase"
+}
+
+main "$@"

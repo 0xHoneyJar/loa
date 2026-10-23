@@ -1,0 +1,18 @@
+{
+  "id": "s3",
+  "status": "completed",
+  "valid": true,
+  "invalid_reason": null,
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    4.427116
+  ],
+  "cost_usd": 4.427116,
+  "run_dir": "sessions/s3",
+  "took_effect": "ok",
+  "started": "2026-10-23T05:27:32Z",
+  "finished": "2026-10-23T05:38:12Z"
+}

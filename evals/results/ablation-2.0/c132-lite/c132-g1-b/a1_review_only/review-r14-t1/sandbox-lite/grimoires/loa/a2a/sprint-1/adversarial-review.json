@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 233,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The script runs under `set -euo pipefail`. The new `rule_key` returns 1 for any rule that is not of the form `Bash(...)`. In the two jq read loops the call is guarded with `|| continue`, but in the requirements loop it is a bare statement: `rule_key \"$perm\"`. If `all_required` ever contains a non-Bash requirement (e.g. a `Read(...)`, `WebFetch(...)`, or any malformed entry), `set -e` aborts `main` with no report and a non-zero exit, instead of reporting that rule as missing. The replaced `base_pattern_of` never failed, so this is a new abort path. Even without set -e, `RULE_KEY` would carry the previous iteration's value and silently mis-classify the rule.",
+      "failure_mode": "Preflight permission check exits abruptly without output when a required rule is not Bash(...)-shaped; callers that gate on the report treat it as a crash rather than a missing-permission result.",
+      "suggested_fix": "Guard the call: `rule_key \"$perm\" || { missing_permissions+=(\"$perm\"); continue; }` (or reset RULE_KEY and treat the raw string as an exact key for non-Bash rules), and add a bats case with a non-Bash required rule.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:evidence-recorder",
+      "anchor_type": "line",
+      "anchor_line": 46,
+      "anchor_line_end": 46,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:evidence-recorder",
+      "cross_file_justification": ".run/platform-features.json is written by .claude/scripts/detect-platform-features.sh (in this diff, truncated) and read by other consumers; the hook now unconditionally rewrites one of its keys.",
+      "description": "The recorder merges `{active_skill_available: false, active_skill_seen_at, active_skill_source: \"tool_input\"}` into platform-features.json. `active_skill_available: false` is a hard-coded assertion, not an observation, and it overwrites whatever detect-platform-features.sh had determined. The header comment says the recorder is \"evidence only and never changes the mode\", yet it does change a field that the previous mode logic (and possibly loa-status.sh / other readers) consumed. The trigger is also model-authored: any Write/Edit payload whose `tool_input` happens to carry `active_skill` permanently stamps the file (one-shot, since `active_skill_seen_at` then exists), so a single spoofed payload fixes the evidence forever until the file is deleted.",
+      "failure_mode": "A probe-derived `active_skill_available: true` from detect-platform-features.sh is clobbered to false by the first lead-session write carrying active_skill; downstream readers see contradictory evidence (`available: false` alongside `seen_at` set).",
+      "suggested_fix": "Only add `active_skill_seen_at` and `active_skill_source`; do not touch `active_skill_available` (or set it only when the key is absent via `$b + {...} | .active_skill_available //= false`). Confirm detect-platform-features.sh and loa-status.sh in this diff agree on who owns that key.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/flatline-proposal-review.sh:GPT_MODEL",
+      "anchor_type": "line",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Defaults change from raw vendor ids (`gpt-4o`, `claude-3-opus-20240229`) to catalog aliases (`reviewer`, `opus`). Aliases only resolve if the request goes through cheval / model-invoke. The old defaults were vendor-shaped and were never updated in the cycle-103 migration that moved flatline-learning-extractor.sh onto model-invoke (that file carries the T1.6/AC-1.4 comment; this one does not), which suggests this script may still hit the OpenAI/Anthropic HTTP APIs directly. If so, the vendor rejects `model: reviewer` / `model: opus` with a 400/404 and the review fails on every run.",
+      "failure_mode": "Flatline proposal review errors at the provider with an unknown-model response whenever the operator has not set LOA_GPT_MODEL / LOA_OPUS_MODEL.",
+      "suggested_fix": "Verify the dispatch path in flatline-proposal-review.sh. If it calls the vendor APIs directly, either route it through model-invoke (as the extractor does) or resolve the alias via generated-model-maps.sh before the request; add a bats check that the defaults resolve.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:VALID_FLATLINE_MODELS",
+      "anchor_type": "line",
+      "anchor_line": 556,
+      "anchor_line_end": 556,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The fallback allowlist now admits `cheap`, and the widened pattern `^claude-(opus|sonnet|haiku|fable)-[0-9]+([-.][0-9]+)?$` admits the dotted form `claude-opus-5.5`. The hard-coded `MODEL_TO_PROVIDER_ID` map in the same file gains `opus`, `fable`, `claude-opus-5-5`, `claude-opus-5`, `claude-fable-5-1`, `claude-sonnet-5` but not `cheap` or `claude-opus-5.5`, even though the catalog's backward_compat_aliases does map `claude-opus-5.5`. In the fallback branch (generated maps missing) a model that passes `validate_model` then has no provider id.",
+      "failure_mode": "With generated-model-maps.sh absent, `flatline_protocol.models.* = cheap` or `claude-opus-5.5` passes validation and then dispatches with an empty provider id, failing later with a less clear error than the allowlist was meant to give.",
+      "suggested_fix": "Add `[\"cheap\"]=\"anthropic:claude-sonnet-5\"` and `[\"claude-opus-5.5\"]=\"anthropic:claude-opus-5-5\"` to the fallback map, or have validate_model also require a MODEL_TO_PROVIDER_ID hit when the generated maps are not loaded.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T03:34:15Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12817,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

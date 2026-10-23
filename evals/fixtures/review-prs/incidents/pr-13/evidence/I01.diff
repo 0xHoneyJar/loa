@@ -1,0 +1,117 @@
+commit 059e26be76abba262fc8ceaf271057a0252ea08e
+Date: 2026-10-07T23:01:17+11:00
+
+fix(cycle-127): sprint-251 review dissent round r251-1 — cheval's chain walk plans around a gated agy hop (models_not_planned, reason opt_in_required, never a breaker count; a direct --model gemini-headless still refuses INVALID_CONFIG) and one routing predicate decides what the agy route is (.claude/scripts/lib/agy-gate-lib.sh + loader.routes_to_agy: the gemini-headless hop by name, or a Google voice under effective cli-only) for the dissent, Flatline, preflight, /loa, Bridgebuilder and cheval (agy-gate-conformance.bats); the opt-in is read from the project config only, a non-boolean value WARNs and stays off, the D-1.7 availability WARN exists, failure_class reaches the error envelope and MODELINV; Bridgebuilder surfaces a config read failure as such, requires the gate parameter, names the opt-in in the no-models throw. The units gap (verified: the 936,000 bound is in provider-measured tokens while cheval's estimate under-counts ~1.4x and BB budgets at chars/4): calibrated entries ask count_tokens from half the bound, BB's generated budget for a measured-unit calibration divides by 1.8 (916,000 → 508,000), a calibration measured on a foreign transport may be tightened by a verified observation on the HTTP route (rendered in /loa and --json); effort_effective is adapter-derived (wire_effort), EFFORT_LEVELS defined once and pinned to both schemas. Probe: fair charging at the 1.25x cache-write rate (CLI-local rejections cost 0), TPM-window backoff, throttle markers win over context markers, persisting token-limit = size, full-diag classification + the CLI's "~N tokens (limit M)" shape, record kept on interrupt, write prerequisites before the first call, process-group kill, anchored 5xx, api-only flags refused on the CLI transport, probe_outcome + sample_size provenance with --write-partial-as-operator-set (the live entry says probe_outcome: partial, sample_size: 5). SDD D-1.6 names INVALID_CONFIG; SDD D-1.8…D-3.12, PRD, CHANGELOG, migration addendum, sprint round section. Refuted with evidence: n1, n6, n9, n10, n12, n13, n17, n21, n28, n31, n32, n36, n43, n44, n54. Bead bd-c2rd (estimator calibration).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/loa-status.sh b/.claude/scripts/loa-status.sh
+index 8ee6cc50..4f039802 100755
+--- a/.claude/scripts/loa-status.sh
++++ b/.claude/scripts/loa-status.sh
+@@ -617,6 +617,7 @@ main() {
+ 
+     version_json=$(get_version_info_json)
+     agent_network_json=$(get_agent_network_json)
++    # (machine mode stays silent on stderr — callers merge streams; the gate is in .providers.*.cli_hop_note)
+     providers_json=$(get_providers_json)
+ 
+     # Merge the JSON objects: workflow base + framework + agent_network + providers
+@@ -795,37 +796,51 @@ _providers_config_file() {  # the Loa config the Providers block reads (bats-gat
+     echo "$CONFIG_FILE"
+   fi
+ }
+-_agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+-  local cfg v=""; cfg=$(_providers_config_file)
+-  [[ -f "$cfg" ]] && command -v yq >/dev/null 2>&1 || return 1
+-  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$cfg" 2>/dev/null) || v=""
+-  [[ "$v" == "true" ]]
++# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, routes_to_agy)
++# shellcheck source=lib/agy-gate-lib.sh
++source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
++_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
++  agy_opted_in "$(_providers_config_file)"
+ }
+-_AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
++_AGY_OPT_IN_NOTE="$AGY_OPT_IN_NOTE"
++_provider_cli_model() { case "$1" in anthropic) echo claude-headless ;; openai) echo codex-headless ;; google) echo gemini-headless ;; esac; }
+ _provider_hop_note() {  # $1 provider → the hop note when its CLI route is gated off, else ""
+-  [[ "$1" == "google" ]] && ! _agy_opted_in && echo "$_AGY_OPT_IN_NOTE" || echo ""
++  routes_to_agy "$(_provider_cli_model "$1")" && ! _agy_opted_in && echo "$_AGY_OPT_IN_NOTE" || echo ""
+ }
+ _provider_hop() {  # $1 provider → hop binary name or "" (the agy hop is "" while its opt-in is off — cycle-127 FR-1)
+   local bin=""
+   case "$1" in anthropic) bin=claude ;; openai) bin=codex ;; google) bin=agy ;; esac
+-  [[ "$bin" == agy ]] && ! _agy_opted_in && { echo ""; return 0; }
++  routes_to_agy "$(_provider_cli_model "$1")" && ! _agy_opted_in && { echo ""; return 0; }
+   [[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 && echo "$bin" || echo ""
+ }
+ _fmt_age_s() { local s="$1"; if [[ ! "$s" =~ ^[0-9]+$ ]]; then echo "-"; elif (( s >= 86400 )); then echo "$(( s / 86400 ))d"; elif (( s >= 3600 )); then echo "$(( s / 3600 ))h"; else echo "$(( s / 60 ))m"; fi; }
++_providers_model_config() {  # the model catalog the ceiling line reads (bats-gated seam: LOA_STATUS_MODEL_CONFIG)
++  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_MODEL_CONFIG:-}" ]]; then
++    echo "$LOA_STATUS_MODEL_CONFIG"
++  else
++    echo "$PROJECT_ROOT/.claude/defaults/model-config.yaml"
++  fi
++}
+ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound the `opus` target runs under
+   # {basis: calibrated|observed|probed, value, model, calibrate[, calibrated_at]} or null.
+   # Sources: the catalog entry (yq) and the observed store cheval writes on a
+   # provider context verdict (.run/ceiling-observed.json, or the same
+   # LOA_CHEVAL_CEILING_OBSERVED_PATH redirect cheval honours). Only the two
+   # context classes lower the bound — a 429 row never does (same rule as
+-  # loa_cheval.routing.ceiling.observed_for).
+-  local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml" model eff probed cal store obs=null
++  # loa_cheval.routing.ceiling.observed_for). cycle-127 r251-1: a calibration
++  # measured on a FOREIGN transport (ceiling_calibration.transport present and
++  # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
++  # is tightened by an observation below it: basis observed, calibrated true,
++  # calibrated_value / calibration_transport / reprobe_suggested carried.
++  local cfg model eff probed cal transport store obs=null
++  cfg=$(_providers_model_config)
+   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
+   [[ -n "$model" ]] || { echo null; return 0; }
+   eff=$(yq eval -r ".providers.anthropic.models.\"$model\".effective_input_ceiling // \"\"" "$cfg" 2>/dev/null)
+   probed=$(yq eval -r ".providers.anthropic.models.\"$model\".probed_ceiling // \"\"" "$cfg" 2>/dev/null)
+   cal=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.calibrated_at // \"\"" "$cfg" 2>/dev/null)
++  transport=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.transport // \"\"" "$cfg" 2>/dev/null)
+   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
+   if [[ -f "$store" ]]; then
+     obs=$(jq -r --arg m "$model" '[.entries[]? | select(.provider == "anthropic" and .model == $m
+@@ -833,9 +848,15 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+             | ([.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end)] | min)] | min // null' "$store" 2>/dev/null)
+     [[ "$obs" =~ ^[0-9]+$ ]] || obs=null
+   fi
+-  jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --argjson obs "$obs" '
++  jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --arg tr "$transport" --argjson obs "$obs" '
+     ($eff | if . == "" then null else tonumber end) as $e | ($probed | if . == "" then null else tonumber end) as $p
+-    | (if $cal != "" then {basis: "calibrated", value: $e, calibrated_at: $cal}
++    | ($tr | gsub("^\\s+|\\s+$"; "")) as $t
++    | ($cal != "" and $t != "" and (($t | ascii_downcase) as $l | ($l != "api" and $l != "http"))) as $foreign
++    | (if $cal != "" and $foreign and $obs != null and $e != null and ($obs - 1) < $e
++         then {basis: "observed", value: ($obs - 1), calibrated: true, calibrated_value: $e, calibrated_at: $cal,
++               calibration_transport: $t, reprobe_suggested: true}
++       elif $cal != "" then {basis: "calibrated", value: $e, calibrated_at: $cal}
++           + (if $t != "" then {calibration_transport: $t} else {} end)
+        elif $obs != null and ($p == null or ($obs - 1) < $p) then {basis: "observed", value: ($obs - 1)}
+        else {basis: "probed", value: ($p // $e)} end)
+     + {model: $m, observed: (if $obs == null then null else $obs - 1 end),
+@@ -858,6 +879,7 @@ get_providers_json() {
+ }
+ display_providers_section() {
+   local pj p key hop line auth st age due
++  agy_gate_warn_once "$(_providers_config_file)"   # (cycle-127 r251-1 G12/G18: once, on stderr)
+   pj=$(get_providers_json)
+   echo -e "${BOLD}Providers${NC}"
+   while IFS= read -r p; do
+@@ -878,6 +900,8 @@ display_providers_section() {
+       # cycle-126 FR-1.1: the input bound the `opus` target runs under, and how to tighten it.
+       local cl; cl=$(printf '%s' "$pj" | jq -r '.providers.anthropic.ceiling // empty | if .basis == "calibrated"
+         then "  ceiling: calibrated \(.value) (\(.model), calibrated \(.calibrated_at))"
++        elif .calibrated == true and .basis == "observed"
++        then "  ceiling: calibrated \(.calibrated_value) (\(.calibration_transport)); observed \(.value) below on this route, reprobe suggested (\(.model), calibrated \(.calibrated_at); calibrate: \(.calibrate))"
+         else "  ceiling: \(.basis) \(.value) (\(.model);\(if .observed != null and .basis != "observed" then " observed \(.observed) under the opt-in;" else "" end) calibrate: \(.calibrate))" end')
+       [[ -n "$cl" ]] && echo "$cl"
+     fi

@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "plugin_management": {
+      "id": "connector_openai_plugin_management",
+      "required": true
+    }
+  }
+}

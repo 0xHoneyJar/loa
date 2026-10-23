@@ -1,0 +1,148 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 90,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Excellent gap identification. Replacing subjective soak exit language with quantitative gates materially improves release safety and decision consistency at very low implementation cost.",
+      "gpt_score": 900,
+      "opus_score": 860,
+      "tertiary_score": 950,
+      "delta": 40,
+      "average_score": 880,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "High-value operational improvement. A soak window without named decision authority, escalation path, and response expectations is a real execution risk.",
+      "gpt_score": 870,
+      "opus_score": 880,
+      "tertiary_score": 980,
+      "delta": 10,
+      "average_score": 875,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Critical architecture concern. Single-process locking is insufficient in multi-worker production, so clarifying true cap semantics or adding cross-process coordination is important and domain-appropriate.",
+      "gpt_score": 860,
+      "opus_score": 780,
+      "tertiary_score": 880,
+      "delta": 80,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Strong test-gap catch. Kill-switch precedence is exactly the kind of incident-time edge case that needs explicit regression coverage, and cost to add is minimal.",
+      "gpt_score": 780,
+      "opus_score": 820,
+      "tertiary_score": 920,
+      "delta": 40,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-010",
+      "description": "Technically sensible but low ROI as a sprint gating requirement. A 24-hour pre-sprint live smoke may add process overhead and flakiness relative to the benefit.",
+      "gpt_score": 340,
+      "opus_score": 790,
+      "tertiary_score": 930,
+      "delta": 450,
+      "average_score": 565,
+      "source": "gpt_scored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-004",
+      "concern": "Cost-cap enforcement is only process-local atomicity (threading.Lock), but described as hard protection for session spend.",
+      "severity": "CRITICAL",
+      "severity_score": 895,
+      "why_matters": "In multi-process or distributed executions, concurrent calls can bypass the intended cap and create significant overspend before reconciliation.",
+      "location": "Sprint 2 Task 2.7; Sprint 2 Risks (soft-cap nature); Security Considerations",
+      "recommendation": "Use cross-process/distributed locking or centralized budget service for true cap guarantees, and explicitly label current behavior as best-effort in user-facing docs.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Default strict failure on unknown /v1/responses shape creates a deliberate availability risk without automated graceful fallback.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "A new response shape can trigger runtime failures on live traffic; requiring operators to preconfigure degrade mode is operationally brittle.",
+      "location": "Sprint 1 Task 1.6; Risks ('7th shape arrives'); Acceptance Criteria",
+      "recommendation": "Add controlled automatic fallback behavior (e.g., degrade with high-severity alert) or fast remote toggle so production does not hard-fail on first unseen shape.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Sprint scope is likely overpacked for the stated timeline (two LARGE 2.5-day sprints plus broad test, docs, integration, and migration work).",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "A schedule miss on Sprint 1 or 2 blocks the critical path and compresses soak/validation, increasing the probability of shipping unstable routing and alias defaults.",
+      "location": "Executive Summary; Sprint 1/2 Duration; Success Metrics",
+      "recommendation": "Re-baseline capacity with historical throughput, split non-critical items (e.g., some docs and optional tests) into follow-up tickets, and define explicit de-scope rules before Sprint 1 starts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The 'same-commit migration invariant' may fail in real deployment pipelines where code and config are rolled out non-atomically.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "If strict validation activates before all OpenAI entries include endpoint_family in a running environment, startup/config load failures can cause outages.",
+      "location": "Migration ordering invariant; Sprint 1 Tasks 1.2/1.3; Risks table",
+      "recommendation": "Implement a temporary compatibility window (feature flag or phased validator mode) and add a deployment-order runbook for non-atomic rollout environments.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The plan assumes external API contracts and preview models stay stable during implementation (OpenAI /v1/responses and Gemini 3 preview).",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Upstream contract drift can break production despite green fixture-based CI, especially with strict parsers and preview model dependencies.",
+      "location": "Sprint 1 Dependencies; Sprint 2 Dependencies; Risk Register R-1/R-9",
+      "recommendation": "Add runtime canary checks and contract-version telemetry, plus a rapid disable/fallback path per provider that does not require code deploy.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sprint",
+  "document": "grimoires/loa/sprint.md",
+  "domain": " executive summary sprint sizing",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T09:52:28Z",
+  "metrics": {
+    "total_latency_ms": 219000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "queued_learnings": [
+    {
+      "id": "learning-20261022T130000Z-isdigit-int",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-22T13:00:00Z"
+    },
+    {
+      "id": "learning-20261022T130000Z-jq16-interp",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-22T13:00:00Z"
+    }
+  ]
+}

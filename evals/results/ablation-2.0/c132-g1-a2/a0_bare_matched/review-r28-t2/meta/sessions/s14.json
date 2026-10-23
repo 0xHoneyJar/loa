@@ -1,0 +1,18 @@
+{
+  "id": "s14",
+  "status": "completed",
+  "valid": true,
+  "invalid_reason": null,
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    0.82958
+  ],
+  "cost_usd": 0.82958,
+  "run_dir": "sessions/s14",
+  "took_effect": "ok",
+  "started": "2026-10-21T22:16:23Z",
+  "finished": "2026-10-21T22:19:12Z"
+}

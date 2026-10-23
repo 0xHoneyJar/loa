@@ -1,0 +1,1941 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T04:51:25Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 7,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical gap and highly actionable. Deferring request/response transformation details (multi-turn, tools, streaming) creates a high risk of functional breakage in Sprint 1. This belongs in the PRD with explicit mapping rules and testable acceptance criteria.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Excellent operational safeguard. The PRD states rollback intent but not mechanism; adding runtime kill-switches/feature flags is low-to-moderate effort and materially reduces incident MTTR during model alias flips.",
+        "gpt_score": 895,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 75,
+        "average_score": 857.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Strong domain-specific improvement. Cost accounting for reasoning_tokens is a real billing and observability risk; explicit parsing and billing rules are necessary to avoid silent undercounting.",
+        "gpt_score": 875,
+        "opus_score": 750,
+        "tertiary_score": 880,
+        "delta": 125,
+        "average_score": 812.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Important product/compatibility decision that should not be deferred. Alias-retarget behavior has direct downstream impact and should be explicitly decided with rationale in the PRD.",
+        "gpt_score": 840,
+        "opus_score": 810,
+        "tertiary_score": 960,
+        "delta": 30,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good catch on policy ambiguity. Precedence and conflict-resolution rules for prefer_pro_models vs tier_groups are implementable and prevent inconsistent routing outcomes.",
+        "gpt_score": 760,
+        "opus_score": 780,
+        "tertiary_score": 910,
+        "delta": 20,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "High-value quality fix with very low cost. Broken template headings indicate generation defects and can impair tooling, navigation, and confidence in document readiness.",
+        "gpt_score": 780,
+        "opus_score": 730,
+        "tertiary_score": 820,
+        "delta": 50,
+        "average_score": 755,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Backward-compatibility behavior is ambiguous for `gpt-5.3-codex` (self-map vs retarget), creating a high chance of silent behavior change for pinned downstream users.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The PRD declares backward compatibility as a HARD constraint, but FR-2 explicitly leaves mapping behavior undecided. If legacy aliases silently retarget to newer models, downstream tests, cost expectations, and output quality can shift unexpectedly and break trust.",
+        "location": "FR-2 Acceptance Criteria (`gpt-5.3-codex` mapping “to be decided in /architect”) and Constraints section",
+        "recommendation": "Lock explicit compatibility semantics in the PRD now: whether legacy IDs are immutable self-maps or retarget aliases, plus a deprecation policy and migration warning mechanism.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "OpenAI `/v1/responses` parser requirements are underspecified and may fail on non-trivial output shapes.",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "The PRD references `output[].content` generally, but does not define handling for mixed content blocks, empty outputs, tool-call structures, refusal/safety formats, or partial streaming-like responses. A parser mismatch can break core workflows immediately after default flip.",
+        "location": "FR-1 Description/Acceptance Criteria and Technical Considerations table",
+        "recommendation": "Add a strict response contract matrix and fixture suite covering edge payloads (multi-block text, tool outputs, refusals, empty/partial output) before alias default changes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Reasoning token billing economics not addressed despite using gpt-5.5-pro for default 'reasoning' alias",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Pro/reasoning models charge for reasoning_tokens that are invisible to the prompt. Flipping the default 'reasoning' alias (used by skeptic/dissenter agents) to gpt-5.5-pro could 5-10x costs for users who upgrade their submodule pin and don't realize their per-cycle spend just exploded. The PRD treats this as 'capability uplift' without quantifying cost delta or providing a cost-ceiling guard.",
+        "location": "Pain Points / FR-2",
+        "recommendation": "Add cost-impact analysis comparing typical cycle spend on 5.3-codex vs 5.5-pro. Add a CHANGELOG warning. Consider keeping 'reasoning' on gpt-5.5 (non-pro) and only routing to pro via the opt-in flag.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Response parsing for /v1/responses is under-specified and likely to break reasoning_tokens accounting",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "The /v1/responses endpoint returns a fundamentally different shape (output[].content with potentially multiple content blocks, tool calls, reasoning summaries) than choices[0].message.content. The PRD acknowledges 'output[].content (different shape)' but defers to architecture phase. Mishandling this means truncated content, lost reasoning tokens, or silent NaN cost-ledger entries—which one of the KPIs explicitly aims to prevent. The pro variant returns reasoning_tokens that must flow into both usage metadata and cost calculations.",
+        "location": "Technical Considerations / FR-1 Acceptance Criteria",
+        "recommendation": "Add explicit acceptance criteria for response normalization: (1) handle multi-block output arrays, (2) distinguish reasoning content from final output content, (3) map output_tokens_details.reasoning_tokens to ledger billing, (4) golden fixture covering all observed response shapes including tool-use and refusals.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Routing logic tied to regex model names is brittle and not future-proof.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Hardcoding `^gpt-5.5...` assumes endpoint behavior aligns with naming forever. New snapshots/variants may require `/v1/responses` but fail regex, or future non-5.5 models may also require responses. This creates recurring outages and emergency patches.",
+        "location": "FR-1 Acceptance Criteria (regex-based detection)",
+        "recommendation": "Drive endpoint routing from registry metadata (`endpoint_family: responses/chat`) instead of name regex, with safe fallback and explicit error messaging.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Use of Google `*-preview` models for `fast-thinker` introduces instability and deprecation risk without fallback automation.",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "Preview models can regress or disappear. PRD mentions manual fallback choices but no automatic runtime fallback policy or health-based failover path. This can break a core agent unexpectedly.",
+        "location": "FR-4 and Risks table (Gemini preview instability)",
+        "recommendation": "Require a production-grade fallback chain in config (primary + fallback model), and add automated probe-driven demotion logic for preview targets.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "`prefer_pro_models` scope is underdefined and can trigger hidden spend explosions.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Assumption-1 says “ALL aliases with `*-pro` variants,” but no budget guardrails, dry-run diff, or per-alias opt-out policy is defined. One toggle could unexpectedly multiply costs across workflows.",
+        "location": "FR-5 and Assumptions ([ASSUMPTION-1])",
+        "recommendation": "Add mandatory cost-safety controls: config validation warnings, per-alias denylist, max-cost/session limits, and a preview command showing alias remapping impact before enabling.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T04:51:25Z",
+    "metrics": {
+      "total_latency_ms": 97000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T04:53:31Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 7,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real operational gap: a success metric references rollback outcomes, but no rollback runbook is defined. For phased model cutovers, explicit alias-flip reversal steps materially reduce incident MTTR at low documentation cost.",
+        "gpt_score": 910,
+        "opus_score": 820,
+        "tertiary_score": 950,
+        "delta": 90,
+        "average_score": 865,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-value correction: cost-ledger semantics around reasoning tokens and streaming are a common source of silent billing drift. This is domain-specific, testable, and important for financial accuracy.",
+        "gpt_score": 900,
+        "opus_score": 850,
+        "tertiary_score": 920,
+        "delta": 50,
+        "average_score": 875,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical reliability gap. Post-flip availability regressions are realistic, and undefined behavior here can cause widespread downstream failures. Clear fallback/fail-fast policy is essential.",
+        "gpt_score": 885,
+        "opus_score": 750,
+        "tertiary_score": 900,
+        "delta": 135,
+        "average_score": 817.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good testing-governance improvement. A fixture capture/refresh/divergence policy is actionable and reduces false confidence in CI, though it introduces moderate maintenance cost.",
+        "gpt_score": 710,
+        "opus_score": 800,
+        "tertiary_score": 850,
+        "delta": 90,
+        "average_score": 755,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Important functional coverage gap. Multi-turn mapping differences in /v1/responses are a known failure mode; explicit acceptance criteria and tests here are highly justified.",
+        "gpt_score": 860,
+        "opus_score": 880,
+        "tertiary_score": 930,
+        "delta": 20,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Backward-compat behavior for `gpt-5.3-codex` is explicitly undecided (`retargeting itself` vs `retarget to gpt-5.5`).",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "An ambiguous compatibility contract can break downstream configs silently or change behavior/cost unexpectedly, violating the stated HARD constraint.",
+        "location": "FR-2 Acceptance Criteria (`gpt-5.3-codex ... to be decided in /architect`)",
+        "recommendation": "Lock a single backward-compat policy in the PRD now, include migration examples, and add tests for both resolution and behavioral parity expectations.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "No runtime fallback strategy is defined if new default models become UNAVAILABLE after alias flip.",
+        "severity": "CRITICAL",
+        "severity_score": 865,
+        "why_matters": "The PRD enforces fail-fast behavior, but after defaults move to gpt-5.5* this can create immediate production outages instead of graceful degradation.",
+        "location": "Non-Functional Requirements > Reliability (`Probe-gated fail-fast preserved`), FR-2 alias flip",
+        "recommendation": "Define controlled fallback order per alias (or explicit no-fallback policy with outage playbook), plus automated rollback trigger criteria.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "PRD references future-dated events and models (2026-04-29, gpt-5.5, Gemini 3, Claude Opus 4.7) without verification path",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "If these models/dates are speculative or hallucinated, the entire PRD is built on fiction. Live API probes are claimed but no probe artifacts/transcripts are attached as evidence. The downstream implementation will fail-fast against real APIs that don't have these models.",
+        "location": "Throughout document; Executive Summary, FR-1, FR-2; Timeline section",
+        "recommendation": "Attach probe transcript artifacts (raw HTTP responses, timestamps) as appendix. Validate all model IDs against current provider /v1/models endpoints before /architect phase. Add explicit kill-switch if any model becomes UNAVAILABLE between PRD and implementation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Response body shape transformation between /v1/chat/completions and /v1/responses is hand-waved",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The two endpoints have fundamentally different request AND response schemas (input vs messages, output[] vs choices[]). PRD says 'Architecture phase to specify the exact body-transformation function' but provides no test fixtures or known-edge-cases (streaming? tool calls? system prompts? multi-turn? image inputs?). This is hidden complexity that historically blew up the codex routing fix in #586.",
+        "location": "Technical Considerations / Architecture Notes; FR-1",
+        "recommendation": "Before /architect, document EVERY field mapping including: streaming, tool/function calls, system messages, multimodal inputs, finish_reason equivalents, error response shape. Capture golden fixtures from live probes for each shape. Reference the actual #586 PR diff to verify reusability of pattern.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Routing logic is tied to a regex for gpt-5.5 family and may fail for naming variants or future subfamilies using `/v1/responses`.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "A brittle matcher can send valid models to the wrong endpoint, causing HTTP 400s and hard-to-debug regressions.",
+        "location": "FR-1 Acceptance Criteria (`^gpt-5\\.5(-pro)?...`)",
+        "recommendation": "Use registry metadata (endpoint capability flag) instead of regex-only detection; add contract tests for future model ID patterns.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "The migration relies on one-time probe snapshots; no sustained stability gate is defined before flipping defaults.",
+        "severity": "HIGH",
+        "severity_score": 725,
+        "why_matters": "Provider availability can fluctuate; a single successful probe can give false confidence and lead to post-merge incidents.",
+        "location": "Executive Summary (live API probes captured once), Risks/Mitigation",
+        "recommendation": "Require rolling probe success windows (e.g., 24h/72h), error-rate thresholds, and pre-flip stability SLO checks.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "`prefer_pro_models` can trigger unbounded cost increases with no budget guardrails or blast-radius controls.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Org-wide opt-in can dramatically increase spend and surprise downstream teams, especially where aliases are broad and dynamic.",
+        "location": "FR-5 (`retargets every alias with a *-pro variant`), Goals G-5",
+        "recommendation": "Add cost-protection requirements: per-run budget caps, warning logs, dry-run mode, and explicit allowlist of aliases eligible for pro retargeting.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T04:53:31Z",
+    "metrics": {
+      "total_latency_ms": 89000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:19:51Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical gap. Streaming semantics are a separate contract surface, and omission here will cause real interoperability failures for streaming callers. Highly actionable and low-to-moderate effort to specify now.",
+        "gpt_score": 910,
+        "opus_score": 900,
+        "tertiary_score": 980,
+        "delta": 10,
+        "average_score": 905,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong operational improvement. Misconfigured endpoint family is a realistic failure mode, and explicit retry/fail-fast behavior with diagnostics is essential for supportability.",
+        "gpt_score": 840,
+        "opus_score": 870,
+        "tertiary_score": 970,
+        "delta": 30,
+        "average_score": 855,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good reliability hardening. Endpoint-family-specific limits and retry tuning are practical concerns, though implementation can be incremental once baseline behavior is clarified.",
+        "gpt_score": 710,
+        "opus_score": 820,
+        "tertiary_score": 960,
+        "delta": 110,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Aggressive timeline with 3 sprints in 3 days for non-trivial adapter work",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Sprint 1 (routing) merges 2026-04-30, Sprint 2 next day, Sprint 3 day after. Adapter routing change involves six response shape normalizations, golden fixtures, kill-switch, cost-ledger integration, and metadata-driven dispatch. Past precedent (PR #586 cycle-088 codex routing) was simpler and likely took longer. Compressed timeline forces shortcuts on fixture coverage or testing rigor, which is exactly where edge-case bugs hide.",
+        "location": "Section 11: Timeline & Milestones",
+        "recommendation": "Add buffer day between Sprint 1 and Sprint 2 for soak/observability of routing change in isolation before flipping defaults. Make Sprint 3 explicitly deferrable to next cycle if Sprint 1+2 slip.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Cost guardrail design is underspecified because 'session' boundaries for max_cost_per_session_micro_usd are not formally defined.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Without precise session semantics (process lifetime, request context, CLI invocation, or workspace), cost caps may not trigger when expected, undermining trust and budget control.",
+        "location": "FR-5 Acceptance Criteria (optional cost cap)",
+        "recommendation": "Define session identity and lifecycle in the PRD, including concurrency behavior and reset conditions; add tests for multi-process and long-running daemon modes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Defaulting unknown/missing endpoint_family to chat is a silent failure mode for future OpenAI models.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "A metadata typo or omission can send requests to the wrong endpoint and fail at runtime. WARN-only behavior can be missed, especially in CI or low-verbosity production logs.",
+        "location": "FR-1 Acceptance Criteria (unknown/missing endpoint_family defaults to chat + WARN)",
+        "recommendation": "Fail closed for OpenAI models with missing/unknown endpoint_family in validation/CI; require explicit endpoint_family for all OpenAI registry entries.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Kill-switch (LOA_DISABLE_RESPONSES_ENDPOINT) silently breaks gpt-5.5* calls when activated",
+        "severity": "CRITICAL",
+        "severity_score": 820,
+        "why_matters": "If kill-switch routes ALL OpenAI traffic to /v1/chat/completions, gpt-5.5 calls return HTTP 400 (the very reason for the routing fix). The 'rollback' actually creates a worse failure mode than the original problem unless callers also fall back to gpt-5.3-codex. The PRD says it 'forces all OpenAI traffic back' but doesn't specify what happens to gpt-5.5-targeted requests under the switch.",
+        "location": "FR-1 Acceptance Criteria, Risks table row 1",
+        "recommendation": "Specify kill-switch behavior precisely: either (a) auto-demote gpt-5.5* aliases to gpt-5.3-codex when switch active, OR (b) raise explicit error directing operator to flip aliases manually. Document which and add pytest coverage.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "No streaming support specification for /v1/responses endpoint",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "/v1/responses streams via Server-Sent Events with a different event taxonomy than /v1/chat/completions (response.created, response.output_item.added, response.output_text.delta, etc.). PRD §3.1 only covers non-streaming response shapes. If any cheval caller uses streaming (likely for long reasoning outputs), the adapter will break or fall back silently. Not addressing this leaves a major hidden gap.",
+        "location": "Technical Considerations §3.1 Response Contract Matrix",
+        "recommendation": "Either (a) explicitly declare streaming OUT of scope with assertion that no current cheval caller streams from OpenAI, OR (b) add streaming normalization spec and golden fixtures for SSE event shapes. Audit cheval call sites for streaming usage before declaring scope.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Reasoning_tokens cost-ledger integration ambiguity - double-counting risk",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "PRD says 'output_tokens already includes reasoning_tokens per OpenAI accounting (verify in Sprint 1 with fixture). If split, ledger MUST sum both.' This is a verification deferred to implementation. If wrong assumption is baked into adapter code, customers either over-pay (double-billed) or under-pay (silent under-billing flagged in risk table). The verification must happen BEFORE adapter code lands.",
+        "location": "Technical Considerations §3.1 Token accounting",
+        "recommendation": "Run the verification fixture probe NOW (pre-implementation) and lock the answer in the PRD. Add explicit pytest asserting the relationship (sum vs included) so future API changes break loudly.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Response normalization scope likely incomplete because streaming/SSE and future output block types are not specified.",
+        "severity": "CRITICAL",
+        "severity_score": 905,
+        "why_matters": "If production calls use streaming or newly introduced block types, parser assumptions can break, causing empty outputs, lost tool calls, or malformed results despite passing fixture tests.",
+        "location": "Technical Considerations §3.1 Response Contract Matrix",
+        "recommendation": "Explicitly define streaming behavior and unknown block-type handling policy (preserve raw payload + safe fallback); include forward-compat tests with unrecognized block types.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Rollback kill-switch may be non-functional for gpt-5.5* because it forces /v1/chat/completions, which those models already reject.",
+        "severity": "CRITICAL",
+        "severity_score": 940,
+        "why_matters": "In an incident, operators may believe they have a safe rollback path, but traffic could continue failing with HTTP 400. This creates a false sense of operability and can prolong outages.",
+        "location": "FR-1 Acceptance Criteria (kill-switch) and Risks/Mitigation table",
+        "recommendation": "Redefine rollback to reroute affected aliases/models to known chat-compatible models (e.g., gpt-5.3-codex) rather than endpoint-only switching; add an automated rollback integration test.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Timeline is unrealistically compressed given cross-provider changes, new schema, map regeneration, backward-compat smoke, and live probes.",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Three sprints across three days leaves little room for flaky provider behavior, review cycles, and bugfix loops. High risk of partial quality gates or rushed merges.",
+        "location": "Timeline & Milestones section",
+        "recommendation": "Add schedule buffer and explicit contingency gates; move Sprint 3 or external-provider-dependent tasks behind feature flags with deferred release criteria.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:19:50Z",
+    "metrics": {
+      "total_latency_ms": 213000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:23:33Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real production gap. If stream=true is used, contract mismatch between /responses SSE events and chat chunks can break adapters immediately. Highly actionable via explicit event normalization spec and fixtures.",
+        "gpt_score": 910,
+        "opus_score": 900,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 905,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Important precedence ambiguity. Conflicting settings (explicit pin vs prefer_pro_models) will produce divergent implementations without a worked rule. Low effort to clarify, high consistency payoff.",
+        "gpt_score": 840,
+        "opus_score": 850,
+        "tertiary_score": 920,
+        "delta": 10,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical billing correctness issue. Reasoning-token accounting errors can materially distort cost controls, especially on pro tiers. Very high ROI to lock down with pre-implementation verification and anti-double-count tests.",
+        "gpt_score": 940,
+        "opus_score": 750,
+        "tertiary_score": 1000,
+        "delta": 190,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Valuable test coverage request. Multi-turn tool_call/tool_result threading is a known complexity point for /responses typed inputs and can fail despite single-turn passing. Actionable and proportionate.",
+        "gpt_score": 770,
+        "opus_score": 780,
+        "tertiary_score": 810,
+        "delta": 10,
+        "average_score": 775,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Important interaction test between two hard constraints (immutable alias pins vs pro preference). Prevents unintended cost/quality drift for legacy users. Focused and low implementation cost.",
+        "gpt_score": 780,
+        "opus_score": 300,
+        "tertiary_score": 650,
+        "delta": 480,
+        "average_score": 540,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Cost-risk controls are deferred to Sprint 3, but major alias flips happen in Sprint 2, creating a window where costs can drift without hard caps.",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Even with non-pro defaults, real usage patterns can spike spend post-migration; teams lack enforceable budget protection during MVP rollout.",
+        "location": "Scope/Prioritization (Sprint 1+2 MVP) + FR-5 (cost cap in Sprint 3)",
+        "recommendation": "Move minimum cost guardrails (session cap + alert threshold) into Sprint 2 launch criteria before default flips.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Defaulting unknown/missing endpoint_family to chat creates silent misrouting risk for future models and can mask config errors until runtime failure.",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "A typo or missing metadata can pass config load, then fail under production load with hard-to-diagnose 400s.",
+        "location": "FR-1 Acceptance Criteria (unknown/missing endpoint_family defaults to chat)",
+        "recommendation": "Make endpoint_family mandatory for OpenAI models (fail validation in CI), and only allow runtime defaulting for legacy entries explicitly marked as legacy.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Response normalization scope is still incomplete: no explicit requirements for streaming responses, multimodal blocks, or future OpenAI response object variants.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "The adapter may work for current fixtures but break as soon as responses include new block types, leading to parsing failures or silent data loss.",
+        "location": "Technical Considerations §3.1 Response Contract Matrix",
+        "recommendation": "Add an extensible parser contract (unknown block passthrough + telemetry), include streaming and multimodal test fixtures, and define behavior for unsupported blocks.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Rollback kill-switch is likely non-functional for gpt-5.5 models because forcing all OpenAI traffic to /v1/chat/completions will return HTTP 400 for those models.",
+        "severity": "CRITICAL",
+        "severity_score": 940,
+        "why_matters": "In an incident, the documented emergency control could worsen outage instead of restoring service, leaving no safe runtime fallback for gpt-5.5 traffic.",
+        "location": "FR-1 Acceptance Criteria (operational kill-switch) + Risks/Mitigation table",
+        "recommendation": "Redefine rollback as model-level failover (e.g., auto-retarget to gpt-5.3-codex or provider fallback), not endpoint coercion. Add an integration test that simulates incident mode and proves successful completion.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "The timeline is unrealistically compressed for multi-provider routing, schema changes, map regeneration, and backward-compat smoke across 3 sprints in 3 days.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Schedule pressure increases risk of incomplete testing, rushed merges, and production regressions.",
+        "location": "Timeline & Milestones",
+        "recommendation": "Add buffer and explicit exit criteria per sprint, including soak period and canary rollout before default flips.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:23:33Z",
+    "metrics": {
+      "total_latency_ms": 213000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:29:55Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 7,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical internal contradiction on incident controls. Two opposite kill-switches documented in different sections is a high-likelihood operational failure mode and could worsen outages. Very low effort to fix, very high risk reduction.",
+        "gpt_score": 940,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 20,
+        "average_score": 930,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Excellent catch on precedence collisions between global safety switch and user-level preference flags. This is actionable and should be codified in acceptance criteria to avoid nondeterministic routing during incidents.",
+        "gpt_score": 860,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 20,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong rollout-risk mitigation. Ordering between schema migration and strict validation is a classic breakage vector in multi-repo/submodule environments. Explicit sequencing and compatibility window are essential.",
+        "gpt_score": 900,
+        "opus_score": 860,
+        "tertiary_score": 940,
+        "delta": 40,
+        "average_score": 880,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "High-value clarification for a safety-critical budget control. Session scope, pre/post-call enforcement, retry behavior, and terminality directly determine whether spending caps actually work.",
+        "gpt_score": 910,
+        "opus_score": 800,
+        "tertiary_score": 880,
+        "delta": 110,
+        "average_score": 855,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Valuable operational specification for fallback stability and recovery. Probe cadence, hysteresis, and state persistence are necessary to prevent flapping, though implementation complexity is moderate.",
+        "gpt_score": 740,
+        "opus_score": 720,
+        "tertiary_score": 780,
+        "delta": 20,
+        "average_score": 730,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Important billing correctness issue. Ambiguity around reasoning token inclusion can silently under/over-charge and undermine success metrics. Should be decided upfront, not deferred.",
+        "gpt_score": 830,
+        "opus_score": 750,
+        "tertiary_score": 720,
+        "delta": 80,
+        "average_score": 790,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Operationally strong recommendation. A concise rollback playbook with verification steps materially improves incident response quality, especially given existing switch-name confusion.",
+        "gpt_score": 780,
+        "opus_score": 730,
+        "tertiary_score": 750,
+        "delta": 50,
+        "average_score": 755,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Cost accounting for `reasoning_tokens` is under-specified and may double-charge or under-charge.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "The PRD states output tokens may already include reasoning tokens, but also suggests summing if split. Without provider-specific billing truth rules, ledger and budget enforcement can be wrong, invalidating guardrails and trust.",
+        "location": "Technical Considerations §3.1 Token accounting; FR-1/FR-5a/FR-5 cost-ledger requirements",
+        "recommendation": "Define exact billing formulas per provider/model, add reconciliation tests against real invoices/sandbox usage, and block rollout until ledger parity is verified.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Kill-switch semantics are internally contradictory (alias-layer rollback vs endpoint-layer force-to-chat).",
+        "severity": "CRITICAL",
+        "severity_score": 955,
+        "why_matters": "The PRD defines multiple incompatible rollback mechanisms: alias-only rollback in Executive Summary/FR-1, but Risks/Decisions also define `LOA_DISABLE_RESPONSES_ENDPOINT` forcing all OpenAI traffic to `/chat/completions`, which would break gpt-5.5 calls with HTTP 400. In an incident, operators may trigger the wrong switch and amplify outage.",
+        "location": "Executive Summary; FR-1 Acceptance Criteria; Risks & Mitigation table; Decisions Locked Post-Flatline",
+        "recommendation": "Pick one authoritative rollback contract, delete conflicting mechanisms, define precedence/order of env vars vs config flags, and add a single runbook-tested rollback path.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "No canary or percentage rollout strategy for default alias flips.",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Changing `reviewer` and `reasoning` globally is high blast radius. A binary flip for all users risks widespread cost/quality/latency regressions before detection, especially for downstream submodule consumers.",
+        "location": "FR-2; Success Criteria; Timeline Sprint 2 deliverables",
+        "recommendation": "Introduce staged rollout controls (org/project allowlist, % rollout, or phased opt-in), plus real-time error/cost dashboards and automatic rollback triggers.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Response normalization scope is brittle: only six known `/responses` shapes are supported, while future shapes are explicitly out of scope.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Provider response schemas evolve. If unknown object types appear, parser behavior is undefined (drop content, malformed result, or exceptions), risking silent data loss or outages.",
+        "location": "Technical Considerations §3.1; Scope (explicitly out-of-scope future response object types)",
+        "recommendation": "Define strict unknown-shape handling now (fail-safe vs pass-through), add schema-version detection, and include contract tests for forward-compat fallback behavior.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Timeline is unrealistically compressed for multi-provider routing, schema, pricing, fixtures, rollout, and compatibility work.",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Sprint 1–3 plus soak are scheduled over ~6 days with significant cross-cutting changes (adapter protocol, config schema, generated maps, 8 caller updates, fallback automation, cost controls). This is a classic schedule risk leading to shortcuts, incomplete testing, and post-merge regressions.",
+        "location": "Timeline & Milestones; Scope/Prioritization; FR-1..FR-6 combined scope",
+        "recommendation": "Split release into smaller deployable increments (routing first, then alias flips, then pro-flag), add contingency buffer, and define explicit go/no-go gates based on telemetry.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "`endpoint_family` behavior is inconsistent (required/validation-fail vs silent default-to-chat).",
+        "severity": "HIGH",
+        "severity_score": 790,
+        "why_matters": "FR-1 says missing `endpoint_family` should fail validation, while Technical Considerations says adapter defaults to `chat` if absent. This ambiguity can cause silent misrouting, non-deterministic behavior across tools, and hard-to-debug production failures.",
+        "location": "FR-1 Description/Acceptance Criteria; Technical Considerations (Architecture Notes); Risks table last row",
+        "recommendation": "Enforce one rule globally: either strict required field everywhere or explicit migration shim with sunset date. Add contract tests for both CLI validation and runtime adapter behavior.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:29:55Z",
+    "metrics": {
+      "total_latency_ms": 217000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:35:21Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real reliability gap. Moving endpoints without explicitly defining retry, timeout, backoff, and 429/5xx handling leaves production behavior ambiguous and untestable. Low-to-moderate implementation cost, high operational impact.",
+        "gpt_score": 910,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 915,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong and actionable. One-time migrations are high-risk failure points; idempotency, ordering, validation, and partial-failure handling should be explicit in acceptance criteria. High ROI for Sprint 1 safety.",
+        "gpt_score": 895,
+        "opus_score": 900,
+        "tertiary_score": 980,
+        "delta": 5,
+        "average_score": 897.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important incident-response ambiguity. Kill-switch versus user pin precedence must be deterministic and documented, otherwise operators cannot reliably mitigate risk during outages or regressions.",
+        "gpt_score": 860,
+        "opus_score": 810,
+        "tertiary_score": 920,
+        "delta": 50,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Strong improvement. Cost-cap behavior is safety-critical; undefined mid-cycle handling can cause partial-state failures. Per-workflow failure/recovery contract should be explicit and testable.",
+        "gpt_score": 830,
+        "opus_score": 800,
+        "tertiary_score": 960,
+        "delta": 30,
+        "average_score": 815,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Cost cap requirement is underspecified (session boundary, parallel workers, shared ledger consistency).",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "A per-session cap can be bypassed or enforced inconsistently in concurrent runs, leading to unexpected spend despite apparent guardrails.",
+        "location": "FR-5a and FR-5 (max_cost_per_session_micro_usd)",
+        "recommendation": "Define canonical session ID, ledger isolation rules, concurrency-safe accounting, and behavior for distributed/multi-process execution.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Gemini fallback demotion lacks hysteresis/cooldown semantics and may thrash between primary and fallback.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Probe state flapping can cause non-deterministic model routing between calls, making outputs inconsistent and debugging nearly impossible.",
+        "location": "FR-4 (automatic fallback); Risks (preview instability)",
+        "recommendation": "Define fallback state machine with cooldown window, minimum healthy probes before restore, and sticky session behavior.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Kill-switch behavior is internally contradictory (alias rollback vs endpoint forcing).",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The PRD states the kill-switch must operate at alias resolution only, but FR-1 test criteria also says it should force /chat/completions for gpt-5.5. If implemented incorrectly, incident rollback will create guaranteed 400 failures for gpt-5.5 traffic.",
+        "location": "FR-1 Acceptance Criteria; Risks & Mitigation (kill-switch notes)",
+        "recommendation": "Resolve to one contract: alias-level rollback only. Remove endpoint-force language and add explicit negative test asserting kill-switch does NOT alter endpoint routing logic.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-009",
+        "concern": "SSOT-to-generated-map synchronization is not transactionally enforced, risking runtime drift between Python and bash call paths.",
+        "severity": "CRITICAL",
+        "severity_score": 820,
+        "why_matters": "If model-config.yaml changes land without regenerated maps (or vice versa), different execution paths can resolve models/costs differently, causing hard-to-diagnose production bugs.",
+        "location": "FR-2 Acceptance Criteria (map regeneration); Technical Constraints (Bash + Python consume SSOT)",
+        "recommendation": "Make map generation a mandatory CI gate with checksum verification and fail merges when generated artifacts are stale.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Unknown /v1/responses output shapes are configured to hard-fail, creating outage risk on provider contract evolution.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "OpenAI can introduce new block types; immediate UnsupportedResponseShapeError would break production flows even when a usable text answer exists.",
+        "location": "Scope (unknown future object types); Technical Considerations §3.1",
+        "recommendation": "Add forward-compatible parsing: preserve known blocks, ignore unknown non-critical blocks with WARN telemetry, and fail only when no valid content can be extracted.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Using rolling model aliases as production defaults without a canary strategy creates uncontrolled behavior drift.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Provider-side behavior can change without code changes. A sudden model update could impact quality, latency, safety, or cost across all users simultaneously.",
+        "location": "Constraints (Snapshot pinning policy); Compliance (Stay rolling)",
+        "recommendation": "Add staged rollout requirements: canary cohort, percentage-based rollout, and automatic rollback thresholds for error/cost/latency regressions.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:35:21Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:39:52Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real correctness gap with clear operational impact. If stream=true behavior is undefined, clients can get silent misbehavior or cost surprises. Low effort to document and enforce at adapter boundary with explicit error semantics.",
+        "gpt_score": 880,
+        "opus_score": 920,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 900,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical control-plane ambiguity. A single precedence table across kill-switch, user overrides, denylist, flags, and legacy maps is essential for incident response and predictable runtime behavior. High ROI and straightforward to add.",
+        "gpt_score": 920,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 40,
+        "average_score": 900,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable, but 'lock pricing at PRD time' can be brittle if vendor pricing changes. Best version is owner/date-bound pricing snapshots plus update policy. Strongly improves verifiability of cost-cap and changelog requirements.",
+        "gpt_score": 720,
+        "opus_score": 810,
+        "tertiary_score": 960,
+        "delta": 90,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important runtime design gap. Demotion/recovery without TTL, probe cadence, and scope definitions causes flaky failover behavior. Actionable as a small state-machine spec with acceptance tests.",
+        "gpt_score": 870,
+        "opus_score": 830,
+        "tertiary_score": 920,
+        "delta": 40,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good domain-specific compatibility check. Tool-call ID and argument shape mismatches are subtle but break agents in production. Golden fixtures and explicit compatibility criteria are practical and valuable.",
+        "gpt_score": 760,
+        "opus_score": 720,
+        "tertiary_score": 880,
+        "delta": 40,
+        "average_score": 740,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Conflicting requirement for `reasoning` alias target (`gpt-5.5-pro` vs `gpt-5.5`) creates ambiguous implementation.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The PRD specifies two different expected outcomes (Goals G-2 says `reasoning -> gpt-5.5-pro`, FR-2 says `reasoning -> gpt-5.5`). Teams can implement opposite behaviors, causing failed acceptance tests, cost surprises, and release delays.",
+        "location": "Goals & Success Metrics (G-2) vs Functional Requirements FR-2",
+        "recommendation": "Resolve to a single canonical behavior and update all sections/tests/changelog language to match that decision before implementation starts.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Contradictory `endpoint_family` behavior (strict validation fail vs default-to-chat fallback) risks undefined routing behavior.",
+        "severity": "CRITICAL",
+        "severity_score": 905,
+        "why_matters": "FR-1 requires missing `endpoint_family` to fail validation, while Architecture Notes still mention defaulting to `chat` if absent. This can cause production/runtime mismatch, silent misroutes, or CI passing while real calls fail.",
+        "location": "FR-1 Acceptance Criteria vs Technical Considerations > Architecture Notes",
+        "recommendation": "Choose one policy (strict required is safer), remove contradictory text, and enforce via a single validation path plus migration lint in CI.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Gemini fallback depends on probe-state transitions, but request-time failure modes are not covered.",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Preview models can fail intermittently (429/5xx/timeout) while probe still says AVAILABLE. Without request-level retry/demotion policy, `fast-thinker` can still fail in real workloads despite configured fallback chains.",
+        "location": "FR-4 Acceptance Criteria (probe-driven demotion design)",
+        "recommendation": "Add runtime fallback rules for transient/provider errors (with bounded retries and cooldown), not only probe status transitions.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Per-session cost cap is underspecified (session identity, concurrency, multi-process accounting), making guardrails unreliable.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "If 'session' boundaries are not deterministic, the cost cap can be bypassed or over-triggered. In parallel runs or subprocess-heavy workflows, spend can exceed intended limits despite guardrails existing on paper.",
+        "location": "FR-5a and FR-5 (`max_cost_per_session_micro_usd` requirements)",
+        "recommendation": "Define session scope, storage backend, concurrency model, and reset semantics; add tests for parallel invocations and process restarts.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Pricing source-of-truth is unstable (`live-fetch during sprint`) and can desynchronize ledger math from committed config.",
+        "severity": "HIGH",
+        "severity_score": 705,
+        "why_matters": "If provider pricing changes between implementation and release, billing calculations and comparison tables can become inaccurate or non-reproducible, undermining trust in cost guardrails.",
+        "location": "FR-3 Acceptance Criteria and KPI/CHANGELOG cost comparison requirements",
+        "recommendation": "Pin pricing snapshots at release cut time, record retrieval timestamp/source, and add automated checks for stale pricing metadata.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Unknown `/v1/responses` output types hard-fail (`UnsupportedResponseShapeError`) with no degraded path or feature flag fallback.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "OpenAI can introduce new output block types without notice. Hard-fail behavior can create sudden production outages rather than partial functionality.",
+        "location": "Scope section: 'Future OpenAI response object types' behavior",
+        "recommendation": "Implement a safe-degradation parser mode (extract known text/tool blocks, preserve unknown blocks in metadata, warn loudly) behind a strictness flag.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:39:52Z",
+    "metrics": {
+      "total_latency_ms": 218000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T05:44:32Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real and high-risk gap: schema/migration ordering can break validation during rollout if not explicitly staged. The proposed fix is concrete (separate migration step, gating/flag, or version bump) and cheap relative to outage risk.",
+        "gpt_score": 920,
+        "opus_score": 870,
+        "tertiary_score": 950,
+        "delta": 50,
+        "average_score": 895,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Valuable for auditability and reproducible cost analysis, especially since several requirements depend on numeric comparisons. Trade-off: hardcoded pricing in PRDs can stale quickly, so a 'frozen snapshot reference' is better than embedding many mutable numbers inline.",
+        "gpt_score": 710,
+        "opus_score": 820,
+        "tertiary_score": 980,
+        "delta": 110,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong operational improvement. Kill-switch precedence ambiguity is a classic incident-time failure mode; explicitly defining env-vs-config precedence and layer order is low effort and high reliability payoff.",
+        "gpt_score": 830,
+        "opus_score": 780,
+        "tertiary_score": 920,
+        "delta": 50,
+        "average_score": 805,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Practical reliability gap: endpoint changes often alter rate-limit and timeout behavior. Reusing old retry policy without explicit validation is risky. Moderate implementation cost, meaningful production impact.",
+        "gpt_score": 760,
+        "opus_score": 720,
+        "tertiary_score": 820,
+        "delta": 40,
+        "average_score": 740,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "High-value clarification with very low cost. If streaming is out of scope, the request contract must explicitly disable it; otherwise behavior can fail in subtle ways. This is precise and easy to enforce in tests.",
+        "gpt_score": 800,
+        "opus_score": 760,
+        "tertiary_score": 940,
+        "delta": 40,
+        "average_score": 780,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Alias-level kill-switch may not protect users who call concrete model IDs directly",
+        "severity": "HIGH",
+        "severity_score": 725,
+        "why_matters": "Rollback assumes alias resolution control, but some downstream consumers may bypass aliases. Incident recovery could be partial, leaving mixed behavior during outages.",
+        "location": "Executive Summary kill-switch design and FR-1 acceptance criteria",
+        "recommendation": "Document and test rollback behavior for direct model-id users; add an optional provider/model deny policy switch for emergency hard blocks.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Cost-safe default claim is undermined by gpt-5.5 still using /v1/responses with potential reasoning_tokens billing",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "PRD asserts gpt-5.5 (non-pro) is cost-safe but doesn't confirm whether non-pro gpt-5.5 returns reasoning_tokens or not. If it does (even at lower volume), the 'cost-safe default' claim is false and downstream consumers who pin-bump will see unexpected cost increases. Probe evidence cited only confirms gpt-5.5-pro returns reasoning_tokens.",
+        "location": "FR-2, §3.1 Response Contract Matrix, Executive Summary",
+        "recommendation": "Before Sprint 2 merge, run a controlled cost-comparison probe (same prompt, gpt-5.3-codex vs gpt-5.5 vs gpt-5.5-pro) and document actual delta. If gpt-5.5 returns reasoning_tokens at any volume, update CHANGELOG with concrete numbers, not '~Δ%' placeholder.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Eight caller files updated by hand creates drift risk; SSOT-derived generation incomplete",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "PRD says 'eight files hardcode gpt-5.3-codex' and they will be 'updated to reference new defaults via SSOT-derived generated-model-maps.sh'. But hardcoded yq fallback strings, agent bindings, and doc samples are NOT auto-generated — they're manually edited. One missed file = silent inconsistency where some code paths use new alias, others use old.",
+        "location": "FR-2 acceptance criteria, Problem Statement 'Current State'",
+        "recommendation": "Add a CI check / pre-merge bats test that greps for literal 'gpt-5.3-codex' across the repo and fails if found outside allowlisted locations (registry self-map entry, backward-compat tests, CHANGELOG history). Make the allowlist explicit in the test.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Fail-fast reliability requirement conflicts with automatic Gemini fallback demotion behavior",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "NFR says UNAVAILABLE should fail-fast with no silent fallback, but FR-4 introduces automatic fallback. This contradiction can produce unpredictable runtime behavior and debugging confusion.",
+        "location": "Non-Functional Requirements: Reliability vs FR-4 acceptance criteria",
+        "recommendation": "Define a single policy matrix per provider/model class (fail-fast vs fallback) and enforce it explicitly in config schema and tests.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Guardrail ordering is ambiguous: Sprint 2 introduces cost primitives but Sprint 2 also flips high-traffic aliases",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "Any sequencing mistake inside Sprint 2 can expose users to unexpected cost spikes before caps/denylist are active, especially in multi-PR merges.",
+        "location": "FR-2, FR-5a, Timeline Sprint 2 deliverables",
+        "recommendation": "Split Sprint 2 into enforceable sub-milestones with CI gates: (1) guardrails merged and released first, (2) alias flips enabled only after guardrail verification in a tagged build.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Response parsing is brittle to unrecognized /v1/responses shapes and currently fails hard on unknown output types",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "The PRD explicitly limits support to six observed shapes and raises UnsupportedResponseShapeError for anything else. If OpenAI adds or changes a shape, core reviewer/reasoning flows can break immediately in production.",
+        "location": "Technical Considerations §3.1 and Scope: 'Future OpenAI response object types... out of scope'",
+        "recommendation": "Add a forward-compatible parser path (capture raw block + degrade gracefully), contract-version monitoring, and canary tests against live /v1/responses to detect drift before broad rollout.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Rolling-model policy introduces nondeterministic quality/cost changes after release",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Using rolling aliases for runtime means behavior can change without repo changes, reducing reproducibility and making regressions hard to root-cause.",
+        "location": "Constraints: Snapshot pinning policy and Compliance: Stay rolling",
+        "recommendation": "Add optional runtime snapshot pin mode for production/CI and automated drift alerts when upstream model metadata or behavior changes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Session cost-cap semantics are underdefined (what is a session across concurrent agents/processes?)",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Without strict scoping, max_cost_per_session_micro_usd may under-enforce or over-enforce. In distributed CI or parallel workflows, budgets can be bypassed or trigger false stops.",
+        "location": "FR-5a and FR-5 optional cost cap requirements",
+        "recommendation": "Specify session identity, lifecycle, concurrency semantics, and persistence boundaries; add integration tests for parallel calls and process restarts.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T05:44:32Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T06:06:35Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Valuable and actionable. Mutable per-instance fallback state without declared threading semantics is a real correctness risk under concurrent use. Specifying single-threaded assumption or required locking/thread-local behavior would prevent subtle race bugs.",
+        "gpt_score": 780,
+        "opus_score": 880,
+        "tertiary_score": null,
+        "delta": 100,
+        "average_score": 830,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical gap with direct financial impact. 'Enforce on next call' is not a hard cap and can violate operator expectations badly on expensive models. Pre-call estimate behavior and over-cap handling should be explicitly defined.",
+        "gpt_score": 920,
+        "opus_score": 760,
+        "tertiary_score": null,
+        "delta": 160,
+        "average_score": 840,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-value operability fix. Cache file missing/corrupt/stale is a normal production condition, and unspecified behavior here can cause outages or unpredictable routing. Clear fail-open/fail-closed rules are essential.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "tertiary_score": null,
+        "delta": 60,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Fallback hysteresis state is per-process and non-persistent, causing inconsistent behavior in multi-process environments",
+        "severity": "HIGH",
+        "severity_score": 715,
+        "why_matters": "Different processes will disagree on demotion/recovery timing, leading to route flapping, inconsistent latencies, and hard-to-debug incident behavior.",
+        "location": "Section 3.5 hysteresis state decision; Section 5.8 `_resolve_active_model`",
+        "recommendation": "Persist fallback state (shared store/file with lock) or explicitly scope and document single-process guarantees.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "OpenAI response parsing is intentionally fail-loud on unknown output types without degradation path",
+        "severity": "CRITICAL",
+        "severity_score": 865,
+        "why_matters": "If OpenAI introduces a new output type, production calls can start failing immediately with UnsupportedResponseShapeError, causing broad outage for routed aliases.",
+        "location": "Section 5.4 Response Contract Matrix; Section 6.1 Unsupported response",
+        "recommendation": "Introduce a guarded compatibility mode: preserve unknown blocks in metadata, continue with known text/tool content, and alert loudly instead of hard-failing by default.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Per-session cost cap enforcement is non-atomic and can overspend before blocking",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The design checks cap after ledger writes and only raises on the next invocation. A single large call or concurrent calls can exceed budget by a large margin before any stop condition, creating uncontrolled cost exposure.",
+        "location": "Section 1.4.4 Cost-Cap Enforcer; Section 5.5 billing semantics",
+        "recommendation": "Add pre-flight cost estimation + hard pre-call guardrail, and make cap checks atomic across concurrent writers (file lock or centralized budget state).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Probe cache trust boundary is undefined; fallback routing can be manipulated via local file tampering",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Google fallback decisions read `.run/model-health-cache.json` each request. If that file is stale/corrupt/tampered, traffic can be silently diverted to unintended models, impacting reliability and cost.",
+        "location": "Section 1.4.2 Google Adapter; Section 3.5 fallback behavior; Section 1.9 Security Architecture",
+        "recommendation": "Define file ownership/permissions, integrity validation (schema + timestamp freshness), and fail-safe behavior when cache is invalid.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Strict `endpoint_family` validation can create immediate post-upgrade outages for operators with custom OpenAI model blocks",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "The migration depends on all operator-defined OpenAI entries being updated. Documentation-only mitigation means first run after update can hard fail in production workflows.",
+        "location": "Section 3.3 migration policy; Section 3.4 strict validation; Risk R-S1",
+        "recommendation": "Provide an automated migrator/linter in update flow and a temporary compatibility grace mode with explicit deadline.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " author architecture designer deep",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T06:06:35Z",
+    "metrics": {
+      "total_latency_ms": 220000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T09:36:44Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real release blocker disguised as a TODO. Adding a hard merge gate for unresolved pricing values is low effort and directly protects FR-3 and cost-ledger correctness.",
+        "gpt_score": 890,
+        "opus_score": 850,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Excellent operational hardening item. Missing/corrupt/stale cache handling is a common runtime path, and explicit behavior here prevents undefined request-time failures.",
+        "gpt_score": 840,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 20,
+        "average_score": 830,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Important and domain-correct concern: cost-cap enforcement is concurrency-sensitive. Specifying async-safe locking and in-flight budget semantics adds complexity but is worth it for cost-control integrity.",
+        "gpt_score": 760,
+        "opus_score": 780,
+        "tertiary_score": 980,
+        "delta": 20,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "High-impact gap: fallback behavior for 429/5xx is central to reliability and currently ambiguous. Clarifying this will materially improve runtime resilience in common failure modes.",
+        "gpt_score": 860,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 20,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Alias retarget precedence is counterintuitive: `prefer_pro_models` can overwrite explicit user alias overrides unless denylisted, increasing surprise and incident risk.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Operators typically expect explicit user overrides to be highest precedence. Current semantics can unintentionally route critical workloads to expensive or behaviorally different models.",
+        "location": "Sections 5.9 and 5.10: Tier-group application and precedence",
+        "recommendation": "Invert precedence so explicit user alias overrides win by default, and add an explicit `force_retarget` list for opt-in aggressive behavior.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Default `strict` behavior for unknown `/v1/responses` shapes creates a single-vendor contract fragility that can trigger production-wide failures when OpenAI adds new output types.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Provider-side response evolution is common. Failing loud is safe for correctness but can still halt all traffic unexpectedly, especially with no auto-canary mechanism.",
+        "location": "Section 5.4.1: Unknown-shape degradation policy",
+        "recommendation": "Introduce staged rollout policy: default to strict in CI and canary, degrade in production with alerting, plus automated fixture capture for unknown types and a feature flag with expiry.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Per-session cost cap is not globally enforced across multi-process workflows unless operators manually align `trace_id` and shared ledger usage.",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Real Loa runs may fork/parallelize. Independent process caps can multiply spend far beyond intended safety limits, undermining FR-5a financial guardrails.",
+        "location": "Section 1.4.4: Cost-Cap Enforcer concurrency note",
+        "recommendation": "Define a mandatory shared budget scope (run_id/session_id) propagated automatically across subprocesses; fail closed when cap configured but shared coordination is unavailable.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Probe cache trust checks rely on file owner/mode assumptions that may fail in containers, CI runners, or shared volumes, causing fallback logic to silently degrade to UNKNOWN behavior.",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Security hardening can accidentally become reliability regression. If trust checks fail often in valid deployments, fallback chain becomes ineffective during outages.",
+        "location": "Section 3.5: Probe cache trust boundary",
+        "recommendation": "Specify deployment-compatible trust model (UID namespaces, container users), add signed cache or checksum-based integrity, and expose health status when trust checks disable fallback.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Strict `endpoint_family` validation can hard-fail upgraded operator environments with custom OpenAI model entries, and the compatibility env fallback has no enforced sunset or telemetry.",
+        "severity": "CRITICAL",
+        "severity_score": 905,
+        "why_matters": "A config-load failure on first run after upgrade is an operational outage. The stopgap (`LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat`) may become permanent hidden debt because there is no removal trigger or migration tracking.",
+        "location": "Section 3.4: Endpoint family strict validation + operator-migration backstop",
+        "recommendation": "Add explicit deprecation lifecycle: warning counter metrics, CI check for fallback usage, hard removal version, and a pre-upgrade validator command that blocks rollout until custom configs are migrated.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " author architecture designer deep",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T09:36:43Z",
+    "metrics": {
+      "total_latency_ms": 12408000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T09:52:28Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Excellent gap identification. Replacing subjective soak exit language with quantitative gates materially improves release safety and decision consistency at very low implementation cost.",
+        "gpt_score": 900,
+        "opus_score": 860,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 880,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value operational improvement. A soak window without named decision authority, escalation path, and response expectations is a real execution risk.",
+        "gpt_score": 870,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 10,
+        "average_score": 875,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical architecture concern. Single-process locking is insufficient in multi-worker production, so clarifying true cap semantics or adding cross-process coordination is important and domain-appropriate.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 80,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Strong test-gap catch. Kill-switch precedence is exactly the kind of incident-time edge case that needs explicit regression coverage, and cost to add is minimal.",
+        "gpt_score": 780,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 40,
+        "average_score": 800,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Technically sensible but low ROI as a sprint gating requirement. A 24-hour pre-sprint live smoke may add process overhead and flakiness relative to the benefit.",
+        "gpt_score": 340,
+        "opus_score": 790,
+        "tertiary_score": 930,
+        "delta": 450,
+        "average_score": 565,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Cost-cap enforcement is only process-local atomicity (threading.Lock), but described as hard protection for session spend.",
+        "severity": "CRITICAL",
+        "severity_score": 895,
+        "why_matters": "In multi-process or distributed executions, concurrent calls can bypass the intended cap and create significant overspend before reconciliation.",
+        "location": "Sprint 2 Task 2.7; Sprint 2 Risks (soft-cap nature); Security Considerations",
+        "recommendation": "Use cross-process/distributed locking or centralized budget service for true cap guarantees, and explicitly label current behavior as best-effort in user-facing docs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Default strict failure on unknown /v1/responses shape creates a deliberate availability risk without automated graceful fallback.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "A new response shape can trigger runtime failures on live traffic; requiring operators to preconfigure degrade mode is operationally brittle.",
+        "location": "Sprint 1 Task 1.6; Risks ('7th shape arrives'); Acceptance Criteria",
+        "recommendation": "Add controlled automatic fallback behavior (e.g., degrade with high-severity alert) or fast remote toggle so production does not hard-fail on first unseen shape.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Sprint scope is likely overpacked for the stated timeline (two LARGE 2.5-day sprints plus broad test, docs, integration, and migration work).",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "A schedule miss on Sprint 1 or 2 blocks the critical path and compresses soak/validation, increasing the probability of shipping unstable routing and alias defaults.",
+        "location": "Executive Summary; Sprint 1/2 Duration; Success Metrics",
+        "recommendation": "Re-baseline capacity with historical throughput, split non-critical items (e.g., some docs and optional tests) into follow-up tickets, and define explicit de-scope rules before Sprint 1 starts.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The 'same-commit migration invariant' may fail in real deployment pipelines where code and config are rolled out non-atomically.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "If strict validation activates before all OpenAI entries include endpoint_family in a running environment, startup/config load failures can cause outages.",
+        "location": "Migration ordering invariant; Sprint 1 Tasks 1.2/1.3; Risks table",
+        "recommendation": "Implement a temporary compatibility window (feature flag or phased validator mode) and add a deployment-order runbook for non-atomic rollout environments.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The plan assumes external API contracts and preview models stay stable during implementation (OpenAI /v1/responses and Gemini 3 preview).",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Upstream contract drift can break production despite green fixture-based CI, especially with strict parsers and preview model dependencies.",
+        "location": "Sprint 1 Dependencies; Sprint 2 Dependencies; Risk Register R-1/R-9",
+        "recommendation": "Add runtime canary checks and contract-version telemetry, plus a rapid disable/fallback path per provider that does not require code deploy.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " executive summary sprint sizing",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T09:52:28Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-29T09:58:43Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real operational gap: Sprint 1 can ship independently, so rollback criteria must exist for the Sprint-1-only failure window. The current degrade policy is not equivalent to rollback guidance. Actionable and low cost to document.",
+        "gpt_score": 860,
+        "opus_score": 840,
+        "tertiary_score": 950,
+        "delta": 20,
+        "average_score": 850,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong improvement. Partial-metric failure handling is where release gates usually become subjective. A named decision tree with waiver rules and thresholds would materially improve consistency and SLA execution.",
+        "gpt_score": 820,
+        "opus_score": 720,
+        "tertiary_score": 920,
+        "delta": 100,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Valuable reliability hardening. Corrupted persisted state is a realistic failure mode, and behavior should be deterministic. Not as critical as routing/concurrency, but still important and implementable with clear fallback semantics.",
+        "gpt_score": 740,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 40,
+        "average_score": 760,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-003",
+        "description": "Critical technical precision issue. `threading.Lock` alone is insufficient if async execution is possible; mixed sync/async atomicity must be explicitly defined. High impact, domain-accurate, and directly actionable in design + tests.",
+        "gpt_score": 910,
+        "opus_score": 520,
+        "tertiary_score": 900,
+        "delta": 390,
+        "average_score": 715,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Atomic migration assumption is brittle outside ideal submodule update flows",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The plan assumes code+config always move together, but downstream teams may cherry-pick, vendor files, or stage partial rollouts. If strict `endpoint_family` validation lands before full config migration in those environments, startup/config validation failures can block production usage.",
+        "location": "Migration ordering invariant (load-bearing), Sprint 1 Tasks 1.2-1.3",
+        "recommendation": "Add a transitional compatibility mode with explicit deprecation window, plus a preflight migration command that rewrites missing `endpoint_family` fields before strict mode is enforced.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Cost-cap enforcement is explicitly per-process, creating uncontrolled aggregate spend in parallel workloads",
+        "severity": "CRITICAL",
+        "severity_score": 940,
+        "why_matters": "The plan acknowledges soft semantics across processes, but enterprise CI and multi-runner environments are exactly where budget overruns happen. Per-process caps can still produce severe total overspend and erode trust in guardrails.",
+        "location": "Sprint 2 Security Considerations: Cost-cap atomicity semantics; Task 2.7",
+        "recommendation": "Implement optional shared, transactional budget backend (file lock + shared ledger minimum; redis/sql preferred) and make distributed mode mandatory when concurrency >1 is detected.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Frozen pricing snapshots can make pre-call estimates materially wrong, breaking both cap accuracy and billing expectations",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "If provider prices change after freeze, pre-call guardrails may under-block (overspend risk) or over-block (availability risk). This also invalidates cost comparisons and can trigger operational incidents.",
+        "location": "Sprint 2 Task 2.3, Task 2.4, Security Considerations (pricing frozen into YAML)",
+        "recommendation": "Add price versioning with validity timestamps and runtime stale-price warnings; support optional periodic price refresh with signed snapshot updates.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Removing `probe_required: true` for gpt-5.5 in Sprint 2 weakens fail-fast guarantees at the exact moment defaults flip",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "You are increasing traffic to new defaults while simultaneously reducing health-gating strictness. Provider-side regressions could degrade behavior or create intermittent failures before detection, especially during rollout.",
+        "location": "Sprint 2 Deliverables and Task 2.1",
+        "recommendation": "Keep `probe_required` enabled through soak, then remove only after stability evidence. Alternatively gate alias flip behind probe health threshold over a rolling window.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Strict unknown-shape failure on `/v1/responses` is an availability risk under provider drift",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "The plan intentionally fails loudly for a 7th shape, which is safe for correctness but can cause immediate outages when OpenAI evolves response schema. Opt-in degrade mode may be unknown to operators until failure occurs.",
+        "location": "Sprint 1 Task 1.6, Risks table (`7th /v1/responses shape arrives`)",
+        "recommendation": "Introduce guarded degrade-by-default in production with telemetry, and strict mode in CI/test. At minimum, add automatic fallback path plus alerting before hard-fail.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Timeline is likely underestimated for scope and cross-cutting complexity",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "26 tasks across adapters, loader, metering, CLI, generated maps, docs, multiple new integration tests, and external provider probes in ~5 calendar days is aggressive. Schedule slip threatens soak quality and increases defect leakage.",
+        "location": "Executive Summary (Estimated Completion 2026-05-05), Sprint sizing and durations",
+        "recommendation": "Reduce scope for Cycle-095 (defer non-critical surfaces like full dry-run lineage), or add buffer and explicit hardening sprint before Sprint 3 activation.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " executive summary sprint sizing",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-29T09:58:43Z",
+    "metrics": {
+      "total_latency_ms": 221000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

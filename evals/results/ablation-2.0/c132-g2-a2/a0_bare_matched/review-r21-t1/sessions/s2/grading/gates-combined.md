@@ -1,0 +1,16 @@
+head/.claude/skills/bridgebuilder-review/resources/config.ts:482
+endpoint_policy.py:50
+head/.claude/skills/bridgebuilder-review/resources/config.ts:685
+head/.claude/skills/bridgebuilder-review/resources/config.ts:663
+head/.claude/skills/bridgebuilder-review/resources/config.ts:726
+multi-model-reference.md:102
+head/.claude/scripts/lib/hop-locality.py:116
+audit/modelinv.py:476
+providers/openai_adapter.py:221
+head/.claude/scripts/model-health-probe.sh:1546
+scripts-reference.md:73
+.loa.config.yaml.example:818
+head/.claude/scripts/flatline-orchestrator.sh:707
+head/.claude/skills/auditing-security/SKILL.md:238
+head/.claude/skills/reviewing-code/SKILL.md:252
+head/.claude/scripts/adversarial-review.sh:3893

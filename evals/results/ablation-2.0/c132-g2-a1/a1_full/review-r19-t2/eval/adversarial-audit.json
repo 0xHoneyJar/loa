@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementing-tasks skill's app-zone permission is widened from `read` to `read-write`. The diff carries no origin, DEC row or test for this change, and it lands inside an otherwise unrelated guard-register PR. The GLOSSARY entry added in the same diff still states the App zone 'needs confirmation before a write', and the skill-invariants rule in this diff relies on zones as the path-level barrier for subagent work where `disallowed-tools` does not hold.",
+      "failure_mode": "Writes to src/, lib/ and app/ from this skill (and any subagent it forks) are now treated as sanctioned by the zone layer, so the zone barrier that the invariants rule names as the only effective control for subagents is removed for application code without an auditable decision.",
+      "suggested_fix": "Either revert to `read` or record the widening explicitly: add a DEC row / origin reference, update the GLOSSARY Zone entry if confirmation is no longer required under /implement, and add a bats assertion that only implementing-tasks (and any other sanctioned implementation skill) declares app read-write.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 46,
+      "anchor_line_end": 50,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_guards",
+      "cross_file_justification": "floor.yaml (new in diff) declares 16 fence:* floor guards whose only implementation is .claude/hooks/safety/block-destructive-bash.sh (touched in diff) and whose only activation is the PreToolUse:Bash registration in .claude/settings.json (listed in guard-origins.yaml, new in diff). Neither file is in floor_files.",
+      "description": "The floor is described as 'the set of guards, config keys and files no profile, knob or cycle task may weaken', and floor-snapshot.bats checks that floor_files are byte-identical to origin/main. But floor_files omits (a) block-destructive-bash.sh, which implements every fence:FR-SZ* and fence:FR-1.2b floor guard, (b) .claude/settings.json, whose hook registration is the only thing that arms the fence, and (c) guard-origins.yaml, so a cycle can flip `floor: true` rows along with the sha pin. floor_corpus pins corpus rows but tests/fixtures/fence-corpus/run-corpus.sh (in this diff) is not pinned either. Separately, all 16 fence floor guards share the knob LOA_ALLOW_STATE_ZONE_EXEC_WRITE, an environment variable that floor_keys (config keys only) cannot cover.",
+      "failure_mode": "A cycle task can remove or weaken a floor fence pattern in block-destructive-bash.sh, drop the PreToolUse:Bash registration, or adjust run-corpus.sh so the pinned corpus still passes, while floor-snapshot.bats and guard-origins.bats stay green. The floor then asserts protection it does not provide.",
+      "suggested_fix": "Add .claude/hooks/safety/block-destructive-bash.sh, .claude/settings.json (or at least a hooks-registration assertion), .claude/data/guard-origins.yaml and tests/fixtures/fence-corpus/run-corpus.sh to floor_files, or add a bats check that the hook remains registered on PreToolUse:Bash and that every `floor: true` guard still has a `# @guard` marker. Document that LOA_ALLOW_STATE_ZONE_EXEC_WRITE is an audited bypass outside the floor's reach.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "line",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "emit_block and the three allow/bypass audit writers now append `replay: true` to the .run/audit.jsonl row whenever the environment variable LOA_AUDIT_REPLAY equals '1'. The yield consumer (guard-yield.sh, truncated from this review) presumably excludes replay rows from real_blocks_30d. The tag is sourced from an unauthenticated environment variable rather than from the replay harness itself.",
+      "failure_mode": "If LOA_AUDIT_REPLAY=1 leaks into the hook environment (a settings `env` block, a shell profile, a CI job, or a run-corpus invocation that forgets to unset it), every real block and every FR-SZ/FR-MERGE-2 override is recorded as replay and silently disappears from the guard yield and from any audit review that filters on it.",
+      "suggested_fix": "Have the replay harness write to a separate audit file (e.g. set LOA_REPO_ROOT to a temp dir, which the code already supports) instead of tagging rows, or additionally record the hook's parent process / cwd so replay rows can be distinguished without trusting the variable. At minimum, have guard-yield.sh report the replay-row count rather than dropping it silently.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:checklists",
+      "anchor_type": "line",
+      "anchor_line": 284,
+      "anchor_line_end": 284,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The inline red-flag list (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) is removed from the reviewing-code prompt and replaced by a bare pointer to resources/REFERENCE.md. The zone-constraints block is likewise reduced to a pointer. These look like prompt-budget cuts (check-prompt-budget workflow is in this diff).",
+      "failure_mode": "The model-facing review prompt no longer names the concrete security anti-patterns it must look for; whether REFERENCE.md is actually loaded on each review depends on the model following the pointer, so secret and injection red flags become easier to miss in unattended runs.",
+      "suggested_fix": "Keep a one-line enumerated red-flag list in the prompt (it is a few dozen bytes) or make REFERENCE.md a declared `inputs:` path so it is loaded mechanically rather than by instruction.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T07:43:20Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 6319,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

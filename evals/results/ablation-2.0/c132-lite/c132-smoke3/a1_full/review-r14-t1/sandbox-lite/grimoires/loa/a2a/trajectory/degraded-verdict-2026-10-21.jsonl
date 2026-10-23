@@ -1,0 +1,2 @@
+{"gate":"adversarial-review:review","verdict_band":"FAILED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-1","ts":"2026-10-21T14:29:34Z","model_exit_code":126,"degraded_legs":["claude-headless"]}
+{"gate":"adversarial-review:audit","verdict_band":"FAILED","degradation_reason":"ProviderUnavailable","sprint_id":"sprint-1","ts":"2026-10-21T14:39:19Z","model_exit_code":126,"degraded_legs":["claude-headless"]}

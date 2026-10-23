@@ -1,0 +1,571 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-18T13:02:04Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real and critical gap for a schema-first design. Without a formal DSL grammar/type system, codegen contracts will diverge across languages. Highly actionable and foundational.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 950,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Core reproducibility risk. Hashing without a pinned canonicalization spec is a correctness bug, not a preference. Low effort, very high impact; should be specified normatively.",
+        "gpt_score": 940,
+        "opus_score": 820,
+        "tertiary_score": 980,
+        "delta": 120,
+        "average_score": 880,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Required to make shadow-gating implementable. Current '>N% divergence' is undefined and cannot be operated reliably. Some design effort needed, but high ROI.",
+        "gpt_score": 890,
+        "opus_score": 780,
+        "tertiary_score": 920,
+        "delta": 110,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important rigor for claimed protobuf-style compatibility. The document states guarantees without codifying migration rules. High value, moderate complexity, worth adding now.",
+        "gpt_score": 840,
+        "opus_score": 810,
+        "tertiary_score": 960,
+        "delta": 30,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "One of the biggest practical risks in LLM systems. Golden evaluation semantics must handle stochastic output or tests become noisy/useless. Highly domain-appropriate and actionable.",
+        "gpt_score": 920,
+        "opus_score": 720,
+        "tertiary_score": 960,
+        "delta": 200,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Strong operational gap: failure semantics determine safety and reliability in production. Not difficult to specify and avoids ambiguous runtime behavior.",
+        "gpt_score": 790,
+        "opus_score": 750,
+        "tertiary_score": 750,
+        "delta": 40,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Bash-generated accessors and sourced artifacts are a command-injection and unsafe-eval attack surface",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "Calibration content eventually flows into shell-accessible artifacts. Without strict escaping/quoting and provenance enforcement, malicious pack content could trigger shell injection or path traversal when scripts source/generated files.",
+        "location": "Architecture tree (`calibration-accessors.sh`); P4 provenance; Sprint 1/3",
+        "recommendation": "Treat calibration packs as untrusted input: never eval raw values, use safe parsing primitives, lock file paths, and require signature/hash verification before generation or sourcing.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Core-schema vs pack-instance version skew lacks a robust compatibility contract",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "D1/D2 split schema in core and instances in a pack, but no explicit negotiation matrix is defined (min/max schema, required field behavior, deprecated-field deadlines). Pack updates can break older Loa versions or silently downgrade semantics.",
+        "location": "D1 Pack location; D2 Schema versioning",
+        "recommendation": "Define strict compatibility policy: semantic version ranges, capability negotiation, required/optional field handling, and CI checks across supported Loa/pack version pairs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Custom YAML-as-schema + custom code generator creates an unbounded spec surface and parser ambiguity risk",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The design relies on a homegrown schema language and compiler (`gen-calibration-bindings.sh`) instead of a mature IDL toolchain. Edge cases (type coercion, defaults, deprecations, nested repeated types) can diverge across generated Python/bash/JSON Schema outputs and silently corrupt behavior.",
+        "location": "Open Questions; P1 Schema + codegen; Sprint 1",
+        "recommendation": "Either adopt a mature schema system (protobuf/CUE/JSON Schema as source of truth) or formally define the YAML schema grammar, validation rules, and conformance tests before implementation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Custom YAML-as-schema compiler reinvents protobuf poorly",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Writing a bash-based codegen that emits Python dataclasses, bash accessors, JSON Schema, and jq lints from a YAML schema is far more complex than gen-adapter-maps.sh. Type systems have sharp edges (nested messages, repeated fields, optionality, enums, deprecation). Bash is a poor implementation language for a compiler — expect parsing bugs, escaping bugs, and non-deterministic outputs. The RFC downplays this as 'same pattern, richer schema' but richness is exactly where compilers fail.",
+        "location": "Architecture — P1 Schema + codegen; Sprint 1 scope",
+        "recommendation": "Either adopt a real schema tool (JSON Schema + datamodel-codegen, or protobuf) or scope the custom schema to a strict subset with explicit non-support for nested messages. Add a compiler conformance test suite before Sprint 2 depends on bindings.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Determinism and reproducibility assumptions ignore vendor/model nondeterminism and external drift",
+        "severity": "CRITICAL",
+        "severity_score": 865,
+        "why_matters": "Hashing calibration files does not guarantee identical behavior if model weights, API behavior, sampling defaults, tool versions, or hidden provider changes drift. The RFC promises deterministic outcomes that may be unachievable in practice.",
+        "location": "P4 Provenance + content hash; Reproducibility property",
+        "recommendation": "Scope reproducibility claims to configuration determinism only; add explicit runtime capture of model version, API parameters, toolchain versions, and environment fingerprinting.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Golden corpus assumes LLM output is deterministic or gradeable structurally",
+        "severity": "CRITICAL",
+        "severity_score": 820,
+        "why_matters": "LLM outputs are non-deterministic even at temperature 0 across model versions. 'Expected.md' will drift, rubrics will produce false positives/negatives, and bootstrap captures the current output as truth — which just freezes whatever quirks exist today. Regression detection is only 'structural' if rubrics are narrow; narrow rubrics miss semantic regressions; broad rubrics cause flaky failures. This is the entire safety mechanism of the design.",
+        "location": "P2 Golden corpus; Sprint 2",
+        "recommendation": "Define explicitly what 'pass' means for each golden: structural asserts (sections present, token budget) versus semantic (LLM-as-judge). Budget for rubric maintenance as a recurring cost. Pilot goldens on 2 known-divergent model pairs before committing to the pattern.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Golden corpus bootstrap bakes current model behavior into baseline and can institutionalize regressions",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "`--build-goldens` captures current outputs as expected outputs. If the current model posture is flawed, the system canonizes those flaws. This creates a self-referential test suite that can pass while quality degrades.",
+        "location": "P2 Golden corpus (Bootstrap subsection)",
+        "recommendation": "Require human-reviewed acceptance criteria and rubric-first authoring for goldens; prohibit auto-promoting generated outputs without review and sign-off metadata.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Supply-chain protections are deferred, but packs are downloadable and influence behavior immediately",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "Sigstore is out of MVP, yet external pack distribution is part of the architecture. Hash pinning alone does not establish trust identity or revocation. This creates a high-risk window for tampered or impersonated calibration packs.",
+        "location": "P4 Provenance; Out of MVP (Phase 2); D1 pack distribution model",
+        "recommendation": "Move minimum trust controls into MVP: signed manifest requirement, trusted keyring policy, and explicit refusal to apply unsigned packs in hardened mode.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "“Compile-time safety” claim is overstated for bash and runtime-loaded YAML",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Bash bindings are sourced at runtime and cannot provide true static guarantees. Teams may assume invalid calibrations are impossible, but runtime parse/sourcing failures and shell edge cases can still break production paths.",
+        "location": "Why v2; P1; Sprint 1 artifacts (`calibration-accessors.sh`)",
+        "recommendation": "Reframe guarantees as 'pre-apply validation' not compile-time for shell; enforce strict runtime validation gates and fail-closed loading before any skill execution.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-061-calibration-pack.md",
+    "domain": " architecture schema first codegen",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-18T13:02:04Z",
+    "metrics": {
+      "total_latency_ms": 107000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-18T13:14:52Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 7,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical and highly actionable. Shell/jq boundary is a real injection surface, and the RFC’s security claim is not verifiable without concrete encoding/decoding examples and threat model scope. Low-to-moderate doc effort, very high risk reduction.",
+        "gpt_score": 930,
+        "opus_score": 720,
+        "tertiary_score": 950,
+        "delta": 210,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical gap. If the judge is unpinned/stochastic, calibration evaluation becomes non-reproducible and can invalidate divergence decisions. Adding model/version pinning, temperature, token budget, and caching policy is straightforward and has major correctness and cost-control ROI.",
+        "gpt_score": 900,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 20,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong, domain-appropriate statistical concern. Current N and threshold choices can make gate outcomes mostly noise, which undermines trust and encourages force-bypass behavior. Requires some methodology work but is essential for meaningful guardrails.",
+        "gpt_score": 870,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 50,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "High-value engineering hygiene item with clear acceptance criteria. Codegen staleness checks are cheap to implement and prevent silent schema/runtime drift. This should be explicit in CI/pre-commit behavior.",
+        "gpt_score": 810,
+        "opus_score": 780,
+        "tertiary_score": 900,
+        "delta": 30,
+        "average_score": 795,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Good and actionable. Bootstrap golden quality directly affects all downstream evaluation, so authoring standards and a full worked example are important. Moderate process overhead, but strong long-term reliability gain.",
+        "gpt_score": 740,
+        "opus_score": 850,
+        "tertiary_score": 880,
+        "delta": 110,
+        "average_score": 795,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Bash getter safety claims are under-specified and vulnerable to quoting/word-splitting edge cases",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Using jq -r and generated shell wrappers is safer than sourcing, but shell integration remains fragile. Newline/control characters, globbing, and unquoted command substitution can still create injection-like behavior in downstream scripts.",
+        "location": "Architecture: calibration-getters.sh; P1 load-time validation and bash consumption",
+        "recommendation": "Define strict shell contract (set -euo pipefail, IFS handling, required quoting patterns), add adversarial test corpus for shell metacharacters, and provide non-shell API-first usage guidance.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Fail-open behavior for semantic evaluation can approve weak calibrations",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "When judge availability fails, semantic checks are skipped with WARN and execution continues. Structural checks alone are a poor proxy for quality, so regressions can pass unnoticed and be promoted.",
+        "location": "Failure Semantics: 'Golden run fails (semantic judge unavailable) -> Skip semantic checks'",
+        "recommendation": "Make semantic unavailability a hard failure for promotion paths, or require explicit operator override plus risk acknowledgement and delayed automatic re-evaluation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Golden evaluation methodology lacks anti-bias controls for judge-model drift and rubric gaming",
+        "severity": "HIGH",
+        "severity_score": 705,
+        "why_matters": "A single judge model (Opus) scoring semantic quality can drift over time or be gamed by outputs tailored to the judge prompt rather than true task quality. This can create false improvement signals.",
+        "location": "P2 Golden corpus with stochastic-tolerant semantics",
+        "recommendation": "Add judge calibration tests, periodic human spot-audits, dual-judge disagreement checks, and rubric adversarial tests to detect prompt gaming.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "LLM-as-judge creates circular validation dependency",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Using Opus as semantic judge to calibrate Opus (or other models) creates a self-referential loop. If the judge model drifts, all calibrations drift with it silently. The pass_threshold of 7/10 is arbitrary and not validated against human agreement. No inter-rater reliability measurement is specified between judge runs on the same input.",
+        "location": "P2. Golden corpus / Semantic rubric",
+        "recommendation": "Require human-graded baseline for judge calibration, measure judge-vs-human agreement, pin judge model version explicitly with its own hash, and document judge drift detection strategy.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Schema compatibility rules are internally inconsistent and can cause silent reader/writer divergence",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "The contract says adding required fields with defaults is allowed while v1 readers ignore unknown fields. That creates split behavior: some runtimes use defaults, others ignore entirely, producing inconsistent calibration semantics across clients.",
+        "location": "Schema/Instance Compat Contract table; D2 Versioning",
+        "recommendation": "Disallow adding required fields without a version bump, or enforce a single normalization step that materializes defaults before any consumer reads data.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Stochasticity tolerance of N=3 is statistically insufficient",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "N=3 with ≥⌈2N/3⌉=2 pass threshold has enormous variance. A calibration with true 50% pass rate has ~50% chance of 'passing' this test. A true 70% calibration fails ~22% of runs. This will cause flaky CI and false confidence in shadow-eval threshold of 0.15.",
+        "location": "P2. Stochasticity tolerance",
+        "recommendation": "Require minimum N=10 for meaningful rate estimation, or use confidence intervals rather than point thresholds. Document the statistical power of chosen N.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Supply-chain integrity is incomplete because SHA256 without signatures cannot establish publisher authenticity",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "An attacker who can modify pack contents can also recompute and replace calibration_hash and manifest hash fields. Hash checking detects corruption, not malicious re-authoring. This undermines trust in third-party or compromised distribution channels.",
+        "location": "P4 Provenance with specified canonicalization; Phase 2 Sigstore; Non-Goals (no sandbox)",
+        "recommendation": "Move signed provenance (Sigstore or equivalent) into MVP for any non-local pack source, define trust roots, and require signature verification before apply.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-061-calibration-pack.md",
+    "domain": " architecture v3 calibration getters",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-18T13:14:52Z",
+    "metrics": {
+      "total_latency_ms": 124000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-18T13:20:12Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real bootstrap gap and blocks first-time rollout; the circularity control is underspecified without a cold-start protocol. Highly actionable with clear options (human-seeded calibration or explicitly trusted initial judge path).",
+        "gpt_score": 910,
+        "opus_score": 860,
+        "tertiary_score": 950,
+        "delta": 50,
+        "average_score": 885,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong safety/robustness concern: relying on callers to pre-validate is fragile, especially with path-based bash getters. Adding validate-on-read or validated-path registry semantics is concrete and proportionate.",
+        "gpt_score": 790,
+        "opus_score": 880,
+        "tertiary_score": 980,
+        "delta": 90,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High operational ROI: integrity controls fail in practice without a documented pin-rotation workflow. This is a common real-world failure mode and should be specified with ownership and auditability.",
+        "gpt_score": 895,
+        "opus_score": 820,
+        "tertiary_score": 920,
+        "delta": 75,
+        "average_score": 857.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical for adoption: without cost/latency limits and caching, the evaluation gate becomes too expensive and gets bypassed. The recommendation is specific and directly implementable.",
+        "gpt_score": 845,
+        "opus_score": 780,
+        "tertiary_score": 900,
+        "delta": 65,
+        "average_score": 812.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Valuable compatibility hardening: validator/version divergence is a real issue in JSON Schema ecosystems. Pinning a reference validator or conformance suite is sensible, though moderate effort.",
+        "gpt_score": 715,
+        "opus_score": 720,
+        "tertiary_score": 940,
+        "delta": 5,
+        "average_score": 717.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Compatibility policy relies on a custom `onUnknownValue` semantic that standard JSON Schema validators do not enforce.",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Different runtimes may silently ignore this policy, producing inconsistent behavior across Python/TS/bash tooling and breaking the stated reader/writer contract.",
+        "location": "Section: Schema/Instance Compat Contract (loosen enum values policy)",
+        "recommendation": "Define this as a formally versioned extension with mandatory runtime checks in generated validators, plus conformance tests across all supported languages.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Judge model pinning assumes long-term API availability of specific model versions",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Anthropic/OpenAI/Google deprecate model snapshots on 6-12 month cycles. Pinned judge versions WILL become unreachable. Fail-closed with exit 13 means every calibration in the pack becomes unusable when the judge sunsets. No migration path specified for mass re-evaluation when judges deprecate.",
+        "location": "Section P2: Judge model pinning",
+        "recommendation": "Specify judge-deprecation migration process: when pinned judge sunsets, how are historical pass-rates recalibrated? Add `judge_deprecated_fallback` policy and a re-baselining protocol.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Judge-model reproducibility is overstated: model IDs can drift, seeds may be unsupported/ignored, and vendor behavior can change without notice.",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Golden outcomes can become non-repeatable across time/environments, causing false regressions or false passes and undermining trust in calibration quality signals.",
+        "location": "Section: P2 Judge model pinning and stochasticity tolerance",
+        "recommendation": "Add judge snapshotting or archived evaluation traces, periodic re-baselining policy, and explicit 'unsupported determinism' handling per provider.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "LLM-as-judge circularity not fully resolved by cross-family ensemble",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "Using Opus to judge Gemini and vice versa assumes different families have uncorrelated biases, but all frontier LLMs share training data distributions, RLHF patterns, and prose preferences. A calibration that produces verbose, section-heavy outputs may score well across ALL LLM judges while being objectively worse. The whole quality signal could be systematically biased in ways humans won't notice until production degrades.",
+        "location": "Section P2: Golden corpus, LLM-as-judge circularity paragraph",
+        "recommendation": "Require human spot-check sampling (e.g., 10% of judge decisions reviewed quarterly) with tracked inter-rater agreement between human and judge. Define a drift metric and kill-switch if human/judge agreement drops below threshold.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "N=5 stochasticity sampling is statistically inadequate for 0.15 divergence threshold",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "With N=5 invocations per golden, the standard error on a single calibration's pass rate is ~0.22 at p=0.5. The shadow-eval threshold of 0.15 divergence is WITHIN the noise floor. You will see spurious pass/fail decisions from pure sampling variance. Operators defaulting to N=5 will reject good calibrations and accept bad ones roughly at random near the boundary.",
+        "location": "Section P2: Stochasticity tolerance; Section P3: divergence threshold",
+        "recommendation": "Either raise default N to 20+ or make threshold a statistical test (e.g., two-proportion z-test with p<0.05) rather than raw delta. Document the binomial confidence intervals explicitly.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Small default sampling (N=5, min N=3) creates high statistical variance for pass/fail decisions.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Borderline calibrations may randomly pass or fail, especially with stochastic models and limited golden tasks, leading to unstable release decisions.",
+        "location": "Section: P2 Stochasticity tolerance (N invocations and 2N/3 threshold)",
+        "recommendation": "Require confidence-interval based acceptance criteria and adaptive N that increases near threshold boundaries.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Supply-chain authenticity is not solved in MVP; SHA256 only checks integrity of whatever was downloaded.",
+        "severity": "CRITICAL",
+        "severity_score": 940,
+        "why_matters": "An attacker controlling distribution can ship a malicious calibration plus matching hash, and MVP will accept it as valid. This directly undermines trust in applied calibrations.",
+        "location": "Section: Supply-chain scope (v3.1 acknowledgment), MVP vs Phase 2",
+        "recommendation": "Make publisher verification mandatory before apply (Sigstore/cosign or equivalent) or require an allowlisted trusted source with signed release metadata in MVP.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Untrusted pack sandboxing is explicitly out of scope, but pack content still drives runtime behavior and file access paths.",
+        "severity": "CRITICAL",
+        "severity_score": 830,
+        "why_matters": "Without strict path canonicalization and execution isolation, malicious packs can trigger denial-of-service, path traversal, or unsafe operational side effects even if not directly sourced as shell.",
+        "location": "Section: Non-Goals (sandbox untrusted pack content)",
+        "recommendation": "Add minimum hardening now: strict path allowlists, max file size/depth limits, symlink rejection, and sandboxed evaluation process boundaries.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "`--force` override paths can erode fail-closed guarantees and become normal operational practice.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "When judges/Flatline are flaky, teams under pressure will bypass controls, causing low-quality or unsafe calibrations to be applied despite explicit failure semantics.",
+        "location": "Sections: Failure Semantics (exit 13 with --force), P2/P3",
+        "recommendation": "Introduce policy gates for force-use (RBAC, approval requirement, max frequency, auto-expiry) and alerting on every forced apply.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-061-calibration-pack.md",
+    "domain": " architecture v3 calibration getters",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-18T13:20:12Z",
+    "metrics": {
+      "total_latency_ms": 153000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

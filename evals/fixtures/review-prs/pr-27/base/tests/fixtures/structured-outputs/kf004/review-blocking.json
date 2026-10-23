@@ -1,0 +1,16 @@
+{
+  "_case": "KF-004 enforced-valid: review BLOCKING with anchor",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "reviewed",
+    "enforced_rejected": 0,
+    "unenforced_findings": 1,
+    "enforced_findings": 1
+  },
+  "content": "{\"findings\": [{\"id\": \"DISS-001\", \"severity\": \"BLOCKING\", \"category\": \"injection\", \"anchor\": \"cheval.py:cmd_invoke\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"user input reaches a shell\", \"failure_mode\": \"crafted --agent value runs a command\", \"suggested_fix\": \"quote the argument\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

@@ -1,0 +1,1 @@
+{"ts":"2026-10-22T18:21:42Z","tool":"Bash","command":"command -v tsx; ls /workspace/node_modules/.bin/tsx /workspace/.claude/skills/bridgebuilder-review/node_modules/.bin/tsx 2>&1 | head -2; npx --no-install tsx --version 2>&1 | head -2","exit_code":0,"cwd":"/workspace/pr/head/.claude/adapters","model":"","provider":"","trace_id":"","team_id":"","team_member":""}

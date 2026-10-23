@@ -1,0 +1,36 @@
+{
+ "H03": {
+  "base": "A",
+  "reason": "anchors: union; group agreed"
+ },
+ "H12": {
+  "base": "A",
+  "reason": "anchors: union; group agreed"
+ },
+ "H02": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D2",
+  "reason": "class: a helper computed for the group's fix is mechanical; the wrong behaviour's site is where the value is recorded or validated — follow-on (A); the group stays one defect"
+ },
+ "H05": {
+  "base": "A",
+  "reason": "severity: codebook medium (A) — a wrong result on an uncommon path (a fallback hop after the head fails)"
+ },
+ "H06": {
+  "base": "A",
+  "reason": "severity: codebook medium, as H05"
+ },
+ "H07": {
+  "base": "A",
+  "reason": "severity: codebook medium, as H05"
+ },
+ "H11": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D4",
+  "reason": "class: a helper computed for the group's fix is mechanical; the wrong behaviour's site is where the value is recorded or validated — follow-on (A); the group stays one defect"
+ }
+}

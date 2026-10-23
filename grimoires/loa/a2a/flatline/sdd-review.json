@@ -1,0 +1,53 @@
+{
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "cycle": "cycle-108-advisor-strategy",
+  "sdd_version": "1.1 (post-Red-Team v1.0 amendments §20.1-§20.15)",
+  "sdd_size_kb": 88,
+  "timestamp": "2026-05-13T00:42:40Z",
+  "models": {
+    "primary": "opus",
+    "secondary": "gpt-5.5-pro",
+    "tertiary": "gemini-3.1-pro-preview"
+  },
+  "confidence": "single_model",
+  "substrate_note": "Three Flatline runs against SDD v1.1 (88KB) produced variable output: run-1 produced 12 substantive findings from gpt-5.5-pro; run-2 produced 1 finding; run-3 produced 0 findings (fully degraded). This is the cheval connection-loss threshold (issue #774; KF-002 layer-1 latent signature). The 88KB SDD is past the substrate's reliable ceiling (~70KB). gpt-5.5-pro is the only voice that produced substantive output across runs; opus + gemini chain-exhausted. Voice-drop semantics applied per cycle-104 T2.8.",
+  "voice_status": {
+    "opus": "DEGRADED — returned 0 score across runs (empty-content; KF-002 layer-1)",
+    "gpt-5.5-pro": "ACTIVE — produced 12 findings on run-1; degraded on runs 2 & 3",
+    "gemini-3.1-pro-preview": "DEGRADED — chain-exhausted on Phase 1 across runs (voice-drop logs confirm)"
+  },
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 12,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 0,
+    "note": "Run-1 produced these findings. Under voice-drop (gpt-5.5-pro single voice substantive), treated as effective single-model SDD review — operator-confirmation pattern applies."
+  },
+  "disputed_run1": [
+    {"id": "IMP-001", "gpt_score": 910, "opus_score": 0, "tertiary_score": null, "description": "Define canonical AdvisorStrategyConfig dataclass schema (fields, types, defaults, invariants) in §3 — reduces cross-runtime drift, fixture inconsistency, hidden coupling between loader, resolver, modelinv extra_fields, and legacy-disabled paths"},
+    {"id": "IMP-008", "gpt_score": 825, "opus_score": 0, "tertiary_score": null, "description": "(content not fully captured in artifact retrieval — flagged for sprint-plan re-review)"},
+    {"id": "IMP-009", "gpt_score": 835, "opus_score": 0, "tertiary_score": null, "description": "golden-pins.json needs explicit schema, signing format, key-rotation policy, verification timing — without these the §7/§20.6 mitigation is not actionable"},
+    {"id": "IMP-010", "gpt_score": 895, "opus_score": 0, "tertiary_score": null, "description": "Heuristic role classifier (FR-3 migration §4.3) MUST atomically seed the schema-pinned audited_review_skills enum (§3.7 / §20.1) in the SAME commit as SKILL.md changes — otherwise Sprint 1 deploys can hit exit 78 EX_CONFIG"},
+    {"id": "IMP-011", "gpt_score": 540, "opus_score": 0, "tertiary_score": null, "description": "Replay arrays (§5.5 variance protocol) need explicit memory-budget note or streaming/vectorization guidance to prevent CI failures with large benchmark inputs"},
+    {"id": "IMP-012", "gpt_score": 720, "opus_score": 0, "tertiary_score": null, "description": "writer_version field (§20.4) needs a single source of truth shared by bash + python emitters — without it, version-bump drift is inevitable"}
+  ],
+  "high_consensus": [],
+  "low_value": [],
+  "blockers": [],
+  "degraded": true,
+  "degraded_model": "opus,gemini (chain-exhausted)",
+  "voice_drop_applied": true,
+  "voice_drop_rationale": "Per cycle-104 T2.8: when voice's chain exhausts, drop from consensus calculation rather than substitute. gpt-5.5-pro produced substantive output → treated as informative single-voice review.",
+  "integration_decision": {
+    "imp-001": "INTEGRATE — add canonical AdvisorStrategyConfig dataclass definition to §3.3",
+    "imp-009": "INTEGRATE — add §20.6.1 golden-pins.json operational spec",
+    "imp-010": "INTEGRATE — strengthen §20.1 with atomic-seed requirement",
+    "imp-011": "DEFER — memory budget is implementation concern; noted in Sprint 2 AC",
+    "imp-012": "INTEGRATE — add §20.4.1 writer_version single source of truth",
+    "imp-008": "FLAG — content not captured; revisit at sprint-plan time"
+  },
+  "execution": {"mode": "interactive", "run_id": null},
+  "metrics": {"total_latency_ms": 276000, "cost_cents": 0, "cost_usd": 0}
+}

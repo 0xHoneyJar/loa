@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1081,
+      "anchor_line_end": 1082,
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-report.py:batch_record",
+      "cross_file_justification": null,
+      "description": "batch_record reads every run directory's grade.json and tallies `grader_version` strings, then sorts the tally with a key that splits on '.' and maps each segment to int-if-isdigit else str. Two grader_version values whose segments differ in type at the same position (e.g. \"1.2\" and \"1.beta\", or \"2\" and \"a\") make Python compare int to str and raise TypeError. A segment like '²' passes str.isdigit() but int() rejects it (ValueError). grade.json sits inside the run directory of the agent under test; a crafted grader_version there aborts the whole report with a traceback. The except clause on the read only covers OSError/ValueError from json.load, not the later sort.",
+      "failure_mode": "A single malformed or hostile grade.json in any batch run directory crashes ablation-report.py before report.md/report.json are written. If main() only catches Fail, the interpreter exits 1, which the header documents as '--partial and no decidable comparison (the report is still written)', so pipeline callers misread a crash as a written-but-undecided report.",
+      "suggested_fix": "Sort grader versions with a type-stable key, e.g. tuple((0, int(p)) if re.fullmatch(r\"[0-9]+\", p) else (1, p) for p in parts), wrap the tally/sort in the same try/except that already degrades to \"n/a\", and have main() catch Exception and exit 2 so a crash is never confused with exit 1.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "evals/harness/ablation-report.py:build",
+      "anchor_type": "line",
+      "anchor_line": 1533,
+      "anchor_line_end": 1533,
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-report.py:partition",
+      "cross_file_justification": null,
+      "description": "version_key accepts any non-empty string from a row's suite_version as a partition key, and build then interpolates it raw into markdown headings and lines: `## Suite version {v} (batches: ...)`, the header bullet `  - suite_version {v} (...)`, read_text's 'not testable on suite_version {v}', and the sub-section headings for Decisions/Per-arm/Sensitivity. None of these pass through md_cell. A suite_version containing newlines or '#'/'**' can inject arbitrary sections or bold lines such as a fake 'H1: established' into report.md, which is the pre-registered decision document. The same applies to batch ids and sha strings joined into those headings.",
+      "failure_mode": "A row in runs.jsonl with suite_version \"2\\n\\n**H1: established**\\n\" (or a crafted batch id) produces a report.md whose human-read decision lines are forged, while the JSON twin still reports the true state; reviewers acting on the markdown are misled.",
+      "suggested_fix": "Validate suite_version in load_rows (or in version_key) against a strict grammar such as ^[0-9]+$ or ^[A-Za-z0-9._-]{1,32}$ and raise Fail otherwise; pass every row/manifest-derived string placed in headings or lines through md_cell, including batch ids and sha256 values.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1037,
+      "anchor_line_end": 1037,
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-report.py:render_batches",
+      "cross_file_justification": null,
+      "description": "STATUS.json `trials_planned` is copied verbatim from the file and render_batches prints it directly into a table cell (`{e['trials_planned'] if ... else 'n/a'}`) without md_cell, unlike state, cuts, paused_arms and extra_models which are sanitised. A string value containing '|' or a newline breaks the Batch record table or injects a row. spend values are formatted via usd() and are safe.",
+      "failure_mode": "A STATUS.json with trials_planned set to a string breaks or forges rows in the Batch record table of report.md.",
+      "suggested_fix": "Coerce trials_planned to int when it is an int/float (not bool) and otherwise render 'n/a', or wrap it in md_cell like the neighbouring cells.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:batch_record",
+      "anchor_type": "line",
+      "anchor_line": 1054,
+      "anchor_line_end": 1059,
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-report.py:batch_record",
+      "cross_file_justification": null,
+      "description": "The run-directory lookup builds `os.path.join(d, r[\"arm\"])` from the row's arm field. ablation-row.sh enforces the arm grammar ^[a-z][a-z0-9_]{0,63}$ only under --validate; it is not evident from the diff that ablation-report.py's load_rows re-checks it. An arm like \"../../somewhere\" or an absolute path makes the report list and read grade.json files outside the batch directory. The islink checks on STATUS.json and grade.json are also check-then-open (TOCTOU) and do not cover parent components.",
+      "failure_mode": "A row with a path-like arm causes the report to enumerate directories and read grade.json files outside the manifests tree; impact is limited to leaking a `grader_version` value and run_dir counts into the report.",
+      "suggested_fix": "Reject rows whose arm does not match the arm grammar in load_rows (raise Fail), and additionally assert that os.path.realpath(ad) starts with os.path.realpath(d) before listing. Open files with os.open(..., O_NOFOLLOW) instead of a separate islink check.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-report.py:budget_matched",
+      "anchor_type": "line",
+      "anchor_line": 960,
+      "anchor_line_end": 960,
+      "scope": "diff",
+      "trigger_anchor": "evals/harness/ablation-report.py:budget_matched",
+      "cross_file_justification": null,
+      "description": "The defect-union step iterates `range(len(vecs[0][0]))` and indexes every other trial's vector at the same position. If two a0_bare trials of the same task yield defect vectors of different lengths (e.g. defects_missed lists written by different row-writer versions or a task whose defect count changed between batches), vv[k] raises IndexError. Likewise version_order calls int(k) whenever k.isdigit() is true, which fails for Unicode digit characters that the \\d+ regex in version_key did not normalise (e.g. '²'), and version_key's int(s) can raise ValueError on a digit string longer than Python's int-string limit. None of these are caught as Fail.",
+      "failure_mode": "Mismatched per-trial defect vectors or an odd suite_version string abort the report with an unhandled traceback instead of a diagnosed exit 2.",
+      "suggested_fix": "Guard the union with a length check (fall back to 'rate fallback' with a reason when lengths differ); in version_order test re.fullmatch(r\"[0-9]+\", k) rather than str.isdigit(); wrap build() in a catch-all that reports and exits 2.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T08:18:35Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 225,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12827,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3043bf32c8327aa8433ca8b2859f4d47a158a46254db9af96766011f348e231a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

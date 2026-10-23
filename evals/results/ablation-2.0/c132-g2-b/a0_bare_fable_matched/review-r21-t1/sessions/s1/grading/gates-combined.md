@@ -1,0 +1,14 @@
+head/.claude/adapters/loa_cheval/config/endpoint_policy.py:151
+head/.claude/skills/bridgebuilder-review/resources/config.ts:726
+main.ts:486
+main.ts:506
+head/.claude/scripts/lib/hop-locality.py:116
+audit/modelinv.py:476
+head/.claude/loa/reference/scripts-reference.md:73
+head/.claude/loa/reference/scripts-reference.md:74
+head/.loa.config.yaml.example:818
+.claude/loa/reference/multi-model-reference.md:102
+head/.claude/skills/bridgebuilder-review/resources/config.ts:703
+head/.claude/skills/bridgebuilder-review/resources/config.ts:757
+head/.claude/skills/reviewing-code/SKILL.md:211
+auditing-security/SKILL.md:238

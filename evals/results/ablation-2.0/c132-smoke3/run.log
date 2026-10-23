@@ -1,0 +1,16 @@
+13:35:08Z start batch=c132-smoke3 smoke=false source=9544948b6413 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
+13:35:08Z plan: 1 arms, 6 tasks, 6 trials, shuffle seed 20261015, est USD 48 (cap 3798.0425, run caps build 45 review-catch 45, in-flight reserve 45 per trial, reserve 250)
+13:35:08Z launch c132-smoke3-a1_full-review-r15-t1 (a1_full review-r15 review-catch t1)
+13:35:08Z launch c132-smoke3-a1_full-review-r11-t1 (a1_full review-r11 review-catch t1)
+13:35:08Z launch c132-smoke3-a1_full-review-r21-t1 (a1_full review-r21 review-catch t1)
+14:10:08Z done c132-smoke3-a1_full-review-r15-t1 completed pass=0.6667 USD 14.222516499999998 34m attempts 1
+14:10:08Z launch c132-smoke3-a1_full-review-r20-t1 (a1_full review-r20 review-catch t1)
+14:10:09Z done c132-smoke3-a1_full-review-r11-t1 completed pass=1.0 USD 14.99180625 34m attempts 1
+14:10:09Z launch c132-smoke3-a1_full-review-r22-t1 (a1_full review-r22 review-catch t1)
+14:15:36Z done c132-smoke3-a1_full-review-r21-t1 completed pass=0.75 USD 20.44542275 40m attempts 1
+14:15:36Z launch c132-smoke3-a1_full-review-r14-t1 (a1_full review-r14 review-catch t1)
+14:47:58Z done c132-smoke3-a1_full-review-r14-t1 infrastructure_error pass=n/a USD 12.175488999999999 32m attempts 1
+14:47:58Z PAUSED arm a1_full: took-effect exit 1: arm a1_full: dissent_present FAIL dissent missing: review:voices_succeeded=0 audit:voices_succeeded=0;arm a1_full: FAIL (1 of 5 rules); (no further trial of a1_full launches until --resume --clear-arm a1_full)
+14:49:18Z done c132-smoke3-a1_full-review-r22-t1 completed pass=0.55 USD 22.1807425 39m attempts 1
+15:13:30Z done c132-smoke3-a1_full-review-r20-t1 contaminated pass=0.2 USD 34.259769500000004 63m attempts 1
+15:13:30Z partial: all 6 trials rowed, 2 excluded (transport, infrastructure, interrupted or contaminated)

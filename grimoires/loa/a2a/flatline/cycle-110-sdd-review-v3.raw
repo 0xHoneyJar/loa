@@ -1,0 +1,256 @@
+WARNING: Document size 87 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/sdd-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=10, Opus=12 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=5 DISPUTED=2 LOW=0 BLOCKERS=10 (83% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 2,
+    "low_value_count": 0,
+    "blocker_count": 10,
+    "model_agreement_percent": 83,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Strong security and reliability improvement. Tempfile cleanup semantics are easy to specify and relatively low-cost to implement with context managers plus startup janitor. The issue directly concerns leakage of redacted high-entropy data, so the ROI is high. The only moderate cost is implementing lifetime enforcement and orphan sweeping robustly.",
+      "gpt_score": 900,
+      "opus_score": 920,
+      "tertiary_score": 900,
+      "delta": 20,
+      "average_score": 910,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Important spec clarification for a common operator and skill-author error. Unknown preferred_model_id behavior should be deterministic and observable; silent fallback or accidental exception would both create confusion. Implementation cost is low, mostly resolver branch plus tests. Slightly below critical because it is a correctness/UX edge case rather than a core safety gap.",
+      "gpt_score": 760,
+      "opus_score": 890,
+      "tertiary_score": 850,
+      "delta": 130,
+      "average_score": 825,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Critical determinism clarification. If evaluation_timestamp is intended to close replay nondeterminism, the stamping boundary and chain-walk semantics must be explicit, and including it in MODELINV is likely necessary for audit/replay. Cost is modest compared with the benefit of avoiding subtle non-reproducible auto-mode behavior.",
+      "gpt_score": 880,
+      "opus_score": 820,
+      "tertiary_score": 950,
+      "delta": 60,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "High-value schema consistency fix. If the canonical envelope example omits newly introduced auto_selection_inputs fields, downstream consumers will implement the wrong contract. Documentation and fixture updates are low-cost and prevent integration drift. This is especially important because these fields affect dashboards and replay tooling.",
+      "gpt_score": 840,
+      "opus_score": 760,
+      "tertiary_score": 880,
+      "delta": 80,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Important operational semantics gap. Semaphore exhaustion under auto-mode is a foreseeable load case, and whether it degrades, fails, or emits a distinct error materially affects SLOs, metrics interpretation, and caller behavior. Implementation may require careful policy choice, but the spec must define it.",
+      "gpt_score": 810,
+      "opus_score": 740,
+      "tertiary_score": 820,
+      "delta": 70,
+      "average_score": 775,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-011",
+      "description": "MODELINV tail-reading contract underspecified relative to performance claims. Important for auto-mode latency guarantees and failure modes. Moderate spec effort.",
+      "gpt_score": 0,
+      "opus_score": 650,
+      "tertiary_score": 550,
+      "delta": 650,
+      "average_score": 650,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Allowlist hardening for aggregate-only field is good defensive design but addresses a future-regression risk rather than current defect. Low cost, modest value.",
+      "gpt_score": 0,
+      "opus_score": 540,
+      "tertiary_score": 450,
+      "delta": 540,
+      "average_score": 540,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Circuit breaker migration is not fully idempotent and risks overwriting active state with stale legacy data.",
+      "severity": "CRITICAL",
+      "severity_score": 850,
+      "why_matters": "If a process crashes after creating the new circuit breaker files but before unlinking the legacy file, the next process will re-run the migration. This will overwrite the newly created (and potentially actively updated) files with the stale legacy state, causing lost circuit breaker events and potential routing failures.",
+      "location": "§5.3 _migrate_legacy_state_if_present",
+      "recommendation": "Check for the existence of the target new files (e.g., `circuit-breaker-{provider}-http_api.json`) BEFORE reading the legacy file. If the new files already exist, assume migration is complete or was interrupted, and do not overwrite them.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Concurrency configuration fields are introduced without complete schema, loader, or validation design. headless_concurrency_scope appears in §5.6/§3.6, and headless_concurrency_limit appears in §5.6/§8, but neither is included in the advisor-strategy dataclass, model-config schema validation, or drift-gate requirements.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "The semaphore may be impossible to configure reliably, silently use unsafe defaults, or accept invalid values. This undermines the mandatory concurrency control path.",
+      "location": "§3.1 advisor-strategy schema, §3.2 model-config validation, §3.6 migration table, §5.6 semaphore design",
+      "recommendation": "Add headless_concurrency_scope to the advisor-strategy schema/dataclass with enum validation, add headless_concurrency_limit to model-config schema with integer bounds, and extend drift-gate tests to validate both fields.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Doctor fallback probe relies solely on exit code, risking false positives for unauthenticated CLIs.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Many CLIs return exit code 0 even when they fail to dispatch, instead printing interactive login prompts or 'Please log in' to stdout. Treating ANY successful response (exit 0) as auth proof will falsely mark broken CLIs as ready, leading to production dispatch failures during rollout.",
+      "location": "§5.4 probe_cli_via_dispatch",
+      "recommendation": "The fallback probe must inspect the stdout/stderr content for known authentication error signatures (e.g., 'login', 'unauthorized', 'session expired') rather than relying exclusively on the process return code.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Legacy MODELINV entries do not contain dispatch_group or auth_type_resolved, but auto-mode now depends on dispatch_group-keyed history; the SDD only defaults missing auth_type to http_api and does not specify how old final_model_id values are mapped to dispatch_group.",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "The 7-day measurement window and auto-mode band comparison may silently ignore pre-cycle-110 history or misbucket it, causing cold-start defaults, biased headless selection, and invalid G-4 acceptance conclusions.",
+      "location": "§3.2 dispatch_group semantics, §3.4 MODELINV v1.4 backward compatibility, §5.2 auto-mode reader",
+      "recommendation": "Define a legacy-hydration rule: for each legacy MODELINV record, derive dispatch_group from current model-config using provider/final_model_id, default missing auth_type_resolved to http_api, and emit a marker for unmappable records. Add tests covering v1.3 logs participating in dispatch_group aggregation.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "N-slot semaphore acquisition can unnecessarily block or timeout while free slots exist because waiters block only on slot-0 after scanning all busy slots; if another slot releases first, the waiter will not acquire it.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "Under load, this can produce artificial dispatch failures, poor throughput, and misleading timeout-based circuit-breaker failures even though capacity is available.",
+      "location": "§5.6 N-slot semaphore design",
+      "recommendation": "Use a retry loop that periodically rescans all slots until deadline, or use a directory/lease-based counting semaphore with fair polling. Add a test where slot-1 releases before slot-0 and assert a waiter acquires promptly.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Redaction guarantees are not consistently implemented: §1.9.1 mandates bounded streaming capture, but §5.4 doctor pseudocode uses proc.communicate() with stdout/stderr pipes, which buffers all output before redaction.",
+      "severity": "CRITICAL",
+      "severity_score": 845,
+      "why_matters": "A malicious or malfunctioning CLI can emit large stderr/stdout containing credentials, causing memory pressure and creating raw-token residency before fail-closed redaction. This directly weakens the security fix claimed for prior blocker findings.",
+      "location": "§1.9.1 Fail-closed redaction pipeline, §5.4 loa substrate doctor CLI contract",
+      "recommendation": "Replace all subprocess examples and contracts with a single mandatory helper such as capture_with_byte_cap_and_redact(). Ban communicate() on captured pipes for doctor and dispatch paths unless output is redirected through the bounded streaming redactor wrapper.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Resolver ownership is still internally inconsistent: §5.1 says the resolver no longer requires model_id and expands candidates itself, but §5.2 pseudocode still requires model_id, calls _lookup_dispatch_group(provider, model_id), and the caching contract remains keyed by model_id rather than dispatch_group.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "This preserves the circular dependency the v1.2 change claims to remove. Implementers can build either the old model-id-driven resolver or the new candidate-expanding resolver, producing incompatible behavior and likely broken auto-mode selection.",
+      "location": "§5.1 AdvisorStrategyConfig.resolve(), §5.2 auto-mode deterministic algorithm",
+      "recommendation": "Rewrite §5.2 around candidate sets returned from model-config filtering. Replace required model_id with candidate dispatch_group(s), update the ModelInvReader/cache contract to use dispatch_group, and provide pseudocode for selecting both auth_type and concrete model chain without a preselected model_id.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The headless concurrency semaphore is still contradictory: §1.4.4 says it is mandatory, but the same section's Activation text says it is only introduced if stress tests discover corruption and not introduced if all CLIs pass.",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "Implementation teams may omit the semaphore despite later sections requiring it, reopening session-state corruption and multi-process concurrency risks that the SDD claims to close.",
+      "location": "§1.4.4 Headless adapter concurrency semaphore, §5.6 Concurrency semaphore design, §8 T2.14",
+      "recommendation": "Delete the conditional Activation paragraph from §1.4.4. State unambiguously that the module is always introduced, with FR-8.6 only setting per-CLI N values.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Tie-breaker cascade in auto-mode guarantees headless will almost never be selected over http_api.",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "The tie-breaker evaluates `-seven_day_buckets[at][\"p95_ms\"]` before the `headless_preference`. Because headless CLI invocations (subprocess spawning) inherently have higher latency than direct HTTP API calls, `http_api` will consistently win the p95_ms tie-breaker when success rates are equal, completely defeating the headless-first objective.",
+      "location": "§5.2 _resolve_auto (Selection cascade)",
+      "recommendation": "Swap the tie-breaker order to evaluate `headless_preference` BEFORE `p95_ms`, or introduce a latency tolerance band (e.g., treat p95_ms values within 500ms of each other as equivalent) before falling back to exact latency.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Unhandled ProcessLookupError in subprocess timeout cleanup.",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "In `probe_cli`, `os.killpg(os.getpgid(proc.pid), signal.SIGKILL)` is called on timeout. If the subprocess exits exactly as the timeout expires, the process group may no longer exist, throwing a `ProcessLookupError`. This will crash the doctor probe or the dispatch adapter entirely.",
+      "location": "§5.4 probe_cli",
+      "recommendation": "Wrap `os.killpg` and `os.getpgid` in a `try...except ProcessLookupError` block, and verify `proc.poll() is None` before attempting to kill.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md",
+  "domain": "advisor-strategy headless dispatch SDD v1.2",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T05:57:01Z",
+  "metrics": {
+    "total_latency_ms": 100000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 100000ms

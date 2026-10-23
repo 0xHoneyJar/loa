@@ -1,0 +1,6 @@
+# NOTES
+
+## Session Continuity
+
+- 2026-10-21 `/review-sprint sprint-1` (task review-r19): feedback written to `grimoires/loa/a2a/sprint-1/engineer-feedback.md`, verdict APPROVED (0 critical, 0 high, 3 medium, 8 low). Adversarial dissent refused on budget (627c estimate vs 600c cap), single-voice review. `/tmp` is mounted noexec here: run copied scripts from `/workspace/.eval/tmp/`. The workspace `.claude` is at PR head; its `scripts/lib/heredoc-classifier.sh` is from a later sprint and kills `guard-yield.sh` when sourced (see Observation 1 in the feedback). Next: `/audit-sprint sprint-1`.
+- 2026-10-21 `/audit-sprint sprint-1` (task review-r19): feedback written to `grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md`, verdict APPROVED (0 critical, 0 high, 3 medium, 12 low; excluded_confirmed 0). Adversarial dissent refused on budget again (627c vs 600c cap), recorded with `--record-fallback budget_exceeded` at `a2a/sprint-1/adversarial-audit.json`; DEGRADED_SECURITY_REVIEW. No COMPLETED marker (task scope ends at the feedback file; the fallback envelope names no model). New lows beyond the review: audit_delta toggle unverified (execute-agent.sh:271), toggles honoured without an arm id (:163), run-arms TERM orphans executors (:246), review-kind-01.yml isolation comment (:6). Findings JSONL: `a2a/audits/2026-10-21/findings.jsonl`.

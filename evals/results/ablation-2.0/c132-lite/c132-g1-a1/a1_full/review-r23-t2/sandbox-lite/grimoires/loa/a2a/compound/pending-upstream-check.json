@@ -1,0 +1,22 @@
+{
+  "queued_learnings": [
+    {
+      "id": "learning-20261021T180606Z-bats-neg",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-21T18:06:06Z"
+    },
+    {
+      "id": "learning-20261021T180606Z-sparse-copy",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-21T18:06:06Z"
+    },
+    {
+      "id": "learning-20261021T180606Z-tarfile-floor",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-21T18:06:06Z"
+    }
+  ]
+}

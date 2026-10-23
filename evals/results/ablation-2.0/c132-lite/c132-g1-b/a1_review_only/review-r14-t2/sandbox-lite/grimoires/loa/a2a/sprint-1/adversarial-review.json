@@ -1,0 +1,203 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 197,
+      "anchor_line_end": 201,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Beyond the unguarded `rule_key \"$perm\"` at line 235 the primary reviewer noted, the loaders now `continue` past every allow/deny rule that is not `Bash(...)`. Before this change a non-Bash requirement (e.g. a `WebFetch(domain:...)` or `Read(...)` rule) could still be satisfied by exact-string match via `allow_by[$perm]`. Now such rules are never loaded, so even if line 235 is guarded, any non-Bash requirement is reported as permanently missing (false negative) and any non-Bash deny is ignored (false positive). The two sites compound: a guard alone will not restore the old semantics.",
+      "failure_mode": "If `all_required` ever carries a non-Bash rule: with set -e the preflight aborts mid-report; with a guard added, the rule is reported missing forever and non-Bash denies are silently dropped.",
+      "suggested_fix": "In the loaders, fall back to the raw string as an exact key when `rule_key` returns 1 (e.g. `rule_key \"$rule\" || RULE_KEY=\"=$rule\"`), and in the requirement loop do the same instead of letting it abort; add a bats case with one non-Bash requirement/allow pair.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 237,
+      "anchor_line_end": 237,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`base=\"*${key#\\*}\"; base=\"${base%% *}\"` assumes the requirement key begins with `*`. For an exact requirement (key `=git push`) the derived base becomes `*=git`, which can never match. The previous `base_pattern_of` covered an exact `Bash(git push)` requirement with `Bash(git:*)`; the new code silently drops that coverage, and the header comment does not say exact requirements are no longer wildcard-covered.",
+      "failure_mode": "An exact-form requirement in `all_required` is reported missing even when the operator has the base wildcard allowed; conversely an exact deny is not matched by base. Only matters if/when an exact requirement is added.",
+      "suggested_fix": "Compute the base from the body regardless of kind: `b=\"${key#[*=]}\"; base=\"*${b%% *}\"`, or document that requirements must be wildcard form and assert that in the loop.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:evidence_recorder",
+      "anchor_type": "line",
+      "anchor_line": 43,
+      "anchor_line_end": 43,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_ig_base=$(jq -c 'select(type == \"object\")' \"$FEATURES_FILE\" 2>/dev/null | tail -n 1)` is the first command in the branch taken precisely when `platform-features.json` is absent or lacks `active_skill_seen_at`. With the file absent, jq exits 2; if the hook runs under `set -o pipefail` (the surrounding `|| var=\"\"` idiom suggests strict mode), the assignment fails and `set -e` aborts the hook before the gate logic runs. Every other command in the block is guarded; this one is not. The recorder also runs before the `file_path` empty-check, so it executes on every Write/Edit payload (two extra jq forks per call) rather than only on App-Zone candidates.",
+      "failure_mode": "On a lead session whose payload carries `tool_input.active_skill` and whose `.run/platform-features.json` does not yet exist, the hook may exit non-zero before reaching the fail-ask gate; the gate is skipped for that write.",
+      "suggested_fix": "Append `|| true` (or `|| _ig_base=\"\"`) to the `_ig_base` assignment, and move the recorder block after the `file_path`/App-Zone early-exits so it only runs when the gate is actually evaluating a write.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:mode_detection",
+      "anchor_type": "line",
+      "anchor_line": 113,
+      "anchor_line_end": 117,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Authoritative mode is now a plain operator toggle (`implement_gate.mode: authoritative`) with no platform evidence required, while the header itself states the PreToolUse payload carries no harness-set skill field and `tool_input` is model-authored. In that mode the gate trusts `tool_input.active_skill`, so the model can self-assert `implement` and pass the App-Zone fence. Previously authoritative mode required `active_skill_available: true` written by platform detection. The new recorder even writes `active_skill_available: false` unconditionally, so the only remaining evidence signal says the field is NOT trustworthy, yet the config flag still enables it. The audit log line for mode changes was also removed, so flipping modes is now unlogged.",
+      "failure_mode": "An operator who reads `authoritative` as the stricter mode enables it and the fence becomes bypassable by a model-authored field; no audit event records the change.",
+      "suggested_fix": "Either (a) require `active_skill_available: true` from platform detection in addition to the config flag, or (b) rename the mode to make the trust downgrade obvious (e.g. `trust_tool_input_active_skill`) and document the weakening in `.loa.config.yaml.example`; emit an audit.jsonl event when the non-default mode is active.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/flatline-proposal-review.sh:GPT_MODEL",
+      "anchor_type": "line",
+      "anchor_line": 76,
+      "anchor_line_end": 77,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Defaults change from vendor model IDs (`gpt-4o`, `claude-3-opus-20240229`) to catalog aliases (`reviewer`, `opus`) under a comment block still headed `# API configuration`. Aliases are only valid if the dispatch path goes through cheval/model-invoke; a vendor model ID that stale (2024) in a script that supposedly migrated in cycle-103 suggests this script may still call provider endpoints directly, or was never exercised. The call sites are not in the visible diff.",
+      "failure_mode": "If the script posts to OpenAI/Anthropic directly, the first default run fails with model_not_found for `reviewer`/`opus`.",
+      "suggested_fix": "Confirm `flatline-proposal-review.sh` dispatches via `model-invoke`/cheval (grep its curl/API calls). If it does not, route it through `call_flatline_chat` like the extractor, or keep vendor IDs resolved from the catalog at runtime.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:MODEL_TO_PROVIDER_ID",
+      "anchor_type": "line",
+      "anchor_line": 694,
+      "anchor_line_end": 702,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The fallback `VALID_FLATLINE_MODELS` now admits `cheap`, `gpt-5.5`, `gpt-5.5-pro`, and `gemini-3.1-pro-preview`, but the fallback `MODEL_TO_PROVIDER_ID` map gains only the Anthropic rows. In the fallback path (generated maps missing) those four names pass `validate_model` yet have no provider mapping.",
+      "failure_mode": "With `generated-model-maps.sh` absent, a config pinning `cheap` validates and then fails at dispatch with an unclear error instead of the validator's actionable message.",
+      "suggested_fix": "Add the matching rows (`cheap`→`anthropic:claude-sonnet-5`, `gpt-5.5`, `gpt-5.5-pro`, `gemini-3.1-pro-preview`) to the fallback map, or have `validate_model` also require a `MODEL_TO_PROVIDER_ID` hit when running on the fallback list.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_opus_5_5_has_the_1m_window_at_standard_pricing",
+      "anchor_type": "function",
+      "anchor_line": 343,
+      "anchor_line_end": 351,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new test pins `ceiling_calibration.source == \"conservative_default\"` and `calibrated_at is None` for claude-opus-5-5. The catalog comment on the same entry instructs operators to run `tools/ceiling-probe-live.py --write-catalog`, whose first successful run flips exactly these fields. The test therefore fails the moment the documented follow-up is performed. The escalated full-file context already shows a later rewrite of this test (and a sibling test asserting 5-5 IS calibrated), confirming the drift.",
+      "failure_mode": "Running the catalog probe as instructed turns the suite red; contributors either skip the probe or loosen the test ad hoc.",
+      "suggested_fix": "Assert the shape in either state (uncalibrated ⇒ conservative_default/null; calibrated ⇒ probed_ceiling == effective_input_ceiling with provenance) as the later revision does, rather than pinning the uncalibrated literal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T06:22:53Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19612,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

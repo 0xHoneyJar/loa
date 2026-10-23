@@ -1,0 +1,28 @@
+{
+  "projects": {
+    "/workspace": {
+      "hasTrustDialogAccepted": true
+    }
+  },
+  "firstStartTime": "2026-10-22T01:49:42.649Z",
+  "firstStartVersion": "2.1.299",
+  "machineID": "0baea11c9f93963e1db2264f1a02c657f7b2052acf216e2dce8c40437523f7bb",
+  "opusProMigrationComplete": true,
+  "sonnet1m45MigrationComplete": true,
+  "seenNotifications": {},
+  "hasResetAutoModeOptInForDefaultOffer": true,
+  "migrationVersion": 14,
+  "userID": "013e14c37610b38539c6c2c3d0cdca0b5e1be5aa18b27ad4ac48c2664b802315",
+  "pluginUsage": {
+    "cc-plugin-agents-md@builtin": {
+      "usageCount": 0,
+      "lastUsedAt": 1792633784667,
+      "lastUsedNumStartups": 0
+    },
+    "cc-plugin-plugin-authoring@builtin": {
+      "usageCount": 0,
+      "lastUsedAt": 1792633784667,
+      "lastUsedNumStartups": 0
+    }
+  }
+}

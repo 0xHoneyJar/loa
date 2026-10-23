@@ -1,0 +1,13 @@
+head/.claude/defaults/model-config.yaml:494
+head/.claude/defaults/model-config.yaml:504
+head/.claude/adapters/loa_cheval/types.py:510
+cheval.py:2544-2553
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+head/.claude/scripts/run-preflight.sh:190
+head/.claude/adapters/cheval.py:935
+head/.claude/adapters/cheval.py:2834
+modelinv.py:498
+head/tools/ceiling-probe-live.py:690
+head/tools/ceiling-probe-live.py:476
+head/docs/migration/v2.0-model-generation-floor.md:276

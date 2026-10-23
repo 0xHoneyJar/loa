@@ -1,0 +1,13 @@
+{"timestamp":"2026-06-14T04:26:10Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/v3-codegen-byte-equality.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:26:19Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/v3-codegen-byte-equality.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:26:25Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/v3-codegen-byte-equality.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:26:32Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/v3-codegen-byte-equality.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:42:14Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/verify_1056.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:44:07Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-bug-217/reviewer.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-14T04:45:10Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/review-concerns-217.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T04:46:37Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-bug-217/engineer-feedback.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-14T08:23:24Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260614-i1013-d77590/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-14T08:36:27Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260614-i1035-603c39/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-14T08:50:40Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260614-i1034-91351c/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-14T09:03:59Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".run/bugs/20260614-i1012-e52467/state.json","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-14T09:17:13Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/session-2026-06-14-unblock-workmates.md","reason":"path not declared in zones.yaml; no opinion"}

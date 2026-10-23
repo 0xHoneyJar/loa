@@ -1,7 +1,0 @@
-2026-10-20T05:43:56Z run-ablation: c131-b2-control-prices-a-a1_full-review-r18-t2 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-a/a1_full/review-r18-t2
-arm a1_full: all_phases_present OK phases REVIEW,AUDIT
-arm a1_full: oracle_closed OK ok head:20 answer paths (20 present), 14 later-only pinned versions, sandbox git = base commit only
-arm a1_full: integrity_clean OK 1973 manifest entries verified; manifest_sha256 db5dbb0fada0 (matches checksums.json)
-arm a1_full: OK
-run-ablation: extra model global.anthropic.claude-haiku-4-5-20251001-v1:0 in REVIEW (57 output tokens; a WebFetch summariser or built-in subagent, not drift — DEC-0545)
-graded review-r18: recall 0.5 false_positives 45; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c131-b2-control-prices-a/a1_full/review-r18-t2/grade.json

@@ -1,0 +1,57 @@
+{
+  "finished": "2026-10-22T15:30:47Z",
+  "k": 3,
+  "schema_version": 1,
+  "sessions": [
+    {
+      "attempt_costs": [
+        4.571469
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 4.571469,
+      "id": "s1",
+      "invalid_reason": null,
+      "run_dir": "sessions/s1",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        5.097779
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 5.097779,
+      "id": "s2",
+      "invalid_reason": null,
+      "run_dir": "sessions/s2",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        4.278107
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 4.278107,
+      "id": "s3",
+      "invalid_reason": null,
+      "run_dir": "sessions/s3",
+      "status": "completed",
+      "valid": true
+    }
+  ],
+  "sessions_attempted": 3,
+  "sessions_valid": 3,
+  "started": "2026-10-22T15:04:58Z",
+  "task_id": "review-r16",
+  "trial": 1
+}

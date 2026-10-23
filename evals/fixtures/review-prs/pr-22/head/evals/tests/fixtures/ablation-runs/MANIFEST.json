@@ -1,0 +1,21 @@
+{
+  "batch": "fixture-batch",
+  "suite_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "suite_version": 1,
+  "fingerprint": "fp:fixture",
+  "image_digest": "sha256:fixture-image",
+  "executor_mode": "host",
+  "agy_opt_in": false,
+  "arm_map": {
+    "abl-fixture-a1_full-bf-01-t1": "a1_full",
+    "abl-fixture-a0_bare-bf-01-t1": "a0_bare",
+    "abl-fixture-a2_no_sprint_plan-bf-01-t1": "a2_no_sprint_plan",
+    "abl-fixture-a3_one_voice-rc-01-t1": "a3_one_voice",
+    "abl-fixture-a4_no_gates-bf-01-t1": "a4_no_gates",
+    "abl-fixture-a5_no_flatline-bf-01-t1": "a5_no_flatline",
+    "abl-fixture-a6_one_window-bf-01-t1": "a6_one_window",
+    "abl-fixture-a7_effort_medium-bf-01-t1": "a7_effort_medium",
+    "abl-fixture-a1_full-rc-01-t1": "a1_full",
+    "abl-fixture-a4_no_gates-rc-01-t1": "a4_no_gates"
+  }
+}

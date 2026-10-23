@@ -1,0 +1,12 @@
+2026-10-22T02:02:50Z run-ablation: c132-g1-b-a0_bare_fable_matched-review-r23-t1-s3 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-b/a0_bare_fable_matched/review-r23-t1/sessions/s3
+2026-10-22T02:46:26Z run-ablation: c132-g1-b-a0_bare_fable_matched-review-r23-t1-s3 attempt 1 (an earlier driver) in /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-b/a0_bare_fable_matched/review-r23-t1/sessions/s3: interrupted
+2026-10-22T02:46:26Z run-ablation: c132-g1-b-a0_bare_fable_matched-review-r23-t1-s3 ended interrupted; re-run 1 of at most 2 after 120s (D-7.3)
+2026-10-22T02:48:26Z run-ablation: c132-g1-b-a0_bare_fable_matched-review-r23-t1-s3 attempt 2 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-b/a0_bare_fable_matched/review-r23-t1/sessions/s3-r2
+arm a0_bare_fable_matched: no_dot_claude OK sandbox has no .claude/ and no CLAUDE.md
+arm a0_bare_fable_matched: no_system_prompt OK no --append-system-prompt-file in 1 argv
+arm a0_bare_fable_matched: no_audit_rows OK no sandbox/.run/audit.jsonl
+arm a0_bare_fable_matched: bare_model_fable OK BARE models_used global.anthropic.claude-fable-5-1, effort_requested high
+arm a0_bare_fable_matched: integrity_clean OK no mount (loa_mount: false)
+arm a0_bare_fable_matched: bare_sessions_matched OK session s3-r2 of a matched cell (the cell rule runs on the cell directory)
+arm a0_bare_fable_matched: OK
+graded review-r23: recall 0.2308 false_positives 8; verdict_accuracy None; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-b/a0_bare_fable_matched/review-r23-t1/sessions/s3-r2/grade.json

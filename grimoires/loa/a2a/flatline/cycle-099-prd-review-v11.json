@@ -1,0 +1,147 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real spec gap with high downstream rework risk. Override/merge semantics are core to correctness, and leaving them undefined creates divergent implementations and operator surprises.",
+      "gpt_score": 910,
+      "opus_score": 870,
+      "tertiary_score": 850,
+      "delta": 40,
+      "average_score": 890,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong operability improvement. Pre-flight validation alone is insufficient for runtime debugging in a precedence-based resolver; lightweight resolution traces materially improve supportability.",
+      "gpt_score": 820,
+      "opus_score": 820,
+      "tertiary_score": 880,
+      "delta": 0,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Critical startup behavior is underspecified. File-missing/parse/permission failures are common real-world conditions and must be explicitly fail-open/fail-closed defined.",
+      "gpt_score": 890,
+      "opus_score": 780,
+      "tertiary_score": 820,
+      "delta": 110,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Valuable hardening item. mtime-only invalidation and concurrent regeneration races are practical issues, though implementation complexity is moderate and may be staged after core semantics.",
+      "gpt_score": 710,
+      "opus_score": 760,
+      "tertiary_score": 750,
+      "delta": 50,
+      "average_score": 735,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "High-value, concrete compatibility safeguard. The PRD promises legacy support; enumerated fixtures and golden tests are the most direct way to prevent silent regressions.",
+      "gpt_score": 870,
+      "opus_score": 820,
+      "tertiary_score": 820,
+      "delta": 50,
+      "average_score": 845,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-004",
+      "concern": "Endpoint allowlist security can be bypassed without strict canonicalization and DNS/IP revalidation",
+      "severity": "HIGH",
+      "severity_score": 755,
+      "why_matters": "Hostname allowlisting alone is fragile (IDN/punycode, redirects, DNS rebinding, IPv6 literals, mixed schemes/ports). SSRF protections may be incomplete under real-world resolver behavior.",
+      "location": "FR-2.8; NFR-Sec-1",
+      "recommendation": "Specify canonical URL parser, enforce HTTPS + default ports, resolve-and-verify final IPs at request time, and deny redirects across trust boundaries.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Permission-elevation rejection rule is underspecified for new operator-added models with no baseline entry",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "If baseline permissions are missing, the system may either over-reject legitimate configs or accidentally allow permissive defaults. Both outcomes block adoption or create security exposure.",
+      "location": "FR-1.4 permissions-elevation rejection",
+      "recommendation": "Define deterministic policy: operator-added models default to minimal permissions unless explicitly approved in System Zone registry; reject otherwise with guided remediation.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Release-blocking deferred decisions (DD-1..DD-5) are still unresolved, but Sprint 1 depends on them",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "Core implementation paths (permissions source-of-truth, schema placement, override semantics, startup hook language, schema validator integration) cannot be built safely until these are fixed. This is a high-probability schedule slip and rework trigger.",
+      "location": "Scope & Prioritization -> Deferred decisions to resolve before Sprint 1",
+      "recommendation": "Add a pre-Sprint 1 decision milestone with owners, deadlines, and explicit fallback choices if consensus is not reached within 48-72 hours.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Resolution logic is too complex for reliable correctness in v1 (6-stage precedence + legacy shapes + prefer_pro overlay + tier mappings)",
+      "severity": "CRITICAL",
+      "severity_score": 885,
+      "why_matters": "Even with FR-3.9, combinatorial interactions can produce misrouting that is hard to detect in production. A subtle precedence bug directly changes model selection behavior, cost, and output quality.",
+      "location": "FR-3.7, FR-3.8, FR-3.9; Technical Considerations -> Backward-compat for legacy skill_models shapes",
+      "recommendation": "Reduce initial state-space: disable one legacy shape per skill in v1 or gate prefer_pro overlay behind explicit opt-in for migrated skills only; add property-based tests for precedence invariants.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Runtime-generated `.run/merged-model-aliases.sh` design does not define concurrency/atomicity guarantees",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Concurrent process starts can read partially written files or stale cache state, causing intermittent startup failures or inconsistent model maps across invocations.",
+      "location": "FR-1.9 Runtime config consolidation",
+      "recommendation": "Require atomic write via temp file + rename, file locking, and monotonic version header checks before sourcing.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " product requirements document model",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-04T12:48:20Z",
+  "metrics": {
+    "total_latency_ms": 210000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

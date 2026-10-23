@@ -1,0 +1,18 @@
+{
+  "id": "s4",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    9.138233
+  ],
+  "cost_usd": 9.138233,
+  "run_dir": "sessions/s4",
+  "took_effect": "ok",
+  "started": "2026-10-23T00:17:50Z",
+  "finished": "2026-10-23T00:32:13Z"
+}

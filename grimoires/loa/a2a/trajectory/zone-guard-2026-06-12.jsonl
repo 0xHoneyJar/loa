@@ -1,0 +1,213 @@
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:24:56Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:24:57Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:24:57Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:24:57Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:24:57Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:25:03Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:25:04Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:25:04Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:25:04Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:25:04Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:56Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/foo.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:56Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:38:57Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:38:57Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:57Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:38:57Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:58Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:38:59Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:38:59Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:39:00Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:39:44Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:39:44Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:46:19Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:20Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:46:35Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:46:35Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:35Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:46:35Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:46:35Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:36Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:37Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:46:37Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:47:12Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:47:12Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:12Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T04:47:12Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:47:12Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:13Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:14Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:14Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T04:47:27Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/x","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:47:42Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/foo.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:47:42Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/x","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T04:56:19Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T04:56:19Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:08:17Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:08:21Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:08:21Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T05:08:22Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:08:23Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:08:23Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:08:23Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:42Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:42Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:42Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/etc/passwd","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:44Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:12:45Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:45Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:45Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:12:45Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:18:40Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:18:40Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:18:40Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:18:40Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:18:40Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:18:41Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:22:50Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:22:50Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:22:50Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:22:50Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/settings.json","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:22:50Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/settings.local.json","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:25:33Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:25:33Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:25:33Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:25:33Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/settings.json","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:25:33Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/settings.local.json","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:17Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:17Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:30:17Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/x.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:17Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/settings.json","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:17Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/settings.local.json","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:18Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-06-12T05:30:19Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:30:19Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T05:55:34Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T06:31:08Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260612-i745-731985/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T06:31:22Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260612-i745-731985/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T06:32:45Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T06:41:58Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260612-i980-6cfd2b/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T06:42:14Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260612-i980-6cfd2b/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T07:21:53Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T09:13:13Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":"grimoires/loa/proposals/codebase-refactor-review-2026-06-12.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T09:13:27Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":"grimoires/loa/proposals/x.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T09:15:04Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/codebase-refactor-review-2026-06-12.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T09:15:35Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T10:05:45Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/adapters/loa_cheval/routing/chains.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T10:05:45Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/adapters/loa_cheval/health.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T10:05:45Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/adapters/tests/test_x.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T10:05:45Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/dx-utils.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T10:05:45Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/adapters/loa_cheval/metering/rollup.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T10:10:59Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".claude/adapters/tests/test_model_auth_metadata_validator.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T13:06:03Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:21:19Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:25:38Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:31:34Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260613-i1025-9a0abc/triage.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T23:31:54Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260613-i1025-9a0abc/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T23:41:42Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/compat-lib-jq-strict.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:42:12Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/integration/check-no-swallowed-jq.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:45:44Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":"tools/check-no-swallowed-jq.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-06-12T23:47:02Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".github/workflows/check-no-swallowed-jq.yml","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:49:27Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"tests/unit/adversarial-review-hallucination-filter.bats","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-12T23:52:19Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-bug-208/reviewer.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-06-12T23:53:11Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}

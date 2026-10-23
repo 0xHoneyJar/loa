@@ -1,0 +1,212 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "function",
+      "anchor_line": 190,
+      "anchor_line_end": 191,
+      "scope": "diff",
+      "description": "ACTUAL_COUNT now counts Git index entries rather than files present on disk. git ls-files continues listing tracked files after they have been deleted from the working tree.",
+      "failure_mode": "Deleting a tracked .claude script or configuration file without staging the deletion leaves ACTUAL_COUNT unchanged. Preflight therefore stops reporting the file-count mismatch for an incomplete installation, allowing missing runtime components to pass this integrity check.",
+      "suggested_fix": "Use Git to select the manifest's scope, then count only selected paths that exist in MANIFEST_TREE. Preserve the upstream-tree handling for submodule mounts.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "line",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In a submodule mount (.loa/.claude is a directory) any manifest path that is absent from .claude/ but present under .loa/ is now counted as informational 'not-mounted' instead of 'Missing'. The check has no notion of which paths the mount actually linked, so a linked file that is later deleted (e.g. a hook or gate script symlink removed via a Bash command, which implement-gate does not fence) is indistinguishable from a path the mount never linked. Before this change that deletion produced `fail \"Missing: ...\"`; now the run prints a count and 'Integrity verified'. The SDD intent (don't fail on designed-unlinked paths) does not require ignoring removal of previously linked paths.",
+      "failure_mode": "System Zone self-check reports 'Integrity verified' after a fence script or rule file is deleted from a submodule-mounted .claude/, defeating the tamper detection the check exists for.",
+      "suggested_fix": "Only classify a path as not-mounted when it is absent from the mount's link list (the set of .claude/ entries recorded at mount time by sandbox-mount.sh / the mount manifest); otherwise keep `fail \"Missing: $file\"`. At minimum print each not-mounted path (not just a count) so a removed link is visible, and compare the count against the expected unlinked set.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "line",
+      "anchor_line": 87,
+      "anchor_line_end": 87,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new unconditional `return 0` means check_integrity no longer propagates drift through its return status. Previously the trailing `[[ \"$drift\" == \"false\" ]] && log ...` returned 1 on tamper/missing, which under `set -e` aborted the script with a non-zero exit. Whether tampering still affects the process exit code now depends entirely on `fail` incrementing a global counter that the main flow checks.",
+      "failure_mode": "If `fail` only prints, a tampered/missing System Zone file yields exit 0 from check-loa.sh and callers (CI, preflight) treat the tree as clean.",
+      "suggested_fix": "Confirm `fail` sets a failure counter consulted at exit, or `return 1` when drift=true and have the caller handle it explicitly (`check_integrity || DRIFT=1`) rather than masking the status.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:providers.openai.models.gpt-6.1-sol.pricing",
+      "anchor_type": "line",
+      "anchor_line": 143,
+      "anchor_line_end": 149,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:providers.openai.models.codex-headless.extra.cli_model",
+      "cross_file_justification": "codex-headless now hops to gpt-6.1-sol for pricing (test_pricing_resolution_ladder.py asserts the hop), so every codex MODELINV/ledger row and the ablation cost ledgers (spend.sh cap watchdog, ablation-row.sh cost_usd/voice_cost_usd) are priced from a placeholder copied from gpt-5.5.",
+      "description": "gpt-6.1-sol's rate card is explicitly a PLACEHOLDER (gpt-5.5 list prices) yet the ledger will record these rows with `pricing_source: config` and `pricing_resolution: hop/exact`, indistinguishable from confirmed pricing. Nothing in the catalog or ledger marks the estimate as unconfirmed.",
+      "failure_mode": "Spend caps, MODELINV cost totals and ablation runs.jsonl cost_usd are silently wrong for every codex hop until the rate card is confirmed; if gpt-6.1 is priced higher, batch caps under-trigger.",
+      "suggested_fix": "Add a machine-readable marker (e.g. `pricing.confirmed: false` / `pricing.placeholder_of: gpt-5.5`) that find_pricing surfaces as `cost_estimated: true` or a distinct `pricing_source`, and have the bead that confirms the rate card remove it. Alternatively point the hop at an entry with confirmed pricing and document the mismatch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-row.sh:ROW",
+      "anchor_type": "line",
+      "anchor_line": 222,
+      "anchor_line_end": 226,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Every input (pipeline.json, both dissent envelopes, the full MODELINV ledger wrapped with line numbers, task yaml, manifest, dot-writes) is passed to jq via `--argjson` on the command line. Linux caps a single argv string at MAX_ARG_STRLEN (128 KiB). Dissent envelopes with many findings or a MODELINV ledger from a full review+audit run can exceed this.",
+      "failure_mode": "`jq: Argument list too long` (E2BIG); under `set -e` the script exits non-zero and no row is appended to runs.jsonl for that run, so the batch silently loses rows for exactly the largest (most interesting) runs.",
+      "suggested_fix": "Write the large inputs to temp files and load them with `--slurpfile`/`--rawfile` (or feed them on stdin as one combined object), keeping only small scalars as `--arg`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-row.sh:ms",
+      "anchor_type": "line",
+      "anchor_line": 228,
+      "anchor_line_end": 228,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`ms(ts)` strips only a fractional-seconds `.NNNZ` suffix before `fromdateiso8601`, which accepts only `%Y-%m-%dT%H:%M:%SZ`. Any `started`/`finished` value with a numeric offset (`+00:00`), a space separator, an empty string (the row emits `started // \"\"`) or a numeric epoch raises a jq runtime error. Several other fields (`$g.recall.*`, `e.metadata.companion_voice`, `.payload.effort_effective`) likewise index into values whose type is not checked.",
+      "failure_mode": "A single malformed timestamp or an unexpected grade/envelope shape makes the whole jq program fail and the run produces no row (exit non-zero), rather than a row with that field null.",
+      "suggested_fix": "Guard with `try ... catch null` (e.g. `try (ts | ... | fromdateiso8601 * 1000) catch null`) and type checks (`if type == \"object\"`) so one bad field degrades to null instead of aborting the row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/fingerprint.sh:tool_version",
+      "anchor_type": "line",
+      "anchor_line": 62,
+      "anchor_line_end": 62,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Tool versions are captured with `2>&1` and only the first line is kept, so any stderr noise emitted before the version line (update nags, deprecation or NODE_OPTIONS warnings, missing-daemon notices) becomes the recorded `tool=` value and changes the fingerprint between otherwise identical runs. Separately, line 54 hard-codes a per-operator path (`$HOME/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats`) as the bats fallback.",
+      "failure_mode": "Non-reproducible `fp:` values (and therefore `image_digest` in host mode) across runs in the same batch; a batch comparison tool treats identical toolchains as different.",
+      "suggested_fix": "Capture stdout only (`2>/dev/null`), optionally falling back to stderr if stdout is empty; drop the personal dotfiles path in favour of `LOA_EVAL_BATS_BIN`/PATH lookup only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T03:15:45Z",
+    "tokens_input": 153471,
+    "tokens_output": 31976,
+    "cost_usd": 0,
+    "latency_ms": 60436,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 761,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f804aa14b6270cb8a95c7185a475c7b82355b82e9e82142bc978d7ead802f7c5",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

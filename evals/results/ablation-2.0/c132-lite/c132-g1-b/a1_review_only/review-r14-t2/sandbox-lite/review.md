@@ -1,0 +1,14 @@
+# Review: cycle-126 sprint-250 tasks 4.1–4.8 (pr/head.diff, 88 files)
+
+Verified: catalog checksum, SHA256SUMS, Bridgebuilder build manifest, @loa-managed and @constraint-generated hashes, golden tables, generated-model-maps regeneration (byte-identical), model-permissions coverage of all 16 served Anthropic entries, alias routing through cheval, and 15 of the PR's bats suites run against the head tree (all green except the yq-operator case below and fixture-absent cases). Two-voice adversarial dissent: primary clean, companion advisory only. No critical or high defect found. Full write-up: grimoires/loa/a2a/sprint-1/engineer-feedback.md.
+
+head/evals/graders/recall-vs-defects.sh:74 — MEDIUM: the bare `:N` alternative's lookbehind excludes only [A-Za-z0-9_./:], so a colon preceded by `"` qualifies; the LOA-VERDICT trailer every review ends with (`"critical":0,"high":0,"medium":3,...`) yields bare citations at lines 0..N bound to the last cited path, crediting any defect anchored near those small lines in that file and inflating `details.citations` on every graded review.
+head/evals/graders/recall-vs-defects.sh:73 — LOW: the comma continuation has no boundary after the number, so prose like `a.sh:40, 3 of which` credits line 3 of a.sh.
+head/tests/unit/skill-capabilities.bats:850 — MEDIUM: `tostring` is not an operator in Mike Farah yq v4.40.5 (`Error: 1:70: invalid input text "tostring)) | joi..."`); SC-T-AGENT-7 fails before its assertion on that yq while SC-T-AGENT-8/9 pass.
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:349 — MEDIUM: the test pins `ceiling_calibration.source == "conservative_default"` and `calibrated_at is None` for claude-opus-5-5, the exact fields the documented follow-up (`tools/ceiling-probe-live.py --write-catalog`, named at head/.claude/defaults/model-config.yaml:491) rewrites; running the probe turns the suite red.
+head/.claude/scripts/check-permissions.sh:235 — LOW: `rule_key "$perm"` is unguarded under `set -euo pipefail` and returns 1 for any non-Bash rule, so a future non-Bash requirement aborts the preflight; the loaders at :198/:202 now skip non-Bash allow/deny rules and the base derivation at :237 assumes a wildcard key. No live impact: every current requirement is `Bash(…:*)`.
+head/.claude/defaults/model-config.yaml:509 — LOW: `cache_read_per_mtok: 200000` is 0.05× of the $4 input price, a second exception to the 0.1× rule carried only by the entry comment; confirm against the vendor page before real runs are priced with it.
+head/tools/check-prompt-budget.sh:53 — LOW: LOA_LIMIT 10,240 B against a 10,225 B CLAUDE.loa.md leaves 15 bytes; the next one-line edit fails PB-9.
+head/.claude/hooks/compliance/implement-gate.sh:113 — LOW: `implement_gate.mode: authoritative` is an undocumented bare toggle that makes the gate trust the model-authored `tool_input.active_skill` (lines 122-137) with no audit event when active; the name reads as the stricter mode.
+
+Verdict: APPROVED

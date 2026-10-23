@@ -1,0 +1,784 @@
+{
+ "H01": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "Under hounfour.locality local_voices cheval plans only around agy hops, so hosted hops (primary or fallback) of a chain are still dispatched with the prompt.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   420,
+   422,
+   1813,
+   1817
+  ]
+ },
+ "H02": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "cheval never applies the local_voices posture before the chain walk, so a chain with no local hop is dispatched to hosted providers instead of being refused.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   1813,
+   1814,
+   1815,
+   1817
+  ]
+ },
+ "H09": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+  "description": "validate_providers trusts a dispatch_group local label: a CLI provider or a provider with a public/DNS endpoint labelled local is admitted at load (and an https local endpoint is wrongly refused without an opt-in).",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   153,
+   156,
+   157,
+   159
+  ]
+ },
+ "H12": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+  "description": "A ConfigError raised by describe_provider is not caught, producing a traceback instead of the JSON error and exit 78.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   230,
+   231,
+   232,
+   233
+  ]
+ },
+ "H13": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "Import for the new fallback check.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H14": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "The loader admits, under local_voices, a dispatch_group local model whose fallback_chain reaches a hosted hop, so cheval can walk the prompt to a hosted provider.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   704
+  ]
+ },
+ "H15": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/providers/base.py",
+  "description": "Adds the local flag to TransportPolicy for the request-time host check.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H16": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/providers/base.py",
+  "description": "TransportPolicy.check_url never requires a local hop's request host to be loopback/RFC1918/localhost, so a declared locality is not enforced at request time.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   128,
+   136,
+   137,
+   138,
+   139,
+   140
+  ]
+ },
+ "H17": {
+  "verdict": "defect",
+  "group": "D5",
+  "file": ".claude/adapters/loa_cheval/providers/base.py",
+  "description": "A localhost endpoint is trusted without checking what the system resolver maps it to, so a non-loopback /etc/hosts entry sends a local/plain-http request off the machine.",
+  "severity": "medium",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   128,
+   140,
+   145
+  ]
+ },
+ "H19": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/adapters/loa_cheval/types.py",
+  "description": "Adds LocalityRefusedError used by the planner fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H22": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+  "description": "Schema enum extended for locality_refused.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H23": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+  "description": "Schema description for locality_refused.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H24": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+  "description": "Schema enum extended for locality_refused.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H30": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/scripts/lib/hop-locality.py",
+  "description": "Imports for the endpoint check.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H31": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/scripts/lib/hop-locality.py",
+  "description": "Adds the stdlib endpoint locality helpers.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H32": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/scripts/lib/hop-locality.py",
+  "description": "The planner classifies a hop as local purely from its dispatch_group label, without rejecting CLI providers or endpoints whose host is not loopback/RFC1918/localhost.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   116,
+   117,
+   118,
+   119
+  ]
+ },
+ "H37": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Rebuilt manifest hash.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H38": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Compiled declaration copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H40": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Compiled declaration copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H41": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H42": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H43": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H46": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H47": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H48": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H50": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H51": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H52": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H53": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H54": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H55": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H56": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H57": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts",
+  "description": "Compiled declaration copy.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H58": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts",
+  "description": "Compiled declaration copy.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H60": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/main.d.ts.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H61": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/main.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H62": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/main.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H63": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/dist/main.js.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H70": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Import for the IPv6 host check.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H71": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Schema reads endpoint/type for the local-hop rule.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H74": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Records endpoint, cli and fallbacks on the declaration.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H75": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "yq view extended with aliases and allowlists for drift detection.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H76": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "TrustedView fields for drift detection.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H77": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Returns the new view fields.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H79": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Restructures head-view scoping for the drift computation.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H80": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "On a pull request the head config is only checked for head-only keyless/insecure providers; other differences (endpoints, aliases, locality, secret allowlist) that cheval reads from the checkout are not detected, so an attacker-controlled head steers dispatch.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   671,
+   672,
+   673,
+   676,
+   678,
+   679,
+   681
+  ]
+ },
+ "H82": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "isLocalVoice treats any voice labelled dispatch_group local as local without checking that the provider is not a CLI provider and its endpoint host is loopback/RFC1918/localhost.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   722,
+   723,
+   724,
+   725,
+   726,
+   727,
+   728,
+   729,
+   730,
+   731,
+   732
+  ]
+ },
+ "H83": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Caller updated to localVoiceDecision.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H84": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Caller updated to localVoiceDecision.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H85": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+  "description": "Type fields for endpoint/cli/fallbacks.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H86": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+  "description": "Type fields for aliases/headDrift.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H88": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+  "description": "Imports for the drift refusal.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's corresponds); class agreed",
+  "anchor_lines": []
+ },
+ "H89": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+  "description": "main.ts proceeds to plan voices on a pull request whose head config differs from the trusted config instead of refusing the run.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)",
+  "anchor_lines": [
+   464,
+   465,
+   466
+  ]
+ },
+ "H03": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+  "description": "MODELINV hop_locality records 'local' for any hop whose model is labelled dispatch_group local, even when the provider is a CLI provider or its endpoint host is not loopback/RFC1918/localhost.",
+  "severity": "medium",
+  "category": "security",
+  "reason": "category: security (B) — the locality label feeds a trust decision",
+  "anchor_lines": [
+   474,
+   475,
+   476
+  ]
+ },
+ "H05": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+  "description": "Adds local-hop rule helpers used by the validate_providers fix.",
+  "severity": null,
+  "category": null,
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way",
+  "anchor_lines": []
+ },
+ "H06": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+  "description": "Adds hop_is_local and validate_local_fallbacks helpers called by the planner/loader fixes.",
+  "severity": null,
+  "category": null,
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way",
+  "anchor_lines": []
+ },
+ "H18": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/adapters/loa_cheval/providers/openai_adapter.py",
+  "description": "Passes the local flag into TransportPolicy.",
+  "severity": null,
+  "category": null,
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way",
+  "anchor_lines": []
+ },
+ "H26": {
+  "verdict": "defect",
+  "group": "D6",
+  "file": ".claude/scripts/adversarial-review.sh",
+  "description": "A zero catalog price on a non-open-weight entry (a bad pricing overlay) is accepted silently, zeroing the budget estimate without a warning.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "category: input-validation (A) — a value accepted without a check",
+  "anchor_lines": [
+   3888,
+   3889
+  ]
+ },
+ "H34": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Rebuilt manifest hash.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on: a regenerated build artefact follows every compiled change; assigned to D2 (A) for the record",
+  "anchor_lines": []
+ },
+ "H35": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Rebuilt manifest hash.",
+  "severity": null,
+  "category": null,
+  "reason": "as H34",
+  "anchor_lines": []
+ },
+ "H36": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Rebuilt manifest hash.",
+  "severity": null,
+  "category": null,
+  "reason": "as H34",
+  "anchor_lines": []
+ },
+ "H59": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "as H34 (source map)",
+  "anchor_lines": []
+ },
+ "H39": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Doc comment update in compiled output.",
+  "severity": null,
+  "category": null,
+  "reason": "class: docs — a doc comment in compiled output (as pr-16 H04)",
+  "anchor_lines": []
+ },
+ "H49": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Doc comment update in compiled output.",
+  "severity": null,
+  "category": null,
+  "reason": "as H39",
+  "anchor_lines": []
+ },
+ "H44": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D2 (B): the compiled copy of the provider-declaration parse change, which belongs to the load-time rule",
+  "anchor_lines": []
+ },
+ "H45": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the source fix.",
+  "severity": null,
+  "category": null,
+  "reason": "as H44",
+  "anchor_lines": []
+ },
+ "H72": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Variables for collecting fallbacks and CLI models.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on: collection variables serve D1 and D2; A's D1 kept",
+  "anchor_lines": []
+ },
+ "H73": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Bridgebuilder ignores each model's fallback_chain (and CLI kind), so under local_voices a local voice whose chain falls back to a hosted hop is kept.",
+  "severity": "high",
+  "category": "security",
+  "reason": "verdict: the site where the fallback chains are ignored is D1's wrong behaviour — defect (A); B's follow-on reading would leave D1 without a site",
+  "anchor_lines": [
+   484,
+   485,
+   486,
+   487,
+   488
+  ]
+ },
+ "H81": {
+  "verdict": "not-defect",
+  "group": "D8",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Adds drift helpers and returns headDrift/aliases.",
+  "severity": null,
+  "category": null,
+  "reason": "class: helper or wiring added for the group's fix is mechanical; the wrong behaviour's site is where the rule is applied — follow-on (A); the group stays one defect either way",
+  "anchor_lines": []
+ },
+ "H90": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+  "description": "Any exit 3 is treated as a completed DEGRADED review and mapped to exit 0 even when no run JSON proves completion, masking failures (and incomplete_voices is a string rather than an array).",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; category: error-handling (A) — a failure masked as a completed degraded run",
+  "anchor_lines": [
+   78,
+   79,
+   80,
+   85,
+   88,
+   89
+  ]
+ }
+}

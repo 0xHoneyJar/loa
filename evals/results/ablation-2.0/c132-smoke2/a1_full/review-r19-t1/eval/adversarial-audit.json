@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 46,
+      "anchor_line_end": 50,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_files",
+      "cross_file_justification": "floor.yaml declares 16 of its 21 floor_guards as fence:FR-SZ* / fence:FR-1.2b rows, all of which are implemented only by .claude/hooks/safety/block-destructive-bash.sh and armed only by the PreToolUse:Bash registration in .claude/settings.json. Neither file is in floor_files, and guard-origins.yaml marks hook:safety/block-destructive-bash.sh as floor: false (line 163).",
+      "description": "The floor is documented as 'the set of guards ... no profile, knob or cycle task may weaken', enforced by floor-snapshot.bats comparing floor_files byte-for-byte to origin/main. But the script that implements every fence floor guard (block-destructive-bash.sh) and the settings.json registration that arms it are not floor files. A cycle task can add a new allow branch (e.g. widen the _c2_authorized marker check, add an env-var bypass, or drop the hook registration) without touching any floor file; the floor_corpus rows only detect changes to the expected verdict of the existing corpus commands and will not catch a new bypass condition that the corpus never exercises. The floor therefore protects guard identifiers, not the guard behaviour, and the register would still report floor: true for guards whose enforcement was removed.",
+      "failure_mode": "A cycle task or autonomous run edits block-destructive-bash.sh (or removes its PreToolUse:Bash registration) to weaken the State-Zone/System-Zone write fences; floor-snapshot.bats and guard-origins.bats both pass because no floor_files or floor_guards entry changed, so the weakening ships with the floor still reported intact.",
+      "suggested_fix": "Add .claude/hooks/safety/block-destructive-bash.sh and .claude/settings.json (or at minimum its hooks block, via a dedicated snapshot test) to floor_files, and set floor: true on hook:safety/block-destructive-bash.sh in guard-origins.yaml. Alternatively, make floor-snapshot.bats derive the protected file set from the `script` fields of every floor: true row plus the hook file behind each floor fence, so the register and the snapshot cannot drift.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "line",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hook now stamps every block/bypass/allow-override audit row with replay: true whenever the LOA_AUDIT_REPLAY environment variable equals '1', across four separate jq writers (emit_block, FR-MERGE-2 override, FR-SZ bypass, FR-SZ2 marker allow). The flag is taken on trust from the process environment; nothing verifies that the hook is actually being driven by the corpus runner. Any downstream consumer that excludes replay rows (the guard-yield 30-day totals surfaced in loa-status) will silently discount real blocks whenever that variable leaks into the Claude Code session environment, for example via a settings env block, a shell profile, or a leftover export from a corpus run in the same shell.",
+      "failure_mode": "Real blocked destructive commands are tagged replay: true and excluded from the yield that operators and the register use to judge whether a guard is earning its keep, hiding genuine hits and possibly leading to a guard being demoted or removed.",
+      "suggested_fix": "Tie the replay flag to something the corpus runner alone controls, e.g. a nonce file path or token passed in the hook stdin payload by run-corpus.sh, or have run-corpus.sh write to a separate audit file (LOA_AUDIT_FILE) instead of tagging rows in the live .run/audit.jsonl. At minimum, have guard-yield.sh report the replay-row count alongside the totals so a leak is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementing-tasks skill's app zone permission is widened from read to read-write in the same change that introduces the floor register. This is consistent with the documented intent that /implement is the sanctioned writer of app code, so it is probably a correction rather than a regression, but it is an unexplained permission expansion with no accompanying note, test or guard-origins entry, and nothing in the visible diff shows what consumes the zones: frontmatter (if it is prose-only, the change widens what the model believes it may do without any harness change).",
+      "failure_mode": "If any tooling (validate-skill-capabilities.sh, zone guards, review checks) keys off zones.app.permission, app writes under /implement now pass where they previously would have been asked about; if nothing consumes it, the widening is undocumented drift that later audits cannot distinguish from an accidental grant.",
+      "suggested_fix": "Document the reason for the change in the PR or a DEC row, confirm which scripts read zones.*.permission, and add a bats assertion that only implementing-tasks (and the bug workflow) carry app: read-write so future widenings in other skills are caught.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:zone_constraints",
+      "anchor_type": "line",
+      "anchor_line": 135,
+      "anchor_line_end": 135,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two pieces of explicit security guidance are removed from the reviewer prompt: the zone constraint no longer states that .claude/ is never edited and grimoires/.beads are state, and the checklist no longer enumerates red flags (private keys, SQL concatenation, unvalidated input, empty catch blocks) inline, deferring both to REFERENCE.md and CLAUDE.loa.md. These are prose-class guards, so the harness fences still apply, but the review skill now depends on the model actually opening REFERENCE.md for the red-flag list, which it is not instructed to do unconditionally.",
+      "failure_mode": "A review pass under context pressure skips REFERENCE.md and no longer has the red-flag checklist in its working prompt, lowering recall for the exact categories (secrets, injection, input validation) the security review is meant to catch.",
+      "suggested_fix": "Keep a one-line pointer that makes reading REFERENCE.md §Security a required step (e.g. in the Phase 2 steps), or keep the short red-flag enumeration inline since it costs few bytes relative to the prompt budget.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/rules/stash-safety.md:paths",
+      "anchor_type": "hunk",
+      "anchor_line": 2,
+      "anchor_line_end": 6,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "stash-safety.md gains a paths: frontmatter scoping it to shell, bats, scripts and hooks files. If the rules loader honours paths (the new tests/unit/rule-paths.bats suggests it does), the rule is no longer loaded when the model is working on other file types, yet the hazard it describes (git stash push/pop with swallowed output around pre-commit hooks) arises from Bash commands the model runs regardless of which files it is editing. Only the swallowed-output shape is mechanically fenced by FR-1.2b; the broader guidance (do not wrap work in stash at all inside skills) becomes conditional.",
+      "failure_mode": "The model runs a plain 'git stash push && ... && git stash pop' while editing, say, Python or Markdown, without the rule in context; FR-1.2b does not fire because no output is swallowed, and an overlapping pre-commit stash shifts indexes causing silent data loss.",
+      "suggested_fix": "Either drop paths: for this rule so it stays global, or add a glob that covers all source files, keeping the narrow scoping only for rules that genuinely concern a file type.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T10:31:39Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8504,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

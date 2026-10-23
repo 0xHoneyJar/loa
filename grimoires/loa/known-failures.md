@@ -81,7 +81,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
-| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 2 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 3 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 4 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 10 |
@@ -97,8 +97,10 @@ actually tried, not just what someone *said* was tried.
 | [KF-047](#kf-047-run-mode-circuit-breaker-trips-on-a-stale-timeout-clock-carried-over-from-the-previous-run) | Open (worked around) | run-mode / run-checkpoint.sh record-round / .run/circuit-breaker.json | 1 |
 | [KF-048](#kf-048-ablation-containers-consume-the-host-codex-refresh-token-every-later-container-and-the-host-lose-the-openai-voice) | Open (operator re-auth needed) | evals/harness/pipeline-run.sh per-run HOME codex auth copy / codex-headless dissent voice inside loa-ablation containers | 2 |
 | [KF-049](#kf-049-review-catch-a1-sandbox-mounts-the-pinned-framework-ba11b860-a-later-version-of-every-file-the-pr-under-review-touches-the-fixed-code-is-one-diff-away-from-the-reviewer-answer-key-oracle-the-bare-arm-has-no-such-mount) | active | evals/harness/pipeline-run.sh review-catch sandbox (loa_mount) with the record-PR corpus evals/fixtures/review-prs (every fix commit is an ancestor of the pin) | 4 |
-| [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 1 |
-| [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 1 |
+| [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 2 |
+| [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 4 |
+| [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 3 |
+| [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
 
 ---
 
@@ -1502,7 +1504,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 **Feature**: release pipeline tests
 **Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
 **First observed**: 2026-09-23 (cycle-124 rc prep)
-**Recurrence count**: 2
+**Recurrence count**: 3
 **Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
 **Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
 **Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
@@ -1636,6 +1638,7 @@ Not KF-013 (an auth-mode env var) and not KF-037 (a claude -p timeout under cont
 | 2026-10-03 | claude_headless_adapter sends every prompt on stdin, at every size (_ARGV_PROMPT_MAX_BYTES removed): an argv prompt was readable through /proc/<pid>/cmdline (thirtieth run, e1 DISS-C-001) | unit-tested (TestPromptTransport: small, >100 KB, wide, NUL all on stdin); adapters pytest 2456 passed; the stdin path is the one live since run 23 | cycle-126 sprint-248 round 1ae (run 30 e1) |
 | 2026-10-04 | SUPERSEDES the header's Current workaround and Upstream issue: _ARGV_PROMPT_MAX_BYTES is gone and every claude-headless and gemini-headless prompt rides stdin at every size, so no chunk split is needed (thirty-fifth run, e2b DISS-C-004) | the header stays as written (append-only); this row is the operative state | 10436350 |
 | 2026-10-20 | Fleet mailbox report from ono-sendai (untrusted text, recorded descriptively): Flatline --phase pr claude-headless voice (review + skeptic) failed before any model call with [Errno 7] Argument list too long via claude-fallback on a 128,759-byte sdd.md; headless_cli.py argv transport, no stdin override in claude_headless_adapter.py; run flatline-22501-13348 ran 1/3 voices, vq DEGRADED, post-pr-orchestrator marked the phase skipped (READY_FOR_HITL over a single voice) | Same E2BIG class as the 398859ad companion fix, in the Flatline kind:cli voice path, which was not covered. Not fixed in cycle-131 (ships 2026-10-20); bead filed for stdin/file prompt transport for kind:cli Claude voices and a vq DEGRADED-is-not-skipped marker in post-pr-orchestrator | hosaka/.mailbox/loa/inbox/20261020T013120Z-ono-sendai-4fc390b2.md; ono-sendai a2a/pr-34/flatline-pr-review.json (per the report) |
+| 2026-10-21 | Premise check of the 2026-10-20 fleet report: ono-sendai mounts Loa v2.0.0-rc.2 (764d80f8), whose claude_headless_adapter has no stdin override (the default argv transport); main sends every claude-headless prompt on stdin since rc.3. The orchestrator half (post-pr-orchestrator marks a DEGRADED single-voice Flatline PR review completed + PR-VALIDATED, and timeout/failure skipped) is present on main and is fixed in sprint-bug-267 | RESOLVED upstream for the transport (fleet mount behind rc.3); orchestrator half fixed in sprint-bug-267 (cycle-132); fleet reply pending | 398859ad 10436350 (stdin transport); ono-sendai .loa 764d80f8 = v2.0.0-rc.2; bug-20261021-4439fd; sprint-bug-267 |
 
 ### Reading guide
 
@@ -1879,7 +1882,7 @@ A review-catch lift measured with the framework mounted is an upper bound. Befor
 **Feature**: evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount)
 **Symptom**: Under the closed mount (head or base mode) the sandbox's .claude/adapters cheval raises ImportError: cannot import name 'private_workspace_base' from 'loa_cheval.providers.headless_cli'; every dissent voice fails on that PR (dissent_absent_gates = review,audit, infrastructure reason)
 **First observed**: 2026-10-19 cycle-131 Sprint 263, lead probe overlay-probe.sh on pr-12 before the Task 1.11 smoke
-**Recurrence count**: 1
+**Recurrence count**: 2
 **Current workaround**: None inside the overlay rule. Keep the affected PR out of closed-mount batches (pr-12 is re-grade-only, DEC-0611/DEC-0631); read its smoke row as a predicted infrastructure effect. Candidate: a pre-launch mount_cheval=ok|broken:<reason> evidence line (bead bd-56nn6)
 **Upstream issue**: bead bd-56nn6
 **Related visions / lore**: KF-049 (the oracle the closed mount closes), DEC-0622 (head-mode overlay), DEC-0630 (fix-commit paths at head_commit), DEC-0631
@@ -1900,7 +1903,7 @@ Mechanism: a fix-commit path OUTSIDE the PR is written at the PR's head_commit, 
 **Feature**: evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback'
 **Symptom**: phases.jsonl REVIEW record: refusal_fallbacks [{from: global.anthropic.claude-fable-5-1, to: global.anthropic.claude-opus-5-5, category: cyber, scope: session}], models_used holds both models (Fable 3,228 vs Opus 14,682 output tokens), the phase completes normally (cli_exit 0, verdict written); the row reads degraded: true, degraded_reason 'REVIEW: refusal fallback'
 **First observed**: 2026-10-20 cycle-131 Sprint 264 arm smoke smoke-c131-arms-20261020T025808Z, a1_no_dissent × review-01 (pr-05); 0 of 36 cycle-130 runs, 0 of 8 Sprint 263 smoke rows carried one
-**Recurrence count**: 1
+**Recurrence count**: 4
 **Current workaround**: None needed for completion (the fallback is the designed behaviour). For reads: exclude the row from any model contrast (R5) and count it degraded elsewhere; report models_used per phase. Do not retry the cell to 'get a Fable row' — that selects on the refusal.
 **Upstream issue**: cycle-131 pre-registration (Sprint 264); row writer flags it already
 **Related visions / lore**: KF-048 (credential), KF-037 (CLI contention); DEC-0545 (extra models are telemetry, not drift — a refusal fallback IS a model change)
@@ -1910,7 +1913,52 @@ Mechanism: a fix-commit path OUTSIDE the PR is written at the PR's head_commit, 
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-20 | arm smoke on pr-05: a1_no_dissent REVIEW phase (dissent disabled; Fable 5.1 xhigh) hit the refusal; a1_full_openmount and a0_bare_fable on the same PR did not | row completed, catch 1.0, degraded by the fallback; rule added to the Sprint 264 pre-registration (R5 exclusion) | evals/results/ablation-2.0/smoke-c131-arms-20261020T025808Z/a1_no_dissent/review-01-t1/meta/phases.jsonl; commit 0281ea57 |
+| 2026-10-22 | cycle-132 Sprint 270 batch c132-g3-a1: a1_full review-r20-t2 REVIEW and AUDIT both fell back from claude-fable-5-1 to claude-opus-5-5 (row degraded_reason 'REVIEW: refusal fallback; AUDIT: refusal fallback'); the row is also contaminated (outside_path) and oracle-exposed (2) | as designed: the row is invalid under section 4 of the cycle-132 registration (refusal fallback on a non-matched cell) and excluded from every model contrast; no re-run (D-7.3); second observation of the refusal shape, both on pull requests whose review content touches security tooling | evals/results/ablation-2.0/runs.jsonl row c132-g3-a1-a1_full-review-r20-t2; evals/results/ablation-2.0/c132-g3-a1/a1_full/review-r20-t2/eval/phases.jsonl |
+| 2026-10-23 | cycle-132 c132-g3-a3 a1_full_openmount: review-r20-t1 (REVIEW and AUDIT) and review-r24-t2 (REVIEW) fell back from claude-fable-5-1 to claude-opus-5-5; three Phase 1 rows in all, on the two PRs whose code is security tooling (pr-20 audit chain and destructive-command guard, pr-24 grader contamination checks) | as designed: rows invalid under section 4 (refusal fallback on a non-matched cell); excluded from model contrasts; recorded in the intention-to-run table | evals/results/ablation-2.0/runs.jsonl rows c132-g3-a3-a1_full_openmount-review-r20-t1 and -r24-t2 (degraded_reason) |
 
 ### Reading guide
 
 A refusal fallback is a model-safety event on the review content, not infrastructure: the same PR reviewed on Fable without a fallback in two sibling arms the same hour, so it is stochastic per session. Read the row's phases[].refusal_fallbacks and models_used before attributing any Fable-vs-Opus difference to the pipeline; a cell with a fallback is not a Fable cell. If the rate grows past a few percent of review-catch rows, the model confound in every full-pipeline read is live and must be reported as such.
+
+## KF-052: Host reboot kills a detached ablation batch runner (setsid nohup run-ablation.sh) mid-batch: in-flight sessions and trials end without a record or row
+
+**Status**: OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery
+**Feature**: evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh
+**Symptom**: pgrep run-ablation.sh returns 0 while <batch>/STATUS.json says state running; the batch log stops without a final 'batch:' line; docker ps shows no loa-abl-* container; 'last -x reboot' shows a system boot after the last log line; the Claude session died at the same time (tool call interrupted)
+**First observed**: 2026-09 cycle-126 (memory gotcha: host reboot kills detached runs); 2026-10-22T02:1xZ cycle-132 Sprint 270 batch c132-g1-b (5 of 42 Fable sessions done; r23-t1 s2/s3 and a1_review_only r27-t1 interrupted)
+**Recurrence count**: 3
+**Current workaround**: Relaunch the same batch with --resume (batch-c132.sh <mode> <pin> --resume → run-ablation.sh --resume): relaunches only sessions without a record and plan entries without a row; the interrupted attempt dirs count toward the 3-attempt limit; MANIFEST caps kept; recorded sessions charged from their records; registration untouched
+**Upstream issue**: none (infrastructure); candidate: a systemd user unit or a boot-time resume checklist in the batch driver
+**Related visions / lore**: KF-047 (record-round 72 h timeout), cycle-126 session memory
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-22 | batch-c132.sh g1-b <pin> --resume at 02:46:24Z | pre-flight passed; 2 of 24 trials rowed kept; a1_review_only r27-t1 and fable r23-t1 s2/s3 relaunched; batch running | ~/.cache/loa/cycle-132/logs/batch-g1-b-resume.log; evals/results/ablation-2.0/c132-g1-b/STATUS.json; grimoires/loa/NOTES.md 2026-10-22T02:48:00Z |
+| 2026-10-23 | variant cause: the lead's Bash tool call that launched c132-g3-b (setsid nohup … &) continued into a trailing sleep and hit the 10-minute tool timeout; the timeout killed the launched runner at 04:20Z (log: Terminated; interrupted: the driver received a signal). Relaunched with --resume at 04:48:39Z | recovered: 0 of 16 trials had rowed, all units relaunched; rule adopted — launch detached batches only in short calls that return immediately (& disown), never followed by a sleep in the same call | ~/.cache/loa/cycle-132/logs/batch-g3-b.log (Terminated), batch-g3-b-resume.log; grimoires/loa/NOTES.md 2026-10-23T04:55:00Z |
+
+### Reading guide
+
+Confirm the cause with 'last -x reboot shutdown' before anything else. Never relaunch the batch under its own name without --resume (duplicate run_id → ROWS INVALID, cycle-132 smoke lesson) and never move or delete its rows or run dirs. After --resume check the first log lines: 'resume: batch <name>, N of M trials rowed' and the relaunched units. If it recurs ≥ 3 times, make the driver a restartable unit instead of relying on manual resume.
+
+## KF-053: took-effect no_audit_rows fails on a BARE session because the agent ran the PR's own hook or audit script, which wrote sandbox/.run/audit.jsonl; the runner pauses the arm and exits with cells unrun
+
+**Status**: OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle
+**Feature**: evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418)
+**Symptom**: batch log: '<session> infrastructure_error valid false … (took-effect: … no_audit_rows FAIL sandbox/.run/audit.jsonl exists)', then 'PAUSED arm a0_bare_matched …' and 'failed: every arm is paused by took-effect (["a0_bare_matched"]); N trials left'; STATUS.json state failed, paused_arms set, skipped_paused > 0
+**First observed**: 2026-10-23T02:06Z cycle-132 Sprint 270 batch c132-g3-a2, review-r20-t2 session s10 (pr-20 modifies the audit chain; its block-destructive-bash hook, run by the bare agent, appended rows with action block / pattern FR-2-AMBIGUOUS)
+**Recurrence count**: 1
+**Current workaround**: Inspect sandbox/.run/audit.jsonl in the failed session: rows written by PR code the agent executed (hook name and pattern ids from the PR) mean no framework ran. Then relaunch the batch with --resume --clear-arm <arm>; the failed session stays invalid, the cell is finalised on its other sessions, the skipped cells run
+**Upstream issue**: candidate for grader/took-effect 1.4: scope no_audit_rows to rows whose hook or writer is the pinned framework (not a PR-content copy), or exempt PRs whose head.diff touches the audit chain, recorded as took_effect_exempt
+**Related visions / lore**: KF-046 (class 7 PR-content exemption), DEC-0791, PREREGISTRATION addenda 1, 4, 7, 8 (guards written for build tasks or framework leakage firing on PRs whose content is the harness itself)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | batch-c132.sh g3-a2 <pin> --resume --clear-arm a0_bare_matched at 02:28Z | in progress: 3 skipped cells relaunched; g3-a3 running concurrently | evals/results/ablation-2.0/c132-g3-a2/STATUS.json paused_arms; …/a0_bare_matched/review-r20-t2/sessions/s10/{meta/took-effect.json,sandbox/.run/audit.jsonl}; ~/.cache/loa/cycle-132/logs/batch-g3-a2-resume.log |
+
+### Reading guide
+
+Do not treat the pause as framework leakage until the audit.jsonl rows are read: a PR that ships hook or audit code will produce rows when the bare agent exercises it. Do not change the rule mid-phase; clear the arm and resume. If the same PR trips several sessions, expect its matched cell to degrade (< ceil(k/2) valid) and the pair to leave the primary; the per-class rows report it.

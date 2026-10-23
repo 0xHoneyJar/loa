@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "anchor_line": 113,
+      "anchor_line_end": 126,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "cross_file_justification": "The gate is read in agy_headless_adapter.complete()/health_check()/validate_config() with no project_root, so the trust anchor is whatever .loa.config.yaml the cwd walk finds at dispatch time.",
+      "description": "The opt-in that decides whether the redacted diff is placed on the agy CLI's argv (readable by every local account via /proc/<pid>/cmdline) is read from the cwd-walked project config on every call. The adapter's own docstring states the caller's cwd is the reviewed tree. In a PR-review flow, that tree's .loa.config.yaml is contributor-controlled, so a PR that adds `hounfour.headless.agy_opt_in: true` can enable the route the operator believed was off, exposing the prompt on a shared host and spawning `agy --dangerously-skip-permissions --sandbox`. The docstring's stated goal ('the argv prompt is only ever exposed by an operator's deliberate choice') is not met when the config layer is the tree under review.",
+      "failure_mode": "A reviewed branch flips the key; the next review dispatch opts into the argv-exposed Google CLI voice without operator action.",
+      "suggested_fix": "Resolve the gate against the operator's framework root (the root that owns .claude/adapters), or require the key to also be present in a non-tree source (system defaults or an operator-only file). At minimum, read it once at process start from cheval's own resolved root rather than per-call from cwd, and log the path the decision was read from.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:build_headless_argv",
+      "anchor_type": "line",
+      "anchor_line": 145,
+      "anchor_line_end": 145,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "build_headless_argv exposes a `prompt` parameter that places untrusted prompt text directly on argv after `-p`, with no `--` separator. Neither the adapter nor the probe uses it (both pass None and stream the prompt on stdin), so it is a dead surface that re-opens the argv exposure cycle-126 closed and lets a prompt beginning with `-` be parsed as a CLI flag if any future caller passes it.",
+      "failure_mode": "A future caller passes the prompt positionally; a crafted diff starting with `--` is interpreted as claude CLI flags, and the prompt becomes visible in ps/cmdline.",
+      "suggested_fix": "Drop the `prompt` parameter (stdin is the only transport), or if it must stay, insert `--` before it and document that it must never carry review content.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter._cli_bin",
+      "anchor_type": "function",
+      "anchor_line": 300,
+      "anchor_line_end": 302,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The opt-in rationale says 'No environment override — a planner is never talked into the agy voice by ambient env', yet once opted in the binary that receives the full prompt on argv is chosen by the ambient AGY_HEADLESS_BIN variable (and CLAUDE_HEADLESS_BIN for the claude route). Ambient env can redirect the dispatch to any executable without touching config.",
+      "failure_mode": "An inherited environment variable points the opted-in dispatch at an arbitrary binary which receives the redacted diff and runs with --dangerously-skip-permissions.",
+      "suggested_fix": "Treat the *_BIN override as a test seam: honour it only when a config flag permits it, or require an absolute path and log the resolved binary at WARN once per process alongside the existing argv-exposure warning.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "anchor_type": "line",
+      "anchor_line": 912,
+      "anchor_line_end": 913,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "resolve_effort validates the catalog and extra rungs through _valid_effort but returns the caller rung (`args.effort`) unchecked, relying on argparse `choices` elsewhere. The value reaches the claude CLI argv via build_headless_argv and the HTTP effort field. The chokepoint's own contract is 'one chokepoint, four rungs' but one rung bypasses the validator.",
+      "failure_mode": "If the argparse definition ever loses its choices restriction, or a programmatic caller passes a Namespace, an arbitrary string lands on `--effort` and in MODELINV telemetry.",
+      "suggested_fix": "Run `explicit` through `_valid_effort` as well and fail with INVALID_CONFIG on mismatch, so the chokepoint does not depend on the argparse definition staying in sync.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T18:05:31Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 556,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8749,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a7ef6850b567a4361fa27da85eede914fdd5e5388f4308f1934811f10ee48127",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

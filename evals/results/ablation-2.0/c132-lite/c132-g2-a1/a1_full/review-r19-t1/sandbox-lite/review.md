@@ -1,0 +1,10 @@
+head/.claude/scripts/guard-yield.sh:388 — `source "$HEREDOC_LIB"` runs in the main shell under set -e; a classifier library that exits (e.g. one that sources the fence hook, which has no BDB_LIB_ONLY mode at head) makes the generator exit 0 with no register, no yield and no hooks-table update written (MEDIUM)
+head/.claude/skills/implementing-tasks/SKILL.md:28 — zones.app.permission widened from read to read-write without a mention in the PR description, while reviewing-code/SKILL.md:135 now makes the frontmatter zones block authoritative (MEDIUM, scope)
+head/.claude/scripts/loa-status.sh:952 — a present but malformed .run/guard-yield.json is reported as "no yield file", sending the operator to regenerate instead of naming the unreadable file (LOW)
+head/evals/harness/run-arms.sh:299 — is_transport_failure greps agent-output.json for "network" and "5[0-9][0-9] ", so a failed trial whose result text mentions networking is retried and recorded as transport_error (LOW)
+head/.claude/scripts/guard-yield.sh:466 — the burst-minute replay rule is derived from block rows but applied to every in-window row, dropping implement-gate telemetry/ask rows that share a minute with a fixture burst (LOW)
+head/evals/harness/run-arms.sh:366 — on corpus drift the parent exits 3 and cleanup kills the trial jobs, but their sandboxes are never destroyed (LOW)
+head/evals/tasks/review-recall/review-pr-11.yaml:5 — the pr-11…pr-18 tasks and suites reference fixture trees, labels/, manifests/, record-pairs.tsv, corpus.tsv and SHA256SUMS that are not in this diff; verify they exist on the branch (LOW, likely a snapshot artefact)
+head/.claude/rules/stash-safety.md:2 — path-scoping the stash rule to shell files means a Python/TS project session never loads it although the hazard is shell usage, not file type (LOW, follows SDD D-3.1 / DEC-0129)
+head/.claude/skills/planning-sprints/resources/templates/sprint-template.md:58 — the task line now ends "⇐ <blockers> · kind: <kind>"; no script parses ⇐, so the ambiguity for the model building --deps is prose-only; a template comment that kind: is not part of the blocker list would remove it (LOW, speculative)
+Verdict: APPROVED

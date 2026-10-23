@@ -1,0 +1,18 @@
+{
+  "id": "s9",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    3.40068
+  ],
+  "cost_usd": 3.40068,
+  "run_dir": "sessions/s9",
+  "took_effect": "ok",
+  "started": "2026-10-22T23:11:42Z",
+  "finished": "2026-10-22T23:24:04Z"
+}

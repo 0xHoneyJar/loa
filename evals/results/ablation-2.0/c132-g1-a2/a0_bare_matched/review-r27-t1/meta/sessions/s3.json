@@ -1,0 +1,18 @@
+{
+  "id": "s3",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: repo_name",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    5.987192
+  ],
+  "cost_usd": 5.987192,
+  "run_dir": "sessions/s3",
+  "took_effect": "ok",
+  "started": "2026-10-21T19:36:11Z",
+  "finished": "2026-10-21T19:50:28Z"
+}

@@ -1,0 +1,201 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 7,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 8,
+    "model_agreement_percent": 100,
+    "models": 2,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Clear correctness bug with a low-cost schema fix. The documented consensus-impossible path is unreachable under additionalProperties:false, so this should be corrected before implementation relies on the contract.",
+      "gpt_score": 940,
+      "opus_score": 850,
+      "tertiary_score": null,
+      "delta": 90,
+      "average_score": 895,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong cost-control issue. The current recursion bound does not bound total second-stage calls, and the proposed cap plus deterministic selection rule is a practical fix with modest spec and implementation cost.",
+      "gpt_score": 835,
+      "opus_score": 910,
+      "tertiary_score": null,
+      "delta": 75,
+      "average_score": 872.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Real operational deadlock in an incident-sensitive path. Clarifying the register-before-config workflow is low cost and prevents break-glass from failing exactly when it is needed.",
+      "gpt_score": 865,
+      "opus_score": 875,
+      "tertiary_score": null,
+      "delta": 10,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "High-value auditability improvement. An override that can downgrade FAILED to DEGRADED needs durable provenance in both the envelope and MODELINV; otherwise the reason requirement is not meaningfully inspectable downstream.",
+      "gpt_score": 850,
+      "opus_score": 720,
+      "tertiary_score": null,
+      "delta": 130,
+      "average_score": 785,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Valuable compatibility fix. Silent exclusion of pre-Sprint-2 entries can materially skew health statistics, though the impact is transitional and can be handled either by fallback mapping or explicit exclusion reporting.",
+      "gpt_score": 735,
+      "opus_score": 780,
+      "tertiary_score": null,
+      "delta": 45,
+      "average_score": 757.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Good audit-system completeness issue. If KFAL emits signed audit records, its hierarchy position, retention, keying, and recovery behavior should be specified to avoid gaps in compliance and operations.",
+      "gpt_score": 705,
+      "opus_score": 880,
+      "tertiary_score": null,
+      "delta": 175,
+      "average_score": 792.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Valuable determinism and provenance fix. The second-stage model and role affect both cost and meaning of findings, so leaving them undefined invites inconsistent implementations.",
+      "gpt_score": 720,
+      "opus_score": 755,
+      "tertiary_score": null,
+      "delta": 35,
+      "average_score": 737.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "Chunked-review truncation is not load-bearing in verdict classification. `chunks_dropped` can be nonzero while `compute_verdict_status` still returns `APPROVED` if voices succeeded and chain health is ok.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "A partially reviewed PR could be reported as approved even though some files or chunks were never reviewed, recreating the core false-clean failure mode this cycle is meant to eliminate.",
+      "location": "§3.2.2 Classification contract; §4.4 helper; §5.4; §10 chunks_max truncation behavior",
+      "recommendation": "Make `chunks_dropped > 0` a mandatory DEGRADED or FAILED condition, preferably FAILED unless an explicit audited truncation waiver exists. Add conformance fixtures for chunk truncation and require consumers to surface dropped chunks prominently.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The consensus-impossible signal used by the canonical classifier is not representable in the declared schema. The helper reads `_consensus_impossible`, but `verdict-quality.schema.json` has `additionalProperties: false` and does not define that field.",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "BLOCKER-level contradictory findings cannot be validly encoded. Producers will either fail schema validation or omit the signal, allowing malformed consensus cases to be misclassified.",
+      "location": "§3.2.1 schema; §3.2.2 FAILED conditions; §4.4 `compute_verdict_status`",
+      "recommendation": "Add an explicit schema field such as `consensus_impossible: boolean` or `status_reason: enum`, update the helper to use that field, and add schema-valid conformance fixtures for contradictory BLOCKER findings.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The specified cheval error envelope omits the required `verdict_quality.status` field despite the schema and producer contract requiring it on every envelope.",
+      "severity": "CRITICAL",
+      "severity_score": 850,
+      "why_matters": "Error paths are the most important degraded/failure paths. If they omit `status`, consumers may reject the envelope, fall back to legacy behavior, or reintroduce ad hoc classification.",
+      "location": "§6.2 Error response shape; §3.2.1 required fields; §3.2.2 producer obligation",
+      "recommendation": "Require all error constructors to call `emit_envelope_with_status` before returning. Update §6.2 examples and add fixtures for ContextTooLarge, ChainExhausted, NoEligibleAdapter, and ChunkingExceeded error envelopes.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "The verdict schema and classifier do not enforce cross-field invariants such as `voices_succeeded <= voices_planned`, unique dropped voices, and consistency between `voices_dropped` and the success count.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "Malformed envelopes can pass schema validation and may be classified as `APPROVED`, especially if counters are wrong or dropped voices are inconsistently represented.",
+      "location": "§3.2.1 schema; §3.2.2 contract; §4.4 helper",
+      "recommendation": "Add producer-side invariant validation before classification. At minimum enforce `0 <= voices_succeeded <= voices_planned`, `voices_planned > 0` unless explicitly allowed, unique dropped voices, and a documented relationship between dropped voices and planned/succeeded counts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "`--blocker-risk-override` (§4.1) requires only `--override-reason` (free text; no minimum length stated). It carries no operator authentication, no OPERATORS.md ACL check, no signed audit event, and no expiry. A caller can issue `--blocker-risk-override unknown` to silently downgrade `high`-risk dropped voices to `unknown`, converting FAILED → DEGRADED classification with no auditable trail. This is structurally weaker than `--ceiling-override`, which mandates four credentials plus a signed audit event.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The SKP-002 (v3/v4) closure added `blocker_risk` specifically so that high-risk dropped voices promote to FAILED rather than landing at DEGRADED. An unauthenticated in-band flag that overrides it post-hoc undoes that protection entirely. The override is invisible to the audit chain and undetectable by downstream reviewers querying the trust ledger.",
+      "location": "§4.1 cheval CLI surface (`--blocker-risk-override`); §3.2.2 APPROVED/FAILED classification contract; §4.1.1 ceiling-override credential requirements (analogous standard not applied here)",
+      "recommendation": "Apply the same credential requirements as `--ceiling-override`: require `--override-operator` (OPERATORS.md ACL check), `--override-reason` (≥16 chars), `--override-expiry` (max 24h), and emit a signed `L4_TRUST` audit event. Alternatively remove the in-band flag entirely and require blocker-risk overrides to flow through `.loa.config.yaml::kf_auto_link.overrides[]`, where the §3.5.1 precedence and audit rules already apply.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "`--blocker-risk-override` can reduce a dropped voice from `high` to a lower risk without the same ACL, expiry, and signed audit controls required for `--ceiling-override`.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "This can downgrade a would-be `FAILED` review to `DEGRADED`, weakening the blocker-risk safety mechanism without a comparable break-glass trail.",
+      "location": "§3.2.2 Blocker-risk computation; §4.1 Cheval CLI surface",
+      "recommendation": "Make blocker-risk overrides upward-only by default. Any downward override should require operator slug, ACL membership, expiry, reason, KF reference, and a signed audit event, matching the ceiling-override break-glass model.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "`_consensus_impossible` field is used in `compute_verdict_status` (§4.4) but is absent from `verdict-quality.schema.json`'s properties list while the schema enforces `additionalProperties: false`. Any producer that sets this field will fail the round-trip `jsonschema.validate` call inside `emit_envelope_with_status`; any producer that omits it makes the consensus-impossible FAILED branch permanently unreachable — the classification path for 'voice findings contradict on BLOCKER' is dead code.",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "The §3.2.2 FAILED condition for consensus-impossible is stated as load-bearing but has no executable path: if the field is present the schema rejects the envelope; if it is absent the code never triggers FAILED via that condition. In both cases the classification contract is broken for the incident class that motivates its existence, and conformance tests cannot catch it because the field is never validly emitted.",
+      "location": "§3.2.1 verdict-quality.schema.json properties; §3.2.2 FAILED conditions table (row 4); §4.4 compute_verdict_status `_consensus_impossible` branch",
+      "recommendation": "Add `_consensus_impossible` to the verdict-quality.schema.json properties as an explicit boolean (or replace the private-field pattern with a `consensus_outcome` enum that includes `impossible`). Document which producer sets it. Add a conformance fixture that exercises this FAILED path end-to-end so CI enforces it is reachable.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "`recommended_for` semantics are ambiguous and conflict with migration defaults. The schema says default `[]` is informational, but the normal dispatch flow requires `role in recommended_for`.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Implementation could either block most migrated models because their role list is empty, or treat role downgrades as informational and fail to enforce KF-derived safety decisions.",
+      "location": "§1.5.1 normal dispatch; §3.1.2 conservative defaults; §3.5 precedence rules; §5.1 Sprint 1",
+      "recommendation": "Define exact runtime semantics: either `[]` means allow-all and KF-auto-link writes an explicit deny list, or `recommended_for` is enforced and migration must populate safe defaults. Add tests for empty, missing, downgraded, and override-restored role lists.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer autonomous",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-13T10:31:11Z",
+  "metrics": {
+    "total_latency_ms": 354000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

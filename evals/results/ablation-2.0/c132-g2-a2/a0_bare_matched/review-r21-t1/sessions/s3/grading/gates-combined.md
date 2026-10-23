@@ -1,0 +1,13 @@
+head/.claude/scripts/lib/hop-locality.py:116
+modelinv.py:476
+openai_adapter.py:221
+head/.claude/scripts/lib/hop-locality.py:128
+head/.claude/scripts/adversarial-review.sh:4266
+head/.claude/skills/bridgebuilder-review/resources/config.ts:684
+head/.claude/skills/bridgebuilder-review/resources/config.ts:482
+head/.claude/loa/reference/scripts-reference.md:73
+multi-model-reference.md:102
+head/.claude/scripts/model-health-probe.sh:1469
+head/.claude/scripts/flatline-orchestrator.sh:707
+head/.claude/skills/reviewing-code/SKILL.md:211
+auditing-security/SKILL.md:238

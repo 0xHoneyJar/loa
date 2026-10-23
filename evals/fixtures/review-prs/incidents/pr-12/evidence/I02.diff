@@ -1,0 +1,91 @@
+commit d12bdfabcec063a828518654ca711f1bf502ec2c
+Date: 2026-10-08T01:44:25+11:00
+
+fix(cycle-127): sprint-251 review dissent round r251-2 — one strict opt-in rule on both readers (only the YAML scalar whose source text is exactly `true`; bash and Python had split on yes/on/True), an agy-alone refusal lands in models_failed only (INVALID_CONFIG / opt_in_required; models_not_planned is for hops dropped before the walk; voices_dropped names the reason), run-preflight P3 judges an agy-routed voice by `command -v agy` when the opt-in is on (routes_to_agy → cli=agy; gemini-headless:<m> too), the dissent's lib-missing path keeps an inline name filter, the yq fallback is selected by flavour, Bridgebuilder's readError is fail-closed for google voices with messages that name the cause and the voices; the headless adapter maps the CLI's own pre-flight rejection ("Prompt is too long", "~N tokens (limit M)") to ProviderContextLimitError (not walked, no breaker count; it was ProviderUnavailableError); the probe's 429 lookahead accepts "429." and reads the throttle verdict from the CLI's own answer, checks catalog writability before spend, claims a write only after it lands, keeps a defect's traceback; vacuous bats assertions fixed, conformance rows for yes/on/True/TRUE/1/"true", concrete _lookup pin, provenance guard requires probed_headless for a foreign transport. Docs: two-case routing rule, Bridgebuilder budget 508,000 = (936,000 − 20,000) ÷ 1.8, --write-partial-as-operator-set in PRD FR-3.5 / SDD D-3.8, effort carry as existing behaviour, "only a dispatch whose sole hop is agy-routed refuses", the count_tokens gate scoped to the HTTP adapter, the refuted long-context sentence removed. Refuted with evidence: 30 of 76 (eight chunker mislabels — the chunker now keeps per-file headers). Beads bd-y49y (payload-schema drift), bd-c2rd note.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/scripts/adversarial-review.sh b/.claude/scripts/adversarial-review.sh
+index 3ef7af4f..5fb76991 100755
+--- a/.claude/scripts/adversarial-review.sh
++++ b/.claude/scripts/adversarial-review.sh
+@@ -80,7 +80,9 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
+ source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
+ 
+ # cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy).
+-# Same soft-source as the libs above; the planner below fails closed (every hop agy-checked) if the lib did not load.
++# Same soft-source as the libs above. If the lib did not load, the planner below fails closed on what it can still tell
++# without it: the opt-in reads off and every hop that names gemini-headless is not planned (opt_in_required); a Google model
++# under cli-only cannot be told apart there, and cheval's own gate refuses that hop (review r251-2 K4).
+ _AGY_GATE_LIB_PATH="$SCRIPT_DIR/lib/agy-gate-lib.sh"
+ # shellcheck source=lib/agy-gate-lib.sh
+ source "$_AGY_GATE_LIB_PATH" 2>/dev/null || true
+@@ -2365,13 +2367,22 @@ _adv_agy_opted_in() {
+ _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain without its agy hops when the opt-in is off; each drop is said once
+   # (review r251-1 G2: a hop is agy-routed by the shared routes_to_agy — by name, alias-resolved, or a Google model under
+   # hounfour.headless.mode cli-only — tested on the hop as written and on its catalog id)
++  # (the once-per-shell gate WARN is the caller's, from a top-level planning point — inside $(...) it would be lost)
+   local key="$1" fam="$2" h c out="" mode; shift 2
+-  if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (no-op when the planner already said it)
+   if _adv_agy_opted_in; then printf '%s' "$*"; return 0; fi
+   if ! _adv_agy_lib; then
+-    # (no predicate to plan with: the chain is kept and cheval's own gate refuses or skips an agy hop)
+-    log "WARN: lib/agy-gate-lib.sh not loaded — companion chain not agy-filtered; cheval's opt-in gate still applies"
+-    printf '%s' "$*"; return 0
++    # (review r251-2 K4: no predicate to plan with — fail closed on the name: every gemini-headless hop is not planned.
++    # A Google model under cli-only is not recognisable here; cheval's own gate refuses that hop.)
++    log "WARN: lib/agy-gate-lib.sh not loaded — the agy opt-in reads off; companion hops naming gemini-headless are not planned"
++    for h in "$@"; do
++      c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
++      case "$h $c" in
++        gemini-headless\ *|*:gemini-headless\ *|gemini-headless:*|*\ gemini-headless|*\ *:gemini-headless|*\ gemini-headless:*)
++          log "WARN: companion hop ${h} not planned (opt_in_required): the agy route is opt-in (hounfour.headless.agy_opt_in) — named by flatline_protocol.${key}.companion_chain.${fam}" ;;
++        *) out+="$h " ;;
++      esac
++    done
++    printf '%s' "${out% }"; return 0
+   fi
+   mode=$(agy_headless_mode "${CONFIG_FILE:-}")
+   for h in "$@"; do
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index 8b1b23f7..2d373919 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -745,8 +745,9 @@ hounfour:
+     # Flatline tertiary, Bridgebuilder, /loa, run preflight) records the hop as not planned
+     # (reason opt_in_required), never as a failed voice — a host without agy plans no Google CLI voice.
+     # Set true only where agy is installed AND OAuth-authed: `agy -p` takes the whole prompt (the
+-    # redacted review diff) on argv, readable by every local account through /proc and ps. Only a
+-    # YAML boolean true counts; there is no environment override.
++    # redacted review diff) on argv, readable by every local account through /proc and ps. Only the
++    # lowercase scalar `true` counts (yes / on / True / "true" read off, with a WARN); there is no
++    # environment override.
+     agy_opt_in: false
+     # cli_paths: discovery hints. If unset, $PATH is searched.
+     # cli_paths:
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+index c4809f2a..5585ae46 100644
+--- a/tests/unit/adversarial-review-companion.bats
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -6030,3 +6030,20 @@ PY
+     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+     ! grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log" || { echo "unexpected: grep -q 'hounfour.headless.agy_opt_in' '$T/stderr.log'"; return 1; }
+ }
++
++@test "CMP-287 (review r251-2 K4) with the agy gate lib missing the dissent planner still drops a literal gemini-headless hop (fail closed, reason opt_in_required)" {
++    local empty="$T/no-lib-root" cfg="$T/agy-off.yaml"
++    mkdir -p "$empty"
++    printf 'hounfour:\n  headless:\n    mode: prefer-api\n    agy_opt_in: true\n' > "$cfg"   # (even an on config: no lib, no opt-in read)
++    run bash -c '
++        exec 2>"$4"; source "$1"
++        unset -f routes_to_agy agy_opted_in agy_headless_mode agy_route_planned agy_gate_warn_once 2>/dev/null
++        PROJECT_ROOT="$2"; CONFIG_FILE="$3"; log() { echo "$*" >&2; }
++        _adv_agy_filter_chain code_review anthropic gemini-headless claude-headless google:gemini-headless gemini-headless:gemini-3-pro gemini-2.5-pro
++    ' _ "$ADVERSARIAL_REVIEW" "$empty" "$cfg" "$T/k4.err"
++    local stderr; stderr=$(cat "$T/k4.err")
++    [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
++    [ "$output" = "claude-headless gemini-2.5-pro" ] || { echo "out=$output stderr=$stderr"; return 1; }
++    grep -q 'agy-gate-lib.sh not loaded' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
++    grep -q 'gemini-headless not planned.*opt_in_required' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
++}

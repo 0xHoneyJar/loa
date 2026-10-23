@@ -1,0 +1,70 @@
+{
+  "changed_files": 17,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 6,
+    "issue": 1,
+    "kf": 1
+  },
+  "fixture": "pr-24",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 1,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-18 \".gitignore\" OR \"ablation-2.0.yaml\" OR \"ablation-docker-stub.sh\" OR \"ablation-grade-stub.sh\" OR \"ablation-grade.bats\"",
+      "total_count": 2
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-18 \"ablation-grade.sh\" OR \"ablation-pipeline-stub.sh\" OR \"ablation-report.bats\" OR \"ablation-report.py\" OR \"ablation-row.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-18 \"ablation-row.sh\" OR \"arm-toggles.bats\" OR \"arms-common.sh\" OR \"gen-fixtures.py\" OR \"run-ablation.bats\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 2,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-18 \"run-ablation.sh\" OR \"run-arms.sh\"",
+      "total_count": 2
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 2,
+  "merge_commit": "dfc47772a80502447834194087f8380ada4cbd77",
+  "merge_date": "2026-10-18T14:10:33Z",
+  "pr": 1283,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:32:01Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-18T14:10:33Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:32:01Z"
+  }
+}

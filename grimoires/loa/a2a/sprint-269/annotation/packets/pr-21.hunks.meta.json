@@ -1,0 +1,1063 @@
+{
+  "context": 12,
+  "feedback_files": [
+    "grimoires/loa/a2a/sprint-257/adversarial-audit.json",
+    "grimoires/loa/a2a/sprint-257/adversarial-review.json",
+    "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json",
+    "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md",
+    "grimoires/loa/a2a/sprint-257/bb-triage.md",
+    "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-257/engineer-feedback.md"
+  ],
+  "fixture": "pr-21",
+  "hunk_count": 105,
+  "hunks": {
+    "H01": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/cheval.py",
+      "head_end": 422,
+      "head_start": 422,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H02": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/cheval.py",
+      "head_end": 1813,
+      "head_start": 1813,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H03": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/audit/modelinv.py",
+      "head_end": 476,
+      "head_start": 474,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H04": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-audit.json:DISS-001",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 28,
+      "head_start": 26,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H05": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 112,
+      "head_start": 112,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H06": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 125,
+      "head_start": 125,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H07": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 139,
+      "head_start": 139,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H08": {
+      "cited_by": [],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 144,
+      "head_start": 144,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-audit.json:DISS-001",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 159,
+      "head_start": 153,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H10": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 220,
+      "head_start": 220,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H100": {
+      "cited_by": [],
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "head_end": 144,
+      "head_start": 144,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H101": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26"
+      ],
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "head_end": 213,
+      "head_start": 213,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H102": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/bb-triage.md#L9"
+      ],
+      "file": "tests/unit/bb-exit-degraded-callers.bats",
+      "head_end": 46,
+      "head_start": 46,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H103": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/bb-triage.md#L9"
+      ],
+      "file": "tests/unit/bb-exit-degraded-callers.bats",
+      "head_end": 72,
+      "head_start": 72,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H104": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L22"
+      ],
+      "file": "tests/unit/flatline-locality.bats",
+      "head_end": 27,
+      "head_start": 26,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H105": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26"
+      ],
+      "file": "tests/unit/flatline-locality.bats",
+      "head_end": 121,
+      "head_start": 121,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H11": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 225,
+      "head_start": 225,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H12": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-005",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/endpoint_policy.py",
+      "head_end": 233,
+      "head_start": 230,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H13": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "head_end": 28,
+      "head_start": 28,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H14": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13"
+      ],
+      "file": ".claude/adapters/loa_cheval/config/loader.py",
+      "head_end": 704,
+      "head_start": 704,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H15": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16"
+      ],
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "head_end": 130,
+      "head_start": 123,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H16": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16"
+      ],
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "head_end": 136,
+      "head_start": 136,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H17": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16"
+      ],
+      "file": ".claude/adapters/loa_cheval/providers/base.py",
+      "head_end": 145,
+      "head_start": 145,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H18": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14"
+      ],
+      "file": ".claude/adapters/loa_cheval/providers/openai_adapter.py",
+      "head_end": 222,
+      "head_start": 220,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H19": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13"
+      ],
+      "file": ".claude/adapters/loa_cheval/types.py",
+      "head_end": 542,
+      "head_start": 542,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H20": {
+      "cited_by": [],
+      "file": ".claude/adapters/tests/test_config_examples_load.py",
+      "head_end": 134,
+      "head_start": 134,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H21": {
+      "cited_by": [],
+      "file": ".claude/adapters/tests/test_config_examples_load.py",
+      "head_end": 161,
+      "head_start": 158,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H22": {
+      "cited_by": [],
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "head_end": 67,
+      "head_start": 66,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H23": {
+      "cited_by": [],
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "head_end": 761,
+      "head_start": 761,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H24": {
+      "cited_by": [],
+      "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+      "head_end": 781,
+      "head_start": 781,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H25": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L21",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26"
+      ],
+      "file": ".claude/loa/reference/multi-model-reference.md",
+      "head_end": 104,
+      "head_start": 102,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H26": {
+      "cited_by": [],
+      "file": ".claude/scripts/adversarial-review.sh",
+      "head_end": 3889,
+      "head_start": 3889,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H27": {
+      "cited_by": [],
+      "file": ".claude/scripts/adversarial-review.sh",
+      "head_end": 4845,
+      "head_start": 4845,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H28": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12"
+      ],
+      "file": ".claude/scripts/adversarial-review.sh",
+      "head_end": 4850,
+      "head_start": 4850,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H29": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8"
+      ],
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "head_end": 15,
+      "head_start": 15,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H30": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L19"
+      ],
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "head_end": 28,
+      "head_start": 28,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H31": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "head_end": 32,
+      "head_start": 32,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H32": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/scripts/lib/hop-locality.py",
+      "head_end": 118,
+      "head_start": 118,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H33": {
+      "cited_by": [],
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "head_end": 184,
+      "head_start": 181,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H34": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+      "head_end": 4,
+      "head_start": 3,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H35": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+      "head_end": 49,
+      "head_start": 49,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H36": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+      "head_end": 133,
+      "head_start": 133,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H37": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+      "head_end": 145,
+      "head_start": 145,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H38": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+      "head_end": 161,
+      "head_start": 161,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H39": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+      "head_end": 192,
+      "head_start": 191,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H40": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+      "head_end": 204,
+      "head_start": 199,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H41": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts.map",
+      "head_end": 1,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H42": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 4,
+      "head_start": 4,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H43": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 411,
+      "head_start": 411,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H44": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 437,
+      "head_start": 437,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H45": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 443,
+      "head_start": 442,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H46": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 449,
+      "head_start": 449,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H47": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 455,
+      "head_start": 455,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H48": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 463,
+      "head_start": 463,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H49": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 534,
+      "head_start": 533,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H50": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 604,
+      "head_start": 601,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H51": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 610,
+      "head_start": 610,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H52": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 642,
+      "head_start": 642,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H53": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 664,
+      "head_start": 651,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H54": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 679,
+      "head_start": 676,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H55": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+      "head_end": 710,
+      "head_start": 708,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H56": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/config.js.map",
+      "head_end": 1,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H57": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts",
+      "head_end": 75,
+      "head_start": 75,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H58": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts",
+      "head_end": 95,
+      "head_start": 95,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H59": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/core/types.d.ts.map",
+      "head_end": 1,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H60": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/main.d.ts.map",
+      "head_end": 1,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H61": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/main.js",
+      "head_end": 6,
+      "head_start": 6,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H62": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/main.js",
+      "head_end": 390,
+      "head_start": 390,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H63": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/dist/main.js.map",
+      "head_end": 1,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H64": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 13,
+      "head_start": 13,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H65": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 18,
+      "head_start": 18,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H66": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L22"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 298,
+      "head_start": 298,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H67": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L22"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 303,
+      "head_start": 303,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H68": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L24",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L26",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L30",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L22"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 366,
+      "head_start": 366,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H69": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L30",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts",
+      "head_end": 411,
+      "head_start": 411,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H70": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 4,
+      "head_start": 4,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H71": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 456,
+      "head_start": 456,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H72": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 483,
+      "head_start": 483,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H73": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 489,
+      "head_start": 488,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H74": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 495,
+      "head_start": 495,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H75": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L16"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 503,
+      "head_start": 503,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H76": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 508,
+      "head_start": 508,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H77": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 518,
+      "head_start": 518,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H78": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 603,
+      "head_start": 602,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H79": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 674,
+      "head_start": 671,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H80": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 679,
+      "head_start": 679,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H81": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 711,
+      "head_start": 711,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H82": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 732,
+      "head_start": 722,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H83": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 748,
+      "head_start": 747,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H84": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L14",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L8",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+      "head_end": 776,
+      "head_start": 775,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H85": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+      "head_end": 72,
+      "head_start": 72,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H86": {
+      "cited_by": [],
+      "file": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
+      "head_end": 94,
+      "head_start": 94,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H87": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L16"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/entry.sh",
+      "head_end": 123,
+      "head_start": 123,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H88": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "head_end": 24,
+      "head_start": 24,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H89": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L12",
+        "grimoires/loa/a2a/sprint-257/auditor-sprint-feedback.md#L13"
+      ],
+      "file": ".claude/skills/bridgebuilder-review/resources/main.ts",
+      "head_end": 466,
+      "head_start": 466,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H90": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/bb-triage.md#L9"
+      ],
+      "file": ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh",
+      "head_end": 89,
+      "head_start": 76,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H91": {
+      "cited_by": [],
+      "file": ".loa.config.yaml.example",
+      "head_end": 1230,
+      "head_start": 1229,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H92": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback.md#L16"
+      ],
+      "file": ".loa.config.yaml.example",
+      "head_end": 2512,
+      "head_start": 2511,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H93": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/adversarial-review.json:DISS-C-003"
+      ],
+      "file": "tests/unit/adversarial-review-advisory.bats",
+      "head_end": 53,
+      "head_start": 53,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H94": {
+      "cited_by": [],
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "head_end": 27,
+      "head_start": 27,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H95": {
+      "cited_by": [],
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "head_end": 77,
+      "head_start": 77,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H96": {
+      "cited_by": [],
+      "file": "tests/unit/adversarial-review-budget.bats",
+      "head_end": 123,
+      "head_start": 123,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H97": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-003"
+      ],
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "head_end": 18,
+      "head_start": 18,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H98": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L26",
+        "grimoires/loa/a2a/sprint-257/adversarial-review.r1.json:DISS-C-003",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L17",
+        "grimoires/loa/a2a/sprint-257/engineer-feedback-r1.md#L20"
+      ],
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "head_end": 36,
+      "head_start": 27,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H99": {
+      "cited_by": [],
+      "file": "tests/unit/adversarial-review-locality.bats",
+      "head_end": 85,
+      "head_start": 85,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03"
+  ],
+  "incidents": "incidents/pr-21.tsv",
+  "record_ref": "origin/record/cycle-129-a2a",
+  "review_driven_count": 46
+}

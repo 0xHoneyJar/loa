@@ -1,0 +1,213 @@
+commit aac80f4cfea6c8e865ad194f713efd6cf1f8804d
+Date: 2026-10-20T22:13:56+11:00
+
+fix(cycle-131): PR #1286 Bridgebuilder round r4 — the closed mount refuses an unavailable fix commit (F001); grader 1.3.1 scans error-marked tool results (F002); 63 re-grades unchanged
+
+F001 (HIGH, accepted): `lib/sandbox-mount.sh overlay_answer_paths` exits 2 before writing anything when
+fixture.yaml's fix_commit is not in the source tree. Sprint 263 logged fix_commit_unavailable, overlaid the
+PR paths only and `check_mount_closed` called the mount closed with the fix-only paths still at the later
+copy. `check_mount_closed` and `took-effect.sh` rule oracle_closed now fail on overlay_fix_commit=unavailable.
+Premise check: overlay_fix_commit=available on all 18 closed-mount cycle-131 runs, none on the 4 without a
+fix commit — no recorded run took this path.
+
+F002 (MEDIUM, accepted): grader 1.3.1. A differing diff exits 1 and Claude Code marks the result is_error
+with the output after an "Exit code N" line; 1.3.0 skipped every such result. The detector now strips that
+line and scans the rest: the diff form needs printed ranges near a planted site (no must_match-only credit
+from an error result), the read form later-only text, and an error-marked section without ranges is never
+oracle_exposed_unknown. Recall and contamination unchanged. Re-graded under 1.3.1, the 36 cycle-130 and
+27 cycle-131 review-catch runs are identical on every oracle field, recall and contamination (63/63); the
+26 error-marked results carrying diff ranges all compare pr/base with pr/head or read head.diff. The pinned
+1.3.0 rows stay the main read (DEC-0648); the 1.3.1 grades are a labelled sensitivity
+(~/.cache/loa/cycle-131/regrade-131/compare.tsv).
+
+Tests: sandbox-mount.bats (the unavailable-commit test now expects the refusal, an untouched sandbox and a
+failing check), took-effect.bats (overlay_fix_commit=unavailable FAIL clause), ablation-grade.bats (AG-48
+loses the is_error row; AG-56 covers error-marked differing diffs, a hook block, a tool error, unranged
+text, the read form and the unchanged non-error unknown case; version asserts 1.3.1).
+
+The check keeps its evidence rule only (overlay_fix_commit=unavailable fails); a recomputation rule was dropped
+because a check-time repository without the fix commit already fails clause (a) on the path count, and would
+have turned a shallow post-run clone into a false FAIL. The runner tests' pipeline stub overlays from a
+fixture copy without fix_commit when its throwaway source tree lacks the commit (RAB-c131-2 on pr-17/pr-18).
+
+Also: grimoires/loa/REPO-MAP.md regenerated (repo-map-gen.sh) — CI's BATS Tests on a3289c2b failed only on
+`repo-map: --validate passes against the committed REPO-MAP.md` (stale after the Sprint 263 edits to
+adversarial-review.sh and its resources; the separate REPO-MAP Drift Gate workflow had passed).
+
+Records: DEC-0655; KF-049 attempt row; CHANGELOG "### Fixed"; suite README. Bead bd-cxdsm.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/ablation-grade.sh b/evals/harness/ablation-grade.sh
+index 9ea0f455..a70e62eb 100755
+--- a/evals/harness/ablation-grade.sh
++++ b/evals/harness/ablation-grade.sh
+@@ -232,6 +232,12 @@
+ #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
+ #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
+ #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
++# grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
++# diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
++# line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
++# needs printed ranges near a site (must_match alone does not count there), the read form later-only text; an
++# error-marked section without ranges is never exposed_unknown (a refusal or a hook block names the command's
++# paths and prints no diff). Recall, contamination and every other field are unchanged from 1.3.0.
+ # grader 1.3.0 (cycle-131 Sprint 263 Tasks 1.3, 1.4; DEC-0615, DEC-0616, DEC-0617): three recall results
+ # (the same-scope rule, recall-vs-defects.sh 1.3.0), numeric dissent anchors, corpus_sha256, the oracle
+ # detector (diff and read forms, KF-049) and the KF-046 class 7 line-level exemption. recall_pm3_v1 equals
+@@ -346,7 +352,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
+ # TERM; names carry this pid, so a later grade never collides)
+ signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
+ 
+-GRADER_VERSION = "1.3.0"
++GRADER_VERSION = "1.3.1"
+ SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
+ SPRINT = "sprint-1"
+ _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
+@@ -2100,6 +2106,7 @@ SEG_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "{", "(",
+ PATHISH = re.compile(r"[A-Za-z0-9_./@%+,:=~$-]*[A-Za-z0-9_./@%+:~$-]")
+ HUNK_U = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
+ HUNK_N = re.compile(r"^(\d+)(?:,(\d+))?([acd])(\d+)(?:,(\d+))?\s*$", re.M)
++EXIT_CODE_LINE = re.compile(r"\AExit code \d+\n?")   # 1.3.1: Claude Code's preamble on a failed Bash tool result
+ ERR_LINE = re.compile(r"^(?:diff|sdiff|comm|git|cat|grep|sed|head|tail|awk|less):|^(?:fatal|error|warning):|"
+                       r"No such file|Is a directory|hook error|BLOCKED|^\s*$|^\s*(?:rc|exit)\s*=\s*\d+\s*$")
+ DIFF_BODY = re.compile(r"^[<>+\- @\\0-9]|^---$")
+@@ -2462,9 +2469,14 @@ def oracle_scan(t, run_dir):
+                         uses[blk["id"]] = (i, plan)
+                 elif ev.get("type") == "user" and blk.get("type") == "tool_result" and blk.get("tool_use_id") in uses:
+                     i0, plan = uses.pop(blk["tool_use_id"])
+-                    if blk.get("is_error") is True:
+-                        continue          # the tool failed (a refused command, a hook block): nothing printed
+-                    res = "\n".join(l[:LINE_CAP] for l in result_text(blk).split("\n")[:LINES_CAP])
++                    # 1.3.1 (PR #1286 F002): a failed tool (diff exits 1 on differences, a refusal, a hook block) still
++                    # carries its output after an "Exit code N" line; scan it, but no unknown and no must_match-only
++                    # credit from it — a refusal names the command's paths without printing a diff
++                    errored = blk.get("is_error") is True
++                    res = result_text(blk)
++                    if errored:
++                        res = EXIT_CODE_LINE.sub("", res, count=1)
++                    res = "\n".join(l[:LINE_CAP] for l in res.split("\n")[:LINES_CAP])
+                     dtargets = sorted({f for how, f in plan if how.startswith("diff") and live.get(f)})
+                     rtargets = sorted({f for how, f in plan if how == "read" and live.get(f)})
+                     if dtargets and res.strip():
+@@ -2477,7 +2489,7 @@ def oracle_scan(t, run_dir):
+                                 for pos, sites, mm in by_file.get(f, []):
+                                     ranged = any(near(sites, lo, hi) for lo, hi in rs)
+                                     own = any(x in sec for x in near_text.get((f, pos), []))
+-                                    if (ranged and own) or (mm and mm in sec):
++                                    if (ranged and own) or (not errored and mm and mm in sec):
+                                         note(label, i0, "diff", f, pos)
+                         for f, secs in secs_by.items():
+                             for sec in secs:
+@@ -2487,10 +2499,10 @@ def oracle_scan(t, run_dir):
+                                 rs = ranges_of(sec, plan_sides(plan, f))
+                                 hit_any = False
+                                 for pos, sites, mm in by_file.get(f, []):
+-                                    if any(near(sites, lo, hi) for lo, hi in rs) or (mm and mm in sec):
++                                    if any(near(sites, lo, hi) for lo, hi in rs) or (not errored and mm and mm in sec):
+                                         note(label, i0, "diff", f, pos)
+                                         hit_any = True
+-                                if not rs and not hit_any:
++                                if not rs and not hit_any and not errored:
+                                     for pos, _s, _m in by_file.get(f, []):
+                                         note(label, i0, "exposed_unknown", f, pos)
+                     single = len({f for how, f in plan if how == "read"}) == 1
+diff --git a/evals/tests/ablation-grade.bats b/evals/tests/ablation-grade.bats
+index 7100f899..0f778863 100644
+--- a/evals/tests/ablation-grade.bats
++++ b/evals/tests/ablation-grade.bats
+@@ -1146,7 +1146,7 @@ bash_case() {
+   [ "$status" -eq 0 ]
+   [ "$(G '.contaminated')" = null ]
+   [ "$(G '.heredoc_interpreters')" = 5 ]
+-  [ "$(G '.grader_version')" = 1.3.0 ]
++  [ "$(G '.grader_version')" = 1.3.1 ]
+ }
+ 
+ # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
+@@ -1416,7 +1416,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
+   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
+   grade "$RD" rc-o
+   [ "$status" -eq 0 ]
+-  [ "$(G '.grader_version')" = 1.3.0 ]
++  [ "$(G '.grader_version')" = 1.3.1 ]
+   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
+   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
+   [ "$(G '.recall.defects_caught')" = 1 ]
+@@ -1479,7 +1479,7 @@ CASES
+   [ "$(G '.oracle_exposed_events | length')" = 0 ]
+ }
+ 
+-@test "AG-48 oracle non-hits: diff -q, --brief, the word head.diff, cat pr/head.diff, a diff piped to wc or grep -c, >/dev/null, an is_error result, pr/ vs pr/" {
++@test "AG-48 oracle non-hits: diff -q, --brief, the word head.diff, cat pr/head.diff, a diff piped to wc or grep -c, >/dev/null, pr/ vs pr/" {
+   make_oracle
+   local i=0 cmd res err
+   while IFS=$'\t' read -r cmd res err; do
+@@ -1497,12 +1497,46 @@ diff pr/head.diff .claude/scripts/g.sh	20c20	false
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh | wc -l	4	false
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh | grep -c '^[<>]'	3	false
+ diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh >/dev/null; echo rc=$?	rc=1	false
+-diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	20c20\n< a\n---\n> b	true
+ diff pr/base/.claude/scripts/g.sh pr/head/.claude/scripts/g.sh	20c20\n< a\n---\n> b	false
+ cat > /tmp/notes.md <<'EOF'\ndiff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh\nEOF	20c20	false
+ CASES
+ }
+ 
++@test "AG-56 grader 1.3.1 error-marked results (PR #1286 F002): a differing diff (exit 1) exposes in normal and unified form, so does a read; a refusal, a tool error or unranged text naming the paths is neither a hit nor unknown" {
++  make_oracle
++  local i=0 cmd res want
++  while IFS=$'\t' read -r cmd res want; do
++    i=$((i + 1)); RD="$T/e$i"; make_orun "$RD"; sysinit "$RD" REVIEW
++    tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
++    grade "$RD" rc-o
++    [ "$status" -eq 0 ]
++    [ "$(G '.grader_version')" = 1.3.1 ]
++    [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
++  done <<'CASES'
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
++diff -u pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n--- pr/head/.claude/scripts/g.sh\n+++ .claude/scripts/g.sh\n@@ -20 +20 @@\n-a\n+b	diff=d1 read= unknown= exposed=d1
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 2\nBLOCKED by hook FR-9: diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh compares the mount	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 2\ndiff: .claude/scripts/g.sh: Permission denied	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\nleft text | right text	diff= read= unknown= exposed=
++diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\nrefused: the sandbox forbids comparing .claude/scripts/g.sh with pr/head/.claude/scripts/g.sh\nif [ -n "$OPT_VALUE_LONG" ]; then echo planted-site; fi	diff= read= unknown= exposed=
++CASES
++  # the read form on an error-marked result
++  RD="$T/er"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW er Bash "$(bash_in 'cat .claude/scripts/g.sh; false')" "$(printf 'Exit code 1\n%s\n' "$LATER20")" true
++  grade "$RD" rc-o
++  [ "$(OX)" = "diff= read=d1 unknown= exposed=d1" ]
++  # the same unranged text on a result not marked as an error is still unknown (unchanged from 1.3.0)
++  RD="$T/eu"; make_orun "$RD"; sysinit "$RD" REVIEW
++  tu "$RD" REVIEW eu Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "left text | right text" false
++  grade "$RD" rc-o
++  [ "$(OX)" = "diff= read= unknown=d1,d2 exposed=" ]
++  # the event record names the error-marked result like any other
++  RD="$T/ee"; make_orun "$RD"; sysinit "$RD" AUDIT
++  tu "$RD" AUDIT ee Bash "$(bash_in 'diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh')" "$(printf 'Exit code 1\n20c20\n< a\n---\n> b')" true
++  grade "$RD" rc-o
++  [ "$(G '.oracle_exposed_events[0] | "\(.phase) \(.event) \(.how) \(.path)"')" = "AUDIT 2 diff .claude/scripts/g.sh" ]
++}
++
+ @test "AG-49 oracle read form: a later-only line near a site in a Bash read or a Read result exposes; the PR copy, a line far from every site and a closed mount do not" {
+   make_oracle
+   RD="$T/r1"; make_orun "$RD"; sysinit "$RD" REVIEW
+diff --git a/evals/tests/fixtures/ablation-pipeline-stub.sh b/evals/tests/fixtures/ablation-pipeline-stub.sh
+index 092c8d41..76a5fb8b 100755
+--- a/evals/tests/fixtures/ablation-pipeline-stub.sh
++++ b/evals/tests/fixtures/ablation-pipeline-stub.sh
+@@ -109,6 +109,14 @@ if [[ "$KIND" == review-catch && "$(jq -r '.toggles.loa_mount' <<<"$DEF")" != fa
+    && [[ "$MODE" != bad_overlay ]]; then
+   STUB_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+   fx="$STUB_REPO/evals/fixtures/$(yq -r '.review_catch.fixture' "$TASK_YAML")"
++  # the throwaway source tree holds none of the corpus commits, so a fixture's fix_commit cannot be pinned from it and
++  # the real overlay refuses (PR #1286 F001); the stub overlays from a copy without that line, kept outside the run dir
++  # (took-effect.sh never resolves a fixture inside it); with --task-yaml the real fixture resolves to the same PR-only set
++  fc="$(sed -nE 's/^fix_commit: *"?([0-9a-f]+)"?.*/\1/p' "$fx/fixture.yaml" 2>/dev/null | head -1)"
++  if [[ -n "$fc" ]] && ! git -C "$SOURCE_TREE" cat-file -e "$fc^{commit}" 2>/dev/null; then
++    sfx="$(mktemp -d "${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/stub-fixture.XXXXXX")"
++    cp -a "$fx/." "$sfx/"; sed -i '/^fix_commit:/d' "$sfx/fixture.yaml"; fx="$sfx"
++  fi
+   W="$RUN_DIR/sandbox"; mkdir -p "$W/pr"
+   for p in base head head.diff PR.md; do [[ -e "$fx/$p" ]] && cp -a "$fx/$p" "$W/pr/"; done
+   sg() { env -i PATH="$PATH" HOME="$RUN_DIR/meta" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$W" "$@"; }

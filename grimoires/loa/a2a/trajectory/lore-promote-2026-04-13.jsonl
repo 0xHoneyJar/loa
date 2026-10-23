@@ -1,0 +1,46 @@
+{"timestamp":"2026-04-13T13:51:17Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T13:51:17Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T13:53:52Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T13:54:00Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T13:54:00Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T13:54:01Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T13:55:24Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T13:55:24Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T13:55:24Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T13:55:24Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T13:55:24Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T13:55:25Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T13:55:25Z","action":"promoted","candidate_key":"469:F1","id":"collision-test-b7cdad","reason":null}
+{"timestamp":"2026-04-13T13:57:17Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T13:57:18Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T13:57:18Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T13:57:18Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T13:57:18Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T13:57:19Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T13:57:19Z","action":"promoted","candidate_key":"469:F1","id":"collision-test-b7cdad","reason":null}
+{"timestamp":"2026-04-13T14:02:49Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T14:02:49Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T14:02:50Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T14:02:50Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T14:02:50Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T14:02:50Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T14:04:20Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T14:04:21Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T14:04:21Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T14:06:25Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T14:06:25Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T14:06:25Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T14:06:25Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T14:06:25Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T14:06:26Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T14:06:26Z","action":"promoted","candidate_key":"469:F1","id":"collision-test-b7cdad","reason":null}
+{"timestamp":"2026-04-13T14:07:31Z","action":"promoted","candidate_key":"469:F1","id":"test-pattern-alpha","reason":null}
+{"timestamp":"2026-04-13T14:07:31Z","action":"rejected","candidate_key":"469:F2","id":null,"reason":"not useful"}
+{"timestamp":"2026-04-13T14:07:31Z","action":"promoted","candidate_key":"469:F4","id":"idempotent-pattern","reason":null}
+{"timestamp":"2026-04-13T14:07:31Z","action":"rejected","candidate_key":"469:F5","id":null,"reason":"term: INJECTION:Ignore previous instructions"}
+{"timestamp":"2026-04-13T14:07:32Z","action":"rejected","candidate_key":"469:F6","id":null,"reason":"term: LENGTH_LIMIT"}
+{"timestamp":"2026-04-13T14:07:32Z","action":"promoted","candidate_key":"469:F8","id":"auto-create-pattern","reason":null}
+{"timestamp":"2026-04-13T14:07:32Z","action":"promoted","candidate_key":"469:F1","id":"collision-test-b7cdad","reason":null}
+{"timestamp":"2026-04-13T14:40:37Z","action":"promoted","candidate_key":"482:F11","id":"fd-3-separates-iteration-from-interactive-read","reason":null}
+{"timestamp":"2026-04-13T14:40:37Z","action":"promoted","candidate_key":"482:F12","id":"defense-in-depth-with-honest-limitations","reason":null}
+{"timestamp":"2026-04-13T14:40:37Z","action":"promoted","candidate_key":"482:F13","id":"append-only-queue-with-decisions-journal","reason":null}

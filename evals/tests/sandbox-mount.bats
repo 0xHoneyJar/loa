@@ -20,6 +20,10 @@ setup() {
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/sm.XXXXXX")"
   SRC="$T/src" FX="$T/fx" W="$T/ws"
   export ARM_EVIDENCE_FILE="$T/ev.txt"; : > "$ARM_EVIDENCE_FILE"
+  # cycle-132 addendum 9: production excludes every .claude/ path, so the overlay writes nothing; the cycle-131
+  # overlay mechanics below run under addendum 5's narrower prefix through the bats-gated test override. The
+  # addendum-9 cases unset it and exercise the production default.
+  export SM_TEST_MODE=1 SM_TEST_EXCLUDED_PREFIX=.claude/adapters/
   make_source
   make_fixture
   make_ws
@@ -322,12 +326,12 @@ content() { cat "$W/$1"; }
   [ "$status" -eq 0 ]
 }
 
-@test "eval config variant: budget_scale diff and budget_cents_max 600 for both gates, enabled flags untouched, config_variant=eval" {
+@test "eval config variant: budget_scale diff and budget_cents_max 1200 for both gates (cycle-132 addendum 2: 600 refused the dissent on the largest registered diffs, est. ≈ 660c), enabled flags untouched, config_variant=eval" {
   lib apply_eval_config_variant "$W"
   [ "$status" -eq 0 ]
   for gate in code_review security_audit; do
     [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_scale' "$W/.loa.config.yaml")" = diff ]
-    [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$W/.loa.config.yaml")" = 600 ]
+    [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].budget_cents_max' "$W/.loa.config.yaml")" = 1200 ]
     [ "$(G=$gate yq -r '.flatline_protocol[strenv(G)].enabled' "$W/.loa.config.yaml")" = true ]
   done
   [ "$(ev config_variant)" = eval ]
@@ -346,4 +350,127 @@ content() { cat "$W/$1"; }
   grep -qx $'pr\t.claude/hooks/safety/block-destructive-bash.sh' <<<"$output"
   ! grep -q 'checksums.json' <<<"$output" || false
   ! grep -q 'AGENTS.md' <<<"$output" || false
+}
+
+@test "overlay (addendum 5 prefix, test override): a diff touching .claude/adapters/x.py and .claude/scripts/y.sh overlays y.sh, leaves x.py pinned, records overlay_excluded=1:.claude/adapters/x.py; the check passes, and fails on an adapter path not at its pin or a non-adapter path left un-overlaid" {
+  mkdir -p "$SRC/.claude/adapters"
+  printf 'pinned adapter\n' > "$SRC/.claude/adapters/x.py"; printf 'y pinned LATER\n' > "$SRC/.claude/scripts/y.sh"
+  ( cd "$SRC" && g . add -A && g . commit -qm adapters )
+  P="$(git -C "$SRC" rev-parse HEAD)"
+  mkdir -p "$W/.claude/adapters"; cp "$SRC/.claude/adapters/x.py" "$W/.claude/adapters/x.py"; cp "$SRC/.claude/scripts/y.sh" "$W/.claude/scripts/y.sh"
+  mkdir -p "$FX/head/.claude/adapters" "$FX/base/.claude/adapters"
+  printf 'pr head adapter\n' > "$FX/head/.claude/adapters/x.py"; printf 'pr base adapter\n' > "$FX/base/.claude/adapters/x.py"
+  printf 'y head\n' > "$FX/head/.claude/scripts/y.sh"; printf 'y base\n' > "$FX/base/.claude/scripts/y.sh"
+  printf 'diff --git a/.claude/adapters/x.py b/.claude/adapters/x.py\n--- a/.claude/adapters/x.py\n+++ b/.claude/adapters/x.py\n@@ -1 +1 @@\n-pr base adapter\n+pr head adapter\ndiff --git a/.claude/scripts/y.sh b/.claude/scripts/y.sh\n--- a/.claude/scripts/y.sh\n+++ b/.claude/scripts/y.sh\n@@ -1 +1 @@\n-y base\n+y head\n' >> "$FX/head.diff"
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$P"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(ev overlay_test_excluded_prefix)" = .claude/adapters/ ]
+  [ "$(content .claude/adapters/x.py)" = "pinned adapter" ]
+  [ "$(content .claude/scripts/y.sh)" = "y head" ]
+  [ "$(ev overlay_excluded)" = "1:.claude/adapters/x.py" ]
+  ! grep -q '^overlay_sha256=.claude/adapters/' "$ARM_EVIDENCE_FILE" || false
+  [ "$(ev mount_overlay)" = "head:10" ]          # the nine paths plus y.sh; x.py is not counted
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '1 .claude path(s) left pinned' "$ARM_EVIDENCE_FILE"
+  # an adapter path that is not the pinned version fails (a)
+  printf 'pr head adapter\n' > "$W/.claude/adapters/x.py"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'FAIL (a) .claude/adapters/x.py: an excluded .claude path' <<<"$output"
+  cp "$SRC/.claude/adapters/x.py" "$W/.claude/adapters/x.py"
+  # a non-adapter answer path left at its pinned (later) version fails as before
+  cp "$SRC/.claude/scripts/y.sh" "$W/.claude/scripts/y.sh"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -qE 'FAIL \([abc]\) .claude/scripts/y.sh' <<<"$output"
+  # evidence that names another exclusion fails
+  printf 'y head\n' > "$W/.claude/scripts/y.sh"
+  sed -i 's/^overlay_excluded=.*/overlay_excluded=0/' "$ARM_EVIDENCE_FILE"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'overlay_excluded=0, the answer set excludes 1:.claude/adapters/x.py' <<<"$output"
+}
+
+@test "overlay (addendum 5): a fixture touching no adapter path records overlay_excluded=0 and overlays as before" {
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$F"
+  [ "$status" -eq 0 ]
+  [ "$(ev overlay_excluded)" = 0 ]
+  [ "$(ev mount_overlay)" = "head:9" ]
+}
+
+# tree_sum <dir>: one digest over the sorted file paths and contents under <dir>
+tree_sum() {
+  python3 -I -c '
+import hashlib, os, sys
+h = hashlib.sha256(); root = sys.argv[1]
+for r, ds, fs in os.walk(root):
+    ds.sort()
+    for n in sorted(fs):
+        q = os.path.join(r, n); h.update(os.path.relpath(q, root).encode() + b"\0" + open(q, "rb").read())
+print(h.hexdigest())' "$1"
+}
+
+@test "overlay (cycle-132 addendum 9, KF-050): the production default leaves every .claude/ answer path pinned — .claude/adapters/x.py and .claude/scripts/y.sh stay at the pin, nothing is overlaid, overlay_excluded names all of them; evals/harness/z.sh is outside the answer set as before; the check passes and fails on a .claude path at the PR's version or an evidence mismatch" {
+  unset SM_TEST_MODE SM_TEST_EXCLUDED_PREFIX
+  mkdir -p "$SRC/.claude/adapters" "$SRC/evals/harness"
+  printf 'pinned adapter\n' > "$SRC/.claude/adapters/x.py"; printf 'y pinned LATER\n' > "$SRC/.claude/scripts/y.sh"
+  printf 'z pinned\n' > "$SRC/evals/harness/z.sh"
+  ( cd "$SRC" && g . add -A && g . commit -qm pinned-runtime )
+  P="$(git -C "$SRC" rev-parse HEAD)"
+  find "$W/.claude" -mindepth 1 -delete; cp -a "$SRC/.claude/." "$W/.claude/"   # the whole pinned runtime, as mounted
+  mkdir -p "$FX/head/.claude/adapters" "$FX/base/.claude/adapters" "$FX/head/evals/harness" "$FX/base/evals/harness"
+  printf 'pr head adapter\n' > "$FX/head/.claude/adapters/x.py"; printf 'pr base adapter\n' > "$FX/base/.claude/adapters/x.py"
+  printf 'y head\n' > "$FX/head/.claude/scripts/y.sh"; printf 'y base\n' > "$FX/base/.claude/scripts/y.sh"
+  printf 'z head\n' > "$FX/head/evals/harness/z.sh"; printf 'z base\n' > "$FX/base/evals/harness/z.sh"
+  printf 'diff --git a/.claude/adapters/x.py b/.claude/adapters/x.py\n--- a/.claude/adapters/x.py\n+++ b/.claude/adapters/x.py\n@@ -1 +1 @@\n-pr base adapter\n+pr head adapter\ndiff --git a/.claude/scripts/y.sh b/.claude/scripts/y.sh\n--- a/.claude/scripts/y.sh\n+++ b/.claude/scripts/y.sh\n@@ -1 +1 @@\n-y base\n+y head\ndiff --git a/evals/harness/z.sh b/evals/harness/z.sh\n--- a/evals/harness/z.sh\n+++ b/evals/harness/z.sh\n@@ -1 +1 @@\n-z base\n+z head\n' >> "$FX/head.diff"
+  local before; before="$(tree_sum "$W/.claude")"
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$P"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(tree_sum "$W/.claude")" = "$before" ]          # the mounted runtime is byte-for-byte the pin
+  [ "$(content .claude/adapters/x.py)" = "pinned adapter" ]
+  [ "$(content .claude/scripts/y.sh)" = "y pinned LATER" ]
+  [ ! -e "$W/evals" ]                                   # outside .claude/: never in the answer set (cycle-131 in_scope), as before
+  [ "$(ev mount_overlay)" = "head:0" ]
+  [ "$(ev overlay_excluded)" = "11:.claude/adapters/x.py,.claude/assets/logo.png,.claude/data/x y.txt,.claude/scripts/added.sh,.claude/scripts/deleted.sh,.claude/scripts/fixonly.sh,.claude/scripts/mod.sh,.claude/scripts/new name.sh,.claude/scripts/old name.sh,.claude/scripts/y.sh,.claude/skills/s1/SKILL.md" ]
+  ! grep -q '^overlay_sha256=' "$ARM_EVIDENCE_FILE" || false
+  ! grep -q '^overlay_test_excluded_prefix=' "$ARM_EVIDENCE_FILE" || false
+  [ -z "$(ev gate_scripts_at_pr_version)" ]
+  [ "$(cat "$W/pr/head/.claude/scripts/mod.sh")" = "mod head" ] && [ "$(content .claude/scripts/mod.sh)" != "mod head" ]   # the PR's version stays visible under pr/ only
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q 'head:0 answer paths (0 present).*11 .claude path(s) left pinned' "$ARM_EVIDENCE_FILE"
+  # a .claude path at the PR's version (the r14 shape: a PR-era script) fails (a)
+  printf 'y head\n' > "$W/.claude/scripts/y.sh"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'FAIL (a) .claude/scripts/y.sh: an excluded .claude path' <<<"$output"
+  cp "$SRC/.claude/scripts/y.sh" "$W/.claude/scripts/y.sh"
+  # evidence recorded under the narrower addendum-5 prefix no longer matches
+  sed -i 's|^overlay_excluded=.*|overlay_excluded=1:.claude/adapters/x.py|' "$ARM_EVIDENCE_FILE"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'overlay_excluded=1:.claude/adapters/x.py, the answer set excludes 11:' <<<"$output"
+}
+
+@test "overlay (addendum 9): overlay_excluded caps its list at 20 paths then ',…' with the exact count; check_mount_closed accepts the capped record and refuses a wrong count; the test override needs SM_TEST_MODE=1 and a bats marker" {
+  unset SM_TEST_MODE SM_TEST_EXCLUDED_PREFIX
+  local i exv
+  mkdir -p "$FX/head/.claude/many"
+  for i in $(seq -w 1 25); do printf 'm%s\n' "$i" > "$FX/head/.claude/many/m$i.md"; done
+  lib overlay_answer_paths "$W" "$FX" head "$SRC" "$F"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  exv="$(ev overlay_excluded)"
+  [ "${exv%%:*}" = 34 ]                                  # the 9 fixture paths and 25 more, counted exactly
+  [ "$(printf '%s' "${exv#*:}" | tr ',' '\n' | grep -c '^\.claude/')" = 20 ]
+  [[ "$exv" == *",…" ]]
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  sed -i 's/^overlay_excluded=34:/overlay_excluded=33:/' "$ARM_EVIDENCE_FILE"
+  lib check_mount_closed "$W" "$FX" "$SRC"
+  [ "$status" -eq 2 ]; grep -q 'overlay_excluded=33:.*the answer set excludes 34:' <<<"$output"
+  # the override is ignored without SM_TEST_MODE=1, and without a bats marker
+  : > "$ARM_EVIDENCE_FILE"
+  SM_TEST_EXCLUDED_PREFIX=.claude/adapters/ lib overlay_answer_paths "$W" "$FX" head "$SRC" "$F"
+  [ "$(ev overlay_excluded | cut -d: -f1)" = 34 ]
+  : > "$ARM_EVIDENCE_FILE"
+  run env -u BATS_TEST_FILENAME SM_TEST_MODE=1 SM_TEST_EXCLUDED_PREFIX=.claude/adapters/ bash -c 'source "$1"; overlay_answer_paths "$2" "$3" head "$4" "$5"' _ "$LIB" "$W" "$FX" "$SRC" "$F"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(ev overlay_excluded | cut -d: -f1)" = 34 ]
+  ! grep -q '^overlay_test_excluded_prefix=' "$ARM_EVIDENCE_FILE" || false
 }

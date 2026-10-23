@@ -1,0 +1,658 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-07T13:35:19Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 3,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap for CI/automation: distinct machine-actionable outcomes are hard if every failure returns exit code 1. However, mapping E010-E014 to unique numeric exit codes has backward-compat risks and may be constrained by existing contract; alternatively, keeping exit=1 but emitting structured error codes is often sufficient. Still, the PRD should clarify the contract explicitly.",
+        "gpt_score": 820,
+        "opus_score": 870,
+        "delta": 50,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High ROI and clearly actionable: PRD promises error codes/messages on stderr in non-interactive mode but doesn’t define a stable parseable format. Without this, CI users will grep human text. Defining JSONL or key=value with explicit fields (code, message, remediation, context) is a strong, domain-appropriate improvement with modest implementation cost.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "delta": 80,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Good catch: requirement explicitly claims bare repo support, but acceptance scenarios don’t cover it. Adding a test scenario is low cost and prevents regressions. Not quite “critical” unless bare repos are common in the target audience, but it’s a clear coverage gap against stated AC.",
+        "gpt_score": 780,
+        "opus_score": 820,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable: partial framework generation + auto-commit can leave repos in a confusing half-configured state. Defining validation-before-commit or rollback semantics is actionable and reduces support burden. Complexity is moderate (needs transactional behavior or at least preflight checks), so not top-tier critical but worth specifying.",
+        "gpt_score": 740,
+        "opus_score": 750,
+        "delta": 10,
+        "average_score": 745,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "Useful but lower priority: debug/verbose logging helps supportability, but it’s additional surface area (flags, redaction concerns, stable log format). If error codes + remediation are strong, this can be deferred. Still, a minimal --verbose that prints underlying command stderr is often cheap and beneficial.",
+        "gpt_score": 470,
+        "opus_score": 920,
+        "delta": 450,
+        "average_score": 695,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Auto-creating an initial commit may violate user expectations and repo policies (e.g., protected branches, signed commits, commit-msg hooks)",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "In many orgs, commits must be GPG/SSH-signed, pass commit-msg hooks, include ticket IDs, or be made on non-default branches. An automatic commit can fail frequently or, worse, succeed in a way that breaks compliance expectations. This risks turning the 'just works' path into a high-friction or policy-violating behavior.",
+        "location": "FR2: Handle Empty Repo Gracefully; TR1: Backward Compatibility; Risks table (missing hook/signing considerations)",
+        "recommendation": "Explicitly define behavior when hooks/signing/protected-branch policies exist: detect common blockers (commit.gpgsign, hooks present, required signing), provide a no-commit fallback path, and document/implement an opt-in flag for auto-initial-commit (or at least a clear preflight warning + `--no-commit` suggestion).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Empty-repo detection and 'bare repo' handling are underspecified and likely incorrect for the mount workflow",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "FR1 says detection must work for bare repos, but the mount script appears to write framework files into a working tree. Bare repos have no working tree, so 'mounting' is either impossible or requires a different mechanism (worktree, clone, or refusing). Claiming support without defining behavior will create confusing failures.",
+        "location": "FR1 Acceptance Criteria: 'Detection works for bare repos'; TR2 Cross-Platform Compatibility",
+        "recommendation": "Define explicit behavior for bare repos: either (a) fail fast with a dedicated error code and guidance, or (b) support via `git worktree` with clear requirements. Update acceptance tests to include bare repo scenario.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "Security risk: encouraging `curl | bash` plus printing copy-pasteable commands without integrity verification increases supply-chain exposure",
+        "severity": "CRITICAL",
+        "severity_score": 840,
+        "why_matters": "The PRD reinforces `curl ... | bash` and adds more copy-paste commands. Without checksum/signature verification or pinning to a commit/tag, users can be compromised via MITM, DNS hijack, or repo compromise. This is especially sensitive because the script writes files and makes commits.",
+        "location": "FR4 example retry command; TR2 mentions piped invocation; overall installation pattern",
+        "recommendation": "Add integrity guidance: pin to a versioned tag URL, provide SHA256 verification instructions, or recommend downloading then inspecting. At minimum, include a warning and a safer alternative command path in the output.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd mount script error",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-07T13:35:19Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-07T20:11:53Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real, concrete defect: a variable-name mismatch in a rollback path will break the documented path-scoped rollback guarantee. Highly actionable (rename variable/use correct one) with very low cost and high impact when failures occur.",
+        "gpt_score": 920,
+        "opus_score": 820,
+        "delta": 100,
+        "average_score": 870,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Likely real gap: the shown bash parameter-expansion escaping is easy to get wrong, and if malformed it can emit invalid JSON (breaking CI parsing) or fail to escape attacker-controlled stderr. Actionable: correct the substitutions and add explicit examples/expected outputs. Moderate care needed but strong ROI.",
+        "gpt_score": 860,
+        "opus_score": 920,
+        "delta": 60,
+        "average_score": 890,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-risk behavioral conflict: a global ERR trap combined with existing err()/exit patterns commonly causes duplicate or misleading error emissions. The SDD claiming only a few functions change makes this especially important to specify. Actionable via scoping the trap, disabling around known exits, or integrating guard logic into err().",
+        "gpt_score": 900,
+        "opus_score": 880,
+        "delta": 20,
+        "average_score": 890,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Real bug/ambiguity with clear failure mode: capturing stdout+stderr into a variable intended to represent stderr can cause false error classification and wrong E-codes. Fix is straightforward (redirect stdout away or use FD juggling). High value, low effort.",
+        "gpt_score": 880,
+        "opus_score": 740,
+        "delta": 140,
+        "average_score": 810,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "ERR trap + set -euo pipefail may misclassify failures and/or recurse, producing wrong error codes and masking root causes",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Bash ERR traps are notoriously tricky: they can fire in subshells, command substitutions, and within conditionals depending on `set -e` semantics. A benign non-zero (e.g., `grep` no-match) can become a hard failure if not consistently guarded with `|| true`, causing the generic E013 to override the intended specific error. This can break CI parsing and user guidance, and make failures non-deterministic across bash versions.",
+        "location": "Section 3.2b Top-Level ERR Trap; throughout modified functions using command substitutions and pipelines",
+        "recommendation": "Constrain the trap: use `set -E` and a trap that checks context; consider trapping `EXIT` and emitting JSON only when `$? != 0` and no specific mount_error was invoked. Audit all pipelines/command substitutions for non-zero returns under `set -e` and guard expected non-zero cases explicitly.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "JSON escaping implementation is incorrect/incomplete and can emit invalid JSON",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "The `_json_escape` function appears to have a faulty backslash replacement (`s=\"${s//\\/\\}\"` as written is ambiguous/likely wrong) and uses `\n`, `\r`, `\t` literals that may not become JSON escape sequences as intended. It also does not escape other control characters (0x00-0x1F) or Unicode separators. If git stderr contains backslashes, quotes, or control chars, the emitted JSON line can become unparsable, defeating the primary goal (CI parseability).",
+        "location": "Section 3.1 `_json_escape()`",
+        "recommendation": "Replace with a proven JSON-escape routine for bash (e.g., escape backslash and quote correctly, map newlines to `\\\\n` etc., and strip/encode other control chars). Add tests that inject tricky stderr (quotes, backslashes, newlines, tabs) and validate JSON with jq/python.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Empty-repo commit rollback code uses an undefined variable and unquoted expansion, risking incorrect unstaging or script failure",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "In `_handle_empty_repo_commit()`, rollback uses `$framework_paths` but the variable defined is `fw_paths`. Under `set -u`, referencing an unset variable can terminate the script and trigger the ERR trap, producing misleading E013 and leaving the index in an unknown state. Additionally, the rollback uses unquoted `$framework_paths` (even if it existed), which is unsafe for paths with spaces (less likely here, but still a correctness issue).",
+        "location": "Section 3.5 `_handle_empty_repo_commit()` rollback block",
+        "recommendation": "Fix variable name to `fw_paths` and always use `-- \"${fw_paths[@]}\"`. Add a test that forces commit failure in empty repo and asserts framework files are unstaged and no unexpected trap fires.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "E016 behavior is inconsistent across SDD and tests (warning vs error, exit code expectations), likely breaking CI and acceptance criteria",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "SDD states E016 is non-fatal and returns 0, but the test matrix asserts for policy scenarios: \"Exit 1, JSON error E016\". This mismatch will cause either failing tests or incorrect runtime behavior. More importantly, downstream automation may treat E016 as failure or success inconsistently, undermining the purpose of structured error handling.",
+        "location": "Section 3.1 `mount_warn_policy()`; Section 5.2 tests 9/10; Section 4.1 E016 severity",
+        "recommendation": "Decide and document a single contract: (a) exit 0 with JSON severity=warning, or (b) exit non-zero with a distinct warning code path. Update acceptance criteria and tests accordingly. If CI must detect warnings, standardize on exit 0 + JSON severity field.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Policy detection is both over- and under-inclusive; it will skip auto-commit in common benign cases and miss real policy blockers",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Checking `commit.gpgsign=true` or presence of executable hooks does not necessarily mean commits will fail (e.g., hooks that always pass, gpg configured correctly). Conversely, commits can fail due to other policies not detected (required signing via server-side hooks, commit.template constraints, hooks in core.hooksPath, commit-msg hooks not executable but invoked via hooksPath, etc.). This can lead to unnecessary manual steps or unexpected failures.",
+        "location": "Section 3.2 `detect_repo_state()`; Section 3.5 empty repo policy short-circuit",
+        "recommendation": "Detect `core.hooksPath`, consider checking for hooks there; treat policy detection as advisory and attempt commit first in empty repo, then classify on actual stderr. If you must pre-detect, make it configurable and log what was detected.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": "this sdd describes targeted modifications",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-07T20:11:53Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-07T20:22:29Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: multiple tasks depend on structured JSON output but the schema is undefined, which will cause inconsistent implementations and brittle/ambiguous tests. Highly actionable (add schema + example + required/optional fields) and low cost with high downstream ROI for CI parsing and supportability.",
+        "gpt_score": 910,
+        "opus_score": 920,
+        "delta": 10,
+        "average_score": 915,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Realistic failure mode in containers/minimal environments; without explicit handling the script will fail with opaque shell errors instead of the documented error-code system. Actionable (preflight check for git executable, add error code + fix guidance) and low complexity.",
+        "gpt_score": 820,
+        "opus_score": 850,
+        "delta": 30,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Legitimate edge case: rollback can fail (corrupt index, permissions), and leaving the repo in a partially staged state is harmful. Actionable to specify a terminal error code and best-effort guidance, but implementation/testing can be moderately tricky to simulate reliably; still worth documenting at minimum.",
+        "gpt_score": 760,
+        "opus_score": 810,
+        "delta": 50,
+        "average_score": 785,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Sprint scope is too large for '1 sprint = 1 session' and is explicitly 'all-in-one' with no meaningful split points",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "This bundles registry changes, non-trivial bash refactors, git edge-case handling, rollback correctness, output formatting, and 14+ hermetic tests. Any slip in one area blocks the rest, and debugging shell+git behavior across environments is notoriously time-consuming. High likelihood of incomplete delivery or rushed/fragile implementation.",
+        "location": "Sprint 1: Mount Script Error Handling (all-in-one); Sprint Duration; Rationale",
+        "recommendation": "De-scope or stage delivery: (1) error registry + minimal structured error infra + trap, (2) preflight + empty/bare detection, (3) commit rewrite + rollback, (4) banner, (5) tests. Define a 'must ship' subset and defer hard-to-trigger scenarios if time runs short.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Bash 3.2 compatibility requirement conflicts with planned use of arrays and other subtle bash behaviors",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "The plan relies on indexed arrays (fw_paths) and careful quoting/expansion. Bash 3.2 supports indexed arrays, but many common patterns (set -u interactions, array emptiness checks, IFS splitting, trap semantics) behave differently across versions. CI only tests bash 4+, so regressions on macOS default bash 3.2 are likely to slip through.",
+        "location": "Task 1.2 Acceptance Criteria (bash 3.2); Task 1.4 (fw_paths array); Task 1.6 (bash 3.2 testing manual/optional)",
+        "recommendation": "Add at least one automated bash 3.2 run (e.g., container or macOS runner) or a minimal compatibility harness. Document and test array edge cases (empty array, paths with spaces, glob characters).",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "EXIT trap behavior is easy to get wrong and can emit misleading E013 or double-emit structured output",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Shell traps interact with subshells, set -e, pipelines, and functions returning non-zero. If any command fails in a context that doesn't exit the script, the trap won't fire; if the script exits due to set -e in an unexpected place, the trap may fire without useful context. Also, if mount_error exits, the trap still runs unless carefully guarded; the guard relies on a global variable that could be unset/overwritten.",
+        "location": "Task 1.2: EXIT trap; mount_error sets _MOUNT_STRUCTURED_ERROR_EMITTED=true",
+        "recommendation": "Define strict conventions: initialize guard at top, make it readonly-ish, and ensure mount_error exits via a single path. Add tests specifically for: failure inside subshell, failure in pipeline, and failure after partial output. Consider trapping ERR (with care) or explicitly handling return codes rather than relying on EXIT for unknown failures.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Policy detection and classification (E016 warning) is brittle and may mask real failures or misclassify errors",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Treating GPG/signing/hook failures as non-fatal (exit 0) can hide the fact that no commit was created, leaving the repo in an unexpected state. Pattern-matching stderr to decide 'policy' vs 'real error' is fragile across git versions, locales, and hook outputs. A malicious or noisy hook could cause misclassification.",
+        "location": "Task 1.4: Classify stderr: gpg/signing/hook → mount_warn_policy() (exit 0)",
+        "recommendation": "Make 'policy warning' behavior explicit and verifiable: after a warning path, confirm whether a commit exists/changed (e.g., HEAD advanced) and report that clearly. Prefer checking git config (commit.gpgsign, gpg.program, hooksPath) and hook presence over stderr regex. Consider exiting non-zero but with a distinct code if commit is required for correctness.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Rollback logic can still corrupt user intent or leave the index/worktree inconsistent, especially across git versions",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "The plan attempts path-scoped unstage, but edge cases remain: partially-added paths, intent-to-add, submodules, renames, sparse checkout, pathspec magic, and files with spaces/newlines. Fallback to `git reset -q -- paths` behaves differently than `git restore --staged` and may not perfectly preserve index state. If the script stages files that overlap with user changes, rollback may not restore the prior staged content.",
+        "location": "Task 1.4: Record framework paths staged; rollback with restore/reset; 'Never run bare git reset'",
+        "recommendation": "Before staging, snapshot index state for the affected paths (e.g., `git diff --cached --name-status --` and/or `git ls-files -s -- paths`) and verify restoration. Add tests for filenames with spaces, and for pre-staged modifications to a framework file to ensure no data loss. Document limitations (e.g., not supported with submodules/sparse checkout) or handle them explicitly.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "Empty repo handling ('unborn HEAD') is complex and can break depending on git version/config; acceptance criteria assumes too much",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Initial commit flows differ with templates, default branch name, hooks, signing, and identity. Some git commands behave differently when HEAD is unborn (diff, status, rev-parse). The plan says 'attempt commit first' and then classify failures, but without a robust pre-check, you may end up with confusing states or misclassified errors.",
+        "location": "Task 1.4: _handle_empty_repo_commit(); 'attempt-first, not pre-block'",
+        "recommendation": "Explicitly detect unborn HEAD (`git rev-parse --verify HEAD`), and use a dedicated initial-commit path with minimal assumptions. Validate post-conditions (commit exists, expected files tracked). Add a matrix note for git versions and default branch behavior.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint 1 mount script",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-07T20:22:29Z",
+    "metrics": {
+      "total_latency_ms": 209000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-08T04:36:58Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the SDD mentions isolated retry behavior and an untyped `error` field but lacks a coherent error taxonomy (transient/permanent), propagation rules, and run-level failure semantics. This is actionable (define error classes/codes, retry/circuit-breaker policy, per-PR isolation vs fail-fast) and has high ROI because it directly affects reliability and operator understanding.",
+        "gpt_score": 820,
+        "opus_score": 950,
+        "delta": 130,
+        "average_score": 885,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Important and domain-appropriate: concurrency and rate limiting are central for GitHub + LLM pipelines, and the maxRuntimeMinutes interaction is a real operational constraint. Actionable via explicit execution model (sequential vs bounded parallelism), per-adapter rate limiters, and cancellation/timeouts. Trade-offs exist (complexity, determinism), so slightly below critical.",
+        "gpt_score": 780,
+        "opus_score": 820,
+        "delta": 40,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Security/robustness gap: the SDD references structured output validation but doesn’t define the contract or failure behavior. This is actionable (schema/sections, parser/validator, fallback behavior, refusal to post on invalid output) and directly mitigates prompt-injection/malformed output risks. High ROI and low-to-moderate implementation cost.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "delta": 80,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Clear contradiction across sections that will cause implementation and ops confusion. Very actionable: choose a single strategy (hard dependency on gh vs REST fallback), document requirements, and update risk mitigation/tech debt accordingly. High impact, low effort to fix in the SDD and prevents divergent implementations.",
+        "gpt_score": 900,
+        "opus_score": 750,
+        "delta": 150,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Real and security-relevant gap: config defines exclude_patterns but architecture doesn’t state where enforcement occurs, risking secrets reaching the LLM. Actionable: specify filtering point(s) (ideally before diff content enters prompt assembly), precedence rules, and tests/acceptance criteria. High ROI given the threat model.",
+        "gpt_score": 840,
+        "opus_score": 830,
+        "delta": 10,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Real integration risk: marker format is a cross-adapter contract and duplication across systems (bridgebuilder vs loa-finn) can cause duplicate reviews or missed idempotency checks. Actionable via documented contract in ports/shared module and versioning guidance. Moderate effort, high interoperability value.",
+        "gpt_score": 760,
+        "opus_score": 870,
+        "delta": 110,
+        "average_score": 815,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "Usability gap but narrower impact: single-PR mode behavior across multi-repo configs should be specified to avoid confusion. Actionable (require --repo, or search all repos with deterministic rule). Nice-to-have unless this is a primary workflow.",
+        "gpt_score": 520,
+        "opus_score": 850,
+        "delta": 330,
+        "average_score": 685,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "SDD contains unresolved template artifacts (e.g., '{{DOCUMENT_CONTENT}}') that appear inside architecture text and even code snippets",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "These placeholders indicate the document (and possibly generated source) is not in a buildable/reviewable state. If they leak into committed scripts (e.g., entry.sh), the skill will fail at runtime immediately. It also undermines trust that other sections are accurate.",
+        "location": "Sections 1, 6, 8, 13; entry.sh snippet shows '{{DOCUMENT_CONTENT}}' embedded in commands and exports",
+        "recommendation": "Block implementation until the SDD is cleaned and re-rendered. Add a CI check that rejects '{{DOCUMENT_CONTENT}}' (and similar tokens) in repo files, especially shell/TS sources and YAML.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Local execution depends on 'npx tsx' at runtime, which is not actually 'no external dependencies' and is fragile/offline-unfriendly",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Using 'npx' can download packages at runtime, fail behind corporate proxies, fail without network, or pull unexpected versions. This contradicts the stated goal of stable, first-party core skill behavior and can cause frequent breakages unrelated to the code.",
+        "location": "Section 1 (Shell entry point wrapping TypeScript via tsx), Section 3 (Runtime Node.js via tsx), Section 6.1 (exec npx tsx ...)",
+        "recommendation": "Ship a compiled JS entrypoint (dist/main.js) and run 'node dist/main.js'. If tsx is required for dev, keep it dev-only. Pin dependencies via lockfile and avoid 'npx' in production paths.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Idempotency and concurrency control are weak/undefined for local runs (NoOpContextStore) and only partially mitigated by marker scanning",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Two local invocations (or two machines) can race: both see no existing marker, both generate content (cost), and both may post before the second 'hasExistingReview' re-check catches up. GitHub eventual consistency and pagination delays can still allow duplicates. This can spam PRs and erode trust quickly.",
+        "location": "Section 5.2 (pipeline steps 2, 8), Section 5.2 BridgebuilderContext (NoOpContextStore behavior), Section 5.3 GitHubCLIAdapter hasExistingReview() marker scan",
+        "recommendation": "Add a deterministic idempotency key and use GitHub-side conditional behavior where possible (e.g., create/update a single review comment, or store a lightweight claim in a PR comment). At minimum, add a local file-based context store default to prevent duplicates on the same machine.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Token budgeting uses a char-based heuristic without a hard guarantee; can still exceed model/context limits and fail unpredictably",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Diffs with lots of non-ASCII, long identifiers, or code blocks can break the 4-chars≈1-token assumption. Failures will occur late (LLM call) after expensive GitHub API work, and behavior will vary by model/tokenizer. This becomes a reliability and cost-control issue.",
+        "location": "Section 5.2 step 5 (char-based estimate), Section 13 risk table (Token estimation inaccurate)",
+        "recommendation": "Use a real tokenizer for the target model(s) or implement a conservative upper bound with safety margin (e.g., 2 chars/token). Add pre-truncation at the prompt builder level and include a deterministic 'prompt too large' skip reason with metrics.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Security model over-relies on prompt hardening and output sanitization; does not address data exfiltration of proprietary code to the LLM vendor",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Even if tokens are isolated, the system still sends potentially sensitive diffs to Anthropic. Many orgs require explicit consent, data retention controls, allowlisted repos, or opt-in per PR. Without this, adoption can be blocked by policy/compliance, effectively failing the project rollout.",
+        "location": "Section 7 (Security Architecture) focuses on token isolation and sanitizer; no explicit data governance/consent/retention controls",
+        "recommendation": "Add requirements/config for repo allowlist/denylist, label-based opt-in (e.g., only review PRs with 'ai-review-ok'), and a clear data handling statement. Provide a 'local-only' mode or pluggable on-prem LLM adapter path for restricted repos.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": "this sdd specifies the architecture",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-08T04:36:58Z",
+    "metrics": {
+      "total_latency_ms": 215000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-08T05:00:16Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 80
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-002",
+        "description": "Not just “add tests”—it identifies a likely functional defect: pagination for listing PRs/files. If the adapter relies on GitHub API defaults, data loss is silent and correctness breaks on larger repos/PRs. Actionable: specify pagination strategy (per_page=100 + loop on Link header / gh pagination flags) and add contract tests. High impact, moderate effort.",
+        "gpt_score": 820,
+        "opus_score": 850,
+        "delta": 30,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical contract gap: DTO shapes for ReviewRequest/ReviewResponse are foundational to core↔adapter boundaries, validation, logging, and future compatibility. Leaving them implicit will cause rework and inconsistent implementations. Very actionable: define fields, required/optional, token usage fields, error surfaces. High ROI, low effort.",
+        "gpt_score": 900,
+        "opus_score": 870,
+        "delta": 30,
+        "average_score": 885,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Clear reliability gap: external calls (gh, fetch) without timeouts can deadlock the pipeline, especially in CI/scheduled runs. Straightforward to implement with execFile timeout/kill and fetch AbortController + per-call budgets. High impact, low effort.",
+        "gpt_score": 840,
+        "opus_score": 780,
+        "delta": 60,
+        "average_score": 810,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-004",
+        "description": "Highest priority: the plan references structured output validation but never defines the structure. That blocks prompt design, validation logic, and downstream posting behavior. Actionable: specify JSON schema (or markdown contract) with required fields and examples. Very high ROI, low effort, prevents major integration churn.",
+        "gpt_score": 920,
+        "opus_score": 580,
+        "delta": 340,
+        "average_score": 750,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Legitimate edge case: even after truncation, prompts can exceed context and the API will error. Specifying a fallback (re-truncate with smaller budget, skip with explicit reason, or split review) improves resilience. Implementation complexity varies (simple re-truncate loop is moderate). Valuable, but not as universally critical as timeouts/retries/contracts.",
+        "gpt_score": 700,
+        "opus_score": 380,
+        "delta": 320,
+        "average_score": 540,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Sprint duration assumption (\"1 sprint = 1 session\") conflicts with 3-sprint plan and volume of work",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The plan defines a sprint as a single session but then schedules three sprints with substantial implementation + tests + build + registration. This mismatch is a classic schedule-risk smell: either quality drops (tests skipped, corners cut) or delivery slips, undermining the architecture goals.",
+        "location": "Header: \"Sprint Duration\" and overall Sprint 1-3 scope",
+        "recommendation": "Reconcile planning units: either redefine sprint duration, collapse scope to a true MVP for one session, or explicitly timebox each sprint with cut-lines (must/should/could) and acceptance criteria that can be met within the timebox.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Token/size budgeting is based on bytes, but LLM limits are token-based; prompt construction may exceed model limits unpredictably",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Byte budgets correlate poorly with tokens across languages and diff content. The template includes persona + metadata + diffs; even with maxDiffBytes, the final prompt can exceed maxInputTokens, causing API errors, truncation by provider, or degraded output. This can make the system flaky on real PRs.",
+        "location": "Task 1.3 (maxDiffBytes), Task 1.4 (prompt construction), Risk Assessment: SKP-004 deferred",
+        "recommendation": "Add a hard guard in PRReviewTemplate/ReviewPipeline that estimates tokens (even approximate) and truncates user prompt deterministically to stay under maxInputTokens; include tests for worst-case prompts and enforce a safety margin.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Change detection hash definition is underspecified and likely unstable across runs (ordering, diff content, metadata), causing missed reviews or repeated reviews",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "BridgebuilderContext hashes \"headSha + file list\" but the plan doesn’t define canonical ordering, inclusion of filenames vs patches, or normalization. GitHub file lists can be paginated and unordered; patch text can be truncated by GitHub API. Unstable hashing leads to false positives (re-review spam) or false negatives (skipping changed content).",
+        "location": "Task 1.5: hasChanged(item) computes hash of headSha + file list",
+        "recommendation": "Define a canonical hash input: stable sort by filename, include filename + additions/deletions + patch (when present) with explicit normalization, and handle missing/trimmed patches. Add tests for ordering variance and pagination.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Race condition mitigation is incomplete: hasExistingReview checks are not atomic and marker strategy may not prevent duplicates",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Two sequential checks (before and after LLM) reduce but do not eliminate duplicates when multiple invocations occur. The marker includes headSha, but if two runs process the same headSha concurrently, both can post before either sees the other’s review. This can spam PRs and erode trust.",
+        "location": "Task 1.6 steps (a) and (f), Risk Assessment: SKP-003 deferred",
+        "recommendation": "Implement a minimal cross-run claim mechanism in IContextStore (e.g., claimReview as a CAS with TTL) or use GitHub as the lock (create a draft comment/label) before LLM call. At minimum, make hasExistingReview search for marker+headSha and enforce idempotency on postReview if supported.",
+        "source": "opus_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "GitHub API usage via gh CLI may break on pagination and patch availability; file diffs may be incomplete or missing",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "PR files endpoints paginate (default 30). Large PRs will silently omit files unless pagination is implemented. Additionally, GitHub may omit `patch` for binary/large diffs. Truncation and prompt building assume diff content exists; missing patches can cause misleading reviews or runtime errors.",
+        "location": "Task 2.1 getPRFiles via `gh api /pulls/{number}/files`; Task 1.3/1.4 assume diffs",
+        "recommendation": "Implement pagination in GitHubCLIAdapter (per_page + page loop) and explicitly model patch-optional files. In template/truncation, handle missing patch by including filename + stats + a note that diff is unavailable.",
+        "source": "opus_skeptic"
+      }
+    ],
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint plan bridgebuilder autonomous",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "CLI flag --interactive",
+      "run_id": null
+    },
+    "timestamp": "2026-02-08T05:00:16Z",
+    "metrics": {
+      "total_latency_ms": 213000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

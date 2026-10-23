@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 45,
+      "anchor_line_end": 50,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_files",
+      "cross_file_justification": "floor.yaml declares 16 fence:* rows as floor guards; those fences are implemented in .claude/hooks/safety/block-destructive-bash.sh (touched in this diff), which is not listed in floor_files.",
+      "description": "The floor header states these guards may not be weakened by any cycle task, and floor-snapshot.bats enforces that by pinning floor_files bytes. All 16 fence floor rows (FR-1.2b, FR-SZ*, FR-SZ2*) live in block-destructive-bash.sh, but only the corpus rows are pinned, not the hook. A cycle task can edit the hook (e.g. add an early return or widen an allow-list) and the floor snapshot passes as long as the corpus fixture bytes do not change; the corpus replay only catches weakenings its existing rows happen to exercise. The gate and policy floor rows do pin their implementing scripts (verdict-derive.sh, adversarial-review-gate.sh, settings.deny.json), so the fence rows are protected inconsistently.",
+      "failure_mode": "A weakening of FR-SZ/FR-SZ2 protection that passes the current corpus is not detected by the floor test, contradicting the documented floor guarantee.",
+      "suggested_fix": "Either add block-destructive-bash.sh to floor_files (and accept that fence edits require a deliberate floor-pin update, as this very diff would), or document explicitly in floor.yaml that fence rows are protected only via floor_corpus and require the corpus to be run with LOA_ALLOW_STATE_ZONE_EXEC_WRITE unset and no marker present.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "anchor_type": "hunk",
+      "anchor_line": 55,
+      "anchor_line_end": 60,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "cross_file_justification": "The template comment states the ⇐ blockers segment is parsed into the bead --deps flag; the parser lives outside this diff and now receives a trailing ' · kind: <token>' after the blockers.",
+      "description": "The kind token is appended after the ⇐ blockers segment, which the template itself documents as machine-parsed into --deps ('edge-or-none rule'). If the deps extractor takes everything after ⇐ to end of line, 'none · kind: mechanical' no longer equals 'none' and 'Task 1.1 · kind: judgment' is not a task id. The visible diff does not show the parser or a test covering a task line with both ⇐ and kind.",
+      "failure_mode": "Bead creation from a new sprint plan fails or produces a bogus dependency edge for every task line, breaking the executable DAG.",
+      "suggested_fix": "Verify the --deps extractor (sprint-plan bead creation script) tolerates the trailing ' · kind: …' segment and add a bats case for '⇐ none · kind: mechanical' and '⇐ Task 1.1 · kind: judgment'. Alternatively place the kind token before the → goal refs so the ⇐ segment stays last.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementing-tasks skill's declared App-zone permission is widened from read to read-write in a diff otherwise about the guard register and floor. The visible diff contains no rationale, no test, and no corresponding change in skill-invariants.md (which this diff edits and which describes zones as the path-level barrier). Implementation does need App writes, so this may be a correctness fix, but it silently removes the confirmation-before-write posture the Zone glossary entry describes.",
+      "failure_mode": "If any validator or gate reads the skill's zones.app permission to decide whether to prompt, App writes under /implement stop prompting without an explicit decision record.",
+      "suggested_fix": "Either revert to read, or add the rationale (DEC row / sprint task) and confirm no reader of zones.app treats read-write as skip-confirmation; check validate-skill-capabilities.sh and implement-gate.sh.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/rules/stash-safety.md:frontmatter",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a paths: frontmatter makes this rule conditionally loaded only when the model reads or edits *.sh, *.bats, .claude/scripts or .claude/hooks files. The rule governs git stash commands issued through Bash, which do not touch any such file. A session that runs 'git stash push | tail -1' without editing a shell script never loads the rule. The mechanical fence FR-1.2b still catches the swallowed-output shapes, but the prose guard is narrowed with no note in the rule body.",
+      "failure_mode": "The stash-safety prose guard is absent in exactly the sessions where stash misuse is most likely (pure Bash workflows), leaving only the regex fence.",
+      "suggested_fix": "Drop paths: for this rule so it stays always-on, or widen it to include the files commonly edited during git work, and record the scoping decision in the rule body.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T13:20:54Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9036,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

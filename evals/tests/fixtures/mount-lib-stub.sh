@@ -16,6 +16,9 @@
 # cycle-131 (Sprint 263 Task 1.1): overlay_answer_paths, check_mount_closed and
 # apply_eval_config_variant are stubbed with their evidence shapes; the toggles
 # bare_model, dissent and oracle_open print their evidence lines.
+# cycle-132 (Sprint 269 Task 1.7a): bare_sessions prints bare_sessions=matched; print_toggle_vocabulary
+# is the real library's table (pipeline-run.sh --dry-run derives config_edits from it; arm-toggles.bats
+# pins this copy byte-equal to evals/harness/lib/sandbox-mount.sh's).
 
 _stub_fail() {
   [[ -n "${STUB_MOUNT_CALLS:-}" ]] && printf '%s\n' "$1" >> "$STUB_MOUNT_CALLS"
@@ -72,8 +75,27 @@ apply_arm_toggles() {  # <ws> <toggles_json> <arm>
     yq -i '.flatline_protocol.code_review.enabled = false' "$cfg"; echo "dissent=false"
   fi
   [[ "$(jq -r '.oracle_open' <<<"$tg")" == true ]] && echo "oracle_open=true"
+  [[ "$(jq -r '.bare_sessions // empty' <<<"$tg")" == matched ]] && echo "bare_sessions=matched"
   [[ -n "${STUB_ARM_ENV_EXTRA:-}" && -n "${ARM_ENV_FILE:-}" ]] && printf '%s\n' "$STUB_ARM_ENV_EXTRA" >> "$ARM_ENV_FILE"
   return 0
+}
+
+print_toggle_vocabulary() {
+  printf '%s\t%s\t%s\n' \
+    companion_voice false "flatline_protocol.code_review.companion_voice=false,flatline_protocol.security_audit.companion_voice=false" \
+    karpathy_block false - \
+    rule_files false - \
+    audit_delta_instruction false - \
+    loa_mount false - \
+    effort "low|medium|high|xhigh|max" - \
+    gates false "flatline_protocol.code_review.enabled=false,flatline_protocol.security_audit.enabled=false" \
+    dissent false "flatline_protocol.code_review.enabled=false" \
+    flatline false "flatline_protocol.enabled=false" \
+    sprint_plan false - \
+    context_resets false - \
+    bare_model fable - \
+    oracle_open true - \
+    bare_sessions matched -
 }
 
 regen_sandbox_manifest() {  # <ws>
@@ -133,7 +155,7 @@ overlay_answer_paths() {  # <ws> <fixture-dir> <mode> [<source-tree> [<source-co
   local cs="${STUB_COPY_SOURCE:-$(git -C "${4:-.}" rev-parse HEAD 2>/dev/null || echo unknown)}"
   echo "copy_source=$cs"
   [[ -f "$2/head.diff" ]] || { echo "stub: no head.diff in $2" >&2; return 2; }
-  echo "mount_overlay=$3:0"; echo "overlay_removed=0"; echo "overlay_fix_commit=none"; echo "gate_scripts_at_pr_version="
+  echo "mount_overlay=$3:0"; echo "overlay_excluded=0"; echo "overlay_removed=0"; echo "overlay_fix_commit=none"; echo "gate_scripts_at_pr_version="
   echo "overlay_fixture=$2"
 }
 
@@ -147,6 +169,6 @@ apply_eval_config_variant() {  # <ws>
   local cfg="$1/.loa.config.yaml"
   [[ -f "$cfg" ]] || : > "$cfg"
   yq -i '.flatline_protocol.code_review.budget_scale = "diff" | .flatline_protocol.security_audit.budget_scale = "diff"
-         | .flatline_protocol.code_review.budget_cents_max = 600 | .flatline_protocol.security_audit.budget_cents_max = 600' "$cfg"
+         | .flatline_protocol.code_review.budget_cents_max = 1200 | .flatline_protocol.security_audit.budget_cents_max = 1200' "$cfg"
   echo "config_variant=eval"
 }

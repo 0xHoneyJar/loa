@@ -1,0 +1,167 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "anchor_type": "hunk",
+      "anchor_line": 113,
+      "anchor_line_end": 117,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The authoritative branch is now selected only by `.loa.config.yaml implement_gate.mode: authoritative`, but once selected it still trusts `tool_input.active_skill`, which the header comment itself says is model-authored. Two weaknesses stack: (a) `.loa.config.yaml` lives at the project root, outside the System Zone hook that fences `.claude/`, so the same model the gate is meant to fence can flip the mode with one Write and then self-assert `active_skill: implement` on the next App-Zone write; (b) IG-11 pins the opt-in as undocumented in docs/ and the example config, so an operator who finds it in the hook source gets no warning that it downgrades the fence to self-attestation. The default (heuristic) is strictly safer than the pre-diff auto-detection, so this is not a regression, but the opt-in is a footgun with no harness-side evidence requirement.",
+      "failure_mode": "An operator (or the model editing the project config) enables authoritative mode; App-Zone writes outside /implement are allowed whenever the tool call JSON carries `active_skill: implement|bug`, silently bypassing the fail-ask fence.",
+      "suggested_fix": "Either remove the authoritative branch until a harness-set skill field exists (the evidence recorder can stay), or gate it on both the config key AND a harness-written `platform-features.json` `harness_signal`/`active_skill_available: true` written by detect-platform-features.sh (not by this hook), and document the key with its trust implications in `.loa.config.yaml.example` (dropping the IG-11 'undocumented' assertion).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "line",
+      "anchor_line": 233,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`rule_key` returns 1 for any rule that is not `Bash(...)`. In the allow/deny loaders that is guarded with `|| continue`, but in the requirements loop it is called bare: `rule_key \"$perm\"`. The script runs under `set -euo pipefail`, so a single non-Bash entry in `all_required` (e.g. a future `Read(...)`/`WebFetch(...)` requirement) aborts the whole checker with no report, no WARN, and a non-zero exit that the preflight will read as 'permissions missing' or as a crash. The old `base_pattern_of` never failed, so this is a new abort path. Latent today if every requirement is `Bash(...)`; also note that for an exact-key requirement `base` becomes `*=foo` (never matches), which is harmless but confirms the function was only designed for wildcard Bash requirements.",
+      "failure_mode": "Adding a non-Bash rule to the required list makes check-permissions.sh exit silently under errexit on every preflight instead of reporting it as missing.",
+      "suggested_fix": "`rule_key \"$perm\" || { missing_permissions+=(\"$perm\"); continue; }` (or `warn` and continue), and compute `base` only when `key` starts with `*`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:evidence_recorder",
+      "anchor_type": "hunk",
+      "anchor_line": 40,
+      "anchor_line_end": 50,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:evidence_recorder",
+      "cross_file_justification": "The recorder now writes `.run/platform-features.json`, a file previously owned by detect-platform-features.sh and consumed by its 1-hour cache check (reviewer concern 2); the writer is in the diff, the readers are in truncated files.",
+      "description": "When `.run/` exists but `platform-features.json` does not (fresh checkout, or after `.run` cleanup), the recorder creates the file with only `{active_skill_available, active_skill_seen_at, active_skill_source}`. If detect-platform-features.sh treats any sub-1-hour file as a fresh cache and returns early, downstream readers see a file with no `schema_version`, `detected_at`, or `harness_signal` for up to an hour, and `jq -r '.harness_signal // ...'` style consumers get their fallback instead of a real detection. The mktemp+mv write itself is atomic and `${_ig_base:-{\\}}` correctly expands to `{}` (bash treats `\\}` inside `${...}` as an escaped brace), so there is no quoting or partial-write bug; the concern is purely the schema-less file poisoning the cache. The recorder is also unconditional on file_path (runs for every Write/Edit), which is fine for cost but widens the window.",
+      "failure_mode": "loa-status / detect-platform-features report 'unknown'/default platform features for an hour after the gate recorder creates the file first, and the recorder's own `active_skill_available: false` may be read as an authoritative detection result.",
+      "suggested_fix": "Only merge into an existing object (skip when `_ig_base` is empty), or have detect-platform-features.sh treat a file missing `schema_version`/`detected_at` as a cache miss regardless of mtime.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/flatline-learning-extractor.sh:call_flatline_chat",
+      "anchor_type": "line",
+      "anchor_line": 317,
+      "anchor_line_end": 317,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/flatline-learning-extractor.sh:call_flatline_chat",
+      "cross_file_justification": "The retarget to the `cheap` alias lands on `anthropic:claude-sonnet-5`, whose catalog entry in this diff's `.claude/defaults/model-config.yaml` carries `params.thinking_adaptive: true` and `temperature_supported: false`.",
+      "description": "The extractor keeps its historical call shape (`30` s, `500` output tokens) but now targets Sonnet 5 with adaptive thinking emitted by the Anthropic adapter. Thinking tokens count against `max_tokens`; a 500-token budget on an adaptive-thinking model can be consumed entirely by the thinking block, returning empty or truncated text where the previous target (gpt-4o-mini, no thinking) returned a complete JSON object. The 30 s bound was sized for a small non-reasoning model as well. The `cheap` alias is also what flatline-scorer uses with `temperature: 0.2`, which the adapter must now drop (temperature_supported false) — same behaviour as Sonnet 4.6, so no regression there.",
+      "failure_mode": "Transformation-extraction calls return `stop_reason: max_tokens` with no/partial text, the JSON parse fails, and the extractor exits 4 on every learning extraction instead of occasionally.",
+      "suggested_fix": "Raise the output budget for this call (≥ 4096 is the historical Anthropic floor) or pass `--effort low`/disable thinking for this hop; keep 500 only if the adapter is confirmed to exclude thinking tokens from the cap.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:claude-opus-5-5.ceiling_calibration",
+      "anchor_type": "hunk",
+      "anchor_line": 494,
+      "anchor_line_end": 497,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:claude-opus-5-5",
+      "cross_file_justification": "The escalated full-file view of `.claude/adapters/tests/test_anthropic_catalog_floor.py` asserts a different calibration state for this catalog entry than the diff writes.",
+      "description": "The diff writes `claude-opus-5-5` as `source: conservative_default`, `calibrated_at: null`, ceiling 180000, and its own hunk of the test file asserts exactly that. The supplied full-file (head) version of the same test module, however, asserts `claude-opus-5-5` IS calibrated (`calibrated_at` truthy, `effective_input_ceiling != 180000`, `basis == \"calibrated\"`), that it is a foreign-transport calibration with `method: probed_headless` and `measured_input_tokens`, and imports `is_foreign_transport_calibration` (cycle-127). Those tests fail against this diff's catalog. Either the diff is stale relative to the repository head or the escalated file is from a later cycle; the review harness cannot tell which. No `transport`/`method`/`measured_input_tokens`/`reprobe_trigger` keys appear in the v3 schema's `ceilingCalibration` $def in this diff either.",
+      "failure_mode": "If the head test module is the one that ships, `pytest .claude/adapters/tests/test_anthropic_catalog_floor.py` fails on `test_lookup_returns_the_concrete_bound_through_the_gate_path` and `test_a_foreign_transport_calibration_carries_its_provenance` with this catalog entry.",
+      "suggested_fix": "Rebase the catalog hunk and the test hunk onto the same revision; if cycle-127's probe write is intended, the 5-5 entry needs `calibrated_at`, `transport`, `method: probed_headless`, `measured_input_tokens`, `reprobe_trigger`, and matching `probed_ceiling == effective_input_ceiling`, plus schema additions for those keys.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T23:02:51Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 17109,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

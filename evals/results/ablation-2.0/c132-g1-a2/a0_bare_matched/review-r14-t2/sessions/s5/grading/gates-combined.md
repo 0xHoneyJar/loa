@@ -1,0 +1,16 @@
+head/.claude/defaults/model-config.yaml:491
+head/.claude/defaults/model-config.yaml:493
+head/.claude/data/schemas/model-config-v3.schema.json:223
+head/.claude/defaults/model-config.yaml:476
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:326
+head/evals/graders/recall-vs-defects.sh:73
+head/x.sh:776
+x.sh:12
+x.sh:3
+head/.claude/scripts/check-permissions.sh:237
+head/docs/migration/v2.0-model-generation-floor.md:230
+head/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:28
+head/docs/migration/v2.0-model-generation-floor.md:247
+head/.loa.config.yaml.example:2717
+head/.claude/scripts/model-adapter.sh:656
+head/.claude/scripts/flatline-learning-extractor.sh:317

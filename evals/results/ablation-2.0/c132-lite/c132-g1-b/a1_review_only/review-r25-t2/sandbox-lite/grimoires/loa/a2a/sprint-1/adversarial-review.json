@@ -1,0 +1,211 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "function",
+      "anchor_line": 1100,
+      "scope": "diff",
+      "description": "The collision filter deletes agent-added application modules based solely on their basename. For example, a fixture containing tests/helpers.py reserves helpers.py, causing a correct solution's newly added src/pkg/helpers.py to be unlinked before grading. These modules do not cause pytest's duplicate test-module collection error. The same filter also removes packaged test modules whose qualified import names would not collide.",
+      "failure_mode": "A correct implementation loses required source files in its grading tree, causing imports or tests to fail and producing an incorrect failing grade.",
+      "suggested_fix": "Restrict removal to pytest-collected test modules whose actual import names collide under the configured import mode. Preserve application modules, sibling helpers, package initializers, and tests with distinct qualified import names. Add regression coverage for an application helpers.py sharing a basename with a fixture helper.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "function",
+      "anchor_line": 1081,
+      "anchor_line_end": 1100,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `reserved` set is every `.py` basename among hidden-overlay dests (line 1081, including `__init__.py` when an overlay ships one; only `conftest.py` is discarded) plus every `.py` basename under any fixture `tests/` or `test/` directory except `__init__.py`/`conftest.py` (line 1087). That is not restricted to pytest-collectable test modules (`test_*.py`, `*_test.py`): the 1.2.11 note itself says these suites ship sibling modules such as `helpers.py` and `_oracle_x.py`. The tree walk (lines 1090-1098) then unlinks ANY file with a reserved basename anywhere in the agent's tree that is not a fixture path or overlay dest — including `src/<pkg>/helpers.py`, `src/<pkg>/utils.py`, or a new package's `__init__.py` that a correct feature-build solution legitimately added. The pytest basename-collision rationale only applies to collected test modules in package-less directories; a non-test module under `src/` is never imported by basename by pytest's collector, so its removal has no justification and breaks the solution's own imports. When `t.fixture` is None the fixture-protection clause is also skipped, so pre-existing repo files matching an overlay basename would be removed too.",
+      "failure_mode": "A correct solution that adds a module whose basename coincides with a fixture test-dir helper or an overlay file (e.g. `helpers.py`, `utils.py`, `__init__.py`) has it deleted from the grading tree before test_command runs → ImportError/ModuleNotFoundError → hidden tests fail → the trial is graded as failing (pass=false) and the row's cost is spent on a false negative. Silent except for a line in colliding-removed.txt.",
+      "suggested_fix": "Restrict `reserved` to pytest-collectable test module names (names matching the task's/pytest's python_files pattern, default `test_*.py` / `*_test.py`), and restrict the removal walk to candidate test directories (or at least skip files whose directory chain up to the rootdir contains an `__init__.py`, since those import as `pkg.mod` and cannot collide). Never reserve `__init__.py`. Add a test where the agent adds `src/pkg/helpers.py` while the fixture has `tests/helpers.py` and assert it survives.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "line",
+      "anchor_line": 1079,
+      "anchor_line_end": 1081,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Overlay entries whose source `f` is a directory are only recorded in `owned_dirs`; the `.py` files inside such a directory overlay are never added to `reserved` (line 1081 only takes basenames of file-dests ending in `.py`). The 1.2.11 note promises removal for any agent file whose basename equals 'a hidden overlay's', but for a task whose hidden suite is delivered as a directory overlay (put_file supports isdir sources) an agent `tests/test_slug.py` colliding with `tests/hidden/test_slug.py` is left in place and the original 'import file mismatch' collection abort still grades a correct solution as failing.",
+      "failure_mode": "For directory-overlay tasks the 1.2.11 fix is a no-op and the pre-1.2.10 false-failure persists, while grade.json reports colliding_tests_removed: 0 as if checked.",
+      "suggested_fix": "When `os.path.isdir(f)`, os.walk the overlay source and add its collectable `.py` basenames to `reserved` (and protect the dest subtree, which `owned_dirs` already does).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "line",
+      "anchor_line": 1092,
+      "anchor_line_end": 1098,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The removal does not check whether the agent file's directory is a package (`__init__.py` present up to the rootdir). Under pytest's default prepend mode a module in `tests/extra/` with `tests/extra/__init__.py` is imported as `extra.test_slug` and does not collide with package-less `tests/test_slug.py`. The docstring says the rule targets 'package-less directories' but the code removes package modules too, so the agent's own tests silently vanish from the run and hidden_tests.total changes between what the agent ran and what the grader runs.",
+      "failure_mode": "Agent-written tests in a proper package are dropped from grading with no collision having existed; hidden_tests.total/passed differ from the agent's sandbox run and any metric derived from agent-test counts is skewed.",
+      "suggested_fix": "Before appending to `found`, walk from the file's directory upward (stopping at the tree root) and skip removal if an `__init__.py` is present in that chain; or compute pytest's module name and only remove when it equals the reserved module's name.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:prepare",
+      "anchor_type": "line",
+      "anchor_line": 1019,
+      "anchor_line_end": 1020,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`COLLIDING[0] += remove_colliding(t, tree)` runs on every prepare() call (final, base, and every snapshot tree graded in one grade()), so `colliding_tests_removed` in grade.json is the sum over all prepared trees, not the number of distinct agent files removed. The same file in 3 prepared trees reports 3. AG-35 only exercises a single-tree grade so the multiplication is untested.",
+      "failure_mode": "Telemetry over-counts by the number of prepared trees; anyone filtering rows on colliding_tests_removed > 0 or summing it across a batch gets inflated numbers.",
+      "suggested_fix": "Either count only the `final` tree (set COLLIDING from the final prepare), or record a set of rel paths and report its size; document the semantics beside harness_files_removed if the multiple is intended.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/run-ablation.sh:codex token freshness pre-flight",
+      "anchor_type": "hunk",
+      "anchor_line": 792,
+      "anchor_line_end": 806,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The pre-flight refuses fail-closed on two over-approximations. (a) `uses_codex` (line 792) treats every arm not setting `toggles.loa_mount: false` as codex-using, so an a4_no_gates-only batch (PLAN+IMPLEMENT, no dissent/review phase) is refused on an expired token although no codex call will ever be made. (b) `required` (line 806) is now + 2 × Σ watchdog_s / concurrency, where watchdog_s is already 2 × the phase-sum timeout; on --resume completed trials still count. For a realistic non-smoke batch (hundreds of trials × 3-5 h watchdogs) the horizon is weeks to months — longer than any OAuth access token lifetime — so the only way to run a full batch is to split it into small ones, and nearly finished resumes are refused for trials that already have rows.",
+      "failure_mode": "Legitimate batches/resumes are refused with 'codex access token expires … before the batch's required horizon' even when the token would outlive the codex-using work; a4-only batches are refused for a credential they never use.",
+      "suggested_fix": "Derive codex use from the arm's phases (does the plan include the review/dissent phase?) rather than loa_mount alone; compute the horizon from remaining (row-less) trials only, using phase_sum rather than the doubled watchdog, or make the multiplier configurable and warn rather than refuse when the horizon exceeds a sane bound.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/tests/seed-bugfix.bats:SB-1",
+      "anchor_type": "line",
+      "anchor_line": 80,
+      "anchor_line_end": 80,
+      "scope": "cross_file",
+      "trigger_anchor": "evals/suites/ablation-2.0.yaml:suite_version",
+      "cross_file_justification": "Bumping suite_version to 2 in the diff-touched suite file forces every task.yaml under grimoires/loa/evals/ablation-2.0/tasks to carry suite_version 2 (validate-suite refuses otherwise) and the seed-*.bats tests now pass a `--suite-version` flag to seed-bugfix.sh / seed-refactor.sh; RAB-1/RAB-2/RAB-3/RAB-27 reference tasks bugfix-v2-02, refactor-v2-05 and expect exactly 12 build + 4 review tasks. None of those files (seed scripts, v2 task yamls, MANIFEST.sha256) are in the 12-file diff.",
+      "description": "The PR's test suite is only green if artifacts outside the diff already exist: a `--suite-version` option on evals/harness/seed-bugfix.sh and seed-refactor.sh, twelve v2 build task directories with suite_version: 2, a re-frozen MANIFEST.sha256, and a 36-line self-check matching the new task set. If any of these landed in a different PR or not at all, validate-suite and every run-ablation.bats case fail at the hard gate.",
+      "failure_mode": "CI red (unknown-flag error from the seed scripts, 'suite_version 2 differs from the suite file's 1' from validate-suite, or RAB-27 count mismatch) on a tree that lacks the companion changes.",
+      "suggested_fix": "Confirm the seed scripts accept --suite-version and the v2 task set plus MANIFEST.sha256 are present at this PR's base, or fold them into this PR so the suite bump and its consumers land atomically.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T06:12:20Z",
+    "tokens_input": 111830,
+    "tokens_output": 15072,
+    "cost_usd": 0,
+    "latency_ms": 51469,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 234,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "03d612cd00d8922ecd2c39a14760938723d505ac4f0ad70e7b5420c886156ffd",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

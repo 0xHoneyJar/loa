@@ -1,0 +1,62 @@
+{
+  "changed_files": 11,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 0,
+    "issue": 0,
+    "kf": 2
+  },
+  "fixture": "pr-28",
+  "gh": "queried",
+  "gh_queries": [
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-20 \"ablation-2.0.yaml\" OR \"ablation-pipeline-stub.sh\" OR \"ablation-report.bats\" OR \"ablation-report.py\" OR \"arm-toggles.bats\"",
+      "total_count": 0
+    },
+    {
+      "incomplete_results": false,
+      "items": 1,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-20 \"pipeline-run.bats\" OR \"pipeline-run.sh\" OR \"run-ablation.bats\" OR \"run-ablation.sh\" OR \"validate-suite.bats\"",
+      "total_count": 1
+    },
+    {
+      "incomplete_results": false,
+      "items": 0,
+      "kept": 0,
+      "pages": 1,
+      "q": "repo:0xHoneyJar/loa created:>=2026-10-20 \"validate-suite.sh\"",
+      "total_count": 0
+    }
+  ],
+  "main_ref": "origin/main",
+  "main_sha": "13673960b71b625a698c76815e5a94e6a724c52d",
+  "maturity_days": 0,
+  "merge_commit": "7b024f5c606b0eee1a8d60881c38f7325ca8b5b3",
+  "merge_date": "2026-10-20T12:22:40Z",
+  "pr": 1286,
+  "record_refs": [
+    "origin/record/cycle-124-a2a",
+    "origin/record/cycle-125-a2a",
+    "origin/record/cycle-126-a2a",
+    "origin/record/cycle-126-ablate-c9b7bdc0",
+    "origin/record/cycle-127-a2a",
+    "origin/record/cycle-128-a2a",
+    "origin/record/cycle-129-a2a",
+    "origin/record/cycle-130-a2a",
+    "origin/record/cycle-130-analysis",
+    "origin/record/cycle-131-honest-measurement"
+  ],
+  "scanned_at": "2026-10-21T03:33:03Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-20T12:22:40Z",
+    "rule": "merge date to scan date (SDD D-7.8)",
+    "to": "2026-10-21T03:33:03Z"
+  }
+}

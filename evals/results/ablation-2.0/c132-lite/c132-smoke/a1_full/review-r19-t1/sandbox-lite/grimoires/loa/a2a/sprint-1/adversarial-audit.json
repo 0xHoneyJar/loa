@@ -1,0 +1,20 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T09:04:29Z",
+    "status": "budget_exceeded",
+    "reason": "ERROR: Estimated cost (627c) exceeds budget (600c); budget_scale=diff effective 600c, estimate 627c over 2 voices (gpt-5.5-pro 472c, claude-headless 155c)",
+    "recorded_by": "record-fallback",
+    "displaced": null,
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": null,
+      "run_tag": null
+    },
+    "rejected_summary": [],
+    "rejected_sidecars": []
+  }
+}

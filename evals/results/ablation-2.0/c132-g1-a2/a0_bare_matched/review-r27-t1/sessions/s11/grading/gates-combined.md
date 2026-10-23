@@ -1,0 +1,14 @@
+head/.claude/scripts/adversarial-review.sh:4434
+head/evals/graders/recall-vs-defects.sh:135
+ablation-grade.sh:1629-1636
+head/evals/graders/recall-vs-defects.sh:210
+x.sh:9
+x.sh:18
+head/evals/graders/recall-vs-defects.sh:214
+head/evals/harness/pipeline-run.sh:566
+head/evals/harness/lib/sandbox-mount.sh:1047
+head/evals/harness/ablation-grade.sh:1994
+head/evals/harness/ablation-report.py:1153
+head/evals/harness/ablation-grade.sh:2010
+head/.loa.config.yaml.example:1643
+head/.claude/scripts/adversarial-review.sh:28

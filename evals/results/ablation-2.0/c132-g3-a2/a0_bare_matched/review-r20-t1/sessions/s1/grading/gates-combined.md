@@ -1,0 +1,16 @@
+head/.claude/hooks/safety/block-destructive-bash.sh:631
+head/.claude/hooks/safety/block-destructive-bash.sh:303
+head/.claude/hooks/safety/block-destructive-bash.sh:1063
+head/.claude/scripts/run-checkpoint.sh:378
+head/.claude/scripts/run-checkpoint.sh:380
+head/.claude/scripts/run-checkpoint.sh:389
+head/.claude/scripts/run-checkpoint.sh:226
+head/.claude/scripts/run-checkpoint.sh:113
+head/.claude/scripts/run-checkpoint.sh:456
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+SKILL.md:211
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193
+head/.claude/scripts/lib/profile-lib.sh:78
+head/.claude/data/profiles.yaml:42
+head/.claude/scripts/test-lint-invariants.sh:257
+head/.claude/scripts/test-lint-invariants.sh:320

@@ -1,0 +1,12 @@
+head/.claude/adapters/cheval.py:2119
+head/.claude/adapters/loa_cheval/providers/retry.py:495
+head/.claude/adapters/loa_cheval/routing/ceiling.py:163
+cheval.py:2005
+head/.claude/adapters/loa_cheval/metering/pricing.py:168
+head/.claude/scripts/flatline-orchestrator.sh:129
+head/.claude/skills/bridgebuilder-review/resources/config.ts:176
+head/.claude/adapters/cheval.py:2297
+head/.claude/adapters/loa_cheval/providers/base.py:1000
+head/.claude/adapters/tests/test_ceiling_probe_write_catalog.py:68
+head/.claude/defaults/model-config.yaml:381
+tools/ceiling-probe-live.py:133

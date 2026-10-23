@@ -1,0 +1,16 @@
+head/.claude/defaults/model-config.yaml:504
+head/.claude/defaults/model-config.yaml:494
+head/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:34
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+head/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:422
+config.ts:182
+head/.claude/scripts/flatline-orchestrator.sh:534
+head/.claude/scripts/flatline-orchestrator.sh:525
+run-preflight.sh:157
+adversarial-review.sh:2353
+loa-status.sh:801
+config.ts:166
+head/.claude/scripts/adversarial-review.sh:2360
+head/tools/ceiling-probe-live.py:45
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/cheval.py:908

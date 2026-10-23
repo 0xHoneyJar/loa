@@ -1,0 +1,39 @@
+## session s4
+head/.claude/hooks/safety/block-destructive-bash.sh:612
+head/.claude/hooks/safety/block-destructive-bash.sh:340
+head/.claude/hooks/safety/block-destructive-bash.sh:216
+head/.claude/scripts/lib/profile-lib.sh:78
+head/.claude/scripts/lib/profile-lib.sh:96
+implement-gate.sh:335
+head/.claude/data/profiles.yaml:42
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:132
+run-checkpoint.sh:200-210
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193
+head/.claude/skills/reviewing-code/SKILL.md:69
+head/.claude/skills/auditing-security/SKILL.md:67
+head/.claude/scripts/run-checkpoint.sh:285
+head/.claude/scripts/run-checkpoint.sh:501
+head/.claude/scripts/test-lint-invariants.sh:320
+## session s7
+head/.claude/hooks/safety/block-destructive-bash.sh:546
+head/.claude/hooks/safety/block-destructive-bash.sh:618
+head/.claude/hooks/safety/block-destructive-bash.sh:303
+head/.claude/scripts/run-checkpoint.sh:295
+head/.claude/scripts/run-checkpoint.sh:378
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+head/.claude/scripts/lib/profile-lib.sh:77
+head/.claude/scripts/test-lint-invariants.sh:320
+## session s9
+head/.claude/scripts/run-checkpoint.sh:378
+head/.claude/scripts/run-checkpoint.sh:226
+head/.claude/scripts/run-checkpoint.sh:456
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+SKILL.md:220
+head/.claude/hooks/safety/block-destructive-bash.sh:551
+head/.claude/hooks/safety/block-destructive-bash.sh:625
+head/.claude/scripts/lib/profile-lib.sh:77
+head/.claude/hooks/compliance/implement-gate.sh:550
+SKILL.md:229
+head/.claude/scripts/test-lint-invariants.sh:320
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193

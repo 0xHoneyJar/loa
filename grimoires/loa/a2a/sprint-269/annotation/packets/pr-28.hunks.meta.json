@@ -1,0 +1,142 @@
+{
+  "context": 12,
+  "feedback_files": [
+    "grimoires/loa/a2a/sprint-2/adversarial-audit.json",
+    "grimoires/loa/a2a/sprint-2/adversarial-review.json",
+    "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md",
+    "grimoires/loa/a2a/sprint-2/engineer-feedback.md"
+  ],
+  "fixture": "pr-28",
+  "hunk_count": 9,
+  "hunks": {
+    "H01": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L34",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/ablation-report.py",
+      "head_end": 1913,
+      "head_start": 1913,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H02": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L34",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/ablation-report.py",
+      "head_end": 1927,
+      "head_start": 1927,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H03": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/ablation-report.py",
+      "head_end": 1998,
+      "head_start": 1998,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H04": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-004",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/ablation-report.py",
+      "head_end": 2174,
+      "head_start": 2174,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H05": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L34",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L35",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L44",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L18",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/pipeline-run.sh",
+      "head_end": 141,
+      "head_start": 141,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H06": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-2/adversarial-audit.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L35",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L44",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L18",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L29"
+      ],
+      "file": "evals/harness/pipeline-run.sh",
+      "head_end": 258,
+      "head_start": 258,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H07": {
+      "cited_by": [],
+      "file": "evals/tests/ablation-report.bats",
+      "head_end": 189,
+      "head_start": 189,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "evals/tests/ablation-report.bats",
+      "head_end": 325,
+      "head_start": 325,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-2/adversarial-review.json:DISS-C-002",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L17",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L33",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L35",
+        "grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md#L44",
+        "grimoires/loa/a2a/sprint-2/engineer-feedback.md#L72"
+      ],
+      "file": "evals/tests/pipeline-run.bats",
+      "head_end": 1245,
+      "head_start": 1245,
+      "insertion": true,
+      "review_driven": true
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02"
+  ],
+  "incidents": "incidents/pr-28.tsv",
+  "record_ref": "origin/record/cycle-131-honest-measurement",
+  "review_driven_count": 7
+}

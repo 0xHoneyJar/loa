@@ -1,0 +1,9 @@
+head/.claude/scripts/run-checkpoint.sh:380
+head/.claude/scripts/run-checkpoint.sh:226
+head/.claude/scripts/run-checkpoint.sh:295
+head/.claude/scripts/run-checkpoint.sh:280
+head/.claude/scripts/lib/profile-lib.sh:78
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131
+head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:193
+head/.claude/hooks/safety/block-destructive-bash.sh:303
+head/.claude/scripts/lib/heredoc-classifier.sh:1

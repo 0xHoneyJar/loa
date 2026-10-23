@@ -1,0 +1,20 @@
+# candidates.tsv — cycle-132 candidate fixtures for the power run (Sprint 269 Task 1.9), from implementer A's Task 1.1 candidate table (reports/s1-a.md).
+# Eligible (PREREGISTRATION §2): seeded record fixture, exposure recorded, ≥ 2 defect signals, never read by the pipeline in a prior cycle.
+# defects = seeded_labels + incidents: the pre-annotation count of defect signals (review-derived labels plus post-merge incident candidates); the annotation (Task 1.6) replaces it with the confirmed count and a fixture confirmed below 2 is dropped for the next spare in order.
+# diff_lines is left empty so power.py derives it from <fixture>/head.diff with the same count it fits the 63 existing runs on. Dates UTC (head commit's committer date).
+# Excluded as already read by the pipeline (they supply the power profiles instead): pr-12 (cycle-130 review-03), pr-13 (cycle-130 review-04), pr-17 and pr-18 (replication-01, c131 batches). Also read but not record fixtures: pr-05, pr-08.
+fixture	sprint	head_date	defects	seeded_labels	incidents	fix_hunks	exposure_fable_5_1	diff_lines	contamination_note
+pr-11	247	2026-09-25	20	5	15	18	post-cutoff		synthetic-plus-record; flagged (pr-11 last)
+pr-14	250	2026-10-06	28	2	26	95	post-cutoff		
+pr-15	251	2026-10-07	15	3	12	227	post-cutoff		
+pr-16	252	2026-10-13	12	4	8	18	post-cutoff		one cycle-131 smoke run (decided nothing)
+pr-19	255	2026-10-14	21	11	10	20	post-cutoff		
+pr-20	256	2026-10-14	5	4	1	56	post-cutoff		
+pr-21	257	2026-10-14	5	2	3	105	post-cutoff		
+pr-22	258	2026-10-15	20	11	9	79	post-cutoff		
+pr-23	259	2026-10-15	12	1	11	66	post-cutoff		
+pr-24	260	2026-10-16	12	4	8	31	post-cutoff		
+pr-25	261	2026-10-18	11	1	10	29	post-cutoff		
+pr-26	262	2026-10-18	2	0	2	54	post-cutoff		seeded with --allow-no-labels; annotation supplies the key
+pr-27	263	2026-10-19	10	7	3	28	post-cutoff		
+pr-28	264	2026-10-20	4	2	2	9	post-cutoff		

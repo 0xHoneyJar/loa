@@ -1,1 +1,0 @@
-sandbox-mount: overlay: removed .claude/adapters/tests/test_headless_workspace.py (fix; no head_commit version)

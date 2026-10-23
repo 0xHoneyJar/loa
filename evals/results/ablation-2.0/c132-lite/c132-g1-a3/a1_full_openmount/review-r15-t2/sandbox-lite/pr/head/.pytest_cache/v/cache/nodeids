@@ -1,0 +1,12 @@
+[
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_no_literal_opus_5_5_ceiling_in_a_swept_suite[.claude/adapters/tests/test_anthropic_catalog_floor.py]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_no_literal_opus_5_5_ceiling_in_a_swept_suite[tests/unit/loa-status-providers.bats]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[1180000-False]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[18000-False]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[1800000000-False]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[180_000_000-False]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[probed 180,000 tokens-True]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[x == 180000-True]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_guard_pattern[x == 180_000-True]",
+  ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py::test_the_policy_cap_is_never_compared_against_the_opus_5_5_entry_directly"
+]

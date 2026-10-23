@@ -1,0 +1,824 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-04T12:33:16Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical gap and highly actionable. The PRD appears to introduce multiple overlapping resolution inputs without a deterministic precedence algorithm. This is core runtime behavior; ambiguity here risks inconsistent model selection, hard-to-debug incidents, and divergent implementations.",
+        "gpt_score": 930,
+        "opus_score": 820,
+        "tertiary_score": 900,
+        "delta": 110,
+        "average_score": 875,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-impact edge-case coverage that should be explicit. Missing tier/provider mappings are realistic operational states, especially during phased rollout. Defining fallback and failure behavior prevents silent misrouting and production instability.",
+        "gpt_score": 890,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 110,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable risk-control improvement. Dist regeneration breakage for downstream submodule consumers is a real compatibility hazard. The proposed rollback/versioning/staged-gate additions are practical but add release-process overhead.",
+        "gpt_score": 760,
+        "opus_score": 810,
+        "tertiary_score": 890,
+        "delta": 50,
+        "average_score": 785,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Near-critical implementation blocker. Validation is required by the PRD, but without an exact schema artifact teams cannot implement loader behavior, error reporting, or tests consistently. This is a concrete, high-ROI clarification.",
+        "gpt_score": 910,
+        "opus_score": 720,
+        "tertiary_score": 860,
+        "delta": 190,
+        "average_score": 815,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Strong and actionable. A CLI command is referenced in success criteria, so its contract (checks, output, exit codes) must be specified to make CI and operator workflows reliable. Moderate effort, clear payoff.",
+        "gpt_score": 720,
+        "opus_score": 750,
+        "tertiary_score": 750,
+        "delta": 30,
+        "average_score": 735,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Bash YAML Parsing Fragility for Operator Configs",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "Framework defaults are compiled to bash (`generated-model-maps.sh`), but operator configs are evaluated at runtime. If bash adapters (FR-1.2) need to resolve operator-added models from `.loa.config.yaml`, they must parse YAML at runtime. Bash parsing YAML is notoriously fragile and error-prone.",
+        "location": "FR-1.2, FR-2.5",
+        "recommendation": "Introduce a lightweight Python or Node script to dump the merged runtime config (framework + operator) into a temporary bash-sourceable file at startup, rather than parsing YAML in bash.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Bridgebuilder Runtime vs Build-time Config Gap",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "Bridgebuilder relies on build-time codegen for defaults (FR-1.1), but operator overrides happen at runtime via `.loa.config.yaml` (FR-2.1). If the compiled TypeScript doesn't actively read the runtime config, operator extensions will be completely ignored by Bridgebuilder, defeating the primary goal.",
+        "location": "FR-1.1, FR-2.1, Technical Considerations",
+        "recommendation": "Ensure Bridgebuilder's generated TS acts only as a fallback. The runtime execution must prioritize reading `.loa.config.yaml` and merging it with the compiled defaults before model resolution.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Core design decisions are still deferred to /architect (permissions strategy, config field placement, override semantics), creating specification gaps before implementation starts.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Teams can build incompatible interpretations in Sprint 1-2, causing rework across loader, schema, CI gates, and docs. This is a classic brownfield failure mode: implementation starts before contracts are finalized.",
+        "location": "FR-1.4, FR-2.1, FR-2.3, Technical Considerations: model-permissions strategy",
+        "recommendation": "Resolve all deferred decisions into explicit, versioned contracts before Sprint 1 coding begins; treat unresolved ADRs as release blockers.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Deterministic code generation across Bash/Python/Bun is assumed, but reproducibility constraints are not fully specified.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Cross-platform ordering, newline differences, YAML parser behavior, and build tooling versions can create CI drift false positives and persistent merge friction.",
+        "location": "FR-1.1, FR-5.1, FR-5.4, Risks R-4",
+        "recommendation": "Pin toolchain versions, enforce canonical serialization, and validate deterministic outputs in matrix CI (Linux/macOS) before making drift checks mandatory.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Operator-extensible model definitions can introduce SSRF or unsafe endpoint routing if endpoint/provider fields are not strictly allowlisted and normalized.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Even with schema validation, accepting arbitrary endpoint-like fields can route traffic to attacker-controlled hosts, leak metadata, or bypass intended provider boundaries.",
+        "location": "NFR-Sec-1, FR-2.1, FR-2.6",
+        "recommendation": "Enforce provider-specific endpoint allowlists, disallow arbitrary host overrides in v1, normalize/validate api_id formats, and add security tests for SSRF and command-injection vectors.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Privilege Escalation via Operator Permissions",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "If Option B is chosen (merging permissions into the SoT), and operators can add models via `model_aliases_extra`, they might be able to assign arbitrary high-level permissions to their custom models, bypassing intended security gates.",
+        "location": "FR-1.4, FR-2.1",
+        "recommendation": "Decouple permissions from operator-extensible fields, or strictly validate that `model_aliases_extra` cannot declare permissions higher than a safe baseline without explicit System Zone approval.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Resolution precedence is under-specified across legacy shapes, new skill_models, aliases, backward_compat_aliases, tier_groups, and prefer_pro_models.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "Without a strict precedence matrix, identical configs may resolve to different models across skills/runtimes, producing non-deterministic behavior, hard-to-debug regressions, and cost surprises.",
+        "location": "FR-3.4, FR-3.6, FR-3.7, Technical Considerations: backward-compat for legacy shapes",
+        "recommendation": "Define a single deterministic resolution algorithm with ordered precedence, tie-breakers, and conflict errors; add golden tests per skill and per runtime.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "SSRF Vulnerability in Custom Endpoints",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "Allowing operators to define custom endpoints via `model_aliases_extra` (NFR-Sec-1) without strict SSRF protections allows attackers or compromised operator configs to point the agent to internal network resources (e.g., AWS metadata service, local databases).",
+        "location": "NFR-Sec-1, FR-2.1",
+        "recommendation": "Implement strict URL validation for the `endpoint` field, explicitly blocking localhost, 169.254.169.254, and private IP ranges unless a specific `allow_local_endpoints` flag is set.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Tier mapping fallback behavior is undefined when a tier/role/provider mapping is missing or stale.",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "A missing mapping can silently downgrade to wrong models, fail at runtime, or break multi-model workflows (Flatline/Bridgebuilder) in production.",
+        "location": "FR-3.2, FR-3.5, UX example 'else falls back'",
+        "recommendation": "Specify fail-closed fallback rules explicitly (per role/provider), require startup validation of complete tier coverage, and block launch on unresolved bindings.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-04T12:33:16Z",
+    "metrics": {
+      "total_latency_ms": 207000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-04T12:48:20Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real spec gap with high downstream rework risk. Override/merge semantics are core to correctness, and leaving them undefined creates divergent implementations and operator surprises.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 850,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong operability improvement. Pre-flight validation alone is insufficient for runtime debugging in a precedence-based resolver; lightweight resolution traces materially improve supportability.",
+        "gpt_score": 820,
+        "opus_score": 820,
+        "tertiary_score": 880,
+        "delta": 0,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical startup behavior is underspecified. File-missing/parse/permission failures are common real-world conditions and must be explicitly fail-open/fail-closed defined.",
+        "gpt_score": 890,
+        "opus_score": 780,
+        "tertiary_score": 820,
+        "delta": 110,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable hardening item. mtime-only invalidation and concurrent regeneration races are practical issues, though implementation complexity is moderate and may be staged after core semantics.",
+        "gpt_score": 710,
+        "opus_score": 760,
+        "tertiary_score": 750,
+        "delta": 50,
+        "average_score": 735,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "High-value, concrete compatibility safeguard. The PRD promises legacy support; enumerated fixtures and golden tests are the most direct way to prevent silent regressions.",
+        "gpt_score": 870,
+        "opus_score": 820,
+        "tertiary_score": 820,
+        "delta": 50,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Endpoint allowlist security can be bypassed without strict canonicalization and DNS/IP revalidation",
+        "severity": "HIGH",
+        "severity_score": 755,
+        "why_matters": "Hostname allowlisting alone is fragile (IDN/punycode, redirects, DNS rebinding, IPv6 literals, mixed schemes/ports). SSRF protections may be incomplete under real-world resolver behavior.",
+        "location": "FR-2.8; NFR-Sec-1",
+        "recommendation": "Specify canonical URL parser, enforce HTTPS + default ports, resolve-and-verify final IPs at request time, and deny redirects across trust boundaries.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Permission-elevation rejection rule is underspecified for new operator-added models with no baseline entry",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "If baseline permissions are missing, the system may either over-reject legitimate configs or accidentally allow permissive defaults. Both outcomes block adoption or create security exposure.",
+        "location": "FR-1.4 permissions-elevation rejection",
+        "recommendation": "Define deterministic policy: operator-added models default to minimal permissions unless explicitly approved in System Zone registry; reject otherwise with guided remediation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Release-blocking deferred decisions (DD-1..DD-5) are still unresolved, but Sprint 1 depends on them",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Core implementation paths (permissions source-of-truth, schema placement, override semantics, startup hook language, schema validator integration) cannot be built safely until these are fixed. This is a high-probability schedule slip and rework trigger.",
+        "location": "Scope & Prioritization -> Deferred decisions to resolve before Sprint 1",
+        "recommendation": "Add a pre-Sprint 1 decision milestone with owners, deadlines, and explicit fallback choices if consensus is not reached within 48-72 hours.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Resolution logic is too complex for reliable correctness in v1 (6-stage precedence + legacy shapes + prefer_pro overlay + tier mappings)",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "Even with FR-3.9, combinatorial interactions can produce misrouting that is hard to detect in production. A subtle precedence bug directly changes model selection behavior, cost, and output quality.",
+        "location": "FR-3.7, FR-3.8, FR-3.9; Technical Considerations -> Backward-compat for legacy skill_models shapes",
+        "recommendation": "Reduce initial state-space: disable one legacy shape per skill in v1 or gate prefer_pro overlay behind explicit opt-in for migrated skills only; add property-based tests for precedence invariants.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Runtime-generated `.run/merged-model-aliases.sh` design does not define concurrency/atomicity guarantees",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Concurrent process starts can read partially written files or stale cache state, causing intermittent startup failures or inconsistent model maps across invocations.",
+        "location": "FR-1.9 Runtime config consolidation",
+        "recommendation": "Require atomic write via temp file + rename, file locking, and monotonic version header checks before sourcing.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-04T12:48:20Z",
+    "metrics": {
+      "total_latency_ms": 210000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-04T12:57:37Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Critical security/operability gap. Operator-added providers almost certainly require credentials, and without a contract teams will leak secrets into YAML or ad-hoc env vars. Highly actionable (naming, precedence, validation) with low implementation cost and high risk reduction.",
+        "gpt_score": 910,
+        "opus_score": 820,
+        "tertiary_score": 850,
+        "delta": 90,
+        "average_score": 865,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value observability addition. Current debug tracing is insufficient for deprecation rollout decisions; aggregate counters are needed for objective sunset gating. Clear metrics and acceptance criteria can be added with moderate effort.",
+        "gpt_score": 840,
+        "opus_score": 840,
+        "tertiary_score": 820,
+        "delta": 0,
+        "average_score": 840,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Critical spec conflict. Fail-closed startup and legacy compatibility requirements can produce contradictory behavior, especially with removed models. Must be resolved to avoid inconsistent enforcement and operator breakage.",
+        "gpt_score": 940,
+        "opus_score": 750,
+        "tertiary_score": 850,
+        "delta": 190,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Top-priority security concern. Partial-merge semantics can inadvertently bypass permission-elevation protections unless validation is explicitly defined on merged results. Clear, actionable, and high-risk if omitted.",
+        "gpt_score": 950,
+        "opus_score": 720,
+        "tertiary_score": 900,
+        "delta": 230,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-004",
+        "description": "Reasonable nice-to-have, but projected per-invocation cost is hard to estimate reliably at resolution time without token forecasts. Benefit is real for operator safety, yet implementation complexity and false confidence trade-offs are non-trivial.",
+        "gpt_score": 480,
+        "opus_score": 810,
+        "tertiary_score": 880,
+        "delta": 330,
+        "average_score": 645,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Core design is still blocked by unresolved deferred decisions (DD-1..DD-6) with fallback defaults that may be wrong.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "If implementation starts with fallback assumptions (permissions strategy, override semantics, startup-hook language), architecture can lock into incompatible behavior and require rework across all 4 sprints.",
+        "location": "Scope & Prioritization -> Deferred decisions to resolve before Sprint 1",
+        "recommendation": "Do not start Sprint 1 coding until DD-1..DD-6 are formally ratified in SDD; add a hard go/no-go checklist and explicit impact analysis for each fallback path.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Endpoint security controls still have TOCTOU and parsing edge risks (IPv6 literals, IDN/punycode, connection reuse, proxy behavior).",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "A single bypass in URL/DNS validation can turn operator-configurable endpoints into SSRF or internal network access, which is a project-stopping security incident.",
+        "location": "FR-2.8, NFR-Sec-1",
+        "recommendation": "Define a single hardened URL/IP validation library used by all runtimes, include IPv6/IDN/proxy test vectors, and add outbound network policy enforcement at runtime host level.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Hybrid Bridgebuilder model (build-time defaults + runtime overlay) risks divergence between TS runtime and global resolver behavior.",
+        "severity": "HIGH",
+        "severity_score": 725,
+        "why_matters": "If Bridgebuilder computes truncation/resolution differently from core resolver, users will see skill-specific inconsistencies that are hard to debug and undermine SoT guarantees.",
+        "location": "FR-1.1, Technical Considerations -> Hybrid Bridgebuilder pattern",
+        "recommendation": "Extract one shared resolution library and one shared schema contract used by both core and Bridgebuilder; prohibit duplicate resolver logic.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Locking strategy assumes reliable flock semantics and local filesystem behavior that may not hold in all environments.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "On NFS/containerized/shared volumes, lock behavior can be inconsistent, causing startup hangs, stale reads, or repeated fail-closed outages.",
+        "location": "FR-1.9, FR-5.5",
+        "recommendation": "Specify supported filesystem/runtime environments, add lock timeout and recovery semantics, and test under container + network filesystem scenarios.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Resolution logic remains highly complex due to coexistence of new shape, legacy shapes, tier mappings, aliases, and optional prefer_pro overlay.",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "Even with precedence rules, combinatorial interactions can produce edge-case misrouting in production that tests miss, especially during phased migration where mixed configs are expected.",
+        "location": "FR-3.4, FR-3.7, FR-3.9, SC-13, SC-14",
+        "recommendation": "Add a compatibility matrix with explicit supported combinations and unsupported states; enforce migration guardrails that reduce simultaneous active paths per skill.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Writing and sourcing '.run/merged-model-aliases.sh' creates a shell-code injection surface if escaping is imperfect.",
+        "severity": "HIGH",
+        "severity_score": 790,
+        "why_matters": "Any serialization bug can execute arbitrary shell when adapters source the file, turning config parsing defects into command execution.",
+        "location": "FR-1.9",
+        "recommendation": "Avoid executable shell serialization; use a non-executable data format (JSON) plus strict parser, or generate shell with a formally verified escaping function and fuzz tests.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " product requirements document model",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-04T12:57:37Z",
+    "metrics": {
+      "total_latency_ms": 211000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-04T13:26:14Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "High-value and concrete. The lock/timeout behavior is underspecified for a known race surface (multi-agent startup + atomic file swap). Defining acquisition order, wait/backoff, and divergent SHA handling prevents nondeterministic startup failures and is relatively low effort.",
+        "gpt_score": 870,
+        "opus_score": 860,
+        "tertiary_score": 850,
+        "delta": 10,
+        "average_score": 865,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical security/operability gap. Debug traces and JSON outputs are common leak vectors, and URL userinfo/query strings are realistic secret carriers. A redaction contract is highly actionable, low complexity, and should be mandatory in a production-facing spec.",
+        "gpt_score": 900,
+        "opus_score": 820,
+        "tertiary_score": 880,
+        "delta": 80,
+        "average_score": 860,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable correctness clarification. Overlap between 'extra' and 'override' is a likely operator mistake; explicit precedence or schema rejection removes ambiguity and support burden. Moderate impact, straightforward to implement.",
+        "gpt_score": 780,
+        "opus_score": 750,
+        "tertiary_score": 900,
+        "delta": 30,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Core behavior is still unresolved in Open Questions (tiny-tier semantics, overrideable endpoint_family, required-vs-optional permissions, Python runtime context), which can invalidate implemented contracts late in Sprint 2/3.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "These are not cosmetic choices—they affect resolver determinism, schema compatibility, and security posture. Late decisions here can force rework across codegen, runtime hooks, tests, and docs.",
+        "location": "Section 10: Open Questions",
+        "recommendation": "Freeze these decisions before Sprint 2 implementation starts, publish final ADRs, and update schema + acceptance criteria to remove ambiguity.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Custom URL canonicalization and anti-lookalike logic is overly complex and brittle (IDN, punycode, Levenshtein checks), likely to produce bypasses or false positives.",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "Security controls that are hard to implement correctly often fail open or break valid endpoints. Either outcome is severe: SSRF exposure or operator lockout.",
+        "location": "Section 6.5: URL Canonicalization Rules",
+        "recommendation": "Minimize custom logic: use strict host allowlists with exact normalized host matching, remove heuristic Levenshtein checks, and rely on mature URL/IP validation libraries.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "DD-1 Option B couples permissions schema (cycle-026) into model-config.yaml without versioning the merged schema",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The merged schema now has two evolution vectors (cycle-026 permissions + cycle-095 model attrs) with no joint versioning. When cycle-026 trust_scopes evolves (8th dimension added), every model entry must be migrated atomically. No migration framework specified. The 'thin wrapper' deletion in cycle-100 creates a one-way door.",
+        "location": "Section 3.1.1 + §11 DD-1",
+        "recommendation": "Add explicit schema_version to model-config.yaml top-level. Define migration mechanism for permissions schema evolution. Defer wrapper deletion until cycle-101 minimum to allow rollback.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Fail-closed startup behavior on lock timeout/network FS can turn environmental quirks into total system unavailability.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "In shared CI, containers, or enterprise mounts, false lock/network-FS detections can prevent any agent startup, effectively a self-inflicted outage.",
+        "location": "Sections 6.3 and 6.6",
+        "recommendation": "Introduce degraded read-only fallback with explicit warnings, add robust stale-lock recovery, and gate strict fail-closed mode behind a hardening flag.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Resolver logic is duplicated across Python, Bash, and TypeScript paths, creating high drift risk despite a shared FR-3.9 description.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "Any small precedence mismatch can route different skills to different models under the same config, causing inconsistent behavior, hard-to-debug incidents, and trust loss.",
+        "location": "Sections 1.4.4, 1.4.5, 1.5, 8 (T2.6 'Python + bash twin')",
+        "recommendation": "Define a single canonical resolver spec executable as golden test vectors and require all runtimes to pass the exact same fixture corpus in CI.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Zero-drift goal is contradicted by rollback path `LOA_LEGACY_MODEL_PERMISSIONS=1`, reintroducing dual writable sources of truth.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "As soon as rollback is used, drift can silently return between merged SoT and legacy file, undermining the core purpose of this cycle.",
+        "location": "Section 3.1.1 (Migration/Rollback path)",
+        "recommendation": "If rollback is required, enforce one-way sync and drift alarms; do not allow independent edits in legacy mode.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " author architecture designer claude",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-04T13:26:14Z",
+    "metrics": {
+      "total_latency_ms": 209000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-04T13:43:11Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real determinism gap with a direct contradiction between spec and fixture, and it risks cross-runtime divergence in a critical resolver path. The fix is concrete (lexical classification + rejection rules) and low cost relative to impact.",
+        "gpt_score": 920,
+        "opus_score": 880,
+        "tertiary_score": 880,
+        "delta": 40,
+        "average_score": 900,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Valuable operational clarification: stale-cache degraded mode across a fleet can create split-brain behavior. It is actionable but involves more system-level semantics and rollout complexity than a simple spec patch.",
+        "gpt_score": 790,
+        "opus_score": 900,
+        "tertiary_score": 920,
+        "delta": 110,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Good catch on build-time vs runtime authority boundaries. Without this, generated artifacts can mislead tooling and operators; however, resolving it may require broader artifact-contract decisions across multiple pipelines.",
+        "gpt_score": 760,
+        "opus_score": 820,
+        "tertiary_score": 850,
+        "delta": 60,
+        "average_score": 790,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "High-value schema migration gap: the common legacy input case has no defined output path. This is highly actionable and essential for safe adoption, with clear acceptance criteria for migration behavior.",
+        "gpt_score": 890,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 110,
+        "average_score": 835,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Critical and precise: byte-identical cross-runtime gates need a canonicalization standard or they will generate false positives and lose trust. Pinning JCS or equivalent is straightforward and high ROI.",
+        "gpt_score": 910,
+        "opus_score": 720,
+        "tertiary_score": 900,
+        "delta": 190,
+        "average_score": 815,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "This is a valid resolver edge-case ambiguity with clear behavioral options to specify. It is relatively easy to fix and prevents inconsistent fallback behavior in custom alias scenarios.",
+        "gpt_score": 720,
+        "opus_score": 740,
+        "tertiary_score": 810,
+        "delta": 20,
+        "average_score": 730,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Conflicting wrapper-removal timeline for `model-permissions` (cycle-100 in multiple sections vs cycle-101 MINIMUM in migration section).",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Roadmap ambiguity will cause sprint planning churn, broken expectations for downstream tooling, and possible premature deletion of compatibility artifacts.",
+        "location": "Sections 1.4.3, 3.1.1, 5.3, 8 Sprint 3 tasks",
+        "recommendation": "Publish one authoritative removal date in an ADR, update all sections, and add CI checks against that single policy.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Degraded read-only fallback can normalize lock-path failures into steady-state behavior.",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "Operational faults (deadlocks, filesystem issues) may persist undetected while the system keeps running in degraded mode, hiding real reliability problems until a critical config change is needed.",
+        "location": "Section 6.3.2 (Degraded read-only fallback), NFR-Op-6",
+        "recommendation": "Add hard limits (max degraded duration/count), mandatory alerting, and automatic escalation to fail-closed after threshold breaches.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Endpoint security controls are specified but not clearly centralized across all HTTP callers (cheval, Bridgebuilder, bash adapters).",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "If any caller bypasses canonicalization/rebinding/redirect checks, attacker-controlled endpoints can still be reached despite policy intent.",
+        "location": "Sections 1.9, 5.5, 6.5",
+        "recommendation": "Create a single shared endpoint-validation module and make all outbound model calls pass through it; block direct HTTP client usage in lint/CI.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Resolver logic is still triplicated across Python/Bash/TS with only fixture-based parity, not shared implementation.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "Golden tests reduce risk but cannot cover full state space; subtle precedence drift will still happen over time and cause skill-specific routing inconsistencies.",
+        "location": "Sections 1.5, 7.6",
+        "recommendation": "Define a canonical resolver spec as executable pseudocode or shared library, and generate runtime adapters from it rather than hand-maintaining three implementations.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Schema migration behavior is inconsistent across runtimes (`schema_version: 1` auto-migrates in Python but is rejected in TypeScript).",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The same config can pass in cheval/startup hook but fail in Bridgebuilder runtime, causing environment-specific outages and non-deterministic behavior.",
+        "location": "Section 3.1.1 (Loader behavior), Sections 1.4.5 and 7.6",
+        "recommendation": "Implement the same v1->v2 migration logic in TS (or remove Python auto-migrate), then enforce identical behavior contract tests for Python/Bash/TS loaders.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Wildcard endpoint policy (`*.googleapis.com`) combined with operator-controlled endpoints is a high-risk SSRF boundary.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "A broad wildcard significantly expands trust surface; if a permitted subdomain is misconfigured/compromised, traffic can be redirected to unintended services while still passing hostname checks.",
+        "location": "Sections 1.6, 1.9, 6.5",
+        "recommendation": "Replace wildcard hosts with explicit endpoint list per API family, add ownership/change-control for allowlist updates, and pin certificate SAN expectations where feasible.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": " author architecture designer claude",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-04T13:43:11Z",
+    "metrics": {
+      "total_latency_ms": 212000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

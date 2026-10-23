@@ -1,0 +1,123 @@
+{
+ "H18": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H19": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D5",
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union"
+ },
+ "H26": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H28": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H34": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H38": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union"
+ },
+ "H39": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union"
+ },
+ "H40": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H41": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D9",
+  "reason": "group: A's namespace (B's corresponds on the agreed items); anchors: union"
+ },
+ "H42": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H08": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "class: the hunk only adds the grammar constants the D1 fix uses; the check itself lands in the tally hunk — follow-on (A)"
+ },
+ "H12": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "refactor",
+  "reason": "class: extraction with the same behaviour is the codebook's refactor; follow-on is reserved for forced changes (callers, copies)"
+ },
+ "H15": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3"
+ },
+ "H16": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3"
+ },
+ "H17": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3"
+ },
+ "H20": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3"
+ },
+ "H25": {
+  "base": "A",
+  "group": "D3",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D3"
+ },
+ "H22": {
+  "base": "A",
+  "group": "D1",
+  "reason": "anchors: union; group: A's namespace; severity: codebook high — wrong counts and a crash on a common path (reruns, version strings)"
+ },
+ "H23": {
+  "base": "A",
+  "group": "D7",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7"
+ },
+ "H27": {
+  "base": "A",
+  "group": "D7",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7"
+ },
+ "H30": {
+  "base": "A",
+  "group": "D7",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7"
+ },
+ "H31": {
+  "base": "A",
+  "group": "D7",
+  "reason": "verdict: the same flaw on another code path is a member site of the group, not a mechanical echo — defect (A); group D7"
+ },
+ "H37": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text range (as pr-16 H04)"
+ }
+}

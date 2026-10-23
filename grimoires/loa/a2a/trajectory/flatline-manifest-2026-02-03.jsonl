@@ -1,0 +1,765 @@
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "run_id": "flatline-run-752d21ce-26d0-4962-9d12-77f9f8075385",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:25:12Z",
+    "updated_at": "2026-02-03T01:25:12Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "integration_id": "f8075385-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": "snap-123",
+    "document_hash": null,
+    "created_at": "2026-02-03T01:25:12Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "run_id": "flatline-run-01fc918e-fef2-4e13-8af3-8115cabdbe62",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:25:12Z",
+    "updated_at": "2026-02-03T01:25:12Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:25:12Z",
+  "data": {
+    "run_id": "flatline-run-01fc918e-fef2-4e13-8af3-8115cabdbe62",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "run_id": "flatline-run-7ff742e2-f2e1-401a-888a-ac9c02176b42",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:25:12Z",
+    "updated_at": "2026-02-03T01:25:12Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "run_id": "flatline-run-7ff742e2-f2e1-401a-888a-ac9c02176b42",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "run_id": "flatline-run-42185711-f351-432d-90bd-2319f636b343",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:25:13Z",
+    "updated_at": "2026-02-03T01:25:13Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:25:13Z",
+  "data": {
+    "integration_id": "f636b343-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": null,
+    "document_hash": null,
+    "created_at": "2026-02-03T01:25:13Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:25:14Z",
+  "data": {
+    "run_id": "flatline-run-0d034258-c26c-4776-a542-cfd5f8129454",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-25617/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:25:14Z",
+    "updated_at": "2026-02-03T01:25:14Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "run_id": "flatline-run-c35aeefd-c78a-4b3a-b6b3-dd3785b716c4",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:34:41Z",
+    "updated_at": "2026-02-03T01:34:41Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "integration_id": "85b716c4-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": "snap-123",
+    "document_hash": null,
+    "created_at": "2026-02-03T01:34:42Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "run_id": "flatline-run-f6b401e8-e870-474e-93c4-6c4c71cd7ee4",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:34:42Z",
+    "updated_at": "2026-02-03T01:34:42Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "run_id": "flatline-run-f6b401e8-e870-474e-93c4-6c4c71cd7ee4",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:34:42Z",
+  "data": {
+    "run_id": "flatline-run-0aef01f3-c757-4c53-ab95-d4fab86f6b8d",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:34:42Z",
+    "updated_at": "2026-02-03T01:34:42Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "run_id": "flatline-run-0aef01f3-c757-4c53-ab95-d4fab86f6b8d",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "run_id": "flatline-run-25fe8e23-9849-45e1-8379-c75130160e46",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:34:43Z",
+    "updated_at": "2026-02-03T01:34:43Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "integration_id": "30160e46-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": null,
+    "document_hash": null,
+    "created_at": "2026-02-03T01:34:43Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:34:43Z",
+  "data": {
+    "run_id": "flatline-run-5e9d06c0-9739-4797-a112-809dbff8bb93",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-6757/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:34:43Z",
+    "updated_at": "2026-02-03T01:34:43Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:38:21Z",
+  "data": {
+    "run_id": "flatline-run-50885d1f-96bf-4a7a-9275-69aedd8ee099",
+    "phase": "prd",
+    "document": "test-doc.md",
+    "document_hash": "",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:38:21Z",
+    "updated_at": "2026-02-03T01:38:21Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:38:22Z",
+  "data": {
+    "run_id": "flatline-run-50885d1f-96bf-4a7a-9275-69aedd8ee099",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "run_id": "flatline-run-73d32b5e-202c-4fad-a19e-15f2f54770bc",
+    "phase": "prd",
+    "document": "test-doc.md",
+    "document_hash": "",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:08Z",
+    "updated_at": "2026-02-03T01:40:08Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "blocker_added",
+  "timestamp": "2026-02-03T01:40:08Z",
+  "data": {
+    "id": "SKP-001",
+    "description": "Missing auth",
+    "severity": "CRITICAL"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "run_id": "flatline-run-8880c580-3607-47a7-98c4-470806cf2aea",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:49Z",
+    "updated_at": "2026-02-03T01:40:49Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "integration_id": "06cf2aea-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": "snap-123",
+    "document_hash": null,
+    "created_at": "2026-02-03T01:40:50Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "run_id": "flatline-run-a25cfc07-6235-4c33-bf9b-db92dd46d94a",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:50Z",
+    "updated_at": "2026-02-03T01:40:50Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "run_id": "flatline-run-a25cfc07-6235-4c33-bf9b-db92dd46d94a",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:50Z",
+  "data": {
+    "run_id": "flatline-run-fc582c89-7f53-4f89-aa22-a98cacec25e2",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:50Z",
+    "updated_at": "2026-02-03T01:40:50Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "run_id": "flatline-run-fc582c89-7f53-4f89-aa22-a98cacec25e2",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "run_id": "flatline-run-cc78fa10-b39a-4aac-8c20-00d4b5e7c58b",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:51Z",
+    "updated_at": "2026-02-03T01:40:51Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "integration_id": "b5e7c58b-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": null,
+    "document_hash": null,
+    "created_at": "2026-02-03T01:40:51Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "data": {
+    "run_id": "flatline-run-8007d37f-3c4c-4f98-aa4d-1f9cf42b43d8",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-15987/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:40:51Z",
+    "updated_at": "2026-02-03T01:40:51Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "run_id": "flatline-run-3d8d5a22-ecd6-47a3-8837-88da8bdbc29b",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:42:15Z",
+    "updated_at": "2026-02-03T01:42:15Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "integration_id": "8bdbc29b-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": "snap-123",
+    "document_hash": null,
+    "created_at": "2026-02-03T01:42:15Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:42:15Z",
+  "data": {
+    "run_id": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:42:15Z",
+    "updated_at": "2026-02-03T01:42:15Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "integration_id": "a8c66319-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": null,
+    "document_hash": null,
+    "created_at": "2026-02-03T01:42:16Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_updated",
+  "timestamp": "2026-02-03T01:42:16Z",
+  "data": {
+    "run_id": "flatline-run-ea800d43-c99b-4005-a979-a342a8c66319",
+    "field": "status",
+    "value": "completed"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "run_id": "flatline-run-bff5cfd5-4091-4c73-a811-29910be1cd4d",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:42:17Z",
+    "updated_at": "2026-02-03T01:42:17Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "blocker_added",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "id": "SKP-001",
+    "description": "Missing authentication requirements",
+    "severity": "CRITICAL",
+    "skeptic_score": 850,
+    "source": "gpt_skeptic"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "run_id": "flatline-run-1be23c06-a213-4219-b721-6ae659b0a4c3",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:42:17Z",
+    "updated_at": "2026-02-03T01:42:17Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "integration_added",
+  "timestamp": "2026-02-03T01:42:17Z",
+  "data": {
+    "integration_id": "59b0a4c3-001-",
+    "type": "high_consensus",
+    "item_id": "IMP-001",
+    "sequence": 1,
+    "snapshot_id": null,
+    "document_hash": null,
+    "created_at": "2026-02-03T01:42:17Z",
+    "status": "applied"
+  }
+}
+{
+  "type": "flatline_manifest",
+  "event": "manifest_created",
+  "timestamp": "2026-02-03T01:42:18Z",
+  "data": {
+    "run_id": "flatline-run-fb6cb6c2-70c2-4dd8-a1f0-cacf47ddf89b",
+    "phase": "prd",
+    "document": "/tmp/flatline-test-19539/test-doc.md",
+    "document_hash": "4a11b76cca4bf1e2a6ebf24bb143b6b9bb0ef9de69839e71502fb29268144bf2",
+    "status": "in_progress",
+    "created_at": "2026-02-03T01:42:17Z",
+    "updated_at": "2026-02-03T01:42:17Z",
+    "snapshots": [],
+    "integrations": [],
+    "disputed_items": [],
+    "blockers": [],
+    "metrics": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "blocker_count": 0,
+      "integration_count": 0
+    }
+  }
+}

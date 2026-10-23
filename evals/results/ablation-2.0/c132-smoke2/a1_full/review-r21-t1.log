@@ -1,0 +1,7 @@
+2026-10-21T12:52:54Z run-ablation: c132-smoke2-a1_full-review-r21-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-smoke2/a1_full/review-r21-t1
+arm a1_full: all_phases_present OK phases REVIEW,AUDIT
+arm a1_full: oracle_closed OK ok head:57 answer paths (57 present), 27 later-only pinned versions, sandbox git = base commit only; 18 adapter path(s) left pinned
+arm a1_full: integrity_clean OK 1973 manifest entries verified; manifest_sha256 bc83550abb54 (matches checksums.json)
+arm a1_full: mount_cheval_ok OK mount_cheval=ok
+arm a1_full: dissent_present FAIL dissent missing: review:status=budget_exceeded audit:status=budget_exceeded
+arm a1_full: FAIL (1 of 5 rules)

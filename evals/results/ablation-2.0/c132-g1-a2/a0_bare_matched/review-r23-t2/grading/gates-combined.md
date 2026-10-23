@@ -1,0 +1,124 @@
+## session s1
+head/evals/harness/lib/seed_tasks.py:373
+head/evals/harness/lib/seed_tasks.py:570
+seed-refactor-tasks.sh:115-116
+seed-bugfix-tasks.sh:43-44
+head/evals/tests/ablation-grade.bats:16
+pipeline-run.bats:903
+head/evals/tests/pipeline-run.bats:498
+head/evals/tests/validate-suite.bats:35
+head/evals/harness/ablation-grade.sh:660
+## session s3
+head/evals/tests/ablation-grade.bats:16
+head/evals/harness/lib/seed_tasks.py:86
+seed-bugfix-tasks.sh:42
+head/evals/harness/lib/seed_tasks.py:570
+seed-refactor-tasks.sh:115-116
+seed-bugfix-tasks.sh:43-44
+head/evals/harness/seed-corpus-from-record.sh:235
+head/evals/harness/ablation-grade.sh:1219
+head/evals/harness/ablation-grade.sh:621
+## session s4
+head/evals/tests/ablation-grade.bats:16
+pipeline-run.bats:903
+head/evals/tests/pipeline-run.bats:498
+head/evals/tests/pipeline-run.bats:503
+head/evals/tests/seed-corpus.bats:189
+head/evals/tests/ablation-grade.bats:501
+head/evals/tests/ablation-grade.bats:505
+head/evals/tests/ablation-grade.bats:512
+head/evals/harness/lib/seed_tasks.py:86
+seed-bugfix-tasks.sh:42
+head/evals/harness/lib/seed_tasks.py:570
+seed-refactor-tasks.sh:115-116
+seed-bugfix-tasks.sh:43-44
+head/evals/harness/ablation-grade.sh:588
+## session s5
+head/evals/harness/lib/seed_tasks.py:601
+head/evals/harness/lib/seed_tasks.py:591
+head/evals/harness/lib/seed_tasks.py:373
+head/evals/harness/lib/seed_tasks.py:450
+head/evals/harness/lib/seed_tasks.py:570
+head/evals/harness/lib/seed_tasks.py:444
+seed-bugfix-tasks.sh:43-44
+seed-refactor-tasks.sh:115-116
+head/evals/harness/lib/seed_tasks.py:86
+seed-bugfix-tasks.sh:42
+head/evals/harness/lib/seed_tasks.py:196
+head/evals/harness/lib/seed_tasks.py:213
+head/evals/tests/ablation-grade.bats:16
+head/evals/tests/pipeline-run.bats:498
+head/evals/tests/pipeline-run.bats:503
+head/evals/tests/pipeline-run.bats:504
+head/evals/tests/ablation-grade.bats:501
+head/evals/tests/ablation-grade.bats:502
+head/evals/tests/ablation-grade.bats:505
+## session s6
+head/evals/tests/ablation-grade.bats:16
+head/evals/harness/lib/seed_tasks.py:570
+seed-bugfix-tasks.sh:43-44
+seed-refactor-tasks.sh:115-116
+head/evals/harness/lib/seed_tasks.py:457
+head/evals/harness/lib/seed_tasks.py:196
+## session s7
+head/evals/harness/lib/seed_tasks.py:570
+seed-bugfix-tasks.sh:43-44
+seed-refactor-tasks.sh:115-116
+head/evals/tests/ablation-grade.bats:16
+pipeline-run.bats:903
+head/evals/tests/pipeline-run.bats:498
+pipeline-run.bats:296
+## session s8
+head/evals/harness/lib/seed_tasks.py:601
+head/evals/harness/lib/seed_tasks.py:591
+head/evals/harness/lib/seed_tasks.py:373
+head/evals/harness/lib/seed_tasks.py:450
+head/evals/harness/lib/seed_tasks.py:570
+seed-refactor-tasks.sh:36-37
+seed-bugfix-tasks.sh:43-44
+head/evals/harness/lib/seed_tasks.py:196
+head/evals/harness/lib/seed_tasks.py:213
+head/evals/harness/ablation-grade.sh:714
+head/evals/harness/ablation-grade.sh:710-711
+head/evals/harness/ablation-grade.sh:1175
+seed_tasks.py:226-229
+head/evals/harness/ablation-grade.sh:660
+head/evals/harness/ablation-grade.sh:62-63
+head/evals/harness/lib/seed_tasks.py:429
+head/evals/harness/lib/seed_tasks.py:25
+## session s9
+head/evals/harness/lib/seed_tasks.py:373
+head/evals/harness/lib/seed_tasks.py:570
+head/evals/tests/ablation-grade.bats:16
+pipeline-run.bats:903
+head/evals/harness/ablation-grade.sh:618
+head/evals/harness/ablation-grade.sh:588
+head/evals/harness/seed-corpus-from-record.sh:235
+## session s10
+head/evals/harness/lib/seed_tasks.py:570
+head/evals/harness/lib/seed_tasks.py:457
+head/evals/harness/lib/seed_tasks.py:154
+head/evals/harness/lib/seed_tasks.py:196
+head/evals/tests/ablation-grade.bats:16
+## session s11
+head/evals/harness/ablation-grade.sh:1080
+lib/seed_tasks.py:432
+head/evals/harness/ablation-grade.sh:633
+head/evals/harness/ablation-grade.sh:657
+head/evals/harness/ablation-grade.sh:710
+head/evals/harness/lib/seed_tasks.py:570
+seed-bugfix-tasks.sh:43
+seed-refactor-tasks.sh:115-116
+head/evals/tests/ablation-grade.bats:16
+## session s12
+head/evals/tests/ablation-grade.bats:16
+pipeline-run.bats:903
+head/evals/harness/lib/seed_tasks.py:86
+head/evals/harness/lib/seed_tasks.py:570
+seed-refactor-tasks.sh:37-38
+seed-bugfix-tasks.sh:44-45
+head/evals/harness/lib/seed_tasks.py:397
+ablation-grade.sh:1080
+head/evals/tests/pipeline-run.bats:498
+head/evals/tests/ablation-grade.bats:501
+head/evals/tests/seed-corpus.bats:189

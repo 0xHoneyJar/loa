@@ -1,0 +1,15 @@
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124
+model-config.yaml:216-309
+head/.claude/adapters/cheval.py:2544
+head/.claude/scripts/flatline-orchestrator.sh:529
+head/.claude/skills/bridgebuilder-review/resources/config.ts:180
+head/.claude/defaults/model-config.yaml:494
+head/docs/migration/v2.0-model-generation-floor.md:303
+model-config.yaml:496-497
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:168
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:299
+head/.claude/adapters/loa_cheval/config/loader.py:120
+adversarial-review.sh:52
+head/.claude/scripts/run-preflight.sh:204
+head/.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:212

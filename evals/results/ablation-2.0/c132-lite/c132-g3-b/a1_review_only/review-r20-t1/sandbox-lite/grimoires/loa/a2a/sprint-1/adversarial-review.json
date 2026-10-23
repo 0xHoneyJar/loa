@@ -1,0 +1,192 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "injection",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_exec_dest",
+      "anchor_type": "function",
+      "anchor_line": 187,
+      "scope": "diff",
+      "description": "Executable destination checks match raw paths without normalizing dot components. `.git/./hooks/pre-commit` therefore escapes the `.git/hooks` check and is classified as a plain-file destination.",
+      "failure_mode": "With an existing executable pre-commit hook, `tee .git/./hooks/pre-commit <<'EOF'\\necho $(rm -rf src)\\nEOF\\ngit commit --allow-empty -m test` has its destructive heredoc body dropped from the scan. The subsequent commit executes the overwritten hook. The same-command execution check misses this because the commit command does not name the hook basename.",
+      "suggested_fix": "Normalize literal destination paths before checking executable locations, resolving dot components and existing symlink targets. Preserve the full body scan when a destination cannot be resolved safely.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 139,
+      "anchor_line_end": 143,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The old read `.guardrails.danger_level.enforce // true` always came out true: with yq, `false // true` is true, and a missing yq or missing config also defaulted to enabled. So in practice enforcement was always on. The new read is `loa_knob guardrails.danger_level.enforce false`, and the `standard` profile in profiles.yaml sets it to false. The same flip hits `guardrails.input.enabled` through input_guardrails.md. The old prelude skipped only on an explicit false. Now it runs only on an explicit true or the `full` profile.",
+      "failure_mode": "After upgrading, every repo without an explicit key loses danger-level enforcement and pre-execution input guardrails without notice. This includes repos with no config file or no yq. The profiles.yaml comment calls this 'a migration item', but nothing visible in the diff migrates existing configs or warns the operator.",
+      "suggested_fix": "Ship a migration that writes the old effective value, `true`, into existing .loa.config.yaml files that lack the keys. Or emit a one-time session-start WARN when either guardrail resolves to false only through the profile default. State the posture change in the release notes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 137,
+      "anchor_line_end": 143,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The enforcer used to read the knob from `$CONFIG_FILE`. Now `loa_knob` always reads the project-root .loa.config.yaml, so any CONFIG_FILE override is silently ignored for this key. The same diff handles this case in loa-l7-surface-soul.sh, which passes `LOA_PROFILE_CONFIG_FILE=\"$config_path\"` when the path differs. The enforcer does not. Also, the `source` of profile-lib.sh at top level has no guard, so a partial install without the lib makes the enforcer itself fail.",
+      "failure_mode": "A caller or test that points the enforcer at another config gets the enforcement decision from a different file than the rest of the enforcer's settings. The enforce flag and the danger levels can then disagree.",
+      "suggested_fix": "Call `LOA_PROFILE_CONFIG_FILE=\"$CONFIG_FILE\" loa_knob guardrails.danger_level.enforce false`, mirroring the soul hook. Guard the source with a fallback that keeps enforcement on when the lib is missing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_exec_dest",
+      "anchor_type": "function",
+      "anchor_line": 290,
+      "anchor_line_end": 315,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The executable-destination check is a case-sensitive regex and suffix match on the literal path text, which misses targets in two ways. First, the hook claims Bash 3.2 compatibility, so macOS is a target, and macOS's default APFS volume is case-insensitive. A differently-cased spelling of .git/hooks, .claude/hooks, .claude/settings*.json or a script extension reaches the same file but fails every pattern. Second, relative targets are resolved against the hook's PWD, not against a directory change made earlier in the same command. The 'directory on PATH' test can therefore be skipped by changing directory first.",
+      "failure_mode": "A heredoc that writes executable content into a hook or settings location is classified nonexec. Its body then gets only the per-segment scan instead of the full scan the design gives executable destinations. This removes a fail-closed layer on exactly the platform the Bash 3.2 constraint targets.",
+      "suggested_fix": "Lower-case the path before matching the sys, rc and extension patterns, which is safe because it only tightens. Treat any heredoc command that contains `cd`, `pushd` or a subshell directory change before the header as unjudgeable for relative targets, and return 0 from the destination check.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_tokenize",
+      "anchor_type": "function",
+      "anchor_line": 225,
+      "anchor_line_end": 270,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The tokenizer walks each line with `${s:i:1}`. In a multibyte (UTF-8) locale, bash finds each character offset by scanning from the start of the string, so one line costs O(n²). The exported entry point `_bdb_heredoc_consumer_class` sets `local LC_ALL=C`. The real hook path at the `_bdb_heredoc_knob_on` call site calls `_bdb_heredoc_scrub` without it. Every non-heredoc line goes through `_bdb_hd_ctx_bad`, which calls the tokenizer, and `_bdb_hd_same_line_exec` re-tokenizes lines once per write target.",
+      "failure_mode": "Picture a command that holds a heredoc and also a long line outside the heredoc body, such as a long one-liner or a JSON argument. The PreToolUse fence can run long enough to hit the harness hook timeout. A hook timeout is a non-blocking error, so the command runs unchecked and the fence fails open.",
+      "suggested_fix": "Set `LC_ALL=C` for the classifier on the main path too, for example inside `_bdb_heredoc_scrub` or the call site. Also cap the classified command length: above a few KB, skip classification and fall back to the full scan.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implementation_active",
+      "anchor_type": "function",
+      "anchor_line": 509,
+      "anchor_line_end": 512,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new derived_at bound (`_ig_derived_ok`, run_mode.stale_hours, default 12) also applies to the sanction in the default ask mode, not only to deny. A RUNNING cache with fresh last_activity used to sanction writes for 24 hours. Now it stops sanctioning once derived_at is older than 12 hours. That holds even when the run is live, unless something re-runs `run-checkpoint.sh derive --write` during the run. Nothing in the diff shown re-derives on run progress.",
+      "failure_mode": "A long autonomous sprint-plan run whose cache was derived at start begins getting asks on every App Zone write after 12 hours. With no human present, the run stalls. In deny mode it gets outright denials, because the position is still known through the same derived_at.",
+      "suggested_fix": "Re-stamp derived_at whenever run-mode updates sprint-plan-state.json, or apply the derived_at bound only to the deny-mode position check. Add a bats case for a RUNNING cache with fresh last_activity and a derived_at older than 12 hours.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T05:47:26Z",
+    "tokens_input": 121631,
+    "tokens_output": 34042,
+    "cost_usd": 0,
+    "latency_ms": 80927,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

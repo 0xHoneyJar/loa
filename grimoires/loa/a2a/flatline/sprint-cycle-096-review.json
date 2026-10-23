@@ -1,0 +1,179 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 7,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Clear documentation defect with immediate execution risk: unrendered placeholders in commands and tables will mislead readers and break copy-paste validation flows. Very low effort, very high ROI.",
+      "gpt_score": 940,
+      "opus_score": 880,
+      "tertiary_score": 980,
+      "delta": 60,
+      "average_score": 910,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "This is a real gating ambiguity in Sprint 0 decision logic. Adding an explicit PASS/PASS-WITH-CONSTRAINTS/FAIL matrix is actionable and prevents cycle stalls.",
+      "gpt_score": 860,
+      "opus_score": 720,
+      "tertiary_score": 900,
+      "delta": 140,
+      "average_score": 790,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Good architectural risk mitigation. The current rollback note is too shallow for a foundational component with many dependents. More detail is useful, though implementation/process overhead is moderate.",
+      "gpt_score": 760,
+      "opus_score": 780,
+      "tertiary_score": 920,
+      "delta": 20,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "High-value security hardening. Sprint 0 collects live data before full redaction tooling exists, so a concrete manual/automated scrub process is essential to avoid credential/account leakage.",
+      "gpt_score": 920,
+      "opus_score": 820,
+      "tertiary_score": 980,
+      "delta": 100,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Strong medium-term maintainability improvement. Fixture evolution policy is important for keeping contract-smoke signal reliable as APIs change. Moderate complexity, solid payoff.",
+      "gpt_score": 710,
+      "opus_score": 750,
+      "tertiary_score": 780,
+      "delta": 40,
+      "average_score": 730,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Domain-appropriate and highly actionable. Explicitly testing/documenting non-support for streaming avoids silent hangs and improves UX with minimal implementation cost.",
+      "gpt_score": 800,
+      "opus_score": 770,
+      "tertiary_score": 880,
+      "delta": 30,
+      "average_score": 785,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "Auth direction is being locked from a very small survey sample (>=3), risking a strategic mismatch if users actually need SigV4/IAM first.",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "If real production adopters require IAM-based auth, Bearer-only v1 may be unusable and force major redesign immediately after release.",
+      "location": "Sprint 0 Acceptance Criteria G-S0-1; FR-4 deferred to Sprint 2 design-only",
+      "recommendation": "Treat auth mode as a product risk gate: require stronger evidence (customer interviews/telemetry), and define explicit go/no-go criteria plus contingency scope for minimal SigV4 support.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-008",
+      "concern": "Centralized parser atomic refactor touches multiple Bash/Python callsites and can regress all providers, not just Bedrock.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "A parser edge-case regression can corrupt provider/model routing globally and break existing workflows despite Bedrock being opt-in.",
+      "location": "Sprint 1 Task 1.1; Acceptance Criteria parser-first",
+      "recommendation": "Use incremental rollout with compatibility shim and canary tests against all providers; require explicit regression suite for legacy model IDs before merge.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Contract verification appears based on one account/region context and may not generalize across regions, accounts, or AWS partitions.",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "Bedrock behavior can differ by region/profile availability and partition; a single-context fixture can mask failures for real users.",
+      "location": "Sprint 0 Task 0.2/0.5; `bedrock-contract-v1.json` fixture strategy",
+      "recommendation": "Add multi-region and at least one secondary account validation matrix; explicitly document unsupported partitions (GovCloud/China) as constraints.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "PASS-WITH-CONSTRAINTS gate policy can allow Sprint 1 coding with unresolved contract ambiguity.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "If uncertainty is accepted too loosely, Sprint 1 builds against partial assumptions and may incur expensive rework across adapter, tests, and fixtures.",
+      "location": "Sprint 0 Acceptance Criteria; Phase-gated rollout",
+      "recommendation": "Define strict allowed constraints per gate, plus mandatory mitigation tasks before Sprint 1 starts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Project-critical gates depend on a single maintainer Bedrock account and token, creating a hard single point of failure.",
+      "severity": "CRITICAL",
+      "severity_score": 920,
+      "why_matters": "Sprint 0 probes, Sprint 1 live tests, Sprint 2 E2E, and recurring smoke all require one operator-controlled account/secret. If access, quota, billing, or token rotation fails, delivery and validation halt.",
+      "location": "Sprint 0/1/2 Dependencies sections; Task 1.10; Task 2.6; Task 2.E2E",
+      "recommendation": "Add a backup test account/secret owner, documented break-glass credentials path, and non-blocking fallback validation mode when live Bedrock is unavailable.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Secret-redaction strategy may miss transformed token leakage paths (partial, encoded, multiline, structured logs, CI debug output).",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "A single missed leak in CI artifacts or audit logs compromises credentials and can create immediate security incident exposure.",
+      "location": "Sprint 1 Task 1.6; Sprint 2 Task 2.6 security notes",
+      "recommendation": "Add adversarial redaction tests (base64/url-encoded/chunked tokens), disable verbose HTTP logging by default, and run secret-scanning on produced artifacts.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "Timeline risk is high: 22 tasks plus E2E in 17 days includes core parser refactor, new provider integration, security controls, and CI automation.",
+      "severity": "HIGH",
+      "severity_score": 715,
+      "why_matters": "Underestimation can force quality cuts in testing/security hardening, increasing post-merge regressions.",
+      "location": "Executive Summary timeline; Sprint 1 scope (LARGE, 10 tasks)",
+      "recommendation": "Add schedule buffer, split must-have vs stretch tasks, and predefine de-scope candidates that do not compromise security or compatibility gates.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sprint",
+  "document": "grimoires/loa/sprint.md",
+  "domain": " source issue 652 https",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-02T01:21:13Z",
+  "metrics": {
+    "total_latency_ms": 220000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

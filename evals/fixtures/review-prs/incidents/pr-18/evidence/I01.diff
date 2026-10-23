@@ -1,0 +1,40 @@
+commit 77455afb372fbba4a67c51232598d17099a16182
+Date: 2026-10-14T15:35:21+11:00
+
+fix(cycle-129): sprint-256 review round r256-2 — the example ships the nine profile keys only as commented, profile-governed lines so a copied example follows loa.profile (HIGH-2; PL-4 pins null raw keys, standard as the effective value, and lean/full copies with no override; AC-2.4 restated); LI-2/3/5/8 and PL-1 negated assertions as run plus status (LOW-8); check-knob-readers.sh escapes every ERE metacharacter, skips binaries and fails on a grep error (LOW-9); run-corpus.sh --knob-off requires the D122 sentinel unless --no-self-check (LOW-10); the review and audit skills grant Bash(.claude/scripts/lib/profile-lib.sh knob *) in allowed-tools and capabilities for the shared include steps (CMP-188; byte-neutral trims in both frontmatters); karpathy-config-schema.bats isolates KARPATHY_STATE_DIR and expects the two profile-governed keys commented; CHANGELOG; DEC-0299…DEC-0301 (sprint-2)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index ead540b5..e280de90 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -3,8 +3,7 @@
+ description: Validate sprint implementation against acceptance criteria
+ role: review
+ effort: xhigh
+-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+-# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
++allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/lib/profile-lib.sh knob *)
+ disallowed-tools:
+   - NotebookEdit
+ capabilities:
+@@ -36,6 +35,8 @@ # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+         args: ["comments", "add", "*"]
+       - command: "br"
+         args: ["label", "add", "*"]
++      - command: ".claude/scripts/lib/profile-lib.sh"
++        args: ["knob", "*"]
+     deny_raw_shell: true
+   web_access: true
+   user_interaction: false
+@@ -285,7 +286,7 @@ ## Subagent Report Check
+ <complexity_review>
+ ## Complexity Review (Required)
+ 
+-Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
++Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for a function over 50 lines without justification, nesting over 3 without early returns, over 3 duplicate blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
+ </complexity_review>
+ 
+ <beads_workflow>

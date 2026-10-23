@@ -1,0 +1,268 @@
+WARNING: Document size 35 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/prd.md
+[flatline] Phase: prd
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/prd-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=9, Opus=12 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=5 DISPUTED=3 LOW=0 BLOCKERS=10 (75% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 3,
+    "low_value_count": 0,
+    "blocker_count": 10,
+    "model_agreement_percent": 75,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Critical dependency resolution. Auth enum closure and canonical OAuth-status commands directly gate schema validation, loader behavior, and doctor implementation. Resolving these before the SDD gate prevents avoidable schema churn and downstream rework at low relative cost via spike or operator decision.",
+      "gpt_score": 930,
+      "opus_score": 900,
+      "tertiary_score": 900,
+      "delta": 30,
+      "average_score": 915,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "High-value clarification because migration semantics affect runtime safety and the Sprint-1 validation gate. Preserving versus discarding legacy breaker state has materially different operational behavior, and the current wording appears contradictory. This should be specified before implementation.",
+      "gpt_score": 890,
+      "opus_score": 870,
+      "tertiary_score": 850,
+      "delta": 20,
+      "average_score": 880,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valuable improvement to make the empirical success criterion statistically meaningful. A 95% success threshold without minimum sample size can be misleading for sparse provider/auth_type buckets. Implementation cost is low, though selecting the exact threshold may require judgment.",
+      "gpt_score": 730,
+      "opus_score": 880,
+      "tertiary_score": 920,
+      "delta": 150,
+      "average_score": 805,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Strong requirement clarification. Auto dispatch behavior depends on deterministic precedence and a quantitative insufficiency threshold; otherwise tests and cold-start behavior remain ambiguous. This directly affects resolver correctness and acceptance testing.",
+      "gpt_score": 780,
+      "opus_score": 820,
+      "tertiary_score": 820,
+      "delta": 40,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-009",
+      "description": "Important test-quality improvement. Since FR-0 validates the core hypothesis, the acceptance fixture should reproduce the documented masking failure rather than only proving generic two-key behavior. This increases confidence that Sprint-1 addresses the real incident pattern.",
+      "gpt_score": 740,
+      "opus_score": 770,
+      "tertiary_score": 860,
+      "delta": 30,
+      "average_score": 755,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-010",
+      "description": "Rollback criteria are essential for operational safety. Explicit triggers reduce attention tax and enable automation. Medium priority is correct.",
+      "gpt_score": 0,
+      "opus_score": 760,
+      "tertiary_score": 720,
+      "delta": 760,
+      "average_score": 760,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-011",
+      "description": "Cost representation consistency matters for dashboards but is a localized schema decision. Low complexity, easy to fix, but not blocking.",
+      "gpt_score": 0,
+      "opus_score": 620,
+      "tertiary_score": 650,
+      "delta": 620,
+      "average_score": 620,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Expanded security surface for headless execution is a legitimate concern given increased invocation volume. Worth specifying redaction and logging policy comprehensively.",
+      "gpt_score": 0,
+      "opus_score": 720,
+      "tertiary_score": 790,
+      "delta": 720,
+      "average_score": 720,
+      "source": "opus_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "Bedrock auth_type treatment is unresolved (ASSUMPTION-3, Q1, Q3) yet FR-2.1 requires `auth_type` on every model entry and rejects load otherwise. If Bedrock models exist in model-config.yaml and the enum is closed to `headless | http_api`, FR-2 ships broken on day one.",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "FR-2.1 hard-fails loader at startup if any model lacks valid auth_type. Bedrock models currently in model-config.yaml will block all dispatch until resolved. This is a substrate-wide outage trigger.",
+      "location": "§5 FR-2.1, §11.4 ASSUMPTION-3, §14.4 Q1/Q3",
+      "recommendation": "Resolve Bedrock enum membership in PRD before SDD. Either (a) add `aws_iam` to auth_type enum, (b) make auth_type optional with default `http_api`, or (c) explicitly enumerate which providers require the field. Do not enter Sprint 2 with this ambiguous.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "CLI auth probes and dispatch calls may hang indefinitely on stdin prompts",
+      "severity": "CRITICAL",
+      "severity_score": 850,
+      "why_matters": "When subscription tokens expire, CLIs often default to interactive login prompts (e.g., 'Press Enter to open browser' or 'Paste your token:'). If invoked programmatically without strict non-interactive flags or PTY isolation, the substrate will hang indefinitely waiting for stdin, causing silent deadlocks rather than clean circuit-breaker trips.",
+      "location": "FR-4.1 Operator OAuth-state pre-flight / 8.4 OAuth-state probe design",
+      "recommendation": "Wrap all CLI invocations (both probes and actual dispatch) with strict timeout bounds and pipe `/dev/null` to stdin. Explicitly verify that the CLIs support a `--non-interactive` or equivalent flag.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Circuit-breaker file migration and writes do not mention concurrency control, atomic writes, or locking.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Concurrent dispatches can race while migrating/deleting legacy files or writing per-auth circuit state, causing corrupted JSON, lost updates, or incorrect fail-open/fail-closed decisions under load.",
+      "location": "FR-0, §8.3 circuit-breaker migration strategy",
+      "recommendation": "Require atomic write-rename semantics, advisory locking or compare-and-swap behavior, and tests for concurrent migration/writes. Define recovery behavior for partial files and interrupted migrations.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "FR-4 OAuth pre-flight design depends on unverified CLI status commands (ASSUMPTION-1). PRD lists `claude --status`, `codex --status`, `gemini auth status` as speculative — if these don't exist or behave differently, the entire pre-flight gate (gating Sprint 3 rollout) becomes unimplementable as specified.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "FR-4 is a hard gate before Sprint 3 rollout flip. If the assumed CLI surfaces don't exist, Sprint 3 blocks or the operator flips `dispatch_preference: headless` blind — defeating the empirical-validation hypothesis. Discovery at T4 implementation means sprint replanning mid-cycle.",
+      "location": "§5 FR-4, §11.4 ASSUMPTION-1, §14.4 Q2",
+      "recommendation": "Spike CLI status-command verification BEFORE PRD approval. Add a Sprint-0 discovery task (15 min) that runs each CLI's help output and confirms an auth-state probe exists. If absent, redesign FR-4 to use a no-op dispatch probe (send a trivial prompt, observe auth failure mode) instead of a status command.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Fallback semantics for `dispatch_preference: headless` are ambiguous and may reintroduce the exact API-billing failure modes the PRD is trying to avoid.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "FR-3.1 says filter to headless entries but also says HTTP entries become fallback on CHAIN_EXHAUSTED. If HTTP fallback is automatic, billing/quota errors can still trigger operator attention; if filtered out, availability may drop. The intended policy is unclear.",
+      "location": "FR-3.1, UC-1, G-3, §8.5 rollback",
+      "recommendation": "Define explicit fallback policy knobs, e.g. `allow_cross_auth_fallback: true|false`, default behavior per role, and which error classes permit HTTP fallback. Add tests verifying HTTP is not used when billing avoidance is required.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Headless CLI authentication/status commands are assumed rather than verified, yet FR-4 depends on them as a required pre-flight gate.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "If one or more CLIs lack a stable non-mutating status command, return non-machine-readable output, or require interactive prompts, the doctor command may be unreliable or block rollout.",
+      "location": "FR-4, §8.4, §11.4 ASSUMPTION-1, §14.4 Q2",
+      "recommendation": "Perform a spike before committing the FR-4 interface. Document exact commands, expected exit codes, timeout behavior, stdout/stderr parsing, and fallback probes for each CLI. Make unsupported probes explicit blockers or warnings.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Headless CLI concurrency limits and local session file locking are unverified",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "Consumer CLIs (claude, gemini, codex) are typically designed for single-user interactive usage. If the agent substrate dispatches dozens of concurrent requests, the CLIs may encounter SQLite database locks, file-write collisions on token refreshes, or local port exhaustion, leading to cascading failures under load that HTTP APIs natively handle.",
+      "location": "2.2 Headless paths bypass the class / NFR-Perf-1",
+      "recommendation": "Mandate a concurrency stress-test in Sprint 1 (e.g., 50 parallel invocations) to verify local CLI state safety before committing to the headless-first architecture. Add a local concurrency semaphore to the adapter if the CLIs lack safe internal locking.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Race condition in legacy circuit-breaker file migration",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "FR-0.2 specifies that legacy single-key files are 'cleaned on first read'. In a highly concurrent agent environment, multiple processes may attempt to read, migrate, and delete the legacy `.run/circuit-breaker-{provider}.json` file simultaneously, resulting in FileNotFoundError crashes or corrupted state writes.",
+      "location": "FR-0.2 / 8.3 Circuit-breaker migration strategy",
+      "recommendation": "Implement atomic file operations for the migration (e.g., using exclusive file locks or atomic renames) and handle `FileNotFoundError` gracefully if another process already completed the migration.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "`auth_type` schema is internally inconsistent: FR-2 and NFR-Sec-1 require a closed enum of `headless | http_api`, while §11.4/Q1 acknowledges Bedrock may require `aws_iam` or exclusion.",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "If any existing provider/model cannot be represented by the declared enum, the startup validator can brick dispatch entirely or force inaccurate metadata that breaks resolver decisions, observability, and cost accounting.",
+      "location": "FR-2, NFR-Sec-1, §11.4 ASSUMPTION-3, §14.4 Q1/Q3",
+      "recommendation": "Resolve the provider taxonomy before implementation. Define a final enum such as `headless | http_api | aws_iam` or introduce separate fields like `transport_auth_class` and `dispatch_eligible`. Add explicit resolver behavior and tests for Bedrock/non-headless providers.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "`auto` mode is underspecified: health-band thresholds, data freshness, tie-breaking, insufficient-data behavior, and provider/model granularity are not defined.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Resolver behavior may become non-deterministic or implementation-specific, causing unexpected routing, hard-to-debug regressions, and inconsistent rollout outcomes. It also makes tests and acceptance criteria ambiguous.",
+      "location": "FR-3.3, §8.5, §14.4 Q4",
+      "recommendation": "Specify a deterministic auto-selection algorithm: input metrics, minimum sample size, freshness window, thresholds, tie-breakers, fallback order, and behavior for providers without both auth types. Encode these rules in acceptance tests.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/prd.md",
+  "domain": "advisor-strategy headless dispatch substrate",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T05:23:10Z",
+  "metrics": {
+    "total_latency_ms": 88000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 88000ms

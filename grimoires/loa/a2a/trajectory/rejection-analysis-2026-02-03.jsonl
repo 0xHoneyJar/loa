@@ -1,0 +1,14 @@
+{
+  "type": "rejection_analysis",
+  "event": "rejection_analysis_complete",
+  "timestamp": "2026-02-03T09:42:10Z",
+  "data": {
+    "learning_id": "learn-001",
+    "timestamp": "2026-02-03T09:42:10Z",
+    "rejection_reason": "Too project-specific, contains file paths",
+    "pattern": "specificity",
+    "suggestion": "Remove project-specific details. Focus on the general pattern that could apply to any codebase.",
+    "pattern_frequency": 1,
+    "pattern_last_seen": "2026-02-03T09:42:10Z"
+  }
+}

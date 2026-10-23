@@ -1,0 +1,9 @@
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+head/.claude/adapters/loa_cheval/types.py:516
+head/.claude/scripts/flatline-orchestrator.sh:534
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+head/.claude/scripts/adversarial-review.sh:3990
+head/.claude/adapters/cheval.py:1829
+head/.claude/defaults/model-config.yaml:494
+head/docs/migration/v2.0-model-generation-floor.md:296
+head/.claude/data/schemas/model-config-v3.schema.json:306

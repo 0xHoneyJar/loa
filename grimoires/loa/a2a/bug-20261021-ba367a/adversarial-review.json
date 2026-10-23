@@ -1,0 +1,200 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/archive-cycle.sh:get_current_cycle",
+      "anchor_type": "function",
+      "anchor_line": 184,
+      "anchor_line_end": 184,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When active_cycle is null the default falls back to the highest-numbered cycle regardless of its status. In the normal post-archive state (the just-archived cycle is the newest and active_cycle was nulled by this very script) a second no-arg run selects an already-archived cycle, passes the completeness gate, re-copies current artifacts over the existing snapshot and rewrites .archived / .archive_path. The command doc's error table still says 'No active cycle' is an error, which the script never emits.",
+      "failure_mode": "Repeat or scheduled no-arg invocation silently re-archives the previous cycle and overwrites its archived timestamp and snapshot instead of failing with 'No active cycle'.",
+      "suggested_fix": "In the fallback, restrict to cycles whose .status != \"archived\" (max of those); if none, print 'No active cycle' and return 1. Alternatively refuse in create_archive when the resolved cycle already has status archived unless --force.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/archive-cycle.sh:_archive_dir_tracked",
+      "anchor_type": "function",
+      "anchor_line": 368,
+      "anchor_line_end": 369,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The candidate path is passed as a normal git pathspec, so glob magic applies: a directory name containing [ ] * or ? (e.g. a slug like cycle-9-[wip]) is matched as a pattern, not literally, and can yield 'no match' (rc 1) for a tracked directory. Separately, every rc other than 1 (index.lock held by a concurrent git op, corrupt index, pathspec outside tree) is reported as '[WARN] tracked archive kept ... prune it with git', which misdescribes an unverifiable directory as tracked.",
+      "failure_mode": "A tracked archive dir whose name contains pathspec glob characters is classified untracked and rm -rf'd; transient git errors produce misleading 'tracked' warnings and silently disable pruning for that run.",
+      "suggested_fix": "Use `git -C \"$ARCHIVE_DIR\" --literal-pathspecs ls-files --error-unmatch -- \"$1\"` (or prefix the path with ':(literal)'). Return/print a distinct message for rc >= 2 (e.g. '[WARN] could not verify git status of <path>; kept') so operators are not told to prune with git something git does not track.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/archive-cycle.sh:load_config",
+      "anchor_type": "function",
+      "anchor_line": 102,
+      "anchor_line_end": 103,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "yq failures (binary missing, YAML parse error) are collapsed into yaml_retention=\"\" with stderr discarded, which is then indistinguishable from 'key absent'. With the new default of 0 this means a configured compound_learning.archive.retention_cycles is silently ignored and the run reports 'retention 0 (default: no --retention, no compound_learning.archive.retention_cycles)', which is false.",
+      "failure_mode": "Operators who rely on the yaml retention get no pruning and a message asserting the key is not configured; the misconfiguration (missing yq / broken yaml) is never surfaced.",
+      "suggested_fix": "Capture yq's exit status separately: if `command -v yq` fails or yq exits non-zero on an existing config file, print a [WARN] naming the cause before falling back to keep-all, and set RETENTION_SOURCE to something like 'default (yaml unreadable)' so the dry-run message is accurate.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/archive-cycle.sh:create_archive",
+      "anchor_type": "line",
+      "anchor_line": 248,
+      "anchor_line_end": 248,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "rel_archive_path is derived by a plain prefix strip of \"$PROJECT_ROOT\"/. If ARCHIVE_DIR is configured outside the repo root, PROJECT_ROOT carries a trailing slash, or the two paths differ by a symlink component, nothing is stripped and an absolute machine-specific path is written into ledger.json as archive_path, contradicting the documented 'relative to the repo root' contract.",
+      "failure_mode": "Ledger gains a non-portable absolute archive_path that breaks on other checkouts/CI and diverges from the documented schema.",
+      "suggested_fix": "Normalise both sides (e.g. `realpath -m`) and compute with `realpath --relative-to=\"$PROJECT_ROOT\"`; if the result escapes the root (starts with ../ or is absolute) emit a WARN so the operator knows the path is not repo-relative.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/archive-cycle.sh:create_archive",
+      "anchor_type": "line",
+      "anchor_line": 347,
+      "anchor_line_end": 348,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The check for ledger-lib.sh happens only after the archive directory has been created and populated. When the lib is missing the script prints a WARN and exits 0, leaving an archive on disk whose cycle is still 'active' in the ledger. This both violates the header's 'ledger update failure -> exit 1' contract and defeats the stated goal of checking preconditions 'before any write'.",
+      "failure_mode": "Broken install (missing ledger-lib.sh) produces an archive/ledger inconsistency while signalling success to callers and automation.",
+      "suggested_fix": "Move the `[[ -f \"$SCRIPT_DIR/ledger-lib.sh\" ]]` check next to the completeness gate (before mkdir) and treat its absence as a hard error (exit 1) when cycle_id is set, or at minimum exit 1 after the WARN so the inconsistency is not reported as success.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/archive-cycle.sh:_count_incomplete_sprints",
+      "anchor_type": "function",
+      "anchor_line": 202,
+      "anchor_line_end": 202,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The gate counts any sprint whose .status != \"completed\", so sprints with a missing/null status (older ledgers) and sprints in other terminal states (skipped, cancelled, superseded) all block archiving. The comment claims this mirrors ledger-lib.sh archive_cycle; if that gate treats other terminal states or null differently, the two will disagree and the CLI will refuse cycles the library would archive.",
+      "failure_mode": "Legacy or partially-skipped cycles become unarchivable without --force, and --force then drops the gate entirely rather than only for the known-terminal states.",
+      "suggested_fix": "Define the accepted terminal set once (e.g. completed|skipped|cancelled) and treat a missing status as incomplete only when the sprint also lacks a completion marker; ideally source the predicate from ledger-lib.sh so both gates share one definition, and add a test with a null-status sprint.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/archive-cycle.sh:get_current_cycle",
+      "anchor_type": "function",
+      "anchor_line": 183,
+      "anchor_line_end": 184,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "get_current_cycle resolves the exact cycle id (active_cycle or max) but then discards it, emitting only the integer via tonumber (cycle-087 -> 87). create_archive re-derives cycle_id from that number through the pre-existing lookup. If that lookup does not tolerate zero padding or multiple ids sharing a number (cycle-120 and cycle-120-active), the default run silently takes the 'legacy fallback' path: archive named cycle-87, no ledger update. The fixture contains cycle-087 but no test makes it the selected cycle, so this path is unverified.",
+      "failure_mode": "For zero-padded or duplicated cycle numbers the no-arg run archives to a legacy-named directory and skips the ledger update without error.",
+      "suggested_fix": "Have get_current_cycle output the resolved id (and let create_archive derive the number from it) rather than the reverse, or add a test where active_cycle is a zero-padded id (cycle-087) and assert 'Cycle id: cycle-087' and the ledger update.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-266",
+    "timestamp": "2026-10-21T01:18:15Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 37973,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "306bffd3177d94526a5c6fd600603e9cda562ba30d1490fcf2643abf00a62fbd",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

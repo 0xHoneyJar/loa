@@ -1,0 +1,261 @@
+{
+ "H09": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H12": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H18": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H22": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H24": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H25": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D10",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H30": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H35": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H36": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H37": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H38": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H39": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H40": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D6",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H41": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H43": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D3",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H44": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D3",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H49": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D15",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H50": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D15",
+  "reason": "group: A's namespace (B's corresponds); class agreed"
+ },
+ "H54": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H55": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H60": {
+  "base": "A",
+  "reason": "anchors: union; group: A's namespace (B's corresponds)"
+ },
+ "H07": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H20": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H29": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H34": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H47": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H58": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H64": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "docs",
+  "reason": "class: docs — a help-text line range (as pr-16 H04)"
+ },
+ "H10": {
+  "base": "A",
+  "group": "D3",
+  "severity": "high",
+  "reason": "anchors: union; group D3 (A); severity: codebook high (B) — the agent under test can alter its own evaluation record; a plausible path to harm"
+ },
+ "H42": {
+  "base": "A",
+  "group": "D3",
+  "severity": "high",
+  "reason": "anchors: union; group D3 (A); severity: codebook high (B) — the agent under test can alter its own evaluation record; a plausible path to harm"
+ },
+ "H65": {
+  "base": "A",
+  "group": "D3",
+  "severity": "high",
+  "reason": "anchors: union; group D3 (A); severity: codebook high (B) — the agent under test can alter its own evaluation record; a plausible path to harm"
+ },
+ "H13": {
+  "base": "A",
+  "group": "D8",
+  "reason": "group: A's D8 (B's D7 lumps A's D7 and D8); category: input-validation (A) — an unchecked shape"
+ },
+ "H15": {
+  "base": "A",
+  "group": "D8",
+  "reason": "as H13"
+ },
+ "H16": {
+  "base": "A",
+  "group": "D8",
+  "reason": "as H13"
+ },
+ "H14": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D7",
+  "reason": "class: binding the guarded timestamps is wiring for D7, whose site is H17 — follow-on (A)"
+ },
+ "H17": {
+  "base": "A",
+  "group": "D7",
+  "reason": "anchors: union; group: A's D7 — both describe the wall-clock behaviour (B's D7 lumps it with D8)"
+ },
+ "H21": {
+  "base": "A",
+  "group": "D10",
+  "severity": "medium",
+  "reason": "group: A's D10 = B's D8 (namespace); severity: codebook medium (B) — a missing reset with bounded impact; category logic (A): the knob affects the measurement, not a security boundary"
+ },
+ "H48": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D14",
+  "reason": "class: the new refusal guards the D14 fix; the wrong behaviour's site is the directory-name filter (H53) — follow-on (A)"
+ },
+ "H53": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D14",
+  "reason": "verdict: the directory-name filter is the site of D14's wrong behaviour — defect member (B), medium, logic; group in A's namespace"
+ },
+ "H59": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D16",
+  "reason": "verdict: the first-seen set is the dedup behaviour itself — defect member of D16 (B), medium, logic; group in A's namespace"
+ },
+ "H61": {
+  "base": "A",
+  "group": "D17",
+  "severity": "medium",
+  "reason": "anchors: union; group: A's D17 = B's D15; severity: codebook medium (B) — a misleading total"
+ },
+ "H62": {
+  "base": "A",
+  "group": "D17",
+  "severity": "medium",
+  "reason": "as H61"
+ },
+ "I01": {
+  "base": "A",
+  "group": "D18",
+  "category": "security",
+  "reason": "anchors: union; group: A's D18 = B's D16 (namespace); category: security (an incident record carries none; a credential handling fault)"
+ },
+ "I03": {
+  "base": "A",
+  "group": "D19",
+  "category": "security",
+  "reason": "verdict: the incident (KF-049) names the head-era sandbox mount in these files and A anchored its site; B found no site in the shown text — defect-at-head (A), high, group D19; category security (an evaluation-integrity boundary)"
+ }
+}

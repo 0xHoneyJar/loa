@@ -1,0 +1,7 @@
+arm a0_bare_matched: no_dot_claude OK 12 valid session(s) pass
+arm a0_bare_matched: no_system_prompt OK 12 valid session(s) pass
+arm a0_bare_matched: no_audit_rows OK 12 valid session(s) pass
+arm a0_bare_matched: integrity_clean OK 12 valid session(s) pass
+arm a0_bare_matched: bare_sessions_matched OK k 12 = the task's bare_sessions_matched; s1 … s12 attempted; 12 valid session(s) pass no_dot_claude, no_system_prompt, no_audit_rows, integrity_clean
+arm a0_bare_matched: OK
+graded review-r11 (union of 12/12 sessions): recall 0.8 false_positives 48; session 1 recall 0.6 → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g3-a2/a0_bare_matched/review-r11-t2/grade.json

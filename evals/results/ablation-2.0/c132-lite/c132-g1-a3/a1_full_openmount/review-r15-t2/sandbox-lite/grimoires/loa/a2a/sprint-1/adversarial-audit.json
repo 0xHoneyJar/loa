@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "anchor_line": 113,
+      "anchor_line_end": 127,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "cross_file_justification": "The gate is defined in loader.py (diff-touched) and consumed as the sole guard in agy_headless_adapter.py complete()/health_check()/validate_config() (diff-touched). Its decision depends on a file in the cwd-walked project tree, which in a PR-review deployment is the tree under review.",
+      "description": "The agy opt-in gate exists specifically so that the review prompt is only ever placed on `agy -p <prompt>` argv (world-readable via /proc/<pid>/cmdline and `ps`) by an operator's deliberate choice. The docstring deliberately excludes any environment override for that reason. But the decision is read from `.loa.config.yaml` found by `_find_project_root()` walking up from the process cwd. When cheval runs a review inside a checked-out PR branch (the normal Bridgebuilder/flatline flow), that file is part of the tree being reviewed, so a PR author can add `hounfour.headless.agy_opt_in: true` and re-enable the argv-prompt route (and the spawn of `agy --dangerously-skip-permissions`) on the reviewing host without any operator action. The gate therefore fails closed against ambient env but open against the reviewed repository's own config. This is the pre-existing project-config trust model, so the diff is still a net improvement; the gap is that the gate's stated threat model (operator choice only) is not what the code enforces.",
+      "failure_mode": "A PR to a reviewed repository flips the key; on the next review the full redacted diff/prompt is exposed on the agy process argv to every local account on the shared cheval host, and the agy binary is spawned in sandbox-but-skip-permissions mode, contrary to the operator's intent.",
+      "suggested_fix": "Read the opt-in from an operator-controlled location that the reviewed tree cannot write, e.g. the user-level config layer (`~/.config/loa/...`) or the System defaults only, or require the key to be present in BOTH the project config and an operator layer. At minimum, document that the project layer is trusted and have the one-time WARN name the file path that enabled the route so an operator can see where it came from.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "anchor_type": "line",
+      "anchor_line": 912,
+      "anchor_line_end": 913,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`resolve_effort` is the declared single chokepoint for effort, and it allow-lists the `catalog` and `extra` rungs against `_EFFORT_LEVELS`, but returns the `caller` rung (`args.effort`) unvalidated, relying on a docstring assertion that argparse already checked it. The function is module-public and takes an arbitrary `args` object; any future caller building a Namespace programmatically (tests, orchestrator scripts, a request-metadata path the docstring says does not exist today) bypasses the allow-list. The value then flows into `CompletionRequest.effort`, onto the Anthropic HTTP body via `_effort_for_model`, and onto the `claude -p ... --effort <value>` argv via `build_headless_argv`.",
+      "failure_mode": "An unvalidated effort string reaches the provider wire or CLI argv, producing a provider 400 or a CLI parse failure that walks the fallback chain, and lands an arbitrary string in the MODELINV audit payload `effort` field.",
+      "suggested_fix": "Apply `_valid_effort(explicit)` to the caller rung as well and warn-once/ignore on mismatch, so the chokepoint is self-sufficient rather than dependent on every caller's argparse config.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:build_headless_argv",
+      "anchor_type": "line",
+      "anchor_line": 145,
+      "anchor_line_end": 145,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "cycle-126 moved the claude-headless prompt from argv to stdin specifically to stop it being readable via /proc/<pid>/cmdline by other local users. The new shared builder reintroduces an optional `prompt` parameter that, when non-None, puts the prompt back on argv. Both current callers (the adapter and the probe tool) pass None, and a test asserts argv entries are short, but the parameter is an easy regression surface: a new caller that passes the prompt silently reopens the exposure the module's own docstring describes as closed.",
+      "failure_mode": "A future caller passes `prompt=` and the untrusted review prompt is exposed on argv for the life of the hop, plus the ARG_MAX/embedded-NUL exec failures that argv transport brings back.",
+      "suggested_fix": "Drop the `prompt` parameter from `build_headless_argv` (the builder should only ever emit the stdin shape), or rename it to something explicit like `argv_prompt_UNSAFE` and add a unit test asserting the adapter never passes it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T00:45:17Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 556,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 7885,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a7ef6850b567a4361fa27da85eede914fdd5e5388f4308f1934811f10ee48127",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

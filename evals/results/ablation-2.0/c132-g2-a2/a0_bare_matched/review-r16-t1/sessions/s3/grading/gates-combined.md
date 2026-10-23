@@ -1,0 +1,13 @@
+head/.gitignore:150
+head/.claude/scripts/lib/dec-write-lib.sh:513
+head/.claude/scripts/lib/dec-write-lib.sh:580
+validate-artifact.sh:681
+head/.claude/scripts/lib/dec-write-lib.sh:600
+validate-artifact.sh:653
+head/.claude/scripts/lib/dec-write-lib.sh:508
+head/.claude/scripts/validate-artifact.sh:819
+head/.claude/scripts/validate-artifact.sh:734
+discovering-requirements/SKILL.md:130
+discovering-requirements/resources/REFERENCE.md:477
+head/.claude/skills/run-mode/resources/render-templates.md:104
+dec-write-lib.sh:363-372

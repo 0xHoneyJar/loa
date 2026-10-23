@@ -1,0 +1,311 @@
+{
+  "fixture": "pr-27",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": "263",
+    "record_ref": "origin/record/cycle-131-honest-measurement",
+    "head_commit": "bb03e93192d981309d99bf2c87dfdce321a9c9c9",
+    "fix_commit": "cddec3677a58f26e8986f034419f03f559782648"
+  },
+  "defects": [
+    {
+      "id": "L01-ag-50-pins-the-detector-against-the-live",
+      "file": "evals/tests/ablation-grade.bats",
+      "anchor_line": 1540,
+      "must_match": "# real_run <fixture name> <run-dir>: a run directory from a trimmed cycle-130 transcript (fixtures/c131-oracle/,",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/engineer-feedback.md#L41",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L02-when-the-head-file-is-absent-the-scope-c",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 372,
+      "must_match": "def hit_new(d):",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "review",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/engineer-feedback.md#L57",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L03-the-sentinel-keeps-the-grader-off-the-sa",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1629,
+      "anchors": [
+        1622,
+        1629
+      ],
+      "must_match": "env.pop(\"EVAL_HEAD_DIR\", None)",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/engineer-feedback.md#L63",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L04-the-agent-side-joins-backslash-continuat",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 1980,
+      "anchors": [
+        1980,
+        1994
+      ],
+      "must_match": "def repo_name_exempt(val):",
+      "severity": "low",
+      "category": "test",
+      "label_source": "review",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/engineer-feedback.md#L68",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L05-grader-fallback-to-the-agent-writable-di",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "anchor_line": 135,
+      "must_match": "$workspace/pr/head",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md#L41",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L06-unbounded-work-on-agent-authored-transcr",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2204,
+      "anchors": [
+        2188,
+        2204
+      ],
+      "must_match": "nxt.append(o[:m.start()] + v + o[m.end():])",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md#L46",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    },
+    {
+      "id": "L07-hashes-a-second-unvalidated-open-dissent",
+      "file": "evals/harness/ablation-grade.sh",
+      "anchor_line": 2007,
+      "anchors": [
+        2007,
+        2035
+      ],
+      "must_match": "text = read_regular(p, READ_CAP, whole=True)",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-131-honest-measurement:grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md#L51",
+      "source_commit": "bb03e931",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 77,
+      "end": 78,
+      "source": "fix/cddec3677a58:77-78"
+    },
+    {
+      "id": "F002",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 132,
+      "end": 141,
+      "source": "fix/cddec3677a58:132-141"
+    },
+    {
+      "id": "F003",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 268,
+      "end": 271,
+      "source": "fix/cddec3677a58:268-271"
+    },
+    {
+      "id": "F004",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 298,
+      "end": 298,
+      "source": "fix/cddec3677a58:298-298"
+    },
+    {
+      "id": "F005",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 303,
+      "end": 304,
+      "source": "fix/cddec3677a58:303-304"
+    },
+    {
+      "id": "F006",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 315,
+      "end": 315,
+      "source": "fix/cddec3677a58:315-315"
+    },
+    {
+      "id": "F007",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 329,
+      "end": 329,
+      "source": "fix/cddec3677a58:329-329"
+    },
+    {
+      "id": "F008",
+      "file": "evals/graders/recall-vs-defects.sh",
+      "start": 482,
+      "end": 482,
+      "source": "fix/cddec3677a58:482-482"
+    },
+    {
+      "id": "F009",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1629,
+      "end": 1629,
+      "source": "fix/cddec3677a58:1629-1629"
+    },
+    {
+      "id": "F010",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1809,
+      "end": 1809,
+      "source": "fix/cddec3677a58:1809-1809"
+    },
+    {
+      "id": "F011",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1935,
+      "end": 1935,
+      "source": "fix/cddec3677a58:1935-1935"
+    },
+    {
+      "id": "F012",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1980,
+      "end": 1986,
+      "source": "fix/cddec3677a58:1980-1986"
+    },
+    {
+      "id": "F013",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 1994,
+      "end": 1994,
+      "source": "fix/cddec3677a58:1994-1994"
+    },
+    {
+      "id": "F014",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2007,
+      "end": 2011,
+      "source": "fix/cddec3677a58:2007-2011"
+    },
+    {
+      "id": "F015",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2035,
+      "end": 2035,
+      "source": "fix/cddec3677a58:2035-2035"
+    },
+    {
+      "id": "F016",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2052,
+      "end": 2052,
+      "source": "fix/cddec3677a58:2052-2052"
+    },
+    {
+      "id": "F017",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2065,
+      "end": 2066,
+      "source": "fix/cddec3677a58:2065-2066"
+    },
+    {
+      "id": "F018",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2158,
+      "end": 2160,
+      "source": "fix/cddec3677a58:2158-2160"
+    },
+    {
+      "id": "F019",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2204,
+      "end": 2204,
+      "source": "fix/cddec3677a58:2204-2204"
+    },
+    {
+      "id": "F020",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2241,
+      "end": 2247,
+      "source": "fix/cddec3677a58:2241-2247"
+    },
+    {
+      "id": "F021",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2338,
+      "end": 2338,
+      "source": "fix/cddec3677a58:2338-2338"
+    },
+    {
+      "id": "F022",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2392,
+      "end": 2392,
+      "source": "fix/cddec3677a58:2392-2392"
+    },
+    {
+      "id": "F023",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2467,
+      "end": 2467,
+      "source": "fix/cddec3677a58:2467-2467"
+    },
+    {
+      "id": "F024",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2482,
+      "end": 2483,
+      "source": "fix/cddec3677a58:2482-2483"
+    },
+    {
+      "id": "F025",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2547,
+      "end": 2547,
+      "source": "fix/cddec3677a58:2547-2547"
+    },
+    {
+      "id": "F026",
+      "file": "evals/harness/ablation-grade.sh",
+      "start": 2626,
+      "end": 2628,
+      "source": "fix/cddec3677a58:2626-2628"
+    },
+    {
+      "id": "F027",
+      "file": "evals/tests/ablation-grade.bats",
+      "start": 1539,
+      "end": 1539,
+      "source": "fix/cddec3677a58:1539-1539"
+    },
+    {
+      "id": "F028",
+      "file": "evals/tests/eval-recall-grader.bats",
+      "start": 421,
+      "end": 421,
+      "source": "fix/cddec3677a58:421-421"
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+commit 98b2781110067edfe2167e297349da639d285dd7
+Date: 2026-10-21T12:29:25+11:00
+
+fix(evals): labels files reproduce the curated manifests byte for byte — @L<n> explicit-line must_match, --sync-labels pr-NN, eight labels files synced, SHA256SUMS refrozen — sprint-bug-268, bug 20261021-7240bc, bd-y4pqj
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/fixtures/review-prs/SHA256SUMS b/evals/fixtures/review-prs/SHA256SUMS
+index e44c2f05..3a74cfb3 100644
+--- a/evals/fixtures/review-prs/SHA256SUMS
++++ b/evals/fixtures/review-prs/SHA256SUMS
+@@ -1,21 +1,21 @@
+ ed0c0ac16687ae399c303a45abb4a421bbd18e517bc4f0229048e2114db7666a  corpus.tsv
+ 3662616e9773cc3a05d6675e630d94782a8e3d189806b8b5fe6962b59da953af  labels/curation.tsv
+ 8cdb3d3e6357535ba28b01c7ce4d611e68e96a4ff68243663e2c300760eb016c  labels/pr-11.dropped.txt
+-79cda5889afb7d6ee9f264d2d2452a9be1bd93c8919fbe76d0ce0f07f434ef0f  labels/pr-11.tsv
++eada19d329f76f06e22f8790cac70920c623eb8815f124e05bd03d315c9073ba  labels/pr-11.tsv
+ d9d9ebd1631d9cc8e892f3e141ee90507244a0bd8c6df6be92a5a733a112e860  labels/pr-12.dropped.txt
+-6c7e288a31cc033c9e369cf727ea82b01e0a7ad63d2b2e201cd0c04c37e7bc45  labels/pr-12.tsv
++4a2aa475082bd9fd99c6a7b8f71f15e7417a5e9de441a836e78df95e5c68b465  labels/pr-12.tsv
+ b608b0351b64e52f2aa4e7bb22dbed942cacfd22383408109f7c5235bce592cb  labels/pr-13.dropped.txt
+-feb586b72d8f648c0e3a14ffb23a394b31168c52f9b37d99f5fd620518b8ee17  labels/pr-13.tsv
++90eceb33fcdc0adc9f89b0e8577be744e0e5e78d2dd42d8f023e5055701b2c9f  labels/pr-13.tsv
+ f6c2167b83b6df43f5aff2f219a81834b4b56f3c22f8eda2994fe4e64378f6b4  labels/pr-14.dropped.txt
+-7f728eec36606caf710e86dbe8047e9ec6067e9cb9a7f9976a97001e84b07d80  labels/pr-14.tsv
++011eff3e310e4b50d9467e098392374cf5cd5a31fae0334b8b90c001d90793e4  labels/pr-14.tsv
+ 1f9ec491fd004261a0529e0949e14b53d8b1c5df69f1d5d22b7f1e6918758d96  labels/pr-15.dropped.txt
+-b4f406df61e1aad1ad28412bb2dd622d9ac42b6ebe7c977400aadc0d16720f84  labels/pr-15.tsv
++24b1902c0ffcfeff0e033b665fb68f1f9bd660ffa5c709b52faa55b43ced0e6a  labels/pr-15.tsv
+ d70c3714af9e8f7607b44f29a6d0d1dca483604fe2af7d9ad56f49dea21ea89a  labels/pr-16.dropped.txt
+-8d2523569c5add133fc2fb2b626baf998e7a2cbf6eebc46ceb6ced4d13cad970  labels/pr-16.tsv
++bbb6c92e2af879148eab39554161ebb687e097f0536f44a313814518adaafb98  labels/pr-16.tsv
+ c54cd6d7bd72fe7389d7e51db6d3a91947a2abed2c723c2b4f4611f9d26195f5  labels/pr-17.dropped.txt
+-e8b9b99d0a23e8acd59deed74a34cf82eee7a9ff9f124e4f198b9ded9ebb44ff  labels/pr-17.tsv
++1a21736f9162a8c1db61310142f4af7ef5b6d8ebfc1455e6e887d353691c1fd7  labels/pr-17.tsv
+ ccb7f1e4f696d88e9d34bc00a4684f95a1440bd77a9ef8f25d45087dc9c86e61  labels/pr-18.dropped.txt
+-6956af6831e7034b3881b843c506716b3848f7220221faa7942df4c762ac3562  labels/pr-18.tsv
++8674a3ed26a8bb5ee6848d3d9b4b8e2fdf9863a6bd406b407f4465d6b6598da1  labels/pr-18.tsv
+ 0684b576c424db3cc51b6db1b9d174607ad972a8963f243db2a93453ee3e4dfd  manifests/pr-01.json
+ 3a2b3f2b74da2ed56184b5acfbffbd71846544209447e76e4283eea3a050f45c  manifests/pr-02.json
+ a9c05524566b6c4456d966d1cc76c68086aa45bf4217cf5f81221bfd871000f7  manifests/pr-03.json
+diff --git a/evals/harness/seed-corpus-from-record.sh b/evals/harness/seed-corpus-from-record.sh
+index 5bbc4a15..fce40bcf 100755
+--- a/evals/harness/seed-corpus-from-record.sh
++++ b/evals/harness/seed-corpus-from-record.sh
+@@ -10,6 +10,7 @@
+ #                              [--feedback a.md,b.md] [--dry-run]
+ #   seed-corpus-from-record.sh --build-manifest pr-NN   # labels → hidden manifest (after curation)
+ #   seed-corpus-from-record.sh --approve pr-NN --by "<who> <YYYY-MM-DD>"
++#   seed-corpus-from-record.sh --sync-labels pr-NN      # manifest anchors/approved_by → labels rows
+ #   seed-corpus-from-record.sh --freeze                 # regenerate SHA256SUMS
+ #   seed-corpus-from-record.sh --check                  # verify SHA256SUMS
+ #   common: [--repo <git dir>] [--corpus <evals/fixtures/review-prs>]
+@@ -43,6 +44,26 @@
+ # in a fixture file (source fix/<sha>:<start>-<end>); the grader uses them
+ # only for refuted share.
+ #
++# Label grammar (labels/pr-NN.tsv): the first line `# approved-by: <who>` (the
++# approval record; `pending` until --approve), `#` comments, the column header,
++# then one row per anchor. A defect's first row is its primary row (anchor_line,
++# must_match, severity, category, label_source and source in the manifest); every
++# further row of the same defect_id and file adds an anchor. must_match is either
++# text that occurs on exactly one line of head/<file> (preferred: it survives
++# renumbering) or `@L<n>`, head line n (1-based, 1 <= n <= the file's line count),
++# for a line whose text is not unique (bd-y4pqj); `@L0`, a line past the end and a
++# non-integer after `@L` are refused with the row named.
++#
++# --sync-labels pr-NN (bd-y4pqj) brings the labels to a curated manifest: for every
++# anchor of manifests/pr-NN.json (`anchors`, else `anchor_line`) that no row of its
++# defect resolves to, it inserts a row after that defect's last row, copying the
++# primary row's columns, with must_match the line's stripped text when that text is
++# on exactly one line (else `@L<n>`); it rewrites the first line to the manifest's
++# approved_by and keeps every other line byte for byte. It prints the rows it added,
++# adds nothing on a second run, never writes the manifest, and refuses (restoring the
++# labels) when the synced labels would not rebuild the manifest byte for byte. It
++# does not refreeze: run --freeze afterwards.
++#
+ # Generated artefacts never become fix regions (cycle-130 bd-8o5rx, PRD AC-10.1):
+ # a path with a `dist/` component, a name ending `.map`, `.d.ts` or `.checksum`,
+ # or named `checksums.json`, `REPO-MAP.md` or `.build-manifest.json` is a
+@@ -75,6 +96,7 @@ ap.add_argument("record_ref", nargs="?")
+ ap.add_argument("--out"); ap.add_argument("--base"); ap.add_argument("--head"); ap.add_argument("--fix")
+ ap.add_argument("--feedback"); ap.add_argument("--dry-run", action="store_true")
+ ap.add_argument("--build-manifest", metavar="FIXTURE"); ap.add_argument("--approve", metavar="FIXTURE")
++ap.add_argument("--sync-labels", metavar="FIXTURE")
+ ap.add_argument("--by"); ap.add_argument("--freeze", action="store_true"); ap.add_argument("--check", action="store_true")
+ ap.add_argument("--repo", default=HARNESS_ROOT)
+ ap.add_argument("--corpus", default=os.path.join(HARNESS_ROOT, "evals", "fixtures", "review-prs"))
+@@ -216,7 +238,21 @@ def unique_line(lines, needle):
+     hits = [i for i, l in enumerate(lines, 1) if needle in l]
+     return hits[0] if len(hits) == 1 else None
+ 
+-def build_manifest(fx):
++# bd-y4pqj: `@L<n>` names head line n (1-based) for a curated anchor whose text is not unique
++AT_LINE_RX = re.compile(r"^@L([1-9][0-9]*)$")
++def resolve_anchor(lines, must_match, fname):
++    """(line, None) when the must_match resolves, else (None, why)."""
++    if must_match.startswith("@L"):
++        m = AT_LINE_RX.match(must_match)
++        if not m:
++            return None, "is not @L<n> with n a positive integer"
++        if int(m.group(1)) > len(lines):
++            return None, f"is past the end of head/{fname} ({len(lines)} lines)"
++        return int(m.group(1)), None
++    at = unique_line(lines, must_match)
++    return (at, None) if at is not None else (None, f"is not on exactly one line of head/{fname}")
++
++def build_manifest(fx, write=True):
+     approved_by, rows, _ = read_labels(fx)
+     fyaml = os.path.join(CORPUS, fx, "fixture.yaml")
+     meta = {}
+@@ -241,9 +277,9 @@ def build_manifest(fx):
+             regions.append({"id": r["defect_id"], "file": r["file"], "start": int(m.group(1)), "end": int(m.group(2)),
+                             "source": r["source"]})
+             continue
+-        at = unique_line(lines, r["must_match"])
++        at, why = resolve_anchor(lines, r["must_match"], r["file"])
+         if at is None:
+-            errors.append(f"{r['defect_id']}: must_match {r['must_match']!r} is not on exactly one line of head/{r['file']}"); continue
++            errors.append(f"{r['defect_id']}: must_match {r['must_match']!r} {why}"); continue
+         d = defects.get(r["defect_id"])
+         if d is None:
+             order.append(r["defect_id"])
+@@ -268,10 +304,99 @@ def build_manifest(fx):
+            "record": {"sprint": meta.get("sprint"), "record_ref": meta.get("record_ref"),
+                       "head_commit": meta.get("head_commit"), "fix_commit": meta.get("fix_commit")},
+            "defects": out, "fix_regions": regions}
+-    os.makedirs(MANIFESTS_DIR, exist_ok=True)
+-    json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
++    if write:
++        os.makedirs(MANIFESTS_DIR, exist_ok=True)
++        json.dump(man, open(os.path.join(MANIFESTS_DIR, f"{fx}.json"), "w"), indent=2)
+     return man
+ 
++def sync_labels(fx):
++    """bd-y4pqj: add a labels row for every manifest anchor no row resolves to; copy approved_by (see the header)."""
++    mpath = os.path.join(MANIFESTS_DIR, f"{fx}.json")
++    lpath = os.path.join(LABELS_DIR, f"{fx}.tsv")
++    if not os.path.isfile(mpath):
++        fail(f"manifest not found: {mpath}")
++    mraw = open(mpath, encoding="utf-8").read()
++    man = json.loads(mraw)
++    approved_by = man.get("approved_by")
++    if (not isinstance(approved_by, str) or not approved_by or approved_by != approved_by.strip()
++            or re.search(r"[\x00-\x1f\x7f]", approved_by)):
++        fail(f"{mpath}: approved_by must be a one-line non-empty string without surrounding space")
++    if man.get("approved") is not (approved_by != "pending"):
++        fail(f"{mpath}: approved {man.get('approved')!r} disagrees with approved_by {approved_by!r}")
++    read_labels(fx)  # validates the header and every row's shape
++    raw = open(lpath, encoding="utf-8", newline="").read()
++    tl = raw.splitlines(keepends=True)
++    heads, have, last, primary = {}, {}, {}, {}
++    def head(f):
++        if f not in heads:
++            hp = os.path.join(CORPUS, fx, "head", f)
++            if not os.path.isfile(hp):
++                fail(f"{fx}: head/{f} missing")
++            heads[f] = open(hp, encoding="utf-8", errors="replace").read().splitlines()
++        return heads[f]
++    seen_header = False
++    for i, l in enumerate(tl[1:], 1):
++        l = l.rstrip("\r\n")
++        if not l or l.startswith("#"):
++            continue
++        if not seen_header:
++            seen_header = True; continue
++        r = dict(zip(HEADER, l.split("\t")))
++        if r["label_source"] == "fix":
++            continue
++        at, why = resolve_anchor(head(r["file"]), r["must_match"], r["file"])
++        if at is None:
++            fail(f"{fx}: {r['defect_id']}: must_match {r['must_match']!r} {why}")
++        primary.setdefault(r["defect_id"], r)
++        have.setdefault(r["defect_id"], set()).add(at)
++        last[r["defect_id"]] = i
++    ids = [d.get("id") for d in man.get("defects", [])]
++    for k in primary:
++        if k not in ids:
++            fail(f"{fx}: label {k} is not a defect of manifests/{fx}.json")
++    adds, n_text, n_at = {}, 0, 0
++    for d in man.get("defects", []):
++        p = primary.get(d.get("id"))
++        if p is None:
++            fail(f"{fx}: manifest defect {d.get('id')!r} has no labels row")
++        if d.get("file") != p["file"]:
++            fail(f"{fx}: manifest defect {d['id']} names {d.get('file')!r}, its labels rows {p['file']!r}")
++        want = d.get("anchors", [d.get("anchor_line")])
++        lines = head(p["file"])
++        for n in sorted(set(want)):
++            if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(lines):
++                fail(f"{fx}: manifest defect {d['id']} anchor {n!r} is not a line of head/{p['file']}")
++            if n in have[d["id"]]:
++                continue
++            t = lines[n - 1].strip()
++            textual = (t and "\t" not in t and not t.startswith("@L") and len(t.splitlines()) == 1
++                       and not has_secret(t) and unique_line(lines, t) == n)
++            mm = t if textual else f"@L{n}"
++            n_text, n_at = n_text + bool(textual), n_at + (not textual)
++            adds.setdefault(last[d["id"]], []).append(
++                (d["id"], mm, "\t".join([d["id"], p["severity"], p["category"], p["file"], mm, p["label_source"], p["source"]])))
++            have[d["id"]].add(n)
++    out = [f"# approved-by: {approved_by}\n"]
++    for i, l in enumerate(tl[1:], 1):
++        if i in adds and not l.endswith("\n"):
++            l += "\n"
++        out.append(l)
++        out.extend(row + "\n" for _k, _m, row in adds.get(i, []))
++    new = "".join(out)
++    header_changed = tl[0].rstrip("\r\n") != out[0].rstrip("\n")
++    if new != raw:
++        open(lpath, "w", encoding="utf-8", newline="").write(new)
++        rebuilt = json.dumps(build_manifest(fx, write=False), indent=2)
++        if rebuilt != mraw:
++            open(lpath, "w", encoding="utf-8", newline="").write(raw)
++            fail(f"{fx}: the synced labels would not rebuild manifests/{fx}.json byte for byte; labels left unchanged")
++    print(f"{fx}: added {n_text + n_at} row(s) ({n_text} text, {n_at} @L<n>); approved-by "
++          + (f"set to {approved_by!r}" if header_changed else "unchanged")
++          + ("; run --freeze to refresh SHA256SUMS" if new != raw else ""))
++    for i in sorted(adds):
++        for k, mm, _row in adds[i]:
++            print(f"  + {k}\t{mm}")
++
+ # ------------------------------------------------------------ simple modes
+ if args.check:
+     check(); sys.exit(0)
+@@ -284,6 +409,11 @@ if args.build_manifest:
+     n = freeze()
+     print(f"{args.build_manifest}: {len(m['defects'])} label(s), {len(m['fix_regions'])} fix region(s); approved={m['approved']}; SHA256SUMS {n} files")
+     sys.exit(0)
++if args.sync_labels:
++    if not FX_RX.match(args.sync_labels):
++        fail("fixture id must be pr-NN", 2)
++    sync_labels(args.sync_labels)
++    sys.exit(0)
+ if args.approve:
+     fx = args.approve
+     if not FX_RX.match(fx) or not args.by or not re.match(r"^[A-Za-z0-9 ._@-]{3,80}$", args.by):
+@@ -723,7 +853,7 @@ pr_md = f"# {title}\n\n" + (f"Sprint {sprint} (global), {len(head_files)} file(s
+                              + ("\nCommits in this change:\n\n" + "\n".join(f"- {clean(s, 200)}" for s in subjects) + "\n" if len(subjects) > 1 else ""))
+ tsv = [f"# approved-by: pending",
+        f"# fixture {fx} | sprint-{sprint} | record {record_ref} | base {base[:12]} | head {head[:12]} | fix {fixc[:12]}",
+-       "# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve",
++       "# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor: text on exactly one head line, or @L<n> for head line n), then --approve",
+        *[f"# {lb['id'][:3]} {lb['severity']} {lb['label_source']}: {lb['title']} [{lb['how']}]" for lb in labels],
+        "\t".join(HEADER)]
+ for lb in labels:

@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/graders/recall-vs-defects.sh:head_dir",
+      "anchor_type": "line",
+      "anchor_line": 133,
+      "anchor_line_end": 138,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new same-scope credit rule (grader 1.3.0) builds its definition map from head/<file>. When EVAL_HEAD_DIR is unset and no fixture head/ is found, head_dir falls back to $workspace/pr/head. $workspace is the sandbox the graded agent writes review.md into, so pr/head there is agent-writable. The ablation-grade.sh header in this same diff states graders must never read 'the agent-writable sandbox pr/'. An agent under evaluation can rewrite a head file so the planted defect site and any line it cites fall inside one definition under 400 lines, then cite that line and receive recall credit under clause (ii) without locating the defect. It can also shrink or wrap files to steer the ±20 fallback. recall_pm3 is unaffected, but pass/score follow recall.",
+      "failure_mode": "Inflated defect_catch_rate for an arm whose agent tampers with sandbox pr/head; grading integrity depends on every caller remembering to set EVAL_HEAD_DIR.",
+      "suggested_fix": "Drop the $workspace/pr/head fallback (or require it only behind an explicit --allow-sandbox-head flag). When no trusted head directory is available, disable clause (ii) entirely rather than silently reading a tamperable tree. Have ablation-grade.sh always pass the fixture head via EVAL_HEAD_DIR and record its sha in the grade.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "evals/harness/ablation-row.sh:flp.json",
+      "anchor_type": "line",
+      "anchor_line": 393,
+      "anchor_line_end": 396,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Row writer 1.4 derives dissent_absent_reason by reading $RUN_DIR/sandbox/.loa.config.yaml and classifying a missing dissent envelope as 'disabled' (planned absence) when flatline_protocol.enabled or a gate's .enabled is false. The sandbox config is the file the agent under evaluation runs against and can edit. An agent that sets flatline_protocol.enabled: false mid-run both suppresses the adversarial gate (adversarial-review.sh reads that same config) and causes the row to record the absence as 'disabled' instead of an anomaly, so dissent_absent_gates reports a benign reason. The harness's stated policy elsewhere in this diff is that sandbox copies are tamperable and the eval/ and meta/ copies are authoritative; the planned configuration is already available from meta/arm-evidence.txt and the arm toggles.",
+      "failure_mode": "A tampered sandbox config masks gate suppression as a planned ablation in the ablation report; mount_integrity records the hash change but dissent_absent_reason does not surface it.",
+      "suggested_fix": "Derive 'disabled' only from harness-owned evidence (arm toggles / meta/arm-evidence.txt dissent=, flatline=, gates= lines). If the sandbox config must be consulted, compare its sha256 to arm-evidence loa_config_sha256 first and fall through to 'error' on mismatch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_keep_numeric_anchor",
+      "anchor_type": "line",
+      "anchor_line": 1704,
+      "anchor_line_end": 1705,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "On the schema-enforced branch, if jq fails or returns empty while filtering the numeric anchor, candidate reverts to the raw finding. The wire schema admits any integer (negative, zero, 10^12) and null for anchor_line / anchor_line_end, so the fallback path can carry an invalid or null line into the envelope, contradicting the published schema (integer, minimum 1) and the documented 'kept only as 1..10,000,000' contract that graders rely on to build path:line pointers.",
+      "failure_mode": "An out-of-contract anchor_line reaches the envelope and downstream graders/report reducers that assume a validated positive integer.",
+      "suggested_fix": "On jq failure, strip anchor_line and anchor_line_end rather than keeping the unfiltered finding (del(.anchor_line, .anchor_line_end) via a second simple jq, or treat the finding as malformed and route it to the normaliser).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T23:18:41Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 620,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 7521,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a4788d762243b7f382fd44517454ce63f4cab7b7c0b097bac906dcb617f5c7b2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

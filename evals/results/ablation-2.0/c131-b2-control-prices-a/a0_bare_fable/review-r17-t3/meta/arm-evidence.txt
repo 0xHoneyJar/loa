@@ -1,6 +1,0 @@
-base_commit=2a453f5159eeb8585c08a7cb969de42054de38b2
-loa_mount=none
-bare_model=fable
-loa_mount=none
-claude_md_sha256=absent
-loa_config_sha256=absent

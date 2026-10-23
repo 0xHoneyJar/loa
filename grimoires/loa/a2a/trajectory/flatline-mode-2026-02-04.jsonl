@@ -1,0 +1,418 @@
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T13:07:27Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T13:10:35Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T13:11:44Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T21:01:52Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T21:08:48Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-03T21:14:05Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T06:28:54Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T06:34:08Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T06:39:12Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T06:50:54Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "CLI flag --hitl",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": "hitl",
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T06:50:54Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Environment variable LOA_FLATLINE_MODE=hitl",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": "hitl",
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T07:02:40Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T07:09:56Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T07:18:05Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T08:51:48Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T08:58:16Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T09:05:39Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T11:19:54Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T11:21:25Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T11:29:07Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T11:30:13Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-02-04T12:26:13Z",
+  "data": {
+    "mode": "hitl",
+    "reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": null,
+      "auto_detect": null
+    }
+  }
+}

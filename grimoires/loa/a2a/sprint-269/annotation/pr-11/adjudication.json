@@ -1,0 +1,86 @@
+{
+ "H03": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": ".claude/adapters/cheval.py",
+  "description": "The calibration exit records the raw provider error text under message_redacted (and prints it) without passing it through the redaction helper, so secret-shaped fragments can reach the envelope and stderr.",
+  "severity": "medium",
+  "category": "security",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   2022,
+   2032
+  ]
+ },
+ "H12": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+  "description": "Non-finite multipliers (inf, nan, 1e309) pass the `> 0` check and are accepted, crashing or exploding the cost calculation instead of falling back to 1.0.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "anchors: union; group agreed",
+  "anchor_lines": [
+   292,
+   295
+  ]
+ },
+ "H02": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": ".claude/adapters/cheval.py",
+  "description": "Computes the sanitised provider message consumed by the D2 fix.",
+  "severity": null,
+  "category": null,
+  "reason": "class: a helper computed for the group's fix is mechanical; the wrong behaviour's site is where the value is recorded or validated — follow-on (A); the group stays one defect",
+  "anchor_lines": []
+ },
+ "H05": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "Unverified (above-probed-bound) status is inherited from the chain head instead of being computed per hop, so a calibrated fallback's 429 or context verdict is misclassified as unverified and not walked.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "severity: codebook medium (A) — a wrong result on an uncommon path (a fallback hop after the head fails)",
+  "anchor_lines": [
+   2110,
+   2256,
+   2297
+  ]
+ },
+ "H06": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "A provider context-limit verdict on any hop is classed CEILING_UNVERIFIED_LIMIT based on the head's unverified flag rather than this hop's.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "severity: codebook medium, as H05",
+  "anchor_lines": [
+   2256
+  ]
+ },
+ "H07": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "A 429 on a calibrated fallback hop ends the call as RATE_LIMIT_UNVERIFIED (and writes a calibration record) because the head's unverified flag is used instead of the hop's.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "severity: codebook medium, as H05",
+  "anchor_lines": [
+   2297
+  ]
+ },
+ "H11": {
+  "verdict": "not-defect",
+  "group": "D4",
+  "file": ".claude/adapters/loa_cheval/metering/pricing.py",
+  "description": "Imports math and rejects bool values as part of the D4 multiplier validation fix.",
+  "severity": null,
+  "category": null,
+  "reason": "class: a helper computed for the group's fix is mechanical; the wrong behaviour's site is where the value is recorded or validated — follow-on (A); the group stays one defect",
+  "anchor_lines": []
+ }
+}

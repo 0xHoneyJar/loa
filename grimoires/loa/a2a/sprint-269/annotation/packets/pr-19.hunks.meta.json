@@ -1,0 +1,256 @@
+{
+  "context": 12,
+  "feedback_files": [
+    "grimoires/loa/a2a/sprint-255/adversarial-audit.json",
+    "grimoires/loa/a2a/sprint-255/adversarial-review.json",
+    "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md",
+    "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md",
+    "grimoires/loa/a2a/sprint-255/engineer-feedback.md"
+  ],
+  "fixture": "pr-19",
+  "hunk_count": 20,
+  "hunks": {
+    "H01": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/scripts/guard-yield.sh",
+      "head_end": 229,
+      "head_start": 220,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H02": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L11",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L12"
+      ],
+      "file": ".claude/scripts/guard-yield.sh",
+      "head_end": 334,
+      "head_start": 334,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H03": {
+      "cited_by": [],
+      "file": ".claude/scripts/guard-yield.sh",
+      "head_end": 393,
+      "head_start": 393,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L10"
+      ],
+      "file": ".github/workflows/bats-tests.yml",
+      "head_end": 91,
+      "head_start": 91,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H05": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L25",
+        "grimoires/loa/a2a/sprint-255/adversarial-audit.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L11"
+      ],
+      "file": "evals/harness/execute-agent.sh",
+      "head_end": 165,
+      "head_start": 163,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H06": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L51"
+      ],
+      "file": "evals/harness/execute-agent.sh",
+      "head_end": 258,
+      "head_start": 254,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H07": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/adversarial-audit.json:DISS-C-009",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L53",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L54",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L11"
+      ],
+      "file": "evals/harness/execute-agent.sh",
+      "head_end": 289,
+      "head_start": 289,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H08": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L13"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 46,
+      "head_start": 45,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H09": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L13",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L9"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 56,
+      "head_start": 56,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H10": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L39"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 127,
+      "head_start": 127,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H11": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L28",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L20",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L26"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 150,
+      "head_start": 150,
+      "insertion": true,
+      "review_driven": true
+    },
+    "H12": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L45",
+        "grimoires/loa/a2a/sprint-255/adversarial-audit.json:DISS-C-006"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 232,
+      "head_start": 231,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H13": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L42"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 315,
+      "head_start": 314,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H14": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/adversarial-audit.json:DISS-C-001",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L25",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L11",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L19"
+      ],
+      "file": "evals/harness/run-arms.sh",
+      "head_end": 336,
+      "head_start": 336,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H15": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L48",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L26"
+      ],
+      "file": "evals/harness/seed-corpus-from-record.sh",
+      "head_end": 114,
+      "head_start": 111,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H16": {
+      "cited_by": [],
+      "file": "evals/harness/seed-corpus-from-record.sh",
+      "head_end": 307,
+      "head_start": 307,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H17": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L11",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L28"
+      ],
+      "file": "evals/tests/arm-toggles.bats",
+      "head_end": 194,
+      "head_start": 194,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H18": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L11",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L28"
+      ],
+      "file": "evals/tests/arm-toggles.bats",
+      "head_end": 199,
+      "head_start": 199,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H19": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L13",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L9"
+      ],
+      "file": "evals/tests/run-arms.bats",
+      "head_end": 52,
+      "head_start": 52,
+      "insertion": false,
+      "review_driven": true
+    },
+    "H20": {
+      "cited_by": [
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback-r1.md#L31",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L21",
+        "grimoires/loa/a2a/sprint-255/auditor-sprint-feedback.md#L39",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L16",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L19",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback-r1.md#L22",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L10",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L11",
+        "grimoires/loa/a2a/sprint-255/engineer-feedback.md#L12"
+      ],
+      "file": "tests/unit/floor-snapshot.bats",
+      "head_end": 50,
+      "head_start": 44,
+      "insertion": false,
+      "review_driven": true
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05",
+    "I06",
+    "I07",
+    "I08",
+    "I09",
+    "I10"
+  ],
+  "incidents": "incidents/pr-19.tsv",
+  "record_ref": "origin/record/cycle-129-a2a",
+  "review_driven_count": 18
+}

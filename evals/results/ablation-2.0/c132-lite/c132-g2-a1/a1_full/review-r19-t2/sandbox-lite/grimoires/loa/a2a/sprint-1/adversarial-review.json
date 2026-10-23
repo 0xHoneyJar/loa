@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/floor.yaml:floor_files",
+      "anchor_type": "hunk",
+      "anchor_line": 45,
+      "anchor_line_end": 49,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_guards",
+      "cross_file_justification": "floor.yaml declares sixteen fence:FR-SZ* and fence:FR-1.2b rows as floor guards, but every one of them is implemented by .claude/hooks/safety/block-destructive-bash.sh, which this same PR edits and which is absent from floor_files. The PreToolUse:Bash registration in .claude/settings.json that arms the hook is also outside the floor.",
+      "description": "The floor contract is that no profile, knob or cycle task may weaken a floor guard. For the gate and policy rows the design backs that with floor_files (verdict-derive.sh, adversarial-review-gate.sh, settings.deny.json, user-invoked-commands.txt). For the sixteen fence rows the only protection is floor_corpus, which pins expected test rows, not the hook that produces the behaviour or the settings.json entry that registers it. A cycle task can edit the fence hook (this PR does) or drop the PreToolUse:Bash registration, and floor-snapshot.bats has nothing to compare. The corpus pin only helps if run-corpus.sh executes in CI on every PR; that is not visible in the shown hunks.",
+      "failure_mode": "A later change relaxes an FR-SZ regex or removes the hook's registration while leaving corpus.jsonl untouched; guard-origins.bats and floor-snapshot.bats both pass, and the floor claims hold on paper while the harness-class guard is gone.",
+      "suggested_fix": "Either add the fence hook (or a hashed extract of its FR-SZ/FR-1.2b sections) and the hook's settings.json registration to the floor checks, or state explicitly in floor.yaml that fence rows are protected only through the corpus and make tests/fixtures/fence-corpus/run-corpus.sh a required CI step.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/rules/stash-safety.md:paths",
+      "anchor_type": "hunk",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a paths: frontmatter block turns stash-safety.md from an always-loaded rule into one that is loaded only when the session touches *.sh, *.bats, .claude/scripts or .claude/hooks files. The hazard the rule describes is a git stash push/pop issued through the Bash tool, which is independent of which files are being edited. The harness floor (fence:FR-1.2b) covers only the swallowed-output form; plain stash push/pop around a pre-commit hook is prose-guarded only, and that prose now has a narrower trigger.",
+      "failure_mode": "An agent editing Markdown or YAML runs git stash push, a pre-commit hook runs its own --keep-index stash, and the outer pop lands on the wrong entry. The rule that warns about exactly this was not loaded because no shell file was in scope.",
+      "suggested_fix": "Drop the paths: block from stash-safety.md so it stays always-on, or widen it to a glob that matches every tracked file, and document in rule-paths.bats which rules are intentionally always-on.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/guard-origins.yaml:hook:safety/block-destructive-bash.sh",
+      "anchor_type": "hunk",
+      "anchor_line": 156,
+      "anchor_line_end": 164,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/floor.yaml:floor_keys",
+      "cross_file_justification": "floor.yaml floor_keys lists destructive_command_guard.* as a config namespace no profile may touch, which implies the destructive-command fence reads such keys. The guard-origins.yaml row for hook:safety/block-destructive-bash.sh records knob: none.",
+      "description": "The register's knob field is defined as 'the config key or env var that arms, relaxes or disables it, or none'. If destructive_command_guard.* exists and is read by the fence hook, the hook row understates its knob and the generated guards.md will tell operators the fence has no configuration surface. If no such key exists, floor_keys protects a phantom namespace and profile-floor.bats in Sprint 2 will never exercise it. The two tracked files disagree and guard-yield.sh validates neither direction.",
+      "failure_mode": "An operator reads guards.md, sees knob: none for the fence, and does not realise a profile can set destructive_command_guard keys; or the Sprint 2 profile-floor test passes vacuously because the key it guards is never read.",
+      "suggested_fix": "Grep the fence hook and .loa.config.yaml for destructive_command_guard. If it is read, set the hook row's knob to that key; if not, remove the entry from floor_keys. Consider having guard-yield.sh fail when a floor_keys entry is not the knob of any register row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T07:32:14Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10363,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

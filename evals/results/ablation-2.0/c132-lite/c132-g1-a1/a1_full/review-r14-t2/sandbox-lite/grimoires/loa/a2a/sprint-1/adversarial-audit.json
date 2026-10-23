@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:compliance_mode",
+      "anchor_type": "hunk",
+      "anchor_line": 113,
+      "anchor_line_end": 117,
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:113",
+      "cross_file_justification": null,
+      "description": "The gate's `authoritative` mode now reads its selector from `.loa.config.yaml` (`implement_gate.mode`) and, once selected, trusts `tool_input.active_skill` as the skill-in-progress signal. The header comment itself concedes `tool_input` is model-authored and that no harness-set field exists. `.loa.config.yaml` sits at the project root, outside the `.claude/` System Zone fence, so the same agent the gate is meant to fence can first Write `implement_gate.mode: authoritative` and then self-attest `active_skill: implement` on every subsequent App-Zone Write/Edit. Authoritative mode is therefore strictly weaker than the heuristic default: it converts a fail-ask fence into a self-signed bypass.",
+      "failure_mode": "An agent (or an operator who enables the mode expecting stronger enforcement) gets a gate that any model-authored tool call can satisfy, silently removing the fail-ask on App-Zone writes outside /implement//bug.",
+      "suggested_fix": "Remove the authoritative branch until the harness exposes a non-model-authored skill field, or AND it with the heuristic (.run RUNNING state) instead of replacing it. If kept, read the selector only from a System-Zone file and log a `compliance.mode.change` audit event when the mode differs from heuristic, so the opt-in is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:evidence_recorder",
+      "anchor_type": "hunk",
+      "anchor_line": 40,
+      "anchor_line_end": 51,
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:44",
+      "cross_file_justification": null,
+      "description": "The evidence recorder is triggered by model-authored input (`tool_input.active_skill` non-empty) and rewrites `.run/platform-features.json`. It runs before the Write/Edit `file_path` check, so any tool payload carrying the field fires it. It unconditionally sets `active_skill_available: false`, which clobbers whatever `detect-platform-features.sh` recorded, and if the existing file is not a single JSON object the `_ig_base` fallback is `{}` so the file is replaced wholesale with three keys. The `tail -n 1` on `select(type==\"object\")` also means a multi-document file silently picks the last object.",
+      "failure_mode": "A model-controlled payload can trigger a rewrite of a shared `.run/` state file, downgrading or discarding the platform detector's output; other consumers of `platform-features.json` read a file whose content depends on what the model put in a tool call.",
+      "suggested_fix": "Move the recorder after the Write/Edit `file_path` guard, write only the `active_skill_seen_at` and `active_skill_source` keys (do not touch `active_skill_available`), and skip the write when the existing file is not a single valid JSON object rather than replacing it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "anchor_type": "function",
+      "anchor_line": 162,
+      "anchor_line_end": 173,
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/check-permissions.sh:167",
+      "cross_file_justification": null,
+      "description": "`rule_key` recognises a wildcard only when the body ends in `:*` or ` *`. A bare catch-all `Bash(*)` normalises to the exact key `=*` and matches nothing. In the allow direction this is merely conservative (reports missing), but in the deny direction a catch-all `Bash(*)` deny in any settings layer is not recognised, so the preflight reports every required Bash rule as allowed when Claude Code will in fact deny them. The deny-wins logic therefore has a blind spot for the broadest possible deny.",
+      "failure_mode": "Preflight passes while the runtime denies every Bash command, or an operator relying on the report to confirm a deny is in force gets a false 'allowed' answer.",
+      "suggested_fix": "Treat a body of exactly `*` (after trim) as a universal wildcard key that covers every requirement for both allow and deny, and add a bats case for `Bash(*)` in each list.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/data/model-permissions.yaml:anthropic:claude-headless",
+      "anchor_type": "hunk",
+      "anchor_line": 449,
+      "anchor_line_end": 474,
+      "scope": "diff",
+      "trigger_anchor": ".claude/data/model-permissions.yaml:449",
+      "cross_file_justification": null,
+      "description": "The new `anthropic:claude-headless` registry row declares `file_read/file_write/command_execution/network_access: false` and remote-model trust scopes, justified by the adapter running `claude -p --tools \"\" --permission-mode plan`. The notes admit an operator-set `extra.allowed_tools` in the catalog widens what the CLI can do, but nothing cross-checks the two: `test_current_generation_rows_mirror_the_4_7_scopes` deliberately excludes this row and no test asserts the catalog's `claude-headless.extra.allowed_tools` is empty. The headless hop is also the terminal fallback for `claude-opus-5-5`, `claude-opus-5` and `claude-fable-5-1`, so an HTTP failure lands on it automatically.",
+      "failure_mode": "Capability declarations the permission model relies on (no file or command access) silently become false the moment `extra.allowed_tools` is set, with no test or load-time check flagging the drift.",
+      "suggested_fix": "Add a parity test that fails when `providers.anthropic.models.claude-headless.extra.allowed_tools` is non-empty while the registry row still declares all capabilities false, or have the headless adapter refuse `allowed_tools` unless the registry row is updated.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T18:34:22Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 437,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10155,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1cca3b4d2fd3606311ba8450987228f3687384d94b90aefb0f9db809798fee12",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

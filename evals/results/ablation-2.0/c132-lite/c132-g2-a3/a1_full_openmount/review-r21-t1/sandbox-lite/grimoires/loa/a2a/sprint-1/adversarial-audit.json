@@ -1,0 +1,203 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:validate_providers",
+      "anchor_type": "line",
+      "anchor_line": 323,
+      "anchor_line_end": 323,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/openai_adapter.py:_transport_policy",
+      "cross_file_justification": "validate_providers (loader gate) admits `allow_insecure_endpoint` for every non-CLI provider regardless of `type`, but the request-time half (TransportPolicy: no proxy env, no redirects, path-prefix) and the `keyless` header suppression are wired only into OpenAIAdapter (openai_adapter.py _transport_policy / _dispatch). No other adapter file is in the change set.",
+      "description": "The D-7.2 rule is split into a load-time half and a request-time half, and only the OpenAI adapter implements the request-time half. An operator can declare `allow_insecure_endpoint: 10.0.0.5` on an `anthropic`-type (or any other HTTP) provider with an `http://10.0.0.5:8080` endpoint; the loader admits it, but that adapter calls `http_post`/`http_post_stream` without a `policy`, so the plaintext request honours `HTTP_PROXY`/`HTTPS_PROXY` env vars (httpx default `trust_env=True`; urllib default ProxyHandler) and the urllib fallback follows 3xx redirects to any host the local server names. The prompt, and any configured credential, can therefore leave the opted-in host even though the config appears to be under the insecure-endpoint policy.",
+      "failure_mode": "A compromised or misconfigured LAN server (or a proxy env var set in the operator's shell/CI) redirects or proxies the full prompt and Authorization header for a non-OpenAI opted-in provider to an arbitrary third party; MODELINV still records the declared destination.",
+      "suggested_fix": "Make the policy a property of ProviderAdapter (base.py) constructed from `config.allow_insecure_endpoint` / model `dispatch_group`, and have every adapter pass it to http_post/http_post_stream/http_get; or, in validate_providers, refuse `allow_insecure_endpoint` (and `keyless`) on provider types whose adapter does not implement TransportPolicy.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "secrets",
+      "anchor": ".claude/adapters/loa_cheval/providers/openai_adapter.py:OpenAIAdapter.complete",
+      "anchor_type": "line",
+      "anchor_line": 171,
+      "anchor_line_end": 172,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "A provider may carry both a real credential (`auth: {env:OPENAI_API_KEY}`, keyless false) and an `allow_insecure_endpoint` opt-in. The loader (endpoint_policy.validate_providers) admits http on any loopback or RFC1918 host, including whole 10/8 and 172.16/12 corporate ranges, with no requirement or warning that an http provider be keyless. The adapter then sends `Authorization: Bearer <real key>` in cleartext across the LAN. The opt-in was designed for keyless local servers; nothing enforces that pairing.",
+      "failure_mode": "A copy-pasted hosted provider block repointed at an `http://10.x.x.x` proxy or test server leaks a production API key to any host on the network path; one sniffed request yields a reusable credential.",
+      "suggested_fix": "In validate_providers, when the admitted endpoint scheme is `http`, require `keyless: true` (or refuse an `auth` that resolves to a non-empty value) and name the reason; at minimum log a WARN and record it in MODELINV. Alternatively make the adapter refuse to attach an Authorization header on a non-https URL unless an explicit second opt-in is set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:load_config",
+      "anchor_type": "line",
+      "anchor_line": 704,
+      "anchor_line_end": 704,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:validate_local_fallbacks",
+      "cross_file_justification": "endpoint_policy.py defines validate_local_fallbacks (the local_voices fallback_chain gate) but load_config imports and calls only normalise_keyless and validate_providers, and validate_providers does not call it. No other caller appears in the diff.",
+      "description": "Under `hounfour.locality: local_voices` the design (audit a257-1 MEDIUM-A1 b) says a `dispatch_group: local` model whose `fallback_chain` reaches a hosted hop must be refused at load, because cheval walks the chain inside one call. The function implementing that check exists but is not invoked from the loader path shown. cheval.py's new code uses `locality_mode_of` for telemetry only; there is no dispatch-time enforcement of local_voices in the diff either.",
+      "failure_mode": "With locality set to local_voices, a context-window refusal or transport error on the local hop walks the fallback chain to a hosted provider and the prompt (intended to stay on-prem) is sent to a third-party API; the MODELINV row records locality_mode local_voices with a hosted destination.",
+      "suggested_fix": "Call validate_local_fallbacks(merged) immediately after validate_providers(merged) in load_config, and add a dispatch-time guard in cmd_invoke's walk that refuses to leave a local hop when locality is local_voices. If a caller exists outside the diff, add a loader test proving a hosted fallback is refused under local_voices.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/adapters/cheval.py:_build_provider_config",
+      "anchor_type": "line",
+      "anchor_line": 541,
+      "anchor_line_end": 541,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/audit/modelinv.py:hop_locality_of",
+      "cross_file_justification": "endpoint_policy.hop_is_local treats a provider-block `dispatch_group: local` as local when the model entry is silent, but _build_provider_config reads dispatch_group only from the model entry (so OpenAIAdapter._transport_policy never fires for a provider-level label) and modelinv.hop_locality_of also reads only the model entry.",
+      "description": "Three readers of `dispatch_group` disagree. The loader/planner rule (`hop_is_local`, `_local_labels`) accepts the label on the provider block; the adapter config builder and the MODELINV telemetry read only `models.<id>.dispatch_group`. A provider block labelled local with an https endpoint on a local host and no opt-in passes load, is planned as local, but at request time no TransportPolicy is applied (proxy env honoured, urllib follows redirects) and the audit row records hop_locality `hosted`.",
+      "failure_mode": "A hop the planner and the operator believe is local egresses through an environment proxy or a redirect, and the MODELINV audit chain says it was hosted, so the discrepancy is invisible to later review.",
+      "suggested_fix": "Resolve dispatch_group once: in _build_provider_config fall back to prov.get('dispatch_group') when the model entry is silent (matching hop_is_local), and have modelinv.hop_locality_of call endpoint_policy.hop_is_local rather than re-implementing the rule.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/audit/modelinv.py:destination_for",
+      "anchor_type": "line",
+      "anchor_line": 444,
+      "anchor_line_end": 445,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "destination_for records `{host: cli-subprocess, scheme: cli}` whenever the provider is absent from the hounfour view or has an empty endpoint, not only for genuine CLI hops. A hop whose provider name is not in `hounfour.providers` (hand-built config, alias mismatch, or a `final_model_id` whose provider segment differs from the catalog key) is written into the tamper-evident MODELINV chain as a local CLI subprocess even if it went over HTTP to a remote host.",
+      "failure_mode": "Audit consumers filtering for hosted egress miss HTTP hops mislabelled as CLI; the record is confidently wrong rather than `unknown`.",
+      "suggested_fix": "Return `unknown` for a provider not found in the config or with no endpoint, and reserve `cli-subprocess` for a `*-headless` type or `kind: cli` entry only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/adapters/loa_cheval/providers/openai_adapter.py:_names_response_format",
+      "anchor_type": "function",
+      "anchor_line": 101,
+      "anchor_line_end": 111,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Any HTTP 400 whose body contains the substring `response_format` or `json_schema` (case-insensitive, any field) causes the adapter to drop the strict output schema and re-send the full prompt. The server controls this trigger. A local or opted-in server can therefore force schema enforcement off at will, and the retry doubles prompt transmission and spend. Telemetry does record schema_rejected_by_server, so this is a downgrade the operator can see but cannot prevent.",
+      "failure_mode": "A misbehaving server returns a generic 400 mentioning json_schema; cheval silently falls back to the tolerant parser and repair loop, consuming budget on a second full request.",
+      "suggested_fix": "Gate the retry on a per-model or per-provider `allow_schema_fallback` setting (default off for `structured_json`-declared entries), tighten the heuristic to the error's `param`/`message` fields, and cap to one retry per process per provider.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/adapters/loa_cheval/config/endpoint_policy.py:describe_provider",
+      "anchor_type": "line",
+      "anchor_line": 370,
+      "anchor_line_end": 370,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "describe_provider prints the provider endpoint verbatim to stdout for the health-probe shell script. For CLI providers (`*-headless` or all `kind: cli`) the endpoint is never validated, and for HTTP providers the validator's handling of query strings and fragments is not asserted here, so a URL carrying a token in its query (`?api_key=...`) would be emitted to logs by a command documented as never printing a secret.",
+      "failure_mode": "Probe output captured in CI logs exposes a credential embedded in an endpoint URL.",
+      "suggested_fix": "Emit only scheme://host[:port]/path (via split_url) and drop query/fragment; refuse or redact endpoints containing a query string at load.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T13:02:56Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 1146,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21046,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "37a749e2a07380f6ecea79b910d6761de7ab85f106422adf1a3e3e141e913029",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

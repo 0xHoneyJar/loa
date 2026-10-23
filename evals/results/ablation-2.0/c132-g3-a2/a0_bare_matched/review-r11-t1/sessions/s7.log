@@ -1,0 +1,8 @@
+2026-10-22T23:54:33Z run-ablation: c132-g3-a2-a0_bare_matched-review-r11-t1-s7 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s7
+arm a0_bare_matched: no_dot_claude OK sandbox has no .claude/ and no CLAUDE.md
+arm a0_bare_matched: no_system_prompt OK no --append-system-prompt-file in 1 argv
+arm a0_bare_matched: no_audit_rows OK no sandbox/.run/audit.jsonl
+arm a0_bare_matched: integrity_clean OK no mount (loa_mount: false)
+arm a0_bare_matched: bare_sessions_matched OK session s7 of a matched cell (the cell rule runs on the cell directory)
+arm a0_bare_matched: OK
+graded review-r11: recall 0.6 false_positives 11; verdict_accuracy None; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s7/grade.json

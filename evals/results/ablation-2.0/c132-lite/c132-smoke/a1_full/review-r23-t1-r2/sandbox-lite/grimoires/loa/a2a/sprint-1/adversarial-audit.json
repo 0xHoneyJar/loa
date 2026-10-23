@@ -1,0 +1,238 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Avoid following attacker-controlled symlinks during cleanup",
+      "body": "An agent can replace a protected or hidden-overlay destination with a directory containing a symlink to a host directory. `copy_tree()` preserves that symlink, and `prepare()` subsequently removes the destination through `remove_path()`. Although `os.walk()` does not traverse symlinks, this `os.chmod()` follows them and changes the external target's permissions to 0700. This permits host filesystem modification and denial of access to shared directories even with the default container executor, because preparation runs on the host. Skip symlinks when changing directory permissions.",
+      "description": "An agent can replace a protected or hidden-overlay destination with a directory containing a symlink to a host directory. `copy_tree()` preserves that symlink, and `prepare()` subsequently removes the destination through `remove_path()`. Although `os.walk()` does not traverse symlinks, this `os.chmod()` follows them and changes the external target's permissions to 0700. This permits host filesystem modification and denial of access to shared directories even with the default container executor, because preparation runs on the host. Skip symlinks when changing directory permissions.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "confidence_score": 0.98,
+      "anchor": "evals/harness/ablation-grade.sh:remove_path",
+      "anchor_type": "function",
+      "anchor_line": 246,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-dyynu6_r/evals/harness/ablation-grade.sh",
+        "line_range": {
+          "start": 246,
+          "end": 246
+        }
+      },
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "An agent can replace a protected or hidden-overlay destination with a directory containing a symlink to a host directory.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:shape_command",
+      "anchor_type": "function",
+      "anchor_line": 481,
+      "anchor_line_end": 498,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Hidden-test results (hidden_tests.passed/total, failed_names, verdict_accuracy) are derived solely from the stdout of a pytest/bats process whose configuration the graded agent controls. The 'final' tree is a copy of sandbox/ with only a fixed top-level exclusion list; the agent's conftest.py, pytest.ini / pyproject.toml / setup.cfg / tox.ini (addopts, pythonpath, python_files), rootdir-level plugins and any module the hidden tests import are all executed in the same process that prints the summary. A conftest.py with a pytest_runtest_makereport hookwrapper that sets rep.outcome='passed', or a pytest_unconfigure hook that prints a forged '== N passed in 0.1s ==' line, yields a clean summary, no FAILED lines and exit 0. parse_pytest takes the LAST matching summary line and all_pass() never consults the exit code, so even a trailing forged line after the genuine summary wins. bats has the equivalent via *.bash helpers loaded by the hidden .bats files. grader_protected is optional per task and the grader never requires it to cover these files.",
+      "failure_mode": "An agent under evaluation reward-hacks the grade: hidden tests report all-pass (and the review/audit verdict is scored 'accurate') although the implementation fails, corrupting the ablation results the suite exists to produce.",
+      "suggested_fix": "Run pytest with '-c /dev/null' (or --override-ini) so no in-tree ini is honoured, set PYTEST_DISABLE_PLUGIN_AUTOLOAD=1, pass --noconftest unless the task overlays its own conftest via hidden/manifest.json; in load_task (or validate-suite.sh) require grader_protected to cover conftest.py and every pytest/bats config file in the fixture. Cross-check the parse: treat multiple summary lines, passed+failed+errors+skipped != len(order), or rc==0 with any 'bad' node (and vice versa) as parse_error with passed=0. Additionally write --junitxml to a grader-chosen path under the tree and reconcile it with the summary.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": "evals/harness/ablation-grade.sh:exec_in_tree",
+      "anchor_type": "function",
+      "anchor_line": 509,
+      "anchor_line_end": 514,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "With --executor host, exec_in_tree runs the task's test command directly on the grader host as the invoking user, with cwd = the 'final' tree (a copy of the agent's sandbox), the caller's full PATH and PYTHONUSERBASE, and the agent's conftest.py / pytest config / imported modules loaded in-process (see AG-1). 'env -i' only scrubs variables; it does not stop the agent's Python from reading the real home directory via pwd/absolute paths. The grader's own contamination allow-list acknowledges ~/.claude.json, ~/.aws, ~/.codex exist on this host. Nothing in the script restricts host mode to --self-check (where the tree is the trusted fixture); it is accepted for real run directories too.",
+      "failure_mode": "When an operator grades a run with --executor host, arbitrary code written by the evaluated agent executes on the grader machine with the operator's credentials, allowing credential theft from ~/.aws or ~/.claude.json or tampering with the suite and other runs.",
+      "suggested_fix": "Refuse --executor host for run-directory grading (allow it only under --self-check, where the tree is the trusted fixture plus reference patch), or require an explicit unsafe-ack flag that writes a warning into grade.json. If host mode must stay, at minimum run under a dedicated unprivileged user via sudo/bwrap with a private HOME and no access to the caller's dotfiles.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:parse_pytest",
+      "anchor_type": "line",
+      "anchor_line": 575,
+      "anchor_line_end": 575,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "parse_pytest opens os.path.join(tree, f) for every 'ERROR <node>' line and def_line (line ~535) opens os.path.join(tree, path) for every outcome node. The node text comes from the test process stdout, which the agent's code can write (print during collection, conftest hooks, os.write(1,...)). os.path.join discards tree when the component is absolute, and '..' is not rejected, so the grader reads arbitrary host paths. Reading is unbounded: 'ERROR /dev/zero' or 'FAILED /dev/zero::test_x' makes the grader call .read() on an infinite stream and exhaust memory; a symlink/large file produces the same.",
+      "failure_mode": "The graded agent crashes or hangs the grader process (OOM) with one printed line, blocking the batch; the grader also reads files outside the grading tree (no content is written to grade.json, but the read itself violates the DEC-0413 read-only contract and could be combined with timing).",
+      "suggested_fix": "Validate node paths with safe_rel() and is_within(tree, ...) before opening; check os.lstat is S_ISREG and apply a size cap (e.g. 1 MiB) before .read(); treat invalid nodes as parse_error.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:remove_path",
+      "anchor_type": "line",
+      "anchor_line": 242,
+      "anchor_line_end": 242,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "remove_path walks a directory with os.walk (followlinks=False) and calls os.chmod(os.path.join(r, d), 0o700) on every entry in dirnames. os.walk lists symlinks-to-directories in dirnames, and os.chmod follows symlinks, so the chmod lands on the symlink target. remove_path is applied to agent-derived trees: put_file() removes an existing overlay/protected dest in the 'final' copy (copy_tree preserves symlinks), and fresh_dir(grading) removes the previous grading/final tree. An agent that makes tests/test_hidden.py (an overlay dest) a directory containing 'x -> /home/<grader>/some-dir' causes the grader to chmod that host directory to 0700.",
+      "failure_mode": "The graded agent changes permissions on arbitrary host directories owned by the grader user (e.g. shared project dirs, other runs' sandboxes, ~/.local), breaking other users or jobs; the grader believes it only touched grading/.",
+      "suggested_fix": "Skip symlinks in the chmod loop: `p = os.path.join(r, d); if not os.path.islink(p): os.chmod(p, 0o700)`. shutil.rmtree already handles symlinks safely on Linux.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "evals/harness/ablation-grade.sh:gate_verdict",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header states that sandbox copies of gate artefacts are tamperable and that the harness copies under eval/ are authoritative, and applies that rule to the dissent envelopes. The verdicts, however, are read from sandbox/grimoires/loa/a2a/sprint-1/{engineer-feedback.md,auditor-sprint-feedback.md} and sandbox/review.md, and review-catch citations from the same sandbox files. The implementing agent writes to sandbox/ during FIX1/FIX2, after the gates have run, so it can append a forged '<!-- LOA-VERDICT {\"verdict\":\"APPROVED\"} -->' trailer (the LAST trailer wins) or create auditor-sprint-feedback.md outright. In grade(), v_audit decides the verdict, verdict_accuracy, whether a gate 'ran', and which snapshot (fix1 vs implement) is graded.",
+      "failure_mode": "The graded agent controls verdict, verdicts.*, verdict_accuracy and snapshot selection in grade.json, so gate-accuracy comparisons across ablation arms are unreliable.",
+      "suggested_fix": "Have pipeline-run.sh copy the gate feedback files (and review.md) into <run-dir>/eval/ immediately after each gate, and read those authoritative copies in gate_verdict/review_md_verdict/combined_findings; fall back to sandbox only when the eval/ copy is absent and record that in grade.json.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "evals/harness/ablation-grade.sh:exec_in_tree",
+      "anchor_type": "line",
+      "anchor_line": 505,
+      "anchor_line_end": 507,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The container invocation sets --network none, --read-only, --tmpfs /tmp and a non-root --user, but omits --cap-drop ALL, --security-opt no-new-privileges (setuid binaries in the image remain usable), --pids-limit and --memory (a fork bomb or allocation loop in agent test code hits the host), and the tmpfs lacks noexec. The outer subprocess timeout (180s) kills only the docker client; the container keeps running with the grading tree mounted rw, so a timed-out test can still write into grading/final while/after the grader reads it.",
+      "failure_mode": "Agent test code can exhaust host memory/PIDs within the 120s budget or escalate inside the container if the image carries setuid binaries; orphaned containers accumulate and race with later grading.",
+      "suggested_fix": "Add --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 1g --cpus 1, use '--tmpfs /tmp:rw,noexec,nosuid,size=256m', run with --name and 'docker kill' it on TimeoutExpired (or pass --init and rely on --stop-timeout).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:churn",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "churn() reads every file of the fixture and the agent's final tree fully into memory (open(p,'rb').read()) and runs difflib.unified_diff on the decoded lines; copy_tree likewise copies any regular file regardless of size. A multi-gigabyte sparse file or a file with millions of lines placed in the sandbox is copied, loaded and diffed (difflib is quadratic in the worst case) before any test runs.",
+      "failure_mode": "The graded agent makes grading of its own run exhaust memory or run for hours, stalling the batch.",
+      "suggested_fix": "Skip files above a size cap (e.g. 2 MiB) in churn, counting them as changed without a line diff, and bound the total copied size in copy_tree; record a 'truncated' flag in grade.json.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T10:01:58Z",
+    "tokens_input": 145956,
+    "tokens_output": 30323,
+    "cost_usd": 0,
+    "latency_ms": 134091,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 18,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 330,
+    "budget_cents_max": 600,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "c9a0caf85218725dce223aad9ef8bb17c2fb8a79842e4be497cacb62ad505001",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

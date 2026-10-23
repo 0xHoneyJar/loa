@@ -1,0 +1,162 @@
+{
+  "finished": "2026-10-23T02:18:02Z",
+  "k": 10,
+  "schema_version": 1,
+  "sessions": [
+    {
+      "attempt_costs": [
+        11.600677
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 11.600677,
+      "id": "s1",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s1",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        10.848165
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 10.848165,
+      "id": "s2",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s2",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        9.813158
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 9.813158,
+      "id": "s3",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s3",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        3.587689
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 3.587689,
+      "id": "s4",
+      "invalid_reason": null,
+      "run_dir": "sessions/s4",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        11.975266
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 11.975266,
+      "id": "s5",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s5",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        14.256535
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 14.256535,
+      "id": "s6",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s6",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        3.992495
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 3.992495,
+      "id": "s7",
+      "invalid_reason": null,
+      "run_dir": "sessions/s7",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        12.242967
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 12.242967,
+      "id": "s8",
+      "invalid_reason": "contaminated: network_egress",
+      "run_dir": "sessions/s8",
+      "status": "contaminated",
+      "valid": false
+    },
+    {
+      "attempt_costs": [
+        4.810684
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 4.810684,
+      "id": "s9",
+      "invalid_reason": null,
+      "run_dir": "sessions/s9",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        3.209103
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 3.209103,
+      "id": "s10",
+      "invalid_reason": "took-effect: took-effect exit 1: arm a0_bare_matched: no_audit_rows FAIL sandbox/.run/audit.jsonl exists;arm a0_bare_matched: FAIL (1 of 5 rules);",
+      "run_dir": "sessions/s10",
+      "status": "infrastructure_error",
+      "valid": false
+    }
+  ],
+  "sessions_attempted": 10,
+  "sessions_valid": 3,
+  "started": "2026-10-23T00:53:33Z",
+  "task_id": "review-r20",
+  "trial": 2
+}

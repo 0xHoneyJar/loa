@@ -1,0 +1,15 @@
+{
+ "H10": {"base": "A", "severity": "high", "reason": "anchors: union; severity: codebook high (a gate that fails open is a security weakness with a plausible path to harm)"},
+ "H11": {"base": "A", "reason": "anchors: union (B ⊂ A); otherwise agreed"},
+ "H15": {"base": "A", "category": "security", "reason": "category: security — the gate's staleness gap weakens an enforcement boundary; logic rejected"},
+ "H16": {"base": "A", "category": "security", "reason": "category: security, as H15 (same group D7)"},
+ "H17": {"base": "A", "reason": "anchors: union (B adds 228, inside the hunk)"},
+ "H26": {"base": "A", "reason": "anchors: union (A adds 62, the refresh's read site)"},
+ "H27": {"base": "A", "group": "D10", "severity": "medium", "reason": "anchors: union; severity: codebook medium (missing validation, bounded impact); group D10 = this script's own site"},
+ "H28": {"base": "A", "verdict": "not-defect", "class": "follow-on", "group": "D10", "reason": "follow-on of D10 in both labels; recorded for the group check"},
+ "H32": {"base": "A", "severity": "medium", "category": "error-handling", "reason": "anchors: union; category: error-handling (an unhandled mktemp failure); severity: codebook medium (uncommon path, wrong result)"},
+ "H44": {"base": "A", "reason": "anchors: union (A adds 52)"},
+ "H51": {"base": "A", "group": "D16", "severity": "medium", "reason": "group: a separate site (another script) is its own group — one wrong behaviour per script, B's reading; anchors: union; severity medium for consistency with D10"},
+ "H53": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D15", "reason": "verdict: the hunk only swaps a one-line regex for the shared TRAILER pattern introduced by D15; the old single-line match is not shown wrong — follow-on (B)"},
+ "H95": {"base": "A", "group": "D17", "severity": "medium", "reason": "group: a separate script, own group (as H51); anchors: union; severity medium"}
+}

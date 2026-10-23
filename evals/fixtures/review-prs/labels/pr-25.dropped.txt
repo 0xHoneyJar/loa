@@ -1,0 +1,9 @@
+# pr-25 sprint-261: findings that did not become labels
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L14 [medium] first cited file is not part of this fixture (hidden/manifest.json): directory overlays get no collision protection (DISS-002 + DISS-C-002;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L17 [medium] no locator (16 fix hunks in evals/harness/run-ablation.sh): the codex pre-flight horizon counts the whole plan on `--resume` and has no override (DISS-C-004;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L20 [low] first cited file is not part of this fixture (auth.json): API-key codex auth refused by the pre-flight (DISS-C-003;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L23 [low] first cited file is not part of this fixture (grimoires/loa/evals/ablation-2.0/README.md): suite README version table stale (lead)
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L26 [low] first cited file is not part of this fixture (ablation-row.sh): prints a blank line when the row program yields nothing (lead, from R1's report)
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/engineer-feedback-r1.md#L29 [low] first cited file is not part of this fixture (reads-v2.md): a gate that ran with no dissent envelope is not flagged (lead;
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L13 [medium] the finding calls itself pre-existing (not this change): the codex credential copy is readable by the agent under evaluation: ACCEPTED, mitigated, residual documented
+record/cycle-130-a2a:grimoires/loa/a2a/sprint-261/auditor-sprint-feedback.md#L16 [low] first cited file is not part of this fixture (conftest.py): reads the fixture's pytest config while pytest reads the tree's: ACCEPTED as a documented gap, bead bd-w0ofw

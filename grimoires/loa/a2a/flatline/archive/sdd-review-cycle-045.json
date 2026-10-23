@@ -1,0 +1,47 @@
+{
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "cycle": "cycle-045",
+  "timestamp": "2026-02-28T08:30:00Z",
+  "models": ["claude-opus-4-6"],
+  "findings": [
+    {
+      "id": "HC-1",
+      "category": "HIGH_CONSENSUS",
+      "score": 780,
+      "title": "SDD section extraction underspecified",
+      "action": "auto_integrated",
+      "detail": "Added regex strategy for extracting security sections from SDD"
+    },
+    {
+      "id": "HC-2",
+      "category": "HIGH_CONSENSUS",
+      "score": 750,
+      "title": "State schema jq insertion order",
+      "action": "auto_integrated",
+      "detail": "Added implementation note about inline jq template extension"
+    },
+    {
+      "id": "HC-3",
+      "category": "HIGH_CONSENSUS",
+      "score": 900,
+      "title": "Run mode SKILL.md path incorrect",
+      "action": "auto_integrated",
+      "detail": "Corrected .claude/skills/run-mode/SKILL.md to .claude/skills/run/SKILL.md"
+    },
+    {
+      "id": "D-1",
+      "category": "DISPUTED",
+      "reviewer_score": 600,
+      "skeptic_score": 500,
+      "title": "Reuse existing Red Team infrastructure",
+      "action": "rejected",
+      "detail": "Kept separate: /red-team attacks design, code-vs-design checks compliance. Different purpose."
+    }
+  ],
+  "summary": {
+    "high_consensus_integrated": 3,
+    "disputed_decided": 1,
+    "low_value_skipped": 0
+  }
+}

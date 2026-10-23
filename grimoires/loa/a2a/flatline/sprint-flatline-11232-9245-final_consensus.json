@@ -1,0 +1,22 @@
+{
+  "consensus_outcome": "consensus",
+  "truncation_waiver_applied": false,
+  "voices_planned": 2,
+  "voices_succeeded": 1,
+  "voices_succeeded_ids": [
+    "codex-headless"
+  ],
+  "voices_dropped": [
+    {
+      "voice": "missing-voice-1",
+      "reason": "Other",
+      "exit_code": 0,
+      "blocker_risk": "unknown"
+    }
+  ],
+  "chain_health": "degraded",
+  "confidence_floor": "med",
+  "rationale": "multi-voice aggregate (1/2 succeeded); chain_health=degraded; dropped: missing-voice-1(Other/unknown)",
+  "single_voice_call": false,
+  "status": "DEGRADED"
+}

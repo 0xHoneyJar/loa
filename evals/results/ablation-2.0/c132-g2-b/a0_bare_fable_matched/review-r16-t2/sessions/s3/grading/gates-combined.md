@@ -1,0 +1,13 @@
+head/.claude/scripts/lib/dec-write-lib.sh:313
+head/.claude/scripts/lib/dec-write-lib.sh:575
+head/.claude/commands/decisions.md:55
+head/.claude/scripts/lib/dec-write-lib.sh:601
+head/.gitignore:150
+tests/unit/validate-artifact.bats:642
+tests/unit/dec-write-lib.bats:109
+tests/unit/grimoire-index.bats:80
+validate-artifact.bats:630
+head/tests/unit/grimoire-index.bats:132
+head/.claude/scripts/lib/dec-write-lib.sh:98
+head/.claude/scripts/lib/dec-write-lib.sh:694
+head/.loa.config.yaml.example:140

@@ -314,3 +314,38 @@ teardown() {
   [ "$(grep -c "^suite: " <<<"$output")" -eq 1 ]
   grep -q "suite: arm a1_full_openmount sets oracle_open: true without eval_only: true" <<<"$output"
 }
+
+# --- cycle-132 Sprint 269 Task 1.7a: the matched arms, bare_sessions_matched, the vocabulary from the library -------
+
+@test "VS-c132-1 the committed suite declares a0_bare_matched and a0_bare_fable_matched (bare_sessions: matched with loa_mount: false) and validates; bare_sessions without loa_mount: false or with another value is a violation" {
+  make_task "$R" tasks review-catch-01 review-catch
+  [ "$(yq -o=json '.' "$SUITE" | jq -r '.arms[] | select(.id == "a0_bare_matched") | "\(.toggles.loa_mount) \(.toggles.bare_sessions) \(.took_effect | join(","))"')" = \
+    "false matched no_dot_claude,no_system_prompt,no_audit_rows,integrity_clean,bare_sessions_matched" ]
+  [ "$(yq -r '.arms[] | select(.id == "a0_bare_fable_matched") | .toggles.bare_model' "$SUITE")" = fable ]
+  run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  cp "$SUITE" "$T/suite.yaml"
+  yq -i '(.arms[] | select(.id == "a0_bare_matched") | .toggles) = {"bare_sessions": "matched"}
+       | (.arms[] | select(.id == "a0_bare_fable_matched") | .toggles.bare_sessions) = "double"' "$T/suite.yaml"
+  run "$VS" --root "$R" --allow-partial --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  grep -q 'suite: arm a0_bare_matched sets bare_sessions without loa_mount: false' <<<"$output"
+  grep -q 'suite: arm a0_bare_fable_matched toggle bare_sessions="double" is not a defined value ("matched")' <<<"$output"
+}
+
+@test "VS-c132-2 review_catch.bare_sessions_matched and _fable: an integer 2 … 30 passes; 1, 31, a string and a boolean are each a violation; another unknown key still is" {
+  make_task "$R" tasks review-catch-01 review-catch
+  ty="$R/tasks/review-catch-01/task.yaml"
+  yq -i '.review_catch.bare_sessions_matched = 4 | .review_catch.bare_sessions_matched_fable = 30' "$ty"
+  run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  for v in 1 31 '"3"' true; do
+    yq -i ".review_catch.bare_sessions_matched = $v" "$ty"
+    run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
+    [ "$status" -eq 1 ] || { echo "value $v: $output"; false; }
+    grep -q 'schema: review_catch.bare_sessions_matched must be an integer 2 … 30' <<<"$output"
+  done
+  yq -i '.review_catch.bare_sessions_matched = 3 | .review_catch.k = 3' "$ty"
+  run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
+  [ "$status" -eq 1 ]; grep -q 'schema: review_catch.k is not a known key' <<<"$output"
+}

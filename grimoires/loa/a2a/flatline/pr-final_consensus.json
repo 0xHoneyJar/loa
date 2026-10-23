@@ -1,0 +1,17 @@
+{
+  "consensus_outcome": "consensus",
+  "truncation_waiver_applied": false,
+  "voices_planned": 3,
+  "voices_succeeded": 3,
+  "voices_succeeded_ids": [
+    "codex-headless",
+    "claude-headless",
+    "gemini-headless"
+  ],
+  "voices_dropped": [],
+  "chain_health": "degraded",
+  "confidence_floor": "high",
+  "rationale": "multi-voice aggregate (3/3 succeeded); chain_health=degraded",
+  "single_voice_call": false,
+  "status": "DEGRADED"
+}

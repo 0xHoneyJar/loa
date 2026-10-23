@@ -1,0 +1,5 @@
+15:37:38Z start batch=c132-smoke4 smoke=false source=fbd36a0c9880 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
+15:37:38Z plan: 1 arms, 1 tasks, 1 trials, shuffle seed 20261015, est USD 8 (cap 3679.7667, run caps build 45 review-catch 45, in-flight reserve 45 per trial, reserve 250)
+15:37:39Z launch c132-smoke4-a1_full-review-r14-t1 (a1_full review-r14 review-catch t1)
+16:10:11Z done c132-smoke4-a1_full-review-r14-t1 completed pass=0.4118 USD 18.2835245 32m attempts 1
+16:10:11Z complete: 1 trials rowed, spent 18.2835245

@@ -1,0 +1,18 @@
+{
+  "id": "s1",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: outside_path",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    1.656409
+  ],
+  "cost_usd": 1.656409,
+  "run_dir": "sessions/s1",
+  "took_effect": "ok",
+  "started": "2026-10-22T23:14:41Z",
+  "finished": "2026-10-22T23:20:53Z"
+}

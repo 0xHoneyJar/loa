@@ -1,0 +1,7 @@
+{"timestamp":"2026-06-15T03:04:16Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-ponytail-yagni","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T03:05:18Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-ponytail-yagni","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T03:52:48Z","type":"review","model":"claude-headless","sprint_id":"sprint-bug-222","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T03:58:46Z","type":"review","model":"claude-headless","sprint_id":"sprint-bug-222","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T04:10:37Z","type":"audit","model":"gemini-3.1-pro","sprint_id":"sprint-bug-222","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T04:29:26Z","type":"audit","model":"claude-headless","sprint_id":"sprint-bug-222","status":"api_failure","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-06-15T04:40:18Z","type":"audit","model":"gpt-5.5","sprint_id":"sprint-bug-222","status":"clean","finding_count":0,"cost_usd":null}

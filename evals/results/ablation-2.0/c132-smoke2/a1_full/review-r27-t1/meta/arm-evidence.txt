@@ -1,0 +1,27 @@
+batch_context=c132-smoke2
+base_commit=fbdc7bf79c29b659b2d11013472097f8f2425624
+mount=tree
+copy_source=51a55a98d97c2fe56c69a0e5da4bac93abe23c7e
+mount_overlay=head:6
+overlay_excluded=0
+overlay_sha256=.claude/schemas/adversarial-finding.schema.json=2a8c6a5d8fca6ea6d8476866dabb01698fd6c7030e6e30497cc948eac175822a
+overlay_sha256=.claude/schemas/wire/dissent-audit.wire.json=1d88f91400aa6e071853c9e671afa2174ce1e20442226a00857cf297b5877378
+overlay_sha256=.claude/schemas/wire/dissent-review.wire.json=2b50348fe3a2577bc22bda77eb26a91ecb7fd1939a6d0f194250421f473ddc51
+overlay_sha256=.claude/scripts/adversarial-review.sh=343dcbe05418d345a33b6d9ecbb4529ff690b9555b2cc603bee69a99d25c0458
+overlay_sha256=.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md=1f17544e705820e70b24f2c89d89c10723fc14d7cd67075431a6638477901d8f
+overlay_sha256=.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md=3c39cbe765362e26906752ed2963426f214ea43711e2c97bd0a3509e76ac80bb
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=.claude/scripts/adversarial-review.sh
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-27
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-51a55a98d97c
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=7746d19625e6571016393dde57a4326fea6f09749c207cb3bac45183730a364e
+mount_closed=pre-launch head:6 answer paths (6 present), 0 later-only pinned versions, sandbox git = base commit only
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=a0_bare,a0_bare_fable,a1_full,a1_full_openmount,a1_no_dissent,a1_review_only,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies

@@ -1,0 +1,130 @@
+commit aac80f4cfea6c8e865ad194f713efd6cf1f8804d
+Date: 2026-10-20T22:13:56+11:00
+
+fix(cycle-131): PR #1286 Bridgebuilder round r4 — the closed mount refuses an unavailable fix commit (F001); grader 1.3.1 scans error-marked tool results (F002); 63 re-grades unchanged
+
+F001 (HIGH, accepted): `lib/sandbox-mount.sh overlay_answer_paths` exits 2 before writing anything when
+fixture.yaml's fix_commit is not in the source tree. Sprint 263 logged fix_commit_unavailable, overlaid the
+PR paths only and `check_mount_closed` called the mount closed with the fix-only paths still at the later
+copy. `check_mount_closed` and `took-effect.sh` rule oracle_closed now fail on overlay_fix_commit=unavailable.
+Premise check: overlay_fix_commit=available on all 18 closed-mount cycle-131 runs, none on the 4 without a
+fix commit — no recorded run took this path.
+
+F002 (MEDIUM, accepted): grader 1.3.1. A differing diff exits 1 and Claude Code marks the result is_error
+with the output after an "Exit code N" line; 1.3.0 skipped every such result. The detector now strips that
+line and scans the rest: the diff form needs printed ranges near a planted site (no must_match-only credit
+from an error result), the read form later-only text, and an error-marked section without ranges is never
+oracle_exposed_unknown. Recall and contamination unchanged. Re-graded under 1.3.1, the 36 cycle-130 and
+27 cycle-131 review-catch runs are identical on every oracle field, recall and contamination (63/63); the
+26 error-marked results carrying diff ranges all compare pr/base with pr/head or read head.diff. The pinned
+1.3.0 rows stay the main read (DEC-0648); the 1.3.1 grades are a labelled sensitivity
+(~/.cache/loa/cycle-131/regrade-131/compare.tsv).
+
+Tests: sandbox-mount.bats (the unavailable-commit test now expects the refusal, an untouched sandbox and a
+failing check), took-effect.bats (overlay_fix_commit=unavailable FAIL clause), ablation-grade.bats (AG-48
+loses the is_error row; AG-56 covers error-marked differing diffs, a hook block, a tool error, unranged
+text, the read form and the unchanged non-error unknown case; version asserts 1.3.1).
+
+The check keeps its evidence rule only (overlay_fix_commit=unavailable fails); a recomputation rule was dropped
+because a check-time repository without the fix commit already fails clause (a) on the path count, and would
+have turned a shallow post-run clone into a false FAIL. The runner tests' pipeline stub overlays from a
+fixture copy without fix_commit when its throwaway source tree lacks the commit (RAB-c131-2 on pr-17/pr-18).
+
+Also: grimoires/loa/REPO-MAP.md regenerated (repo-map-gen.sh) — CI's BATS Tests on a3289c2b failed only on
+`repo-map: --validate passes against the committed REPO-MAP.md` (stale after the Sprint 263 edits to
+adversarial-review.sh and its resources; the separate REPO-MAP Drift Gate workflow had passed).
+
+Records: DEC-0655; KF-049 attempt row; CHANGELOG "### Fixed"; suite README. Bead bd-cxdsm.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/evals/harness/lib/sandbox-mount.sh b/evals/harness/lib/sandbox-mount.sh
+index a451a95b..e496455b 100644
+--- a/evals/harness/lib/sandbox-mount.sh
++++ b/evals/harness/lib/sandbox-mount.sh
+@@ -89,7 +89,9 @@
+ #       .claude/hooks/ or .claude/skills/*/SKILL.md; empty when none>, overlay_fixture=<dir>,
+ #       overlay_source_tree=<dir>. Exit 2: missing workspace or fixture (no head.diff), a mode
+ #       other than head|base, a copy source that is not a clean git tree, a copy_source other
+-#       than <source-commit> when given, a symlink or non-directory component on a sandbox path.
++#       than <source-commit> when given, a symlink or non-directory component on a sandbox path,
++#       a fixture.yaml fix_commit that is not in <source-tree> (nothing is written; the sandbox
++#       stays as it was).
+ #   check_mount_closed <ws> <fixture-dir> [<source-tree>] [<evidence-file>]
+ #       the pre-launch form of took-effect.sh oracle_closed: clauses (a)-(d) (see
+ #       _sm_oracle_py) against the fixture, the evidence file (default $ARM_EVIDENCE_FILE:
+@@ -598,7 +600,8 @@ init_sandbox_beads() {
+ #       skipped by their line counts so a removed "-- a/x" line is never a header;
+ #   (ii) every file or symlink under <fixture>/head/ and <fixture>/base/;
+ #   (iii) the fixture.yaml fix_commit's paths (git show --no-renames --name-only):
+-#       an unknown fix commit logs fix_commit_unavailable and is skipped.
++#       an unknown fix commit logs fix_commit_unavailable and the overlay is REFUSED (exit 2;
++#       PR #1286 F001) — its paths could not be pinned, so the mount could not be closed.
+ #   Normalised (no absolute, no "..", no empty or "." component, no backslash, no
+ #   control character) and kept only under .claude/; .claude/checksums.json is
+ #   harness-owned (regen_sandbox_manifest rewrites it) and excluded, as are CLAUDE.md
+@@ -911,9 +914,15 @@ def cmd_overlay(ws, fixture, mode, repo):
+     if not os.path.isdir(ws) or os.path.islink(ws):
+         die("workspace not found: " + ws)
+     entries, notes, meta = answer_set(fixture, repo)
+-    exp = expected(entries, mode, fixture, repo, meta)
+     for n in notes:
+         note("overlay: " + n)
++    if meta.get("fix_available") == "unavailable":
++        # PR #1286 Bridgebuilder F001: the fix commit's paths are part of the answer set; without the commit they
++        # cannot be pinned, the mount would stay open on exactly those paths, and the check would call it closed.
++        die("overlay: refused: fix_commit %s is not in %s; the fix paths outside the PR cannot be pinned, so the "
++            "mount cannot be closed (fetch the commit into the source tree, or drop fix_commit from fixture.yaml)"
++            % (meta.get("fix_commit"), repo))
++    exp = expected(entries, mode, fixture, repo, meta)
+     if entries and any(s == "fix" for s in entries.values()) and not meta.get("head_available"):
+         note("overlay: head_commit %s unavailable: fix-commit paths outside the PR are removed" % meta.get("head_commit"))
+     lines, gates, removed = [], [], 0
+@@ -964,6 +973,8 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
+     if not m:
+         print("FAIL (a) -: mount_overlay=%s (want head|base:<n>)" % (mo or "<missing>")); sys.exit(1)
+     mode, n = m.group(1), int(m.group(2))
++    if ev.get("overlay_fix_commit") == "unavailable":
++        print("FAIL (a) -: overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"); sys.exit(1)
+     entries, _notes, meta = answer_set(fixture, repo)
+     exp = expected(entries, mode, fixture, repo, meta)
+     fails = []
+diff --git a/evals/harness/took-effect.sh b/evals/harness/took-effect.sh
+index dde2464a..9de935d6 100755
+--- a/evals/harness/took-effect.sh
++++ b/evals/harness/took-effect.sh
+@@ -376,6 +376,8 @@ rule_oracle_closed() {
+   fi
+   [[ -f "$evf" ]] || { EVID="no meta/arm-evidence.txt"; return 1; }
+   [[ "$(evidence_line mount_overlay)" != none ]] || { EVID="mount_overlay=none (an open mount)"; return 1; }
++  # PR #1286 F001: a fix commit the overlay could not read leaves its paths unpinned; never a closed mount
++  [[ "$(evidence_line overlay_fix_commit)" != unavailable ]] || { EVID="overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"; return 1; }
+   fx="$(resolve_fixture)" || { EVID="the PR fixture does not resolve (--task-yaml or overlay_fixture evidence)"; return 1; }
+   sc="$(jq -r '.source_commit // ""' "$R/meta/pipeline.json")"
+   cs="$(evidence_line copy_source)"
+diff --git a/evals/tests/took-effect.bats b/evals/tests/took-effect.bats
+index c8968191..efcb3e2d 100644
+--- a/evals/tests/took-effect.bats
++++ b/evals/tests/took-effect.bats
+@@ -341,7 +341,7 @@ make_closed_run() {
+   [ "$status" -eq 0 ]
+ }
+ 
+-@test "oracle_closed: FAIL on an unmodified (later) mount, a stray later copy, a mutated path, a second sandbox commit, an open mount, a copy_source mismatch" {
++@test "oracle_closed: FAIL on an unmodified (later) mount, a stray later copy, a mutated path, a second sandbox commit, an unavailable fix commit, an open mount, a copy_source mismatch" {
+   c131_suite; make_closed_run
+   local W="$CRD/sandbox" ev="$CRD/meta/arm-evidence.txt"
+   cp "$ev" "$T/ev.orig"
+@@ -372,6 +372,11 @@ make_closed_run() {
+   gg "$W" reset -q --hard HEAD~1; gg "$W" reflog expire --expire=now --all; gg "$W" gc -q --prune=now
+   te131 "$CRD" --task-yaml "$CTY"
+   [ "$status" -eq 0 ]
++  # a fix commit the overlay could not read (PR #1286 F001): its paths were never pinned
++  sed -i 's/^overlay_fix_commit=.*/overlay_fix_commit=unavailable/' "$ev"
++  te131 "$CRD" --task-yaml "$CTY"
++  [ "$status" -eq 1 ]; line oracle_closed | grep -q 'FAIL overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)'
++  cp "$T/ev.orig" "$ev"
+   # an open mount is never closed; a copy source other than source_commit fails first
+   sed -i 's/^mount_overlay=.*/mount_overlay=none/' "$ev"
+   te131 "$CRD" --task-yaml "$CTY"

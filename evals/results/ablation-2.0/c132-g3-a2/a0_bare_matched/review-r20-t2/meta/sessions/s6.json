@@ -1,0 +1,18 @@
+{
+  "id": "s6",
+  "status": "contaminated",
+  "valid": false,
+  "invalid_reason": "contaminated: network_egress",
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    14.256535
+  ],
+  "cost_usd": 14.256535,
+  "run_dir": "sessions/s6",
+  "took_effect": "ok",
+  "started": "2026-10-23T01:23:54Z",
+  "finished": "2026-10-23T01:56:24Z"
+}

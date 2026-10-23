@@ -1,0 +1,181 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 7,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Critical internal contradiction on incident controls. Two opposite kill-switches documented in different sections is a high-likelihood operational failure mode and could worsen outages. Very low effort to fix, very high risk reduction.",
+      "gpt_score": 940,
+      "opus_score": 920,
+      "tertiary_score": 950,
+      "delta": 20,
+      "average_score": 930,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Excellent catch on precedence collisions between global safety switch and user-level preference flags. This is actionable and should be codified in acceptance criteria to avoid nondeterministic routing during incidents.",
+      "gpt_score": 860,
+      "opus_score": 880,
+      "tertiary_score": 980,
+      "delta": 20,
+      "average_score": 870,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Strong rollout-risk mitigation. Ordering between schema migration and strict validation is a classic breakage vector in multi-repo/submodule environments. Explicit sequencing and compatibility window are essential.",
+      "gpt_score": 900,
+      "opus_score": 860,
+      "tertiary_score": 940,
+      "delta": 40,
+      "average_score": 880,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "High-value clarification for a safety-critical budget control. Session scope, pre/post-call enforcement, retry behavior, and terminality directly determine whether spending caps actually work.",
+      "gpt_score": 910,
+      "opus_score": 800,
+      "tertiary_score": 880,
+      "delta": 110,
+      "average_score": 855,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Valuable operational specification for fallback stability and recovery. Probe cadence, hysteresis, and state persistence are necessary to prevent flapping, though implementation complexity is moderate.",
+      "gpt_score": 740,
+      "opus_score": 720,
+      "tertiary_score": 780,
+      "delta": 20,
+      "average_score": 730,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Important billing correctness issue. Ambiguity around reasoning token inclusion can silently under/over-charge and undermine success metrics. Should be decided upfront, not deferred.",
+      "gpt_score": 830,
+      "opus_score": 750,
+      "tertiary_score": 720,
+      "delta": 80,
+      "average_score": 790,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Operationally strong recommendation. A concise rollback playbook with verification steps materially improves incident response quality, especially given existing switch-name confusion.",
+      "gpt_score": 780,
+      "opus_score": 730,
+      "tertiary_score": 750,
+      "delta": 50,
+      "average_score": 755,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-005",
+      "concern": "Cost accounting for `reasoning_tokens` is under-specified and may double-charge or under-charge.",
+      "severity": "HIGH",
+      "severity_score": 730,
+      "why_matters": "The PRD states output tokens may already include reasoning tokens, but also suggests summing if split. Without provider-specific billing truth rules, ledger and budget enforcement can be wrong, invalidating guardrails and trust.",
+      "location": "Technical Considerations §3.1 Token accounting; FR-1/FR-5a/FR-5 cost-ledger requirements",
+      "recommendation": "Define exact billing formulas per provider/model, add reconciliation tests against real invoices/sandbox usage, and block rollout until ledger parity is verified.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Kill-switch semantics are internally contradictory (alias-layer rollback vs endpoint-layer force-to-chat).",
+      "severity": "CRITICAL",
+      "severity_score": 955,
+      "why_matters": "The PRD defines multiple incompatible rollback mechanisms: alias-only rollback in Executive Summary/FR-1, but Risks/Decisions also define `LOA_DISABLE_RESPONSES_ENDPOINT` forcing all OpenAI traffic to `/chat/completions`, which would break gpt-5.5 calls with HTTP 400. In an incident, operators may trigger the wrong switch and amplify outage.",
+      "location": "Executive Summary; FR-1 Acceptance Criteria; Risks & Mitigation table; Decisions Locked Post-Flatline",
+      "recommendation": "Pick one authoritative rollback contract, delete conflicting mechanisms, define precedence/order of env vars vs config flags, and add a single runbook-tested rollback path.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "No canary or percentage rollout strategy for default alias flips.",
+      "severity": "HIGH",
+      "severity_score": 745,
+      "why_matters": "Changing `reviewer` and `reasoning` globally is high blast radius. A binary flip for all users risks widespread cost/quality/latency regressions before detection, especially for downstream submodule consumers.",
+      "location": "FR-2; Success Criteria; Timeline Sprint 2 deliverables",
+      "recommendation": "Introduce staged rollout controls (org/project allowlist, % rollout, or phased opt-in), plus real-time error/cost dashboards and automatic rollback triggers.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "Response normalization scope is brittle: only six known `/responses` shapes are supported, while future shapes are explicitly out of scope.",
+      "severity": "HIGH",
+      "severity_score": 710,
+      "why_matters": "Provider response schemas evolve. If unknown object types appear, parser behavior is undefined (drop content, malformed result, or exceptions), risking silent data loss or outages.",
+      "location": "Technical Considerations §3.1; Scope (explicitly out-of-scope future response object types)",
+      "recommendation": "Define strict unknown-shape handling now (fail-safe vs pass-through), add schema-version detection, and include contract tests for forward-compat fallback behavior.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Timeline is unrealistically compressed for multi-provider routing, schema, pricing, fixtures, rollout, and compatibility work.",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "Sprint 1–3 plus soak are scheduled over ~6 days with significant cross-cutting changes (adapter protocol, config schema, generated maps, 8 caller updates, fallback automation, cost controls). This is a classic schedule risk leading to shortcuts, incomplete testing, and post-merge regressions.",
+      "location": "Timeline & Milestones; Scope/Prioritization; FR-1..FR-6 combined scope",
+      "recommendation": "Split release into smaller deployable increments (routing first, then alias flips, then pro-flag), add contingency buffer, and define explicit go/no-go gates based on telemetry.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "`endpoint_family` behavior is inconsistent (required/validation-fail vs silent default-to-chat).",
+      "severity": "HIGH",
+      "severity_score": 790,
+      "why_matters": "FR-1 says missing `endpoint_family` should fail validation, while Technical Considerations says adapter defaults to `chat` if absent. This ambiguity can cause silent misrouting, non-deterministic behavior across tools, and hard-to-debug production failures.",
+      "location": "FR-1 Description/Acceptance Criteria; Technical Considerations (Architecture Notes); Risks table last row",
+      "recommendation": "Enforce one rule globally: either strict required field everywhere or explicit migration shim with sunset date. Add contract tests for both CLI validation and runtime adapter behavior.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " product requirements document model",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-04-29T05:29:55Z",
+  "metrics": {
+    "total_latency_ms": 217000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

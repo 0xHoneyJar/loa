@@ -1,0 +1,6 @@
+{"timestamp":"2026-10-20T01:19:13Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-263","status":"reviewed","finding_count":12,"cost_usd":0}
+{"timestamp":"2026-10-20T01:40:16Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-263","status":"clean","finding_count":4,"cost_usd":0}
+{"timestamp":"2026-10-20T03:36:35Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-264","status":"clean","finding_count":4,"cost_usd":0}
+{"timestamp":"2026-10-20T03:49:53Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-264","status":"clean","finding_count":3,"cost_usd":0}
+{"timestamp":"2026-10-20T09:41:50Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-265","status":"clean","finding_count":7,"cost_usd":0}
+{"timestamp":"2026-10-20T09:51:34Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"sprint-265","status":"clean","finding_count":3,"cost_usd":0}

@@ -1,0 +1,15 @@
+head/.claude/skills/bridgebuilder-review/resources/config.ts:684
+head/.claude/skills/bridgebuilder-review/resources/config.ts:482
+head/.claude/skills/bridgebuilder-review/resources/config.ts:704
+spiral-harness.sh:700
+dispatcher.sh:78
+head/.claude/scripts/flatline-orchestrator.sh:707
+head/.claude/scripts/model-health-probe.sh:1578
+.loa.config.yaml.example:818
+scripts-reference.md:73
+head/.claude/scripts/model-health-probe.sh:1469
+head/.claude/adapters/loa_cheval/audit/modelinv.py:476
+cheval.py:541
+head/.claude/loa/reference/scripts-reference.md:74
+head/.claude/skills/auditing-security/SKILL.md:238
+reviewing-code/SKILL.md:252

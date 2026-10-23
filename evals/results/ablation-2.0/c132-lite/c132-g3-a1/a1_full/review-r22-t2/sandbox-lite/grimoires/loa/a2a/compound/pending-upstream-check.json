@@ -1,0 +1,22 @@
+{
+  "queued_learnings": [
+    {
+      "id": "learning-20261022T2010-noexec-tmp",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-22T20:10:00Z"
+    },
+    {
+      "id": "learning-20261022T2010-verdict-derive-observations",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-22T20:10:00Z"
+    },
+    {
+      "id": "learning-20261022T2010-pr-head-exec-bits",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-22T20:10:00Z"
+    }
+  ]
+}

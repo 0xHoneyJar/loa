@@ -1,0 +1,59 @@
+{
+  "apps": "./.app.json",
+  "author": {
+    "email": "support@openai.com",
+    "name": "OpenAI",
+    "url": "https://openai.com/"
+  },
+  "description": "Build and deploy websites with Sites. Use of Sites is subject to the ChatGPT Sites Terms (https://openai.com/policies/chatgpt-sites-terms/), and you are responsible for your website content.",
+  "homepage": "https://openai.com/",
+  "interface": {
+    "brandColor": "#0C79D8",
+    "brandColorDark": "#2794F3",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "category": "Productivity",
+    "composerIcon": "./assets/composer-icon.svg",
+    "defaultPrompt": [
+      "Build a new-hire portal for my company",
+      "Create a daily sudoku game with a leaderboard",
+      "Build a dashboard to track customer support trends"
+    ],
+    "developerName": "OpenAI",
+    "displayName": "Sites",
+    "logo": "./assets/logo.svg",
+    "longDescription": "Build, save, deploy, and inspect websites such as landing pages, portfolios, dashboards, portals, trackers, hubs, games, and internal tools with Sites. Use of Sites is subject to the ChatGPT Sites Terms (https://openai.com/policies/chatgpt-sites-terms/), and you are responsible for your website content.",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "screenshots": [],
+    "shortDescription": "Build and deploy websites",
+    "termsOfServiceURL": "https://openai.com/policies/chatgpt-sites-terms/",
+    "websiteURL": "https://openai.com/"
+  },
+  "keywords": [
+    "build",
+    "deploy",
+    "openai",
+    "chatgpt sites",
+    "web development",
+    "hosting",
+    "deployment",
+    "sites",
+    "website",
+    "landing page",
+    "portfolio",
+    "dashboard",
+    "kpi dashboard",
+    "portal",
+    "tracker",
+    "hub",
+    "internal tool",
+    "games"
+  ],
+  "license": "Proprietary",
+  "name": "sites",
+  "skills": "./skills/",
+  "version": "1.1.1"
+}

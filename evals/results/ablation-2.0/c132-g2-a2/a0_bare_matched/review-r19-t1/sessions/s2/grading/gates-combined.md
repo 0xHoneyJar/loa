@@ -1,0 +1,14 @@
+head/tests/unit/floor-snapshot.bats:39
+head/evals/harness/execute-agent.sh:266
+execute-agent.sh:63-65
+head/evals/harness/run-arms.sh:408
+head/.claude/rules/stash-safety.md:2
+head/evals/tasks/review-recall/review-pr-11.yaml:1
+head/evals/harness/compare-ab.py:155
+head/evals/harness/compare-ab.py:71
+arms-report.py:144
+execute-agent.sh:349
+head/evals/harness/run-arms.sh:314
+head/tools/cycle-ratio.sh:100
+head/.claude/data/floor.yaml:10
+head/.claude/scripts/guard-yield.sh:8

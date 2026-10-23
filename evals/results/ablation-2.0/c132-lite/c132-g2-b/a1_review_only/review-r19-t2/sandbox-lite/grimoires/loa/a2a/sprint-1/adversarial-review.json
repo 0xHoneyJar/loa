@@ -1,0 +1,181 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:emit_block",
+      "anchor_type": "line",
+      "anchor_line": 528,
+      "anchor_line_end": 529,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hook now honours LOA_AUDIT_REPLAY=1 from its own environment and tags the audit row with replay:true (also at the FR-MERGE-2, FR-SZ and FR-SZ2 allow rows). Nothing checks that the caller is the corpus runner. Model-side exposure is limited because a `LOA_AUDIT_REPLAY=1 cmd` prefix inside the Bash tool string does not reach the hook's environment, but any process that controls the hook environment (an operator shell that exported it once for a corpus run and then launched Claude Code, an `env` block in a settings file, a wrapper in settings.local.json) tags every real block as replay for the whole session.",
+      "failure_mode": "If guard-yield.sh drops replay rows from real_blocks_30d, a session launched with the variable still set reports zero real blocks for guards that did fire, and the 30-day yield that loa-status.sh displays understates floor guards silently.",
+      "suggested_fix": "Have run-corpus.sh pass an explicit marker the hook can verify (for example a per-run token written to .run/ and compared, or invoke the hook with a `--replay` argument), and have guard-yield.sh count replay rows in a separate column rather than discarding them so a mis-set variable is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/rules/stash-safety.md:paths",
+      "anchor_type": "line",
+      "anchor_line": 1,
+      "anchor_line_end": 11,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding a `paths:` frontmatter block turns an always-loaded rule into a path-scoped one. Claude Code loads path-scoped rules only when a matching file is read or edited. The stash rule is about `git stash` invocations typed into the Bash tool, which touch no *.sh or *.bats file, so in the common case (a model stashing during a sprint without editing shell scripts) the prose guard is no longer in context. The fence FR-1.2b still blocks the swallowed-output forms, but plain `git stash push`/`pop` around pre-commit hooks, which the rule warns about, is prose-only.",
+      "failure_mode": "Stash wraps in Bash-only sessions proceed without the rule's guidance; the index-shift data-loss pattern the rule exists for (recurred cycle-122) can recur unobserved.",
+      "suggested_fix": "Keep stash-safety.md unscoped (drop `paths:`), or scope it to a glob that also matches the planning and implementing skill files that are read in every sprint, and add a rule-paths.bats case asserting the stash rule has no narrow path scope.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:zones.app.permission",
+      "anchor_type": "line",
+      "anchor_line": 28,
+      "anchor_line_end": 28,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The app-zone permission for /implement changes from read to read-write with no mention in the PR, the sprint plan, or a DEC row. The change is probably correct in substance (the implement skill is where app writes are sanctioned, and the implement gate asks outside a run), but the skill-invariants rule in this same diff states that zone frontmatter is the path-level control for app writes, and floor.yaml protects `implement_gate.*` as a floor key, so a silent widening of the zone declaration in a guard-register PR is the kind of change the register is meant to surface.",
+      "failure_mode": "Reviewers and the guard register cannot tell whether the widening was intended; if any validator or future profile check reads `zones.app.permission`, the behaviour change lands untracked.",
+      "suggested_fix": "Either revert the line out of this PR or add a one-line note in the PR description and a DEC row citing why /implement declares read-write for the app zone.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "anchor_type": "line",
+      "anchor_line": 55,
+      "anchor_line_end": 60,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/planning-sprints/resources/templates/sprint-template.md:Technical Tasks",
+      "cross_file_justification": "The template comment immediately above these lines says the `⇐` annotation becomes the `--deps` flag when the task is created as a bead. The `· kind:` token is appended after the blockers on the same line, so any consumer that takes the remainder of the line after `⇐` as the deps value now receives `none · kind: mechanical`.",
+      "description": "The kind token is placed after the blockers annotation on the task line. The validator in this PR parses the kind token (tests pass), but the bead-creation path that reads `⇐ {Task 1.1} | none` into `--deps` is not in the diff and was not shown to tolerate trailing text. The third placeholder line also carries a literal `kind: {mechanical|judgment|operator}` which does not match the one-token rule if copied verbatim.",
+      "failure_mode": "Bead creation from a plan written against the new template either fails the edge-or-none rule or creates a dependency on a non-existent task named `none · kind: mechanical`.",
+      "suggested_fix": "Verify the deps extractor stops at ` · ` (or move `kind:` before `⇐`), add a sprint-kinds.bats case with both annotations on one line, and make the placeholder line use a concrete token.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/execute-agent.sh:apply_toggles",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Confirming the primary reviewer's concern 2 from jq semantics (file truncated in my view, line not visible). `(.constraints // []) |= map(...)` is not a valid update path when `.constraints` is null or absent: jq evaluates the alternative `[]`, which is a value, not a path, and errors with 'Invalid path expression with result []'. With the error swallowed inside `apply_toggles || exit 2`, the arm run exits 2 and leaves `constraints.json.tmp` behind.",
+      "failure_mode": "Any task fixture without a `constraints` key makes the karpathy toggle arm fail with exit 2 and no diagnostic, and the comparison for that arm is reported as invalid rather than as a result.",
+      "suggested_fix": "Use `.constraints |= ((. // []) | map(...))`, write the tmp file via a trap-cleaned path, and add an execute-agent.bats case with a fixture lacking `constraints`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/guard-yield.sh:HEREDOC_LIB",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Confirming the primary reviewer's concern 1 (file truncated in my view). Sourcing `heredoc-classifier.sh` inline means any `exit` in it or in what it sources ends guard-yield.sh with that status. If the status is 0, `--check` mode (gate:guard-origins, registered as a CI gate in guard-origins.yaml) returns success having checked nothing, and the register is neither verified nor regenerated.",
+      "failure_mode": "A later edit to the classifier or the fence's lib-only entry path turns the guard-origins CI gate into a no-op without a failing test.",
+      "suggested_fix": "Probe the library in a subshell first (`( source \"$HEREDOC_LIB\" ) || die 5`), or source it with `BDB_LIB_ONLY=1` set and assert a known function is defined afterwards, exiting 5 if not; add a guard-yield.bats case with a stub classifier that calls `exit 0`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T17:29:22Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 753,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10988,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a64da90c9f0f70042f5fdd5d8d92a078b11fb3cc3cf13f05a6285a5afbf3a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

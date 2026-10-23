@@ -1,0 +1,19 @@
+{
+  "run_id": "test-escalation-123",
+  "phase": "prd",
+  "reason": "BLOCKER: Missing security requirements",
+  "document": "/tmp/flatline-test-15987/test-doc.md",
+  "timestamp": "2026-02-03T01:40:51Z",
+  "report_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/escalation-20260203_124051.md",
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "description": "No auth",
+      "severity": "CRITICAL"
+    }
+  ],
+  "disputed": [],
+  "integrations": [],
+  "snapshots": [],
+  "status": "halted"
+}

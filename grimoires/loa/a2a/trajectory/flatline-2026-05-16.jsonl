@@ -1,0 +1,799 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-16T10:50:44Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Clear contradiction in a load-bearing migration path, with low documentation cost and high implementation-risk reduction. Direct callsites are likely the cleaner canonical choice because they preserve specific pattern_id semantics.",
+        "gpt_score": 940,
+        "opus_score": 830,
+        "tertiary_score": 900,
+        "delta": 110,
+        "average_score": 885,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Strong finding. The allow path is the relevant hot path for the latency NFR, and the current analysis appears to undercount subprocess work. Needs a microbenchmark against the actual safe-command path before claiming compliance.",
+        "gpt_score": 920,
+        "opus_score": 875,
+        "tertiary_score": 850,
+        "delta": 45,
+        "average_score": 897.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable because it fixes rule attribution, audit quality, and operator messaging for long-form rm flags. It is less critical than safety-path issues because the command still blocks, but it should be corrected.",
+        "gpt_score": 760,
+        "opus_score": 710,
+        "tertiary_score": 800,
+        "delta": 50,
+        "average_score": 735,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good low-cost hardening. The implicit free-variable dependency is easy to miss during implementation or extraction into helpers, and the resulting failure would damage audit usefulness while leaving the block behavior superficially working.",
+        "gpt_score": 830,
+        "opus_score": 740,
+        "tertiary_score": 820,
+        "delta": 90,
+        "average_score": 785,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Valuable invariant to document and test. Redact-before-truncate is security-relevant, and adding a longer-input latency or unit case guards against future performance-motivated regressions. Slightly less urgent because the current implied order is already safe.",
+        "gpt_score": 780,
+        "opus_score": 800,
+        "tertiary_score": 950,
+        "delta": 20,
+        "average_score": 790,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "EPOCHREALTIME latency microbenchmark has a unit conversion bug that makes it always pass with p95=0",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "The test in §7.4 computes `${EPOCHREALTIME//./}` to strip the decimal from a value like `1716889001.234567`, yielding `1716889001234567` (units: microseconds since epoch). The elapsed difference for a 5ms invocation is ~5000 (microseconds). The code then divides by 1,000,000: `$(( (end_ns - start_ns) / 1000000 ))` → bash integer division of 5000/1,000,000 = 0. All 100 samples will be 0 or 1, so p95 is always 0 and the assertion `[ 0 -lt 20 ]` always passes regardless of actual hook latency. The latency gate provides false assurance.",
+        "location": "§7.4 latency microbenchmark; NFR-2 (prd.md:L122-124)",
+        "recommendation": "Divide by 1000 (not 1,000,000) to convert microseconds to milliseconds: `$(( (end_ns - start_ns) / 1000 ))`. Add a sanity-assertion that at least one sample is > 0 to catch the zero-truncation failure mode in future refactors.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "P12 ERE contains unbounded .* that matches across statement boundaries, producing cross-statement false positives",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The P12 ERE `kubectl\\s+delete\\s+\\S+.*(\\ --all\\b|\\ -A\\b)` uses `.*` between the resource type and the flag. In a compound command like `kubectl delete pods; describe service -A`, the `.*` greedily matches `; describe service` and the trailing `-A` flag fires the block even though the delete command never had `--all`. The block message incorrectly attributes `--all` to the `kubectl delete pods` invocation, and the operator has no recourse short of splitting the command.",
+        "location": "§5.9 Pattern P12; Appendix A row 14",
+        "recommendation": "Replace `.*` with `[^;|&]*` to prevent the match from crossing shell statement boundaries (semicolons, pipes, and `&&`/`||` separators). Additionally add a negative-control bats test that pins the compound-command non-match: `kubectl delete pods; kubectl describe service -A` must not block.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "The SDD claims POSIX ERE compatibility but most proposed regexes use non-POSIX tokens such as \\s, \\S, and \\b.",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "On BSD/macOS grep and strictly POSIX grep implementations, these tokens may be treated differently or literally, causing dangerous commands to bypass the hook or safe commands to be blocked unpredictably.",
+        "location": "Sections 3, 5, Appendix A",
+        "recommendation": "Rewrite all patterns using POSIX classes such as [[:space:]], [^[:space:]], and explicit boundary groups. Add CI coverage against both GNU grep and BSD/macOS-compatible grep behavior.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The audit path is described as fail-open, but jq is used both for parsing input and emitting audit rows without clearly separating parse failure from block failure.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "If jq is missing or broken, the hook may allow all Bash commands, including known destructive commands. That preserves fail-open behavior but creates a major silent safety degradation unless surfaced clearly.",
+        "location": "Sections 3, 6.1, 7.3",
+        "recommendation": "Emit a minimal diagnostic when jq is unavailable, add a health-check test, and document that jq absence disables protection. Consider a minimal shell fallback parser for tool_input.command if the hook is security-critical.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "The redaction sequence sanitizes the full command but does not sanitize the matched substring before writing it to audit.jsonl.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "Secrets present in the matched segment could be logged through the matched field even when command is redacted, violating FR-4’s sanitization intent.",
+        "location": "Sections 4.3 and 6.1 emit_block helper",
+        "recommendation": "Pass matched through the same redactor before truncation and jq emission. Add a test where the matched substring itself contains a secret-like token.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The rm -rf argument extraction is too fragile for real shell syntax.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Commands such as rm -rf -- /, rm -r -f /, rm -rf \"$HOME\", rm -rf ${HOME}, rm -rf ~/ .ssh variants, or multiple path arguments may be misparsed, allowing catastrophic deletion or blocking benign cleanup inconsistently.",
+        "location": "Section 5.1 Pattern P1 refined rm -rf",
+        "recommendation": "Replace the single grep/awk extraction with a conservative tokenizer or multiple explicit detector patterns. Treat any rm command with recursive+force and any unparsed or multiple target form as block unless clearly allowlisted.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "emit_block uses raw >> append to audit.jsonl, bypassing audit_emit and breaking the hash chain",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "CLAUDE.loa.md explicitly states 'ALWAYS use audit_emit (or audit_emit_signed) for L1-L7 audit writes — never >> directly' because direct appends race concurrent writers and corrupt the hash chain (CC-3). The SDD's §6.1 emit_block uses `>> .run/audit.jsonl` with no flock and no prev_hash computation. Consumers that rely on chain continuity will see the block-emission rows as a chain break, potentially triggering [STRIP-ATTACK-DETECTED] or silent integrity failures. The existing mutation-logger.sh also uses raw append but that is a separate known debt — this SDD should not repeat the pattern.",
+        "location": "§6.1 emit_block helper; §4.3 sanitization sequence; CLAUDE.loa.md Audit Envelope Constraints",
+        "recommendation": "Replace the raw >> append with a call to audit_emit (sourcing lib/audit-envelope-lib.sh). If audit_emit adds unacceptable latency on the block path, emit to a separate sidecar log (e.g. .run/safety-blocks.jsonl) with its own flock, and document explicitly that this log is NOT hash-chained — then open a follow-on ticket to unify. Do not silently break the main chain.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "rm_arg extraction in FR-2 is fragile and bypassable via quoted paths, multiple args, and split-flag form",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "The extraction `grep -oE 'rm\\s+-[a-zA-Z]*\\s+[^\\s|;&]+' | head -1 | awk '{print $NF}'` fails in four documented shapes: (1) `rm -rf \"my dir\"` — the path includes an opening quote but not the closing one, changing allow/block classification; (2) `rm -rf path1 path2` — only `path2` is extracted (awk $NF), so a catastrophic second argument like `$HOME` after a safe first argument is missed; (3) `rm -r -f /etc` — separate flags don't match `-[a-zA-Z]*` (requires flags concatenated); (4) `rm --recursive --force /` — the long-form detector in Step 1 fires but the arg extractor regex requires the short `-flags` form and produces an empty `rm_arg`, causing an empty-string match against the block list. An empty string falls into the AMBIGUOUS branch but the block message cites an empty path, confusing the operator.",
+        "location": "§5.1 Pattern P1 (FR-2) — implementation sketch Step 2 and Step 3",
+        "recommendation": "Use a purpose-built argument extractor that (1) handles both short and long flag forms, (2) checks ALL positional args (not just the last), and (3) treats any unquoted glob as catastrophic. Alternatively, simplify: block all `rm -rf` that do NOT match the explicit allow-list suffix, using a flag-stripping `sed` pass rather than a fragile grep-awk chain. Add bats positive controls for each of the four failure shapes above.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+    "domain": " 3 software stack 5",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-16T10:50:44Z",
+    "metrics": {
+      "total_latency_ms": 2223000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-16T11:05:09Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 80,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Low-cost clarification that removes ambiguity from sprint acceptance and test coverage accounting. It is not a functional blocker, but inconsistent test matrices tend to hide missed closures.",
+        "gpt_score": 710,
+        "opus_score": 820,
+        "tertiary_score": 850,
+        "delta": 110,
+        "average_score": 765,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Strong security-oriented negative control. The implementation may already be correct, but statement-boundary bypasses are realistic enough that an explicit test is worthwhile.",
+        "gpt_score": 760,
+        "opus_score": 815,
+        "tertiary_score": 950,
+        "delta": 55,
+        "average_score": 787.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important destructive-command coverage issue. Clarifying pre-expansion versus post-expansion behavior and testing expanded home paths directly reduces ambiguity around a high-impact block rule.",
+        "gpt_score": 830,
+        "opus_score": 770,
+        "tertiary_score": 880,
+        "delta": 60,
+        "average_score": 800,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "A skipped test for a claimed blocker closure provides little enforcement. Replacing it with a real jq shim test or explicitly downgrading it to manual verification is high ROI and low cost.",
+        "gpt_score": 910,
+        "opus_score": 855,
+        "tertiary_score": 880,
+        "delta": 55,
+        "average_score": 882.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-008",
+        "description": "Good operational reliability concern. If emit_block bypasses existing rotation, audit logging can grow without bound under repeated blocks. Worth specifying and testing, despite some uncertainty about current wiring.",
+        "gpt_score": 760,
+        "opus_score": 725,
+        "tertiary_score": 850,
+        "delta": 35,
+        "average_score": 742.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-002",
+        "description": "Useful to pin the behavior, but the stated risk appears partly overstated if the implementation quotes the iterator and receives the pre-shell command string. A fixture is still cheap and would prevent future regressions.",
+        "gpt_score": 590,
+        "opus_score": 930,
+        "tertiary_score": 900,
+        "delta": 340,
+        "average_score": 760,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Low value. The ERE character-class behavior for literal pipe is well-defined across GNU and BSD grep, so this is mostly a confidence test rather than addressing a likely defect.",
+        "gpt_score": 360,
+        "opus_score": 800,
+        "tertiary_score": 750,
+        "delta": 440,
+        "average_score": 580,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Appendix A contradicts the fixed P12 design and still shows the unsafe unbounded `.*` regex for `kubectl delete --all/-A`.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "Appendix A is labeled sprint-ready; implementers may copy the stale pattern and reintroduce the cross-statement false positive/bypass that v1.1 claims to close.",
+        "location": "Appendix A: FR-1.8 row vs §5.9",
+        "recommendation": "Update Appendix A FR-1.8 to exactly match §5.9: `(^|/|;|&&|\\|)\\s*(sudo\\s+)?kubectl\\s+delete\\s+\\S+[^;&|]*(\\s--all\\b|\\s-A\\b)` and add an acceptance check that Appendix A and implementation stay aligned.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-008",
+        "concern": "Fail-open on missing `jq` means the hook allows all destructive commands if `jq` is absent or PATH is altered before hook execution.",
+        "severity": "CRITICAL",
+        "severity_score": 830,
+        "why_matters": "`jq` is a single point of failure for the blocker. A missing dependency silently disables the safety control, which is dangerous for a destructive-command guard.",
+        "location": "§6.4 Path A input parse failure",
+        "recommendation": "Fail open only on malformed or empty input, not on missing `jq`. Add a lightweight dependency check that blocks with a clear hook-health error when `jq` is unavailable, or parse the small JSON field using a dependency already guaranteed by the harness.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The P1 `rm_segment` extraction only captures invocations starting after beginning, `;`, `&&`, or `||`, but the detector allows invocations after a pipe; this creates inconsistent detection/extraction behavior.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "For commands such as `ls | rm -rf /etc`, detection can fire while extraction fails or extracts the wrong segment, causing dangerous invocations to be mishandled.",
+        "location": "§5.1 Step 1 and Step 2 regex mismatch",
+        "recommendation": "Make the extraction boundary set identical to the detection boundary set, including `|`, or restructure the code so detection and matched segment extraction come from the same regex result.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The `rm -rf` argument parser claims bash word splitting respects quotes, but `read -r -a` does not perform shell-like quote parsing.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Quoted paths with spaces, escaped whitespace, command substitutions, and shell metacharacters can be misclassified. A safety hook should not depend on an inaccurate parser model for destructive commands.",
+        "location": "§5.1 Pattern P1 implementation sketch",
+        "recommendation": "Either use a constrained tokenizer with explicit documented limitations, or avoid parsing shell words and conservatively block any `rm -rf` invocation whose argument string cannot be proven to consist only of allowlisted bounded paths.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "The audit tests for redacting `secret123` assume the redactor catches generic passwords, but the stated redactor coverage only mentions AKIA, PEM, Bearer, and URL classes.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "The SDD may claim credential-safe audit logging while the existing redactor allows common inline database passwords to land in `.run/audit.jsonl`.",
+        "location": "§4.3, §6.1, §7.5 matched substring sanitization test",
+        "recommendation": "Verify the actual redactor supports connection-string credentials and generic password fields, or narrow the test to supported secret classes and add a separate task to expand redactor coverage.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+    "domain": " 3 software stack 5",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-16T11:05:09Z",
+    "metrics": {
+      "total_latency_ms": 434000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-16T11:15:00Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 9,
+      "model_agreement_percent": 88,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Clear protection bypass in a destructive SQL guard, high exploitability, and low implementation cost. Looping over all DELETE matches is straightforward and directly restores the intended FR-1.6 coverage.",
+        "gpt_score": 940,
+        "opus_score": 825,
+        "tertiary_score": 900,
+        "delta": 115,
+        "average_score": 882.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "The false-positive concern is real for common home-directory cleanup workflows and can degrade trust in the hook. Integration should be careful because broad home-path allowance can weaken destructive-delete protections, but distinguishing exact home deletion from bounded subpaths is worthwhile.",
+        "gpt_score": 790,
+        "opus_score": 845,
+        "tertiary_score": 880,
+        "delta": 55,
+        "average_score": 817.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Order-independent git flags make this a real bypass of the intended branch-deletion protection. The fix is simple and the safety benefit is clear.",
+        "gpt_score": 870,
+        "opus_score": 870,
+        "tertiary_score": 820,
+        "delta": 0,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "The once-per-session warning mechanism is architecturally wrong across hook processes and could create noisy repeated warnings. The impact is operational rather than destructive-safety critical, but the fix is modest and should be made.",
+        "gpt_score": 720,
+        "opus_score": 755,
+        "tertiary_score": 850,
+        "delta": 35,
+        "average_score": 737.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "P7 edge-case tests for dash-prefixed filenames and `git checkout -- ./-file` forms are useful behavioral pins, but the identified risk (inconsistent allow/block for dash-prefixed paths) is low-severity in the context of a destructive-command blocker. The `[^-]\\S*` refinement is already an improvement over a naive pattern; further edge-case pinning is nice-to-have. Low priority, low confidence in the harm scenario.",
+        "gpt_score": 0,
+        "opus_score": 510,
+        "tertiary_score": 550,
+        "delta": 510,
+        "average_score": 510,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Bats fail-open test has a quoting bug that makes it non-functional: `PATH=/nonexistent run bash -c 'echo {} | \"$HOOK\"'` passes `$HOOK` inside single quotes, so the bash -c subshell receives the literal string `$HOOK` rather than the expanded hook path. If `$HOOK` is not exported into the bash -c environment it resolves to empty, the null command exits with an error, and the test vacuously passes exit-0 — never actually testing the fail-open path. Additionally, `PATH=/nonexistent` as a prefix to `run` in bats sets PATH for the entire test function, which may break other bats helper invocations in the same test.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "The fail-open guarantee (FR-3) is a load-bearing safety property — if the hook exits non-zero when jq is absent, the agent cannot run any Bash command. A test that always passes vacuously provides zero confidence that this property holds across hook rewrites or bash-version upgrades.",
+        "location": "§7.3 Fail-open tests — 'fail-open: jq missing PATH exits 0 (allow)' bats test",
+        "recommendation": "Use `run env PATH=/nonexistent bash -c \"echo '{}' | '$HOOK'\"` with explicit double-quoting and escape the variable so it expands in the outer shell before being passed to bash -c. Alternatively, use a bats `setup` function to export `HOOK` and reference it via the bats `$BATS_TEST_DIRNAME` pattern.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "SQL destructive patterns miss quoted identifiers, especially for DELETE and TRUNCATE.",
+        "severity": "HIGH",
+        "severity_score": 715,
+        "why_matters": "PostgreSQL, MySQL, and SQLite all allow quoted identifiers. Commands like `DELETE FROM \"Users\"` or `TRUNCATE TABLE \"Sessions\"` can wipe data while avoiding patterns that require an unquoted `[a-zA-Z_]` table token.",
+        "location": "Sections 5.6 and 5.7, Patterns P9 and P10",
+        "recommendation": "Recognize quoted identifiers, backtick identifiers, and schema-qualified names, or conservatively block DELETE/TRUNCATE when the token after FROM/TABLE starts with a quote or backtick.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The DELETE FROM two-pass extractor (`grep -oiE '\\bDELETE\\s+FROM\\s+[^;]*' | head -1`) only checks the FIRST DELETE statement in a multi-statement command. A command like `DELETE FROM users WHERE id=1; DELETE FROM logs` passes Pass B (WHERE found in first statement), while the second `DELETE FROM logs` — a full table wipe — is silently allowed. The same gap exists for `&&`-separated statements: `DELETE FROM users WHERE 1 && DELETE FROM logs` — the `[^;]*` extractor stops at `;` but not at `&&`, so the combined string IS extracted, WHERE is found, and the second destructive delete is allowed.",
+        "severity": "HIGH",
+        "severity_score": 750,
+        "why_matters": "The sole purpose of P10 is to block unscoped table deletions. A two-statement command that pairs a scoped delete with an unscoped one produces exactly the scenario P10 was designed to prevent, and it goes undetected. An agent constructing a migration script with both forms would pass all hooks.",
+        "location": "§5.7 Pattern P10 — DELETE FROM no WHERE (two-pass)",
+        "recommendation": "After Pass A fires, loop over ALL `DELETE FROM` segments in the command (split on `;`, `&&`, `||`, and pipe), run Pass B (WHERE check) on EACH segment independently, and block if ANY segment lacks WHERE. Alternatively, expand the extractor to `grep -oiE '\\bDELETE\\s+FROM\\s+[^;&|]*'` (same character class as P12's `[^;&|]*` fix) and apply WHERE check to each result.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The DELETE-without-WHERE two-pass check only evaluates the first DELETE statement and lets WHERE tokens in later shell text satisfy the safety check.",
+        "severity": "CRITICAL",
+        "severity_score": 885,
+        "why_matters": "Commands such as `psql -c \"DELETE FROM safe WHERE id=1; DELETE FROM users\"` can leave the destructive second DELETE unchecked. `psql -c \"DELETE FROM users\" && echo WHERE` can also appear safe because extraction is bounded only by semicolon, not shell operators or SQL quoting.",
+        "location": "Section 5.7, Pattern P10 DELETE FROM without WHERE",
+        "recommendation": "Evaluate every DELETE FROM segment independently. Bound extraction at SQL and shell statement boundaries, and conservatively block when the statement cannot be isolated reliably.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "The git branch force-delete rule does not cover reordered or split force-delete options.",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "Git accepts options in forms beyond `-D` and `--delete --force`; variants such as `git branch --force --delete old` or `git branch -d -f old` can still force-delete unmerged work while bypassing the specified regex.",
+        "location": "Section 5.2, Pattern P5 git branch -D",
+        "recommendation": "Match split and reordered delete/force options, including `-d -f`, `-f -d`, `--force --delete`, and mixed short/long forms. Add positive and negative tests for each accepted git spelling.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "The refined rm -rf flow can allow later or slash-qualified destructive rm invocations because detection and extraction are not symmetric and extraction only evaluates the first segment.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "A command like `rm -rf ./build; rm -rf /etc` can satisfy the detector, have only the first safe rm segment evaluated, and fall through. `/bin/rm -rf /etc` is also detected by the slash anchor but not extracted by the Step 2 regex, producing an empty arg list and allow.",
+        "location": "Section 5.1, Pattern P1 rm -rf implementation sketch",
+        "recommendation": "Iterate over every rm invocation segment, not `head -1`; make detector and extractor anchors identical, including slash-qualified paths; add explicit tests for safe-then-dangerous multi-statement commands and `/bin/rm`.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "The regex dialect remains unsafe: the design relies on `\\s`, `\\S`, and `\\b` under `grep -E`, while also claiming GNU/BSD ERE compatibility.",
+        "severity": "CRITICAL",
+        "severity_score": 840,
+        "why_matters": "These escapes are not portable POSIX ERE and are inconsistently supported across grep implementations. On a target where they are treated literally or differently, many destructive-command patterns can silently stop matching.",
+        "location": "Sections 3, 5.0, and Appendix A regex references",
+        "recommendation": "Replace these escapes with portable forms such as `[[:space:]]`, `[^[:space:]]`, and explicit word-boundary alternatives, or add mandatory CI coverage on the exact GNU and BSD grep versions claimed.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The rm allow-list treats any `./` prefix as bounded, allowing dangerous current-worktree wipes such as `rm -rf ./*`, `rm -rf ./.git`, and possibly `rm -rf ./`.",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The SDD blocks `rm -rf *` but permits the near-equivalent `rm -rf ./*`, which can destroy the repository or active workspace. This is a trivial bypass of the catastrophic-path intent.",
+        "location": "Section 5.1, FR-2 allow-list regex",
+        "recommendation": "Do not allow bare `./` prefixes generically. Allow only known disposable directories or explicitly named child paths after excluding `./`, `./*`, `./.git`, globs, and other workspace-root erasures. Add positive block tests for these variants.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "kubectl destructive patterns miss common option placements, including global flags before `delete` and `--all` or `-A` before the resource type.",
+        "severity": "HIGH",
+        "severity_score": 775,
+        "why_matters": "Common forms such as `kubectl --context prod delete namespace prod`, `kubectl delete --all pods`, and `kubectl delete -A deployment` may execute destructive operations without matching the current patterns.",
+        "location": "Sections 5.8 and 5.9, Patterns P11 and P12",
+        "recommendation": "Allow optional kubectl/global flag tokens between `kubectl` and `delete`, and detect `--all` or `-A` both before and after the resource. Add positive tests for these common CLI forms.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+    "domain": " 3 software stack 5",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-16T11:15:00Z",
+    "metrics": {
+      "total_latency_ms": 395000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-05-16T11:36:24Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 5,
+      "low_value_count": 0,
+      "blocker_count": 8,
+      "model_agreement_percent": 58,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Clear sprint-blocking mismatch between canonical appendix and body requirements. High benefit, very low cost, and likely to cause under-implementation if not fixed.",
+        "gpt_score": 920,
+        "opus_score": 875,
+        "tertiary_score": 950,
+        "delta": 45,
+        "average_score": 897.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Another direct appendix/body divergence on a headline v1.3 closure. The missed git flag permutations are concrete acceptance-criteria failures and cheap to correct.",
+        "gpt_score": 900,
+        "opus_score": 895,
+        "tertiary_score": 950,
+        "delta": 5,
+        "average_score": 897.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "The contradictory implementation guidance can produce divergent audit behavior and rework. It is less about detection coverage than architecture clarity, but still high ROI to resolve before implementation.",
+        "gpt_score": 860,
+        "opus_score": 845,
+        "tertiary_score": 950,
+        "delta": 15,
+        "average_score": 852.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Concrete appendix/body mismatch for SQL quoted identifiers with obvious bypass examples. Same sprint-reference risk as the higher items, though narrower in scope.",
+        "gpt_score": 835,
+        "opus_score": 800,
+        "tertiary_score": 900,
+        "delta": 35,
+        "average_score": 817.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "A skipped load-bearing test creates a real vacuous-green risk for FR-4. The fix is mostly acceptance-language clarity plus unskipping before merge, so the ROI is strong.",
+        "gpt_score": 810,
+        "opus_score": 840,
+        "tertiary_score": 880,
+        "delta": 30,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "The contradiction between Section 5.0 ('not strict POSIX') and Section 3/Appendix B (NFR-1 as POSIX ERE only) is a genuine specification ambiguity that will surface when implementers choose grep flavor or write CI tests on different platforms. However, much of the document's pattern work already implies GNU/BSD ERE extensions in practice, so the fix is more about accurate documentation than changing behavior. Valuable to resolve before the spec is used to write cross-platform tests, but lower urgency than the behavioral bugs above.",
+        "gpt_score": 0,
+        "opus_score": 755,
+        "tertiary_score": 820,
+        "delta": 755,
+        "average_score": 755,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Bats tests that check '$status' without 'run' will silently test the wrong thing—'$status' may be set from a prior command or unset entirely. Unexported variables referenced inside 'bash -c' subshells are a classic source of tests that pass for the wrong reason. Both failure modes produce incorrect test signal, which is worse than no test. Normalizing to 'run' and explicit variable passing is mechanical and the confidence of 0.92 is well-founded.",
+        "gpt_score": 0,
+        "opus_score": 830,
+        "tertiary_score": 850,
+        "delta": 830,
+        "average_score": 830,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Falling back to '.' for LOA_REPO_ROOT when the hook is invoked from a nested or non-repo working directory is a real operational hazard: audit rows land in the wrong place and log-redactor.sh lookups fail silently. Resolving from the hook script's own location via '${BASH_SOURCE[0]}' and 'dirname/realpath' is the canonical solution and is already used elsewhere in the framework. The test that invokes from a non-repo cwd is the right acceptance criterion.",
+        "gpt_score": 0,
+        "opus_score": 790,
+        "tertiary_score": 800,
+        "delta": 790,
+        "average_score": 790,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-011",
+        "description": "Claiming 34 tests when some are skipped placeholders and key v1.3 regression cases are documented only narratively is a credibility problem for the sprint acceptance criteria. The fix is documentation and test hygiene rather than new logic. Valuable to correct before the sprint is formally accepted, but the cost-to-benefit ratio is lower than the behavioral and test-correctness issues above. The 0.89 confidence is reasonable.",
+        "gpt_score": 0,
+        "opus_score": 720,
+        "tertiary_score": 500,
+        "delta": 720,
+        "average_score": 720,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-012",
+        "description": "The text saying 'two added fields' when the schema actually defines four (hook, action, pattern_id, matched) is a factual error that could cause downstream consumers to only allocate for two fields. The additional ask—explicitly stating how consumers handle unknown fields—is good API hygiene. However, this is documentation precision work and the blast radius is smaller than the behavioral findings. The 0.84 confidence reflects that the severity depends on how strictly downstream parsers are written.",
+        "gpt_score": 0,
+        "opus_score": 650,
+        "tertiary_score": 600,
+        "delta": 650,
+        "average_score": 650,
+        "source": "opus_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-006",
+        "concern": "Appendix A is stale and contradicts the v1.3 pattern bodies while being labeled sprint-ready.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Implementers may copy the quick reference and reintroduce already-closed gaps: old git branch coverage, missing SQL quoted identifiers, missing kubectl global flags, and the unsafe FR-2 allow pattern for ./ paths.",
+        "location": "Appendix A Pattern Quick Reference",
+        "recommendation": "Regenerate Appendix A from the authoritative §5 patterns or delete it. Do not keep a second regex source of truth unless tests verify every appendix row against the body.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "DELETE FROM without WHERE can be bypassed by placing WHERE in a SQL comment or string literal.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "DELETE FROM users -- WHERE id=1 and DELETE FROM users /* WHERE */ can execute as all-row deletes while satisfying the current Pass B grep for the word WHERE.",
+        "location": "§5.7 Pattern P10 DELETE FROM no WHERE",
+        "recommendation": "Conservatively block DELETE statements where WHERE appears only after a SQL comment marker or inside a quoted string. Prefer a small SQL-aware tokenizer for comments/strings, or require WHERE to occur before any comment marker and before the statement terminator.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "P10 `DELETE FROM` extraction uses `[^;]*` which does not stop at `&&`, `||`, or `|` statement boundaries — WHERE-less DELETE can bypass block via chaining",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "For the command `DELETE FROM users && DELETE FROM audit_log WHERE timestamp < '2026-01-01'`, the `grep -oE '\\bDELETE[[:space:]]+FROM[[:space:]]+...[^;]*'` captures the entire string as ONE match because `[^;]*` treats `&` as a non-semicolon character. The WHERE check on the combined extracted segment finds `WHERE` and does NOT block. The first `DELETE FROM users` (no WHERE clause, should be blocked) escapes. The fix applied to P12 in prior round (replacing unbounded `.*` with `[^;&|]*`) was not applied to the P10 extraction character class.",
+        "location": "§5.7 (P10 implementation sketch), `delete_stmts` variable construction",
+        "recommendation": "Change the extraction character class from `[^;]*` to `[^;&|]*` — matching the P12 fix pattern. This stops the extraction at `&`, `|`, and `;`, ensuring each shell statement is evaluated independently for WHERE-clause presence.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Shell-command anchors do not cover newline-separated commands, command substitutions, parenthesized subshells, or quoted bash -c bodies, despite the SDD claiming those edge cases are covered.",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Commands such as echo $(rm -rf /), bash -c 'kubectl delete namespace prod', or a second-line rm -rf / can bypass the intended destructive-command filters because the destructive token is not preceded by one of the accepted anchors.",
+        "location": "§5 Pattern Specifications, §7.2 Edge-case fixtures",
+        "recommendation": "Add explicit statement-boundary coverage for newlines, subshell openers, command substitution, and bash -c/sh -c quoted payloads, then pin each with real bats tests before implementation proceeds.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Subshell `$(...)` and `bash -c '...'` wrapping bypasses all ERE patterns, directly contradicting §7.2 edge-case test claims",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "§7.2 explicitly asserts `echo \"danger: $(rm -rf /)\"` and `bash -c 'kubectl delete namespace prod'` 'must block'. Both bypass every pattern: the character preceding `rm` in `$(rm` is `(`, and preceding `kubectl` in `bash -c 'kubectl` is `'` — neither appears in any separator alternation `(^|/|;|&&|\\|)`. Every pattern in §5 shares this separator-anchored structure. The bats edge-case test suite (§7.2 fixture 2 and 3) will fail at first run, and agents can trivially escape ALL safety guards by wrapping commands.",
+        "location": "§5 (all patterns), §7.2 edge-case fixtures, §1.2 (hook receives full command string)",
+        "recommendation": "Either (a) add a pre-pass grep for the raw destructive verb tokens regardless of separator context (e.g., `grep -qE '\\brm\\s+-[a-zA-Z]*r[a-zA-Z]*f|\\bDROP\\s+(TABLE|DATABASE)|kubectl\\s+delete\\s+(ns|namespace)'`) and then run the more specific separator-anchored patterns for allow-list refinement, or (b) remove the §7.2 fixture claims for subshell/bash-c forms and document them as known non-detected bypass classes. The two must be consistent.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The jq-missing mitigation still disables all blocking, and the proposed WARN-once environment guard will not persist across hook subprocess invocations.",
+        "severity": "CRITICAL",
+        "severity_score": 850,
+        "why_matters": "If jq is absent or PATH is stripped, every destructive pattern is allowed. The warning is only diagnostic and may spam every invocation because a child hook process cannot export LOA_BLOCK_DESTRUCTIVE_JQ_MISSING_WARNED back to the parent harness.",
+        "location": "§5.0.1 jq-missing limitation, §6.5 jq-absent runtime probe",
+        "recommendation": "Either fail closed/preflight-fail the session when jq is missing, resolve jq through a trusted absolute path, or implement a minimal fallback extractor for tool_input.command. If warning-only remains, use a per-repo/session sentinel file rather than an exported child-process env var.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "The rm -rf detector misses common destructive flag orderings and sudo option forms.",
+        "severity": "HIGH",
+        "severity_score": 780,
+        "why_matters": "Commands like rm -r --force /etc, rm --force -r /etc, rm -v -r -f /, and sudo -n rm -rf / can avoid Step 1 detection entirely, so the hardened argument iterator never runs.",
+        "location": "§5.1 Pattern P1 refined rm -rf",
+        "recommendation": "Detect rm invocations first, then parse all option tokens until -- and set saw_recursive/saw_force booleans independent of flag order. Also support sudo options before the command.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "kubectl delete patterns do not cover valid flag positions around the delete subcommand.",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "Cobra-style CLI parsing can allow flags after the subcommand and before the resource, so shapes like kubectl delete --all pods, kubectl delete --wait=false namespace prod, and kubectl --context prod delete --all deployments may bypass P11/P12.",
+        "location": "§5.8 Pattern P11, §5.9 Pattern P12",
+        "recommendation": "Model kubectl as optional global flags, delete, optional delete flags, resource, optional names/selectors/flags. Add positive tests for flag-before-resource and --all/-A before resource.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+    "domain": " 3 software stack 5",
+    "tertiary_model_used": "gemini-3.1-pro-preview",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-05-16T11:36:24Z",
+    "metrics": {
+      "total_latency_ms": 397000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

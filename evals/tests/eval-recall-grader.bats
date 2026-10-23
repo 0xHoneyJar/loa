@@ -177,10 +177,10 @@ JSON
   done
 }
 
-@test "RG-17 grader_version is 1.3.0 (the bd-ewrc parser, the cycle-129 refuted share, the cycle-131 same-scope rule); the manifest corpus checksum list matches the manifests" {
+@test "RG-17 grader_version is 1.3.1 (the bd-ewrc parser, the cycle-129 refuted share, the cycle-131 same-scope rule); the manifest corpus checksum list matches the manifests" {
   review 'a.sh:40'
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.0" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.1" ]
   [ "$(echo "$output" | jq -r '.details.rule')" = "pm3_or_same_function" ]
   ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
 }
@@ -341,7 +341,7 @@ PY
   [ "$status" -eq 1 ]
   [ "$(echo "$output" | jq -r '.pass')" = "false" ]
   [ "$(echo "$output" | jq -r 'has("forged")')" = "false" ]
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.0" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.1" ]
 }
 
 @test "RG-28 refuted share (1.2.0): a finding touching neither a defect site nor a fix region is refuted; recall is unchanged" {
@@ -636,4 +636,49 @@ D() { echo "$output" | jq -r "$1"; }
   review 'e.sh:11 and e.py:9'               # last()'s closing brace and f's last line are inside
   run "$GRADER" "$WS" pr-s
   [ "$(D '.details.credits_function_only | join(",")')" = "E1,E3" ]
+}
+
+# --- cycle-132 Sprint 269 round 2 (grader 1.3.1): extensions up to 12 characters cite -----------------------------------
+@test "RG-c132-1 a citation whose file ends in a long extension is parsed: .loa.config.yaml.example, Dockerfile.ablation, .generated.ts, .markdown" {
+  cat > "$T/manifests/pr-long.json" <<'JSON'
+{"fixture":"pr-long","defects":[
+ {"id":"D1","file":".loa.config.yaml.example","anchor_line":127,"severity":"high","category":"config","source_commit":"deadbeef","synthetic":false},
+ {"id":"D2","file":"evals/harness/Dockerfile.ablation","anchor_line":19,"severity":"high","category":"build","source_commit":"deadbeef","synthetic":false},
+ {"id":"D3","file":"web/src/api.generated.ts","anchor_line":5,"severity":"low","category":"logic","source_commit":"deadbeef","synthetic":false},
+ {"id":"D4","file":"docs/guide.markdown","anchor_line":9,"severity":"low","category":"docs","source_commit":"deadbeef","synthetic":false}
+]}
+JSON
+  review '- `head/.loa.config.yaml.example:127` budget key; head/evals/harness/Dockerfile.ablation:19 pins nothing; api.generated.ts:5; docs/guide.markdown:9'
+  run "$GRADER" "$WS" pr-long
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1,D2,D3,D4" ] || { echo "$output"; false; }
+  [ "$(echo "$output" | jq -r '.details.detected_pm3 | join(",")')" = "D1,D2,D3,D4" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.3.1" ]
+  # the boundary rules stand: a 13-character extension, a URL and a date are still not citations
+  review 'x.abcdefghijklm:127 https://example.com/a.example:127 2026-10-21:19'
+  run "$GRADER" "$WS" pr-long
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = 0 ]
+}
+
+@test "RG-B1 a key under manifests/c131/, v1/ or review/ is re-rooted: its v1 snapshot is manifests/v1/<pr>.json (itself for a v1 key) and its head the fixture beside manifests/; another sub-directory is not" {
+  local C="$T/corp" set sdir
+  sdir="$C/pr-q/head/.claude/scripts"
+  mkdir -p "$C/manifests/c131" "$C/manifests/v1" "$C/manifests/review" "$C/manifests/other" "$sdir"
+  { echo '#!/usr/bin/env bash'; echo 'q() {'; for i in $(seq 3 29); do echo "  echo q$i"; done; echo '}'; } > "$sdir/q.sh"
+  printf '{"fixture":"pr-q","defects":[{"id":"Q1","file":".claude/scripts/q.sh","anchor_line":10,"severity":"high"}]}\n' > "$C/manifests/v1/pr-q.json"
+  for set in c131 review other; do
+    printf '{"fixture":"pr-q","defects":[{"id":"Q1","file":".claude/scripts/q.sh","anchor_line":20,"severity":"high"}]}\n' > "$C/manifests/$set/pr-q.json"
+  done
+  review 'q.sh:11 the guard'
+  for set in c131 v1 review; do
+    EVAL_MANIFEST_DIR="$C/manifests/$set" run "$GRADER" "$WS" pr-q
+    echo "$set: $output"
+    [ "$(D '.details.v1_manifest')" = "true" ]
+    [ "$(D '.details.head_dir_source')" = "fixture" ]
+    [ "$(D '.details.recall_pm3_v1 == 1')" = "true" ]   # line 11 is within 3 of the v1 anchor 10
+  done
+  EVAL_MANIFEST_DIR="$C/manifests/v1" run "$GRADER" "$WS" pr-q
+  [ "$(D '.details.recall_pm3 == 1')" = "true" ]
+  EVAL_MANIFEST_DIR="$C/manifests/other" run "$GRADER" "$WS" pr-q
+  [ "$(D '.details.v1_manifest')" = "false" ]
+  [ "$(D '.details.head_dir_source')" = "none" ]
 }

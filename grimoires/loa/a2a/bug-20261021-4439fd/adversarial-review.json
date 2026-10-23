@@ -1,0 +1,128 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "anchor_type": "line",
+      "anchor_line": 480,
+      "anchor_line_end": 484,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "cross_file_justification": "The new --json flag and the stdout capture define a contract with .claude/scripts/flatline-orchestrator.sh (not in the diff): it must accept --json, write exactly one JSON document and nothing else to stdout, and emit verdict_quality.status as the uppercase strings APPROVED/DEGRADED/FAILED. The bats suite only exercises a stub that ignores --json, so none of this is verified against the real script.",
+      "description": "All of stdout from flatline-orchestrator.sh is now redirected into .run/post-pr-flatline-pr.json and parsed with `jq -er '.verdict_quality.status | strings'`. Any deviation in the real orchestrator (a human-readable progress line on stdout, a banner printed before the envelope, multiple JSON documents, a lowercase status, or --json not being a recognised flag) makes the parse fail or the exit code non-zero. Because the new code deliberately fails closed, that would turn every PR review, including fully APPROVED ones, into `failed` + FLATLINE-PR-DEGRADED and PR-VALIDATED would never be set again. The tests cannot catch this because the stub prints a hand-crafted envelope.",
+      "failure_mode": "If the real flatline-orchestrator.sh --json output is not a single clean JSON document with an uppercase status string, every post-PR run ends with a DEGRADED handoff and no PR-VALIDATED marker, blocking the merge path for all PRs until someone notices the reason is always no_verdict_quality or exit_N.",
+      "suggested_fix": "Add a test (or fixture captured from a real run) that feeds the actual flatline-orchestrator.sh --json stdout through phase_flatline_pr, and verify the flag is accepted. Defensively, parse the last JSON document only (e.g. `jq -s 'last | .verdict_quality.status'`) or have the orchestrator write the envelope to an explicit --output path instead of relying on a clean stdout.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr",
+      "anchor_type": "line",
+      "anchor_line": 518,
+      "anchor_line_end": 520,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The unchanged `else` branch at lines 486-487 logs \"Flatline orchestrator not found, skipping\" and sets flatline_result=0, which now lands in the `ok)` branch with no output file and falls through to `_flatline_pr_not_green \"no_verdict_quality\"`. The phase is recorded `failed`, FLATLINE-PR-DEGRADED is added, and the HITL summary says the review was not green because the verdict envelope was unparseable, when in fact the review never ran. The log line still says \"skipping\" while the state says `failed`, so an operator reading the handoff is pointed at the wrong cause.",
+      "failure_mode": "In a project with flatline_protocol.enabled: true but no flatline-orchestrator.sh (partial vendoring), every PR run ends DEGRADED with a misleading `no_verdict_quality` reason and a contradictory \"skipping\" log line, sending the human reviewer to debug envelope parsing instead of the missing script.",
+      "suggested_fix": "Give the not-found path its own explicit outcome: either call `_flatline_pr_not_green \"orchestrator_missing\" ...` directly there (and return 0) with a log_error that matches, or if the intent is to treat it like enabled:false, record `skipped` and update the doc comment accordingly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/post-pr-orchestrator.sh:phase_bridgebuilder_review",
+      "anchor_type": "line",
+      "anchor_line": 576,
+      "anchor_line_end": 580,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": ".run/post-pr-degraded-summary.json is now a single slot shared by two phases. The guard preserves a flatline_pr summary across the Bridgebuilder phase start, but if Bridgebuilder itself ends DEGRADED it writes its own summary to the same path and silently overwrites the Flatline one. surface_degraded_handoff then labels the handoff \"DEGRADED Bridgebuilder review\" only, and the Flatline voices_planned/voices_completed/degraded_models/reason are gone from disk. The FLATLINE-PR-DEGRADED marker and phases.flatline_pr=failed survive in state, so the signal is not lost entirely, but the doc comment's promise that \"the handoff names the degraded review\" is not met when both phases degrade. The test suite runs with the Bridgebuilder feature flag OFF, so the both-degraded interaction is untested.",
+      "failure_mode": "When Flatline is DEGRADED and Bridgebuilder is enabled and also DEGRADED, the HITL handoff and summary file mention only Bridgebuilder; the Flatline degradation details (which voices dropped, why) are overwritten and the reviewer may clear the Bridgebuilder issue and treat the PR as validated without ever seeing the Flatline verdict.",
+      "suggested_fix": "Either write per-phase summaries (e.g. .run/post-pr-degraded-summary.flatline_pr.json and .../bridgebuilder_review.json) and have surface_degraded_handoff enumerate them, or make the summary a list of degraded phases that Bridgebuilder appends to rather than replaces. Add a bats case with Bridgebuilder enabled and degraded alongside a DEGRADED Flatline envelope asserting both are named in the handoff.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-267",
+    "timestamp": "2026-10-21T01:28:52Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 24274,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f4d396074fddae79607c7c313b86459fac8075c7b7715437890049400b8aa18d",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

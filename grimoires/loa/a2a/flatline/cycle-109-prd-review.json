@@ -1,0 +1,205 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 1,
+    "disputed_count": 13,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 7,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Critical gap: an acceptance criterion depends on a severity-to-downgrade mapping that is currently undefined. This is load-bearing for safety, runtime behavior, and over-degradation mitigation, and the fix is mostly specification work.",
+      "gpt_score": 910,
+      "opus_score": 860,
+      "tertiary_score": 880,
+      "delta": 50,
+      "average_score": 885,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-002",
+      "description": "Manual override is an essential safety valve for erroneous auto-degradation, but it is only referenced as mitigation rather than specified. Schema, precedence, and audit requirements are low-cost and high-value.",
+      "gpt_score": 895,
+      "opus_score": 0,
+      "tertiary_score": 880,
+      "delta": 895,
+      "average_score": 895,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Very high ROI: baseline measurement is required for meaningful rollback, escape-hatch decisions, and launch success evaluation. Without this, several success criteria are unverifiable. Implementation cost is modest relative to benefit.",
+      "gpt_score": 930,
+      "opus_score": 0,
+      "tertiary_score": 820,
+      "delta": 930,
+      "average_score": 930,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Strong finding: additive envelope changes can still fail if downstream consumers silently ignore or drop important signals. Enumerating consumers and dependency ordering reduces recurrence of the same failure class, though implementation scope may be broader.",
+      "gpt_score": 805,
+      "opus_score": 0,
+      "tertiary_score": 750,
+      "delta": 805,
+      "average_score": 805,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Valuable operational hardening. CI-gated parsing needs deterministic behavior for ambiguous or malformed entries, especially under time pressure. The exact policy is straightforward to specify.",
+      "gpt_score": 735,
+      "opus_score": 0,
+      "tertiary_score": 720,
+      "delta": 735,
+      "average_score": 735,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Important edge case for chunked review correctness. Conflict resolution may be somewhat complex, but the PRD should at least define expected behavior, escalation, or conservative handling.",
+      "gpt_score": 690,
+      "opus_score": 0,
+      "tertiary_score": 620,
+      "delta": 690,
+      "average_score": 690,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-007",
+      "description": "The effective_input_ceiling field is central to routing and chunking behavior, so calibration and staleness detection should be explicit. This addresses a real decay risk and prevents reliance on assumptions.",
+      "gpt_score": 820,
+      "opus_score": 0,
+      "tertiary_score": 780,
+      "delta": 820,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Good requirement-level clarification. Missing ceiling data at migration time can materially affect performance and chunking behavior. Defining conservative defaults is cheap and reduces ambiguity.",
+      "gpt_score": 760,
+      "opus_score": 0,
+      "tertiary_score": 700,
+      "delta": 760,
+      "average_score": 760,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-009",
+      "description": "Valuable test-coverage dependency. Chunked review is a distinct execution path and should be represented in the regression suite or explicitly deferred. Some cost in fixture generation, but worthwhile.",
+      "gpt_score": 705,
+      "opus_score": 0,
+      "tertiary_score": 680,
+      "delta": 705,
+      "average_score": 705,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Useful semantic clarification. Single-voice calls can make consensus-oriented telemetry misleading if not explicitly defined. The fix is low-cost, though impact is narrower than core safety items.",
+      "gpt_score": 650,
+      "opus_score": 0,
+      "tertiary_score": 740,
+      "delta": 650,
+      "average_score": 650,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-011",
+      "description": "Reasonable scope-control improvement. The affected consumer list should be explicit to avoid accidental omissions, though this is more project-management clarity than core functional correctness.",
+      "gpt_score": 625,
+      "opus_score": 0,
+      "tertiary_score": 600,
+      "delta": 625,
+      "average_score": 625,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-012",
+      "description": "Nice-to-have but legitimate: undefined success metrics weaken launch gating. Either defining it or moving it to retrospective-only is low-cost, but it is less central than runtime safety requirements.",
+      "gpt_score": 575,
+      "opus_score": 0,
+      "tertiary_score": 550,
+      "delta": 575,
+      "average_score": 575,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-013",
+      "description": "Moderate value. Backward compatibility guidance for JSONL log consumers is prudent, but unknown-field tolerance is commonly expected and the risk is less concrete. A short compatibility note would be enough.",
+      "gpt_score": 505,
+      "opus_score": 0,
+      "tertiary_score": 350,
+      "delta": 505,
+      "average_score": 505,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-014",
+      "description": "Valuable acceptance-criteria hardening. The streaming early-abort mechanism is a stated safety net, so token thresholds, model variation, and typed exit behavior should not be left arbitrary.",
+      "gpt_score": 745,
+      "opus_score": 0,
+      "tertiary_score": 810,
+      "delta": 745,
+      "average_score": 745,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " cycle 109 prd multi",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-13T04:16:30Z",
+  "metrics": {
+    "total_latency_ms": 156000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

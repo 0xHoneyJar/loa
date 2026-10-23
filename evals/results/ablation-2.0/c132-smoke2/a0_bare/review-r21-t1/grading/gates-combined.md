@@ -1,0 +1,12 @@
+head/.claude/scripts/lib/hop-locality.py:116
+head/.claude/scripts/adversarial-review.sh:4266
+head/.claude/scripts/flatline-orchestrator.sh:702
+head/.claude/skills/bridgebuilder-review/resources/config.ts:684
+head/.claude/adapters/loa_cheval/providers/openai_streaming.py:223
+head/.claude/scripts/model-health-probe.sh:1570
+head/.loa.config.yaml.example:818
+head/.claude/scripts/model-health-probe.sh:1475
+head/.claude/adapters/loa_cheval/audit/modelinv.py:476
+hop-locality.py:116
+head/.claude/skills/bridgebuilder-review/resources/config.ts:732
+head/.claude/scripts/adversarial-review.sh:4324

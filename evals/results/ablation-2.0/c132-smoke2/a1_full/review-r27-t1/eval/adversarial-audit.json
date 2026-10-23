@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_budget_effective",
+      "anchor_type": "function",
+      "anchor_line": 197,
+      "anchor_line_end": 198,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Under budget_scale: diff the effective budget is min(max(budget_cents, ceil(estimate*1.2)), budget_cents_max). Because ceil(estimate*1.2) >= estimate, the configured budget_cents and the --budget CLI value can never refuse a run; only budget_cents_max (operator-settable up to 15 digits) does. This also neutralises the documented fail-CLOSED rule for a malformed budget_cents (a1 C-004 sets it to 0 cents to refuse): with diff scaling, max(0, scaled) = scaled, so the run proceeds anyway. The eval harness forces diff on every mounted arm, so any per-arm budget_cents there is a no-op.",
+      "failure_mode": "An operator (or the eval sandbox config) lowers budget_cents or passes --budget to cap spend, or budget_cents is malformed and expected to refuse, but the gate dispatches both voices anyway up to budget_cents_max; spend caps silently stop being caps.",
+      "suggested_fix": "Treat budget_cents as the ceiling and scale only downwards, or require budget_cents_max <= budget_cents when both are set; when budget_cents fails validation (0 after _conf_uint), force CONF_BUDGET_SCALE=fixed so the fail-closed refusal still happens; log when --budget is overridden by scaling.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/graders/recall-vs-defects.sh:head_dir",
+      "anchor_type": "line",
+      "anchor_line": 136,
+      "anchor_line_end": 136,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The grader's head directory falls back to <workspace>/pr/head, which is the agent-writable sandbox. The new 1.3.0 same-scope rule and the citation validity rule (b > len(lines) -> invalid) both read head/<file> from that directory. An agent under evaluation that rewrites pr/head/<file> (e.g. wraps the whole file in one function header so every line shares one scope, or pads the file) can make any citation in the file credit every planted defect in it, inflating recall. ablation-grade.sh's header explicitly says grading must never read the agent-writable sandbox pr/, but this grader still can when EVAL_HEAD_DIR is unset and the fixture head/ is absent. scope_map is also O(headers x span) over up to a 4 MiB file, so a crafted head file (nested python defs with increasing indentation) can stall the grader.",
+      "failure_mode": "Reward hacking / grading integrity: the graded agent edits pr/head to widen definition scopes and gets credited for defects it never cited; or a crafted file makes the grader spin for the full grade deadline.",
+      "suggested_fix": "Drop the <workspace>/pr/head fallback (or gate it behind an explicit --allow-sandbox-head flag used only by self-check), require EVAL_HEAD_DIR or the fixture head/, and cap the total scope-map work (e.g. skip the scope clause for files above a line count or header count).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-row.sh:flp.json",
+      "anchor_type": "hunk",
+      "anchor_line": 393,
+      "anchor_line_end": 396,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Row writer 1.4 derives dissent_absent_reason from <run-dir>/sandbox/.loa.config.yaml, an agent-writable file (the same class of tamperable sandbox copy that ablation-grade.sh refuses to read for envelopes). If the agent under evaluation sets flatline_protocol.enabled: false or <gate>.enabled: false during its run, the dissent gate does not run and the row classifies the absence as \"disabled\" (planned, operator-chosen) rather than \"error\", hiding the sabotage in the report's planned-absence bucket. The ! -L check prevents symlink tricks but not plain edits.",
+      "failure_mode": "An agent disables its own adversarial review in the sandbox config; the ablation report attributes the missing dissent to arm configuration instead of flagging it, skewing arm comparisons.",
+      "suggested_fix": "Determine planned disablement from harness-owned evidence only (meta/arm-evidence.txt toggles, the arm definition, or the loa_config_sha256 recorded at mount time); if the sandbox config is consulted, require mount_integrity to report it unchanged before trusting it, otherwise classify as \"error\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "line",
+      "anchor_line": 1706,
+      "anchor_line_end": 1707,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "On the schema-enforced branch, if _adv_keep_numeric_anchor fails (jq error) or returns empty, the code falls back to the unfiltered finding. The wire schema admits null for anchor_line / anchor_line_end, so a null or otherwise invalid numeric anchor can reach the envelope despite the stated rule that an enforced payload is held to the same numeric-anchor filter. Downstream consumers (envelope reduction to path:line) then see a non-integer line.",
+      "failure_mode": "A dissenter payload with anchor_line: null (or an out-of-range value) survives into the envelope on the rare jq failure path, breaking the path:line reduction or producing a bogus citation.",
+      "suggested_fix": "On filter failure, delete anchor_line / anchor_line_end explicitly (jq 'del(.anchor_line, .anchor_line_end)') instead of keeping the raw finding, or treat the failure as a malformed finding.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T12:21:16Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 620,
+    "budget_cents_max": 1200,
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10111,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a4788d762243b7f382fd44517454ce63f4cab7b7c0b097bac906dcb617f5c7b2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

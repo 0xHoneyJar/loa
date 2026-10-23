@@ -1,0 +1,49 @@
+{
+  "type": "proposal_review",
+  "event": "proposal_review_started",
+  "timestamp": "2026-02-03T09:42:06Z",
+  "data": {
+    "learning_id": "learn-001"
+  }
+}
+{
+  "type": "proposal_review",
+  "event": "proposal_pre_reviewed",
+  "timestamp": "2026-02-03T09:42:06Z",
+  "data": {
+    "learning_id": "learn-001",
+    "timestamp": "2026-02-03T09:42:06Z",
+    "passed": true,
+    "average_score": 765,
+    "min_alignment": 600,
+    "scores": {
+      "gpt": 750,
+      "opus": 780
+    },
+    "concerns": [],
+    "suggestions": [
+      "dry run"
+    ],
+    "fail_reason": null,
+    "reviews": {
+      "gpt": {
+        "score": 750,
+        "alignment": true,
+        "concerns": [],
+        "suggestions": [
+          "dry run"
+        ],
+        "model": "gpt"
+      },
+      "opus": {
+        "score": 780,
+        "alignment": true,
+        "concerns": [],
+        "suggestions": [
+          "dry run"
+        ],
+        "model": "opus"
+      }
+    }
+  }
+}

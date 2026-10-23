@@ -1,0 +1,1 @@
+{"ts":"2026-10-23T01:32:40Z","tool":"Bash","command":"[REDACTOR-FAILED]","exit_code":2,"cwd":"/workspace/pr","model":"","provider":"","trace_id":"","team_id":"","team_member":"","hook":"block-destructive-bash","action":"block","pattern_id":"FR-2-AMBIGUOUS","matched":"[REDACTOR-FAILED]"}

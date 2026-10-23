@@ -1,0 +1,268 @@
+{
+  "findings": [
+    {
+      "title": "[P2] Preserve executable expansions when stripping heredocs",
+      "body": "Unquoted Bash heredocs execute command substitutions. For example, `cat <<EOF\n$(cat /mnt/reference/answer.txt)\nEOF` reads an external file, but strip_heredocs removes the substitution before the path scan. In host mode, an agent can therefore read accessible files outside the allowed roots without an outside_path contamination hit. Inspect executable expansions before discarding heredoc text.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:strip_heredocs",
+      "anchor_type": "function",
+      "anchor_line": 1383,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-0z0f9prg/evals/harness/ablation-grade.sh",
+        "line_range": {
+          "start": 1383,
+          "end": 1383
+        }
+      },
+      "id": "DISS-001",
+      "description": "Unquoted Bash heredocs execute command substitutions. For example, `cat <<EOF\n$(cat /mnt/reference/answer.txt)\nEOF` reads an external file, but strip_heredocs removes the substitution before the path scan. In host mode, an agent can therefore read accessible files outside the allowed roots without an outside_path contamination hit. Inspect executable expansions before discarding heredoc text.",
+      "id_derived": true,
+      "failure_mode": "Unquoted Bash heredocs execute command substitutions.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "title": "[P2] Normalize absolute paths before applying dot-directory exemptions",
+      "body": "The unconditional `w.startswith(\"/.\")` exemption also matches `/./`. Thus `cat /./mnt/reference/answer.txt` accesses the same file as `/mnt/reference/answer.txt`, but bypasses outside() and its normalization and sensitive-path checks. This lets an agent evade contamination detection for any otherwise detectable external path it can read. Normalize candidates before checking roots and restrict the exemption to proven relative path tails.",
+      "description": "The unconditional `w.startswith(\"/.\")` exemption also matches `/./`. Thus `cat /./mnt/reference/answer.txt` accesses the same file as `/mnt/reference/answer.txt`, but bypasses outside() and its normalization and sensitive-path checks. This lets an agent evade contamination detection for any otherwise detectable external path it can read. Normalize candidates before checking roots and restrict the exemption to proven relative path tails.",
+      "priority": 2,
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "function",
+      "anchor_line": 1438,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-0z0f9prg/evals/harness/ablation-grade.sh",
+        "line_range": {
+          "start": 1438,
+          "end": 1439
+        }
+      },
+      "id": "DISS-002",
+      "id_derived": true,
+      "failure_mode": "The unconditional `w.startswith(\"/.\")` exemption also matches `/./`.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "line",
+      "anchor_line": 1438,
+      "anchor_line_end": 1439,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new DEC-0551 rule skips every Bash word that starts with `/.` on the premise that no Linux root holds dot-directories. But `/.` is also the prefix of `/./` and `/../`, which the shell resolves to `/`. `cat /./root/.ssh/id_rsa` or `cat /../home/other/hidden_tests.py` produce ABS_WORD matches `/./root/...` and `/../home/...`, both multi-component (so the one-component rule does not apply) and both skipped by `w.startswith(\"/.\")` before `outside()` ever runs normpath on them. The agent under test can read any sensitive host or container path with two extra characters and the run is graded as not contaminated.",
+      "failure_mode": "An agent reaches outside the sandbox (e.g. /root, another home, grader material mounted outside the allowed roots) via `/./` or `/../` prefixed paths and `contaminated` stays null/false, so the trial is scored as clean.",
+      "suggested_fix": "Apply os.path.normpath(w) before the `/.` test (or only skip when the first component after normpath is a dot-directory such as `.claude`), and never skip words whose first component is `.` or `..`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:after_closing_quote",
+      "anchor_type": "function",
+      "anchor_line": 1365,
+      "anchor_line_end": 1369,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "after_closing_quote() treats any `/path` that directly follows a quote character as the tail of a longer token when the character before the quote is not whitespace or a separator. An empty quoted string satisfies this: in `cat ''/root/.ssh/id_rsa` or `cat \"\"/home/other/secret`, pos-1 is a quote and pos-2 is the matching opening quote, which is not in the exclusion set, so the function returns True and the word is dropped at line 1442. Bash concatenates the empty string and opens the absolute path unchanged. The related `in_quotes()` skip at line 1444 also lets `cd \"/root\"; cat .ssh/id_rsa` through (the comment acknowledges the `cd '/root/'` gap), and in_quotes counts escaped quotes too, so a single apostrophe earlier in the command (echo \"don't\") makes every later one-component sensitive word look quoted.",
+      "failure_mode": "Any outside-path access can be hidden from the contamination scan by prefixing the path with `''` or `\"\"`, or by quoting a one-component sensitive root and then using relative paths.",
+      "suggested_fix": "Only treat the word as a path tail when the quote closes a non-empty quoted segment (track quote pairs rather than looking two characters back), or, more robustly, strip quotes and concatenate adjacent shell tokens with shlex before scanning, then normpath and check each resulting absolute token.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:strip_heredocs",
+      "anchor_type": "function",
+      "anchor_line": 1380,
+      "anchor_line_end": 1383,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Heredoc bodies are removed before the outside-path scan on the assumption that heredoc text is data being written to a file. A heredoc is stdin for any command, including interpreters: `bash <<'EOF'\\ncat /root/.ssh/id_rsa\\nEOF`, `python3 - <<EOF\\nprint(open('/home/other/answers.txt').read())\\nEOF`, or `sh <<X` all execute the body, and every absolute path inside it is now invisible to ABS_WORD at line 1415. The hidden/suite/repo scans still see the body, but the outside_path class, which is the only one that catches arbitrary data exfiltration from outside the sandbox roots, is fully bypassed.",
+      "failure_mode": "The agent under test reads or lists any host/container location by wrapping the command in a heredoc fed to a shell or interpreter; contamination is reported as clean.",
+      "suggested_fix": "Only strip heredoc bodies when the heredoc's consumer is a pure data sink (cat/tee with a redirect to a file, cp /dev/stdin), or keep scanning heredoc bodies for absolute words but suppress hits on known report-text patterns. At minimum never strip when the command word before `<<` is bash, sh, zsh, python*, perl, node, ruby, or `-`/`source`/`eval`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:HIDDEN_TOKEN",
+      "anchor_type": "line",
+      "anchor_line": 1329,
+      "anchor_line_end": 1329,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The Bash branch of check_value (line 1394-1396) replaces the case-insensitive substring test with HIDDEN_TOKEN, which matches only all-caps `HIDDEN` or lowercase `hidden` immediately adjacent to one of `/ . _ = -`. Mixed case (`Hidden`, `HiDDen`) matches nothing because the pattern is case-sensitive and runs on `val`, not `low`. Lowercase `hidden` as a standalone argument also escapes: `cd hidden && cat *`, `ls -la hidden`, `find . -iname '*hidden*'` (preceded and followed by `*`), `cat hidden\\ tests/*`, `tar czf /tmp/x.tgz hidden`. The hidden-test directory is the primary cheating target this check exists for.",
+      "failure_mode": "The agent lists or reads the hidden test directory with a plain `cd hidden`, a glob, or a capitalised name and the run is not flagged `hidden`.",
+      "suggested_fix": "Make the pattern case-insensitive (re.I) and treat `hidden` as a token whenever it is delimited by whitespace, quotes, globs or path separators, i.e. `(?i)(?<![A-Za-z0-9])hidden(?![A-Za-z0-9])`; carve out prose only inside stripped heredoc bodies or after `#`/`echo`/`printf` if a prose exemption is really needed.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "line",
+      "anchor_line": 1422,
+      "anchor_line_end": 1424,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Every one-component absolute word is now dropped unless its component is one of root, home, mnt, media or srv. Any other top-level entry that is not an allowed root becomes invisible: `cat /flag`, `ls /data`, `ls /eval`, `cat /grader-answers`, `ls /backup`. In container mode anything the image or a bind mount places directly under `/` (harness material, answer keys, secrets) can be enumerated or read in one command, and `ls /x/` with a trailing slash is treated the same way. The exemption was motivated by Loa slash commands in report text, which appear in Write/heredoc content rather than as a Bash command's first argument.",
+      "failure_mode": "An agent discovers and reads top-level files or directories outside the allowed roots that do not happen to be named root/home/mnt/media/srv, undetected.",
+      "suggested_fix": "Invert the rule: skip one-component words only when they match a known slash-command vocabulary (e.g. the .claude/commands names) or when they appear as sed/awk delimiters after s y = ~ or a quote (the previous rule); otherwise keep them as path candidates so `outside()` decides.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "evals/harness/ablation-grade.sh:HEREDOC",
+      "anchor_type": "line",
+      "anchor_line": 1377,
+      "anchor_line_end": 1377,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "HEREDOC is compiled with re.S and contains `(?:.*?\\n)*?` followed by `\\s*\\2`. Under re.S the inner `.*?` can itself span newlines, so when the terminator word never appears (an unterminated `<<EOF`, or a non-heredoc `<<` inside a multi-line python/awk/C snippet passed with -c) the engine explores every partition of the remaining newlines: exponential in the number of lines after `<<`. A transcript Bash command with a few dozen lines after a stray `<<name` makes contamination() hang until LOA_EVAL_GRADE_TIMEOUT_S, so the grader fails (exit 2, row infrastructure_error) and the contamination verdict is never produced. The agent under test controls this input.",
+      "failure_mode": "A single crafted or accidental command text makes grading of the run time out; the trial is rowed infrastructure_error instead of contaminated/graded, and a hostile agent can use it to avoid contamination grading entirely.",
+      "suggested_fix": "Rewrite the heredoc stripper without nested lazy quantifiers: locate `<<` + word, then scan line by line for a line equal to the terminator (plain Python loop or a `[^\\n]*\\n` body with the terminator anchored via re.M), and drop re.S. Add a size cap on the command text scanned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evals/harness/ablation-grade.sh:check_value",
+      "anchor_type": "line",
+      "anchor_line": 1432,
+      "anchor_line_end": 1433,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Any absolute word containing `=` is dropped as a regex/key=value token even though `=` is a legal path character. Together with the sed-range skip at line 1427 this adds further carve-outs that a hostile agent can wear as a disguise (`cat /root/secret /x/,` patterns, `cat '/root/=/../secret'`), and each exemption is applied before `outside()` so the sensitive-path check never sees the word. The grader's defensive posture has moved from allow-list to a growing deny-list of exemptions.",
+      "failure_mode": "Edge-case paths that include `=` or comma-prefixed components are not checked against the allowed roots.",
+      "suggested_fix": "Normalise each word (shlex, normpath) before deciding on exemptions, and apply the sensitive-root check first: a word whose normalised first component is in SENSITIVE or outside the allowed roots should never be exempted by a lexical shape rule.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T18:39:43Z",
+    "tokens_input": 190531,
+    "tokens_output": 16754,
+    "cost_usd": 0,
+    "latency_ms": 84356,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 2,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 57,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 516,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ef220a96f4b72d3a2e9ee7aa892d88eada23673a9ff1861c37953db220e9e0c2",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

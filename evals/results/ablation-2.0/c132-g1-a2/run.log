@@ -1,0 +1,343 @@
+18:52:34Z start batch=c132-g1-a2 smoke=false source=fbd36a0c9880 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
+18:52:34Z plan: 1 arms, 6 tasks, 12 trials (164 session units in 12 matched cells), shuffle seed 20261015, est USD 1312 (cap 3461.055, run caps build 45 review-catch 45, in-flight reserve 45 per trial, reserve 250)
+18:52:34Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s1 (a0_bare_matched review-r23 review-catch t1 session 1 of 12)
+18:52:34Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s2 (a0_bare_matched review-r23 review-catch t1 session 2 of 12)
+18:52:34Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s3 (a0_bare_matched review-r23 review-catch t1 session 3 of 12)
+18:56:26Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s2 completed valid true attempts 1 USD 1.314243
+18:56:26Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s4 (a0_bare_matched review-r23 review-catch t1 session 4 of 12)
+18:56:57Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s3 completed valid true attempts 1 USD 1.334114
+18:56:57Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s5 (a0_bare_matched review-r23 review-catch t1 session 5 of 12)
+18:58:50Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s1 completed valid true attempts 1 USD 1.931493
+18:58:50Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s6 (a0_bare_matched review-r23 review-catch t1 session 6 of 12)
+18:59:32Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s4 completed valid true attempts 1 USD 1.036332
+18:59:32Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s7 (a0_bare_matched review-r23 review-catch t1 session 7 of 12)
+19:00:51Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s5 completed valid true attempts 1 USD 1.296282
+19:00:51Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s8 (a0_bare_matched review-r23 review-catch t1 session 8 of 12)
+19:03:45Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s7 contaminated valid false attempts 1 USD 1.332892 (contaminated: outside_path)
+19:03:45Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s9 (a0_bare_matched review-r23 review-catch t1 session 9 of 12)
+19:04:17Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s6 completed valid true attempts 1 USD 1.87689
+19:04:17Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s10 (a0_bare_matched review-r23 review-catch t1 session 10 of 12)
+19:06:50Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s8 contaminated valid false attempts 1 USD 2.033194 (contaminated: outside_path)
+19:06:50Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s11 (a0_bare_matched review-r23 review-catch t1 session 11 of 12)
+19:07:24Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s10 completed valid true attempts 1 USD 1.046641
+19:07:24Z launch c132-g1-a2-a0_bare_matched-review-r23-t1-s12 (a0_bare_matched review-r23 review-catch t1 session 12 of 12)
+19:08:59Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s9 completed valid true attempts 1 USD 1.672703
+19:08:59Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s1 (a0_bare_matched review-r14 review-catch t1 session 1 of 13)
+19:10:22Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s12 completed valid true attempts 1 USD 1.07937
+19:10:23Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s2 (a0_bare_matched review-r14 review-catch t1 session 2 of 13)
+19:10:46Z done c132-g1-a2-a0_bare_matched-review-r23-t1-s11 completed valid true attempts 1 USD 1.226926
+19:10:48Z done c132-g1-a2-a0_bare_matched-review-r23-t1 completed sessions_valid 10 of 12 USD 13.814994 (valid sessions; all spend 17.18108)
+19:10:48Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s3 (a0_bare_matched review-r14 review-catch t1 session 3 of 13)
+19:15:10Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s3 completed valid true attempts 1 USD 1.775286
+19:15:10Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s4 (a0_bare_matched review-r14 review-catch t1 session 4 of 13)
+19:15:20Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s1 completed valid true attempts 1 USD 2.936809
+19:15:20Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s5 (a0_bare_matched review-r14 review-catch t1 session 5 of 13)
+19:16:25Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s2 completed valid true attempts 1 USD 2.566014
+19:16:25Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s6 (a0_bare_matched review-r14 review-catch t1 session 6 of 13)
+19:20:11Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s4 completed valid true attempts 1 USD 2.101669
+19:20:11Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s7 (a0_bare_matched review-r14 review-catch t1 session 7 of 13)
+19:20:43Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s5 completed valid true attempts 1 USD 2.095324
+19:20:44Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s8 (a0_bare_matched review-r14 review-catch t1 session 8 of 13)
+19:21:01Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s6 completed valid true attempts 1 USD 1.898516
+19:21:01Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s9 (a0_bare_matched review-r14 review-catch t1 session 9 of 13)
+19:24:35Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s7 contaminated valid false attempts 1 USD 2.287465 (contaminated: outside_path)
+19:24:35Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s10 (a0_bare_matched review-r14 review-catch t1 session 10 of 13)
+19:26:07Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s8 completed valid true attempts 1 USD 2.217555
+19:26:07Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s11 (a0_bare_matched review-r14 review-catch t1 session 11 of 13)
+19:26:32Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s9 completed valid true attempts 1 USD 2.539609
+19:26:32Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s12 (a0_bare_matched review-r14 review-catch t1 session 12 of 13)
+19:30:20Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s10 completed valid true attempts 1 USD 2.517311
+19:30:20Z launch c132-g1-a2-a0_bare_matched-review-r14-t1-s13 (a0_bare_matched review-r14 review-catch t1 session 13 of 13)
+19:33:18Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s11 completed valid true attempts 1 USD 2.891653
+19:33:18Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s1 (a0_bare_matched review-r27 review-catch t1 session 1 of 11)
+19:33:37Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s12 completed valid true attempts 1 USD 2.889574
+19:33:37Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s2 (a0_bare_matched review-r27 review-catch t1 session 2 of 11)
+19:36:09Z done c132-g1-a2-a0_bare_matched-review-r14-t1-s13 completed valid true attempts 1 USD 2.790888
+19:36:11Z done c132-g1-a2-a0_bare_matched-review-r14-t1 completed sessions_valid 12 of 13 USD 29.220208 (valid sessions; all spend 31.507673)
+19:36:11Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s3 (a0_bare_matched review-r27 review-catch t1 session 3 of 11)
+19:39:04Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s1 completed valid true attempts 1 USD 1.971643
+19:39:04Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s4 (a0_bare_matched review-r27 review-catch t1 session 4 of 11)
+19:39:40Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s2 completed valid true attempts 1 USD 2.237589
+19:39:40Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s5 (a0_bare_matched review-r27 review-catch t1 session 5 of 11)
+19:44:38Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s4 completed valid true attempts 1 USD 1.984647
+19:44:38Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s6 (a0_bare_matched review-r27 review-catch t1 session 6 of 11)
+19:49:36Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s5 completed valid true attempts 1 USD 3.207596
+19:49:36Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s7 (a0_bare_matched review-r27 review-catch t1 session 7 of 11)
+19:50:28Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s3 contaminated valid false attempts 1 USD 5.987192 (contaminated: repo_name)
+19:50:28Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s8 (a0_bare_matched review-r27 review-catch t1 session 8 of 11)
+19:51:21Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s6 completed valid true attempts 1 USD 2.53935
+19:51:21Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s9 (a0_bare_matched review-r27 review-catch t1 session 9 of 11)
+19:56:47Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s8 completed valid true attempts 1 USD 2.249001
+19:56:47Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s10 (a0_bare_matched review-r27 review-catch t1 session 10 of 11)
+19:57:29Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s7 completed valid true attempts 1 USD 2.273562
+19:57:29Z launch c132-g1-a2-a0_bare_matched-review-r27-t1-s11 (a0_bare_matched review-r27 review-catch t1 session 11 of 11)
+19:57:43Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s9 completed valid true attempts 1 USD 2.11688
+19:57:43Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s1 (a0_bare_matched review-r25 review-catch t1 session 1 of 16)
+20:00:23Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s1 completed valid true attempts 1 USD 1.005236
+20:00:23Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s2 (a0_bare_matched review-r25 review-catch t1 session 2 of 16)
+20:03:06Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s2 completed valid true attempts 1 USD 1.01061
+20:03:06Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s3 (a0_bare_matched review-r25 review-catch t1 session 3 of 16)
+20:03:43Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s11 completed valid true attempts 1 USD 2.127191
+20:03:43Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s4 (a0_bare_matched review-r25 review-catch t1 session 4 of 16)
+20:04:26Z done c132-g1-a2-a0_bare_matched-review-r27-t1-s10 completed valid true attempts 1 USD 2.809873
+20:04:28Z done c132-g1-a2-a0_bare_matched-review-r27-t1 completed sessions_valid 10 of 11 USD 23.517332 (valid sessions; all spend 29.504524)
+20:04:28Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s5 (a0_bare_matched review-r25 review-catch t1 session 5 of 16)
+20:05:47Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s3 completed valid true attempts 1 USD 0.966047
+20:05:47Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s6 (a0_bare_matched review-r25 review-catch t1 session 6 of 16)
+20:06:14Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s4 completed valid true attempts 1 USD 0.86199
+20:06:14Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s7 (a0_bare_matched review-r25 review-catch t1 session 7 of 16)
+20:07:19Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s5 completed valid true attempts 1 USD 1.034051
+20:07:19Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s8 (a0_bare_matched review-r25 review-catch t1 session 8 of 16)
+20:08:19Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s6 completed valid true attempts 1 USD 1.032889
+20:08:19Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s9 (a0_bare_matched review-r25 review-catch t1 session 9 of 16)
+20:09:50Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s7 completed valid true attempts 1 USD 1.257988
+20:09:50Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s10 (a0_bare_matched review-r25 review-catch t1 session 10 of 16)
+20:09:54Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s8 completed valid true attempts 1 USD 0.901008
+20:09:54Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s11 (a0_bare_matched review-r25 review-catch t1 session 11 of 16)
+20:11:18Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s9 completed valid true attempts 1 USD 1.086387
+20:11:18Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s12 (a0_bare_matched review-r25 review-catch t1 session 12 of 16)
+20:12:46Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s10 completed valid true attempts 1 USD 1.11817
+20:12:46Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s13 (a0_bare_matched review-r25 review-catch t1 session 13 of 16)
+20:12:46Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s11 completed valid true attempts 1 USD 1.058772
+20:12:46Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s14 (a0_bare_matched review-r25 review-catch t1 session 14 of 16)
+20:14:10Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s12 completed valid true attempts 1 USD 1.034192
+20:14:10Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s15 (a0_bare_matched review-r25 review-catch t1 session 15 of 16)
+20:15:34Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s13 completed valid true attempts 1 USD 1.110322
+20:15:34Z launch c132-g1-a2-a0_bare_matched-review-r25-t1-s16 (a0_bare_matched review-r25 review-catch t1 session 16 of 16)
+20:15:59Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s14 completed valid true attempts 1 USD 1.131695
+20:15:59Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s1 (a0_bare_matched review-r28 review-catch t1 session 1 of 18)
+20:16:41Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s15 completed valid true attempts 1 USD 0.812604
+20:16:41Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s2 (a0_bare_matched review-r28 review-catch t1 session 2 of 18)
+20:17:48Z done c132-g1-a2-a0_bare_matched-review-r25-t1-s16 completed valid true attempts 1 USD 0.826538
+20:17:50Z done c132-g1-a2-a0_bare_matched-review-r25-t1 completed sessions_valid 16 of 16 USD 16.248499 (valid sessions; all spend 16.248499)
+20:17:50Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s3 (a0_bare_matched review-r28 review-catch t1 session 3 of 18)
+20:19:43Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s1 completed valid true attempts 1 USD 1.216755
+20:19:43Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s4 (a0_bare_matched review-r28 review-catch t1 session 4 of 18)
+20:19:54Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s2 completed valid true attempts 1 USD 1.060374
+20:19:54Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s5 (a0_bare_matched review-r28 review-catch t1 session 5 of 18)
+20:20:36Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s3 completed valid true attempts 1 USD 0.788339
+20:20:36Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s6 (a0_bare_matched review-r28 review-catch t1 session 6 of 18)
+20:22:32Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s4 completed valid true attempts 1 USD 0.834179
+20:22:32Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s7 (a0_bare_matched review-r28 review-catch t1 session 7 of 18)
+20:23:01Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s5 completed valid true attempts 1 USD 0.89672
+20:23:01Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s8 (a0_bare_matched review-r28 review-catch t1 session 8 of 18)
+20:23:50Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s6 completed valid true attempts 1 USD 0.970585
+20:23:50Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s9 (a0_bare_matched review-r28 review-catch t1 session 9 of 18)
+20:25:44Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s7 completed valid true attempts 1 USD 0.968446
+20:25:44Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s10 (a0_bare_matched review-r28 review-catch t1 session 10 of 18)
+20:26:24Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s8 completed valid true attempts 1 USD 1.061776
+20:26:24Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s11 (a0_bare_matched review-r28 review-catch t1 session 11 of 18)
+20:27:29Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s9 completed valid true attempts 1 USD 1.10108
+20:27:29Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s12 (a0_bare_matched review-r28 review-catch t1 session 12 of 18)
+20:28:50Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s10 completed valid true attempts 1 USD 0.900406
+20:28:50Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s13 (a0_bare_matched review-r28 review-catch t1 session 13 of 18)
+20:29:31Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s11 completed valid true attempts 1 USD 0.95541
+20:29:31Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s14 (a0_bare_matched review-r28 review-catch t1 session 14 of 18)
+20:30:52Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s12 completed valid true attempts 1 USD 1.02901
+20:30:52Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s15 (a0_bare_matched review-r28 review-catch t1 session 15 of 18)
+20:31:24Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s13 completed valid true attempts 1 USD 0.701448
+20:31:24Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s16 (a0_bare_matched review-r28 review-catch t1 session 16 of 18)
+20:32:41Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s14 completed valid true attempts 1 USD 0.852354
+20:32:41Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s17 (a0_bare_matched review-r28 review-catch t1 session 17 of 18)
+20:33:45Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s15 completed valid true attempts 1 USD 0.854589
+20:33:45Z launch c132-g1-a2-a0_bare_matched-review-r28-t1-s18 (a0_bare_matched review-r28 review-catch t1 session 18 of 18)
+20:34:35Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s16 completed valid true attempts 1 USD 0.935729
+20:34:35Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s1 (a0_bare_matched review-r15 review-catch t1 session 1 of 12)
+20:36:17Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s17 completed valid true attempts 1 USD 1.054684
+20:36:17Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s2 (a0_bare_matched review-r15 review-catch t1 session 2 of 12)
+20:36:40Z done c132-g1-a2-a0_bare_matched-review-r28-t1-s18 completed valid true attempts 1 USD 0.812833
+20:36:42Z done c132-g1-a2-a0_bare_matched-review-r28-t1 completed sessions_valid 18 of 18 USD 16.994717 (valid sessions; all spend 16.994717)
+20:36:42Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s3 (a0_bare_matched review-r15 review-catch t1 session 3 of 12)
+20:38:44Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s1 completed valid true attempts 1 USD 1.478978
+20:38:44Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s4 (a0_bare_matched review-r15 review-catch t1 session 4 of 12)
+20:40:00Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s2 completed valid true attempts 1 USD 1.362917
+20:40:00Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s5 (a0_bare_matched review-r15 review-catch t1 session 5 of 12)
+20:40:48Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s3 completed valid true attempts 1 USD 1.392274
+20:40:48Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s6 (a0_bare_matched review-r15 review-catch t1 session 6 of 12)
+20:42:50Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s4 completed valid true attempts 1 USD 1.485121
+20:42:50Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s7 (a0_bare_matched review-r15 review-catch t1 session 7 of 12)
+20:43:25Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s5 completed valid true attempts 1 USD 1.214205
+20:43:25Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s8 (a0_bare_matched review-r15 review-catch t1 session 8 of 12)
+20:45:02Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s6 completed valid true attempts 1 USD 1.604585
+20:45:03Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s9 (a0_bare_matched review-r15 review-catch t1 session 9 of 12)
+20:46:28Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s7 completed valid true attempts 1 USD 1.33301
+20:46:28Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s10 (a0_bare_matched review-r15 review-catch t1 session 10 of 12)
+20:47:38Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s8 completed valid true attempts 1 USD 1.453013
+20:47:38Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s11 (a0_bare_matched review-r15 review-catch t1 session 11 of 12)
+20:48:05Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s9 completed valid true attempts 1 USD 1.102396
+20:48:05Z launch c132-g1-a2-a0_bare_matched-review-r15-t1-s12 (a0_bare_matched review-r15 review-catch t1 session 12 of 12)
+20:50:21Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s10 completed valid true attempts 1 USD 1.452805
+20:50:21Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s1 (a0_bare_matched review-r27 review-catch t2 session 1 of 11)
+20:51:49Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s11 completed valid true attempts 1 USD 1.50963
+20:51:50Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s2 (a0_bare_matched review-r27 review-catch t2 session 2 of 11)
+20:52:16Z done c132-g1-a2-a0_bare_matched-review-r15-t1-s12 completed valid true attempts 1 USD 1.373267
+20:52:19Z done c132-g1-a2-a0_bare_matched-review-r15-t1 completed sessions_valid 12 of 12 USD 16.762201 (valid sessions; all spend 16.762201)
+20:52:19Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s3 (a0_bare_matched review-r27 review-catch t2 session 3 of 11)
+20:56:21Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s1 completed valid true attempts 1 USD 2.043876
+20:56:21Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s4 (a0_bare_matched review-r27 review-catch t2 session 4 of 11)
+20:58:10Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s2 completed valid true attempts 1 USD 2.366122
+20:58:10Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s5 (a0_bare_matched review-r27 review-catch t2 session 5 of 11)
+20:58:33Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s3 completed valid true attempts 1 USD 2.224603
+20:58:33Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s6 (a0_bare_matched review-r27 review-catch t2 session 6 of 11)
+21:02:41Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s4 completed valid true attempts 1 USD 2.320553
+21:02:41Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s7 (a0_bare_matched review-r27 review-catch t2 session 7 of 11)
+21:04:36Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s5 completed valid true attempts 1 USD 2.172313
+21:04:36Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s8 (a0_bare_matched review-r27 review-catch t2 session 8 of 11)
+21:04:51Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s6 completed valid true attempts 1 USD 2.192748
+21:04:51Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s9 (a0_bare_matched review-r27 review-catch t2 session 9 of 11)
+21:09:20Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s7 completed valid true attempts 1 USD 2.394208
+21:09:20Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s10 (a0_bare_matched review-r27 review-catch t2 session 10 of 11)
+21:11:45Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s8 completed valid true attempts 1 USD 2.472609
+21:11:45Z launch c132-g1-a2-a0_bare_matched-review-r27-t2-s11 (a0_bare_matched review-r27 review-catch t2 session 11 of 11)
+21:11:56Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s9 completed valid true attempts 1 USD 2.40135
+21:11:56Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s1 (a0_bare_matched review-r25 review-catch t2 session 1 of 16)
+21:14:13Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s1 completed valid true attempts 1 USD 0.839191
+21:14:13Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s2 (a0_bare_matched review-r25 review-catch t2 session 2 of 16)
+21:16:40Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s10 completed valid true attempts 1 USD 2.55976
+21:16:40Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s3 (a0_bare_matched review-r25 review-catch t2 session 3 of 16)
+21:17:22Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s2 completed valid true attempts 1 USD 1.13159
+21:17:22Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s4 (a0_bare_matched review-r25 review-catch t2 session 4 of 16)
+21:18:22Z done c132-g1-a2-a0_bare_matched-review-r27-t2-s11 completed valid true attempts 1 USD 2.402632
+21:18:24Z done c132-g1-a2-a0_bare_matched-review-r27-t2 completed sessions_valid 11 of 11 USD 25.550774 (valid sessions; all spend 25.550774)
+21:18:24Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s5 (a0_bare_matched review-r25 review-catch t2 session 5 of 16)
+21:20:01Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s3 completed valid true attempts 1 USD 1.173877
+21:20:01Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s6 (a0_bare_matched review-r25 review-catch t2 session 6 of 16)
+21:20:14Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s4 completed valid true attempts 1 USD 0.938503
+21:20:14Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s7 (a0_bare_matched review-r25 review-catch t2 session 7 of 16)
+21:21:28Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s5 completed valid true attempts 1 USD 1.164487
+21:21:28Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s8 (a0_bare_matched review-r25 review-catch t2 session 8 of 16)
+21:22:55Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s6 completed valid true attempts 1 USD 1.045413
+21:22:55Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s9 (a0_bare_matched review-r25 review-catch t2 session 9 of 16)
+21:23:24Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s7 completed valid true attempts 1 USD 1.102712
+21:23:25Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s10 (a0_bare_matched review-r25 review-catch t2 session 10 of 16)
+21:24:42Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s8 completed valid true attempts 1 USD 1.212528
+21:24:42Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s11 (a0_bare_matched review-r25 review-catch t2 session 11 of 16)
+21:25:46Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s9 completed valid true attempts 1 USD 0.949697
+21:25:46Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s12 (a0_bare_matched review-r25 review-catch t2 session 12 of 16)
+21:26:28Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s10 completed valid true attempts 1 USD 1.003369
+21:26:28Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s13 (a0_bare_matched review-r25 review-catch t2 session 13 of 16)
+21:28:36Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s11 completed valid true attempts 1 USD 1.367898
+21:28:36Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s14 (a0_bare_matched review-r25 review-catch t2 session 14 of 16)
+21:28:36Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s12 completed valid true attempts 1 USD 1.068129
+21:28:37Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s15 (a0_bare_matched review-r25 review-catch t2 session 15 of 16)
+21:29:32Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s13 completed valid true attempts 1 USD 1.109843
+21:29:32Z launch c132-g1-a2-a0_bare_matched-review-r25-t2-s16 (a0_bare_matched review-r25 review-catch t2 session 16 of 16)
+21:31:22Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s14 completed valid true attempts 1 USD 0.998357
+21:31:22Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s1 (a0_bare_matched review-r23 review-catch t2 session 1 of 12)
+21:31:29Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s15 completed valid true attempts 1 USD 0.974574
+21:31:29Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s2 (a0_bare_matched review-r23 review-catch t2 session 2 of 12)
+21:32:16Z done c132-g1-a2-a0_bare_matched-review-r25-t2-s16 completed valid true attempts 1 USD 0.921472
+21:32:19Z done c132-g1-a2-a0_bare_matched-review-r25-t2 completed sessions_valid 16 of 16 USD 17.00164 (valid sessions; all spend 17.00164)
+21:32:19Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s3 (a0_bare_matched review-r23 review-catch t2 session 3 of 12)
+21:35:24Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s1 completed valid true attempts 1 USD 1.278595
+21:35:24Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s4 (a0_bare_matched review-r23 review-catch t2 session 4 of 12)
+21:35:43Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s3 completed valid true attempts 1 USD 1.116794
+21:35:43Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s5 (a0_bare_matched review-r23 review-catch t2 session 5 of 12)
+21:37:04Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s2 contaminated valid false attempts 1 USD 1.671464 (contaminated: outside_path)
+21:37:04Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s6 (a0_bare_matched review-r23 review-catch t2 session 6 of 12)
+21:38:48Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s4 completed valid true attempts 1 USD 1.067582
+21:38:48Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s7 (a0_bare_matched review-r23 review-catch t2 session 7 of 12)
+21:39:30Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s5 completed valid true attempts 1 USD 1.17837
+21:39:30Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s8 (a0_bare_matched review-r23 review-catch t2 session 8 of 12)
+21:41:01Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s6 completed valid true attempts 1 USD 1.205085
+21:41:02Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s9 (a0_bare_matched review-r23 review-catch t2 session 9 of 12)
+21:42:36Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s7 completed valid true attempts 1 USD 1.221744
+21:42:36Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s10 (a0_bare_matched review-r23 review-catch t2 session 10 of 12)
+21:43:36Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s8 completed valid true attempts 1 USD 1.140683
+21:43:36Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s11 (a0_bare_matched review-r23 review-catch t2 session 11 of 12)
+21:44:47Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s9 completed valid true attempts 1 USD 1.053256
+21:44:47Z launch c132-g1-a2-a0_bare_matched-review-r23-t2-s12 (a0_bare_matched review-r23 review-catch t2 session 12 of 12)
+21:47:09Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s10 completed valid true attempts 1 USD 1.40948
+21:47:09Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s1 (a0_bare_matched review-r15 review-catch t2 session 1 of 12)
+21:48:22Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s11 completed valid true attempts 1 USD 1.539935
+21:48:23Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s2 (a0_bare_matched review-r15 review-catch t2 session 2 of 12)
+21:48:26Z done c132-g1-a2-a0_bare_matched-review-r23-t2-s12 completed valid true attempts 1 USD 1.215962
+21:48:28Z done c132-g1-a2-a0_bare_matched-review-r23-t2 completed sessions_valid 11 of 12 USD 13.427486 (valid sessions; all spend 15.09895)
+21:48:28Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s3 (a0_bare_matched review-r15 review-catch t2 session 3 of 12)
+21:51:10Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s1 completed valid true attempts 1 USD 1.479434
+21:51:10Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s4 (a0_bare_matched review-r15 review-catch t2 session 4 of 12)
+21:52:15Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s3 completed valid true attempts 1 USD 1.353939
+21:52:16Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s5 (a0_bare_matched review-r15 review-catch t2 session 5 of 12)
+21:53:40Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s2 completed valid true attempts 1 USD 2.009964
+21:53:40Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s6 (a0_bare_matched review-r15 review-catch t2 session 6 of 12)
+21:54:46Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s4 completed valid true attempts 1 USD 1.352736
+21:54:46Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s7 (a0_bare_matched review-r15 review-catch t2 session 7 of 12)
+21:56:07Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s5 completed valid true attempts 1 USD 1.278693
+21:56:07Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s8 (a0_bare_matched review-r15 review-catch t2 session 8 of 12)
+21:57:56Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s6 completed valid true attempts 1 USD 1.498881
+21:57:56Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s9 (a0_bare_matched review-r15 review-catch t2 session 9 of 12)
+21:59:21Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s7 completed valid true attempts 1 USD 1.616336
+21:59:21Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s10 (a0_bare_matched review-r15 review-catch t2 session 10 of 12)
+22:00:15Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s8 completed valid true attempts 1 USD 1.411423
+22:00:15Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s11 (a0_bare_matched review-r15 review-catch t2 session 11 of 12)
+22:01:58Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s9 completed valid true attempts 1 USD 1.398671
+22:01:58Z launch c132-g1-a2-a0_bare_matched-review-r15-t2-s12 (a0_bare_matched review-r15 review-catch t2 session 12 of 12)
+22:02:33Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s10 contaminated valid false attempts 1 USD 1.260702 (contaminated: outside_path)
+22:02:33Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s1 (a0_bare_matched review-r28 review-catch t2 session 1 of 18)
+22:03:44Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s11 completed valid true attempts 1 USD 1.355595
+22:03:44Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s2 (a0_bare_matched review-r28 review-catch t2 session 2 of 18)
+22:05:50Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s1 completed valid true attempts 1 USD 0.859519
+22:05:50Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s3 (a0_bare_matched review-r28 review-catch t2 session 3 of 18)
+22:06:46Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s2 completed valid true attempts 1 USD 0.845764
+22:06:46Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s4 (a0_bare_matched review-r28 review-catch t2 session 4 of 18)
+22:06:53Z done c132-g1-a2-a0_bare_matched-review-r15-t2-s12 completed valid true attempts 1 USD 1.83999
+22:06:56Z done c132-g1-a2-a0_bare_matched-review-r15-t2 completed sessions_valid 11 of 12 USD 16.595662 (valid sessions; all spend 17.856364)
+22:06:56Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s5 (a0_bare_matched review-r28 review-catch t2 session 5 of 18)
+22:08:58Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s3 completed valid true attempts 1 USD 0.902273
+22:08:58Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s6 (a0_bare_matched review-r28 review-catch t2 session 6 of 18)
+22:09:39Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s5 completed valid true attempts 1 USD 0.762477
+22:09:39Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s7 (a0_bare_matched review-r28 review-catch t2 session 7 of 18)
+22:10:25Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s4 completed valid true attempts 1 USD 1.020826
+22:10:25Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s8 (a0_bare_matched review-r28 review-catch t2 session 8 of 18)
+22:12:05Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s6 completed valid true attempts 1 USD 0.909476
+22:12:05Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s9 (a0_bare_matched review-r28 review-catch t2 session 9 of 18)
+22:12:41Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s7 completed valid true attempts 1 USD 0.886349
+22:12:41Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s10 (a0_bare_matched review-r28 review-catch t2 session 10 of 18)
+22:13:18Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s8 completed valid true attempts 1 USD 0.891936
+22:13:18Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s11 (a0_bare_matched review-r28 review-catch t2 session 11 of 18)
+22:15:11Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s9 completed valid true attempts 1 USD 0.944155
+22:15:11Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s12 (a0_bare_matched review-r28 review-catch t2 session 12 of 18)
+22:15:17Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s10 completed valid true attempts 1 USD 0.701034
+22:15:17Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s13 (a0_bare_matched review-r28 review-catch t2 session 13 of 18)
+22:16:22Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s11 completed valid true attempts 1 USD 0.907024
+22:16:23Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s14 (a0_bare_matched review-r28 review-catch t2 session 14 of 18)
+22:17:54Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s12 completed valid true attempts 1 USD 0.785446
+22:17:54Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s15 (a0_bare_matched review-r28 review-catch t2 session 15 of 18)
+22:18:21Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s13 completed valid true attempts 1 USD 0.910522
+22:18:21Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s16 (a0_bare_matched review-r28 review-catch t2 session 16 of 18)
+22:19:12Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s14 completed valid true attempts 1 USD 0.82958
+22:19:12Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s17 (a0_bare_matched review-r28 review-catch t2 session 17 of 18)
+22:20:46Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s15 completed valid true attempts 1 USD 0.833696
+22:20:46Z launch c132-g1-a2-a0_bare_matched-review-r28-t2-s18 (a0_bare_matched review-r28 review-catch t2 session 18 of 18)
+22:21:29Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s16 completed valid true attempts 1 USD 0.882641
+22:21:29Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s1 (a0_bare_matched review-r14 review-catch t2 session 1 of 13)
+22:22:09Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s17 completed valid true attempts 1 USD 0.766623
+22:22:09Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s2 (a0_bare_matched review-r14 review-catch t2 session 2 of 13)
+22:23:19Z done c132-g1-a2-a0_bare_matched-review-r28-t2-s18 completed valid true attempts 1 USD 0.72193
+22:23:22Z done c132-g1-a2-a0_bare_matched-review-r28-t2 completed sessions_valid 18 of 18 USD 15.361271 (valid sessions; all spend 15.361271)
+22:23:22Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s3 (a0_bare_matched review-r14 review-catch t2 session 3 of 13)
+22:27:59Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s1 completed valid true attempts 1 USD 2.885262
+22:27:59Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s4 (a0_bare_matched review-r14 review-catch t2 session 4 of 13)
+22:28:29Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s2 completed valid true attempts 1 USD 2.542149
+22:28:29Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s5 (a0_bare_matched review-r14 review-catch t2 session 5 of 13)
+22:30:33Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s3 completed valid true attempts 1 USD 3.492457
+22:30:33Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s6 (a0_bare_matched review-r14 review-catch t2 session 6 of 13)
+22:32:59Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s4 completed valid true attempts 1 USD 2.030209
+22:32:59Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s7 (a0_bare_matched review-r14 review-catch t2 session 7 of 13)
+22:34:07Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s5 completed valid true attempts 1 USD 2.639846
+22:34:07Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s8 (a0_bare_matched review-r14 review-catch t2 session 8 of 13)
+22:37:36Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s7 completed valid true attempts 1 USD 2.008469
+22:37:36Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s9 (a0_bare_matched review-r14 review-catch t2 session 9 of 13)
+22:38:03Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s6 completed valid true attempts 1 USD 2.801135
+22:38:04Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s10 (a0_bare_matched review-r14 review-catch t2 session 10 of 13)
+22:39:08Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s8 completed valid true attempts 1 USD 1.565068
+22:39:08Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s11 (a0_bare_matched review-r14 review-catch t2 session 11 of 13)
+22:43:37Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s10 completed valid true attempts 1 USD 2.339382
+22:43:37Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s12 (a0_bare_matched review-r14 review-catch t2 session 12 of 13)
+22:45:17Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s9 completed valid true attempts 1 USD 2.932817
+22:45:17Z launch c132-g1-a2-a0_bare_matched-review-r14-t2-s13 (a0_bare_matched review-r14 review-catch t2 session 13 of 13)
+22:46:40Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s11 completed valid true attempts 1 USD 2.922728
+22:49:41Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s12 completed valid true attempts 1 USD 2.934271
+22:51:20Z done c132-g1-a2-a0_bare_matched-review-r14-t2-s13 completed valid true attempts 1 USD 2.864407
+22:51:23Z done c132-g1-a2-a0_bare_matched-review-r14-t2 completed sessions_valid 13 of 13 USD 33.9582 (valid sessions; all spend 33.9582)
+22:51:23Z complete: 12 trials rowed, spent 253.025893

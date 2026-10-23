@@ -1,0 +1,20 @@
+{
+  "id": "s1",
+  "status": "completed",
+  "valid": true,
+  "invalid_reason": null,
+  "attempts": 2,
+  "attempt_statuses": [
+    "interrupted",
+    "completed"
+  ],
+  "attempt_costs": [
+    0.238614,
+    7.83733
+  ],
+  "cost_usd": 7.83733,
+  "run_dir": "sessions/s1-r2",
+  "took_effect": "ok",
+  "started": "2026-10-23T04:50:41Z",
+  "finished": "2026-10-23T05:19:23Z"
+}

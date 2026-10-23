@@ -1,0 +1,16 @@
+head/.claude/scripts/lib/dec-write-lib.sh:359
+decisions.md:25-26
+head/.claude/scripts/lib/dec-write-lib.sh:642
+validate-artifact.sh:686
+head/.claude/scripts/lib/dec-write-lib.sh:580
+validate-artifact.sh:681
+head/.claude/scripts/lib/dec-write-lib.sh:667
+head/.claude/skills/run-mode/resources/render-templates.md:104
+head/tests/unit/user-invoked-harness.bats:135
+head/.claude/scripts/validate-artifact.sh:819
+head/.claude/hooks/session-start/loa-decisions-surface.sh:79
+head/.claude/scripts/lib/dec-write-lib.sh:718
+head/.claude/scripts/validate-artifact.sh:787
+head/.claude/commands/decisions.md:27
+dec-write-lib.bats:548
+user-invoked-commands.bats:86

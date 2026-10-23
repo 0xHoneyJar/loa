@@ -1,0 +1,252 @@
+{
+  "finished": "2026-10-21T21:32:16Z",
+  "k": 16,
+  "schema_version": 1,
+  "sessions": [
+    {
+      "attempt_costs": [
+        0.839191
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.839191,
+      "id": "s1",
+      "invalid_reason": null,
+      "run_dir": "sessions/s1",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.13159
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.13159,
+      "id": "s2",
+      "invalid_reason": null,
+      "run_dir": "sessions/s2",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.173877
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.173877,
+      "id": "s3",
+      "invalid_reason": null,
+      "run_dir": "sessions/s3",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        0.938503
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.938503,
+      "id": "s4",
+      "invalid_reason": null,
+      "run_dir": "sessions/s4",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.164487
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.164487,
+      "id": "s5",
+      "invalid_reason": null,
+      "run_dir": "sessions/s5",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.045413
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.045413,
+      "id": "s6",
+      "invalid_reason": null,
+      "run_dir": "sessions/s6",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.102712
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.102712,
+      "id": "s7",
+      "invalid_reason": null,
+      "run_dir": "sessions/s7",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.212528
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.212528,
+      "id": "s8",
+      "invalid_reason": null,
+      "run_dir": "sessions/s8",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        0.949697
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.949697,
+      "id": "s9",
+      "invalid_reason": null,
+      "run_dir": "sessions/s9",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.003369
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.003369,
+      "id": "s10",
+      "invalid_reason": null,
+      "run_dir": "sessions/s10",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.367898
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.367898,
+      "id": "s11",
+      "invalid_reason": null,
+      "run_dir": "sessions/s11",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.068129
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.068129,
+      "id": "s12",
+      "invalid_reason": null,
+      "run_dir": "sessions/s12",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        1.109843
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 1.109843,
+      "id": "s13",
+      "invalid_reason": null,
+      "run_dir": "sessions/s13",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        0.998357
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.998357,
+      "id": "s14",
+      "invalid_reason": null,
+      "run_dir": "sessions/s14",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        0.974574
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.974574,
+      "id": "s15",
+      "invalid_reason": null,
+      "run_dir": "sessions/s15",
+      "status": "completed",
+      "valid": true
+    },
+    {
+      "attempt_costs": [
+        0.921472
+      ],
+      "attempt_statuses": [
+        "completed"
+      ],
+      "attempts": 1,
+      "cost_usd": 0.921472,
+      "id": "s16",
+      "invalid_reason": null,
+      "run_dir": "sessions/s16",
+      "status": "completed",
+      "valid": true
+    }
+  ],
+  "sessions_attempted": 16,
+  "sessions_valid": 16,
+  "started": "2026-10-21T21:11:56Z",
+  "task_id": "review-r25",
+  "trial": 2
+}

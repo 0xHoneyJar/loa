@@ -5,12 +5,44 @@
 # grimoires/loa/a2a/sprint-<N>/ the labels are seeded from (round-1 review, the audit, the Bridgebuilder triage);
 # later review rounds are left out because they read a tree after head. Each pair is an [ASSUMPTION fact] in the
 # sprint-255 implementation report.
-sprint	fixture	base	head	fix	record_ref	feedback
-247	pr-11	7246ae55^	7246ae55	4b289413	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md
-248	pr-12	6c887887^	6c887887	51d7a1ff	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md
-249	pr-13	41b783a1^	41b783a1	36b71e4e	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md
-250	pr-14	2fcd4af8	d785fc9a	e170de3d	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md
-251	pr-15	f43949d6^	8ad37c55	263a8d4c	origin/record/cycle-127-a2a	engineer-feedback.md,auditor-sprint-feedback.md
-252	pr-16	8dc4a49d^	8dc4a49d	16f38539	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback.md
-253	pr-17	cea919ca^	cea919ca	8f7932b2	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md
-254	pr-18	efacf754^	efacf754	3758ddd0	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md,bridgebuilder-triage.md
+# cycle-132 (Task 1.1, FR-1, SDD D-1.1) adds sprints 255 … 264 under the same convention, derived from
+# `git log --reverse <main merge>^1..<main merge>^2` of each cycle's PR (#1282 9e53d5d2, #1283 dfc47772,
+# #1286 7b024f5c) and the round-1 review / audit headers on the record branch, which name the commit each read:
+# - 255–257 (origin/record/cycle-129-a2a): one implementation commit each (ee1625a0, 40df53ed, 163656ff);
+#   255 seeded pr-11 … pr-18 itself, so its row drops evals/fixtures/review-prs/* (fixture copies and hidden keys);
+#   fix = the last audit-round fix (b6802e4f, 9c4ed319); 257 also carries the PR #1282 Bridgebuilder round
+#   (bb-triage.md, fix 2fb03b5c, which includes the CI fix 8e996514 to hop-locality.py), as 254 did.
+# - 258–260 (origin/record/cycle-130-a2a): 258 drops evals/tests/fixtures/ablation-runs/runs/* (341 run
+#   directories regen.sh generates); 259's round-1 review read two commits (a293df09 + 6be23186);
+#   260's read 4c279606 (c02d12bb + the calibration commits, per engineer-feedback-r1.md); fix = the last
+#   audit-round fix (ffe162ef, 05830914, 53600ea3).
+# - 261/262 share the base 4434d450 and interleave (262's 0fda13a0/c031144f/044ce03d precede 261's review
+#   head 4af3294b). The `paths` column splits them on disjoint files: 262 is its row writer and report
+#   (unchanged between 4af3294b and its review head 82c5cd7d), based at 0fda13a0^; 261 is everything else
+#   minus README.md (463fbda1, a version sync of neither sprint). Each head..fix touches only its own files.
+# - 263/264 (origin/record/cycle-131-honest-measurement): feedback under a2a/sprint-1/ and sprint-2/ (the
+#   local labels), passed as record-root paths; 263 drops evals/fixtures/review-prs/* (other fixtures'
+#   manifests and SHA256SUMS: hidden keys) and evals/tests/fixtures/c131-oracle/* (arm transcripts on pr-17/18).
+# - 265 is not seeded: its change (reads-c131.py, reports) lives under grimoires/, which the seeder scopes out,
+#   so base..head (ba3937ca^..ba3937ca) has no in-scope file. The PR #1283 / #1286 Bridgebuilder rounds
+#   (76ba937e, aac80f4c) have no triage file on a record branch and are left out of every fix.
+# `paths` (optional; `-` none): seed-corpus-from-record.sh --paths globs, `!` excludes.
+sprint	fixture	base	head	fix	record_ref	feedback	paths
+247	pr-11	7246ae55^	7246ae55	4b289413	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md	-
+248	pr-12	6c887887^	6c887887	51d7a1ff	origin/record/cycle-126-a2a	engineer-feedback-round-1.md,auditor-sprint-feedback.md	-
+249	pr-13	41b783a1^	41b783a1	36b71e4e	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md	-
+250	pr-14	2fcd4af8	d785fc9a	e170de3d	origin/record/cycle-126-a2a	engineer-feedback.md,auditor-sprint-feedback.md	-
+251	pr-15	f43949d6^	8ad37c55	263a8d4c	origin/record/cycle-127-a2a	engineer-feedback.md,auditor-sprint-feedback.md	-
+252	pr-16	8dc4a49d^	8dc4a49d	16f38539	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback.md	-
+253	pr-17	cea919ca^	cea919ca	8f7932b2	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	-
+254	pr-18	efacf754^	efacf754	3758ddd0	origin/record/cycle-128-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md,bridgebuilder-triage.md	-
+255	pr-19	ee1625a0^	ee1625a0	b6802e4f	origin/record/cycle-129-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	!evals/fixtures/review-prs/*
+256	pr-20	40df53ed^	40df53ed	9c4ed319	origin/record/cycle-129-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	-
+257	pr-21	163656ff^	163656ff	2fb03b5c	origin/record/cycle-129-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md,bb-triage.md	-
+258	pr-22	05442536^	05442536	ffe162ef	origin/record/cycle-130-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	!evals/tests/fixtures/ablation-runs/runs/*
+259	pr-23	a293df09^	6be23186	05830914	origin/record/cycle-130-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	-
+260	pr-24	c02d12bb^	4c279606	53600ea3	origin/record/cycle-130-a2a	engineer-feedback-r1.md,auditor-sprint-feedback-r1.md	-
+261	pr-25	4434d450	4af3294b	e95139fe	origin/record/cycle-130-a2a	engineer-feedback-r1.md,auditor-sprint-feedback.md	!evals/harness/ablation-row.sh,!evals/harness/ablation-report.py,!evals/tests/ablation-row.bats,!evals/tests/ablation-report.bats,!evals/tests/fixtures/ablation-report/*,!README.md
+262	pr-26	0fda13a0^	82c5cd7d	56ce0b8f	origin/record/cycle-130-a2a	engineer-feedback-r1.md,auditor-sprint-feedback.md	evals/harness/ablation-row.sh,evals/harness/ablation-report.py,evals/tests/ablation-row.bats,evals/tests/ablation-report.bats,evals/tests/fixtures/ablation-report/*
+263	pr-27	bb03e931^	bb03e931	cddec367	origin/record/cycle-131-honest-measurement	grimoires/loa/a2a/sprint-1/engineer-feedback.md,grimoires/loa/a2a/sprint-1/auditor-sprint-feedback-r1.md	!evals/fixtures/review-prs/*,!evals/tests/fixtures/c131-oracle/*
+264	pr-28	0281ea57^	0281ea57	798d88cf	origin/record/cycle-131-honest-measurement	grimoires/loa/a2a/sprint-2/engineer-feedback.md,grimoires/loa/a2a/sprint-2/auditor-sprint-feedback.md	-

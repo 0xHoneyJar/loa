@@ -1,0 +1,190 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/preflight.sh:run_integrity_checks",
+      "anchor_type": "function",
+      "anchor_line": 190,
+      "scope": "diff",
+      "description": "The integrity count now counts Git index entries rather than files present on disk. `git ls-files` still lists tracked files deleted from the working tree, so deleting a managed file leaves ACTUAL_COUNT unchanged and the integrity check reports no mismatch.",
+      "failure_mode": "An incomplete or damaged standard installation passes preflight because the expected manifest count still matches the index count despite missing System Zone files.",
+      "suggested_fix": "Filter the tracked paths by their existence in MANIFEST_TREE before counting, or explicitly check each manifest path exists while retaining the intended submodule mount handling.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "anchor_type": "line",
+      "anchor_line": 75,
+      "anchor_line_end": 76,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "A manifest path that is absent from the mount but present under .loa/<path> is now counted as informational 'not-mounted' and never changes the exit code. The only gate is `-d .loa/.claude`, so in any submodule mount a deleted or never-created link for a manifest-covered file (hooks, scripts, rules) that used to be reported as `Missing` (fail) now passes integrity. The check cannot distinguish 'intentionally unlinked subset' from 'required link removed'.",
+      "failure_mode": "Removing a symlink such as .claude/scripts/preflight.sh or a hook in a submodule-mounted downstream no longer fails check-loa.sh; the System Zone integrity check reports 'Integrity verified' plus a one-line count, masking tampering by deletion.",
+      "suggested_fix": "Compare against the mount's declared link set (what the mount script actually links) rather than treating every absent-but-upstream path as benign, or at minimum emit the list of not-mounted paths and fail when a path under a required-prefix allowlist (hooks/, scripts/, rules/) is unlinked.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-row.sh:ms",
+      "anchor_type": "line",
+      "anchor_line": 230,
+      "anchor_line_end": 314,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`ms(ts)` strips only a `.NNNZ` suffix and then calls `fromdateiso8601`, which accepts only `%Y-%m-%dT%H:%M:%SZ`. `wall_clock_ms` guards with `$p.started != null`, so an empty string, a `+00:00` offset, or any non-canonical timestamp in meta/pipeline.json raises a jq runtime error. Under `set -euo pipefail` the whole `ROW=$(jq ...)` assignment aborts, the row is never written, and the only output is a jq stack message with no run_id. The same class of hard failure applies to `voices(e)` indexing `.verdict_quality.*` and `.metadata.companion_voice.planned` when those fields are non-object (e.g. a boolean companion_voice).",
+      "failure_mode": "A batch runner that writes `started` with a timezone offset, or a grader/envelope with a scalar where an object is assumed, loses every row for that run with exit 5 from jq instead of a degraded row or a usage error; downstream runs.jsonl silently has gaps.",
+      "suggested_fix": "Wrap date parsing in `try (...) catch null` and fall back to the per-phase duration sum when either timestamp fails to parse; guard `voices(e)` field access with `(e.verdict_quality // {} | objects)` style checks; and trap jq failure on the ROW build to print the run_id and exit 2.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/defaults/model-config.yaml:providers.openai.models.gpt-6.1-sol.pricing",
+      "anchor_type": "line",
+      "anchor_line": 143,
+      "anchor_line_end": 149,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:providers.openai.models.gpt-6.1-sol",
+      "cross_file_justification": "find_pricing (loa_cheval/metering/pricing.py, exercised by the diff-touched test_pricing_resolution_ladder.py) resolves codex-headless → hop → gpt-6.1-sol and create_ledger_entry stamps pricing_source=\"config\" with no placeholder indicator; ablation-row.sh (in diff) sums those cost_micro_usd values into runs.jsonl cost_usd.",
+      "description": "The gpt-6.1-sol rate card is an acknowledged placeholder (gpt-5.5 prices copied), yet every codex-headless MODELINV row and every ablation runs.jsonl cost_usd derived from it carries pricing_source=\"config\" with no marker. Once the real card is confirmed, historical ledger and ablation cost figures are silently wrong and indistinguishable from confirmed-price rows.",
+      "failure_mode": "Ablation batches run between 2026-10-15 and the rate-card confirmation record cost_usd computed from the wrong rate card; spend.sh budgets and cost-per-arm comparisons are off by the price ratio with nothing in the data flagging it.",
+      "suggested_fix": "Add a `pricing_confirmed: false` (or `placeholder: true`) key under the pricing block, have create_ledger_entry propagate it as `pricing_placeholder: true` on the ledger row, and have ablation-row.sh surface it in degraded_reason so rows can be re-priced later.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/fingerprint.sh:tool_version",
+      "anchor_type": "line",
+      "anchor_line": 86,
+      "anchor_line_end": 86,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header promises that a missing tool 'changes the fingerprint instead of failing the run', but the digest is computed with `python3 -I -c ...` after `tool_version python3` may have printed `python3=absent`. With `set -euo pipefail` the script exits non-zero on hosts without python3, so pipeline-run.sh / MANIFEST.json generation fails rather than recording an `absent` entry. Separately, the bats fallback is a hard-coded operator home path (`~/.local/dotfiles/tools/diff-so-fancy/test/bats/bin/bats`), which reads `absent` on any other host and makes the fingerprint host-specific for reasons unrelated to the toolchain.",
+      "failure_mode": "On a container or CI host without python3, every ablation run aborts at fingerprinting; on hosts other than the original operator's, fingerprints differ solely because of the private bats path, defeating cross-host comparability.",
+      "suggested_fix": "Fall back to `sha256sum`/`shasum -a 256` when python3 is absent (still no sourcing of .claude/ code), and drop the operator-specific bats path in favour of `LOA_EVAL_BATS_BIN` + PATH lookup only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:file",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/check-loa.sh:check_integrity",
+      "cross_file_justification": "check_integrity (in diff) hashes every path in .claude/checksums.json against the working tree; this diff modifies several System Zone files that such a manifest normally covers (model-config.yaml, generated-model-maps.sh, check-loa.sh, preflight.sh, bridgebuilder dist/resources) but the changed-file list does not include .claude/checksums.json.",
+      "description": "Multiple manifest-covered .claude/ files change in this diff while .claude/checksums.json is not among the changed files (only model-config.yaml.checksum is). If the manifest is committed rather than regenerated at release, check-loa.sh will report `Tampered:` for each of these paths on the next mount, and preflight's count check may also drift. This could not be verified from the provided diff (tools/gen-checksums.sh changed but was truncated).",
+      "failure_mode": "Fresh mounts of this commit fail System Zone integrity with Tampered on model-config.yaml, generated-model-maps.sh, check-loa.sh and preflight.sh until the manifest is regenerated.",
+      "suggested_fix": "Regenerate .claude/checksums.json with tools/gen-checksums.sh in the same change, or confirm in the PR that the manifest is produced at release time and add a CI step that fails when tracked .claude/ files differ from the committed manifest.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T04:52:49Z",
+    "tokens_input": 102624,
+    "tokens_output": 21344,
+    "cost_usd": 0,
+    "latency_ms": 31569,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 761,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f804aa14b6270cb8a95c7185a475c7b82355b82e9e82142bc978d7ead802f7c5",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

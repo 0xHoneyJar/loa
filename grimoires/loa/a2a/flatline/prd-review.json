@@ -1,0 +1,57 @@
+{
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "cycle": "cycle-108-advisor-strategy",
+  "domain": "cycle 108 prd advisor",
+  "timestamp": "2026-05-13T00:11:05Z",
+  "models": {
+    "primary": "opus",
+    "secondary": "gpt-5.5-pro",
+    "tertiary": "gemini-3.1-pro-preview"
+  },
+  "confidence": "single_model",
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 14,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 0,
+    "models": 3,
+    "tertiary_items": 14,
+    "voice_status": {
+      "opus": "DEGRADED — returned 0 score on all 14 items (empty-content or validation rejection signature)",
+      "gpt-5.5-pro": "active",
+      "gemini-3.1-pro-preview": "active"
+    },
+    "note": "All 14 items are DISPUTED only because Opus degraded. gpt-5.5-pro + gemini-3.1-pro substantively agree (scores within ~100pts on most items). Under voice-drop semantics (cycle-104 T2.8), these are effectively HIGH_CONSENSUS-equivalent. Per the recurrence-aware reading guide in known-failures.md, this matches the KF-002 layer-1 latent failure mode signature but is operationally non-blocking because two voices remain active and substantively agree."
+  },
+  "disputed": [
+    {"id": "IMP-001", "gpt_score": 920, "opus_score": 0, "tertiary_score": 900, "description": "Pre-register concrete baseline thresholds before benchmark to prevent retrospective threshold fitting on SC-1..SC-5"},
+    {"id": "IMP-002", "gpt_score": 910, "opus_score": 0, "tertiary_score": 850, "description": "Define confidence intervals + pass/fail/inconclusive decision rules with explicit statistical methodology"},
+    {"id": "IMP-003", "gpt_score": 950, "opus_score": 0, "tertiary_score": 950, "description": "NFR-Sec1 needs loader-level hard failure + unit test, not schema-doc-only assertion"},
+    {"id": "IMP-004", "gpt_score": 850, "opus_score": 0, "tertiary_score": 800, "description": "LLM variance: temperature pinning + prompt-SHA pinning insufficient. Need paired-comparison semantics + N samples per replay"},
+    {"id": "IMP-005", "gpt_score": 835, "opus_score": 0, "tertiary_score": 880, "description": "Replay semantics: clarify fresh-run vs recorded-replay to avoid apples-to-oranges interpretation"},
+    {"id": "IMP-006", "gpt_score": 690, "opus_score": 0, "tertiary_score": 650, "description": "Stratification taxonomy stub in PRD (candidate strata list) — don't fully defer to SDD"},
+    {"id": "IMP-007", "gpt_score": 770, "opus_score": 0, "tertiary_score": 700, "description": "Kill-switch in-flight semantics: deterministic behavior for sprints already running when flag flips"},
+    {"id": "IMP-008", "gpt_score": 790, "opus_score": 0, "tertiary_score": 750, "description": "Hash-chain validation failure behavior in cost aggregator (abort vs degrade-and-report)"},
+    {"id": "IMP-009", "gpt_score": 705, "opus_score": 0, "tertiary_score": 600, "description": "advisor tier: pinned model vs moving alias — schema policy decision (resolves OQ-1)"},
+    {"id": "IMP-010", "gpt_score": 635, "opus_score": 0, "tertiary_score": 820, "description": "Rollback validation via model-selection-trace comparison across a full cycle, not just unit test"},
+    {"id": "IMP-011", "gpt_score": 765, "opus_score": 0, "tertiary_score": 850, "description": "Pre-run cost cap + estimate for the benchmark harness itself (prevent validation effort burning runway)"},
+    {"id": "IMP-012", "gpt_score": 725, "opus_score": 0, "tertiary_score": 780, "description": "Multi-role skill tiebreaker rules (e.g., /run-bridge plays planning AND review roles)"},
+    {"id": "IMP-013", "gpt_score": 660, "opus_score": 0, "tertiary_score": 720, "description": "Chain-exhaustion classification in benchmark: count as fail / inconclusive / drop?"},
+    {"id": "IMP-014", "gpt_score": 715, "opus_score": 0, "tertiary_score": 680, "description": "Per-stratum cost reporting (not just aggregate) to align with stratified-evaluation principle"}
+  ],
+  "high_consensus": [],
+  "low_value": [],
+  "blockers": [],
+  "degraded": true,
+  "degraded_model": "opus",
+  "voice_drop_applied": true,
+  "voice_drop_rationale": "Opus returned 0 score on all 14 items — empty-content signature. Two remaining voices (gpt-5.5-pro + gemini-3.1-pro) substantively agree. Per cycle-104 voice-drop semantics, this is non-blocking; consensus is computed over remaining voices.",
+  "integration_decision": {
+    "all_14_items": "INTEGRATE — gpt+gemini effective consensus + zero blockers + all findings are PRD-level improvements that strengthen scientific rigor and operational guardrails",
+    "method": "PRD v1.1 amendment block + targeted in-section edits"
+  },
+  "execution": {"mode": "interactive", "run_id": null},
+  "metrics": {"total_latency_ms": 217000, "cost_cents": 0, "cost_usd": 0}
+}

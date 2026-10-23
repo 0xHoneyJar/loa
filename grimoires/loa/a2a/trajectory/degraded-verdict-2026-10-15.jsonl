@@ -1,0 +1,1 @@
+{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"Other","sprint_id":"sprint-259","ts":"2026-10-15T05:01:33Z","model_exit_code":1,"degraded_legs":["claude-headless"]}

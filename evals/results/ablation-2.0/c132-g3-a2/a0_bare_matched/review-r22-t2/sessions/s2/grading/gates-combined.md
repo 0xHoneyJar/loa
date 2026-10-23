@@ -1,0 +1,13 @@
+head/.github/workflows/bats-tests.yml:178
+head/evals/harness/lib/sandbox-mount.sh:386
+head/evals/harness/execute-agent.sh:221
+sandbox-mount.sh:6-7
+head/evals/harness/lib/sandbox-mount.sh:131
+head/.claude/scripts/check-loa.sh:75
+head/evals/harness/Dockerfile.ablation:20
+head/evals/harness/Dockerfile.ablation:25
+pipeline-run.sh:85
+head/evals/harness/pipeline-run.sh:506
+head/evals/harness/took-effect.sh:87
+ablation-row.sh:201
+head/evals/harness/fingerprint.sh:54

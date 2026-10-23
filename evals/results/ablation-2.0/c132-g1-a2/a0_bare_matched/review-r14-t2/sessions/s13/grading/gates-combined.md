@@ -1,0 +1,15 @@
+head/evals/graders/recall-vs-defects.sh:72
+a.sh:12
+head/evals/graders/recall-vs-defects.sh:74
+head/evals/graders/recall-vs-defects.sh:1-99999
+head/evals/graders/recall-vs-defects.sh:1-900
+a.sh:5
+a.sh:1-99999
+head/.claude/defaults/model-config.yaml:477
+head/.claude/defaults/model-config.yaml:491
+head/.claude/scripts/flatline-validate-learning.sh:81
+head/.claude/scripts/flatline-proposal-review.sh:76
+head/.claude/scripts/flatline-learning-extractor.sh:317
+head/.claude/hooks/compliance/implement-gate.sh:122
+tests/fixtures/pretooluse-payloads/expected.tsv:11
+head/.claude/scripts/check-permissions.sh:237

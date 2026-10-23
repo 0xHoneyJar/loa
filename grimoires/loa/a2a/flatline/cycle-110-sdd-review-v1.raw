@@ -1,0 +1,206 @@
+WARNING: Document size 64 KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode.
+[flatline] Execution mode: interactive (reason: Default (no explicit mode specified))
+[flatline] Tertiary model: gemini-3.1-pro-preview (active)
+[flatline] Document: grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: interactive
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents
+[flatline] State: INIT -> KNOWLEDGE
+[flatline] Retrieving knowledge context (two-tier)
+[flatline] Tier 1: Local knowledge retrieval
+[flatline] Tier 1: Local knowledge retrieval complete
+[flatline] Tier 2: NotebookLM knowledge retrieval
+[flatline] NotebookLM: disabled (skipping)
+[flatline] Knowledge retrieval complete (two-tier)
+[flatline] State: KNOWLEDGE -> PHASE1
+[flatline] Starting Phase 1: Independent reviews (4 parallel calls)
+[flatline] Tertiary model confirmed: gemini-3.1-pro-preview (3-model Flatline active)
+[flatline] Phase 1 complete (6 calls). Total cost so far: 0 cents
+[flatline] [vq-aggregate] wrote /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/flatline/sdd-final_consensus.json (status=APPROVED, voices=3/3)
+[flatline] State: KNOWLEDGE -> PHASE2
+[flatline] Starting Phase 2: Cross-scoring (6 parallel calls)
+[flatline] Phase 2 complete (6 calls). Total cost: 0 cents
+[flatline] State: KNOWLEDGE -> CONSENSUS
+[flatline] Calculating consensus
+[flatline] Including tertiary model scores in consensus (3-model mode)
+[flatline] Including tertiary model skeptic concerns in consensus
+[scoring-engine] Input items: GPT=13, Opus=12 (mode=standard)
+[scoring-engine] Thresholds: high=700, delta=300, low=400, blocker=700
+[scoring-engine] 3-model consensus mode: including tertiary items and cross-scores
+[scoring-engine] Consensus: HIGH=6 DISPUTED=1 LOW=0 BLOCKERS=5 (92% agreement)
+[flatline] State: KNOWLEDGE -> DONE
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 92,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Critical determinism and correctness gap. Inclusive boundary semantics, empty buckets, NaN/zero-division, all-red behavior, and iteration-order dependence can directly violate replica determinism and cause runtime failures. Low implementation cost: specify rules and adjust pseudocode.",
+      "gpt_score": 920,
+      "opus_score": 880,
+      "tertiary_score": 900,
+      "delta": 40,
+      "average_score": 900,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "A total deterministic ordering is essential for byte-identical resolver output. Adding a final lexicographic tie-break is simple, low risk, and closes a real edge case in tie resolution.",
+      "gpt_score": 900,
+      "opus_score": 920,
+      "tertiary_score": 950,
+      "delta": 20,
+      "average_score": 910,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Circuit-breaker precedence versus auto selection is core runtime behavior during outages. The current ambiguity can lead to selecting unavailable auth buckets or inconsistent implementations. This should be specified before integration.",
+      "gpt_score": 910,
+      "opus_score": 860,
+      "tertiary_score": 950,
+      "delta": 50,
+      "average_score": 885,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Schema migration and downgrade semantics are important for operational rollback safety. This is valuable, though the exact priority depends on whether downgrade compatibility is an explicit support goal. Implementation may require loader/version policy changes beyond documentation.",
+      "gpt_score": 760,
+      "opus_score": 840,
+      "tertiary_score": 920,
+      "delta": 80,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Repeatedly scanning large MODELINV logs during dispatch could violate performance budgets. A caching contract is valuable, especially if auto-mode is hot-path. Some care is needed to preserve deterministic/replay semantics and freshness, but the ROI is high.",
+      "gpt_score": 780,
+      "opus_score": 750,
+      "tertiary_score": 800,
+      "delta": 30,
+      "average_score": 765,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-011",
+      "description": "Migration lock contention is a realistic issue under parallel invocation. Specifying blocking, timeout, and starvation behavior improves reliability. Value is solid, though the scope is limited to migration and first-dispatch behavior.",
+      "gpt_score": 720,
+      "opus_score": 720,
+      "tertiary_score": 860,
+      "delta": 0,
+      "average_score": 720,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-013",
+      "description": "Auto-selection audit inputs must include all decision-relevant windows to satisfy reproducibility. If the 24h gate can affect the decision but is not logged, replay is incomplete. This is a clear auditability gap with manageable implementation cost.",
+      "gpt_score": 820,
+      "opus_score": 0,
+      "tertiary_score": 750,
+      "delta": 820,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-009",
+      "concern": "The 50-parallel stress test can itself damage real OAuth/session state because no sandboxing, fixture credentials, backup, or cleanup plan is specified.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "Testing for session corruption against the operator's live CLI profiles may corrupt tokens, trigger rate limits, create account flags, or pollute conversation/session history before safeguards are in place.",
+      "location": "§7.1 stress tests; §7.2 50-parallel stress invariant; Phase 2 T2.14; §10.4 ASSUMPTION-5",
+      "recommendation": "Run stress tests against mocked CLIs by default and live CLIs only in an isolated temporary HOME/profile with backup/restore and explicit operator opt-in. Define cleanup and rate-limit safety controls.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The `auto`-mode deterministic-replica invariant is contradicted by use of wall-clock `time.time()` for 24h and 7-day windows.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Two replicas with identical `model-invoke.jsonl` content can produce different `ResolvedTier` outputs if invoked at different times near a window boundary. This breaks the stated deterministic-replica guarantee and can cause route drift that is hard to debug.",
+      "location": "§5.2 auto-mode deterministic algorithm; §5.2 Deterministic-replica invariant",
+      "recommendation": "Inject an explicit evaluation timestamp into `resolve()`/`_resolve_auto()` and include it in deterministic tests. Define window semantics against that timestamp, or compute from the max timestamp in the input log when replaying.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-008",
+      "concern": "The concurrency semaphore design is insufficient for the stated risk: a single `flock` lock is a mutex, not an N-slot semaphore, and process-local default does not protect multi-process invocations.",
+      "severity": "HIGH",
+      "severity_score": 725,
+      "why_matters": "If headless CLIs corrupt shared session state under cross-process concurrency, the default `threading.Semaphore` offers no protection. If the fallback uses one lock file, it can over-throttle to one concurrent dispatch or be implemented incorrectly for N slots.",
+      "location": "§1.4.4 Headless adapter concurrency semaphore; §5.6 concurrency design; §10.4 ASSUMPTION-5",
+      "recommendation": "Design a real cross-process N-slot semaphore using slot lock files or a small lock-protected counter. Prefer safe cross-process enforcement by default when a CLI has any shared-session risk, not operator opt-in.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "The redaction pipeline does not define fail-closed behavior if the redactor crashes, times out, or misses a token shape.",
+      "severity": "CRITICAL",
+      "severity_score": 835,
+      "why_matters": "Headless CLIs may print OAuth/session material on stderr/stdout. If redaction fails open, secrets can be persisted to MODELINV, substrate-health journals, CI logs, or operator terminals, creating credential compromise risk.",
+      "location": "§1.9 Security Architecture; §5.4 doctor probe; §5.5 auto_selection_inputs redaction; §6.3 Logging strategy",
+      "recommendation": "Make redaction fail closed: if redaction returns non-zero or times out, suppress raw output and emit only a safe marker. Add tests for redactor failure, unknown token-like strings, binary output, and very large stderr.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "`resolve()` accepts a single `model_id` for auth lookup, but fallback chains can contain models with different `auth_type` values.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "Filtering or selecting based on the initial model's auth type can build an incorrect chain, silently skip valid fallback models, or route to a model whose auth type violates `dispatch_preference`. Cross-auth fallback semantics also become ambiguous per chain entry.",
+      "location": "§5.1 `AdvisorStrategyConfig.resolve()` signature; §1.5 dispatch data flow; §3.2 model-config auth_type",
+      "recommendation": "Resolve auth type per candidate chain entry, not per requested model only. Represent the resolved chain as structured entries `{provider, model_id, auth_type}` and apply filters/fallback rules to each entry.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-110-headless-dispatch/sdd.md",
+  "domain": "advisor-strategy headless dispatch SDD",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-15T05:44:08Z",
+  "metrics": {
+    "total_latency_ms": 100000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
+[flatline] Flatline: 3-model (opus + gpt-5.5 + gemini-3.1-pro-preview)
+[flatline] Flatline Protocol complete. Cost: 0 cents, Latency: 100000ms

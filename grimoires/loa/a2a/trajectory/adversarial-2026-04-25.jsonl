@@ -1,0 +1,10 @@
+{"timestamp":"2026-04-25T05:25:33Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-3A-iter3","status":"reviewed","finding_count":1,"cost_usd":0.0201}
+{"timestamp":"2026-04-25T05:34:09Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-3A-iter4","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-04-25T05:34:42Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-3A-iter4-recheck","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-04-25T07:06:30Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-3B","status":"reviewed","finding_count":3,"cost_usd":0.0790}
+{"timestamp":"2026-04-25T07:09:11Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-3B","status":"reviewed","finding_count":3,"cost_usd":0.0786}
+{"timestamp":"2026-04-25T07:59:18Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-4","status":"reviewed","finding_count":2,"cost_usd":0.0629}
+{"timestamp":"2026-04-25T23:08:29Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-119","status":"reviewed","finding_count":1,"cost_usd":0.0751}
+{"timestamp":"2026-04-25T23:26:43Z","type":"audit","model":"gpt-5.3-codex","sprint_id":"sprint-119","status":"clean","finding_count":0,"cost_usd":null}
+{"timestamp":"2026-04-25T23:30:49Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-119","status":"reviewed","finding_count":1,"cost_usd":0.0437}
+{"timestamp":"2026-04-25T23:44:55Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-119","status":"reviewed","finding_count":2,"cost_usd":0.0531}

@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "grader_version": "1.3.8",
+  "task_id": "review-r14",
+  "task_type": "review-catch",
+  "suite_frozen": true,
+  "union": true,
+  "bare_sessions": 4,
+  "sessions_valid": 4,
+  "sessions_graded": [
+    "s1",
+    "s2",
+    "s3",
+    "s4"
+  ],
+  "hidden_tests": null,
+  "structural": null,
+  "regressions": null,
+  "snapshot_tests": null,
+  "recall": {
+    "defects_seeded": 2,
+    "defects_caught": 0,
+    "recall": 0.0,
+    "flags": 20,
+    "missed": [
+      "d1",
+      "d2"
+    ],
+    "recall_pm3": 0.0,
+    "missed_pm3": [
+      "d1",
+      "d2"
+    ],
+    "recall_pm3_v1": 0.0,
+    "missed_pm3_v1": [
+      "d1",
+      "d2"
+    ],
+    "v1_manifest": true,
+    "credits_function_only": [],
+    "rule": "pm3_or_same_function"
+  },
+  "false_positives": 16,
+  "false_positive_rule": "pm3",
+  "multi_credit_citations": 0,
+  "verdict": null,
+  "verdicts": {
+    "review": null,
+    "audit": null
+  },
+  "verdict_accuracy": null,
+  "verdict_accuracy_per_gate": {
+    "review": null,
+    "audit": null
+  },
+  "diff_lines": null,
+  "files_changed": null,
+  "contaminated": null,
+  "contamination_exempt": [],
+  "contamination_classes_skipped": [
+    "hidden",
+    "suite_path"
+  ],
+  "oracle_exposed_defects": [],
+  "oracle_exposed_unknown": [],
+  "corpus_sha256": "487055af100d59e06c65f8f4545c0a67f5cd2d2dabf7e3a567fc9f11653eb24f",
+  "label_set": "c131",
+  "labels_meta": [
+    {
+      "defect": "d1",
+      "label_source": "review",
+      "agreement": null,
+      "review_driven": null
+    },
+    {
+      "defect": "d2",
+      "label_source": "audit",
+      "agreement": null,
+      "review_driven": null
+    }
+  ],
+  "per_session": [
+    {
+      "session": "s1",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 6.07787,
+      "recall": 0.0,
+      "recall_pm3": 0.0,
+      "detected": [],
+      "detected_pm3": [],
+      "false_positives": 9,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s2",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 4.898495,
+      "recall": 0.0,
+      "recall_pm3": 0.0,
+      "detected": [],
+      "detected_pm3": [],
+      "false_positives": 8,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s3",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 4.936774,
+      "recall": 0.0,
+      "recall_pm3": 0.0,
+      "detected": [],
+      "detected_pm3": [],
+      "false_positives": 6,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    },
+    {
+      "session": "s4",
+      "status": "completed",
+      "valid": true,
+      "cost_usd": 5.796635,
+      "recall": 0.0,
+      "recall_pm3": 0.0,
+      "detected": [],
+      "detected_pm3": [],
+      "false_positives": 6,
+      "verdict": "CHANGES_REQUIRED",
+      "grader_version": "1.3.8"
+    }
+  ],
+  "recall_session1": 0.0,
+  "recall_pm3_session1": 0.0,
+  "precision_session1": 0.0
+}

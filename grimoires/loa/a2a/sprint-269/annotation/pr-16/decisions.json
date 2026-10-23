@@ -1,0 +1,13 @@
+{
+ "H01": {"base": "A", "reason": "anchors: union (B adds 186–187)"},
+ "H02": {"base": "A", "reason": "anchors: union (B adds 261)"},
+ "H03": {"base": "A", "category": "security", "reason": "category: security — an unchecked write target; input-validation rejected as the narrower reading"},
+ "H04": {"base": "B", "verdict": "not-defect", "class": "docs", "reason": "class: docs — documentation text only, no behaviour; follow-on is reserved for code consequences of a fix"},
+ "H05": {"base": "B", "verdict": "not-defect", "class": "docs", "reason": "as H04"},
+ "H06": {"base": "B", "verdict": "not-defect", "class": "docs", "reason": "as H04"},
+ "H07": {"base": "A", "category": "contract", "reason": "anchors: union (A adds 127, the mode-default comment); category: contract — the shipped example contradicts the documented default"},
+ "H12": {"base": "A", "verdict": "not-defect", "class": "test", "reason": "class: test — a test helper's comments and locals (codebook: tests, fixtures or test helpers only)"},
+ "H13": {"base": "A", "verdict": "not-defect", "class": "test", "reason": "verdict: a test-helper correction is class test by the codebook (test helpers only); the key counts defects of the product code"},
+ "H16": {"base": "A", "group": "D5", "category": "input-validation", "reason": "anchors: union (B adds 65); group: A's D5 (B's D6 after H13 is not a defect); category: input-validation — unbounded input reaching argv"},
+ "H18": {"base": "A", "group": "D6", "reason": "anchors: union; group: A's D6 = B's D7 (namespace only)"}
+}

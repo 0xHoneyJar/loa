@@ -1,0 +1,72 @@
+version: 1
+
+operations:
+  site_prepare:
+    path: ./scripts/site-workflow.mjs
+    measurements:
+      duration_ms:
+        dimensions:
+          outcome: [success, error, cancelled]
+          mode: [open, publish]
+      app_build_duration_ms:
+        dimensions:
+          outcome: [success]
+          mode: [publish]
+      package_duration_ms:
+        dimensions:
+          outcome: [success]
+          mode: [publish]
+  project_setup:
+    path: ./scripts/project-setup.mjs
+    measurements:
+      duration_ms:
+        dimensions:
+          outcome: [success, error, cancelled]
+  dependency_install:
+    path: ./scripts/install-dependencies.mjs
+    measurements:
+      duration_ms:
+        dimensions:
+          outcome: [success, error, cancelled]
+          package_manager: [npm, pnpm, yarn, bun, unknown]
+          cache_seed: [seed_used, seed_unavailable, seed_lockfile_mismatch, decision_unavailable, not_applicable]
+          store_scope: [project, workspace, unknown]
+      packages_reused:
+        dimensions:
+          outcome: [success]
+          package_manager: [npm, pnpm]
+          cache_seed: [seed_used, seed_unavailable, seed_lockfile_mismatch, decision_unavailable, not_applicable]
+          store_scope: [project, workspace, unknown]
+      packages_downloaded:
+        dimensions:
+          outcome: [success]
+          package_manager: [npm, pnpm]
+          cache_seed: [seed_used, seed_unavailable, seed_lockfile_mismatch, decision_unavailable, not_applicable]
+          store_scope: [project, workspace, unknown]
+  pnpm_validation:
+    path: ./scripts/validate-pnpm.mjs
+    measurements:
+      result:
+        dimensions:
+          stage: [validation, readiness, store, install, build, reuse]
+          outcome: [success, error, cancelled, skipped]
+          reason: [none, image_unavailable, store_unavailable, seed_unavailable, unsupported_project, install_failed, build_failed, reuse_failed, timeout, cancelled, validation_failed]
+          store_state: [unknown, created, seeded, reused, unavailable]
+      duration_ms:
+        dimensions:
+          stage: [validation, readiness, store, install, build, reuse]
+          outcome: [success, error, cancelled, skipped]
+          reason: [none, image_unavailable, store_unavailable, seed_unavailable, unsupported_project, install_failed, build_failed, reuse_failed, timeout, cancelled, validation_failed]
+          store_state: [unknown, created, seeded, reused, unavailable]
+  app_build:
+    path: ./scripts/build-site.mjs
+    measurements:
+      duration_ms:
+        dimensions:
+          outcome: [success, error, cancelled]
+  package:
+    path: ./scripts/package-site.mjs
+    measurements:
+      duration_ms:
+        dimensions:
+          outcome: [success, error, cancelled]

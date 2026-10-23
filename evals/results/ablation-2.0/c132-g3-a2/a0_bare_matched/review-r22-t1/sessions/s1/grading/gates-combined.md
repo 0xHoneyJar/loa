@@ -1,0 +1,17 @@
+head/.github/workflows/bats-tests.yml:178
+head/.github/workflows/bats-tests.yml:49
+head/evals/tests/took-effect.bats:18
+head/evals/tests/ablation-row.bats:19
+head/evals/harness/pipeline-run.sh:708
+head/evals/harness/ablation-row.sh:285
+head/evals/harness/lib/sandbox-mount.sh:467
+head/evals/harness/lib/sandbox-mount.sh:513
+head/evals/harness/pipeline-run.sh:586
+head/evals/harness/pipeline-run.sh:537
+sandbox-mount.sh:472
+head/evals/harness/took-effect.sh:147
+head/evals/harness/Dockerfile.ablation:20
+head/evals/harness/pipeline-run.sh:85
+head/evals/harness/fingerprint.sh:178
+head/tools/check-manifest-paths.sh:248
+head/.claude/scripts/preflight.sh:190

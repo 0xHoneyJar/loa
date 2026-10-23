@@ -1,0 +1,37 @@
+commit 3758ddd0edecb00c459fe5ab26405d6b4fd8e75f
+Date: 2026-10-13T20:27:53+11:00
+
+fix(cycle-128): Bridgebuilder round on PR #1279 — 17 findings fixed with tests, 4 refuted with evidence (triage in the PR comment): dec-write-lib.sh treats the PRD Status line as a planning-time default only (new and decide still land proposed under an autonomous PRD) while the context verdict, attribution and the operator-only operations follow live signals, so /decisions confirm records decided_by operator and /chart is not refused in a repository whose last PRD ran unattended (Anthropic F-003; recorded as DEC-0124); validate-artifact.sh --type decisions applies history rules in merge-base mode (an unchanged base prefix, any number of legal appended transitions, a content field set when any appended transition legitimises it; the strict single-write rules stay on --base-file) and no longer uses the jq 1.6-only IN builtin (F-002, F-012); dec-write-lib.sh honours LOA_PROJECT_ROOT and the validator passes its own PROJECT_ROOT to the context probe (F-017); the SessionStart decisions surface prints one WARNING when enabled without yq v4 or jq, reading the config by a plain-text fallback (F-014), plus a regression test that an uppercase summary survives the clean regex (F-001, refuted); red-test-check.sh applies the shell, launcher and inline-code denials before any configured red_test.command or red_test.setup (a configured string only widens the runner list) and refuses a config-only acceptance when .loa.config.yaml differs from the base branch unless --trust-config is given (OpenAI RTC-001; RTC-21 and RTC-27; the example config says so); the review skill's invocation is spelled --red <sha> --json so the explicit grant admits it (CI CMP-188); chart-ticket.sh epic reuses an existing map epic for the slug after a failed doc write and refuses when several exist, close --consumed-by on a closed or abandoned map is a no-op, research-begin waits one second past its marker, and demote_headings uses the shared CommonMark fence tracker (CHART-001/F-005, F-013, CHART-002, F-016); fence SP-1 also blocks git checkout -p|--patch of a spike ref and any HEAD/@ ancestor spelling as a push refspec source from a spike checkout, with format-patch/am and archive added to the documented misses (F-015; corpus D99/D100 block, B77/B78 allow); the SDD Open Questions check matches Resolved as a whole word (F-007); the one GNU-only sed insert in the new tests is a portable prepend (F-008); the validator's usage header and the CHANGELOG Migration note state the live-plan Date rule as implemented (F-004); the PRD's 21 operator-behalf decisions carry [ASSUMPTION decision] tags citing their ledger rows, D21 seeded as DEC-0123, so the PRD gate exercises itself (F-010); sprint.md's seed status reads proposed, the Appendix D free-form sentence records its supersession by the r254-2 runner allowlist, and Appendix A statuses read Complete (F-009). Refuted: F-001 (the surface's jq compiles and keeps A-Z), F-011 (the sanitizer accepts content or a path), SPK-001 and F-006 (documented fence and symlink acceptances). REPO-MAP regenerated with its checksum; checksums.json refreshed for the changed tracked files. Verification: see the PR triage comment.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/skills/reviewing-code/SKILL.md b/.claude/skills/reviewing-code/SKILL.md
+index 1065c6ea..7542647e 100644
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -215,7 +215,7 @@ ## Phase 2: Code Review
+ 
+ Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
+ 
+-Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --json --red <Red commit from reviewer.md> -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
++Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> --json -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
+ 
+ **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+diff --git a/.loa.config.yaml.example b/.loa.config.yaml.example
+index bf3e473b..918541d7 100644
+--- a/.loa.config.yaml.example
++++ b/.loa.config.yaml.example
+@@ -2904,7 +2904,10 @@ structured_handoff:
+ # check WARN.
+ #
+ # red_test:
+-#   # The project's test command; the exact string (whitespace-normalised) is accepted.
++#   # The project's test command; the exact string (whitespace-normalised) is accepted,
++#   # unless it starts with a shell, a launcher or an inline-code interpreter (those are refused
++#   # even here). A red_test change on the branch under review makes the check refuse until the
++#   # reviewer passes --trust-config.
+ #   command: "make test"
+ #   # The exact --setup string accepted besides the runner list (e.g. a dependency install).
+ #   setup: "npm ci"

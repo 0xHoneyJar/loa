@@ -1,0 +1,209 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_supersede",
+      "anchor_type": "function",
+      "anchor_line": 601,
+      "scope": "diff",
+      "description": "Rejecting a proposed replacement leaves the original decision's supersede_proposed_by pointing to that rejected row. This guard then refuses every subsequent agent replacement proposal.",
+      "failure_mode": "After an agent proposes B to supersede decided row A and the operator rejects B, A remains decided but cannot receive another agent replacement proposal without manual repair or an operator override.",
+      "suggested_fix": "When rejecting a replacement, clear the original row's matching supersede_proposed_by atomically, or make this guard block only replacements that remain proposed.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_import",
+      "anchor_type": "function",
+      "anchor_line": 655,
+      "scope": "diff",
+      "description": "Import locks only the destination ledger, snapshots the pending file, and later deletes that source without coordinating with its writers.",
+      "failure_mode": "A worktree writer can successfully append a pending row after import reads the source but before this deletion. Import commits only its earlier snapshot, then deletes the newly appended row without importing it.",
+      "suggested_fix": "Coordinate import and pending writes through a shared source lock held through source removal. Ensure the lock identity is shared across the main checkout and linked worktrees.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_confirm",
+      "anchor_type": "function",
+      "anchor_line": 513,
+      "anchor_line_end": 538,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`ctx_signals` emits a non-live `prd prd-status:` signal whenever grimoires/loa/prd.md has a `**Status**` line containing 'autonomous' or 'unattended'. `is_unattended` treats that signal exactly like a live run signal. `op_confirm` deliberately only refuses on `live_run_signal`, so it proceeds under a PRD signal, but it then calls `derive_attribution 0`, whose first branch (`if is_unattended`) discards `--answer-ref` with a WARN and leaves REF empty. The confirm jq then sets `.decided_by = (if decided_by_ref tests OPREF then \"operator\" else .proposed_by end)`, which resolves to the agent voice. The same `is_unattended` check also makes `op_reject` die on a decided row ('context is unattended') and makes `op_supersede` by the operator fall into the agent path (sets `supersede_proposed_by` instead of superseding). The /decisions command doc states the cli ref 'is what records decided_by: operator', so this is a spec violation that persists for the whole project lifetime once the PRD status mentions autonomy.",
+      "failure_mode": "An operator typing `/decisions confirm --id DEC-0007` in an interactive session with a PRD marked autonomous gets a ledger row with `status: decided`, `decided_by: agent`, no operator ref, and `transitions[].by: operator:decisions-command`. The `list --not-decided-by operator` SDD appendix then keeps reporting the row as an agent decision after the operator approved it, and `reject` on decided rows is permanently refused.",
+      "suggested_fix": "Split the signal kinds: in `derive_attribution`, only drop `--answer-ref`/`--as` when `live_run_signal` is true (or when the caller is not `is_operator_call`), and use `live_run_signal` instead of `is_unattended` in the operator branches of `op_reject` and `op_supersede`. Keep `is_unattended` (live + prd) only for deciding the landing status in `op_new`. Add a bats case: PRD with `**Status:** Autonomous`, interactive env, confirm with a cli ref, assert `decided_by == operator`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:resolve_target",
+      "anchor_type": "function",
+      "anchor_line": 262,
+      "anchor_line_end": 270,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The pending file is created with `cat > \"$TARGET\"` inside `resolve_target write`, which runs before `acquire_lock`. Two concurrent worktree writers (e.g. parallel sprint tasks both told to run `dec-write-lib.sh new`) can both observe `! -f $TARGET`; the slower one's `cat >` can truncate the file after the faster one has already locked, appended a row and swapped it in.",
+      "failure_mode": "A PEND row written by the first process is silently overwritten by the empty `decisions: []` header from the second process; no error is raised and the row is lost before import.",
+      "suggested_fix": "Move the header creation after `acquire_lock \"$TARGET\"` (lock on the intended path even when it does not exist yet, which `lock_path` already supports since it hashes the path), and re-check `-f` under the lock before writing the header.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_import",
+      "anchor_type": "function",
+      "anchor_line": 655,
+      "anchor_line_end": 655,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`op_import` locks only the live ledger (`acquire_lock \"$TARGET\"`), never the pending file it consumes, and `lock_path` keys locks under this checkout's `.run`, while a worktree writer locks the same pending file under the worktree's `.run`. After `verify_and_swap`, the import unconditionally runs `rm -f -- \"$from\"`. A worktree process that appends a row between the import's `read_ledger \"$from\"` and the `rm -f` loses that row.",
+      "failure_mode": "A PEND row appended during an in-flight import is deleted with the pending file and never reaches the live ledger; the import output lists only the rows read earlier.",
+      "suggested_fix": "Re-read `$from` after `verify_and_swap` and refuse to delete it if its row count or ids differ from what was imported (print the leftover ids instead), or lock the pending file too using a lock path derived from the pending file's own directory so both checkouts contend on the same lock.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:is_operator_call",
+      "anchor_type": "function",
+      "anchor_line": 359,
+      "anchor_line_end": 359,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/commands/decisions.md:disable-model-invocation",
+      "cross_file_justification": "decisions.md (in diff) claims the operator-only guarantee rests on `disable-model-invocation: true` plus a static test that no other command calls these operations; the runtime guard in dec-write-lib.sh (in diff) is only a string comparison on `--recorded-by`.",
+      "description": "`disable-model-invocation` only prevents the model from invoking the `/decisions` slash command through the Skill tool. Nothing stops a model running Bash (the normal state in every other skill) from executing `dec-write-lib.sh confirm --id DEC-0007 --recorded-by decisions-command --evidence cli:... --answer-ref cli:...` directly, which the lib accepts as an operator call and records `decided_by: operator`. The static bats grep catches committed skill text, not ad-hoc tool calls.",
+      "failure_mode": "An agent in an unattended run (or one that was prompt-injected via untrusted ledger text) can self-confirm its proposed rows and attribute them to the operator, defeating the ledger's purpose; the audit trail shows a normal operator confirmation.",
+      "suggested_fix": "Treat this as a documented limitation or add a runtime check that an agent cannot forge from Bash, e.g. require confirm/reject-decided/supersede/context --clear to run with a TTY on stdin (`[[ -t 0 ]]`) or with an operator-held token from outside the repo/env the agent controls; at minimum state the actual trust boundary in decisions.md instead of 'the model cannot invoke it'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib/dec-write-lib.sh:op_confirm",
+      "anchor_type": "function",
+      "anchor_line": 509,
+      "anchor_line_end": 509,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/autonomous-agent/SKILL.md:Prime Directive",
+      "cross_file_justification": "autonomous-agent/SKILL.md (in diff) now instructs runs to call `context --set-unattended`; the marker that creates is fresh for the full TTL in the same session, and op_confirm (in diff) refuses on any fresh marker.",
+      "description": "`context --set-unattended` stamps the marker with the current session id, and `marker_state` reports it `fresh` for `unattended_marker_ttl_hours` (default 24) as long as the session id matches or is unset. After the autonomous run finishes, the operator in that same session typing `/decisions confirm` is refused for up to 24 hours. decisions.md documents `clear-unattended` only 'when the session-start surface reports it stale', and the surface hook only emits a notice for stale markers, so the operator gets no guidance on how to proceed.",
+      "failure_mode": "Operator confirmation is blocked for the rest of the day after any autonomous run in the same session; the refusal text says 'confirm after the run, interactively' with no repair step, and the documented repair path (`clear-unattended`) is described as applying only to stale markers.",
+      "suggested_fix": "Have the run-mode completion/halt path clear or expire the marker (e.g. write `completed_at` and treat it as stale), or include 'run `/decisions clear-unattended` if the run has finished' in the confirm refusal message and in decisions.md, and have the surface hook mention fresh markers too.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-22T15:06:17Z",
+    "tokens_input": 281866,
+    "tokens_output": 30591,
+    "cost_usd": 0,
+    "latency_ms": 125629,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 423,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "bc979beef1d75e3b508293c914bd464031e70f7d6a057f0ee86dd00d7d0bf798",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

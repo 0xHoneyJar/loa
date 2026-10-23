@@ -156,6 +156,10 @@ Per-run cost of `a1_full` under the closed mount with the dissent actually runni
 
 No shipped default changed in this cycle (G-6): `budget_scale` ships `fixed`, `anchor_line` is an additive optional field; the suite's shipped arms are untouched (the four cycle-131 arms sit outside `priority`).
 
+## 11. cycle-132 — the conclusive review-catch answer (2026-10-21/23)
+
+The cycle-132 measurement (fourteen unseen record fixtures, re-derived ground truth with two blind annotators, a hashed pre-registration with a group-sequential stopping rule, four arms plus the open-mount positive control, a blind judge on a stratified sample, and an independent reproduction from a fresh clone) is reported in full at `grimoires/loa/reports/review-catch-c132/report.md`, with the reads beside it (`reads.md`, `reads.json`), the rows, the power simulation, the registration hashes, the judge result, the placebo and positive-control results, the contamination hand-reads and the spend meter. The answer in one sentence, the stopping-rule outcome and every caveat live there; this document is not updated further.
+
 ## Files
 
 - cycle-131: `grimoires/loa/reports/ablation-2.0/c131-rows.jsonl` (27 batch rows), `c131-reads.md` (the formal reads), `regrade-c131/rows.jsonl` (36 re-graded cycle-130 runs); record branch `record/cycle-131-honest-measurement` for `a2a/sprint-1…3/` (adjudication packets and labels, smoke and batch scans, dissent envelopes, NOTES).

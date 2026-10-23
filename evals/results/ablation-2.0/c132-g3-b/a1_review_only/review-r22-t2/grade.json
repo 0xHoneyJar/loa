@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "grader_version": "1.3.8",
+  "task_id": "review-r22",
+  "task_type": "review-catch",
+  "suite_frozen": true,
+  "executor_mode": "container",
+  "image": "loa-ablation:258",
+  "snapshots_graded": [],
+  "hidden_tests": null,
+  "structural": null,
+  "regressions": null,
+  "snapshot_tests": null,
+  "recall": {
+    "defects_seeded": 20,
+    "defects_caught": 4,
+    "recall": 0.2,
+    "flags": 45,
+    "missed": [
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d7",
+      "d8",
+      "d9",
+      "d10",
+      "d12",
+      "d13",
+      "d14",
+      "d16",
+      "d17",
+      "d18",
+      "d19",
+      "d20"
+    ],
+    "recall_pm3": 0.15,
+    "missed_pm3": [
+      "d2",
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d7",
+      "d8",
+      "d9",
+      "d10",
+      "d12",
+      "d13",
+      "d14",
+      "d16",
+      "d17",
+      "d18",
+      "d19",
+      "d20"
+    ],
+    "recall_pm3_v1": 0.15,
+    "missed_pm3_v1": [
+      "d2",
+      "d3",
+      "d4",
+      "d5",
+      "d6",
+      "d7",
+      "d8",
+      "d9",
+      "d10",
+      "d12",
+      "d13",
+      "d14",
+      "d16",
+      "d17",
+      "d18",
+      "d19",
+      "d20"
+    ],
+    "v1_manifest": false,
+    "credits_function_only": [
+      "d2"
+    ],
+    "rule": "pm3_or_same_function"
+  },
+  "false_positives": 28,
+  "verdict": {
+    "source_file": "engineer-feedback.md",
+    "value": "CHANGES_REQUIRED"
+  },
+  "verdicts": {
+    "review": "CHANGES_REQUIRED",
+    "audit": null
+  },
+  "verdict_accuracy": true,
+  "verdict_accuracy_per_gate": {
+    "review": true,
+    "audit": null
+  },
+  "diff_lines": null,
+  "files_changed": null,
+  "symlinks_dropped": 0,
+  "harness_files_removed": 0,
+  "oversized_files_skipped": 0,
+  "history_probes": 0,
+  "heredoc_interpreters": 0,
+  "contaminated": null,
+  "contamination_exempt": [],
+  "oracle_exposed_defects": [],
+  "oracle_exposed_unknown": [],
+  "oracle_exposed_events": [],
+  "oracle_exposed_by_form": {
+    "diff": [],
+    "read": []
+  },
+  "oracle_scan_skipped": [],
+  "corpus_sha256": "487055af100d59e06c65f8f4545c0a67f5cd2d2dabf7e3a567fc9f11653eb24f",
+  "false_positive_rule": "pm3",
+  "multi_credit_citations": 0,
+  "colliding_tests_removed": 0,
+  "collision_rule": null,
+  "label_set": "v2",
+  "labels_meta": [
+    {
+      "defect": "d1",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d2",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d3",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d4",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d5",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d6",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": false
+    },
+    {
+      "defect": "d7",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d8",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d9",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d10",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d11",
+      "label_source": "fix-commit",
+      "agreement": "agreed",
+      "review_driven": true
+    },
+    {
+      "defect": "d12",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d13",
+      "label_source": "incident",
+      "agreement": "adjudicated",
+      "review_driven": false
+    },
+    {
+      "defect": "d14",
+      "label_source": "fix-commit+incident",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d15",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d16",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d17",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d18",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d19",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    },
+    {
+      "defect": "d20",
+      "label_source": "fix-commit",
+      "agreement": "adjudicated",
+      "review_driven": true
+    }
+  ],
+  "contamination_classes_skipped": [
+    "hidden",
+    "suite_path"
+  ],
+  "repo_token_pr_native": false
+}

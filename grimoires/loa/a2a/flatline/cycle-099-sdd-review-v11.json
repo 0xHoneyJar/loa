@@ -1,0 +1,169 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real determinism gap with a direct contradiction between spec and fixture, and it risks cross-runtime divergence in a critical resolver path. The fix is concrete (lexical classification + rejection rules) and low cost relative to impact.",
+      "gpt_score": 920,
+      "opus_score": 880,
+      "tertiary_score": 880,
+      "delta": 40,
+      "average_score": 900,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Valuable operational clarification: stale-cache degraded mode across a fleet can create split-brain behavior. It is actionable but involves more system-level semantics and rollout complexity than a simple spec patch.",
+      "gpt_score": 790,
+      "opus_score": 900,
+      "tertiary_score": 920,
+      "delta": 110,
+      "average_score": 845,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Good catch on build-time vs runtime authority boundaries. Without this, generated artifacts can mislead tooling and operators; however, resolving it may require broader artifact-contract decisions across multiple pipelines.",
+      "gpt_score": 760,
+      "opus_score": 820,
+      "tertiary_score": 850,
+      "delta": 60,
+      "average_score": 790,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "High-value schema migration gap: the common legacy input case has no defined output path. This is highly actionable and essential for safe adoption, with clear acceptance criteria for migration behavior.",
+      "gpt_score": 890,
+      "opus_score": 780,
+      "tertiary_score": 880,
+      "delta": 110,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Critical and precise: byte-identical cross-runtime gates need a canonicalization standard or they will generate false positives and lose trust. Pinning JCS or equivalent is straightforward and high ROI.",
+      "gpt_score": 910,
+      "opus_score": 720,
+      "tertiary_score": 900,
+      "delta": 190,
+      "average_score": 815,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "This is a valid resolver edge-case ambiguity with clear behavioral options to specify. It is relatively easy to fix and prevents inconsistent fallback behavior in custom alias scenarios.",
+      "gpt_score": 720,
+      "opus_score": 740,
+      "tertiary_score": 810,
+      "delta": 20,
+      "average_score": 730,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "Conflicting wrapper-removal timeline for `model-permissions` (cycle-100 in multiple sections vs cycle-101 MINIMUM in migration section).",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Roadmap ambiguity will cause sprint planning churn, broken expectations for downstream tooling, and possible premature deletion of compatibility artifacts.",
+      "location": "Sections 1.4.3, 3.1.1, 5.3, 8 Sprint 3 tasks",
+      "recommendation": "Publish one authoritative removal date in an ADR, update all sections, and add CI checks against that single policy.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Degraded read-only fallback can normalize lock-path failures into steady-state behavior.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "Operational faults (deadlocks, filesystem issues) may persist undetected while the system keeps running in degraded mode, hiding real reliability problems until a critical config change is needed.",
+      "location": "Section 6.3.2 (Degraded read-only fallback), NFR-Op-6",
+      "recommendation": "Add hard limits (max degraded duration/count), mandatory alerting, and automatic escalation to fail-closed after threshold breaches.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-006",
+      "concern": "Endpoint security controls are specified but not clearly centralized across all HTTP callers (cheval, Bridgebuilder, bash adapters).",
+      "severity": "CRITICAL",
+      "severity_score": 870,
+      "why_matters": "If any caller bypasses canonicalization/rebinding/redirect checks, attacker-controlled endpoints can still be reached despite policy intent.",
+      "location": "Sections 1.9, 5.5, 6.5",
+      "recommendation": "Create a single shared endpoint-validation module and make all outbound model calls pass through it; block direct HTTP client usage in lint/CI.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Resolver logic is still triplicated across Python/Bash/TS with only fixture-based parity, not shared implementation.",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "Golden tests reduce risk but cannot cover full state space; subtle precedence drift will still happen over time and cause skill-specific routing inconsistencies.",
+      "location": "Sections 1.5, 7.6",
+      "recommendation": "Define a canonical resolver spec as executable pseudocode or shared library, and generate runtime adapters from it rather than hand-maintaining three implementations.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Schema migration behavior is inconsistent across runtimes (`schema_version: 1` auto-migrates in Python but is rejected in TypeScript).",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "The same config can pass in cheval/startup hook but fail in Bridgebuilder runtime, causing environment-specific outages and non-deterministic behavior.",
+      "location": "Section 3.1.1 (Loader behavior), Sections 1.4.5 and 7.6",
+      "recommendation": "Implement the same v1->v2 migration logic in TS (or remove Python auto-migrate), then enforce identical behavior contract tests for Python/Bash/TS loaders.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Wildcard endpoint policy (`*.googleapis.com`) combined with operator-controlled endpoints is a high-risk SSRF boundary.",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "A broad wildcard significantly expands trust surface; if a permitted subdomain is misconfigured/compromised, traffic can be redirected to unintended services while still passing hostname checks.",
+      "location": "Sections 1.6, 1.9, 6.5",
+      "recommendation": "Replace wildcard hosts with explicit endpoint list per API family, add ownership/change-control for allowlist updates, and pin certificate SAN expectations where feasible.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer claude",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-04T13:43:11Z",
+  "metrics": {
+    "total_latency_ms": 212000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

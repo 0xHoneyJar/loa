@@ -1,0 +1,9 @@
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124
+cheval.py:2552
+head/.claude/scripts/flatline-orchestrator.sh:534
+bridgebuilder-review/resources/config.ts:182
+head/.claude/adapters/loa_cheval/types.py:507
+head/.claude/defaults/model-config.yaml:494
+truncation.generated.ts:34
+head/tools/ceiling-probe-live.py:44
+head/.claude/data/schemas/model-config-v3.schema.json:306

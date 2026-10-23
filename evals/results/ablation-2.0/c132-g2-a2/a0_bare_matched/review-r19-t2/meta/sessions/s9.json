@@ -1,0 +1,18 @@
+{
+  "id": "s9",
+  "status": "completed",
+  "valid": true,
+  "invalid_reason": null,
+  "attempts": 1,
+  "attempt_statuses": [
+    "completed"
+  ],
+  "attempt_costs": [
+    2.84879
+  ],
+  "cost_usd": 2.84879,
+  "run_dir": "sessions/s9",
+  "took_effect": "ok",
+  "started": "2026-10-22T10:58:04Z",
+  "finished": "2026-10-22T11:05:40Z"
+}

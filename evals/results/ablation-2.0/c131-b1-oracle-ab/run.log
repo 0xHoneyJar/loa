@@ -1,9 +1,0 @@
-04:02:30Z start batch=c131-b1-oracle-ab smoke=false source=798d88cfc920 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
-04:02:30Z plan: 1 arms, 1 tasks, 3 trials, shuffle seed 20261015, est USD 24 (cap 70, run caps build 30 review-catch 30, in-flight reserve 30 per trial, reserve 250)
-04:02:30Z launch c131-b1-oracle-ab-a1_full_openmount-review-r17-t1 (a1_full_openmount review-r17 review-catch t1)
-04:02:30Z launch c131-b1-oracle-ab-a1_full_openmount-review-r17-t2 (a1_full_openmount review-r17 review-catch t2)
-04:02:30Z launch c131-b1-oracle-ab-a1_full_openmount-review-r17-t3 (a1_full_openmount review-r17 review-catch t3)
-04:36:04Z done c131-b1-oracle-ab-a1_full_openmount-review-r17-t3 completed pass=0.6 USD 17.276255 33m attempts 1
-04:42:19Z done c131-b1-oracle-ab-a1_full_openmount-review-r17-t2 completed pass=0.85 USD 21.063021 39m attempts 1
-04:43:55Z done c131-b1-oracle-ab-a1_full_openmount-review-r17-t1 completed pass=0.8 USD 19.2769335 41m attempts 1
-04:43:55Z complete: 3 trials rowed, spent 57.6162095

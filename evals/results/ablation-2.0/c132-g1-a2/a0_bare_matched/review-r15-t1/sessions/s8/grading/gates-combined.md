@@ -1,0 +1,16 @@
+head/.claude/adapters/cheval.py:2544
+types.py:510
+agy_headless_adapter.py:40
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+.loa.config.yaml.example:728
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+head/.claude/scripts/flatline-orchestrator.sh:534
+config.ts:182
+head/.claude/defaults/model-config.yaml:494
+head/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:34
+model-config.yaml:497
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/adapters/cheval.py:936
+head/.claude/adapters/cheval.py:921
+head/.claude/scripts/run-preflight.sh:204
+head/.claude/adapters/loa_cheval/config/loader.py:122

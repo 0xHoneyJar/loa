@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "c132-g2-b",
+  "smoke": false,
+  "state": "complete",
+  "per_arm": {
+    "a0_bare_fable_matched": {
+      "trials_planned": 8,
+      "launched": 8,
+      "completed": 8,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    },
+    "a1_review_only": {
+      "trials_planned": 8,
+      "launched": 8,
+      "completed": 8,
+      "failed": 0,
+      "excluded": 0,
+      "cap_failures": 0,
+      "degraded": 0,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {},
+  "spend": {
+    "rows_usd": 103.2165421,
+    "ledger_usd": 0,
+    "spent_usd": 269.5231401,
+    "max_usd": 2132.9221,
+    "assumed_cap_trials": 0,
+    "sessions_usd": 166.306598
+  },
+  "trials_planned": 16,
+  "resume_cursor": 16,
+  "drift": null,
+  "drift_cleared": [],
+  "rerowed": [],
+  "rerun": [],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": "chatgpt",
+    "checked": true,
+    "codex_arms": [
+      "a1_review_only"
+    ],
+    "horizon_source": "plan",
+    "required_until": "2026-10-24T16:04:26Z",
+    "token_exp": "2026-10-28T04:44:32Z",
+    "trials_counted": 16
+  },
+  "extra_models": {
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0": {
+      "runs": 1,
+      "output_tokens": 24075
+    }
+  },
+  "extra_models_by_run": {
+    "c132-g2-b-a1_review_only-review-r21-t1": {
+      "global.anthropic.claude-haiku-4-5-20251001-v1:0": 24075
+    }
+  },
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "fbd36a0c9880b244af08133013f3b6959b085c94",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl",
+  "started": "2026-10-22T14:44:25Z",
+  "finished": "2026-10-22T18:02:00Z"
+}

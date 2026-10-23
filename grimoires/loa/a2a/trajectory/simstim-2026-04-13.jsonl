@@ -1,0 +1,617 @@
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-12T23:12:44Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-12T23:12:50Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-12T23:12:50Z",
+  "data": {
+    "simstim_id": "simstim-20260413-24e03857",
+    "from_phase": "plan-and-analyze"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:13:06Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:13:14Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:18:44Z",
+  "data": {
+    "blocker_id": "SKP-003",
+    "decision": "override",
+    "rationale": "Repos are open-source — IP/data governance not a concern for current use case",
+    "timestamp": "2026-04-12T23:18:44Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:20:08Z",
+  "data": {
+    "blocker_id": "SKP-004",
+    "decision": "override",
+    "rationale": "Trusted operator context — internal use on open-source repos, inputs are controlled, adversarial concerns deferred to future hardening cycle",
+    "timestamp": "2026-04-12T23:20:08Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:23:22Z",
+  "data": {
+    "blocker_id": "SKP-001",
+    "decision": "override",
+    "rationale": "Loa + Claude has demonstrably delivered sprints of comparable depth and complexity — track record justifies single-sprint scope",
+    "timestamp": "2026-04-12T23:23:22Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:24:07Z",
+  "data": {
+    "blocker_id": "SKP-002",
+    "decision": "defer",
+    "rationale": "Deferred to post-implementation review — will observe real-world behavior before adding hard ceilings",
+    "timestamp": "2026-04-12T23:24:07Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:24:33Z",
+  "data": {
+    "blocker_id": "SKP-005",
+    "decision": "defer",
+    "rationale": "Deferred — start with 3 models, observe semantic alignment in practice before adding N>3 normalization specs",
+    "timestamp": "2026-04-12T23:24:33Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-12T23:27:43Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 7,
+      "disputed": 0,
+      "blockers": 6
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:27:43Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:28:19Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:36:08Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:37:12Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:46:55Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:47:04Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:52:54Z",
+  "data": {
+    "blocker_id": "SKP-001",
+    "decision": "override",
+    "rationale": "Trusted operator context, open-source repos, quality over cost — consistent with PRD blocker overrides",
+    "timestamp": "2026-04-12T23:52:54Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:52:54Z",
+  "data": {
+    "blocker_id": "SKP-002",
+    "decision": "override",
+    "rationale": "Trusted operator context, open-source repos, quality over cost — consistent with PRD blocker overrides",
+    "timestamp": "2026-04-12T23:52:54Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:52:54Z",
+  "data": {
+    "blocker_id": "SKP-003",
+    "decision": "override",
+    "rationale": "Trusted operator context, open-source repos, quality over cost — consistent with PRD blocker overrides",
+    "timestamp": "2026-04-12T23:52:54Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:52:54Z",
+  "data": {
+    "blocker_id": "SKP-004",
+    "decision": "override",
+    "rationale": "Trusted operator context, open-source repos, quality over cost — consistent with PRD blocker overrides",
+    "timestamp": "2026-04-12T23:52:54Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-12T23:52:54Z",
+  "data": {
+    "blocker_id": "SKP-005",
+    "decision": "override",
+    "rationale": "Trusted operator context, open-source repos, quality over cost — consistent with PRD blocker overrides",
+    "timestamp": "2026-04-12T23:52:54Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-12T23:53:44Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 1,
+      "blockers": 5
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:53:44Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:54:21Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-12T23:54:30Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-12T23:54:38Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T00:00:09Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T00:00:36Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:47Z",
+  "data": {
+    "blocker_id": "SKP-001",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:47Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-002",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-003",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-004",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-005",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-006",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "blocker_override",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "blocker_id": "SKP-010",
+    "decision": "override",
+    "rationale": "Trusted operator, open-source repos, consistent with PRD/SDD blocker overrides",
+    "timestamp": "2026-04-13T00:04:48Z"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-13T00:04:48Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 7
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T00:04:49Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T00:13:04Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-13T00:39:49Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_resumed",
+  "timestamp": "2026-04-13T00:39:49Z",
+  "data": {
+    "from_phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T00:41:41Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T01:26:44Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "run_mode_synced",
+  "timestamp": "2026-04-13T13:07:57Z",
+  "data": {
+    "run_mode_state": "JACKED_OUT",
+    "simstim_state": "COMPLETED",
+    "implementation_status": "completed"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_readiness",
+  "timestamp": "2026-04-13T13:10:13Z",
+  "data": {
+    "status": "READY",
+    "exit_code": 0
+  }
+}
+{
+  "type": "simstim",
+  "event": "workflow_started",
+  "timestamp": "2026-04-13T13:10:13Z",
+  "data": {
+    "simstim_id": "simstim-20260413-ed1e87d1",
+    "from_phase": null
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:13:10Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:14:38Z",
+  "data": {
+    "phase": "discovery"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:14:46Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-13T13:28:15Z",
+  "data": {
+    "phase": "prd",
+    "metrics": {
+      "integrated": 5,
+      "disputed": 0,
+      "blockers": 6
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:28:15Z",
+  "data": {
+    "phase": "flatline_prd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:28:26Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:29:43Z",
+  "data": {
+    "phase": "architecture"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:29:50Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:31:31Z",
+  "data": {
+    "phase": "bridgebuilder_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:31:41Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-13T13:36:13Z",
+  "data": {
+    "phase": "sdd",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 4
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:36:13Z",
+  "data": {
+    "phase": "flatline_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:36:24Z",
+  "data": {
+    "phase": "red_team_sdd"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:37:16Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:38:10Z",
+  "data": {
+    "phase": "planning"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:38:20Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "flatline_completed",
+  "timestamp": "2026-04-13T13:42:24Z",
+  "data": {
+    "phase": "sprint",
+    "metrics": {
+      "integrated": 6,
+      "disputed": 0,
+      "blockers": 6
+    }
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:42:25Z",
+  "data": {
+    "phase": "flatline_sprint"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_started",
+  "timestamp": "2026-04-13T13:43:00Z",
+  "data": {
+    "phase": "implementation"
+  }
+}
+{
+  "type": "simstim",
+  "event": "phase_completed",
+  "timestamp": "2026-04-13T13:56:17Z",
+  "data": {
+    "phase": "implementation"
+  }
+}

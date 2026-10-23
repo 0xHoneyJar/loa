@@ -1,0 +1,14 @@
+{
+ "H04": {"base": "A", "reason": "anchors: union (A adds 1098, 1100)"},
+ "H07": {"base": "A", "severity": "critical", "reason": "severity: codebook critical (a credential exposed verbatim); agreed otherwise"},
+ "H12": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "follow-on of the horizon fix D3 (A's namespace): the override knob and the record variable belong to that fix"},
+ "H13": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "as H12"},
+ "H14": {"base": "A", "group": "D4", "reason": "verdict: counting already-rowed trials on --resume is a wrong behaviour of its own, distinct from the horizon formula (D3) — defect (A), own group D4"},
+ "H15": {"base": "A", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "follow-on of D3 in both (membership differs only through H14)"},
+ "H16": {"base": "A", "group": "D3", "severity": "high", "reason": "severity: codebook high — a failure on a common path (every batch runs concurrency > 1)"},
+ "H17": {"base": "A", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "follow-on of D3 in both"},
+ "H18": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "class: follow-on — the caller reads the record from the variable the D3 fix introduced (H17); refactor rejected"},
+ "H19": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "as H18"},
+ "H20": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "follow-on: pre-flight record plumbing belongs to D3 with H17–H19"},
+ "H21": {"base": "B", "verdict": "not-defect", "class": "follow-on", "group": "D3", "reason": "as H20"}
+}

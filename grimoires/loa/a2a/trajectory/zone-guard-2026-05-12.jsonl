@@ -1,0 +1,14 @@
+{"timestamp":"2026-05-12T08:14:54Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"actor=project-work writes project zone"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"ALLOW","actor":"update-loa","zone":"framework","path":".claude/scripts/some-script.sh","reason":"update-loa writes framework zone"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/cycles/cycle-X/sprint.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"ALLOW","actor":"update-loa","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-05-12T08:16:06Z","decision":"ALLOW","actor":"project-work","zone":"shared","path":"grimoires/loa/known-failures.md","reason":"shared zone accepts any actor"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"src/main.py","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"ALLOW","actor":"update-loa","zone":"unclassified","path":"docs/notes.md","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"BYPASS","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"operator-override-via-env"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/scripts/beads/beads-health.sh","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"BLOCK","actor":"update-loa","zone":"project","path":"grimoires/loa/NOTES.md","reason":"/update-loa MUST NOT write project-zone paths (cycle-106)"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}
+{"timestamp":"2026-05-12T08:16:07Z","decision":"BLOCK","actor":"project-work","zone":"framework","path":".claude/loa/CLAUDE.loa.md","reason":"framework-zone is upstream-managed; use overrides or file upstream"}

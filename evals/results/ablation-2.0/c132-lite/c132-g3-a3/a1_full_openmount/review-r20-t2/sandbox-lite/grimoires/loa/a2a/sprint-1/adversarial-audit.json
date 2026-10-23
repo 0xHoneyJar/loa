@@ -1,0 +1,224 @@
+{
+  "findings": [
+    {
+      "title": "[P1] Handle heredoc line continuations before scrubbing",
+      "body": "An unquoted heredoc can execute a command substitution that the classifier removes from the scan. For example, `cat <<EOF >/dev/null\\n$\\\\\\n(if true; then rm -rf /; fi)\\nEOF` (with actual newlines) becomes `$(if true; then rm -rf /; fi)` when Bash removes the backslash-newline. The classifier checks each original line for `$(`, so it misses the substitution. Its segment filter then discards `if true`, `then rm -rf /`, and `fi`, leaving no destructive command for the fence to detect. This permits destructive shell execution through an apparently nonexecuting consumer. Fold unquoted heredoc continuations before classification, or retain the full body whenever such a continuation occurs.",
+      "priority": 1,
+      "severity": "HIGH",
+      "category": "injection",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_heredoc_scrub",
+      "anchor_type": "line",
+      "anchor_line": 1063,
+      "code_location": {
+        "absolute_file_path": "/home/evaluser/.cache/loa/loa-codex-ws-2knr591k/.claude/hooks/safety/block-destructive-bash.sh",
+        "line_range": {
+          "start": 1063,
+          "end": 1063
+        }
+      },
+      "id": "DISS-001",
+      "description": "An unquoted heredoc can execute a command substitution that the classifier removes from the scan. For example, `cat <<EOF >/dev/null\\n$\\\\\\n(if true; then rm -rf /; fi)\\nEOF` (with actual newlines) becomes `$(if true; then rm -rf /; fi)` when Bash removes the backslash-newline. The classifier checks each original line for `$(`, so it misses the substitution. Its segment filter then discards `if true`, `then rm -rf /`, and `fi`, leaving no destructive command for the fence to detect. This permits destructive shell execution through an apparently nonexecuting consumer. Fold unquoted heredoc continuations before classification, or retain the full body whenever such a continuation occurs.",
+      "id_derived": true,
+      "failure_mode": "An unquoted heredoc can execute a command substitution that the classifier removes from the scan.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_hd_same_line_exec",
+      "anchor_type": "function",
+      "anchor_line": 608,
+      "anchor_line_end": 639,
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/safety/block-destructive-bash.sh:_bdb_heredoc_scrub",
+      "cross_file_justification": null,
+      "description": "The new heredoc classifier removes a 'nonexec' heredoc body from the destructive-command scan and keeps only body segments whose first word is a fence verb. Two gaps in that reduction weaken the fence relative to the pre-change full scan. First, the later-execution check in _bdb_hd_same_line_exec relies on a literal substring match of the write target's basename against the other command lines (line 612), so a later command that references the same file through a glob, an escaped character, or any non-literal spelling is not recognised as an executor and the body stays classified nonexec. Second, _bdb_hd_segword strips wrapper words (sudo, env, command, nice, etc.) but not shell compound keywords, so a fence verb that follows then/do/else/elif inside a body segment is attributed to the keyword and the segment is dropped (lines 551-566, 589-597). Together these let a destructive body be written to a plain file and run within the same Bash tool call without the fence ever seeing the destructive text. The change also widens the scrub from the previous quoted-cat-only special case to tee, sort -o, unquoted delimiters and several other consumers, so the affected surface is new.",
+      "failure_mode": "A model-authored Bash command that writes a destructive script via an allowlisted consumer and executes it through a non-literal path reference in the same call passes the destructive-command guard, which previously scanned the whole command text.",
+      "suggested_fix": "Treat any later segment whose command word is an interpreter, source, exec, or a path-bearing word as execution regardless of whether the literal basename appears (or fall back to full scan whenever any other line contains an interpreter word or a glob/escape). In _bdb_hd_segword, strip compound keywords (if, then, else, elif, do, while, until, for, case, in, time, !) before taking the command word, and conservatively set _hd_full=1 when a segment begins with an unrecognised keyword. Add corpus cases for both patterns.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "HIGH",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "anchor_type": "function",
+      "anchor_line": 545,
+      "anchor_line_end": 552,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:check_implement_marker",
+      "cross_file_justification": "The marker file .run/implement-active.json is written by .claude/scripts/run-checkpoint.sh mark (touched in this diff, omitted from the shown hunks), which any skill can invoke through the Bash tool; the Write/Edit trust-input ask does not cover Bash-side writes to .run/.",
+      "description": "The gate's new deny mode is documented as a fence, yet the sanction set accepts a model-producible artifact. check_implement_marker grants an unconditional allow for two hours when .run/implement-active.json carries skill implement|bug, a sprint id and a recent started_at. That file is created by run-checkpoint.sh mark, a script the model runs via Bash from any context, and it can also be produced by a plain shell redirect, which bypasses the PreToolUse Write/Edit trust-input check that only sees Write/Edit tool calls. The header comment states that model-authored claims are tighten-only and can never grant an allow, but the marker is exactly such a claim via a side channel. Similarly, a RUNNING sprint-plan-state.json without a derived_at still sanctions (_ig_derived_ok returns 0 when the field is absent), so deny mode degrades to the old heuristic as soon as the model writes the cache itself.",
+      "failure_mode": "In implement_gate.mode: deny, a model outside /implement or /bug runs the mark script (or writes the marker/cache file via Bash) and then performs App Zone writes that are allowed with decision sanctioned_marker, defeating the fence the operator opted into.",
+      "suggested_fix": "Do not let a model-writable file alone grant allow under deny. Require the marker to be cross-checked against a derived cache that is fresh and RUNNING, or have run-checkpoint.sh mark emit the marker into the signed audit chain and verify the signature in the hook. Also make _ig_derived_ok fail (return 1) when derived_at is absent while mode is deny, and extend block-destructive-bash FR-SZ coverage to Bash redirects into .run/ trust inputs.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/scripts/danger-level-enforcer.sh:is_enforcement_enabled",
+      "anchor_type": "function",
+      "anchor_line": 139,
+      "anchor_line_end": 143,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/profiles.yaml:profiles.standard",
+      "cross_file_justification": "profiles.yaml (new, line 41) sets guardrails.danger_level.enforce: false for the default standard profile and lean; danger-level-enforcer.sh now resolves the knob through loa_knob with fallback false, so the default and the error path both disable enforcement.",
+      "description": "Danger-level enforcement moves from default-on to default-off. The old code read the key with a default of true and also echoed true when yq failed (fail-closed). The new code resolves through loa_knob with a caller fallback of false, and the standard profile (used when loa.profile is unset or unknown) defines the key as false. Consequently a repository with no explicit key, an unparseable .loa.config.yaml, a missing yq, or a sourcing failure of profile-lib.sh now runs with the enforcer disabled. The same flip applies to guardrails.input.enabled, which input_guardrails.md now gates on the profile knob printing true. Every security surface in this set is now fail-open on configuration error, and the new profiles.yaml is a configuration input that is not in the implement-gate trust-input list.",
+      "failure_mode": "Skills that depend on the danger-level enforcer or input guardrails run without them on a fresh checkout or whenever config resolution errors, and the operator sees no warning.",
+      "suggested_fix": "Keep security knobs fail-closed: pass true as the fallback for guardrails.danger_level.enforce and guardrails.input.enabled (or have loa_knob distinguish a resolution error from an explicit false and let callers choose the error default). Consider adding .claude/data/profiles.yaml to the implement-gate trust-input list, and emit a one-line session-start notice when a security knob is off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:LOA_IMPLEMENT_GATE_OVERRIDE",
+      "anchor_type": "line",
+      "anchor_line": 590,
+      "anchor_line_end": 591,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "A single environment variable, LOA_IMPLEMENT_GATE_OVERRIDE=1, sanctions every App Zone write in every mode including deny, with only an allow row logged. The sibling fence in block-destructive-bash.sh explicitly states that an environment variable can never switch the fence off, and its library mode is guarded so that BDB_LIB_ONLY cannot do so. The gate contradicts that principle: anything that can influence the hook's environment (a settings.json env block, a wrapper that launches the harness, a CI runner's environment) silently disables the only enforcing mode of this hook.",
+      "failure_mode": "Operator enables implement_gate.mode: deny for a fence, but an environment carried in from the launcher or settings turns it back into allow with no ask and no visible signal.",
+      "suggested_fix": "Scope the override to non-deny modes, or require it to be paired with an explicit .loa.config.yaml key (trust input, so writes ask) and log the override at decision 'override' with a stderr warning. Document it in guard-origins.yaml as a knob with a floor.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": ".claude/data/constraints.json:C-TEAM-005",
+      "anchor_type": "hunk",
+      "anchor_line": 1223,
+      "anchor_line_end": 1226,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:C-TEAM-005",
+      "cross_file_justification": "The generated section in .claude/loa/CLAUDE.loa.md is removed in the same diff; whether team-skill-guard.sh and the PreToolUse Write/Edit System Zone hook for teammates still exist is not visible in the shown hunks (agent-teams-reference.md and hooks-reference.md are among the omitted files).",
+      "description": "All five agent-team constraints are deleted, including C-TEAM-005 (teammates MUST NOT modify .claude/, severity critical, from a prior audit incident) and C-TEAM-001 (planning and lifecycle skills are lead-only, enforced by team-skill-guard.sh). These were the prose layer of a defence in which teammate agents cannot rewrite hooks, constraints, or skill configuration for the whole team. If the corresponding hook enforcement was also removed or de-registered in the omitted files, a teammate can alter the implement gate, the destructive-bash fence, or profiles.yaml for every agent. If the hooks remain, the constraints are still the only documented rationale and the removal makes the enforcement undiscoverable.",
+      "failure_mode": "A teammate agent (or a prompt-injected one) edits System Zone files or invokes lead-only skills, and nothing in the instruction layer or, potentially, the hook layer stops it.",
+      "suggested_fix": "Confirm team-skill-guard.sh and the teammate System Zone write guard remain registered and tested; if they were removed, restore them. If the agent-teams feature is being retired, remove the LOA_TEAM_MEMBER code paths consistently and record the decision (DEC) so the removal of a critical constraint is traceable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:deny_reason",
+      "anchor_type": "function",
+      "anchor_line": 574,
+      "anchor_line_end": 576,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The deny reason returned to the model ends with an instruction to set implement_gate.mode: ask. The permissionDecisionReason is rendered to the model, so the fence tells the agent exactly which configuration key to flip to remove the fence. The config file is a trust input and such a write asks, but under autonomous run modes an ask can be auto-approved by policy, and the hint still steers the model toward weakening the control rather than toward the sanctioned path.",
+      "failure_mode": "A model blocked by deny edits .loa.config.yaml as suggested by the hook's own message, converting the fence back to advisory.",
+      "suggested_fix": "Drop the config hint from the model-facing reason; keep it in stderr or operator documentation only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-23T03:34:56Z",
+    "tokens_input": 119092,
+    "tokens_output": 24883,
+    "cost_usd": 0,
+    "latency_ms": 125457,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 27,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 724,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-audit.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "577d7f3c6c25393093316e9bdeef41b2cc59d53c035e3b8de9cd4fe64ae2ea5e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

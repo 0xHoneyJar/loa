@@ -1,0 +1,172 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 90,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "This is a real and high-impact gap. An envelope-only schema with arbitrary payloads undermines data quality, interoperability, and the stated parser-centralization goal. Defining per-event schemas plus registration/versioning is concrete, implementable, and worth the cost.",
+      "gpt_score": 910,
+      "opus_score": 880,
+      "tertiary_score": null,
+      "delta": 30,
+      "average_score": 895,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Critical correctness issue. Mixing JCS references with jq canonicalization is likely to break hash/signature determinism across implementations. The recommendation is precise, actionable, and directly tied to core security guarantees.",
+      "gpt_score": 955,
+      "opus_score": 850,
+      "tertiary_score": null,
+      "delta": 105,
+      "average_score": 902.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valuable and realistic operational gap. Manual conflict resolution for divergent valid chains is underspecified and risky in a git-backed workflow. A deterministic merge/recovery protocol is implementable and would prevent severe integrity ambiguity.",
+      "gpt_score": 845,
+      "opus_score": 780,
+      "tertiary_score": null,
+      "delta": 65,
+      "average_score": 812.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "High-priority trust model flaw. Signed logs are weak if trust-store updates are not themselves anchored in a root-of-trust. The issue is domain-appropriate, concrete, and central to preventing key-injection attacks.",
+      "gpt_score": 940,
+      "opus_score": 760,
+      "tertiary_score": null,
+      "delta": 180,
+      "average_score": 850,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Good improvement with clear operational ROI, though impact depends on actual event throughput. Explicit latency/SLO targets for the write path are practical and help avoid hidden bottlenecks, but implementation and measurement effort is moderate.",
+      "gpt_score": 720,
+      "opus_score": 820,
+      "tertiary_score": null,
+      "delta": 100,
+      "average_score": 770,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Strong determinism improvement. If context_hash derivation is undefined, reproducibility and auditability claims are weakened. Defining fields/order/canonicalization is straightforward and high value for L1 verification.",
+      "gpt_score": 790,
+      "opus_score": 800,
+      "tertiary_score": null,
+      "delta": 10,
+      "average_score": 795,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-010",
+      "description": "Technically correct but low-priority relative to cost/attention. SHA-256 collision handling is generally negligible risk for this domain; clarifying behavior may be useful only because the document claims it already exists. Better framed as doc consistency cleanup than major design work.",
+      "gpt_score": 360,
+      "opus_score": 700,
+      "tertiary_score": null,
+      "delta": 340,
+      "average_score": 530,
+      "source": "gpt_scored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-003",
+      "concern": "Backup/recovery strategy assumes State Zone logs are reliably in Git, which may be false for `.run/` in real repos",
+      "severity": "HIGH",
+      "severity_score": 770,
+      "why_matters": "If `.run/*.jsonl` is gitignored or not committed frequently, chain recovery and RPO claims are invalid, causing silent audit-loss and unrecoverable trust/budget history.",
+      "location": "Section 3.1, 3.7 Backup and Recovery",
+      "recommendation": "Make persistence policy explicit per file (tracked vs untracked), add mandatory snapshot/export job, and fail startup when required audit logs are not under declared retention backup policy.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Canonicalization approach is inconsistent (`jq -S -c` vs RFC 8785 JCS), risking signature/hash mismatch across implementations",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "Different canonicalization semantics (numbers, unicode normalization, escaping) can break verification, especially during Python/Bash interop or future multi-impl readers.",
+      "location": "Sections 1.4.1, 2.2, 3.3, and changelog note IMP-007",
+      "recommendation": "Standardize on one canonicalization spec and one implementation path, ship cross-language conformance vectors, and reject mixed-mode verification.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Prompt-injection defense is mostly heuristic and framing-based, without hard execution isolation",
+      "severity": "CRITICAL",
+      "severity_score": 890,
+      "why_matters": "Regex/pattern filtering and wrapper tags do not guarantee an LLM will ignore adversarial content; a successful bypass could trigger unauthorized tool actions during SessionStart context ingestion.",
+      "location": "Section 1.9.3.2 Adversarial Prompt-Injection Defense; Sections 1.5.2 and 7.2.5",
+      "recommendation": "Enforce policy at tool-call boundary (deny-by-default for SessionStart-derived context), add mandatory structured allowlists for actions, and test with automated jailbreak suites in CI before merge.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Single-machine-only assumption is operationally brittle and likely to be violated in real team workflows",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The design explicitly documents broken chains and unverifiable handoffs when used across machines; this is a predictable misuse mode for multi-operator teams and can erode trust in the system.",
+      "location": "Section 1.7 and 1.7.1 Multi-Host: Out of Scope",
+      "recommendation": "Add hard runtime guardrails (machine fingerprint checks, explicit refusal on cross-host writes), and provide an officially supported sync model before promoting multi-operator adoption.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Trust-store has no independent root of trust, so key revocation/rotation records can be tampered by anyone with repo write access",
+      "severity": "CRITICAL",
+      "severity_score": 920,
+      "why_matters": "If an attacker can modify `grimoires/loa/trust-store.yaml`, they can legitimize malicious signing keys or invalidate valid ones, defeating non-repudiation and audit integrity.",
+      "location": "Section 1.9.3.1 Ed25519 Key Lifecycle",
+      "recommendation": "Add signed trust-store releases (e.g., maintainer offline root key), mandatory multi-party approval for trust-store changes, and trust-store signature verification at runtime.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer agent",
+  "tertiary_model_used": "gemini-2.5-pro",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-02T11:38:08Z",
+  "metrics": {
+    "total_latency_ms": 227000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

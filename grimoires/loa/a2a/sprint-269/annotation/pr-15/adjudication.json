@@ -1,0 +1,1323 @@
+{
+ "H04": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "Head has no planner for agy hops: with hounfour.headless.agy_opt_in off, a gated gemini-headless hop inside a mixed fallback chain stays in models_requested and is dispatched/walked as a failed hop instead of being planned around (the hunk also adds the CLI-aware calibrate hint used by D2).",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   356,
+   1693,
+   1694,
+   1695,
+   1696
+  ]
+ },
+ "H12": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "models_requested is taken from the full resolved chain without first planning around agy hops gated off by the opt-in, so gated hops are dispatched and counted.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   1693,
+   1694,
+   1695,
+   1696
+  ]
+ },
+ "H22": {
+  "verdict": "defect",
+  "group": "D8",
+  "file": ".claude/adapters/cheval.py",
+  "description": "Inline effort_effective derivation inside the emit call can raise and lose the envelope (fix also passes models_not_planned).",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   2834,
+   2835,
+   2836,
+   2837,
+   2838,
+   2839,
+   2840,
+   2841,
+   2842,
+   2843
+  ]
+ },
+ "H27": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "Imports stat for the regular-file check in the hardened opt-in reader.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H28": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "_HAS_YAML flag for the strict opt-in reader.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H29": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "_HAS_YAML flag (fallback branch) for the strict opt-in reader.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H30": {
+  "verdict": "defect",
+  "group": "D10",
+  "file": ".claude/adapters/loa_cheval/config/loader.py",
+  "description": "agy_opt_in_enabled lets the framework System defaults satisfy the operator opt-in, reads the config from whatever cwd-ancestor root the walk finds (a planted .loa.config.yaml can opt in), accepts PyYAML 1.1 truthy spellings (yes/on/True) and never checks that the config is writable only by the current user, so the argv-exposing agy route can be enabled without the operator's decision.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   113,
+   116,
+   117,
+   120,
+   121,
+   122,
+   125,
+   126
+  ]
+ },
+ "H32": {
+  "verdict": "not-defect",
+  "group": "D12",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "Imports ProviderContextLimitError for the size-rejection classification.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H36": {
+  "verdict": "not-defect",
+  "group": "D12",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "Static-auth marker list used by the new error classification.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H40": {
+  "verdict": "defect",
+  "group": "D12",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "The CLI's own 'Prompt is too long' size rejection is not mapped to a context-limit error, and bare '429'/'529' substrings (e.g. digits inside a stated token count) classify it as a retryable rate limit that walks the chain and counts against breakers; a 'please wait' auth message is also treated as a throttle.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   543,
+   544,
+   545,
+   546,
+   547,
+   548,
+   549,
+   550,
+   551,
+   552,
+   553
+  ]
+ },
+ "H91": {
+  "verdict": "defect",
+  "group": "D14",
+  "file": ".claude/data/schemas/model-config-v3.schema.json",
+  "description": "Free-text ceiling_calibration strings (reprobe_trigger, cli_version, cli_model) have no length bound in the schema.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   282,
+   283,
+   287
+  ]
+ },
+ "H92": {
+  "verdict": "defect",
+  "group": "D14",
+  "file": ".claude/data/schemas/model-config-v3.schema.json",
+  "description": "Unbounded ceiling_calibration string field in the schema.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   290,
+   291,
+   292
+  ]
+ },
+ "H93": {
+  "verdict": "defect",
+  "group": "D14",
+  "file": ".claude/data/schemas/model-config-v3.schema.json",
+  "description": "cli_version has no length bound.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   295,
+   296
+  ]
+ },
+ "H94": {
+  "verdict": "defect",
+  "group": "D14",
+  "file": ".claude/data/schemas/model-config-v3.schema.json",
+  "description": "cli_model has no length bound.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   299,
+   300
+  ]
+ },
+ "H95": {
+  "verdict": "defect",
+  "group": "D31",
+  "file": ".claude/data/schemas/model-config-v3.schema.json",
+  "description": "The schema neither records nor requires a probe outcome for a probed_headless bound, so a partial (budget-capped) probe is indistinguishable from a clean one in the catalog.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   306,
+   307
+  ]
+ },
+ "H96": {
+  "verdict": "not-defect",
+  "group": "D9",
+  "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+  "description": "Schema admits the new models_failed[].failure_class field.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H97": {
+  "verdict": "not-defect",
+  "group": "D9",
+  "file": ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json",
+  "description": "Schema admits the new OptInRequired reason.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H100": {
+  "verdict": "defect",
+  "group": "D31",
+  "file": ".claude/defaults/model-config.yaml",
+  "description": "The probed Opus 5.5 entry records sample_size: null although a probe with samples informed the bound.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   506
+  ]
+ },
+ "H102": {
+  "verdict": "not-defect",
+  "group": "D31",
+  "file": ".claude/defaults/model-config.yaml.checksum",
+  "description": "Checksum refreshed for the catalog edit.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H104": {
+  "verdict": "defect",
+  "group": "D17",
+  "file": ".claude/scripts/adversarial-review.sh",
+  "description": "The companion planner only drops a hop whose canonical name is exactly gemini-headless, missing agy-routed hops (provider-prefixed forms, Google models under cli-only, project aliases), and its own yq reader differs from the shared strict opt-in rule.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   2350,
+   2351,
+   2352,
+   2353,
+   2354,
+   2355,
+   2356,
+   2357,
+   2358,
+   2359,
+   2360
+  ]
+ },
+ "H107": {
+  "verdict": "defect",
+  "group": "D17",
+  "file": ".claude/scripts/flatline-orchestrator.sh",
+  "description": "Flatline's tertiary agy predicate uses its own name/gemini* heuristic (no catalog aliases such as deep-research-pro) and a separate yq reader instead of the shared rule, so agy-routed tertiaries can be misjudged.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   522,
+   523,
+   524,
+   525,
+   526,
+   529,
+   530,
+   531,
+   532,
+   533,
+   534,
+   535,
+   536
+  ]
+ },
+ "H110": {
+  "verdict": "defect",
+  "group": "D17",
+  "file": ".claude/scripts/loa-status.sh",
+  "description": "/loa status uses its own opt-in reader and a provider=='google' heuristic rather than the shared agy route predicate, so its gate note can disagree with cheval.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   798,
+   799,
+   800,
+   801,
+   802,
+   803,
+   804,
+   805,
+   806
+  ]
+ },
+ "H111": {
+  "verdict": "defect",
+  "group": "D17",
+  "file": ".claude/scripts/loa-status.sh",
+  "description": "The CLI hop gating keys on the binary name agy rather than the shared routes_to_agy predicate.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   811,
+   812
+  ]
+ },
+ "H112": {
+  "verdict": "defect",
+  "group": "D19",
+  "file": ".claude/scripts/loa-status.sh",
+  "description": "The ceiling line splices the alias-derived model id into yq expression text, accepts observations outside the plausible window, ignores a foreign-transport calibration that an observation should tighten, and prints an unquoted calibrate command.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   822,
+   826,
+   827,
+   828,
+   831,
+   832,
+   833,
+   838,
+   839,
+   840,
+   842
+  ]
+ },
+ "H120": {
+  "verdict": "defect",
+  "group": "D17",
+  "file": ".claude/scripts/run-preflight.sh",
+  "description": "P3 gates only hops whose CLI is agy, so a Google model under cli-only (routed through agy) is counted usable on its Google credential with the opt-in off, and when opted in its usability is judged by the credential instead of the agy binary.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   186,
+   187,
+   188,
+   189,
+   190,
+   191,
+   192
+  ]
+ },
+ "H123": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Regenerated build manifest.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H124": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Manifest hash of config.ts after the fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H125": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Manifest hash of multi-model-pipeline.ts after the fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H126": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Manifest hash refresh (review-verdict.ts); mechanical rebuild.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H127": {
+  "verdict": "not-defect",
+  "group": "D24",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Manifest hash of truncation.generated.ts after the fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H128": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/.build-manifest.json",
+  "description": "Manifest hash of main.ts after the fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H129": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Compiled declarations mirroring the config.ts opt-in reader fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H131": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Compiled declaration of agyGateStartupLines.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H132": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H133": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled imports for the reader fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H134": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the readAgyGate fix in config.ts.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H136": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy of the read-error gating fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H137": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled agyGateStartupLines.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H138": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H142": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js",
+  "description": "Compiled copy of the pipeline read-error handling fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H143": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js",
+  "description": "Compiled copy of the no-models message fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H145": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js",
+  "description": "Compiled copy of the quorum fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H148": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map",
+  "description": "Regenerated source map.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H149": {
+  "verdict": "not-defect",
+  "group": "D24",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.js",
+  "description": "Compiled generated header comment.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H150": {
+  "verdict": "not-defect",
+  "group": "D24",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/truncation.generated.js",
+  "description": "Compiled copy of the corrected Opus 5.5 budget.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H156": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "fs/path imports for the hardened reader.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H157": {
+  "verdict": "not-defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Adds the trust/permission helpers and gate fields used by the readAgyGate fix.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H158": {
+  "verdict": "defect",
+  "group": "D10",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Bridgebuilder's readAgyGate defaults to the cwd config, never checks the config's owner/permissions, reads through aliases/merge keys without warning, swallows every read error silently as opt-in off, and isAgyRouted only matches the literal gemini-headless id.",
+  "severity": "high",
+  "category": "security",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   159,
+   163,
+   164,
+   165,
+   166,
+   167,
+   171,
+   173,
+   174,
+   175,
+   176,
+   180,
+   181,
+   182
+  ]
+ },
+ "H160": {
+  "verdict": "defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "When the Loa config cannot be read, Google voices are still planned as HTTP voices although cheval may route them to agy and refuse them, so the failure is miscounted.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   200
+  ]
+ },
+ "H163": {
+  "verdict": "defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "An unreadable config or a non-boolean opt-in is logged only as 'agy opt-in off' at info level, and strict mode silently runs without a configured voice instead of warning or refusing.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   172,
+   173,
+   174
+  ]
+ },
+ "H164": {
+  "verdict": "defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "With no usable model the error always says 'all API keys missing' even when the voices were removed by the agy gate.",
+  "severity": "low",
+  "category": "error-handling",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   212
+  ]
+ },
+ "H166": {
+  "verdict": "defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "Voices removed by a config read error shrink the expected quorum, so a review missing them can still clear the merge.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   421,
+   422
+  ]
+ },
+ "H198": {
+  "verdict": "not-defect",
+  "group": "D25",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "math/re imports for the classifier fixes.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H200": {
+  "verdict": "defect",
+  "group": "D26",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "A tokens-per-minute 429 is retried on the 5 s/15 s schedule, which cannot clear the 60 s window, and after three attempts it is recorded as a size rejection, so the probe can bracket the ceiling with a throttle.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   133,
+   134
+  ]
+ },
+ "H208": {
+  "verdict": "not-defect",
+  "group": "D31",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Writer signature gains the required probe_outcome/sample_size parameters.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H209": {
+  "verdict": "defect",
+  "group": "D31",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "write_catalog_operator_set takes no probe outcome or sample count and does not validate its string inputs, so a written entry cannot say whether its probe was clean or partial.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   402,
+   403,
+   404,
+   413,
+   414,
+   415
+  ]
+ },
+ "H213": {
+  "verdict": "not-defect",
+  "group": "D33",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Argument defaults/help changed so api-only flags can be detected; adds the partial-write flag.",
+  "severity": null,
+  "category": null,
+  "reason": "group: A's namespace (B's group corresponds to it on the agreed items); class agreed",
+  "anchor_lines": []
+ },
+ "H214": {
+  "verdict": "defect",
+  "group": "D33",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "--allow-partial/--tier/--itpm are silently ignored under --transport claude-headless.",
+  "severity": "low",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   512,
+   513
+  ]
+ },
+ "H215": {
+  "verdict": "defect",
+  "group": "D34",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "An outcome bracketed by a token-limit (throttle) rejection rather than a context-limit rejection is accepted as clean, so a rate limit is written as the context ceiling.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   616,
+   617,
+   618,
+   619,
+   623,
+   625,
+   627,
+   628
+  ]
+ },
+ "H218": {
+  "verdict": "defect",
+  "group": "D36",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "With --write-catalog the catalog prerequisites (block, context_window, writable file) and the provenance strings are only checked after the paid bisection, and the cost estimate ignores the cache-write rate and tokenizer ratio, so money is spent on a probe whose write cannot land.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   644,
+   645,
+   646,
+   647,
+   648,
+   649,
+   650,
+   651,
+   652,
+   653
+  ]
+ },
+ "H224": {
+  "verdict": "defect",
+  "group": "D37",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The record stores the binary path and argv with the operator's absolute home path (and an unresolved bare binary name).",
+  "severity": "low",
+  "category": "other",
+  "reason": "anchors: union; group: A's namespace (B's group corresponds to it on the agreed items)",
+  "anchor_lines": [
+   799,
+   800,
+   801,
+   802
+  ]
+ },
+ "H11": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": ".claude/adapters/cheval.py",
+  "description": "A single-entry chain refused by the agy opt-in is reported with verdict reason 'Other' instead of a distinct OptInRequired reason.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "group: A's namespace (B's corresponds); category: contract — an enumerated reason field carries the wrong value",
+  "anchor_lines": [
+   1228,
+   1229
+  ]
+ },
+ "H14": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": ".claude/adapters/cheval.py",
+  "description": "The exit-7 MODELINV envelope omits the hops that were not planned.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "verdict: another code path with the same omission is a member site of D1, not a mechanical echo — defect (B), low, contract",
+  "anchor_lines": [
+   2070
+  ]
+ },
+ "H20": {
+  "verdict": "defect",
+  "group": "D9",
+  "file": ".claude/adapters/cheval.py",
+  "description": "An agy-alone chain refused by the opt-in is recorded with error_class UNKNOWN and no failure_class, and the error JSON drops the failure_class, so consumers cannot tell it from a real failure.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "group: A's namespace (B's corresponds); category: contract — the error record's fields (error_class, failure_class) are wrong or dropped",
+  "anchor_lines": [
+   2546,
+   2547,
+   2548,
+   2549,
+   2550,
+   2551,
+   2552
+  ]
+ },
+ "H33": {
+  "verdict": "defect",
+  "group": "D13",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "build_headless_argv accepts a prompt and places it right after -p before the options, so a prompt starting with '-' is parsed by the CLI as a flag.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "severity: codebook medium — a wrong result on an uncommon path (a prompt starting with '-')",
+  "anchor_lines": [
+   131,
+   145
+  ]
+ },
+ "H35": {
+  "verdict": "defect",
+  "group": "D13",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "The argv prompt is inserted in option position (before --output-format etc.), where a leading '-' is parsed as an option.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "severity: codebook medium, as H33",
+  "anchor_lines": [
+   145
+  ]
+ },
+ "H39": {
+  "verdict": "defect",
+  "group": "D13",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "No option terminator: an argv prompt is never placed after '--', so a prompt beginning with '-' can be read as a CLI flag.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "verdict: a site of D13's wrong behaviour (prompt in option position), not a mechanical consequence — defect member (A)",
+  "anchor_lines": [
+   341,
+   342
+  ]
+ },
+ "H41": {
+  "verdict": "defect",
+  "group": "D12",
+  "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+  "description": "An 'invalid API key' diagnostic is not recognised as a static auth failure and falls through to a walkable ProviderUnavailableError.",
+  "severity": "low",
+  "category": "error-handling",
+  "reason": "verdict: a diagnostic the marker list misclassifies is a member site of D12 (the marker list), not a mechanical echo — defect (B), low, error-handling; group in A's namespace",
+  "anchor_lines": [
+   575,
+   576,
+   577,
+   578,
+   579,
+   580,
+   581,
+   582
+  ]
+ },
+ "H43": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": ".claude/adapters/loa_cheval/types.py",
+  "description": "ConfigError forwards an optional context to the base constructor.",
+  "severity": null,
+  "category": null,
+  "reason": "class: both annotators call the intent unclear; refactor is the conservative class (no behaviour change shown)",
+  "anchor_lines": []
+ },
+ "H44": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": ".claude/adapters/loa_cheval/types.py",
+  "description": "Passes context through the base constructor instead of assigning it afterwards; the attribute value looks the same either way, so the behavioural intent is unclear from the shown text and this is treated as a refactor.",
+  "severity": null,
+  "category": null,
+  "reason": "as H43",
+  "anchor_lines": []
+ },
+ "H101": {
+  "verdict": "defect",
+  "group": "D31",
+  "file": ".claude/defaults/model-config.yaml",
+  "description": "The catalog entry written from a partial probe does not say the outcome was partial.",
+  "severity": "medium",
+  "category": "contract",
+  "reason": "anchors: union; group: A's namespace (B's corresponds); severity medium and category contract (A): a record that omits its partial-probe provenance is a misleading record",
+  "anchor_lines": [
+   503,
+   509,
+   513
+  ]
+ },
+ "H105": {
+  "verdict": "defect",
+  "group": "D18",
+  "file": ".claude/scripts/adversarial-review.sh",
+  "description": "The dissent planner never emits the once-per-run gate warning when the agy route is available but gated.",
+  "severity": "low",
+  "category": "other",
+  "reason": "anchors: union; group: D18 in A's namespace — both annotators name the same once-per-run warning behaviour",
+  "anchor_lines": [
+   4080,
+   4081
+  ]
+ },
+ "H108": {
+  "verdict": "defect",
+  "group": "D18",
+  "file": ".claude/scripts/flatline-orchestrator.sh",
+  "description": "Flatline never emits the once-per-run agy gate warning.",
+  "severity": "low",
+  "category": "other",
+  "reason": "group: as H105",
+  "anchor_lines": [
+   2456
+  ]
+ },
+ "H113": {
+  "verdict": "defect",
+  "group": "D18",
+  "file": ".claude/scripts/loa-status.sh",
+  "description": "The Providers section never emits the agy gate warning.",
+  "severity": "low",
+  "category": "other",
+  "reason": "group: as H105",
+  "anchor_lines": [
+   860
+  ]
+ },
+ "H130": {
+  "verdict": "not-defect",
+  "group": "D39",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.d.ts",
+  "description": "Compiled declaration: gate parameter now required.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D39 (the cwd-default gate defect, H159): compiled copy of the required gate parameter",
+  "anchor_lines": []
+ },
+ "H135": {
+  "verdict": "not-defect",
+  "group": "D39",
+  "file": ".claude/skills/bridgebuilder-review/dist/config.js",
+  "description": "Compiled copy: no cwd default gate.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D39: compiled copy of the removed cwd default",
+  "anchor_lines": []
+ },
+ "H141": {
+  "verdict": "not-defect",
+  "group": "D39",
+  "file": ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js",
+  "description": "Compiled import update.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D39: compiled import of the config-path helper",
+  "anchor_lines": []
+ },
+ "H159": {
+  "verdict": "defect",
+  "group": "D39",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "validateApiKeys defaults the gate to readAgyGate() of the cwd's .loa.config.yaml, not the repo root's, so callers can judge voices against the wrong config.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "verdict: a wrong default (the cwd config instead of the repo root's) is a wrong behaviour of its own — defect (B), medium, logic; new group D39 in A's namespace",
+  "anchor_lines": [
+   190
+  ]
+ },
+ "H161": {
+  "verdict": "not-defect",
+  "group": "D22",
+  "file": ".claude/skills/bridgebuilder-review/resources/config.ts",
+  "description": "Adds startup lines for the read error / type warning.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D22: the startup line reports the handling D22 introduces",
+  "anchor_lines": []
+ },
+ "H162": {
+  "verdict": "not-defect",
+  "group": "D39",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "Import update.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D39: import of the config-path helper",
+  "anchor_lines": []
+ },
+ "H165": {
+  "verdict": "defect",
+  "group": "D23",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "The posted verdict header never names the voices that were not planned or why.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "category: logic — an incomplete report is a logic defect; other is the last resort",
+  "anchor_lines": [
+   347,
+   348,
+   349,
+   350,
+   351,
+   352,
+   353
+  ]
+ },
+ "H168": {
+  "verdict": "defect",
+  "group": "D23",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+  "description": "The verdict quality line omits the not-planned voices.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "category: logic, as H165",
+  "anchor_lines": [
+   652
+  ]
+ },
+ "H169": {
+  "verdict": "not-defect",
+  "group": null,
+  "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+  "description": "Generated header comment explaining units.",
+  "severity": null,
+  "category": null,
+  "reason": "class: docs — a generated comment is text only (as pr-16 H04)",
+  "anchor_lines": []
+ },
+ "H170": {
+  "verdict": "defect",
+  "group": "D24",
+  "file": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+  "description": "The Opus 5.5 budget (916000) takes a ceiling measured in provider tokens as estimate-unit tokens, and the char estimator under-counts the tokenizer ~1.8x, so Bridgebuilder builds prompts far past the real window.",
+  "severity": "high",
+  "category": "logic",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook high — a failure on a common path (every run of that model)",
+  "anchor_lines": [
+   34
+  ]
+ },
+ "H201": {
+  "verdict": "defect",
+  "group": "D27",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The 5xx regex matches any bare three-digit 5xx number (e.g. 'took 503 ms'), so non-transient failures are retried as transient.",
+  "severity": "low",
+  "category": "logic",
+  "reason": "group: the over-matching regex is a distinct wrong behaviour from D25's truncation/order — own group (A)",
+  "anchor_lines": [
+   144
+  ]
+ },
+ "H202": {
+  "verdict": "defect",
+  "group": "D32",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Operator- and CLI-supplied strings (host route, resolved cli model, cli --version) reach the catalog's provenance text unchecked, so a control or line-break character can break or inject YAML into the catalog.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "anchors: union; group: A's finer split (D32: unchecked strings into the catalog text) is kept — the descriptions of D14's items differ",
+  "anchor_lines": [
+   173,
+   174,
+   175,
+   178,
+   456,
+   457,
+   458,
+   459,
+   460,
+   467,
+   468
+  ]
+ },
+ "H205": {
+  "verdict": "defect",
+  "group": "D29",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Usage and cost values from the CLI JSON are taken unchecked; Infinity/NaN or absurd values crash the cost arithmetic (OverflowError) and lose the record.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — a missing validation with a bounded impact (a lost record)",
+  "anchor_lines": [
+   238,
+   239,
+   240
+  ]
+ },
+ "H206": {
+  "verdict": "defect",
+  "group": "D25",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Classification runs on a 300-character truncated diagnostic and checks the context-limit marker before throttling, so Bedrock's 'Too many tokens, please wait' throttle is recorded as a size rejection and markers past 300 chars are missed.",
+  "severity": "high",
+  "category": "logic",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook high — a wrong result on a common path (provider throttling under concurrency)",
+  "anchor_lines": [
+   251,
+   252,
+   253,
+   254,
+   255,
+   256,
+   257
+  ]
+ },
+ "H207": {
+  "verdict": "defect",
+  "group": "D25",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Transient markers are searched in the truncated diagnostic only.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — an uncommon path",
+  "anchor_lines": [
+   266,
+   267
+  ]
+ },
+ "H210": {
+  "verdict": "defect",
+  "group": "D31",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The catalog writer hard-codes sample_size: null and writes no probe_outcome.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "group: A's namespace (B's corresponds); severity: codebook medium — a misleading record (as H101)",
+  "anchor_lines": [
+   456,
+   460
+  ]
+ },
+ "H211": {
+  "verdict": "not-defect",
+  "group": "D31",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Provenance comment gains the partial note via a template.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D31 (partial-probe recording): the provenance template carries the partial note",
+  "anchor_lines": []
+ },
+ "H212": {
+  "verdict": "defect",
+  "group": "D32",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The produced catalog text is returned without re-parsing, so a malformed or collateral edit is written unverified.",
+  "severity": "medium",
+  "category": "input-validation",
+  "reason": "group: A's namespace (B's corresponds) (D32 kept, as H202); category: input-validation — a write persisted without re-parsing",
+  "anchor_lines": [
+   480
+  ]
+ },
+ "H216": {
+  "verdict": "defect",
+  "group": "D35",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Spend accounting charges every failed attempt the full estimate (including the CLI's free local pre-flight rejections and never-sent spawns), exhausting the budget cap on attempts that cost nothing.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; the annotators attribute the two behaviours (spend accounting; token-limit transient) to each other's hunk — A's attribution kept for the record; both behaviours are in the key (D35, D26)",
+  "anchor_lines": [
+   711,
+   712,
+   713,
+   714,
+   715,
+   716,
+   720,
+   721,
+   722,
+   723,
+   724,
+   725,
+   726,
+   727
+  ]
+ },
+ "H217": {
+  "verdict": "not-defect",
+  "group": "D31",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Usage check for the new partial-write flag.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D31: usage check of the partial-write flag",
+  "anchor_lines": []
+ },
+ "H219": {
+  "verdict": "defect",
+  "group": "D35",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The budget pre-check estimates the first step at ratio 1.0, under-estimating its cost by the ~1.8x tokenizer ratio, so the cap can be exceeded.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; group D35 (A): the budget pre-check belongs with the spend accounting",
+  "anchor_lines": [
+   684,
+   688,
+   689,
+   690
+  ]
+ },
+ "H220": {
+  "verdict": "not-defect",
+  "group": "D26",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "Uses the computed retry wait.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D26: the sleep site consumes the wait the D26 hunk computes",
+  "anchor_lines": []
+ },
+ "H221": {
+  "verdict": "defect",
+  "group": "D26",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "A token-limit transient that persists over the short retries is turned into a size rejection without the TPM window having been waited out, and output-cap/timeout/spawn cases are not distinguished for charging.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; A's attribution kept (see H216)",
+  "anchor_lines": [
+   705,
+   706,
+   707,
+   708,
+   709,
+   710,
+   711,
+   712,
+   713,
+   714,
+   715,
+   716,
+   720,
+   721,
+   722,
+   723,
+   724,
+   725,
+   726,
+   727
+  ]
+ },
+ "H223": {
+  "verdict": "defect",
+  "group": "D40",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The outcome reasons never record an interrupted bisection.",
+  "severity": "low",
+  "category": "error-handling",
+  "reason": "verdict: a reason never recorded is a missing behaviour at that site — defect (B), low, error-handling; a distinct behaviour from D29's unchecked values → new group D40",
+  "anchor_lines": [
+   771,
+   772,
+   773
+  ]
+ },
+ "H225": {
+  "verdict": "defect",
+  "group": "D38",
+  "file": "tools/ceiling-probe-live.py",
+  "description": "The record claims written_ceiling before the catalog write is attempted, so a failed write still leaves a record saying it was written.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union; severity: codebook medium — a misleading record on a failure path (B)",
+  "anchor_lines": [
+   811,
+   812,
+   813,
+   814,
+   815,
+   816,
+   817,
+   818,
+   819,
+   820,
+   821
+  ]
+ }
+}

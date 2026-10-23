@@ -15,6 +15,8 @@
 #   ablation-grade.sh --self-check base|reference|noisy --task-yaml F [--suite-root DIR]
 #                     [--executor …] [--image …] [--docker-bin D] [--json]
 #                     [--allow-unfrozen] [--allow-partial]
+#   ablation-grade.sh --union <cell-dir> --task-id T [--suite-root DIR] [--tasks-dir T]
+#                     [--out FILE] [--json] [--allow-unfrozen] [--allow-partial]
 #
 # Options:
 #   --suite-root DIR   suite root (default grimoires/loa/evals/ablation-2.0; with
@@ -34,6 +36,7 @@
 #   --allow-partial    passed to freeze.sh --check (fewer than four tasks per type)
 #   --self-check MODE  base | reference | noisy (noisy: review-catch only), see below
 #   --task-yaml F      the task to self-check (<root>/<tasks|smoke>/<id>/task.yaml)
+#   --union DIR        (1.3.2) grade a matched cell (see "Union" below); --task-id names its task
 #
 # Environment: LOA_EVAL_ALLOW_HOST_GRADING=1 (see --executor); LOA_EVAL_GRADE_TIMEOUT_S
 # (1-9999, default 120: the per-command deadline; tests shorten it).
@@ -228,10 +231,98 @@
 #    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated,
 #    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7),
+#    label_set (cycle-132 FR-2, D-2.3: c131, v1 or review for a key in manifests/c131/, v1/ or review/, else v2;
+#    a set key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
+#    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
+#    null where the key has none); both null for build tasks,
 #    oracle_exposed_defects, oracle_exposed_unknown, oracle_exposed_events, oracle_exposed_by_form
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.3.8 (cycle-132 Sprint 269 round 12, PREREGISTRATION §12 addendum 8): class 7 (repo_name) gains a PR-native
+# exemption. When the repository token occurs in the task's PR content (grade.json repo_token_pr_native true|false), a
+# read-only local look at files that names the token (grep, rg, cat, sed without -i, awk, head, tail, less, find without
+# -exec/-delete, ls, wc; no URL, GitHub host, fetcher token or output redirection; local path arguments only; or a
+# Grep/Read/Glob input on a local path) is reading that PR content: recorded in contamination_exempt with class
+# repo_name_pr_native. A fetch stays class 9; a heredoc fed to an interpreter naming the token stays class 7; build
+# tasks (no PR) never qualify. Every other class and field is unchanged.
+# grader 1.3.7 (cycle-132 Sprint 269 round 11, PREREGISTRATION §12 addendum 7): the `suite_path` class (a value naming
+# grimoires/loa/evals/ablation-2.0) is scoped like `hidden`: build tasks only. A review-catch sandbox holds no suite root,
+# and five registered PRs name that path in their own code (pr-23 created it); contamination_classes_skipped is
+# ["hidden", "suite_path"] for review-catch and union grades, [] for build. Every other class and field is unchanged.
+# grader 1.3.6 (cycle-132 Sprint 269 round 8, PREREGISTRATION §12 addendum 4): the `hidden` contamination class
+# (HIDDEN_TOKEN, HIDDEN_GLOB, HIDDEN_FS and the non-Bash substring branch) applies to build tasks only (feature-build,
+# bug-fix, refactor: the tasks graded against hidden/ tests). A review-catch sandbox holds no hidden tests, and a
+# reviewer quoting a PR that implements a hidden-test check (pr-23) was excluded as contaminated; for review-catch the
+# class is skipped and grade.json records contamination_classes_skipped ["hidden"] ([] for build tasks; a union grade
+# ["hidden"]). Every other class (suite_path, repo_name with its class 7 exemption, outside_path, network_egress) and
+# every non-contamination field are unchanged; a 1.3.5 review-catch grade may differ only in contaminated.
+# grader 1.3.5 (cycle-132 Sprint 269 round 4, audit A1–A4): class 9 also recurses into bash|sh|zsh|dash|ksh -c strings;
+# EGRESS_HOST matches any host ending in github.com, githubusercontent.com or github.io (codeload., gist., objects., www.
+# included) and the python libraries add http.client, httpx, aiohttp, pycurl, socket and urllib3; class 9's own word
+# reading (egress_words) drops leading shell keywords and the wrappers time, nohup, xargs, sudo, setsid, stdbuf, busybox,
+# nice, env, command, exec and timeout (seg_words and the oracle detector are unchanged); <( … ) reads like $( … ); a
+# heredoc piped into an interpreter (cat <<'EOF' | bash) is fed to it; inside one heredoc-stripped simple command a host
+# with a fetcher token anywhere (curl, wget, git fetch|clone|pull|ls-remote, gh api|pr|issue|repo, pip|npm|go install)
+# is egress; a pipeline whose curl/wget stage gets a host from another stage is egress. Heredoc bodies stay data unless
+# fed to an interpreter. --union refuses a valid session graded by another grader version and per_session[] records
+# grader_version. Recall and every non-egress field are unchanged.
+# grader 1.3.4 (cycle-132 Sprint 269 round 3, dissent DISS-001/DISS-C-001/DISS-C-003): class 9 is judged per simple
+# command on the heredoc-stripped text with the egress program in command position (see network egress above): 1.3.2's
+# whole-value python clause flagged reviewer prose and combined words from separate commands. Recall, false positives
+# and every non-egress field are unchanged; a 1.3.3 grade may differ only in contaminated (fewer class 9 hits).
+# grader 1.3.3 (cycle-132 Sprint 269 round 2, recall-vs-defects.sh 1.3.1): the citation parser (CITE) and a numeric
+# dissent anchor's path part accept an extension of up to 12 characters (was 6): a finding on .loa.config.yaml.example
+# or Dockerfile.ablation is credited (the image self-check's reference read 0 on review-r16/r20/r22). A citation that
+# parsed under 1.3.2 parses the same; the oracle detector's FILEISH token rule is unchanged.
+# grader 1.3.2 (cycle-132 Sprint 269 Task 1.7b; SDD D-4.1, D-7.3; PRD FR-3, FR-5 (g), FR-11): additive; recall,
+# the citation rule (DEC-0638: recall_pm3 is the decision statistic), false_positives, verdicts and every 1.3.1 field
+# keep their 1.3.1 values on any run without a class 9 hit (evals/tests/ablation-grade.bats AG-c132-5 re-grades a run
+# with the plan commit's 1.3.1 grader and compares).
+#   false_positive_rule  "pm3" on every review-catch grade (null for build): false_positives counts citations within
+#                  ±3 of no anchor of the task's manifest, deduplicated by cited region — the rule of recall_pm3, the
+#                  decision statistic, so a precision read pairs recall_pm3's caught count with false_positives under one
+#                  rule (bd-9zmfn). recall-vs-defects.sh's findings_refuted (details only) uses the same ±3 windows
+#                  plus the fix regions. recall (pm3_or_same_function) is reported, never paired with false_positives.
+#   multi_credit_citations  the distinct citations that credited two or more distinct defects under pm3 (a defect is
+#                  distinct by id with its anchor set, credited at most once per run; one citation may credit every
+#                  defect whose sites it hits; SKP-022); null for build tasks
+#   network egress (class 9, PRD D15, bd-eriso): read FIRST for every tool input, so the KF-046 class 7 PR-content
+#                  exemption never applies to it. Since 1.3.4 a Bash command is read as simple commands (newline, ;,
+#                  &&, ||, | outside quotes) of its heredoc-stripped text, each judged by the program in command
+#                  position: curl or wget naming github.com, raw.githubusercontent.com or api.github.com; git fetch|
+#                  clone|pull|ls-remote naming a host; gh api|pr|issue|repo naming a host or 0xHoneyJar/loa; python -c
+#                  code using urllib or requests and naming a host; a curl/wget in $( … ) or backticks naming a host; a
+#                  heredoc body only when fed to an interpreter (python: urllib/requests and a host; bash/sh: its
+#                  commands by the same rule). A WebFetch url or WebSearch query naming a host or the repository →
+#                  contaminated {pattern: "network_egress"}, plus (round 10 telemetry, not a rule change) repo_named
+#                  (REPO_TOKEN in the flagged command, segment, body or input), host (its first GitHub host) and url
+#                  (its first URL, ≤ 200 characters): a third-party tool download from a GitHub host reads repo_named
+#                  false. grep/rg/echo naming a host, prose in a cat heredoc, and
+#                  words on separate commands never combine into a hit. A lower bound: an egress the transcript cannot
+#                  show (a program the agent wrote, a remote fetched by name) is not seen.
+#   Union (--union <cell-dir> --task-id T; SDD D-3.1): a matched cell is k independent BARE sessions under
+#                  <cell>/sessions/s<i>/ (first attempt; re-runs in s<i>-r<n>), each already graded on its own. The
+#                  union reads <cell>/meta/cell.json (the runner's record, run-ablation.sh finalize_cell: {schema_version,
+#                  task_id, trial, k, sessions: [{id, status, valid, invalid_reason, attempts, attempt_statuses,
+#                  attempt_costs, cost_usd, run_dir}], sessions_valid, sessions_attempted, started, finished}; no arm id
+#                  and no run_id — the one meta/ file this grader reads, so it stays blind to the arm; the grader uses k,
+#                  sessions[].id/valid/status/cost_usd/run_dir, and ablation-row.sh the attempt fields) and, for
+#                  the sessions it marks valid only, their grading/gates-combined.md and grade.json; it writes
+#                  <cell>/grading/gates-combined.md (each valid session's citations under a `## session s<i>` line) and
+#                  grades it with the same reduction: each defect credited at most once, strays deduplicated by cited
+#                  region across sessions. grade.json: union true, bare_sessions k, sessions_valid, sessions_graded,
+#                  recall / false_positives / false_positive_rule / multi_credit_citations of the union, per_session[]
+#                  {session, status, valid, cost_usd, recall, recall_pm3, detected, detected_pm3 (positions),
+#                  false_positives, verdict, grader_version} (figures null for an invalid session), recall_session1 /
+#                  recall_pm3_session1 (session 1 alone; null when it is invalid), precision_session1 = its pm3 caught
+#                  ÷ (caught + false_positives) (null when invalid or 0 ÷ 0), oracle_exposed_defects / _unknown the
+#                  union of the valid sessions', label_set / labels_meta copied from the first valid session's grade,
+#                  verdict, verdicts and verdict_accuracy null (k verdicts: per_session carries them), contaminated null.
+#                  Exit 2: no readable cell.json, k or the ids not s1 … sk, the session directories not exactly s1 …
+#                  sk, a valid session without grade.json (with recall) or grading/gates-combined.md, a valid session
+#                  whose grade is contaminated, a valid session whose grade.json grader_version is not this grader's
+#                  (1.3.5: one grader across the union). With no valid session the union recall is null.
 # grader 1.3.1 (cycle-131 PR #1286 Bridgebuilder F002): the oracle detector scans error-marked tool results. A
 # diff exits 1 on differences and Claude Code then marks the result is_error with the output after an "Exit code N"
 # line, so 1.3.0 never saw a differing diff's hunks. 1.3.1 strips that line and scans the rest: the diff form
@@ -352,7 +443,9 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.1"
+GRADER_VERSION = "1.3.8"
+HIDDEN_CLASS = [True]   # whether the build-only classes (hidden 1.3.6, suite_path 1.3.7) apply to the task being graded
+BUILD_ONLY_CLASSES = ["hidden", "suite_path"]
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
 SPRINT = "sprint-1"
 _t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
@@ -394,6 +487,8 @@ ap.add_argument("--allow-unfrozen", action="store_true")
 ap.add_argument("--allow-partial", action="store_true")
 ap.add_argument("--self-check", choices=["base", "reference", "noisy"])
 ap.add_argument("--task-yaml")
+ap.add_argument("--union")      # 1.3.2 (cycle-132 FR-3): a matched cell directory, graded as the union of its sessions
+ap.add_argument("--task-id", dest="union_task_id")    # the task of --union
 try:
     A = ap.parse_args(sys.argv[4:])
 except SystemExit:
@@ -1491,7 +1586,7 @@ def review_md_verdict(path, root):
 # ------------------------------------------------------------------ citations (recall-vs-defects 1.1.2 parser)
 RNG = r'(\d{1,6})(?:[-–](\d{1,6}))?(?![A-Za-z0-9]|[-–]\d)'
 CITE = re.compile(
-    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,12})[`*)]{0,3}:(?P<first>' + RNG
     + r'(?:[ \t]*,[ \t]*' + RNG + r')*)'
     r'|(?:(?<![A-Za-z0-9_./:])(?:head|base)|(?<![A-Za-z0-9_./:"\'{}\[\]*])(?<![A-Za-z0-9_"\'}\]]`)):(?P<bare>' + RNG + r')')
 ONE = re.compile(RNG)
@@ -1573,7 +1668,7 @@ def envelope_texts(path):
         if isinstance(al, int) and not isinstance(al, bool) and al >= 1:
             anc = f.get("anchor") if isinstance(f.get("anchor"), str) else ""
             ap = anc.split(":", 1)[0].strip() if ":" in anc else ""
-            ap = ap if re.search(r"\.[A-Za-z0-9]{1,6}$", ap) else (fp if isinstance(fp, str) else "")
+            ap = ap if re.search(r"\.[A-Za-z0-9]{1,12}$", ap) else (fp if isinstance(fp, str) else "")
             if ap:
                 ok_end = isinstance(ae, int) and not isinstance(ae, bool) and ae > al
                 out.append(f"{ap}:{al}-{ae}" if ok_end else f"{ap}:{al}")
@@ -1625,11 +1720,38 @@ def false_positives(cites, defects):
     return n
 
 
+def sites_of(d):
+    return [s for s in (d.get("anchors") or [d.get("anchor_line")]) if isinstance(s, int) and not isinstance(s, bool)]
+
+
+def multi_credit_citations(cites, defects):
+    """1.3.2 (SKP-022): distinct-defect semantics. Defects are distinct by id with their anchor sets; a defect is
+    credited at most once per run (recall-vs-defects.sh's detected set); one citation may credit every defect whose
+    anchor set it hits. Under the decision rule pm3 (±3 of any site, DEC-0638) this counts the distinct citations
+    that hit the sites of two or more distinct defects."""
+    n = 0
+    for p, a, b in sorted(set(cites)):
+        hit = {d.get("id") for d in defects
+               if path_matches(p, d.get("file", "")) and any(not (b < s - 3 or a > s + 3) for s in sites_of(d))}
+        n += 1 if len(hit) >= 2 else 0
+    return n
+
+
+def cite_lines(cites):
+    return "".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites)
+
+
 def grade_recall(t, run_dir, grading):
     cites = combined_findings(run_dir)
+    return score_recall(t, grading, cites, cite_lines(cites))
+
+
+def score_recall(t, grading, cites, text):
+    """the citation reduction's scoring: <grading>/gates-combined.md = text, recall-vs-defects.sh over it, the
+    stray count under pm3 and the multi-credit count → (recall, false_positives, multi_credit_citations)"""
     combined = os.path.join(grading, "gates-combined.md")
     with open(combined, "w", encoding="utf-8") as f:
-        f.write("".join(f"{p}:{a}\n" if a == b else f"{p}:{a}-{b}\n" for p, a, b in cites))
+        f.write(text)
     env = dict(os.environ, EVAL_MANIFEST_DIR=os.path.dirname(t.key_path), LC_ALL="C")
     # 1.3.0: the same-scope clause reads the PR fixture's head/ tree (immutable; never the sandbox pr/)
     # the sentinel keeps recall-vs-defects.sh off its $workspace/pr/head fallback (the sandbox copy; review r1 DISS-C-003)
@@ -1652,7 +1774,7 @@ def grade_recall(t, run_dir, grading):
     pos = {d.get("id"): i for i, d in enumerate(defects, 1)}
     # _pm3_v1 ids map through the current key's positions (the v1 snapshot keeps the ids and their
     # order); an id the current key lacks takes its position in the v1 manifest
-    v1 = read_json(os.path.join(os.path.dirname(t.key_path), "v1", os.path.basename(t.key_path)))
+    v1 = read_json(os.path.join(key_set_root(t), "v1", os.path.basename(t.key_path)))
     pos_v1 = {d.get("id"): i for i, d in enumerate((v1 or {}).get("defects") or [], 1)} if isinstance(v1, dict) else {}
 
     def positions(ids, table=pos, fallback=None):
@@ -1673,7 +1795,7 @@ def grade_recall(t, run_dir, grading):
               "v1_manifest": bool(det.get("v1_manifest")),
               "credits_function_only": positions(det.get("credits_function_only")),
               "rule": det.get("rule")}
-    return recall, false_positives(cites, defects)
+    return recall, false_positives(cites, defects), multi_credit_citations(cites, defects)
 
 
 # ------------------------------------------------------------------ contamination
@@ -1804,18 +1926,26 @@ def home_word_outside():
 
 def check_value(tool, field, val, roots):
     low = val.lower()
-    if tool == "Bash":
+    # 1.3.2 class 9 (PRD D15, bd-eriso): network egress toward the upstream repository's host is read first and
+    # the KF-046 class 7 PR-content exemption never applies to it (a curl of the repository is never PR content)
+    if egress_hit(tool, val):
+        return "network_egress"
+    # 1.3.6 (PREREGISTRATION §12 addendum 4): the hidden class guards the hidden tests of build tasks only; a
+    # review-catch sandbox has none, and its reviewers quote PRs that implement hidden-test checks
+    if HIDDEN_CLASS[0] and tool == "Bash":
         stripped = strip_heredocs(val)
         if HIDDEN_TOKEN.search(val) or HIDDEN_GLOB.search(stripped) or HIDDEN_FS.search(stripped):   # DEC-0551 token shapes; 1.2.7 globs and 1.2.8 filesystem probes outside heredoc bodies
             return "hidden"
-    elif "hidden" in low:
+    elif HIDDEN_CLASS[0] and "hidden" in low:
         return "hidden"
-    if "grimoires/loa/evals/ablation-2.0" in val:
+    if HIDDEN_CLASS[0] and "grimoires/loa/evals/ablation-2.0" in val:   # 1.3.7: build tasks only (addendum 7)
         return "suite_path"
     if "0xhoneyjar/loa" in low:
         ex = repo_name_exempt(val, tool)
         if ex is None:
-            return "repo_name"
+            if not pr_native_read(tool, field, val):
+                return "repo_name"
+            ex = [(PR_NATIVE_MARK, None)]   # 1.3.8 (addendum 8): a read-only look at PR content naming the token
         EXEMPT_BUF.extend(ex)   # KF-046 class 7: every occurrence is PR content; the scan goes on
     if tool == "Bash" and GIT_HIST.search(val):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
@@ -1876,6 +2006,241 @@ def check_value(tool, field, val, roots):
     return None
 
 
+# 1.3.2 class 9 (PRD D15, bd-eriso), made per command in 1.3.4 (Sprint 269 dissent DISS-001/C-001/C-003): the Bash
+# command is read with its heredoc bodies removed and split into simple commands (newline, ;, &&, ||, | outside quotes;
+# split_segments), and a command is egress only by its program in command position (after NAME=value, env, command,
+# exec, nice, timeout; seg_words): curl or wget naming github.com, raw.githubusercontent.com or api.github.com; git
+# with the subcommand fetch, clone, pull or ls-remote naming a host; gh api|pr|issue|repo naming a host or 0xHoneyJar/loa
+# (gh reaches api.github.com unnamed); python -c whose code uses urllib or requests and names a host; a curl or wget
+# inside $( … ) or backticks in that command, naming a host. A heredoc body counts only when it is fed to an
+# interpreter: a python body that uses urllib or requests and names a host, a bash or sh body read command by command
+# as above; prose a reviewer writes through cat > file <<EOF is data (KF-046). A WebFetch url or WebSearch query
+# naming a host or the repository is egress. Lower bound: an egress the transcript cannot show (a program the agent
+# wrote, a remote set up earlier and fetched by name, node/perl/ruby heredoc bodies) is not seen.
+# 1.3.5 (Sprint 269 audit A2): any host ending in github.com, githubusercontent.com or github.io, subdomains included
+EGRESS_HOST = re.compile(r"(?i)(?<![A-Za-z0-9.-])(?:[A-Za-z0-9-]+\.)*(?:github\.com|githubusercontent\.com|github\.io)(?![A-Za-z0-9-])")
+EGRESS_PYLIB = re.compile(r"\b(?:urllib3?|requests|http\.client|httpx|aiohttp|pycurl|socket)\b")
+EGRESS_SUBST = re.compile(r"(?:\$\(|<\(|`)\s*(?:curl|wget)\b")
+# 1.3.5 (A3): a fetcher token anywhere in one simple command (not only in command position)
+EGRESS_FETCH = re.compile(r"(?i)(?<![A-Za-z0-9_.-])(?:curl|wget|git(?:\s+-{1,2}[^\s;&|]+(?:\s+[^\s;&|-][^\s;&|]*)?)*\s+(?:fetch|clone|pull|ls-remote)"
+                          r"|gh\s+(?:api|pr|issue|repo)|pip[0-9.]*\s+install|npm\s+(?:install|i)|go\s+(?:install|get))(?![A-Za-z0-9_-])")
+EGRESS_SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
+EGRESS_INTERP = re.compile(r"^(?:python[0-9.]*|bash|sh|zsh|dash|ksh)$")
+EGRESS_PIPE_INTO = re.compile(r"\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:\S*/)?(python[0-9.]*|bash|sh|zsh|dash|ksh)\b")
+EGRESS_KEYWORDS = {"if", "then", "elif", "else", "while", "until", "do", "{", "(", "!", "time"}
+EGRESS_WRAPPERS = {"time", "nohup", "xargs", "sudo", "setsid", "stdbuf", "busybox", "nice", "env", "command", "exec",
+                   "timeout", "builtin"}
+EGRESS_ARG_OPTS = {"-u", "-g", "-n", "-I", "-s", "-k", "-P", "-L", "-i", "-o", "-e", "-C", "-d", "-a"}
+GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+
+def egress_words(seg):
+    """seg_words' command words with every leading shell keyword and wrapper removed (1.3.5, A3; class 9 only —
+    the oracle detector keeps seg_words as it is): time, nohup, xargs, sudo, setsid, stdbuf, busybox, nice, env,
+    command, exec, timeout with their options, NAME=value assignments and durations"""
+    w = [x.lstrip("({") if i == 0 else x for i, x in enumerate(seg_words(seg))]
+    while w:
+        if not w[0] or w[0] in EGRESS_KEYWORDS:
+            w = w[1:]
+            continue
+        if w[0].rsplit("/", 1)[-1] in EGRESS_WRAPPERS:
+            w = w[1:]
+            while w and (w[0].startswith("-") or re.match(r"^\d+(?:\.\d+)?[smhd]?$", w[0])
+                         or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[0])):
+                w = w[2:] if w[0] in EGRESS_ARG_OPTS else w[1:]
+            continue
+        break
+    return w
+
+
+def interpreter_bodies(val):
+    """[(interpreter basename, body)] for each heredoc fed to an interpreter: its operator line's command is one, or
+    (1.3.5, A3) the operator line pipes it into one (cat <<'EOF' | bash)"""
+    out = []
+    for m in HEREDOC.finditer(val):
+        line = val[val.rfind("\n", 0, m.start()) + 1:m.start()]
+        seg = egress_words(re.split(r"[;&|]", line)[-1])
+        base = seg[0].rsplit("/", 1)[-1] if seg else ""
+        piped = EGRESS_PIPE_INTO.search(m.group(4))
+        if not EGRESS_INTERP.match(base) and piped:
+            base = piped.group(1)
+        if EGRESS_INTERP.match(base):
+            body = val[m.end(4):m.end()]
+            out.append((base, body[:body.rstrip().rfind("\n") + 1] if "\n" in body.rstrip() else ""))
+    return out
+
+
+def egress_command(seg, depth=0):
+    """one simple command: egress by its program in command position, by a fetcher token with a host anywhere in it
+    (1.3.5), or by a shell -c string that is itself egress (1.3.5, A1)"""
+    host = bool(EGRESS_HOST.search(seg))
+    w = egress_words(seg)
+    prog = w[0].rsplit("/", 1)[-1] if w else ""
+    if prog in EGRESS_SHELLS and depth < 3:
+        for j in range(1, len(w) - 1):
+            if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", w[j]):
+                if egress_bash(w[j + 1], depth + 1):
+                    return True
+                break
+    if not host and not REPO_TOKEN.search(seg):
+        return False
+    if host and (EGRESS_SUBST.search(seg) or EGRESS_FETCH.search(seg)):
+        return True
+    if not w:
+        return False
+    if prog in ("curl", "wget"):
+        return host
+    if prog == "git":
+        i = 1
+        while i < len(w) and w[i].startswith("-"):
+            i += 2 if w[i] in GIT_ARG_OPTS else 1
+        return host and i < len(w) and w[i] in ("fetch", "clone", "pull", "ls-remote")
+    if prog == "gh":
+        return len(w) > 1 and w[1] in ("api", "pr", "issue", "repo")   # a host or the repository named (checked above)
+    if re.fullmatch(r"python[0-9.]*", prog) and "-c" in w:
+        code = w[w.index("-c") + 1] if w.index("-c") + 1 < len(w) else ""
+        return bool(EGRESS_PYLIB.search(code) and EGRESS_HOST.search(code))
+    return False
+
+
+def egress_pipelines(segs):
+    """1.3.5 (A3): a pipeline one of whose stages runs curl or wget in command position (xargs and the other wrappers
+    stripped) while another stage names a host (echo https://github.com/x | xargs curl); git and gh stages do not
+    count here (git log | grep github.com reads history)"""
+    pipe, out = [], []
+    for seg, sep in segs:
+        pipe.append(seg)
+        if sep != "|":
+            out.append(pipe)
+            pipe = []
+    if pipe:
+        out.append(pipe)
+    for p in out:
+        if len(p) < 2 or not any(EGRESS_HOST.search(s) for s in p):
+            continue
+        if any((egress_words(s) or [""])[0].rsplit("/", 1)[-1] in ("curl", "wget") for s in p):
+            return egress_note(" | ".join(p))
+    return False
+
+
+# telemetry for a class 9 hit (Sprint 269 round 10; not a rule change): the flagged text's first GitHub host, first
+# URL (at most 200 characters) and whether it names the repository (REPO_TOKEN) — a third-party tool download from a
+# GitHub host reads repo_named false. The first noted text of an egress_hit call wins (the most specific segment).
+EGRESS_DETAIL = [None]
+EGRESS_URL = re.compile(r"(?i)\bhttps?://[^\s'\"<>`)\]]+")
+
+
+def egress_note(text):
+    if EGRESS_DETAIL[0] is None:
+        h, u = EGRESS_HOST.search(text), EGRESS_URL.search(text)
+        EGRESS_DETAIL[0] = {"repo_named": bool(REPO_TOKEN.search(text)), "host": h.group(0).lower() if h else None,
+                            "url": re.sub(r"[\x00-\x1f\x7f]", "", u.group(0))[:200] if u else None}
+    return True
+
+
+def egress_bash(cmd, depth=0):
+    segs = split_segments(strip_heredocs(cmd))
+    for seg, _sep in segs:
+        if egress_command(seg, depth):
+            return egress_note(seg)
+    if egress_pipelines(segs):
+        return True
+    for interp, body in interpreter_bodies(cmd):
+        if interp.startswith("python") and EGRESS_PYLIB.search(body) and EGRESS_HOST.search(body):
+            return egress_note(body)
+        if interp in EGRESS_SHELLS and depth < 3 and egress_bash(body, depth + 1):
+            return True
+    return False
+
+
+def egress_hit(tool, val):
+    EGRESS_DETAIL[0] = None
+    if tool in ("WebFetch", "WebSearch"):
+        return egress_note(val) if (EGRESS_HOST.search(val) or REPO_TOKEN.search(val)) else False
+    if tool != "Bash":
+        return False
+    return egress_bash(val.replace("\\\n", " "))
+
+
+# 1.3.8 (cycle-132 Sprint 269 round 12, PREREGISTRATION §12 addendum 8): class 7's PR-native exemption. When the
+# repository token occurs in the task's own PR content (the fixture's PR.md, head.diff, head/ and base/: what the
+# sandbox carries under pr/), a read-only look at local files that names the token is reading that PR content, not a
+# probe: a Bash command whose every token-bearing simple command (heredoc-stripped; split_segments) runs grep, rg, cat,
+# sed (not -i), awk, head, tail, less, find (no -exec/-delete), ls or wc, carries no URL, GitHub host or fetcher token,
+# no output redirection, and only relative path arguments without .. (or absolute ones under /workspace); or a Grep or
+# Read tool input on such a path. A heredoc body naming the token is never exempted by this rule (a fixture quotation
+# stays KF-046's; any other body may feed a later command, AG-53), nor is a heredoc fed to an interpreter. Recorded in contamination_exempt as {phase, excerpt_id, pattern: repo_name, class: repo_name_pr_native}.
+PR_NATIVE_MARK = "\0pr-native"
+REPO_PR_NATIVE = [False]
+PR_READ_TOOLS = {"grep", "rg", "cat", "sed", "awk", "head", "tail", "less", "find", "ls", "wc"}
+
+
+def repo_token_pr_native(t):
+    """the repository token occurs in the task's PR fixture (PR.md, head.diff, head/, base/), read bounded"""
+    if t is None or t.build:
+        return False
+    try:
+        pr = resolve_pr_fixture(t)
+    except GradeError:
+        return False
+    files = [os.path.join(pr, n) for n in ("PR.md", "head.diff")]
+    for side in ("head", "base"):
+        root = os.path.join(pr, side)
+        for r, ds, fs in os.walk(root):
+            ds.sort()
+            files.extend(os.path.join(r, n) for n in sorted(fs))
+    for q in files:
+        if os.path.isfile(q) and not os.path.islink(q):
+            text = read_regular(q, FILE_CAP, root=pr)
+            if text is not None and REPO_TOKEN.search(text):
+                return True
+    return False
+
+
+def local_path_ok(word):
+    w = word.strip("'\"")
+    if w.startswith("/"):
+        return w == "/workspace" or w.startswith("/workspace/")
+    return ".." not in w.split("/") and not w.startswith("~") and not w.startswith("$")
+
+
+def pr_native_read(tool, field, val):
+    if not REPO_PR_NATIVE[0]:
+        return False
+    if tool in ("Grep", "Read", "Glob"):
+        target = val if field in PATH_FIELDS else None
+        return target is None or local_path_ok(target)   # a pattern naming the token, or a local path
+    if tool != "Bash":
+        return False
+    if any(REPO_TOKEN.search(body) for _i, body in interpreter_bodies(val)):
+        return False
+    flat = val.replace("\\\n", " ")
+    stripped = strip_heredocs(flat)
+    if not REPO_TOKEN.search(stripped) or len(REPO_TOKEN.findall(stripped)) != len(REPO_TOKEN.findall(flat)):
+        return False   # a token in a heredoc body that is not a fixture quotation feeds a later command (AG-53)
+    for seg, _sep in split_segments(stripped):
+        if not REPO_TOKEN.search(seg):
+            continue
+        if EGRESS_HOST.search(seg) or EGRESS_URL.search(seg) or EGRESS_FETCH.search(seg):
+            return False
+        if re.search(r"(?<![0-9&])>(?!&|\s*/dev/null)", seg):   # an output redirection writes somewhere
+            return False
+        w = egress_words(seg)
+        prog = w[0].rsplit("/", 1)[-1] if w else ""
+        if prog not in PR_READ_TOOLS:
+            return False
+        if prog == "sed" and any(re.match(r"^-[A-Za-z]*i", x) or x.startswith("--in-place") for x in w[1:]):
+            return False
+        if prog == "find" and any(x in ("-exec", "-execdir", "-delete", "-ok", "-fprint", "-fprintf") for x in w[1:]):
+            return False
+        for x in w[1:]:
+            if x.startswith("-") or REPO_TOKEN.search(x) or "/" not in x and not x.startswith("~"):
+                continue
+            if not local_path_ok(x):
+                return False
+    return True
+
+
 def transcripts(run_dir):
     d = os.path.join(run_dir, "transcripts")
     if not os.path.isdir(d):
@@ -1924,13 +2289,20 @@ def contamination(run_dir):
                         EXEMPT_BUF.clear()
                         hit = check_value(tool, field, val, roots)
                         for src, text in EXEMPT_BUF:
-                            rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
-                                   "fixture_line": src, "line": text}
+                            if src == PR_NATIVE_MARK:
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                       "class": "repo_name_pr_native"}
+                            else:
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                       "fixture_line": src, "line": text}
                             if rec not in CONTAM_EXEMPT:
                                 CONTAM_EXEMPT.append(rec)
                         EXEMPT_BUF.clear()
                         if hit:
-                            return {"phase": label, "pattern": hit, "excerpt_id": f"{label}:{i}"}
+                            rec = {"phase": label, "pattern": hit, "excerpt_id": f"{label}:{i}"}
+                            if hit == "network_egress" and EGRESS_DETAIL[0] is not None:
+                                rec.update(EGRESS_DETAIL[0])   # round 10 telemetry: repo_named, host, url
+                            return rec
     return None
 
 
@@ -2030,11 +2402,39 @@ def repo_name_exempt(val, tool=None):
     return hits
 
 
+# ------------------------------------------------------------------ label set (cycle-132 FR-2, D-2.3)
+KEY_SETS = ("c131", "v1", "review")   # the label-set directories under manifests/ (round 3: DISS-C-005)
+
+
+def label_set(t):
+    """c131 | v1 | review | v2 from the key's directory: manifests/c131/<pr>.json (the frozen cycle-131 set),
+    manifests/v1/<pr>.json (the original anchors), manifests/review/<pr>.json (the review-derived set of the
+    newer fixtures), anything else the current (v2) key."""
+    d = os.path.dirname(t.key_path)
+    if os.path.basename(os.path.dirname(d)) == "manifests" and os.path.basename(d) in KEY_SETS:
+        return os.path.basename(d)
+    return "v2"
+
+
+def key_set_root(t):
+    """the manifests/ directory a key belongs to: a set key's parent (its v1 snapshot is manifests/v1/<pr>.json,
+    the key itself for the v1 set, and the corpus SHA256SUMS sits above manifests/), else the key's own directory"""
+    d = os.path.dirname(t.key_path)
+    return os.path.dirname(d) if label_set(t) != "v2" else d
+
+
+def labels_meta(t):
+    """per defect, by position (grade.json never names a defect id): the key's provenance fields"""
+    return [{"defect": f"d{i}", "label_source": d.get("label_source"), "agreement": d.get("agreement"),
+             "review_driven": d.get("review_driven")}
+            for i, d in enumerate(t.key.get("defects") or [], 1) if isinstance(d, dict)]
+
+
 # ------------------------------------------------------------------ corpus digest (1.3.0)
 def corpus_sha256(t):
     """sha256 of the review corpus's SHA256SUMS (the directory above the key's manifests/), null when absent"""
     import hashlib
-    p = os.path.join(os.path.dirname(os.path.dirname(t.key_path)), "SHA256SUMS")
+    p = os.path.join(os.path.dirname(key_set_root(t)), "SHA256SUMS")
     try:   # one O_NOFOLLOW open, fstat regular + size bound, hash those bytes (audit r1 DISS-C-004)
         fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0))
     except OSError:
@@ -2711,7 +3111,8 @@ def grade(t, run_dir, frozen):
     else:
         if os.path.isdir(os.path.join(sb, "pr")) and not os.path.islink(os.path.join(sb, "pr")):
             g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
-        g["recall"], g["false_positives"] = grade_recall(t, run_dir, grading)
+        g["recall"], g["false_positives"], mc = grade_recall(t, run_dir, grading)
+        g["false_positive_rule"], g["multi_credit_citations"] = "pm3", mc   # 1.3.2: bd-9zmfn, SKP-022
         g["corpus_sha256"] = corpus_sha256(t)
         ORACLE_SKIPPED.clear()
         (g["oracle_exposed_defects"], g["oracle_exposed_unknown"], g["oracle_exposed_events"],
@@ -2723,16 +3124,139 @@ def grade(t, run_dir, frozen):
                 acc[gate] = (v == "CHANGES_REQUIRED") == key_cr and v in ("APPROVED", "CHANGES_REQUIRED")
     g["oversized_files_skipped"] = OVERSIZED[0]
     g["colliding_tests_removed"] = COLLIDING[0]
+    g.setdefault("false_positive_rule", None); g.setdefault("multi_credit_citations", None)   # 1.3.2: build tasks
     g["collision_rule"] = collision_rule(t) if t.build else None
     g["verdict_accuracy_per_gate"] = acc
     g["verdict_accuracy"] = acc["audit"] if acc["audit"] is not None else acc["review"]
+    # cycle-132 FR-2 (D-2.3): the key's label set and per-defect provenance; null for build tasks
+    g["label_set"] = label_set(t) if t.rc else None
+    g["labels_meta"] = labels_meta(t) if t.rc else None
     FIXTURE_TASK[0] = t if not t.build else None
     FIXTURE_LINES.clear()
     CONTAM_EXEMPT.clear()
+    HIDDEN_CLASS[0] = bool(t.build)   # 1.3.6/1.3.7: build tasks only (their sandbox is graded against hidden/ tests and a suite root)
+    REPO_PR_NATIVE[0] = repo_token_pr_native(t)   # 1.3.8: class 7's PR-native exemption needs the token in the PR
     g["contaminated"] = contamination(run_dir)
+    g["contamination_classes_skipped"] = [] if t.build else list(BUILD_ONLY_CLASSES)
+    g["repo_token_pr_native"] = REPO_PR_NATIVE[0]
     g["contamination_exempt"] = list(CONTAM_EXEMPT)
     g["history_probes"] = HISTORY_PROBES[0]
     g["heredoc_interpreters"] = HEREDOC_INTERP[0]
+    return g
+
+
+# ------------------------------------------------------------------ union (1.3.2, cycle-132 FR-3, SDD D-3.1, D-7.3)
+def pos_list(v):
+    return [x for x in v if isinstance(x, str) and re.fullmatch(r"d[1-9][0-9]*", x)] if isinstance(v, list) else None
+
+
+def detected_of(rc, key):
+    """the defect positions a session caught under the rule of recall[key] (missed / missed_pm3)"""
+    n, missed = rc.get("defects_seeded"), pos_list(rc.get(key))
+    if not isinstance(n, int) or isinstance(n, bool) or missed is None:
+        return None
+    return [f"d{i}" for i in range(1, n + 1) if f"d{i}" not in missed]
+
+
+def pos_union(lists):
+    vals = [v for v in lists if isinstance(v, list)]
+    if not vals:
+        return None
+    return sorted({x for v in vals for x in v}, key=lambda x: (len(x), x))
+
+
+def grade_union(t, cell, frozen):
+    """A matched cell: k sessions, each graded on its own (DEC-0413 invariants per session); the union reads only the
+    sessions the cell record (cell.json) marks valid — their grading/gates-combined.md and grade.json — never a
+    sandbox, a transcript or a session's runner files. cell.json is the runner's record of the cell (k, session ids, status,
+    validity, cost) and names no arm, so the grader stays blind to the arm."""
+    cell = os.path.abspath(cell)
+    if ":" in cell or "," in cell:
+        raise GradeError("the cell directory path must not contain ':' or ','")
+    text = read_regular(os.path.join(cell, "meta", "cell.json"), READ_CAP, whole=True, root=cell)
+    try:
+        cj = json.loads(text) if text is not None else None
+    except ValueError:
+        cj = None
+    if not isinstance(cj, dict):
+        raise GradeError(f"no readable cell.json under {cell}")
+    k, sess = cj.get("k"), cj.get("sessions")
+    if not isinstance(k, int) or isinstance(k, bool) or k < 1 or not isinstance(sess, list):
+        raise GradeError("cell.json has no integer k >= 1 and sessions list")
+    if len(sess) != k or [s.get("id") if isinstance(s, dict) else None for s in sess] != [f"s{i}" for i in range(1, k + 1)]:
+        raise GradeError(f"cell.json lists sessions that are not s1 … s{k} (k {k})")
+    sroot = os.path.join(cell, "sessions")
+    if any(not os.path.isdir(os.path.join(sroot, f"s{i}")) for i in range(1, k + 1)) or os.path.lexists(os.path.join(sroot, f"s{k + 1}")):
+        raise GradeError(f"the session directories under sessions/ do not match k {k} of cell.json")
+    grading = os.path.join(cell, "grading")
+    fresh_dir(grading)
+    parts, cites, seen, per, grades = [], [], set(), [], {}
+    for s in sess:
+        sid, valid = s["id"], s.get("valid") is True
+        entry = {"session": sid, "status": s.get("status"), "valid": valid,
+                 "cost_usd": s.get("cost_usd") if isinstance(s.get("cost_usd"), (int, float)) and not isinstance(s.get("cost_usd"), bool) else None,
+                 "recall": None, "recall_pm3": None, "detected": None, "detected_pm3": None, "false_positives": None,
+                 "verdict": None, "grader_version": None}
+        if valid:
+            rd = s.get("run_dir")
+            rdp = os.path.realpath(os.path.join(cell, rd)) if isinstance(rd, str) and rd else ""
+            if not (rdp.startswith(os.path.realpath(sroot) + os.sep) and os.path.isdir(rdp)):
+                raise GradeError(f"session {sid}: run_dir is not a directory under sessions/")
+            gtext = read_regular(os.path.join(rdp, "grade.json"), READ_CAP, whole=True, root=rdp)
+            ctext = read_regular(os.path.join(rdp, "grading", "gates-combined.md"), READ_CAP, whole=True, root=rdp)
+            try:
+                sg = json.loads(gtext) if gtext is not None else None
+            except ValueError:
+                sg = None
+            if not isinstance(sg, dict) or not isinstance(sg.get("recall"), dict) or ctext is None:
+                raise GradeError(f"session {sid} is marked valid but has no grade (grade.json with recall, grading/gates-combined.md)")
+            if sg.get("contaminated") is not None:
+                raise GradeError(f"session {sid} is marked valid but its grade is contaminated")
+            if sg.get("grader_version") != GRADER_VERSION:   # 1.3.5 (audit A4): one grader across the union
+                raise GradeError(f"session {sid} was graded by grader {sg.get('grader_version')!r}, not {GRADER_VERSION} "
+                                 "(re-grade the session before the union)")
+            grades[sid] = sg
+            rc = sg["recall"]
+            entry.update(recall=rc.get("recall"), recall_pm3=rc.get("recall_pm3"), detected=detected_of(rc, "missed"),
+                         detected_pm3=detected_of(rc, "missed_pm3"), false_positives=sg.get("false_positives"),
+                         verdict=(sg.get("verdict") or {}).get("value") if isinstance(sg.get("verdict"), dict) else None,
+                         grader_version=sg.get("grader_version"))
+            parts.append(f"## session {sid}\n" + ctext + ("" if ctext.endswith("\n") or not ctext else "\n"))
+            for c in citations(ctext):
+                if c not in seen:
+                    seen.add(c)
+                    cites.append(c)
+        per.append(entry)
+    valid_ids = [s["id"] for s in sess if s.get("valid") is True]
+    g = {"schema_version": 1, "grader_version": GRADER_VERSION, "task_id": t.id, "task_type": t.type,
+         "suite_frozen": frozen, "union": True, "bare_sessions": k, "sessions_valid": len(valid_ids),
+         "sessions_graded": valid_ids, "hidden_tests": None, "structural": None, "regressions": None,
+         "snapshot_tests": None, "recall": None, "false_positives": None, "false_positive_rule": "pm3",
+         "multi_credit_citations": None, "verdict": None, "verdicts": {"review": None, "audit": None},
+         "verdict_accuracy": None, "verdict_accuracy_per_gate": {"review": None, "audit": None},
+         "diff_lines": None, "files_changed": None, "contaminated": None, "contamination_exempt": [],
+         "contamination_classes_skipped": list(BUILD_ONLY_CLASSES),
+         "oracle_exposed_defects": pos_union([grades[i].get("oracle_exposed_defects") for i in valid_ids]),
+         "oracle_exposed_unknown": pos_union([grades[i].get("oracle_exposed_unknown") for i in valid_ids]),
+         "corpus_sha256": corpus_sha256(t)}
+    if valid_ids:
+        g["recall"], g["false_positives"], g["multi_credit_citations"] = score_recall(t, grading, cites, "".join(parts))
+        first = grades[valid_ids[0]]
+        for key in ("label_set", "labels_meta"):   # the task's label set (implementer B's fields), one per task
+            if key in first:
+                g[key] = first[key]
+    else:
+        with open(os.path.join(grading, "gates-combined.md"), "w", encoding="utf-8") as f:
+            f.write("")
+    g["per_session"] = per
+    s1 = per[0]
+    g["recall_session1"] = s1["recall"] if s1["valid"] else None
+    g["recall_pm3_session1"] = s1["recall_pm3"] if s1["valid"] else None
+    prec = None
+    if s1["valid"] and isinstance(s1["detected_pm3"], list) and isinstance(s1["false_positives"], int):
+        den = len(s1["detected_pm3"]) + s1["false_positives"]
+        prec = round(len(s1["detected_pm3"]) / den, 4) if den > 0 else None
+    g["precision_session1"] = prec
     return g
 
 
@@ -2862,6 +3386,32 @@ def main():
             print(json.dumps({"mode": A.self_check, "task_id": t.id, "result": "PASS" if ok else "FAIL",
                               "evidence": ev, "grade": g}, indent=2))
         return 0 if ok else 1
+    if A.union:
+        if A.run_dir or A.task_id or not A.union_task_id:
+            raise GradeError("usage: ablation-grade.sh --union <cell-dir> --task-id T [options] (see --help)")
+        if not re.match(r"^[a-z0-9][a-z0-9-]{0,63}$", A.union_task_id):
+            raise GradeError(f"invalid task id: {A.union_task_id}")
+        if not os.path.isdir(A.union):
+            raise GradeError(f"cell directory not found: {A.union}")
+        suite_root = os.path.abspath(A.suite_root or os.path.join(REPO_ROOT, "grimoires", "loa", "evals", "ablation-2.0"))
+        ty = os.path.join(suite_root, A.tasks_dir or "tasks", A.union_task_id, "task.yaml")
+        if not os.path.isfile(ty):
+            raise GradeError(f"task not found: {ty}")
+        t = load_task(ty, suite_root)
+        if t.id != A.union_task_id or t.build:
+            raise GradeError(f"--union grades a review-catch task; {A.union_task_id!r} is not one")
+        g = grade_union(t, A.union, freeze_check(suite_root))
+        out = A.out or os.path.join(os.path.abspath(A.union), "grade.json")
+        text = write_grade(g, out)
+        if A.json:
+            sys.stdout.write(text)
+        else:
+            rc = g["recall"] or {}
+            print(f"graded {t.id} (union of {g['sessions_valid']}/{g['bare_sessions']} sessions): recall {rc.get('recall')} "
+                  f"false_positives {g['false_positives']}; session 1 recall {g['recall_session1']} → {out}")
+        return 0
+    if A.union_task_id:
+        raise GradeError("--task-id goes with --union (the run mode takes <run-dir> <task-id>)")
     if not A.run_dir or not A.task_id:
         raise GradeError("usage: ablation-grade.sh <run-dir> <task-id> [options] (see --help)")
     if not re.match(r"^[a-z0-9][a-z0-9-]{0,63}$", A.task_id):

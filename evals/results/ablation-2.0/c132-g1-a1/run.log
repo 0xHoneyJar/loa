@@ -1,0 +1,27 @@
+16:17:21Z start batch=c132-g1-a1 smoke=false source=fbd36a0c9880 executor=container image=loa-ablation:258 cli=2.1.299 concurrency=3 rows=/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/runs.jsonl
+16:17:21Z plan: 1 arms, 6 tasks, 12 trials, shuffle seed 20261015, est USD 96 (cap 3661.4832, run caps build 45 review-catch 45, in-flight reserve 45 per trial, reserve 250)
+16:17:21Z launch c132-g1-a1-a1_full-review-r23-t1 (a1_full review-r23 review-catch t1)
+16:17:21Z launch c132-g1-a1-a1_full-review-r14-t1 (a1_full review-r14 review-catch t1)
+16:17:21Z launch c132-g1-a1-a1_full-review-r27-t1 (a1_full review-r27 review-catch t1)
+16:47:20Z done c132-g1-a1-a1_full-review-r27-t1 contaminated pass=1.0 USD 17.223769 29m attempts 1
+16:47:20Z launch c132-g1-a1-a1_full-review-r25-t1 (a1_full review-r25 review-catch t1)
+16:50:28Z done c132-g1-a1-a1_full-review-r14-t1 contaminated pass=0.5294 USD 17.94530425 33m attempts 1
+16:50:28Z launch c132-g1-a1-a1_full-review-r28-t1 (a1_full review-r28 review-catch t1)
+17:02:58Z done c132-g1-a1-a1_full-review-r23-t1 completed pass=0.8462 USD 24.2680705 45m attempts 1
+17:02:58Z launch c132-g1-a1-a1_full-review-r15-t1 (a1_full review-r15 review-catch t1)
+17:14:56Z done c132-g1-a1-a1_full-review-r25-t1 completed pass=1.0 USD 14.995546999999998 27m attempts 1
+17:14:57Z launch c132-g1-a1-a1_full-review-r27-t2 (a1_full review-r27 review-catch t2)
+17:18:33Z done c132-g1-a1-a1_full-review-r28-t1 completed pass=1.0 USD 12.2064375 28m attempts 1
+17:18:33Z launch c132-g1-a1-a1_full-review-r25-t2 (a1_full review-r25 review-catch t2)
+17:35:47Z done c132-g1-a1-a1_full-review-r15-t1 completed pass=0.6667 USD 15.794139749999998 32m attempts 1
+17:35:47Z launch c132-g1-a1-a1_full-review-r23-t2 (a1_full review-r23 review-catch t2)
+17:46:17Z done c132-g1-a1-a1_full-review-r25-t2 completed pass=1.0 USD 12.61703 27m attempts 1
+17:46:17Z launch c132-g1-a1-a1_full-review-r15-t2 (a1_full review-r15 review-catch t2)
+17:52:54Z done c132-g1-a1-a1_full-review-r27-t2 completed pass=1.0 USD 18.320095249999998 37m attempts 1
+17:52:55Z launch c132-g1-a1-a1_full-review-r28-t2 (a1_full review-r28 review-catch t2)
+18:06:32Z done c132-g1-a1-a1_full-review-r23-t2 completed pass=0.8462 USD 19.27281775 30m attempts 1
+18:06:32Z launch c132-g1-a1-a1_full-review-r14-t2 (a1_full review-r14 review-catch t2)
+18:17:21Z done c132-g1-a1-a1_full-review-r15-t2 completed pass=0.7333 USD 15.881712999999998 31m attempts 1
+18:17:59Z done c132-g1-a1-a1_full-review-r28-t2 completed pass=1.0 USD 11.482633749999998 25m attempts 1
+18:46:49Z done c132-g1-a1-a1_full-review-r14-t2 completed pass=0.7059 USD 20.42068725 40m attempts 1
+18:46:50Z partial: all 12 trials rowed, 2 excluded (transport, infrastructure, interrupted or contaminated)

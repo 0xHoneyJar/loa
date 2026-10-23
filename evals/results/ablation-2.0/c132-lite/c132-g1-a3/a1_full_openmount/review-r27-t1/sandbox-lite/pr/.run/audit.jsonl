@@ -1,0 +1,1 @@
+{"ts":"2026-10-21T23:17:31Z","tool":"Bash","command":"cd /workspace/pr && git -c core.quotepath=off apply --stat head.diff 2>/dev/null | tail -45; echo; wc -l head.diff; find head -type f | sort","exit_code":0,"cwd":"/workspace/pr","model":"","provider":"","trace_id":"","team_id":"","team_member":""}

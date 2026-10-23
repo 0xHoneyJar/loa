@@ -1,0 +1,2336 @@
+{
+  "cells": [
+    {
+      "arm": "a1_full",
+      "batch": "c132-g1-a1",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a1/a1_full/review-r14-t1/grade.json",
+      "grade_sha256": "a4a84b5b27bb920464d78c396877d6722aaf7c3779b7ced9013c1b8b0b165083",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a1/a1_full/review-r14/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g1-a1",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a1/a1_full/review-r14-t2/grade.json",
+      "grade_sha256": "48836c11cb281ef64e5260b4f9908b5ebd20d4b39f7062e5fab04b87bd7fd37e",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a1/a1_full/review-r14/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g1-a1",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a1/a1_full/review-r15-t1/grade.json",
+      "grade_sha256": "0b3769b9bbbc17a6fe824126467b53e36ff68b461a463fe2d7723d9febc47283",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a1/a1_full/review-r15/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.3333,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g1-a1",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a1/a1_full/review-r15-t2/grade.json",
+      "grade_sha256": "40afc3589fb5e5c21eac2976cea52c76fd9e24b90555c61945073b2279bc08b8",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a1/a1_full/review-r15/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g1-a2",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/grade.json",
+      "grade_sha256": "ad6144233ac826034cd5c77baa73863f772d46073e742c01d55d78476e968c95",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a2/a0_bare_matched/review-r14/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 1.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s1/grade.json",
+          "grade_sha256": "16a1dc92527ca32854557b662e7ea14912da22db7c57e6b188ba9000999d7d94",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s2/grade.json",
+          "grade_sha256": "a4c943d627496139c39c6a675e86ca9c0eecb08a090839abbc43f2e07f89f318",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s3/grade.json",
+          "grade_sha256": "4aaf4fc6a1ca9968e3bcf2558aa0425e8885602923e6f4f169b2792bdada2aa1",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s4/grade.json",
+          "grade_sha256": "c74108409964bfef1d64932e5230f7d2ec5a09efecc74814840219b850971918",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s5/grade.json",
+          "grade_sha256": "cc0145799df9ec4c166dd1285557d482b734067932bf43ad36f46e4efd9e05ef",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s6/grade.json",
+          "grade_sha256": "67e099e37de9a726028167b3b54cb05462854ddd359861b8307da7c4ec1bc8dc",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s7/grade.json",
+          "grade_sha256": "72efa95abbd4f216bc7c29d5723d6cdbe8aa6d377d242c0c3d3b681b0e6ce56a",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": false
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s8/grade.json",
+          "grade_sha256": "ae764cd9399790d15df1d8a869a6c45acac1e974bea8724b02b53a1ba0d12cf3",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s9/grade.json",
+          "grade_sha256": "c3089bc74e115553a6a8cef0e679da5b85b9e6c1600e2dd888b42ee0539cb263",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s10/grade.json",
+          "grade_sha256": "d2206fead52500e83014fa754e233dd1d7dbe9b4532a4cde43821b947b5d8722",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s11/grade.json",
+          "grade_sha256": "262820b2de65b6a63d7c93e94eb38bb8d7408828c4a083ae4998aa5986b6fa86",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s12/grade.json",
+          "grade_sha256": "be292cea381ce5e971731015ee1fce4965d0855eebf02929fbcf44fe2280f45a",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t1/sessions/s13/grade.json",
+          "grade_sha256": "9335d3cb1b0c945279742d7710575d5aa07e9f3db25a5c7ff6f90dfecc50c971",
+          "grader_version": "1.3.8",
+          "id": "s13",
+          "label_set": "c131",
+          "run_dir": "sessions/s13",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r14",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g1-a2",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/grade.json",
+      "grade_sha256": "54203ed00206495cf41260aaf86e82487c288793425c5e2d62db2e686b19e5a4",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a2/a0_bare_matched/review-r14/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 1.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s1/grade.json",
+          "grade_sha256": "289c29193d94bd6d0a08e5e02426a9feb74373be0d008ee2d4bf3287fadea098",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s2/grade.json",
+          "grade_sha256": "98f566823656136fe83b2381286eeccfcf4b5774c6d15cc8f476f31676424f15",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s3/grade.json",
+          "grade_sha256": "31c399ab08ba1b094cc08c9313e6c49053763b5388f8e8dccdb6a5e4b9e1e160",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s4/grade.json",
+          "grade_sha256": "e2aff9cf442034df28810e655b24dcb0e6f20076dd5cf3edf10c87ad0ab7d511",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s5/grade.json",
+          "grade_sha256": "8a13fb5cac80d755b9621b340573e9e3f6f09e309aec49f843de3e30e69dbe42",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s6/grade.json",
+          "grade_sha256": "744f95886513403088851f449ac1e5e6d5363b613f3fa642a257858b30a3fc36",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s7/grade.json",
+          "grade_sha256": "49a08bccac1a6392b900ae9a0fe3f1a5339fc9950fdf7cdc0a58a53d275378f6",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s8/grade.json",
+          "grade_sha256": "49a08bccac1a6392b900ae9a0fe3f1a5339fc9950fdf7cdc0a58a53d275378f6",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s9/grade.json",
+          "grade_sha256": "b63866cf248675a77ebbe18bb36b63a3ba9326cd0e7b4f99f0e3d48042feebb9",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s10/grade.json",
+          "grade_sha256": "871ac2bf1cc9cca7e4b591e324e43667d60b055d920ed1cad471ba868ab79538",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s11/grade.json",
+          "grade_sha256": "6c9ca8ab5a87b0bb668152aaa605d6a0f5ca710add11f0cc3e0e57631913e062",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s12/grade.json",
+          "grade_sha256": "3f1681fd6866d940facd932ca45cfbc995208ded8a58a0fe5d27af0d5598e438",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r14-t2/sessions/s13/grade.json",
+          "grade_sha256": "9aa7251d3f7418706613b9258b20d27086c43be015bf16230db0c3830c0777d5",
+          "grader_version": "1.3.8",
+          "id": "s13",
+          "label_set": "c131",
+          "run_dir": "sessions/s13",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 13,
+      "task": "review-r14",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g1-a2",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/grade.json",
+      "grade_sha256": "dece8c0a5aca0bb614a71e43038e266c1687a03d6801e982527027a553b29f25",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a2/a0_bare_matched/review-r15/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.3333,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s1/grade.json",
+          "grade_sha256": "d57ae881cb100e354edfc5108f74586dfb0a227e9aa98b92e21034637b7d4f64",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s2/grade.json",
+          "grade_sha256": "5586d4f36140039563342f34674a59de09b0a414cd74c447a44364d68f100950",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s3/grade.json",
+          "grade_sha256": "7730c44447b734a91cedb0d9b1853271a1e1d76d78d1e5479ef37b6bcf1a5ff8",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s4/grade.json",
+          "grade_sha256": "c32b6cf78a552bfdf523f12cfad67b15cb0b23aa0215ce861330fd22cca50214",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s5/grade.json",
+          "grade_sha256": "dbd7bad78c048194010d8cc1bb773044453618b8210a82f745b2bb416687a7df",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s6/grade.json",
+          "grade_sha256": "f31006eb8a028a611b395bac3f83db1c00b9da072635a467c2f763bbf5f14bc6",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s7/grade.json",
+          "grade_sha256": "dbd37503f29ebf099516fefc410f42161d12977521689cde389134bcbf5783d3",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s8/grade.json",
+          "grade_sha256": "b133c50b4ca53dab83f9394ff7aa038e4a121860aad29ad70c46f675257c3613",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s9/grade.json",
+          "grade_sha256": "ee6ececeb7b488c1864cf4ee84dbd1e6251d00cc772d021f3aa10c31855a5323",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s10/grade.json",
+          "grade_sha256": "83d23c997df714d7c83b4a74e24f127eb1dbfe08869f988de24935f83a2b8289",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s11/grade.json",
+          "grade_sha256": "da9176e0022e2d1b134301e0bc0d20d82216217edac6da0688bf64c35c0c43e5",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t1/sessions/s12/grade.json",
+          "grade_sha256": "da8f0075d405e8d845e4fb2f6ec09944f40c6c97abbe9e6de99e07fffbeb1306",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r15",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g1-a2",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/grade.json",
+      "grade_sha256": "c250c40b6780e57f208128f6b26de9e0d0afd7a022d97031fbb49192c2defdf9",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a2/a0_bare_matched/review-r15/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s1/grade.json",
+          "grade_sha256": "5ae058657ea6295170ce09d9cb58a4e4fd60ccd9cb171821c32a04aaed8a6b0c",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s2/grade.json",
+          "grade_sha256": "f31006eb8a028a611b395bac3f83db1c00b9da072635a467c2f763bbf5f14bc6",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s3/grade.json",
+          "grade_sha256": "c90978faced6a272e74db6e9a4257be736cf955f4e0e11b5f8e40bc124186837",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s4/grade.json",
+          "grade_sha256": "feda1a04e8f2180cf23901594636d7c128041d1a35f9d3a0b166dc7eba84178f",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s5/grade.json",
+          "grade_sha256": "ee6ececeb7b488c1864cf4ee84dbd1e6251d00cc772d021f3aa10c31855a5323",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s6/grade.json",
+          "grade_sha256": "60b969d3e86bef6e106502451b2205631690640ef39644a5765be3166c46df0e",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s7/grade.json",
+          "grade_sha256": "e77be54bc0c16c60f1aa0a2608427c8897d75fe97a29fee69a072b4ef69ed1f5",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s8/grade.json",
+          "grade_sha256": "5af5fea0a05dc45b9e084b83a5429fa9a33d20eed569d7aaec066fc4b2f503c3",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s9/grade.json",
+          "grade_sha256": "61e878ae7331c0711cbeabe976373749846cbfa087bead4157dfd40c99052f8d",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s10/grade.json",
+          "grade_sha256": "98e3a25a8490a3d3db5d87a1cc51fba6ba32f644dbad6d5e446b8f3621f8307b",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": false
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s11/grade.json",
+          "grade_sha256": "dbd37503f29ebf099516fefc410f42161d12977521689cde389134bcbf5783d3",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-a2/a0_bare_matched/review-r15-t2/sessions/s12/grade.json",
+          "grade_sha256": "b7d9195572e410ad3e9af32a6c5079089dd3ec6e57e6fb609a68a93ffb6bedf0",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 11,
+      "task": "review-r15",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g1-a3",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a3/a1_full_openmount/review-r14-t1/grade.json",
+      "grade_sha256": "583b3169ec1611435fce714aff8c0ab4f4fbe737a82d427ab84b37504de5496a",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a3/a1_full_openmount/review-r14/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g1-a3",
+      "fixture": "pr-14",
+      "grade": "c132-g1-a3/a1_full_openmount/review-r14-t2/grade.json",
+      "grade_sha256": "98dac027f3438020ea06455220e15a4f39a99bcd69f2711313999c567c1038a7",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a3/a1_full_openmount/review-r14/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g1-a3",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a3/a1_full_openmount/review-r15-t1/grade.json",
+      "grade_sha256": "a6d1aef1986cd05ea61e5fae3a0c21ff0fa18461c84bce15295bffc2b12bc8f5",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a3/a1_full_openmount/review-r15/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.3333,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g1-a3",
+      "fixture": "pr-15",
+      "grade": "c132-g1-a3/a1_full_openmount/review-r15-t2/grade.json",
+      "grade_sha256": "1c0d9823f20f79b29a8f4c07e15d99d5100988acf9b9c83e669f9173c6ee52bc",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-a3/a1_full_openmount/review-r15/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.3333,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g1-b",
+      "fixture": "pr-14",
+      "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t1/grade.json",
+      "grade_sha256": "ac8ac47dafcbaefca05b9494bf1566da1461dd69f7286d1a1272c8234c64e329",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r14/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.5,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t1/sessions/s1/grade.json",
+          "grade_sha256": "ed614932b1c61940ec6a19caacb857288c08b2dd74e2e2d480a37216173aca2a",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t1/sessions/s2/grade.json",
+          "grade_sha256": "6611bd0bba112f45d12c09bc5800b82bd65daa35f59a8ca55f6068b77ecd1f35",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t1/sessions/s3/grade.json",
+          "grade_sha256": "184aa50e6eadd9d74cdac33515a1b0221c5efbf3b4101682561b64b20b1df340",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t1/sessions/s4/grade.json",
+          "grade_sha256": "fb0e7b2efafe50880295c1b1935ac6e7c64682920d50fd8feb97a5aafb9746b7",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 4,
+      "task": "review-r14",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g1-b",
+      "fixture": "pr-14",
+      "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t2/grade.json",
+      "grade_sha256": "ad76fb2b6980c160e36504f2ccf18ecab64378365d466048185753d34dbb11c6",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r14/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t2/sessions/s1/grade.json",
+          "grade_sha256": "184aa50e6eadd9d74cdac33515a1b0221c5efbf3b4101682561b64b20b1df340",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t2/sessions/s2/grade.json",
+          "grade_sha256": "7bfdcbbab39ab453b30527abc720cbc4297ab3ca156ec013e5dc32eb765e69a7",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t2/sessions/s3/grade.json",
+          "grade_sha256": "a7c9c9c392482a98e0feec3656b6b363b404c6f1db8ea24f96a216f65116b800",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r14-t2/sessions/s4/grade.json",
+          "grade_sha256": "557362239ecd66452a8f96da6f70565ca1c73c915cb8394c43de88ac98d88188",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 4,
+      "task": "review-r14",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g1-b",
+      "fixture": "pr-15",
+      "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t1/grade.json",
+      "grade_sha256": "6d83c455752c4de05aba4a837c0b914eb0701bda38f60b8e787d6bd19acf53e8",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r15/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t1/sessions/s1/grade.json",
+          "grade_sha256": "f6ab1d1b9f98c994fbcbb465d1df395f12894b33ec4df2212f34cbb3db8ed108",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t1/sessions/s2/grade.json",
+          "grade_sha256": "e08ba394bbf58151588ca235fc7c40b17e1469e7f6b9b1ba353aed8e12f8f449",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t1/sessions/s3/grade.json",
+          "grade_sha256": "edc4849e9167bbcbdd135886bfc1cda35e9cba05c1a72d485aef7da9b62fe500",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r15",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g1-b",
+      "fixture": "pr-15",
+      "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t2/grade.json",
+      "grade_sha256": "3f3495dfcc2e51caf749a520ebfef680df534b46940b6e8c24821d81f035232d",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r15/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.3333,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t2/sessions/s1/grade.json",
+          "grade_sha256": "09f85cae80ced52c1e4cd06158304eb2a750429b1dc3de4f1e22b0e50f07c610",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t2/sessions/s2/grade.json",
+          "grade_sha256": "8778e14d123db98bd3e206a020c6f7a5bd565bd549a3ae7c7414c56cdf0139f0",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g1-b/a0_bare_fable_matched/review-r15-t2/sessions/s3/grade.json",
+          "grade_sha256": "be3b8818075524836f2fe6331dcf8cf13802e35420e698b78f5f93405e10b68f",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r15",
+      "trial": 2
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g1-b",
+      "fixture": "pr-14",
+      "grade": "c132-g1-b/a1_review_only/review-r14-t1/grade.json",
+      "grade_sha256": "ca92ec29983f69cc78cdf93b11053488fe560d8ab936135d80f841e59cc36f7a",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a1_review_only/review-r14/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.0,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 1
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g1-b",
+      "fixture": "pr-14",
+      "grade": "c132-g1-b/a1_review_only/review-r14-t2/grade.json",
+      "grade_sha256": "6e1c2a22c9d394833eee6602601815013f77eeae43e4d7f9a02780173def3195",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a1_review_only/review-r14/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.5,
+      "sessions_valid": null,
+      "task": "review-r14",
+      "trial": 2
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g1-b",
+      "fixture": "pr-15",
+      "grade": "c132-g1-b/a1_review_only/review-r15-t1/grade.json",
+      "grade_sha256": "2fa89cea0bd8a96a74127409b88401faa3cae8d9929b2282cc33593895a5a4f0",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a1_review_only/review-r15/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.3333,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 1
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g1-b",
+      "fixture": "pr-15",
+      "grade": "c132-g1-b/a1_review_only/review-r15-t2/grade.json",
+      "grade_sha256": "b40523b6f098f9b4e239c164dd603d1fd2697d9f062fa68d312eaf06da5c92da",
+      "grader_version": "1.3.8",
+      "key": "c132-g1-b/a1_review_only/review-r15/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.3333,
+      "sessions_valid": null,
+      "task": "review-r15",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g2-a1",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a1/a1_full/review-r16-t1/grade.json",
+      "grade_sha256": "daf3236845ca56e42a0eda5b019a9a93419826a37fc294cb2adbfcd32de37555",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a1/a1_full/review-r16/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.5,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g2-a1",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a1/a1_full/review-r16-t2/grade.json",
+      "grade_sha256": "c0a8246d86a597644931f267ec76c452fd5c7201f297c88645b3fa518eff63c2",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a1/a1_full/review-r16/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.5,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g2-a2",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/grade.json",
+      "grade_sha256": "4986fb11c01e1e5a0801047a294f47be9c90e8256592aa9c5fdf21634184cef2",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a2/a0_bare_matched/review-r16/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.5,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s1/grade.json",
+          "grade_sha256": "6b0c680fa0804464590e16fd4852c18c114352eb6ea748a7f930990dc2ba09be",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s2/grade.json",
+          "grade_sha256": "dfc45112c3d23ab5fe4437e4798067b5241c7c4aeed682c4ef1b2488bdfa7ea0",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s3/grade.json",
+          "grade_sha256": "0fb98c00d5c52502401ae0430e2e71cefc129ab0e9b1dc1551fc99dbd0af0424",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s4/grade.json",
+          "grade_sha256": "0f82d0e0480c0b9c86e0df438eae48ef5bb5aead93cebee9408244fd91c3634c",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s5/grade.json",
+          "grade_sha256": "a740321c57dbbfa4d55b08a4697f47e962cbdda2f7f55e6cdf4f1661fc8cdd11",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s6/grade.json",
+          "grade_sha256": "bae9eb7409b0f97f8cedd1d19b62f9bc864430a442f7f36e2e18088de30a548f",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s7/grade.json",
+          "grade_sha256": "56b8248107139a9d678a2c2019a19e2c19a278c3e77a4c0fd4ce90063d2e09ea",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s8/grade.json",
+          "grade_sha256": "eef1f91db46adeaf32fe0fa6c40218addeb7ac837bb779fd68642a15ba15f221",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s9/grade.json",
+          "grade_sha256": "9b1356a8b102b8a00a7f8721e51bbaf63385766a0d723fe556be02a304ac81b8",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s10/grade.json",
+          "grade_sha256": "1a2c8b35215b40694b8a4c1336fce88af87be21d927d7affac3d8ae50379bffb",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s11/grade.json",
+          "grade_sha256": "fbed46a311876e140f17dd7098a3a4d890038c6254719fd5002e1ebee6072ee2",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t1/sessions/s12/grade.json",
+          "grade_sha256": "1a2c8b35215b40694b8a4c1336fce88af87be21d927d7affac3d8ae50379bffb",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r16",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g2-a2",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/grade.json",
+      "grade_sha256": "74dab0d45268d4ecf4b72692499535d26b8cfa24bc59b15309727c4f16ad0564",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a2/a0_bare_matched/review-r16/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.75,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s1/grade.json",
+          "grade_sha256": "a8ce9ee79cf7833a46fc31c282bdca72f5f7de19126c1e1c5a925e0206e95666",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s2/grade.json",
+          "grade_sha256": "0de7eb9e28db6f3fa3001b904f5952f03fa8f7b97c8b5ca5fdb6bf21a253b719",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s3/grade.json",
+          "grade_sha256": "5ab4dff2ad0bd720c4709710dd2e4c87ecc7c812f70080892f9271e7d8d8371a",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s4/grade.json",
+          "grade_sha256": "9d990d775534b3bb54d980da862622e27634d426941aa16bca853f80e2103b55",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s5/grade.json",
+          "grade_sha256": "b46fa17cbe1a8b312397b6a36209a3f28b5cc0d7708e6dfd609f5c1627097aed",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s6/grade.json",
+          "grade_sha256": "5fb13a534e02d11079d9c6f4678686a703cf993770aed01fd7159b06e2533c04",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s7/grade.json",
+          "grade_sha256": "9f93b58c98e81c5e9f231a74fe4663b66145f88ac4d34a47cd1403dd0de6619c",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s8/grade.json",
+          "grade_sha256": "73149aa2d67cf4400c76249a84007d5fafc036ed1e5da5dfe46c57393e8641b6",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s9/grade.json",
+          "grade_sha256": "6ca5c790ee01ca5efc19572314f369a58db9c46adb50c55353f3d4c00094926b",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s10/grade.json",
+          "grade_sha256": "5fb13a534e02d11079d9c6f4678686a703cf993770aed01fd7159b06e2533c04",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s11/grade.json",
+          "grade_sha256": "bae9eb7409b0f97f8cedd1d19b62f9bc864430a442f7f36e2e18088de30a548f",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-a2/a0_bare_matched/review-r16-t2/sessions/s12/grade.json",
+          "grade_sha256": "33bb109f6df76b422b5915cffdd9aae4d0e929b9a33e5c83291512e50c42489b",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r16",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g2-a3",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a3/a1_full_openmount/review-r16-t1/grade.json",
+      "grade_sha256": "934668f8e860c032c745184a75b2b7bd81ec744e47cc18a1bc4181d7ffe1e019",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a3/a1_full_openmount/review-r16/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.5,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g2-a3",
+      "fixture": "pr-16",
+      "grade": "c132-g2-a3/a1_full_openmount/review-r16-t2/grade.json",
+      "grade_sha256": "bd7076b6f694e0812d124f01afe7cfd769f480ca6f95c179b23820229d5e0632",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-a3/a1_full_openmount/review-r16/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.75,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g2-b",
+      "fixture": "pr-16",
+      "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t1/grade.json",
+      "grade_sha256": "3c81ace2718f72e24500d0565aa4df85042dd637fae475ac7b4a216d83a9b37d",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r16/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t1/sessions/s1/grade.json",
+          "grade_sha256": "cba4009c3679874964d90e1526c59d8c10d34a9b63563fc8500ea278f2549762",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t1/sessions/s2/grade.json",
+          "grade_sha256": "6ca5c790ee01ca5efc19572314f369a58db9c46adb50c55353f3d4c00094926b",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t1/sessions/s3/grade.json",
+          "grade_sha256": "633179a5e66aee2d0fe653d0935262dcb38dc90060f8e409d1ac731309aefd6d",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r16",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g2-b",
+      "fixture": "pr-16",
+      "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t2/grade.json",
+      "grade_sha256": "9e0b85ea429c4ebe8a61f60060bd791c6ccb0f8ffce3e34954400db5ba452cc7",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r16/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.0,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t2/sessions/s1/grade.json",
+          "grade_sha256": "6ca5c790ee01ca5efc19572314f369a58db9c46adb50c55353f3d4c00094926b",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t2/sessions/s2/grade.json",
+          "grade_sha256": "2f94fb1b9f0ad5351d5cb46124e0be6c39267720923db2b9e83898f5361d224b",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g2-b/a0_bare_fable_matched/review-r16-t2/sessions/s3/grade.json",
+          "grade_sha256": "f4a6001b4338dad04274ebc87f353a8d3598ebcf407be74fb00f40258d3b0ad2",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r16",
+      "trial": 2
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g2-b",
+      "fixture": "pr-16",
+      "grade": "c132-g2-b/a1_review_only/review-r16-t1/grade.json",
+      "grade_sha256": "ae8de44114269ccff43e6847a79c044ffb5e50492d51327685ed57c0546712a9",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-b/a1_review_only/review-r16/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.25,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 1
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g2-b",
+      "fixture": "pr-16",
+      "grade": "c132-g2-b/a1_review_only/review-r16-t2/grade.json",
+      "grade_sha256": "87060ce4231a70826ceeb19f5f50ac32bf1e8bba43e092e2d01b8a5f01de229d",
+      "grader_version": "1.3.8",
+      "key": "c132-g2-b/a1_review_only/review-r16/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.5,
+      "sessions_valid": null,
+      "task": "review-r16",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g3-a1",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a1/a1_full/review-r11-t1/grade.json",
+      "grade_sha256": "ce92c07a8fd2c9000c43ff17c2c2ef31dbafb45345cad1ee10d4ff3f8b38e940",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a1/a1_full/review-r11/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 1.0,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full",
+      "batch": "c132-g3-a1",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a1/a1_full/review-r11-t2/grade.json",
+      "grade_sha256": "e75013a3e735231252db63fff7345d3758f32ef204df8ccfae6acc37a15109b4",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a1/a1_full/review-r11/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.8,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g3-a2",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/grade.json",
+      "grade_sha256": "4ac1748deaa8710dccf128e398256d1f296cf5c7f75166cefecff3dd35a3ccc9",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a2/a0_bare_matched/review-r11/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.8,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s1/grade.json",
+          "grade_sha256": "328a2f807c9a0b529bd84a73909693257d5f06c08e3ec0156200f47140c2e2a0",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s2/grade.json",
+          "grade_sha256": "9a28255eb29824bb4d0260e0b6ae1ec5be91f51b8f3f6f465c221d44461b454e",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s3/grade.json",
+          "grade_sha256": "9612f60eada2c0804e0ec712969f4ef5d4f03e70d1fc9741a4258f4ce0add244",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s4/grade.json",
+          "grade_sha256": "eba46d578cf90a5a03c73bdb15641bccd22e867e8eea2866554c605825e3f200",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s5/grade.json",
+          "grade_sha256": "ab1f6a87f21087a3426109f829468225749b4001bba68df4d10e356750076bfd",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s6/grade.json",
+          "grade_sha256": "a9cfe3ad880f21971d8ff6489c5a079083c8511dc8cb546c5efa22337afd3c34",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s7/grade.json",
+          "grade_sha256": "2011f1ce972c5248dcc578bbfdcbd57fa06d090dd68a541acec1fdff6fe43406",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s8/grade.json",
+          "grade_sha256": "6d97615b20c06bba43f641b381c8a1822062440129b802ead418749d2d2900a4",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s9/grade.json",
+          "grade_sha256": "bd1e1970ceae5ab8a5db0a4a0f03190e0cbb465f879b45ffc7863f6f124325b1",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s10/grade.json",
+          "grade_sha256": "db97f5c3e510a6791722d8daa92ba8137b5dffedcc5de8f192c7fb473f9075ff",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s11/grade.json",
+          "grade_sha256": "db97f5c3e510a6791722d8daa92ba8137b5dffedcc5de8f192c7fb473f9075ff",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t1/sessions/s12/grade.json",
+          "grade_sha256": "0065bcdbaf9c9dd01c9c2e6c3bc87712932b1ee292192294f571ba516ea09e5f",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r11",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_matched",
+      "batch": "c132-g3-a2",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/grade.json",
+      "grade_sha256": "c660858d6c2e03ca009d6787128fffbcf80715dad0f416a11934991adfaa7f47",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a2/a0_bare_matched/review-r11/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.8,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s1/grade.json",
+          "grade_sha256": "abfc679edd352a896b6e3452309d7bff122477e407dd4cb6144f1055f24a87d6",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s2/grade.json",
+          "grade_sha256": "6e957ed32963396603742f5e76ce6a6d2c0930888f2dddc891d115533957f1f4",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s3/grade.json",
+          "grade_sha256": "bd1e1970ceae5ab8a5db0a4a0f03190e0cbb465f879b45ffc7863f6f124325b1",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s4/grade.json",
+          "grade_sha256": "4b55e1b45888a1112ac63856b2b10500c3af0d9c6b18814c360b67950ec5798a",
+          "grader_version": "1.3.8",
+          "id": "s4",
+          "label_set": "c131",
+          "run_dir": "sessions/s4",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s5/grade.json",
+          "grade_sha256": "88d0a7ee8249f32ea47cecb5bc9ce60124e034937eb1e47f7025cd3716ae5fd3",
+          "grader_version": "1.3.8",
+          "id": "s5",
+          "label_set": "c131",
+          "run_dir": "sessions/s5",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s6/grade.json",
+          "grade_sha256": "a51098a6b5bf28f6652a42d59c28a3dc141e3a2ced7247422d051181f7ceffc8",
+          "grader_version": "1.3.8",
+          "id": "s6",
+          "label_set": "c131",
+          "run_dir": "sessions/s6",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s7/grade.json",
+          "grade_sha256": "4ee93eb17e18e88f1142b1fe679d7ba747c779a9606c13a9665a58daf9835b9c",
+          "grader_version": "1.3.8",
+          "id": "s7",
+          "label_set": "c131",
+          "run_dir": "sessions/s7",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s8/grade.json",
+          "grade_sha256": "70a04c64fdf107cd603be485fafa8a1a43ec2e745d77da6faf9fe7e2e9556240",
+          "grader_version": "1.3.8",
+          "id": "s8",
+          "label_set": "c131",
+          "run_dir": "sessions/s8",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s9/grade.json",
+          "grade_sha256": "f0f886bcf6ed2bb1f923191239a1108a89ca844f5f8bc781514e3008e504cd04",
+          "grader_version": "1.3.8",
+          "id": "s9",
+          "label_set": "c131",
+          "run_dir": "sessions/s9",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s10/grade.json",
+          "grade_sha256": "d9713f853714edbed8ceb44897ae627bc266bb679103a2076bf04c6c570f3619",
+          "grader_version": "1.3.8",
+          "id": "s10",
+          "label_set": "c131",
+          "run_dir": "sessions/s10",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s11/grade.json",
+          "grade_sha256": "b2fda584cc98fb0288fda4622397d332aa221e21a4a0f542b8e0bf4137547a56",
+          "grader_version": "1.3.8",
+          "id": "s11",
+          "label_set": "c131",
+          "run_dir": "sessions/s11",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-a2/a0_bare_matched/review-r11-t2/sessions/s12/grade.json",
+          "grade_sha256": "a1ed8b2ccfc861de8e566c1e8aea9d80337e7879cf3222514add672709d3ca6d",
+          "grader_version": "1.3.8",
+          "id": "s12",
+          "label_set": "c131",
+          "run_dir": "sessions/s12",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 12,
+      "task": "review-r11",
+      "trial": 2
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g3-a3",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a3/a1_full_openmount/review-r11-t1/grade.json",
+      "grade_sha256": "75662366c0be36701ced7c4f0f287b111f4ddd97f27e535006961a5fc110b5d5",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a3/a1_full_openmount/review-r11/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.8,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 1
+    },
+    {
+      "arm": "a1_full_openmount",
+      "batch": "c132-g3-a3",
+      "fixture": "pr-11",
+      "grade": "c132-g3-a3/a1_full_openmount/review-r11-t2/grade.json",
+      "grade_sha256": "23a2d74a2105b7480c7fc829dcbab08ae2842e0e06dddce3bdba964f8219ace5",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-a3/a1_full_openmount/review-r11/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.8,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 2
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g3-b",
+      "fixture": "pr-11",
+      "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t1/grade.json",
+      "grade_sha256": "8f951671db202a2e48d72273e96f2bd7bedd3cf145fec9d4719537dcecec32cf",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r11/1",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.6,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t1/sessions/s1/grade.json",
+          "grade_sha256": "a86aa641d70df9bb9f4235227cb83332460b41c4d30321e6e9a75e3a1fd02a57",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t1/sessions/s2/grade.json",
+          "grade_sha256": "2b1250ff23af25ad0735db51b8de7ce2e92e5eb50f2f92be9636e7eb0747925f",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t1/sessions/s3/grade.json",
+          "grade_sha256": "0bfd4878cff24fd2ba7c7b9fcdabcdaaa33bf9937c877f524d1e0f705b3d386e",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r11",
+      "trial": 1
+    },
+    {
+      "arm": "a0_bare_fable_matched",
+      "batch": "c132-g3-b",
+      "fixture": "pr-11",
+      "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t2/grade.json",
+      "grade_sha256": "05d706e578c1d668729579c5638413ff21d639c2721362915c52c8bae04d1485",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r11/2",
+      "label_set": "c131",
+      "matched": true,
+      "recall_pm3": 0.6,
+      "sessions": [
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t2/sessions/s1/grade.json",
+          "grade_sha256": "0020b65ffbd37ab8095dda99e9f6ac73bbd0f17d75233c89ecb93059665286ca",
+          "grader_version": "1.3.8",
+          "id": "s1",
+          "label_set": "c131",
+          "run_dir": "sessions/s1",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t2/sessions/s2/grade.json",
+          "grade_sha256": "259f8a1d2ca73ea8a0390300d571b2a87b23dc859ecf96d5c59887acd31490a5",
+          "grader_version": "1.3.8",
+          "id": "s2",
+          "label_set": "c131",
+          "run_dir": "sessions/s2",
+          "valid": true
+        },
+        {
+          "error": null,
+          "grade": "c132-g3-b/a0_bare_fable_matched/review-r11-t2/sessions/s3/grade.json",
+          "grade_sha256": "ff2a5f6f79a4695496d1ea1b7054a737d75941ef9756555efd98e8a343d19c5b",
+          "grader_version": "1.3.8",
+          "id": "s3",
+          "label_set": "c131",
+          "run_dir": "sessions/s3",
+          "valid": true
+        }
+      ],
+      "sessions_valid": 3,
+      "task": "review-r11",
+      "trial": 2
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g3-b",
+      "fixture": "pr-11",
+      "grade": "c132-g3-b/a1_review_only/review-r11-t1/grade.json",
+      "grade_sha256": "d9335701eddc3f496b432331ba21f9747b09fe064ce58eba29e7b1264ee572b1",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-b/a1_review_only/review-r11/1",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.8,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 1
+    },
+    {
+      "arm": "a1_review_only",
+      "batch": "c132-g3-b",
+      "fixture": "pr-11",
+      "grade": "c132-g3-b/a1_review_only/review-r11-t2/grade.json",
+      "grade_sha256": "b23f0f89e93901444da84361d433651b37bc4b11df327210d101351c119b3157",
+      "grader_version": "1.3.8",
+      "key": "c132-g3-b/a1_review_only/review-r11/2",
+      "label_set": "c131",
+      "matched": false,
+      "recall_pm3": 0.6,
+      "sessions_valid": null,
+      "task": "review-r11",
+      "trial": 2
+    }
+  ],
+  "cells_without_key": [
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a1/a1_full/review-r23/1"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a1/a1_full/review-r23/2"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a1/a1_full/review-r25/1"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a1/a1_full/review-r25/2"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a1/a1_full/review-r27/1"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a1/a1_full/review-r27/2"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a1/a1_full/review-r28/1"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a1/a1_full/review-r28/2"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a2/a0_bare_matched/review-r23/1"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a2/a0_bare_matched/review-r23/2"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a2/a0_bare_matched/review-r25/1"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a2/a0_bare_matched/review-r25/2"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a2/a0_bare_matched/review-r27/1"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a2/a0_bare_matched/review-r27/2"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a2/a0_bare_matched/review-r28/1"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a2/a0_bare_matched/review-r28/2"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a3/a1_full_openmount/review-r23/1"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-a3/a1_full_openmount/review-r23/2"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a3/a1_full_openmount/review-r25/1"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-a3/a1_full_openmount/review-r25/2"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a3/a1_full_openmount/review-r27/1"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-a3/a1_full_openmount/review-r27/2"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a3/a1_full_openmount/review-r28/1"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-a3/a1_full_openmount/review-r28/2"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r23/1"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r23/2"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r25/1"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r25/2"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r27/1"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r27/2"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r28/1"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-b/a0_bare_fable_matched/review-r28/2"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-b/a1_review_only/review-r23/1"
+    },
+    {
+      "fixture": "pr-23",
+      "key": "c132-g1-b/a1_review_only/review-r23/2"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-b/a1_review_only/review-r25/1"
+    },
+    {
+      "fixture": "pr-25",
+      "key": "c132-g1-b/a1_review_only/review-r25/2"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-b/a1_review_only/review-r27/1"
+    },
+    {
+      "fixture": "pr-27",
+      "key": "c132-g1-b/a1_review_only/review-r27/2"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-b/a1_review_only/review-r28/1"
+    },
+    {
+      "fixture": "pr-28",
+      "key": "c132-g1-b/a1_review_only/review-r28/2"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a1/a1_full/review-r19/1"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a1/a1_full/review-r19/2"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a1/a1_full/review-r21/1"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a1/a1_full/review-r21/2"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a1/a1_full/review-r26/1"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a1/a1_full/review-r26/2"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a2/a0_bare_matched/review-r19/1"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a2/a0_bare_matched/review-r19/2"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a2/a0_bare_matched/review-r21/1"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a2/a0_bare_matched/review-r21/2"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a2/a0_bare_matched/review-r26/1"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a2/a0_bare_matched/review-r26/2"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a3/a1_full_openmount/review-r19/1"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-a3/a1_full_openmount/review-r19/2"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a3/a1_full_openmount/review-r21/1"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-a3/a1_full_openmount/review-r21/2"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a3/a1_full_openmount/review-r26/1"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-a3/a1_full_openmount/review-r26/2"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r19/1"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r19/2"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r21/1"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r21/2"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r26/1"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-b/a0_bare_fable_matched/review-r26/2"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-b/a1_review_only/review-r19/1"
+    },
+    {
+      "fixture": "pr-19",
+      "key": "c132-g2-b/a1_review_only/review-r19/2"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-b/a1_review_only/review-r21/1"
+    },
+    {
+      "fixture": "pr-21",
+      "key": "c132-g2-b/a1_review_only/review-r21/2"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-b/a1_review_only/review-r26/1"
+    },
+    {
+      "fixture": "pr-26",
+      "key": "c132-g2-b/a1_review_only/review-r26/2"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a1/a1_full/review-r20/1"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a1/a1_full/review-r20/2"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a1/a1_full/review-r22/1"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a1/a1_full/review-r22/2"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a1/a1_full/review-r24/1"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a1/a1_full/review-r24/2"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a2/a0_bare_matched/review-r20/1"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a2/a0_bare_matched/review-r20/2"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a2/a0_bare_matched/review-r22/1"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a2/a0_bare_matched/review-r22/2"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a2/a0_bare_matched/review-r24/1"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a2/a0_bare_matched/review-r24/2"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a3/a1_full_openmount/review-r20/1"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-a3/a1_full_openmount/review-r20/2"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a3/a1_full_openmount/review-r22/1"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-a3/a1_full_openmount/review-r22/2"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a3/a1_full_openmount/review-r24/1"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-a3/a1_full_openmount/review-r24/2"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r20/1"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r20/2"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r22/1"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r22/2"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r24/1"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-b/a0_bare_fable_matched/review-r24/2"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-b/a1_review_only/review-r20/1"
+    },
+    {
+      "fixture": "pr-20",
+      "key": "c132-g3-b/a1_review_only/review-r20/2"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-b/a1_review_only/review-r22/1"
+    },
+    {
+      "fixture": "pr-22",
+      "key": "c132-g3-b/a1_review_only/review-r22/2"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-b/a1_review_only/review-r24/1"
+    },
+    {
+      "fixture": "pr-24",
+      "key": "c132-g3-b/a1_review_only/review-r24/2"
+    }
+  ],
+  "grader_version": "1.3.8",
+  "key_dirs": [
+    "c131"
+  ],
+  "keys": {
+    "review-r11": {
+      "label_set": "c131",
+      "manifest": "evals/fixtures/review-prs/manifests/c131/pr-11.json",
+      "sha256": "76d7a58d224dd713142d9addcbac11bfc7d588259f582da34f88ace37987341b"
+    },
+    "review-r14": {
+      "label_set": "c131",
+      "manifest": "evals/fixtures/review-prs/manifests/c131/pr-14.json",
+      "sha256": "677b663a5761eccebf794dd16652104fd8939b00c5a41fe437dd7b39ce20c541"
+    },
+    "review-r15": {
+      "label_set": "c131",
+      "manifest": "evals/fixtures/review-prs/manifests/c131/pr-15.json",
+      "sha256": "76db907b27c111b24e59a28324ea20a8e5f0edd90b08a6fbfea562fda6aa37d8"
+    },
+    "review-r16": {
+      "label_set": "c131",
+      "manifest": "evals/fixtures/review-prs/manifests/c131/pr-16.json",
+      "sha256": "116efcae9d9318939e8e1301eb2c12d2a4e3067d78883fc882813704fdb0e358"
+    }
+  },
+  "label": "c131",
+  "label_sets_observed": {
+    "c131": 164
+  },
+  "n_cells": 40,
+  "n_sessions": 124,
+  "only": null,
+  "schema_version": 1,
+  "suite_root": {
+    "freeze": "freeze.sh --allow-partial on a copy of the suite root",
+    "frozen": true,
+    "manifest_sha256": "798f92e8d3f717c40f0de857abe4482ad6aeeb6c478cf657e86017e79ae56a4f",
+    "repointed": {
+      "review-r11": {
+        "from": "evals/fixtures/review-prs/manifests/pr-11.json",
+        "to": "evals/fixtures/review-prs/manifests/c131/pr-11.json"
+      },
+      "review-r14": {
+        "from": "evals/fixtures/review-prs/manifests/pr-14.json",
+        "to": "evals/fixtures/review-prs/manifests/c131/pr-14.json"
+      },
+      "review-r15": {
+        "from": "evals/fixtures/review-prs/manifests/pr-15.json",
+        "to": "evals/fixtures/review-prs/manifests/c131/pr-15.json"
+      },
+      "review-r16": {
+        "from": "evals/fixtures/review-prs/manifests/pr-16.json",
+        "to": "evals/fixtures/review-prs/manifests/c131/pr-16.json"
+      }
+    },
+    "source_manifest_sha256": "61435886365cb5676d28b91ea7fb301449cb67303aa10a4fccc2f85f9b1cfe83"
+  }
+}

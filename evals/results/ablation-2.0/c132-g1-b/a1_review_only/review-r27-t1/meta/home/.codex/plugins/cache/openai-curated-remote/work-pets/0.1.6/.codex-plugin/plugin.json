@@ -1,0 +1,50 @@
+{
+  "name": "work-pets",
+  "version": "0.1.6",
+  "description": "Create and manage animated companion pets that appear inside ChatGPT Work mode.",
+  "author": {
+    "name": "OpenAI",
+    "email": "support@openai.com",
+    "url": "https://openai.com/"
+  },
+  "homepage": "https://openai.com/",
+  "repository": "https://github.com/openai/openai/tree/master/chatgpt/oai-maintained-plugins/plugins/pets",
+  "license": "Proprietary",
+  "keywords": [
+    "ChatGPT pet",
+    "ChatGPT pets",
+    "pet in ChatGPT",
+    "Work mode pet",
+    "Work mode pets",
+    "Pets plugin",
+    "custom ChatGPT pet",
+    "animated ChatGPT pet",
+    "ChatGPT pet sprite sheet"
+  ],
+  "skills": "./skills/",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "Pets",
+    "shortDescription": "Create and manage animated ChatGPT pets, not real-world or other-app pets.",
+    "longDescription": "Create, preview, list, select, update, download, and delete animated companions that appear inside ChatGPT Work mode. This plugin is for ChatGPT Pets, not real-world pet recommendations, adoption, care, generic pet images, or pets in other games and apps.",
+    "developerName": "OpenAI",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
+    "defaultPrompt": [
+      "Create a new animated ChatGPT pet from this character idea",
+      "Show me my available ChatGPT pets and help me choose one",
+      "Update my current custom ChatGPT pet's name, description, or artwork"
+    ],
+    "brandColor": "#10A37F",
+    "composerIcon": "./assets/egg.svg",
+    "logo": "./assets/egg.svg",
+    "screenshots": []
+  }
+}

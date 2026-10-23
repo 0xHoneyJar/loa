@@ -1,0 +1,1058 @@
+commit 059e26be76abba262fc8ceaf271057a0252ea08e
+Date: 2026-10-07T23:01:17+11:00
+
+fix(cycle-127): sprint-251 review dissent round r251-1 — cheval's chain walk plans around a gated agy hop (models_not_planned, reason opt_in_required, never a breaker count; a direct --model gemini-headless still refuses INVALID_CONFIG) and one routing predicate decides what the agy route is (.claude/scripts/lib/agy-gate-lib.sh + loader.routes_to_agy: the gemini-headless hop by name, or a Google voice under effective cli-only) for the dissent, Flatline, preflight, /loa, Bridgebuilder and cheval (agy-gate-conformance.bats); the opt-in is read from the project config only, a non-boolean value WARNs and stays off, the D-1.7 availability WARN exists, failure_class reaches the error envelope and MODELINV; Bridgebuilder surfaces a config read failure as such, requires the gate parameter, names the opt-in in the no-models throw. The units gap (verified: the 936,000 bound is in provider-measured tokens while cheval's estimate under-counts ~1.4x and BB budgets at chars/4): calibrated entries ask count_tokens from half the bound, BB's generated budget for a measured-unit calibration divides by 1.8 (916,000 → 508,000), a calibration measured on a foreign transport may be tightened by a verified observation on the HTTP route (rendered in /loa and --json); effort_effective is adapter-derived (wire_effort), EFFORT_LEVELS defined once and pinned to both schemas. Probe: fair charging at the 1.25x cache-write rate (CLI-local rejections cost 0), TPM-window backoff, throttle markers win over context markers, persisting token-limit = size, full-diag classification + the CLI's "~N tokens (limit M)" shape, record kept on interrupt, write prerequisites before the first call, process-group kill, anchored 5xx, api-only flags refused on the CLI transport, probe_outcome + sample_size provenance with --write-partial-as-operator-set (the live entry says probe_outcome: partial, sample_size: 5). SDD D-1.6 names INVALID_CONFIG; SDD D-1.8…D-3.12, PRD, CHANGELOG, migration addendum, sprint round section. Refuted with evidence: n1, n6, n9, n10, n12, n13, n17, n21, n28, n31, n32, n36, n43, n44, n54. Bead bd-c2rd (estimator calibration).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+
+diff --git a/.claude/adapters/cheval.py b/.claude/adapters/cheval.py
+index ca85d389..58841120 100644
+--- a/.claude/adapters/cheval.py
++++ b/.claude/adapters/cheval.py
+@@ -30,6 +30,7 @@ if _ADAPTERS_DIR not in sys.path:
+     sys.path.insert(0, _ADAPTERS_DIR)
+ 
+ from loa_cheval.types import (
++    EFFORT_LEVELS,
+     coerce_headless_timeout_seconds,
+     headless_timeout_note,
+     headless_read_floor,
+@@ -68,7 +69,7 @@ from loa_cheval.routing.ceiling import (
+     policy_from_env as _ceiling_policy_from_env,
+     record_observed as _ceiling_record_observed,
+ )
+-from loa_cheval.providers import cli_adapter_types, get_adapter
++from loa_cheval.providers import adapter_class_for_type, cli_adapter_types, get_adapter
+ from loa_cheval.providers.base import _legacy_wire, default_max_tokens  # cycle-124 FR-2/FR-4
+ from loa_cheval.types import ProviderConfig, ModelConfig
+ from loa_cheval.metering.budget import BudgetEnforcer
+@@ -354,6 +355,51 @@ _CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
+ }
+ 
+ 
++_AGY_NOT_PLANNED_WARNED = False
++
++
++def _entry_routes_to_agy(entry: Any, hounfour: Dict[str, Any]) -> bool:
++    """True when THIS resolved hop would dispatch through agy (cycle-127 review r251-1 G1/G2): the hop is named
++    `gemini-headless` (loader.routes_to_agy, the rule the bash planners share), or it is a kind:cli hop whose CLI adapter
++    is gemini-headless (the Google CLI hop), or its provider block is itself `type: gemini-headless`."""
++    from loa_cheval.config.loader import routes_to_agy
++    if routes_to_agy(getattr(entry, "canonical", "") or ""):
++        return True
++    provider = getattr(entry, "provider", "")
++    ptype = ((hounfour.get("providers") or {}).get(provider) or {}).get("type") if isinstance(hounfour, dict) else None
++    if ptype == "gemini-headless":
++        return True
++    return getattr(entry, "adapter_kind", "http") == "cli" and _CLI_ADAPTER_BY_PROVIDER.get(provider) == "gemini-headless"
++
++
++def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Dict[str, Any]]]:
++    """cycle-127 review r251-1 G1 (SDD D-1.3/D-1.6): with hounfour.headless.agy_opt_in off, the agy hops of a chain that
++    also holds another hop are NOT PLANNED — dropped before the walk (never dispatched, never a breaker count, not in
++    models_requested) and returned as `[{model, provider, reason: opt_in_required}]` for MODELINV `models_not_planned`;
++    one WARN per process. A chain that is agy alone (`--model gemini-headless`, or a Google voice under cli-only) is left
++    whole: the operator asked for agy, and the adapter's INVALID_CONFIG refusal is the answer."""
++    global _AGY_NOT_PLANNED_WARNED
++    agy = [e for e in chain.entries if _entry_routes_to_agy(e, hounfour)]
++    if not agy:
++        return chain, []
++    from loa_cheval.config import loader as _loader
++    if _loader.agy_opt_in_enabled():
++        return chain, []
++    _loader.warn_agy_available_once()   # (SDD D-1.7 / r251-1 G18: once per process, a PATH lookup only)
++    if len(agy) == len(chain.entries):
++        return chain, []
++    from loa_cheval.routing.types import ResolvedChain as _RC
++    kept = tuple(e for e in chain.entries if e not in agy)
++    skipped = [{"model": e.canonical, "provider": e.provider, "reason": "opt_in_required"} for e in agy]
++    if not _AGY_NOT_PLANNED_WARNED:
++        _AGY_NOT_PLANNED_WARNED = True
++        logger.warning(
++            "agy hop(s) %s not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — "
++            "walking the remaining hop(s) %s", ", ".join(x["model"] for x in skipped), ", ".join(e.canonical for e in kept))
++    return _RC(primary_alias=chain.primary_alias, entries=kept, headless_mode=chain.headless_mode,
++               headless_mode_source=chain.headless_mode_source), skipped
++
++
+ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
+     """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
+ 
+@@ -861,7 +907,7 @@ def _hop_max_tokens(
+     return explicit
+ 
+ 
+-_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
++_EFFORT_LEVELS = EFFORT_LEVELS  # cycle-127 r251-1 C5: defined once in loa_cheval.types
+ # One WARN per (model, reason) per process: an invalid catalog value or an
+ # entry setting both rungs is a config smell, not a per-call event.
+ _EFFORT_WARNED: set = set()
+@@ -918,10 +964,19 @@ def resolve_effort(
+         _effort_warn_once((model_key, "invalid"),
+                           "%s: params.default_effort %r is not one of %s — ignored (cycle-127 FR-2)",
+                           model_key, params["default_effort"], ", ".join(_EFFORT_LEVELS))
+-    if _is_cli_entry(entry) and extra_raw:
+-        value = _valid_effort(str(extra_raw).strip().lower())
+-        if value is not None:
+-            return value, "extra"
++    if _is_cli_entry(entry):
++        # (review r251-1 G7: both keys, in the headless adapter's order — an invalid one is said once and does not hide
++        # a valid one after it)
++        for _key in ("effort", "reasoning_effort"):
++            _raw = extra.get(_key)
++            if not _raw:
++                continue
++            value = _valid_effort(str(_raw).strip().lower())
++            if value is not None:
++                return value, "extra"
++            _effort_warn_once((model_key, f"invalid_extra_{_key}"),
++                              "%s: extra.%s %r is not one of %s — ignored (cycle-127 FR-2)",
++                              model_key, _key, _raw, ", ".join(_EFFORT_LEVELS))
+     return None, "none"
+ 
+ 
+@@ -929,15 +984,32 @@ def _effort_on_wire(provider: str, model_id: str, effort: Optional[str], hounfou
+     """What the dispatched hop puts on the wire for `effort` (cycle-127 D-2.6):
+     the Anthropic HTTP adapter's per-family mapping (`xhigh` → `high` on
+     4.6, omitted on Sonnet/Haiku 4.5); a CLI hop passes it through; other
+-    providers' adapters do not read CompletionRequest.effort (None)."""
++    providers' adapters do not read CompletionRequest.effort (None).
++
++    r251-1 C5: adapter-derived. The adapter type is selected the way dispatch
++    selects it (`_get_adapter_for_entry`: a kind:cli entry → the provider's
++    CLI adapter; otherwise ``providers.<key>.type``, falling back to the key
++    for a block without ``type``), and that adapter's ``wire_effort`` hook
++    answers from its own resolver — the Anthropic HTTP mapping, claude-headless
++    `--effort`, codex/grok only their extra.reasoning_effort, the rest None."""
+     if effort is None:
+         return None
++    cls = adapter_class_for_type(_adapter_type_for(provider, model_id, hounfour))
++    if cls is None:
++        return None
++    extra = _raw_model_entry(provider, model_id, hounfour).get("extra")
++    return cls.wire_effort(model_id, effort, extra if isinstance(extra, dict) else None)
++
++
++def _adapter_type_for(provider: str, model_id: str, hounfour: Dict[str, Any]) -> str:
++    """The adapter registry type a (provider, model) dispatches through — the
++    same selection as `_get_adapter_for_entry` without building a config."""
++    prov = (hounfour.get("providers", {}) or {}).get(provider, {}) if isinstance(hounfour, dict) else {}
++    ptype = prov.get("type") if isinstance(prov, dict) else None
++    ptype = ptype if isinstance(ptype, str) and ptype else provider
+     if _is_cli_entry(_raw_model_entry(provider, model_id, hounfour)):
+-        return effort
+-    if provider == "anthropic":
+-        from loa_cheval.providers.anthropic_adapter import _effort_for_model
+-        return _effort_for_model(model_id, effort)
+-    return None
++        return _CLI_ADAPTER_BY_PROVIDER.get(provider) or ptype
++    return ptype
+ 
+ 
+ def _entry_thinking_class(entry: Any, hounfour: Dict[str, Any]) -> bool:
+@@ -1692,6 +1764,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+     # emit because no model invocation occurred. `models_requested` enumerates
+     # the entire resolved chain so audit consumers see the FULL intended walk
+     # shape, not just whichever entry happened to succeed.
++    # cycle-127 review r251-1 G1: a gated agy hop is planned around before models_requested is taken.
++    _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
++    if _models_not_planned and _auth_type_resolved is not None:
++        _auth_type_resolved = _chain.entries[0].auth_type
+     _modelinv_capability_class = getattr(binding, "capability_class", None)
+     _modelinv_models_requested = [e.canonical for e in _chain.entries]
+     _modelinv_state: Dict[str, Any] = {
+@@ -2068,6 +2144,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                     capability_class=_modelinv_capability_class,
+                     capability_evaluation=_modelinv_state.get("capability_evaluation"),
+                     calling_primitive=(getattr(args, "skill", None) or agent_name),
++                    models_not_planned=_models_not_planned or None,
+                 )
+             except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask exit 7
+                 print(
+@@ -2543,13 +2620,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                 continue
+             except ChevalError as _e:
+                 # Non-retryable typed cheval error — surface immediately.
+-                _modelinv_state["models_failed"].append({
+-                    "model": _entry_target,
+-                    "provider": _entry.provider,
+-                    "error_class": "UNKNOWN",
+-                    "message_redacted": str(_e),
+-                })
+-                print(_error_json(_e.code, str(_e), retryable=_e.retryable), file=sys.stderr)
++                _fc = (getattr(_e, "context", None) or {}).get("failure_class")
++                if _fc == "opt_in_required":
++                    # cycle-127 review r251-1 G1/G5: agy asked for by name with the opt-in off — a refusal, not a
++                    # failed voice: recorded as not planned, and the envelope names the failure class.
++                    _models_not_planned.append({"model": _entry_target, "provider": _entry.provider, "reason": _fc})
++                else:
++                    _modelinv_state["models_failed"].append({
++                        "model": _entry_target,
++                        "provider": _entry.provider,
++                        "error_class": "UNKNOWN",
++                        "message_redacted": str(_e),
++                    })
++                print(_error_json(_e.code, str(_e), retryable=_e.retryable,
++                                  **({"failure_class": _fc} if isinstance(_fc, str) and _fc else {})), file=sys.stderr)
+                 return EXIT_CODES.get(_e.code, 1)
+             except Exception as _e:  # noqa: BLE001
+                 # Catch-all: redact known env-var secrets before recording.
+@@ -2831,10 +2915,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
+                     # cycle-124 FR-2: requested effort (schema field since cycle-114
+                     # FR-8, never populated before this cycle).
+                     effort=_effort,
+-                    # cycle-127 FR-2: caller | catalog | none.
++                    # cycle-127 FR-2 (SDD D-2.5): caller | catalog | extra | none.
+                     effort_source=_effort_source,
+                     # cycle-127 D-2.6: the wire value on the hop that answered
+-                    # (the primary when none did).
++                    # (the primary when none did), from that adapter's wire_effort
++                    # hook (r251-1 C5) — None where the adapter sends no effort.
++                    # cycle-127 review r251-1 G1: hops planned around (never dispatched).
++                    models_not_planned=_models_not_planned or None,
+                     effort_effective=_effort_on_wire(
+                         *(_modelinv_state["final_model_id"].split(":", 1)
+                           if ":" in str(_modelinv_state.get("final_model_id") or "")
+@@ -3043,7 +3130,7 @@ def main() -> int:
+         ),
+     )
+     parser.add_argument(
+-        "--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
++        "--effort", choices=EFFORT_LEVELS, default=None,
+         help=(
+             "Anthropic output_config.effort (cycle-124 FR-2). Omitted on models that "
+             "predate the control; xhigh is downgraded to high on the 4.6 generation."
+diff --git a/.claude/adapters/loa_cheval/providers/base.py b/.claude/adapters/loa_cheval/providers/base.py
+index efec9a8c..1d55d099 100644
+--- a/.claude/adapters/loa_cheval/providers/base.py
++++ b/.claude/adapters/loa_cheval/providers/base.py
+@@ -1056,6 +1056,18 @@ class ProviderAdapter(ABC):
+         self.config = config
+         self.provider = config.name
+ 
++    @classmethod
++    def wire_effort(cls, model_id: str, effort: Optional[str],
++                    extra: Optional[Dict[str, Any]] = None) -> Optional[str]:
++        """cycle-127 r251-1 C5: the reasoning effort THIS adapter puts on the
++        wire for a request carrying ``effort`` (cheval's resolved value) and a
++        model whose catalog ``extra`` is ``extra`` — what the MODELINV
++        envelope records as ``effort_effective``. Default ``None``: the adapter
++        does not send a reasoning-effort control. Adapters that do override it
++        through their own resolver, so the record cannot drift from the argv /
++        body (tests/test_effort_wire_conformance.py)."""
++        return None
++
+     @abstractmethod
+     def complete(self, request: CompletionRequest) -> CompletionResult:
+         """Send completion request, return normalized result."""
+diff --git a/.claude/adapters/tests/test_anthropic_catalog_floor.py b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+index 23f62a72..65acc255 100644
+--- a/.claude/adapters/tests/test_anthropic_catalog_floor.py
++++ b/.claude/adapters/tests/test_anthropic_catalog_floor.py
+@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ from cheval import _LEGACY_TRANSPORT_INPUT_WALL, _lookup_max_input_tokens  # noqa: E402
+ from loa_cheval.providers.anthropic_adapter import _BETA_HEADER_RE  # noqa: E402
+ from loa_cheval.providers.base import default_max_tokens  # noqa: E402
+-from loa_cheval.routing.ceiling import input_bound  # noqa: E402
++from loa_cheval.routing.ceiling import input_bound, is_foreign_transport_calibration  # noqa: E402
+ 
+ REPO_ROOT = Path(__file__).resolve().parents[3]
+ CATALOG = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
+@@ -141,14 +141,40 @@ def _measured(entry: dict) -> bool:
+ 
+ 
+ def test_ceiling_is_the_computed_value_per_entry(http_entries):
+-    """SDD §2.1: ceiling = min(180000, context_window − default_max_tokens(entry)) — computed, not a constant."""
++    """SDD §2.1: ceiling = min(180000, context_window − default_max_tokens(entry)) — computed, not a constant.
++    cycle-127 r251-1 (finding 33): a measured entry recording its raw accept is computed from it —
++    min(measured_input_tokens, context_window − default_max_tokens(entry)) (cheval's I2 clamp) — in
++    both fields; never the entry's own ceiling compared with itself."""
+     for model_id, entry in http_entries.items():
+-        cap = entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP
+-        expected = min(cap, entry["context_window"] - _default_max_tokens(entry))
++        room = entry["context_window"] - _default_max_tokens(entry)
++        cal = entry.get("ceiling_calibration") or {}
++        if _measured(entry) and isinstance(cal.get("measured_input_tokens"), int):
++            expected = min(cal["measured_input_tokens"], room)
++            assert entry["probed_ceiling"] == entry["effective_input_ceiling"], model_id
++        elif _measured(entry):
++            # an API-transport probe write records no raw count: only the invariant is checkable
++            expected = min(entry["effective_input_ceiling"], room)
++        else:
++            expected = min(CEILING_CAP, room)
+         assert entry["effective_input_ceiling"] == expected, (model_id, entry["effective_input_ceiling"], expected)
+         assert entry["effective_input_ceiling"] + _default_max_tokens(entry) <= entry["context_window"], model_id
+ 
+ 
++def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
++    """cycle-127 r251-1 (finding 32): an HTTP entry trusting a bound measured on another
++    transport (ceiling_calibration.transport ≠ api) must say how it was measured and what
++    the provider accepted — `method` and `measured_input_tokens` — so the cross-transport
++    trust is auditable, and an observed limit on this route may tighten it (routing.ceiling)."""
++    for model_id, entry in http_entries.items():
++        if not is_foreign_transport_calibration(entry):
++            continue
++        cal = entry["ceiling_calibration"]
++        assert cal.get("method") in ("probed_api", "probed_headless"), (model_id, cal.get("method"))
++        assert isinstance(cal.get("measured_input_tokens"), int) and cal["measured_input_tokens"] > 0, model_id
++        assert cal["measured_input_tokens"] >= entry["effective_input_ceiling"], (
++            f"{model_id}: the written bound may be clamped below the measured accept, never above it")
++
++
+ @pytest.mark.parametrize("kill_switch", ["", "1"])
+ def test_input_gate_positive_with_and_without_streaming_kill_switch(catalog, http_entries, monkeypatch, kill_switch):
+     if kill_switch:
+@@ -164,8 +190,10 @@ def test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch(catalog, ht
+     """SDD §3.2: 180K was probed under streaming; killing streaming re-applies the 36K KF-002 wall."""
+     assert _LEGACY_TRANSPORT_INPUT_WALL == 36_000
+     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
++    monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+     for model_id, entry in http_entries.items():
+-        want = entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP
++        # r251-1 (finding 33): the policy decides the bound, not a test-local mirror of it
++        want = input_bound(entry, max_tokens=_default_max_tokens(entry)).value
+         assert _lookup_max_input_tokens("anthropic", model_id, catalog) == want, model_id
+     monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+     for model_id in http_entries:
+@@ -362,6 +390,10 @@ def test_opus_5_5_has_the_1m_window_at_standard_pricing(anthropic):
+         # a probe wrote it: the measured bound is both values, with its provenance
+         assert entry["probed_ceiling"] == entry["effective_input_ceiling"]
+         assert isinstance(cal.get("reprobe_trigger"), str) and cal["reprobe_trigger"]
++        # r251-1 C4: the probe's own outcome and the number of samples taken are structured, not comment-only
++        if cal.get("method") == "probed_headless":
++            assert cal.get("probe_outcome") in ("clean", "partial"), cal.get("probe_outcome")
++            assert isinstance(cal.get("sample_size"), int) and cal["sample_size"] > 0, cal.get("sample_size")
+     else:
+         assert cal["source"] == "conservative_default"
+         assert cal["calibrated_at"] is None
+diff --git a/.claude/data/schemas/model-config-v3.schema.json b/.claude/data/schemas/model-config-v3.schema.json
+index 040f0107..fc3002f9 100644
+--- a/.claude/data/schemas/model-config-v3.schema.json
++++ b/.claude/data/schemas/model-config-v3.schema.json
+@@ -271,7 +271,7 @@
+         "sample_size": {
+           "type": ["integer", "null"],
+           "minimum": 0,
+-          "description": "Number of probe runs that informed the ceiling. null when source != empirical_probe."
++          "description": "The number of probe samples taken (accepted + rejected) that informed the ceiling (cycle-127: tools/ceiling-probe-live.py writes the count of its record's samples for both transports). null when no probe ran (e.g. conservative_default, or an operator_set value not taken from a probe)."
+         },
+         "stale_after_days": {
+           "type": "integer",
+@@ -303,7 +303,12 @@
+         "measured_input_tokens": {
+           "type": "integer",
+           "minimum": 1,
+-          "description": "cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step — the value written to probed_ceiling / effective_input_ceiling."
++          "description": "cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step — the raw value; probed_ceiling / effective_input_ceiling carry min(this, context_window − default max_tokens) (cheval's I2 invariant)."
++        },
++        "probe_outcome": {
++          "type": "string",
++          "enum": ["clean", "partial"],
++          "description": "cycle-127 r251-1: the outcome of the probe whose bound this entry carries — clean (a verified accept bracketed by a size rejection within the tolerance, nothing failed) or partial (budget cap, an unverified or failed attempt, or an unbracketed bound; written only when the operator vouches for the last verified accept: tools/ceiling-probe-live.py --write-partial-as-operator-set). Optional; absent on entries never written by the tool."
+         }
+       }
+     },
+diff --git a/.claude/defaults/model-config.yaml b/.claude/defaults/model-config.yaml
+index 47b7fa3a..517f9b30 100644
+--- a/.claude/defaults/model-config.yaml
++++ b/.claude/defaults/model-config.yaml
+@@ -492,18 +492,17 @@ providers:
+           - anthropic:claude-headless
+         max_output_tokens: 128000
+         effective_input_ceiling: 936000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+-        # cycle-127 FR-3: bound measured 2026-10-07 by tools/ceiling-probe-live.py --transport claude-headless (Bedrock, global.anthropic.claude-opus-5-5); see ceiling_calibration.reprobe_trigger.
+-        # operator_set (lead, maintainer delegation 2026-10-07): the tool's own outcome was `partial` — the $20 budget cap stopped the
+-        # bisection before the 16K tolerance (the filler under-counts ~1.8x under the Opus 4.7+ tokenizer) — but the largest accept
+-        # (972,887 measured input tokens, needle-verified; ceiling_calibration.measured_input_tokens) and the CLI pre-flight rejection
+-        # at ~1,065,182 (stated limit 1,000,000) bound the route. Written as 936,000 = context_window 1,000,000 − the 64,000 default
+-        # output budget (cheval's I2 invariant: input ceiling + default max_tokens ≤ context_window), below the measured accept.
+-        # Record: grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json
++        # cycle-127 FR-3: measured 2026-10-07 through claude-headless on Bedrock; operator_set, clamped to cheval's I2
++        # invariant (context_window − the default output budget). Provenance is structured in ceiling_calibration
++        # (probe_outcome, measured_input_tokens, method, transport, cli_*); record:
++        # grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json (SDD §1.6)
++        # Units: provider-measured tokens; cheval counts exactly above half the bound on calibrated entries;
++        # Bridgebuilder's budget divides by 1.8.
+         probed_ceiling: 936000
+         ceiling_calibration:
+           source: operator_set
+           calibrated_at: "2026-10-07T09:29:07Z"
+-          sample_size: null
++          sample_size: 5
+           stale_after_days: 90
+           reprobe_trigger: "API-transport probe (tools/ceiling-probe-live.py --transport api) from a host with ANTHROPIC_API_KEY; this bound was measured through claude-headless on Bedrock (global.anthropic.claude-opus-5-5) on 2026-10-07"
+           method: probed_headless
+@@ -511,6 +510,7 @@ providers:
+           cli_version: "2.1.292 (Claude Code)"
+           cli_model: "global.anthropic.claude-opus-5-5"
+           measured_input_tokens: 972887
++          probe_outcome: partial
+         account_limits:
+           tier: unverified
+           itpm: null
+diff --git a/.claude/defaults/model-config.yaml.checksum b/.claude/defaults/model-config.yaml.checksum
+index 9f0e0970..75c62299 100644
+--- a/.claude/defaults/model-config.yaml.checksum
++++ b/.claude/defaults/model-config.yaml.checksum
+@@ -1 +1 @@
+-17f75f07918c3c349c826a3be42a35f5b1a2f9b47375858219a0121fc71f0b08
++4d17fd65c8e75e71ac2248bd9c7539a64932fc8dadaa2c1b3de3078a19102e93
+diff --git a/.claude/scripts/flatline-orchestrator.sh b/.claude/scripts/flatline-orchestrator.sh
+index 501a0e6f..3e66df85 100755
+--- a/.claude/scripts/flatline-orchestrator.sh
++++ b/.claude/scripts/flatline-orchestrator.sh
+@@ -54,6 +54,8 @@ source "$SCRIPT_DIR/lib/normalize-json.sh"
+ source "$SCRIPT_DIR/lib/verdict-quality.sh"
+ source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
+ source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
++# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy)
++source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
+ # cycle-099 Sprint 1B parity (mirrors red-team-model-adapter.sh): exposes
+ # `resolve_provider_id` from generated-model-maps.sh so flatline picks up
+ # new model registry entries (gpt-5.5, gpt-5.5-pro, gemini-3.1-pro-preview,
+@@ -519,21 +521,13 @@ _get_model_tertiary_configured() {  # the configured tertiary, before the agy op
+     echo "$model"
+ }
+ 
+-_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (read with yq, no env override)
+-    local v=""
+-    [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null || return 1
+-    v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
+-    [[ "$v" == "true" ]]
++_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (lib/agy-gate-lib.sh; no env override)
++    agy_opted_in "$CONFIG_FILE"
+ }
+ 
+-_tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy: the gemini-headless hop by name
+-    # (bare, provider-prefixed, or as a provider), or a Google model under hounfour.headless.mode cli-only (env wins, as cheval's)
+-    local m="$1" mode
+-    case "$m" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac
+-    mode="${LOA_HEADLESS_MODE:-$(read_config '.hounfour.headless.mode' 'prefer-api')}"
+-    [[ "$mode" == "cli-only" ]] || return 1
+-    case "${m#google:}" in gemini*) return 0 ;; esac
+-    return 1
++_tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy (lib/agy-gate-lib.sh routes_to_agy:
++    # the gemini-headless hop by name, or a Google model under hounfour.headless.mode cli-only — env wins, as cheval's)
++    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")"
+ }
+ 
+ tertiary_opt_in_skip_reason() {  # prints the skip line and returns 0 when the configured tertiary is gated off
+@@ -2454,6 +2448,7 @@ main() {
+     fi
+ 
+     # FR-1 (cycle-045): Log tertiary model status for observability
++    agy_gate_warn_once "$CONFIG_FILE"   # (cycle-127 r251-1 G12/G18: once per run, on stderr)
+     local tertiary_model_check
+     tertiary_model_check=$(get_model_tertiary)
+     if [[ -n "$tertiary_model_check" ]]; then
+diff --git a/.claude/scripts/loa-status.sh b/.claude/scripts/loa-status.sh
+index 8ee6cc50..4f039802 100755
+--- a/.claude/scripts/loa-status.sh
++++ b/.claude/scripts/loa-status.sh
+@@ -617,6 +617,7 @@ main() {
+ 
+     version_json=$(get_version_info_json)
+     agent_network_json=$(get_agent_network_json)
++    # (machine mode stays silent on stderr — callers merge streams; the gate is in .providers.*.cli_hop_note)
+     providers_json=$(get_providers_json)
+ 
+     # Merge the JSON objects: workflow base + framework + agent_network + providers
+@@ -795,37 +796,51 @@ _providers_config_file() {  # the Loa config the Providers block reads (bats-gat
+     echo "$CONFIG_FILE"
+   fi
+ }
+-_agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+-  local cfg v=""; cfg=$(_providers_config_file)
+-  [[ -f "$cfg" ]] && command -v yq >/dev/null 2>&1 || return 1
+-  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$cfg" 2>/dev/null) || v=""
+-  [[ "$v" == "true" ]]
++# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, routes_to_agy)
++# shellcheck source=lib/agy-gate-lib.sh
++source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
++_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
++  agy_opted_in "$(_providers_config_file)"
+ }
+-_AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
++_AGY_OPT_IN_NOTE="$AGY_OPT_IN_NOTE"
++_provider_cli_model() { case "$1" in anthropic) echo claude-headless ;; openai) echo codex-headless ;; google) echo gemini-headless ;; esac; }
+ _provider_hop_note() {  # $1 provider → the hop note when its CLI route is gated off, else ""
+-  [[ "$1" == "google" ]] && ! _agy_opted_in && echo "$_AGY_OPT_IN_NOTE" || echo ""
++  routes_to_agy "$(_provider_cli_model "$1")" && ! _agy_opted_in && echo "$_AGY_OPT_IN_NOTE" || echo ""
+ }
+ _provider_hop() {  # $1 provider → hop binary name or "" (the agy hop is "" while its opt-in is off — cycle-127 FR-1)
+   local bin=""
+   case "$1" in anthropic) bin=claude ;; openai) bin=codex ;; google) bin=agy ;; esac
+-  [[ "$bin" == agy ]] && ! _agy_opted_in && { echo ""; return 0; }
++  routes_to_agy "$(_provider_cli_model "$1")" && ! _agy_opted_in && { echo ""; return 0; }
+   [[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 && echo "$bin" || echo ""
+ }
+ _fmt_age_s() { local s="$1"; if [[ ! "$s" =~ ^[0-9]+$ ]]; then echo "-"; elif (( s >= 86400 )); then echo "$(( s / 86400 ))d"; elif (( s >= 3600 )); then echo "$(( s / 3600 ))h"; else echo "$(( s / 60 ))m"; fi; }
++_providers_model_config() {  # the model catalog the ceiling line reads (bats-gated seam: LOA_STATUS_MODEL_CONFIG)
++  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_MODEL_CONFIG:-}" ]]; then
++    echo "$LOA_STATUS_MODEL_CONFIG"
++  else
++    echo "$PROJECT_ROOT/.claude/defaults/model-config.yaml"
++  fi
++}
+ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound the `opus` target runs under
+   # {basis: calibrated|observed|probed, value, model, calibrate[, calibrated_at]} or null.
+   # Sources: the catalog entry (yq) and the observed store cheval writes on a
+   # provider context verdict (.run/ceiling-observed.json, or the same
+   # LOA_CHEVAL_CEILING_OBSERVED_PATH redirect cheval honours). Only the two
+   # context classes lower the bound — a 429 row never does (same rule as
+-  # loa_cheval.routing.ceiling.observed_for).
+-  local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml" model eff probed cal store obs=null
++  # loa_cheval.routing.ceiling.observed_for). cycle-127 r251-1: a calibration
++  # measured on a FOREIGN transport (ceiling_calibration.transport present and
++  # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
++  # is tightened by an observation below it: basis observed, calibrated true,
++  # calibrated_value / calibration_transport / reprobe_suggested carried.
++  local cfg model eff probed cal transport store obs=null
++  cfg=$(_providers_model_config)
+   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
+   [[ -n "$model" ]] || { echo null; return 0; }
+   eff=$(yq eval -r ".providers.anthropic.models.\"$model\".effective_input_ceiling // \"\"" "$cfg" 2>/dev/null)
+   probed=$(yq eval -r ".providers.anthropic.models.\"$model\".probed_ceiling // \"\"" "$cfg" 2>/dev/null)
+   cal=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.calibrated_at // \"\"" "$cfg" 2>/dev/null)
++  transport=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.transport // \"\"" "$cfg" 2>/dev/null)
+   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
+   if [[ -f "$store" ]]; then
+     obs=$(jq -r --arg m "$model" '[.entries[]? | select(.provider == "anthropic" and .model == $m
+@@ -833,9 +848,15 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
+             | ([.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end)] | min)] | min // null' "$store" 2>/dev/null)
+     [[ "$obs" =~ ^[0-9]+$ ]] || obs=null
+   fi
+-  jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --argjson obs "$obs" '
++  jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --arg tr "$transport" --argjson obs "$obs" '
+     ($eff | if . == "" then null else tonumber end) as $e | ($probed | if . == "" then null else tonumber end) as $p
+-    | (if $cal != "" then {basis: "calibrated", value: $e, calibrated_at: $cal}
++    | ($tr | gsub("^\\s+|\\s+$"; "")) as $t
++    | ($cal != "" and $t != "" and (($t | ascii_downcase) as $l | ($l != "api" and $l != "http"))) as $foreign
++    | (if $cal != "" and $foreign and $obs != null and $e != null and ($obs - 1) < $e
++         then {basis: "observed", value: ($obs - 1), calibrated: true, calibrated_value: $e, calibrated_at: $cal,
++               calibration_transport: $t, reprobe_suggested: true}
++       elif $cal != "" then {basis: "calibrated", value: $e, calibrated_at: $cal}
++           + (if $t != "" then {calibration_transport: $t} else {} end)
+        elif $obs != null and ($p == null or ($obs - 1) < $p) then {basis: "observed", value: ($obs - 1)}
+        else {basis: "probed", value: ($p // $e)} end)
+     + {model: $m, observed: (if $obs == null then null else $obs - 1 end),
+@@ -858,6 +879,7 @@ get_providers_json() {
+ }
+ display_providers_section() {
+   local pj p key hop line auth st age due
++  agy_gate_warn_once "$(_providers_config_file)"   # (cycle-127 r251-1 G12/G18: once, on stderr)
+   pj=$(get_providers_json)
+   echo -e "${BOLD}Providers${NC}"
+   while IFS= read -r p; do
+@@ -878,6 +900,8 @@ display_providers_section() {
+       # cycle-126 FR-1.1: the input bound the `opus` target runs under, and how to tighten it.
+       local cl; cl=$(printf '%s' "$pj" | jq -r '.providers.anthropic.ceiling // empty | if .basis == "calibrated"
+         then "  ceiling: calibrated \(.value) (\(.model), calibrated \(.calibrated_at))"
++        elif .calibrated == true and .basis == "observed"
++        then "  ceiling: calibrated \(.calibrated_value) (\(.calibration_transport)); observed \(.value) below on this route, reprobe suggested (\(.model), calibrated \(.calibrated_at); calibrate: \(.calibrate))"
+         else "  ceiling: \(.basis) \(.value) (\(.model);\(if .observed != null and .basis != "observed" then " observed \(.observed) under the opt-in;" else "" end) calibrate: \(.calibrate))" end')
+       [[ -n "$cl" ]] && echo "$cl"
+     fi
+diff --git a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+index 1d5ecc36..238f0f36 100644
+--- a/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
++++ b/.claude/skills/bridgebuilder-review/dist/.build-manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "version": "1.0",
+-  "generated_at": "2026-10-07T09:33:28Z",
+-  "source_hash": "acae22d4e85d5326c2345955bfe50c8161f496403c5d07bc3ca6fc1d416d046e",
++  "generated_at": "2026-10-07T11:53:40Z",
++  "source_hash": "4bd78108a00fa753166a889fa1b7e39000d3670bff993acc9379c8e70e7f5d9b",
+   "file_count": 42,
+   "files": [
+     {
+@@ -46,7 +46,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
+-      "sha256": "e1caf5ec5bb6438f13e997e49493269b3a8dd4ae32f3cbb7743b342114bb7ef0"
++      "sha256": "f085193c1f4fda67a44f1eb402d804d57674173921994f81b6a8f1a123391a78"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
+@@ -86,7 +86,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
+-      "sha256": "0c489f789420863a6f144b115ede53c4d0946a40f203201b855835ffcd1bd7d2"
++      "sha256": "8f91db5ba9a510fd3a6a4c6c4fb5e35f67b0267046d5bcc4c21c02cff9346b99"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
+@@ -118,7 +118,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
+-      "sha256": "fe2fb1b03f10232c7c5d52387a679f478be1a5eacc82e32aa0f50f90781f5a33"
++      "sha256": "16512a332df1ac467337fd70a34b2904c3576cc4ff55c58d3ece30f9c668de6b"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts",
+@@ -138,7 +138,7 @@
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
+-      "sha256": "09ef7aedea7d9fb528bab348641c1b04efe93607d2da2353db68580be7dcb360"
++      "sha256": "55adde1c98115dfcd94c669fcf2e07c6b5977e2e60d24d1b8c3149c18dfc0a86"
+     },
+     {
+       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map
+index 10607403..8c4a9cb0 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map
++++ b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"truncation.generated.d.ts","sourceRoot":"","sources":["../../resources/core/truncation.generated.ts"],"names":[],"mappings":"AAsBA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,YAAY,CAAC;AAE9C,eAAO,MAAM,uBAAuB,EAAE,MAAM,CAAC,MAAM,EAAE,WAAW,CAkC/D,CAAC;AAEF,eAAO,MAAM,uBAAuB,EAAE,MAAM,CAAC,MAAM,EAAE,MAAM,CAmB1D,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"truncation.generated.d.ts","sourceRoot":"","sources":["../../resources/core/truncation.generated.ts"],"names":[],"mappings":"AA6BA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,YAAY,CAAC;AAE9C,eAAO,MAAM,uBAAuB,EAAE,MAAM,CAAC,MAAM,EAAE,WAAW,CAkC/D,CAAC;AAEF,eAAO,MAAM,uBAAuB,EAAE,MAAM,CAAC,MAAM,EAAE,MAAM,CAmB1D,CAAC"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js
+index 931947b9..647463ba 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js
++++ b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js
+@@ -12,6 +12,13 @@
+ // v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
+ // gate instead of dispatching what exit 7 would reject), else context_window.
+ //
++// Units (cycle-127 r251-1): a calibrated entry whose ceiling_calibration records
++// measured_input_tokens carries its ceiling in provider-measured tokens, while
++// maxInput is in BB's estimate units (coefficient tokens/char), which under-count
++// the Opus 4.7+ tokenizer — so for those entries
++// maxInput = floor((effective_input_ceiling − 20000) / MEASURED_TO_ESTIMATE_SAFETY / 1000) × 1000,
++// with MEASURED_TO_ESTIMATE_SAFETY = 1.8.
++//
+ // GENERATED_MODEL_ALIASES maps the catalog's `aliases:` block to bare model
+ // ids (provider-qualified targets only; self-maps dropped) so an alias such as
+ // `opus` gets its target's budget. An operator alias overlay in
+@@ -28,7 +35,7 @@ export const GENERATED_TOKEN_BUDGETS = {
+     "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+     "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+     "claude-opus-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+-    "claude-opus-5-5": { maxInput: 916000, maxOutput: 32000, coefficient: 0.25 },
++    "claude-opus-5-5": { maxInput: 508000, maxOutput: 32000, coefficient: 0.25 },
+     "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+     "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+     "claude-sonnet-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+diff --git a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map
+index d5a84d46..6cb2c5d1 100644
+--- a/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map
++++ b/.claude/skills/bridgebuilder-review/dist/core/truncation.generated.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"truncation.generated.js","sourceRoot":"","sources":["../../resources/core/truncation.generated.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"truncation.generated.js","sourceRoot":"","sources":["../../resources/core/truncation.generated.ts"],"names":[],"mappings":"AAAA,mFAAmF;AACnF,yFAAyF;AACzF,6CAA6C;AAC7C,EAAE;AACF,gFAAgF;AAChF,qEAAqE;AACrE,mEAAmE;AACnE,mEAAmE;AACnE,oFAAoF;AACpF,EAAE;AACF,6EAA6E;AAC7E,gFAAgF;AAChF,8EAA8E;AAC9E,EAAE;AACF,iFAAiF;AACjF,+EAA+E;AAC/E,kFAAkF;AAClF,iDAAiD;AACjD,mGAAmG;AACnG,0CAA0C;AAC1C,EAAE;AACF,4EAA4E;AAC5E,+EAA+E;AAC/E,gEAAgE;AAChE,kEAAkE;AAClE,2CAA2C;AAC3C,EAAE;AACF,oDAAoD;AAIpD,MAAM,CAAC,MAAM,uBAAuB,GAAgC;IAClE,gBAAgB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC3E,kBAAkB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC7E,2BAA2B,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACrF,iBAAiB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,iBAAiB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,iBAAiB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,iBAAiB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,eAAe,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC1E,iBAAiB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,4BAA4B,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACtF,mBAAmB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC9E,iBAAiB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,6CAA6C,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACvG,8BAA8B,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACxF,8BAA8B,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACxF,gCAAgC,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC1F,cAAc,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACxE,mBAAmB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC7E,mBAAmB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC9E,kBAAkB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC7E,kBAAkB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC7E,gBAAgB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,wBAAwB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACnF,wBAAwB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IACpF,iBAAiB,EAAE,EAAE,QAAQ,EAAE,OAAO,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC5E,gBAAgB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAC1E,SAAS,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IACpE,eAAe,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IAC1E,SAAS,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IACpE,aAAa,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,KAAK,EAAE,WAAW,EAAE,IAAI,EAAE;IACxE,YAAY,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IACtE,wBAAwB,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;IAClF,SAAS,EAAE,EAAE,QAAQ,EAAE,MAAM,EAAE,SAAS,EAAE,IAAI,EAAE,WAAW,EAAE,IAAI,EAAE;CACpE,CAAC;AAEF,MAAM,CAAC,MAAM,uBAAuB,GAA2B;IAC7D,OAAO,EAAE,iBAAiB;IAC1B,iBAAiB,EAAE,cAAc;IACjC,aAAa,EAAE,mBAAmB;IAClC,iBAAiB,EAAE,cAAc;IACjC,cAAc,EAAE,wBAAwB;IACxC,OAAO,EAAE,kBAAkB;IAC3B,YAAY,EAAE,kBAAkB;IAChC,gBAAgB,EAAE,wBAAwB;IAC1C,gBAAgB,EAAE,wBAAwB;IAC1C,YAAY,EAAE,gBAAgB;IAC9B,eAAe,EAAE,wBAAwB;IACzC,WAAW,EAAE,wBAAwB;IACrC,eAAe,EAAE,YAAY;IAC7B,MAAM,EAAE,iBAAiB;IACzB,WAAW,EAAE,SAAS;IACtB,YAAY,EAAE,mBAAmB;IACjC,UAAU,EAAE,SAAS;IACrB,MAAM,EAAE,2BAA2B;CACpC,CAAC"}
+\ No newline at end of file
+diff --git a/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts b/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts
+index 490207b8..3266a2a2 100644
+--- a/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts
++++ b/.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts
+@@ -12,6 +12,13 @@
+ // v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
+ // gate instead of dispatching what exit 7 would reject), else context_window.
+ //
++// Units (cycle-127 r251-1): a calibrated entry whose ceiling_calibration records
++// measured_input_tokens carries its ceiling in provider-measured tokens, while
++// maxInput is in BB's estimate units (coefficient tokens/char), which under-count
++// the Opus 4.7+ tokenizer — so for those entries
++// maxInput = floor((effective_input_ceiling − 20000) / MEASURED_TO_ESTIMATE_SAFETY / 1000) × 1000,
++// with MEASURED_TO_ESTIMATE_SAFETY = 1.8.
++//
+ // GENERATED_MODEL_ALIASES maps the catalog's `aliases:` block to bare model
+ // ids (provider-qualified targets only; self-maps dropped) so an alias such as
+ // `opus` gets its target's budget. An operator alias overlay in
+@@ -31,7 +38,7 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
+   "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+   "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+   "claude-opus-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+-  "claude-opus-5-5": { maxInput: 916000, maxOutput: 32000, coefficient: 0.25 },
++  "claude-opus-5-5": { maxInput: 508000, maxOutput: 32000, coefficient: 0.25 },
+   "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+   "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+   "claude-sonnet-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+diff --git a/docs/migration/v2.0-model-generation-floor.md b/docs/migration/v2.0-model-generation-floor.md
+index 63bbd652..c177b050 100644
+--- a/docs/migration/v2.0-model-generation-floor.md
++++ b/docs/migration/v2.0-model-generation-floor.md
+@@ -284,20 +284,37 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   spawn (`INVALID_CONFIG`, `failure_class: opt_in_required`, never a breaker trip), and
+   the dissent, Flatline's tertiary, Bridgebuilder, `run-preflight.sh` and `/loa` record
+   the hop as *not planned* (`reason: opt_in_required`) rather than failed — verdict
+-  quality counts planned voices only. Set it `true` only where `agy` is installed and
++  quality counts planned voices only. One predicate decides what the agy route is
++  (`.claude/scripts/lib/agy-gate-lib.sh`; Python twin in the loader): the literal
++  `gemini-headless` hop, a Google voice under effective `cli-only`, or a Google voice
++  under `prefer-api` with no Google key resolvable — and cheval's own chain walk skips
++  such a hop inside a fallback chain (`planned: false, reason: opt_in_required`) and
++  walks on; only a direct `--model gemini-headless` refuses. The key is read from
++  `.loa.config.yaml` alone (a framework defaults file cannot opt you in); a quoted
++  `"true"` stays off and WARNs once. Set it `true` only where `agy` is installed and
+   OAuth-authed, knowing the argv exposure. With it on, behaviour is exactly as before.
+ - **Opus 5.5 effort default.** See the cycle-126 bullet above: `claude-opus-5-5` carries
+-  `params.default_effort: high`; `--effort` overrides.
++  `params.default_effort: high`; `--effort` overrides. A hop the chain walk reaches that
++  declares no default inherits the effort resolved for the requested entry (`opus` →
++  `claude-headless` keeps `high`); a CLI entry's own default is yours to declare
++  (`params.default_effort` on that entry, or its legacy `extra.effort`) — the catalog
++  does not know which model your CLI runs.
+ - **Calibrating the ceiling through the headless CLI.** `tools/ceiling-probe-live.py
+   --transport claude-headless` measures the accepted input size through
+   `${CLAUDE_HEADLESS_BIN:-claude}` (the adapter's own argv plus `--effort low
+   --max-turns 1`, prompt on stdin), verifies each accepted step with a random needle the
+   reply must echo, measures the size from the CLI's `usage`, retries transient failures,
+   and writes the catalog only on a *clean* outcome — `probed_ceiling` and
+-  `effective_input_ceiling` to the measured bound (a bound below the old one is written,
+-  never kept), `ceiling_calibration.source: operator_set` with `method: probed_headless`,
+-  `transport`, `cli_version`, `cli_model`, `measured_input_tokens`, `calibrated_at` and a
+-  `reprobe_trigger` naming the API-transport probe. The record is always written. Use it
++  `effective_input_ceiling` to the measured bound clamped to cheval's I2 invariant
++  (`min(measured, context_window − the default output budget)`; the raw accept stays in
++  `measured_input_tokens`; a bound below the old one is written, never kept),
++  `ceiling_calibration.source: operator_set` with `method: probed_headless`, `transport`,
++  `cli_version`, `cli_model`, `measured_input_tokens`, `probe_outcome`, `sample_size`,
++  `calibrated_at` and a `reprobe_trigger` naming the API-transport probe. The record is
++  always written; a *partial* record reaches the catalog only under
++  `--write-partial-as-operator-set`. The bisection steps in measured tokens (the filler
++  is rescaled by the observed tokenizer ratio); the CLI's own pre-flight rejections cost
++  nothing and are charged nothing (`charged_usd`, `charge_basis` per sample). Use it
+   on hosts where the direct API is unreachable (this repo's primary host: KF-040) and the
+   CLI route is what your hops actually use; `--transport api` is unchanged.
+ - **`claude-opus-5-5` input bound: 180,000 → 936,000 on this route.** Measured 2026-10-07
+@@ -307,8 +324,26 @@ ### Cycle-127 addendum — operator decisions (unreleased)
+   `ceiling_calibration.source: operator_set`, `method: probed_headless`,
+   `measured_input_tokens: 972887`. cheval now preempts above 936,000 instead of 180,000 for
+   `opus`, and Bridgebuilder's budget for it is 916,000 input tokens. Record:
+-  `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json`. Downstream mounts
+-  inherit the value with the catalog; re-probe through your own route if it differs.
++  `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json`. The tool's outcome
++  was *partial* (the budget cap stopped the bisection before the 16K tolerance); the entry
++  was written by the operator and says so (`probe_outcome: partial`, `sample_size: 5`).
++  The measurement was taken on the headless transport and governs the HTTP entry too (same
++  model and window; the 180,000 it replaces was a conservative cycle-126 shortcut, not a
++  measured HTTP rejection). Safeguard: on a route other than the one recorded in
++  `ceiling_calibration.transport`, a verified provider context-limit observation tightens
++  the bound (`.run/ceiling-observed.json`; `/loa` shows `calibrated 936000
++  (claude-headless); observed N below on this route`), so a narrower HTTP route self-heals.
++  The bound is in provider-measured tokens; cheval's pre-dispatch estimate is a character
++  heuristic that under-counts the Opus 4.7+ tokenizer by ≈1.4–1.8×, so on a calibrated
++  entry cheval asks the provider's free `count_tokens` once the estimate passes half the
++  bound and gates on the exact count; Bridgebuilder's budget for the entry is the bound
++  divided by 1.8 (≈508,000 estimated tokens) because it builds the prompt before any
++  count. Near the window a request that slips past the gate fails cleanly at the provider
++  (`PROVIDER_CONTEXT_LIMIT`, one upload, not walked). The HTTP route's `account_limits`
++  tier is still `unverified`. Downstream mounts inherit the value with the catalog;
++  HTTP-route callers and mounts with a different window or tier should run
++  `tools/ceiling-probe-live.py --transport api` before relying on 936,000 (bead bd-c2rd
++  tracks the estimator itself).
+ 
+ ## Non-goals / explicitly unchanged
+ 
+diff --git a/tests/unit/adversarial-review-companion.bats b/tests/unit/adversarial-review-companion.bats
+index 6be6d6bd..c4809f2a 100644
+--- a/tests/unit/adversarial-review-companion.bats
++++ b/tests/unit/adversarial-review-companion.bats
+@@ -5976,9 +5976,13 @@ EOF
+ # cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in (hounfour.headless.agy_opt_in, default
+ # false). With it off, an operator companion_chain naming the hop does not plan it: read from the config, before any dispatch.
+ _cmp_agy_chain() {  # <anthropic chain YAML list> [agy_opt_in YAML value | "absent"]
++    # (review r251-1 G13: exactly one anchor is replaced — a fixture that drifted fails here, never writes a no-op config)
+     python3 -I - "$CONFIG_FILE" "$1" "${2:-absent}" <<'PY'
+ import sys; p, chain, opt = sys.argv[1:4]; s = open(p, encoding="utf-8").read()
+-s = s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: " + chain + "\n", 1)
++anchor = "  code_review:\n    enabled: true\n"
++if s.count(anchor) != 1:
++    sys.exit(f"_cmp_agy_chain: expected exactly one code_review anchor in {p}, found {s.count(anchor)}")
++s = s.replace(anchor, anchor + "    companion_chain:\n      anthropic: " + chain + "\n", 1)
+ if opt != "absent":
+     s = "hounfour:\n  headless:\n    agy_opt_in: " + opt + "\n" + s
+ open(p, "w", encoding="utf-8").write(s)
+@@ -5987,8 +5991,9 @@ PY
+ 
+ @test "CMP-284 an operator companion_chain naming gemini-headless with the agy opt-in off → planned false, reason opt_in_required, never dispatched, a WARN naming both keys; verdict quality counts the planned voice only" {
+     local opt
++    local orig="$BATS_TEST_TMPDIR/cmp284-config.orig"
++    cp -- "$CONFIG_FILE" "$orig"   # (review r251-1 G13: save/restore the file the helper edits — $CONFIG_FILE — and fail loudly)
+     for opt in absent false '"true"'; do
+-        cp "$T/loa.config.yaml" "$T/loa.config.yaml.orig" 2>/dev/null || true
+         _cmp_agy_chain '[gemini-headless]' "$opt"
+         : > "$CALLS"
+         result=$(_run_main review)
+@@ -5999,7 +6004,7 @@ PY
+         ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+         grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log"
+         grep 'hounfour.headless.agy_opt_in' "$T/stderr.log" | grep -q 'flatline_protocol.code_review.companion_chain.anthropic'
+-        mv -f "$T/loa.config.yaml.orig" "$T/loa.config.yaml"
++        cp -- "$orig" "$CONFIG_FILE"
+     done
+ }
+ 
+diff --git a/tests/unit/gen-bb-registry-codegen.bats b/tests/unit/gen-bb-registry-codegen.bats
+index 075e9398..1d4f55e1 100644
+--- a/tests/unit/gen-bb-registry-codegen.bats
++++ b/tests/unit/gen-bb-registry-codegen.bats
+@@ -96,7 +96,9 @@ setup() {
+ # T3: parity with hardcoded TOKEN_BUDGETS in resources/core/truncation.ts
+ # ---------------------------------------------------------------------------
+ 
+-# cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling (180000) − 20000.
++# cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling − 20000 (the uncalibrated
++# entries' ceiling is the policy cap, so 160000 below); a calibrated entry recording
++# measured_input_tokens is further divided by 1.8 (T14, cycle-127 r251-1 C8).
+ # cycle-126 FR-1.5 (SDD D-1.5): maxOutput = min(BB_OUTPUT_CAP 32000, the
+ # catalog's max_output_tokens), so the expectation is read from the catalog.
+ _expected_max_output() {
+@@ -530,7 +532,8 @@ EOF
+ # T13: catalog aliases resolve to their target's budget (cycle-126 sprint-250
+ # round 2). BB's DEFAULTS.model is the alias `opus`; without an alias row the
+ # budget lookup fell to the 100K default row and effectiveInputBudget kept the
+-# operator's 200K — above cheval's 180K probed ceiling for claude-opus-5-5.
++# operator's 200K — above cheval's input bound for claude-opus-5-5 (180K probed
++# then; the catalog's calibrated value since cycle-127).
+ # ---------------------------------------------------------------------------
+ 
+ # The alias block the generator must emit, derived independently from the
+@@ -603,3 +606,57 @@ YAML
+     local generated; generated="$(_generated_alias_lines)"
+     [ "$generated" = '  "fast": "m1",' ]
+ }
++
++# ---------------------------------------------------------------------------
++# T14: units (cycle-127 r251-1 C8). A calibrated bound recording
++# measured_input_tokens is in provider-MEASURED tokens; BB's budget is in its
++# own estimate units (coefficient 0.25 tokens/char), which under-count the
++# Opus 4.7+ tokenizer, so the budget divides by MEASURED_TO_ESTIMATE_SAFETY 1.8
++# and rounds down to the nearest 1,000.
++# ---------------------------------------------------------------------------
++
++_measured_budget() {  # $1 effective_input_ceiling → floor((ceiling − 20000) / 1.8 / 1000) * 1000
++    echo $(( ( ($1 - 20000) * 10 / 18 ) / 1000 * 1000 ))
++}
++
++@test "T14: fixture yaml — a measured entry's budget divides by 1.8 and rounds down to 1,000; an unmeasured one does not" {
++    local y="$BATS_TEST_TMPDIR/units-fixture.yaml"
++    cat > "$y" <<'YAML'
++providers:
++  anthropic:
++    models:
++      measured-1:
++        context_window: 1000000
++        effective_input_ceiling: 936000
++        ceiling_calibration:
++          calibrated_at: "2026-10-07T09:29:07Z"
++          measured_input_tokens: 972887
++      plain-1:
++        context_window: 1000000
++        effective_input_ceiling: 400000
++aliases: {}
++YAML
++    run "$TSX" "$GEN_SCRIPT" --source-yaml "$y" --output-dir "$OUTPUT_DIR"
++    [ "$status" -eq 0 ]
++    grep -E '^  "measured-1": \{ maxInput: 508000, ' "$TRUNC_OUT"
++    grep -E '^  "plain-1": \{ maxInput: 380000, ' "$TRUNC_OUT"
++}
++
++@test "T14: the live catalog's measured entries get the divided budget (computed from the catalog)" {
++    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
++    local n=0 model eff
++    while read -r model eff; do
++        [ -n "$model" ] || continue
++        n=$((n + 1))
++        grep -E "^  \"$model\": \\{ maxInput: $(_measured_budget "$eff"), " "$TRUNC_OUT" || { echo "budget for $model"; return 1; }
++    done < <(yq -r '.providers.anthropic.models | to_entries | .[]
++                    | select(.value.ceiling_calibration.measured_input_tokens != null and .value.effective_input_ceiling != null)
++                    | .key + " " + (.value.effective_input_ceiling | tostring)' "$DEFAULTS_YAML")
++    [ "$n" -ge 1 ]   # the opus target is calibrated since cycle-127; a rollback would make this vacuous — fail loud
++}
++
++@test "T14: the generated header states the units and the divisor" {
++    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
++    grep -qF 'provider-measured tokens' "$TRUNC_OUT"
++    grep -qF 'MEASURED_TO_ESTIMATE_SAFETY = 1.8' "$TRUNC_OUT"
++}
+diff --git a/tests/unit/loa-status-providers.bats b/tests/unit/loa-status-providers.bats
+index b04170bd..2d843d82 100644
+--- a/tests/unit/loa-status-providers.bats
++++ b/tests/unit/loa-status-providers.bats
+@@ -1,4 +1,5 @@
+ #!/usr/bin/env bats
++bats_require_minimum_version 1.5.0
+ # =============================================================================
+ # tests/unit/loa-status-providers.bats — cycle-125 Sprint 4 (PRD FR-4 AC 2)
+ # `/loa` Providers block: per provider the credential PRESENCE (never the
+@@ -63,52 +64,120 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
+   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
+ }
+ 
+-@test "LSP-5 the anthropic row carries the input bound the opus target runs under: probed by default, observed after a provider verdict, never a 429 (cycle-126 FR-1.1)" {
+-  # cycle-127 FR-3.4: the values follow the catalog (the probe may calibrate the opus target);
+-  # the policy is pinned per state — uncalibrated: probed, lowered only by a context-class
+-  # observation below it; calibrated: the measured bound, observations never lower it.
++_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 936000
++  local cal_block=""
++  if [[ -n "$2" ]]; then
++    cal_block="          source: operator_set
++          calibrated_at: \"$2\"
++          stale_after_days: 90"
++    [[ -n "$3" ]] && cal_block+="
++          transport: $3"
++  else
++    cal_block="          source: conservative_default
++          calibrated_at: null
++          stale_after_days: 90"
++  fi
++  local bound=200000; [[ -n "$2" ]] && bound=936000
++  cat > "$1" <<YAML
++aliases:
++  opus: "anthropic:claude-fixture-1"
++providers:
++  anthropic:
++    models:
++      claude-fixture-1:
++        context_window: 1000000
++        effective_input_ceiling: $bound
++        probed_ceiling: $bound
++        ceiling_calibration:
++$cal_block
++YAML
++}
++_lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $T/obs.json
++  local m="$1" rows="" sep=""; shift
++  while (( $# >= 2 )); do
++    rows+="$sep{\"provider\":\"anthropic\",\"model\":\"$m\",\"observed_input_tokens\":$1,\"error_class\":\"$2\"}"; sep=","; shift 2
++  done
++  printf '{"version":1,"entries":[%s]}\n' "$rows" > "$T/obs.json"
++  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/obs.json"
++}
++
++@test "LSP-5a the anthropic row carries the committed catalog's input bound for the opus target (cycle-126 FR-1.1, cycle-127 FR-3.4)" {
++  # The committed entry, whatever its state (the probe may calibrate it; a rollback may not):
++  # one assertion per state. Both states also run on every pass against fixtures (LSP-5b/5c/5d).
+   local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml" m probed eff cal
+   m="$(yq -r '.aliases.opus' "$cfg")"; m="${m#anthropic:}"
+   probed="$(yq -r ".providers.anthropic.models.\"$m\".probed_ceiling" "$cfg")"
+   eff="$(yq -r ".providers.anthropic.models.\"$m\".effective_input_ceiling" "$cfg")"
+   cal="$(yq -r ".providers.anthropic.models.\"$m\".ceiling_calibration.calibrated_at // \"\"" "$cfg")"
+   [[ "$probed" =~ ^[0-9]+$ && "$eff" =~ ^[0-9]+$ ]]
+-  local above=$(( probed + 232000 )) below=$(( probed - 30000 ))
+-  unset LOA_CHEVAL_CEILING_OBSERVED_PATH
+   export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"   # no store → the catalog's bound
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+   if [[ -n "$cal" ]]; then
+     echo "$output" | grep -qF "  ceiling: calibrated $eff ($m, calibrated $cal)"
+   else
+-    echo "$output" | grep -qE "^  ceiling: probed $probed \($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog\)"
++    echo "$output" | grep -qF "  ceiling: probed $probed ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+   fi
+-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"%s","observed_input_tokens":%d,"error_class":"RATE_LIMIT_UNVERIFIED"},{"provider":"anthropic","model":"%s","observed_input_tokens":%d,"error_class":"CEILING_UNVERIFIED_LIMIT"}]}\n' "$m" $(( above + 88000 )) "$m" "$above" > "$T/obs.json"
+-  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/obs.json"
++}
++
++@test "LSP-5b an uncalibrated entry (fixture catalog): probed by default, observed after a provider verdict below it, never a 429" {
++  _lsp5_catalog "$T/catalog.yaml" "" ""
++  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
++  local m=claude-fixture-1
++  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  if [[ -n "$cal" ]]; then
+-    echo "$output" | grep -qF "  ceiling: calibrated $eff ($m, calibrated $cal)"
+-  else
+-    # an observation above the probed bound: the default bound stands, the observation is shown for the opt-in
+-    echo "$output" | grep -qE "^  ceiling: probed $probed \($m; observed $(( above - 1 )) under the opt-in; calibrate: python3 tools/ceiling-probe-live.py"
+-  fi
++  echo "$output" | grep -qF "  ceiling: probed 200000 ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
++  # an observation above the probed bound: the default bound stands, the observation is shown for the opt-in; a 429 row never counts
++  _lsp5_obs "$m" 500000 RATE_LIMIT_UNVERIFIED 412000 CEILING_UNVERIFIED_LIMIT
++  run timeout 120 bash "$STATUS" --no-stale-check
++  [ "$status" -eq 0 ]
++  echo "$output" | grep -qF "  ceiling: probed 200000 ($m; observed 411999 under the opt-in; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+   run timeout 120 bash "$STATUS" --no-stale-check --json
+   [ "$status" -eq 0 ]
+-  if [[ -n "$cal" ]]; then
+-    echo "$output" | jq -e --argjson e "$eff" '.providers.providers.anthropic.ceiling.basis == "calibrated" and .providers.providers.anthropic.ceiling.value == $e and .providers.providers.openai.ceiling == null' >/dev/null
+-  else
+-    echo "$output" | jq -e --argjson o "$(( above - 1 ))" '.providers.providers.anthropic.ceiling.basis == "probed" and .providers.providers.anthropic.ceiling.observed == $o and .providers.providers.openai.ceiling == null' >/dev/null
+-  fi
+-  # an observation BELOW the probed bound becomes the bound (uncalibrated) / never lowers a calibrated one
+-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"%s","observed_input_tokens":%d,"error_class":"PROVIDER_CONTEXT_LIMIT"}]}\n' "$m" "$below" > "$T/obs.json"
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "probed" and .value == 200000 and .observed == 411999' >/dev/null
++  echo "$output" | jq -e '.providers.providers.openai.ceiling == null' >/dev/null
++  # an observation BELOW the probed bound becomes the bound
++  _lsp5_obs "$m" 150000 PROVIDER_CONTEXT_LIMIT
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+-  if [[ -n "$cal" ]]; then
+-    echo "$output" | grep -qF "  ceiling: calibrated $eff ($m, calibrated $cal)"
+-  else
+-    echo "$output" | grep -qE "^  ceiling: observed $(( below - 1 )) \($m; calibrate: python3 tools/ceiling-probe-live.py"
+-  fi
++  echo "$output" | grep -qF "  ceiling: observed 149999 ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
++}
++
++@test "LSP-5c a same-route calibration (transport api or absent, fixture catalog) is never lowered by an observation" {
++  local m=claude-fixture-1 t
++  for t in api ""; do
++    _lsp5_catalog "$T/catalog.yaml" "2026-10-07T09:29:07Z" "$t"
++    export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
++    _lsp5_obs "$m" 500001 PROVIDER_CONTEXT_LIMIT
++    run timeout 120 bash "$STATUS" --no-stale-check
++    [ "$status" -eq 0 ]
++    echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++    [[ "$output" != *"below on this route"* ]]
++    run timeout 120 bash "$STATUS" --no-stale-check --json
++    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 936000' >/dev/null
++  done
++}
++
++@test "LSP-5d a foreign-transport calibration (claude-headless, fixture catalog) is tightened by an observation below it on this route and says so (cycle-127 r251-1)" {
++  local m=claude-fixture-1
++  _lsp5_catalog "$T/catalog.yaml" "2026-10-07T09:29:07Z" claude-headless
++  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
++  # an observation above the calibrated bound: the calibration stands
++  _lsp5_obs "$m" 990000 PROVIDER_CONTEXT_LIMIT
++  run timeout 120 bash "$STATUS" --no-stale-check
++  [ "$status" -eq 0 ]
++  echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
++  # below it (a 429 row never counts): the observed bound governs and the line names both
++  _lsp5_obs "$m" 300000 RATE_LIMIT_UNVERIFIED 500001 PROVIDER_CONTEXT_LIMIT
++  run timeout 120 bash "$STATUS" --no-stale-check
++  [ "$status" -eq 0 ]
++  echo "$output" | grep -qF "  ceiling: calibrated 936000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
++  run timeout 120 bash "$STATUS" --no-stale-check --json
++  [ "$status" -eq 0 ]
++  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 500000 and .calibrated == true
++    and .calibrated_value == 936000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
++    and .calibrated_at == "2026-10-07T09:29:07Z"' >/dev/null
+ }
+ 
+ @test "LSP-AGY the google hop reads agy: opt-in (disabled; hounfour.headless.agy_opt_in) while the opt-in is off, today's hop text when it is true (cycle-127 FR-1)" {
+@@ -119,13 +188,19 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ] || { echo "rc=$status"; echo "$output" | tail -20; return 1; }
+   echo "$output" | grep -qE '^  google +key absent +hop agy: opt-in \(disabled; hounfour\.headless\.agy_opt_in\)'
+-  run timeout 120 bash "$STATUS" --no-stale-check --json
++  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
+   echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null
+   echo "$output" | jq -e '.providers.providers.openai | has("cli_hop_note") | not' >/dev/null
++  # (review r251-1 G12: the string "true" is not the boolean — off, and one WARN naming the key and the type)
++  printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' > "$T/loa.config.yaml"
++  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check
++  [ "$status" -eq 0 ]
++  echo "$output" | grep -qE '^  google +key absent +hop agy: opt-in \(disabled; hounfour\.headless\.agy_opt_in\)'
++  [ "$(grep -c 'hounfour.headless.agy_opt_in.*not a YAML boolean' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+   printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$T/loa.config.yaml"
+   run timeout 120 bash "$STATUS" --no-stale-check
+   [ "$status" -eq 0 ]
+   echo "$output" | grep -qE '^  google +key absent +hop agy +· http_api OPEN'
+-  run timeout 120 bash "$STATUS" --no-stale-check --json
++  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
+   echo "$output" | jq -e '.providers.providers.google.cli_hop == "agy" and (.providers.providers.google | has("cli_hop_note") | not)' >/dev/null
+ }

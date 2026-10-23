@@ -1,0 +1,6 @@
+{"timestamp":"2026-06-18T23:58:58Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm1_old.txt","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-18T23:59:09Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm1_new.txt","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-18T23:59:19Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm2_old.txt","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-18T23:59:28Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm2_new.txt","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-18T23:59:33Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm3_old.txt","reason":"path not declared in zones.yaml; no opinion"}
+{"timestamp":"2026-06-18T23:59:41Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/pm3_new.txt","reason":"path not declared in zones.yaml; no opinion"}

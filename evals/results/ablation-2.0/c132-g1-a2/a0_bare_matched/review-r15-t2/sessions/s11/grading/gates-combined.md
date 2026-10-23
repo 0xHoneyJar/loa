@@ -1,0 +1,9 @@
+head/.claude/defaults/model-config.yaml:494
+head/.claude/defaults/model-config.yaml:502
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:125
+head/.claude/scripts/flatline-orchestrator.sh:534
+head/.claude/skills/bridgebuilder-review/resources/config.ts:182
+head/.claude/scripts/run-preflight.sh:190
+head/docs/migration/v2.0-model-generation-floor.md:305
+head/tools/ceiling-probe-live.py:44
+head/tools/ceiling-probe-live.py:512

@@ -1,0 +1,36 @@
+{
+  "apps": "./.app.json",
+  "author": {
+    "name": "OpenAI"
+  },
+  "description": "Create, read, and edit pages and spaces with ChatGPT Space.",
+  "interface": {
+    "brandColor": "#808080",
+    "brandColorDark": "#808080",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "category": "Productivity",
+    "composerIcon": "./assets/composer-icon.svg",
+    "defaultPrompt": null,
+    "developerName": "OpenAI",
+    "displayName": "Pages",
+    "logo": "./assets/logo.svg",
+    "logoDark": "./assets/logo-dark.svg",
+    "longDescription": "Find, create, and edit pages and spaces in ChatGPT Space, within the workspaces you can access.",
+    "screenshots": [],
+    "shortDescription": "Create and edit pages and spaces"
+  },
+  "keywords": [
+    "pages",
+    "space",
+    "spaces",
+    "documents",
+    "workspaces"
+  ],
+  "license": "Proprietary",
+  "name": "pages",
+  "skills": "./skills/",
+  "version": "0.1.23"
+}

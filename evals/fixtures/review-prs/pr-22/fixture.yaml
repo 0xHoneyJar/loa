@@ -1,0 +1,23 @@
+name: pr-22
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "record fixture: sprint-258 round-1 state (cycle-129 FR-2); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: framework
+deprecated: false
+sprint: 258
+base_commit: "252501b449b82c33f6155e35ef6941ec50019560"
+head_commit: "05442536d2d36a690b9f06b5117c13a5b800057b"
+fix_commit: "ffe162efdffb048336ea09a10f9dd4fae108c4e0"
+record_ref: "origin/record/cycle-130-a2a"
+feedback_files:
+  - "grimoires/loa/a2a/sprint-258/engineer-feedback-r1.md"
+  - "grimoires/loa/a2a/sprint-258/auditor-sprint-feedback-r1.md"
+scope_paths: "!evals/tests/fixtures/ablation-runs/runs/*"
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-15 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-15; sandbox has network; egress scanned (grader class 9)"

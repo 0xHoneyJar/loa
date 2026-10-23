@@ -1,0 +1,967 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T05:05:31Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap for a multi-pass LLM pipeline: without explicit per-pass context budgets, truncation/summarization rules, and max window assumptions, the design can fail or silently degrade on large repos. Actionable to specify budgets, ordering, and fallback behavior; relatively low PRD cost with high ROI.",
+        "gpt_score": 820,
+        "opus_score": 820,
+        "delta": 0,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical operational gap: partial failures across chained passes are common (timeouts, rate limits, malformed JSON). Defining retry/backoff, pass-level fallback, and what gets returned is essential for unattended runs and for making failures debuggable. Highly actionable and high impact.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "delta": 80,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable and fairly concrete: version/capability detection for Codex CLI prevents brittle failures when flags/output formats change. Moderate effort (probe `codex --version`, feature tests, clear error messages) with strong reliability payoff, though not as existential as core architecture gaps.",
+        "gpt_score": 780,
+        "opus_score": 850,
+        "delta": 70,
+        "average_score": 815,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Fundamental architectural ambiguity: if Codex can read files, the whole content-blob truncation/priority pipeline changes. The PRD’s stated differentiator depends on this, yet behavior is unspecified. Needs explicit contract: what is passed to the model, what is pre-ranked, what tools are allowed, and how this affects determinism/security. High ROI and necessary for implementation alignment.",
+        "gpt_score": 900,
+        "opus_score": 750,
+        "delta": 150,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Important correctness gap: the PRD relies on 'reasoning depth' per pass while admitting CLI may not expose tiers. If the mechanism is prompt-only, it needs a defined approach and validation, otherwise FR3 is not implementable as written. High value to clarify what is actually controllable via `codex exec`.",
+        "gpt_score": 760,
+        "opus_score": 760,
+        "delta": 0,
+        "average_score": 760,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Authentication flow is underspecified and may be insecure or unreliable across environments (CI, headless, restricted shells).",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Piping OPENAI_API_KEY into `codex login --with-api-key` can still leak via logs, shell tracing, CI debug output, or Codex CLI telemetry. Also, login may require interactive prompts, write to disk despite --ephemeral, or fail under locked-down HOME directories—causing flaky behavior and confusing fallbacks.",
+        "location": "FR4, NFR3",
+        "recommendation": "Specify non-interactive auth requirements (no prompts), explicitly define where credentials are stored (or not), require redaction in logs, support `OPENAI_API_KEY` direct usage by codex exec if available, and add CI-safe modes (e.g., disable login attempt, prefer env auth).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Codex CLI output/flags are treated as stable, but the PRD relies on multiple potentially brittle behaviors (e.g., --output-last-message, --json events, --output-schema semantics, sandbox/ephemeral flags).",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If Codex CLI changes output format, flag behavior, or deprecates options, the primary execution path breaks and the project regresses to the curl fallback (or fails silently). This undermines the main goal (simplification) and creates a long-term maintenance treadmill.",
+        "location": "FR1, FR3, FR6, NFR4, Risks R4",
+        "recommendation": "Define a supported Codex CLI version range, add a startup compatibility check (codex --version + feature probes), and implement a robust adapter layer that parses outputs defensively with contract tests pinned to fixtures per supported version.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Multi-pass orchestration risks runaway context growth and token/cost explosions; truncation strategy between passes is only mentioned, not defined.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Pass 1 and Pass 2 outputs can be large (especially tool-augmented file reads). Feeding them forward can exceed context limits or cause aggressive truncation that removes critical details, leading to worse quality than single-pass and unpredictable failures.",
+        "location": "FR3, Risks R6, NFR1",
+        "recommendation": "Define strict budgets per pass (max tokens/bytes), a deterministic summarization/compression step between passes, and failure behavior when budgets are exceeded (e.g., auto-switch to --fast, or drop to single-pass with a warning). Track and cap file reads.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Security model of `--sandbox read-only` is assumed to be sufficient, but threat model is not defined (exfiltration, prompt injection, secret discovery).",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Read-only sandbox still allows reading sensitive files (env files, SSH keys, CI secrets in workspace, .npmrc tokens). Tool-augmented models can be induced to search for secrets and include them in output. This is especially risky for automated runs on private repos.",
+        "location": "FR1 (workspace path accessible), NFR3",
+        "recommendation": "Add explicit file access allow/deny rules (e.g., exclude .env, ~/.ssh, credentials files), redact known secret patterns from outputs, and document a threat model + safe defaults (e.g., restrict to repo root, deny home directory access).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "The fallback path keeps the old curl implementation, but the PRD also changes prompts and orchestration; parity across codex/curl/hounfour paths is likely to diverge.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Three execution modes (Hounfour model-invoke, Codex exec, curl) plus multi-pass/single-pass creates a combinatorial matrix. Small differences in response formats, retries, truncation, and schema validation will cause inconsistent outputs and hard-to-debug user reports.",
+        "location": "FR2, FR3, FR5, FR6, NFR5, Scope: tests covering all execution paths",
+        "recommendation": "Define a single internal “review engine” contract (inputs/outputs) and make each transport (codex/curl/model-invoke) an adapter. Add golden tests per review type across all modes, and explicitly document expected differences (if any).",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": "agent framework development, code review automation, CLI tooling",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T05:05:31Z",
+    "metrics": {
+      "total_latency_ms": 215000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T05:25:04Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: the SDD claims budgets are configurable but the design shows hardcoded constants with no override path. Actionable to define config/env override precedence and defaults. Moderate value: tuning token budgets is important but not usually a production blocker if defaults are sane.",
+        "gpt_score": 720,
+        "opus_score": 870,
+        "delta": 150,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical ambiguity with real operational risk: per-pass vs total timeout, termination semantics, and partial-output handling directly affect CI reliability and hang/kill behavior. Highly actionable (define semantics, implement via `timeout`/signal escalation, document acceptance criteria). Strong ROI.",
+        "gpt_score": 880,
+        "opus_score": 920,
+        "delta": 40,
+        "average_score": 900,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Concurrency safety for shared cache/temp/intermediate files is a genuine gap if CI runs parallel jobs. Actionable fixes (unique temp dirs, atomic writes, `flock`). High impact: corruption leads to flaky, hard-to-debug failures. Cost is modest.",
+        "gpt_score": 840,
+        "opus_score": 810,
+        "delta": 30,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "First-class use case (document reviews) lacks a concrete content-passing contract. Without it, implementers can’t build reliably and token overflow risk is high. Very actionable: specify inline vs file mounting vs workspace copy, size limits, and how prompts reference content. High ROI.",
+        "gpt_score": 910,
+        "opus_score": 830,
+        "delta": 80,
+        "average_score": 870,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "This is a ghost requirement: test matrix asserts auto-switch behavior that isn’t designed or configurable. That mismatch will cause failed tests or unimplemented behavior. Actionable to define thresholding logic and config knobs (or remove from tests). High value to align spec/design/tests.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "delta": 80,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "High-impact correctness issue: inter-pass contract assumes JSON, while the SDD itself flags uncertainty about `--output-last-message`. Needs a normalization/validation layer and clear failure modes. Actionable and prevents cascading pass failures.",
+        "gpt_score": 820,
+        "opus_score": 840,
+        "delta": 20,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Auth flow is underspecified and likely inconsistent across environments; `codex login` may persist credentials despite intent",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "The design relies on assumptions that (a) Codex reads `OPENAI_API_KEY` from env, (b) `codex login --with-api-key` can be safely piped, and (c) `--ephemeral` prevents persistence. If any assumption is wrong, CI/dev machines may end up with stored tokens, or Codex may fail and silently fall back to curl, causing confusing behavior and security drift.",
+        "location": "Section 3.5: ensure_codex_auth(); Section 11: Open Questions (auth); Section 8.1: Credential persistence",
+        "recommendation": "Make auth mode explicit: support only env-based auth in noninteractive contexts; avoid `codex login` entirely unless user explicitly requests it. Document where Codex stores credentials per OS, add an automated cleanup option, and add a startup check that fails fast if persistent credential files exist (or at least requires confirmation outside CI).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Codex CLI behavior and flags are treated as stable, but capability probing is brittle and may produce false positives/negatives",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The probe approach (`codex exec --flag --help` + exit code heuristics) can break across versions, platforms, or when Codex changes help/exit behavior. A false positive means you run with missing security invariants (e.g., no `--cd`/sandbox semantics), while a false negative forces curl fallback and defeats the project goal.",
+        "location": "Section 2.2: Minimum Codex CLI Version; Section 3.2: detect_capabilities(); Section 8.2: Security Invariants",
+        "recommendation": "Define a minimum supported Codex CLI version range and a deterministic probe strategy (e.g., `codex exec --json`/machine-readable capability output if available, or run a real no-op command with each flag and parse stderr for 'unknown option'). Add a hard fail (not silent fallback) when execution_mode=codex and required security flags cannot be verified.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Redaction approach is fragile and can be bypassed; also risks corrupting JSON outputs",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Using `sed -E` on arbitrary JSON/text can break escaping, alter structure, and invalidate schema. Pattern-based redaction misses non-standard secrets, base64/hex-encoded values, split tokens, or secrets embedded in URLs. Additionally, config-provided regex patterns can be catastrophic (ReDoS) or unsafe when interpolated into `sed` without escaping.",
+        "location": "Section 3.5: redact_secrets(); redact_log_output(); audit_output_for_sensitive_files()",
+        "recommendation": "Perform redaction on structured JSON using `jq` where possible (e.g., redact specific fields, or apply safe string transforms). Treat config patterns as literals or validate/escape them before use. Add tests for JSON validity post-redaction and for bypass cases (split keys, encoded keys, URL query tokens).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Security model assumes `--sandbox read-only` and `--cd` sufficiently prevent sensitive data exfiltration, but repo-root access enables reading secrets by design",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "Setting `--cd` to repo root explicitly allows the model to read arbitrary files in the repository via Codex tools. Many repos contain secrets (historical keys, test creds, private certs, .npmrc tokens, etc.). Output redaction cannot reliably prevent exfiltration because secrets can be transformed/encoded, partially leaked, or referenced indirectly. This is a fundamental threat to using tool access on untrusted repos.",
+        "location": "Section 3.2: Workspace design correction; Section 8: Security Architecture; Security Invariants #5",
+        "recommendation": "Introduce an allowlist-based file access policy (only files touched by diff + dependency closure) or run Codex in a separate sanitized checkout that excludes known sensitive paths. Add a pre-scan step that blocks Codex mode if sensitive files are present or if repo contains patterns like `.env`, `.npmrc`, `id_rsa`, etc. Consider forcing Codex to operate only on provided diff for default mode, with an explicit opt-in flag for tool access.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": "shell script architecture, CLI tooling, code review automation",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T05:25:04Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T05:40:18Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 100,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap and directly blocks testability of the stated acceptance criteria. In shell, token counting is non-trivial; without specifying the mechanism (API usage fields vs tiktoken subprocess vs heuristic) budget enforcement will be inconsistent and hard to validate. Low/moderate effort to define and implement; high ROI because it stabilizes multipass behavior and prevents silent overruns.",
+        "gpt_score": 880,
+        "opus_score": 870,
+        "delta": 10,
+        "average_score": 875,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Likely real gap: the doc hints at concurrency awareness (PID-scoped files) but doesn’t fully close races on shared directories/artifacts in CI matrix/parallel runs. Adding explicit isolation/locking requirements is actionable and prevents flaky behavior. Trade-off: implementing robust locking/atomic writes across platforms (Linux/macOS) can add complexity, so not quite 'critical' unless CI parallelism is common.",
+        "gpt_score": 740,
+        "opus_score": 920,
+        "delta": 180,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-value reliability improvement. If the plan depends on specific `codex exec` flags, version drift can break the system in ways capability probing may not catch (or may degrade behavior silently). Pinning/min-version plus documenting the expected contract is straightforward and reduces operational risk materially.",
+        "gpt_score": 820,
+        "opus_score": 890,
+        "delta": 70,
+        "average_score": 855,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Clear operational gap: without explicit timeouts, CI can hang indefinitely and burn minutes/compute. The doc mentions timeout tracking but lacks concrete defaults and enforcement mechanism. Very actionable (wrap with `timeout`, define per-pass defaults + overrides) and high ROI.",
+        "gpt_score": 860,
+        "opus_score": 780,
+        "delta": 80,
+        "average_score": 820,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Backward-compatibility requirement is internally inconsistent: Sprint 1 says 'preserve config-file auth pattern' while Sprint 1.2 mandates env-only auth; this will break existing setups and/or violate stated security goals.",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If current users rely on config-file based keys, env-only will cause immediate failures in CI/local runs. If you keep config-file auth to preserve behavior, you contradict the new security posture and risk leaking secrets via files. Either way, the plan as written cannot satisfy both acceptance criteria simultaneously.",
+        "location": "Sprint 1 Task 1.1 (\"Preserve config-file auth pattern\"), Sprint 1 Task 1.2 (\"Env-only auth\"), Sprint 3 Task 3.2 (\"No caller changes required\")",
+        "recommendation": "Decide and document a single supported auth strategy. If migrating to env-only, add explicit migration steps, deprecation window, and a compatibility shim (e.g., read config key only when explicitly enabled + never persist). Update ACs and tests to match.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Capability detection via probing real `codex exec` and parsing stderr for 'unknown option' is brittle across versions/locales and may have side effects; caching in /tmp is also fragile.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "CLI error messages change, may be localized, or may exit non-standardly. Probing can be slow, can require network/auth, and can fail in restricted environments. /tmp cache can be cleaned unexpectedly, collide across users, or be blocked (noexec/permissions), causing flakiness and hard-to-debug routing failures.",
+        "location": "Sprint 1 Task 1.3 (detect_capabilities, cache to /tmp/loa-codex-caps-<hash>-$$.json)",
+        "recommendation": "Prefer `codex --version` + `codex exec --help` parsing (stable stdout) or a machine-readable capability command if available. Make cache path configurable, include user+version+platform in key, add robust fallback when probing fails, and avoid relying on specific stderr strings.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Redaction approach (jq + sed + custom patterns) risks corrupting outputs, missing secrets, or over-redacting critical content; also does not address secrets in non-JSON artifacts (workspace files, temp dirs, codex logs).",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Sed-based redaction on arbitrary text can break JSON, markdown fences, or escape sequences. Pattern-based redaction misses many credential formats (JWTs, OAuth tokens, private keys without obvious markers). Over-redaction can remove file:line evidence needed for reviews. Persisting intermediate pass files increases leak surface.",
+        "location": "Sprint 1 Task 1.2 (redact_secrets), Sprint 2 Task 2.1 (intermediate outputs persisted), Sprint 3 Task 3.3 (security audit)",
+        "recommendation": "Define a strict redaction pipeline: parse JSON first, redact only string values, then re-serialize. For non-JSON logs, redact before persistence and avoid storing raw stderr. Expand secret detection (entropy/JWT/PEM blocks) and add a 'no persistence' mode for sensitive repos. Ensure temp dirs are chmod 700 and always cleaned via traps.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Workspace management + `--tool-access` introduces hidden complexity and security risk: repo-root access, symlinks, submodules, and path traversal can expose secrets even with 'read-only' sandbox assumptions.",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Even read-only access can leak secrets via reading `.env`, SSH keys, CI configs, or git history. Symlinks inside the repo can point outside the workspace. Submodules may pull in unexpected content. If codex sandboxing is imperfect or misconfigured, this becomes a data exfiltration vector.",
+        "location": "Sprint 1 Task 1.3 (workspace, --sandbox read-only, --cd repo-root with --tool-access), Sprint 3 Task 3.3 (security audit)",
+        "recommendation": "Threat-model tool access explicitly. Enforce a strict allowlist of readable paths (e.g., only diff + selected files), resolve and block symlinks that escape workspace, and consider copying only needed files into a temp workspace. Add tests for symlink escape, submodule paths, and sensitive file reads.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": "shell script development, test planning, code review automation",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T05:40:18Z",
+    "metrics": {
+      "total_latency_ms": 216000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T08:50:42Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: PRD covers fail_mode and startup validation but not runtime exceptions inside condition evaluation or how to detect/triage persistent misrouting. Actionable to specify: exception handling policy (treat as false vs hard_fail), structured log fields (route_id, condition, error_type, backend_selected, fail_mode), and alert thresholds. High ROI because silent fallthrough can burn budget and degrade quality; implementation cost is moderate.",
+        "gpt_score": 820,
+        "opus_score": 870,
+        "delta": 50,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical ambiguity: the complexity classification logic as described can yield inconsistent outcomes across implementations (AND/OR confusion, conflicting signals). This directly drives pass strategy and cost/quality. Very actionable: define deterministic algorithm (precedence rules, tie-breakers, validation of model-reported counts). Low-to-moderate effort with high impact.",
+        "gpt_score": 880,
+        "opus_score": 820,
+        "delta": 60,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Valuable operational feature: a dry-run/debug mode materially reduces config-related incidents and supports the 'routing is data' goal. Actionable to define outputs (evaluated conditions, results, selected route/backend) and non-execution guarantee. Some implementation complexity (needs safe evaluation and consistent reporting), but strong payoff for a high-blast-radius router.",
+        "gpt_score": 760,
+        "opus_score": 790,
+        "delta": 30,
+        "average_score": 775,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Foundational gap: without explicit schema/validation rules, implementers will diverge and edge cases become undefined (empty when, missing fail_mode defaults, unknown backend, etc.). Highly actionable: JSON schema / pydantic spec, required/optional fields, enums, defaults, and validation failure behavior. Low cost relative to preventing production misconfigurations.",
+        "gpt_score": 900,
+        "opus_score": 750,
+        "delta": 150,
+        "average_score": 825,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Real functional hole: single-pass mode references a 'combined prompt' that isn’t defined, and current Pass 1 prompt is not a full review. This risks degraded output exactly when the system claims to optimize. Actionable: define combined prompt content, required outputs, and state/transition rules. High impact on core product quality; moderate effort.",
+        "gpt_score": 860,
+        "opus_score": 840,
+        "delta": 20,
+        "average_score": 850,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Important interaction gap: capabilities are introduced but the enforcement/decision logic is undefined, leading to unpredictable behavior when selected backend can’t satisfy requested mode. Actionable: define capability gating rules and fallback order (downgrade passes vs reroute vs error) plus logging. High ROI because it prevents invalid execution paths; implementation is straightforward.",
+        "gpt_score": 790,
+        "opus_score": 720,
+        "delta": 70,
+        "average_score": 755,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "Nice-to-have rigor: the PRD’s accuracy claim (≤15% error) should be defined (mean vs p95) and backed by test cases, but this is less critical than routing/multi-pass correctness. Actionable to add benchmark corpus definition and acceptance criteria. Effort is moderate (needs dataset + measurement), benefit is mainly credibility and tuning.",
+        "gpt_score": 560,
+        "opus_score": 880,
+        "delta": 320,
+        "average_score": 720,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Adaptive multi-pass relies on model-produced structured fields (complexity) and model compliance; this can be gamed or simply fail unpredictably",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "If Pass 1 output is malformed or adversarial (prompt injection in diff content), the classifier may incorrectly skip passes (quality regression) or always run 3 passes (cost regression). The PRD says default to medium, but also says 'Simple changes get 1 pass'—that benefit may never materialize reliably.",
+        "location": "FR-2.1, FR-2.3, R3",
+        "recommendation": "Do not base pass reduction solely on model output. Add deterministic signals from the diff itself (files changed, lines changed, languages, presence of build config/security-sensitive paths) and require both deterministic + model signals to enter single-pass. Add injection-resistant parsing (strict JSON extraction + schema validation) and a 'never single-pass' allowlist/denylist for critical file patterns.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Backward-compatibility claim is risky: 'identical behavior to cycle-033' is underspecified and hard to guarantee with a refactor",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Even if the same backends are attempted in the same order, subtle differences (error handling, stdout/stderr, exit codes, retry semantics, environment variable checks, timing) can break downstream scripts and tests. The PRD relies on '117 tests pass' but those tests may not cover behavioral equivalence at the boundaries (timeouts, partial failures, truncated outputs).",
+        "location": "G5, FR-1.4, NFR-1",
+        "recommendation": "Define an explicit behavioral contract for route selection and failure semantics (exit codes, logging, what constitutes 'failure' vs 'no-op'). Add golden tests that assert the exact sequence of attempted backends and the exact terminal outcome for representative failure modes (backend unavailable, backend returns non-JSON, network error, auth error).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Declarative routing in bash + yq is brittle across environments (yq version/behavior, YAML edge cases, quoting) and may silently misparse routes",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If route parsing is wrong, the router may select the wrong backend, skip intended fallbacks, or always fall back to curl. Because this is the entrypoint for review execution, a parsing bug becomes a systemic outage or cost spike. YAML edge cases (empty arrays, nulls, anchors, multiline strings) are common in real configs and hard to handle safely in bash.",
+        "location": "FR-1.1, NFR-2, R1, Technical Constraints (yq v4+ required)",
+        "recommendation": "Define a strict schema and validation rules (required keys, allowed enums, non-empty routes). Make parsing fail-closed when custom routes are present (hard error, non-zero exit) and fail-open only when no custom routes exist. Add compatibility tests for multiple yq v4 minor versions and YAML edge cases (null/empty/duplicate keys). Emit a single, explicit 'using default routes because...' log line with reason codes.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Failure semantics are ambiguous: what counts as a backend 'failure' vs a valid but low-quality response, and how fallthrough interacts with partial outputs",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "In bash, many commands can return success while producing unusable output (empty JSON, truncated response, schema mismatch). If the router treats that as success, it will stop early and deliver garbage. If it treats too many cases as failure, it may cascade to curl and increase cost or leak behavior differences.",
+        "location": "FR-1 (fail_mode), FR-1.3 backend registry, NFR-1",
+        "recommendation": "Standardize backend result contract: required fields, minimum length, JSON validity, and explicit error codes. Implement a shared 'validate_review_payload' gate that determines success/failure consistently across backends. Document and test fallthrough behavior when output is invalid, empty, or schema-noncompliant.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-006",
+        "concern": "Security: YAML-configured routing can be abused for denial-of-service or unintended execution paths even without eval (e.g., forcing expensive backends, bypassing intended guards)",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "If an attacker can modify `.loa.config.yaml` (or a compromised repo does), they can force always-on expensive routes, disable safer fallbacks, or create configurations that hang (e.g., always selecting a backend that blocks). Even if this is 'expected' for operators, it becomes a supply-chain risk in CI contexts.",
+        "location": "FR-1, NFR-3, R2",
+        "recommendation": "Add policy constraints: max routes, max attempts, max total time, and allow/deny lists for backends in CI. Require explicit opt-in for non-default routing in CI via environment variable. Log the effective route table and hash of config at startup for auditability.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd declarative execution router",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T08:50:42Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T08:53:47Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap: schema is described but validation/error handling semantics are underspecified, which will cause divergent implementations and operator confusion. Actionable: can enumerate validation rules, severity, and partial-accept behavior with clear acceptance criteria. High ROI, low/moderate effort.",
+        "gpt_score": 880,
+        "opus_score": 870,
+        "delta": 10,
+        "average_score": 875,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Real gap for a data-driven router: without structured logs/traceability, production debugging becomes guesswork. Actionable: define required log fields (route id, condition evals, backend chosen, failover reason, pass count), log levels, and optional debug mode. Moderate effort, high operational value.",
+        "gpt_score": 820,
+        "opus_score": 890,
+        "delta": 70,
+        "average_score": 855,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Important edge case: binary success/failure is insufficient when outputs can be empty/malformed/truncated. Actionable if the PRD defines validity checks per backend/response type and what constitutes 'retry/fallthrough'. Some complexity because 'valid output' can be domain-specific, but still valuable.",
+        "gpt_score": 790,
+        "opus_score": 810,
+        "delta": 20,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Clear gap with high impact: without timeouts/retries, fallthrough chains can hang and negate resiliency. Actionable: per-backend timeout/retry fields and default policy. Implementation cost is moderate but straightforward; ROI is high.",
+        "gpt_score": 860,
+        "opus_score": 720,
+        "delta": 140,
+        "average_score": 790,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Domain-appropriate concern: relying on LLM self-reported complexity signals is brittle and can bias toward fewer passes. Actionable: specify deterministic guardrails (diff size, file count, languages, touched critical paths) and reconciliation rules. Moderate effort, high quality impact.",
+        "gpt_score": 840,
+        "opus_score": 850,
+        "delta": 10,
+        "average_score": 845,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-010",
+        "description": "High-value test coverage: end-to-end fallthrough is a primary risk path that unit tests often miss. Actionable: add an integration fixture with mock backends and deterministic failure modes. Moderate effort, strong regression protection.",
+        "gpt_score": 760,
+        "opus_score": 420,
+        "delta": 340,
+        "average_score": 590,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Adaptive multi-pass relies on model-produced structured output; schema noncompliance and prompt drift can cause cost spikes or missed reviews",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Pass 1 must return `complexity` and risk areas in a parseable way. Models frequently produce extra prose, malformed JSON, or partial fields. Defaulting to medium (3-pass) avoids under-review but can negate the cost-saving goal and create unpredictable spend. Conversely, mis-parsing could incorrectly classify as low and skip deeper passes.",
+        "location": "FR-2.1/FR-2.3, R3 mitigation",
+        "recommendation": "Make the classifier robust and conservative: only allow single-pass when complexity is confidently parsed and meets strict thresholds; otherwise force 3-pass. Add adversarial tests with malformed/verbose Pass 1 outputs. Add a hard cap on total passes/cost regardless of classification.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Backward-compatibility claim is fragile: declarative loop semantics may not exactly match the imperative router’s nuanced behavior",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "The PRD requires “identical behavior to cycle-033” with zero test modifications, but the new generic loop changes control-flow details: what constitutes a failure vs a non-match, how exit codes propagate, how stderr is handled, and when fallthrough occurs. Small differences can change which backend is used, break metering, or alter output formatting.",
+        "location": "G1/G5, FR-1.4 default config, NFR-1",
+        "recommendation": "Define a precise behavioral contract: for each backend attempt, specify which exit codes/errors trigger fallthrough vs hard-fail, and what logs are emitted. Add golden tests that assert backend selection under a matrix of simulated failures (timeouts, non-JSON output, partial output, auth errors).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Condition and backend registries in bash are easy to get wrong and can create injection-like or unexpected execution paths despite 'no eval'",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Even without `eval`, bash indirect invocation patterns (e.g., calling a function by name) can be dangerous if names are not strictly validated, or if environment/function namespace collisions occur. Also, unknown conditions treated as false may silently disable routes and change behavior in production.",
+        "location": "FR-1.2 Condition Registry, NFR-3 Security, R2 mitigation",
+        "recommendation": "Implement strict validation: condition/backend names must match `^[a-zA-Z0-9_]+$` and must exist in the registry. Unknown condition/backend should be a hard configuration error (fail startup) when custom routes are present. Add tests for malicious/invalid names and for namespace collision scenarios.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Config precedence and route filtering rules are underspecified and can lead to surprising effective routing",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "FR-1.5 says `routes` takes precedence over `execution_mode`, but also defines `execution_mode` as a shorthand that filters routes. It’s unclear what happens when both are set (ignore execution_mode entirely vs apply filtering). Ambiguity will cause operator misconfiguration and hard-to-debug routing outcomes.",
+        "location": "FR-1.5 execution_mode override",
+        "recommendation": "Specify deterministic precedence with examples and an 'effective route table' output. Consider: if `routes` is set, ignore `execution_mode` but warn; or allow `execution_mode` to filter even custom routes (explicitly documented). Add validation to prevent contradictory configs.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "YAML parsing introduces a hard external dependency (yq v4+) that can break installs and CI in subtle ways",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "The router becomes configuration-driven, but only if yq is present and compatible. Version drift (yq v3 vs v4), missing yq in minimal environments, or different yq builds can cause routing to silently revert to defaults or mis-parse routes, leading to wrong backend selection, unexpected costs, or total failure.",
+        "location": "NFR-2 (YAML parsed via yq), Technical Constraints (yq v4+ required), R1 mitigation",
+        "recommendation": "Make yq availability/version a first-class startup check. If custom routes are configured and yq is missing/incompatible, hard-fail with a clear error. Add a `--print-effective-routes` debug command and tests that pin expected yq behavior. Consider a minimal built-in parser for the specific schema as a fallback if yq is absent.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd.md",
+    "domain": " prd declarative execution router",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T08:53:47Z",
+    "metrics": {
+      "total_latency_ms": 169000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T09:10:45Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 3,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 2,
+      "model_agreement_percent": 90,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap if the tool is expected to run in parallel CI contexts or be invoked multiple times within the same workspace. The SDD should explicitly state the concurrency model (single-process assumption vs. safe for parallelism) and whether init_route_table() is idempotent. However, true cross-process locking in bash can add complexity and may be unnecessary if the intended execution model is one invocation per workspace. Valuable clarification; implementation may be moderate depending on desired guarantees.",
+        "gpt_score": 720,
+        "opus_score": 950,
+        "delta": 230,
+        "average_score": 835,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Actionable and aligns with the stated goal of declarative routing. Per-route timeout (and optionally retries/backoff) is a practical operational need given heterogeneous backends. The trade-off is added schema complexity and more test surface, but the ROI is high because it prevents either overly long waits or premature failures across different backends.",
+        "gpt_score": 780,
+        "opus_score": 830,
+        "delta": 50,
+        "average_score": 805,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Clear correctness/UX gap: silently ignoring a user-provided config because yq is missing is a classic footgun. This is easy to specify and implement (warn or fail-closed when config exists but cannot be parsed) and prevents hard-to-diagnose misconfiguration. Strongly proportionate to effort.",
+        "gpt_score": 860,
+        "opus_score": 720,
+        "delta": 140,
+        "average_score": 790,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-008",
+        "description": "Critical: the SDD contains corrupted placeholders that render code examples non-executable and ambiguous. This blocks implementation and review because readers cannot distinguish intended operators/logic. Fixing this is mandatory and low effort relative to impact (repair template/rendering pipeline or replace blocks with verified snippets).",
+        "gpt_score": 980,
+        "opus_score": 620,
+        "delta": 360,
+        "average_score": 800,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-002",
+        "concern": "Custom route parsing depends on `yq` availability; if `yq` is missing, custom routes are silently ignored (defaults used), which can violate operator intent and security posture",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "A user may configure routes expecting (for example) to disable `curl` fallback or enforce `codex` hard-fail, but on hosts without `yq` the system will revert to defaults without a hard error. This can cause unexpected network calls, different auth boundaries, or inconsistent CI vs local behavior.",
+        "location": "Section 3.1.11 init_route_table() (custom detection requires yq); Section 3.1.2 parse_route_table() (yq eval usage); Section 9 risk table (yq v4 not available)",
+        "recommendation": "If config file exists and contains `gpt_review.routes` (detected via grep as a cheap check), require `yq` and fail with a clear error unless an explicit `LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1` override is set.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Document contains templating artifacts (e.g., '{{DOCUMENT_CONTENT}}') embedded inside bash conditionals, which would break scripts if they leak into the actual implementation",
+        "severity": "CRITICAL",
+        "severity_score": 950,
+        "why_matters": "Several shown conditionals are syntactically invalid bash (e.g., `if [[ \"$fail_mode\" != \"fallthrough\" {{DOCUMENT_CONTENT}} ... ]]`). If this reflects the real patch or copy/paste into code, routing/validation will fail at runtime, potentially breaking all reviews.",
+        "location": "Section 3.1.3 validate_route_table(); Section 3.1.5 _backend_codex(); Section 3.1.6 execute_route_table(); Section 3.1.7 validate_review_result(); Section 3.1.10 _rt_apply_execution_mode(); Section 3.1.11 init_route_table(); Section 3.2 route_review(); Section 3.4 estimate_token_count(); Section 3.5 detect_capabilities()",
+        "recommendation": "Add a CI gate that runs `shellcheck` + `bash -n` on all scripts and fails on any templating tokens. Ensure the SDD examples are regenerated from real code snippets or sanitized to valid bash.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd.md",
+    "domain": "this sdd refactors the gpt",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T09:10:45Z",
+    "metrics": {
+      "total_latency_ms": 214000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-02-23T09:22:47Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 2,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 80,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real gap for a high-risk core routing refactor: without a rollback/kill-switch, subtle production regressions become hard to mitigate quickly. Actionable (feature flag/env var to select legacy router, deployment steps, criteria for rollback) and low-to-moderate effort with high risk-reduction ROI.",
+        "gpt_score": 880,
+        "opus_score": 880,
+        "delta": 0,
+        "average_score": 880,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Concrete, domain-appropriate deployment gap: yq v3/v4 incompatibility is a common real-world failure mode and the doc currently only covers 'missing yq'. Highly actionable (min version, detection, error message/fallback) with strong ROI and low complexity.",
+        "gpt_score": 820,
+        "opus_score": 720,
+        "delta": 100,
+        "average_score": 770,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Critical documentation/implementation gap: parser behavior is ambiguous without an explicit schema and canonical example. This directly impacts correctness, user adoption, and testability. Very actionable and low cost to add, with high downstream benefit.",
+        "gpt_score": 900,
+        "opus_score": 760,
+        "delta": 140,
+        "average_score": 830,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-006",
+        "description": "Real semantic gap: adding verdict states without defining their effect on pipeline outcome invites inconsistent behavior and bugs. Actionable (truth table for verdict -> exit code / continue/stop behavior; CI policy) and high impact with low effort.",
+        "gpt_score": 860,
+        "opus_score": 870,
+        "delta": 10,
+        "average_score": 865,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "High leverage clarification: configuration/env-var precedence bugs are common and expensive to debug. A precedence matrix is straightforward to add and improves implementability and test coverage; moderate complexity only insofar as it forces decisions.",
+        "gpt_score": 760,
+        "opus_score": 830,
+        "delta": 70,
+        "average_score": 795,
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-002",
+        "description": "Potentially valid but likely over-scoped: typical Bash execution in CI is process-isolated, and true concurrent mutation of the same sourced globals is uncommon unless explicitly backgrounded. Worth clarifying single-invocation assumptions and avoiding global state where easy, but full locking/thread-safety is probably disproportionate.",
+        "gpt_score": 420,
+        "opus_score": 820,
+        "delta": 400,
+        "average_score": 620,
+        "would_integrate": false,
+        "agreement": "DISPUTED"
+      },
+      {
+        "id": "IMP-010",
+        "description": "Security-relevant and domain-appropriate: user-controlled YAML feeding shell logic is a classic injection surface, and negative tests are a low-cost way to enforce 'no eval' and safe handling. Actionable with clear acceptance criteria (adversarial fixtures, expected rejection/sanitization).",
+        "gpt_score": 840,
+        "opus_score": 450,
+        "delta": 390,
+        "average_score": 645,
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-003",
+        "concern": "Condition parsing is underspecified (comma-separated AND) and likely to break on whitespace, empty tokens, or future extensions",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "YAML authors will naturally include spaces after commas (\"a, b\"), or accidentally include trailing commas. If parsing doesn’t trim whitespace and ignore empty tokens, conditions may not match registry keys and will evaluate false, unexpectedly skipping routes. Unknown conditions evaluating false can hide typos and cause silent misrouting.",
+        "location": "Sprint 1 Task 1.3 (_evaluate_conditions(): comma-separated condition names; unknown conditions evaluate as false)",
+        "recommendation": "Define a strict grammar: trim whitespace, reject empty tokens, and optionally treat unknown conditions as a validation error for custom routes (fail-closed) while keeping defaults tolerant. Add tests for whitespace, trailing commas, and typos.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Parallel arrays in bash are fragile and can desynchronize, leading to incorrect routing decisions",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "A single off-by-one, failed append, or conditional skip can misalign backend/conditions/fail_mode/timeout/retries across routes. That can route to the wrong backend, apply the wrong timeout/retry policy, or treat a fallthrough as hard_fail. These bugs are hard to detect and may only appear under certain configs.",
+        "location": "Sprint 1 Task 1.1 (parallel arrays), Task 1.2 (populate arrays), Task 1.3 (iterate arrays)",
+        "recommendation": "Use an array-of-records approach (e.g., serialize each route as a single delimited string or JSON and parse per-iteration) or enforce a single append function that appends to all arrays atomically with invariant checks. Add validation that all _RT_* arrays have identical length before execution.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-010",
+        "concern": "Security posture is under-specified for YAML-configured routing and backend invocation (injection, secrets leakage, untrusted config)",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Even without eval, YAML values can influence command arguments (timeouts, retries, backend selection) and logging. If config is user-controlled (e.g., PR modifies config), it can alter CI behavior, exfiltrate data via curl backend, or cause denial-of-service via extreme retries/timeouts. The CI opt-in helps, but only for custom routes; defaults still may call networked backends depending on environment.",
+        "location": "Sprint 1 Tasks 1.2, 1.3, 1.5 (parsing, execution, CI opt-in), Sprint 3 Task 3.4 (CI policy constraints)",
+        "recommendation": "Threat-model config as untrusted in CI: restrict network backends by default in CI, clamp timeout/retry ranges, and ensure logs never print secrets. Enforce that config changes in PRs cannot enable custom routes unless explicitly allowed. Add validation bounds (e.g., timeout 1-300s, retries 0-3).",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Timeout and retry semantics are not fully defined and can cause runaway execution or inconsistent behavior across backends",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Retries combined with timeouts can multiply total runtime (routes * retries * timeout). Without a global cap, a misconfigured table can hang CI or developer workflows. Also unclear: do retries apply to backend exit codes only, invalid JSON only, timeouts only, or all failures? Different backends may have different failure modes (network vs model errors).",
+        "location": "Sprint 1 Task 1.3 (per-route timeout/retry), Task 1.2 (parse timeout/retries)",
+        "recommendation": "Specify retry policy precisely (which failures are retryable), add a global max wall-clock or max attempts cap, and log cumulative attempt count. Add tests for retry behavior on invalid JSON vs non-zero exit vs timeout.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "YAML parsing dependency (yq v4) is a single point of failure with an escape hatch that can silently change behavior in CI",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "If yq is missing or behaves differently across environments, routing may fail closed (blocking reviews) or—worse—fall back to defaults via LOA_ALLOW_DEFAULTS_WITHOUT_YQ, causing custom routing to be ignored. This can create non-reproducible behavior between developer machines and CI, and can mask misconfiguration until production usage.",
+        "location": "Sprint 1 Task 1.2 (yq-missing detection + LOA_ALLOW_DEFAULTS_WITHOUT_YQ override), Risk Register: yq v4 not available",
+        "recommendation": "Pin and verify yq version (explicit v4 check), add a CI job that asserts yq presence/version, and make LOA_ALLOW_DEFAULTS_WITHOUT_YQ illegal in CI (or require an explicit audit log + hard warning). Add a test that simulates yq missing with routes present and asserts the exact failure/override behavior.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sprint",
+    "document": "grimoires/loa/sprint.md",
+    "domain": " sprint overview sprint 1",
+    "execution": {
+      "mode": "hitl",
+      "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+      "run_id": null
+    },
+    "timestamp": "2026-02-23T09:22:47Z",
+    "metrics": {
+      "total_latency_ms": 213000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

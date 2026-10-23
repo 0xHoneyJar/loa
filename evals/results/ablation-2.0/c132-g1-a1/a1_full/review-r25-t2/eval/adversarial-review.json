@@ -1,0 +1,158 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/harness/run-ablation.sh:suite_kind_cap",
+      "anchor_type": "function",
+      "anchor_line": 502,
+      "anchor_line_end": 506,
+      "scope": "diff",
+      "description": "Malformed per-kind caps can silently fall back instead of producing the documented usage error. The expression `.[$k] // \"\"` maps an explicit false or null to an empty string, and an explicit empty string also passes validation.",
+      "failure_mode": "For example, `run_usd_by_type: {build: false}` launches build trials using RUN_CAP rather than refusing the configuration. This hides a broken spend-control setting and records the fallback as the effective cap.",
+      "suggested_fix": "Use `has($k)` to distinguish absent entries from present values, and require every present entry to pass USD validation, including rejecting null, false, and empty strings.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "other",
+      "anchor": "evals/harness/run-ablation.sh:codex token pre-flight (CODEX_PF python, required horizon)",
+      "anchor_type": "line",
+      "anchor_line": 806,
+      "anchor_line_end": 833,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The pre-flight refuses any non-smoke batch whose codex access token exp is not later than now + 2 x (sum of every planned trial's watchdog_s) / concurrency. watchdog_s is already 2 x the phase sum, so the horizon is ~4 x the serial phase time / concurrency and grows linearly with the plan. Using the diff's own numbers (a1_full build watchdog 16800 s, review-catch 7200 s, 12 build + 4 review tasks, 3 trials, concurrency 3): the minimum pre-registered batch (A0, A1, A4) needs a token valid for ~15 days, and a full 8-arm batch needs ~40 days. OAuth access tokens do not live that long (ChatGPT/codex access tokens expire on the order of days), so the pre-flight will refuse the batches this runner exists to launch, and the refusal text tells the operator to `run codex login`, which cannot help because a fresh token still falls short of the horizon. There is no override flag, and the check also fires under --executor host where make_home is not used and the CLI can refresh its own token.",
+      "failure_mode": "Every production-size (non-smoke) batch exits 2 with REFUSED.txt `codex access token expires …, before the batch's required horizon …` regardless of how recently the operator logged in; --dry-run plan inspection is refused the same way. The cycle-130 ablation cannot be started through this runner.",
+      "suggested_fix": "Replace the whole-batch horizon with a per-launch freshness check: before each trial launch, require exp > now + that trial's watchdog_s (plus grace) and pause/refuse only then, or warn and let the runner's existing degraded-row accounting handle expiry. At minimum: skip the check when EXECUTOR=host, add a --skip-codex-preflight (or --codex-horizon-s) override, and make the message say the batch is longer than any token lifetime rather than prescribing codex login.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "line",
+      "anchor_line": 1099,
+      "anchor_line_end": 1102,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "remove_colliding unlinks every candidate with a bare os.unlink(p) and then opens the sidecar .colliding-removed.txt with no exception handling. The grading tree is a copy of the agent's sandbox snapshot; if the agent left a directory without write permission (e.g. a generated read-only package dir, or a copied vendor tree), os.unlink raises PermissionError and the exception propagates out of prepare(), aborting the whole grade for that run instead of grading with the file left in place. remove_harness goes through remove_path; this new path does not reuse that helper.",
+      "failure_mode": "A single unwritable directory in the snapshot turns a gradeable run into a grader crash (no grade.json), which the batch runner then charges as an assumed-cap failure.",
+      "suggested_fix": "Reuse remove_path (or wrap os.unlink in try/except OSError, chmod the parent u+w and retry, and record the failure in grade.json rather than raising). Treat a failed removal as a non-fatal note so the test command still runs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": "evals/harness/ablation-grade.sh:remove_colliding",
+      "anchor_type": "line",
+      "anchor_line": 1090,
+      "anchor_line_end": 1098,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The removal walks the entire grading tree (os.walk(tree)) rather than the directories pytest will collect from, and the reserved set contains generic basenames from the fixture's tests/ dir (helpers.py, utils.py, conftest-adjacent support modules, data samples). If the sandbox snapshot contains a virtualenv, node_modules, or a vendored checkout, every site-packages module with one of those basenames is deleted and counted in colliding_tests_removed, inflating the telemetry, slowing the grade, and mutating parts of the tree that pytest never imports. pytest's import-file-mismatch only concerns modules it collects or that shadow each other on sys.path; nothing under .venv/ or .git/ is relevant.",
+      "failure_mode": "Bloated colliding_tests_removed counts and long grades on snapshots that include a venv or vendored tree; in refactor tasks a structural check over the final tree may see files the grader itself removed.",
+      "suggested_fix": "Prune the walk: skip .git, .venv/venv, node_modules, __pycache__, and site-packages directories, and ideally restrict candidates to the paths the task's test_command targets (or to directories containing collected test modules). Keep the sidecar file listing what was removed so the broader rule stays auditable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-1",
+    "timestamp": "2026-10-21T17:25:08Z",
+    "tokens_input": 111203,
+    "tokens_output": 22148,
+    "cost_usd": 0,
+    "latency_ms": 36920,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "budget_scale": "diff",
+    "budget_cents_effective": 234,
+    "budget_cents_max": 1200,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-1/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "03d612cd00d8922ecd2c39a14760938723d505ac4f0ad70e7b5420c886156ffd",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

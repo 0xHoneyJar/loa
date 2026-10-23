@@ -1,0 +1,187 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 5,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 9,
+    "model_agreement_percent": 100,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Critical gap and highly actionable. The PRD appears to introduce multiple overlapping resolution inputs without a deterministic precedence algorithm. This is core runtime behavior; ambiguity here risks inconsistent model selection, hard-to-debug incidents, and divergent implementations.",
+      "gpt_score": 930,
+      "opus_score": 820,
+      "tertiary_score": 900,
+      "delta": 110,
+      "average_score": 875,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "High-impact edge-case coverage that should be explicit. Missing tier/provider mappings are realistic operational states, especially during phased rollout. Defining fallback and failure behavior prevents silent misrouting and production instability.",
+      "gpt_score": 890,
+      "opus_score": 780,
+      "tertiary_score": 880,
+      "delta": 110,
+      "average_score": 835,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valuable risk-control improvement. Dist regeneration breakage for downstream submodule consumers is a real compatibility hazard. The proposed rollback/versioning/staged-gate additions are practical but add release-process overhead.",
+      "gpt_score": 760,
+      "opus_score": 810,
+      "tertiary_score": 890,
+      "delta": 50,
+      "average_score": 785,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Near-critical implementation blocker. Validation is required by the PRD, but without an exact schema artifact teams cannot implement loader behavior, error reporting, or tests consistently. This is a concrete, high-ROI clarification.",
+      "gpt_score": 910,
+      "opus_score": 720,
+      "tertiary_score": 860,
+      "delta": 190,
+      "average_score": 815,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Strong and actionable. A CLI command is referenced in success criteria, so its contract (checks, output, exit codes) must be specified to make CI and operator workflows reliable. Moderate effort, clear payoff.",
+      "gpt_score": 720,
+      "opus_score": 750,
+      "tertiary_score": 750,
+      "delta": 30,
+      "average_score": 735,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "Bash YAML Parsing Fragility for Operator Configs",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "Framework defaults are compiled to bash (`generated-model-maps.sh`), but operator configs are evaluated at runtime. If bash adapters (FR-1.2) need to resolve operator-added models from `.loa.config.yaml`, they must parse YAML at runtime. Bash parsing YAML is notoriously fragile and error-prone.",
+      "location": "FR-1.2, FR-2.5",
+      "recommendation": "Introduce a lightweight Python or Node script to dump the merged runtime config (framework + operator) into a temporary bash-sourceable file at startup, rather than parsing YAML in bash.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Bridgebuilder Runtime vs Build-time Config Gap",
+      "severity": "CRITICAL",
+      "severity_score": 950,
+      "why_matters": "Bridgebuilder relies on build-time codegen for defaults (FR-1.1), but operator overrides happen at runtime via `.loa.config.yaml` (FR-2.1). If the compiled TypeScript doesn't actively read the runtime config, operator extensions will be completely ignored by Bridgebuilder, defeating the primary goal.",
+      "location": "FR-1.1, FR-2.1, Technical Considerations",
+      "recommendation": "Ensure Bridgebuilder's generated TS acts only as a fallback. The runtime execution must prioritize reading `.loa.config.yaml` and merging it with the compiled defaults before model resolution.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Core design decisions are still deferred to /architect (permissions strategy, config field placement, override semantics), creating specification gaps before implementation starts.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Teams can build incompatible interpretations in Sprint 1-2, causing rework across loader, schema, CI gates, and docs. This is a classic brownfield failure mode: implementation starts before contracts are finalized.",
+      "location": "FR-1.4, FR-2.1, FR-2.3, Technical Considerations: model-permissions strategy",
+      "recommendation": "Resolve all deferred decisions into explicit, versioned contracts before Sprint 1 coding begins; treat unresolved ADRs as release blockers.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Deterministic code generation across Bash/Python/Bun is assumed, but reproducibility constraints are not fully specified.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Cross-platform ordering, newline differences, YAML parser behavior, and build tooling versions can create CI drift false positives and persistent merge friction.",
+      "location": "FR-1.1, FR-5.1, FR-5.4, Risks R-4",
+      "recommendation": "Pin toolchain versions, enforce canonical serialization, and validate deterministic outputs in matrix CI (Linux/macOS) before making drift checks mandatory.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Operator-extensible model definitions can introduce SSRF or unsafe endpoint routing if endpoint/provider fields are not strictly allowlisted and normalized.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "Even with schema validation, accepting arbitrary endpoint-like fields can route traffic to attacker-controlled hosts, leak metadata, or bypass intended provider boundaries.",
+      "location": "NFR-Sec-1, FR-2.1, FR-2.6",
+      "recommendation": "Enforce provider-specific endpoint allowlists, disallow arbitrary host overrides in v1, normalize/validate api_id formats, and add security tests for SSRF and command-injection vectors.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Privilege Escalation via Operator Permissions",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "If Option B is chosen (merging permissions into the SoT), and operators can add models via `model_aliases_extra`, they might be able to assign arbitrary high-level permissions to their custom models, bypassing intended security gates.",
+      "location": "FR-1.4, FR-2.1",
+      "recommendation": "Decouple permissions from operator-extensible fields, or strictly validate that `model_aliases_extra` cannot declare permissions higher than a safe baseline without explicit System Zone approval.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Resolution precedence is under-specified across legacy shapes, new skill_models, aliases, backward_compat_aliases, tier_groups, and prefer_pro_models.",
+      "severity": "HIGH",
+      "severity_score": 780,
+      "why_matters": "Without a strict precedence matrix, identical configs may resolve to different models across skills/runtimes, producing non-deterministic behavior, hard-to-debug regressions, and cost surprises.",
+      "location": "FR-3.4, FR-3.6, FR-3.7, Technical Considerations: backward-compat for legacy shapes",
+      "recommendation": "Define a single deterministic resolution algorithm with ordered precedence, tie-breakers, and conflict errors; add golden tests per skill and per runtime.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "SSRF Vulnerability in Custom Endpoints",
+      "severity": "HIGH",
+      "severity_score": 750,
+      "why_matters": "Allowing operators to define custom endpoints via `model_aliases_extra` (NFR-Sec-1) without strict SSRF protections allows attackers or compromised operator configs to point the agent to internal network resources (e.g., AWS metadata service, local databases).",
+      "location": "NFR-Sec-1, FR-2.1",
+      "recommendation": "Implement strict URL validation for the `endpoint` field, explicitly blocking localhost, 169.254.169.254, and private IP ranges unless a specific `allow_local_endpoints` flag is set.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Tier mapping fallback behavior is undefined when a tier/role/provider mapping is missing or stale.",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "A missing mapping can silently downgrade to wrong models, fail at runtime, or break multi-model workflows (Flatline/Bridgebuilder) in production.",
+      "location": "FR-3.2, FR-3.5, UX example 'else falls back'",
+      "recommendation": "Specify fail-closed fallback rules explicitly (per role/provider), require startup validation of complete tier coverage, and block launch on unresolved bindings.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " product requirements document model",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-04T12:33:16Z",
+  "metrics": {
+    "total_latency_ms": 207000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

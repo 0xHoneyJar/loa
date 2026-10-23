@@ -1,0 +1,21 @@
+batch_context=c132-g2-a1
+base_commit=35be2a8efa9a784e937f88b2b342eca8e3a5d3a9
+mount=tree
+copy_source=fbd36a0c9880b244af08133013f3b6959b085c94
+mount_overlay=head:0
+overlay_excluded=23:.claude/commands/contribute.md,.claude/commands/decisions.md,.claude/commands/loa-eject.md,.claude/commands/loa-setup.md,.claude/commands/permission-audit.md,.claude/commands/run-halt.md,.claude/commands/toggle-gpt-review.md,.claude/data/user-invoked-commands.txt,.claude/hooks/session-start/loa-decisions-surface.sh,.claude/protocols/karpathy-principles.md,.claude/scripts/grimoire-index.sh,.claude/scripts/lib/dec-write-lib.sh,.claude/scripts/validate-artifact.sh,.claude/scripts/validate-gitignore-state.sh,.claude/settings.json,.claude/skills/autonomous-agent/SKILL.md,.claude/skills/designing-architecture/SKILL.md,.claude/skills/designing-architecture/resources/templates/sdd-template.md,.claude/skills/discovering-requirements/SKILL.md,.claude/skills/discovering-requirements/resources/REFERENCE.md,…
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-16
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-fbd36a0c9880
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=d8141c10230c7ac6b99378630cece7b3fcaaed1049e556ede4f6c7fd7f8da50d
+mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 23 .claude path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

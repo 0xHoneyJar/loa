@@ -1,0 +1,6 @@
+# NOTES
+
+## Session Continuity
+
+- 2026-10-22 review-r21: `/review-sprint sprint-1` on `pr/head.diff` (sprint-257). Verdict CHANGES_REQUIRED (1 HIGH: Bridgebuilder `isLocalVoice` ignores `fallback_chain` under `local_voices`; see `grimoires/loa/a2a/sprint-1/engineer-feedback.md`). Dissent envelope: `grimoires/loa/a2a/sprint-1/adversarial-review.json` (2 voices, 0 rejected). Tests were run on a hybrid tree (workspace framework + `pr/head/` overlay) copied under `$HOME` because `/tmp` is mounted noexec.
+- 2026-10-22 review-r21: `/audit-sprint sprint-1` on `pr/head.diff`. Verdict CHANGES_REQUIRED (critical 0 / high 1 / medium 2 / low 8; `grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md`). HIGH = Bridgebuilder `isLocalVoice` ignores `fallback_chain` (confirmed via `chain_resolver.py:92`). MEDIUMs = `TransportPolicy` built only in the OpenAI adapter; trusted config (D-7.5) does not cover `endpoint`/`auth` that cheval reads from the head checkout. Dissent envelope `adversarial-audit.json` (2 independent voices, 7 companion findings, 0 rejected, not degraded). Ran despite `engineer-feedback.md` lacking "All good" per the task brief. Working file + findings.jsonl under `grimoires/loa/a2a/audits/2026-10-22/`.

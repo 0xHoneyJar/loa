@@ -1,0 +1,11 @@
+head/.claude/defaults/model-config.yaml:476
+head/.claude/defaults/model-config.yaml:491
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:277
+head/evals/graders/recall-vs-defects.sh:72
+head/.claude/scripts/a.sh:12
+a.sh:12
+a.sh:400
+head/.claude/scripts/flatline-learning-extractor.sh:317
+flatline-proposal-review.sh:76
+flatline-validate-learning.sh:81
+head/tools/check-prompt-budget.sh:53

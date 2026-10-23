@@ -1,0 +1,21 @@
+batch_context=c132-g2-b
+base_commit=d19d844b8082d04bb58044d573949694a78b4738
+mount=tree
+copy_source=fbd36a0c9880b244af08133013f3b6959b085c94
+mount_overlay=head:0
+overlay_excluded=13:.claude/data/floor.yaml,.claude/data/guard-origins.yaml,.claude/hooks/safety/block-destructive-bash.sh,.claude/loa/GLOSSARY.md,.claude/loa/reference/hooks-reference.md,.claude/rules/skill-invariants.md,.claude/rules/stash-safety.md,.claude/scripts/guard-yield.sh,.claude/scripts/loa-status.sh,.claude/scripts/validate-artifact.sh,.claude/skills/implementing-tasks/SKILL.md,.claude/skills/planning-sprints/resources/templates/sprint-template.md,.claude/skills/reviewing-code/SKILL.md
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-19
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-fbd36a0c9880
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=1973 (inline)
+manifest_sha256=a4a2c6fa91ed43ec5b9ef2aa2497d0591e741b07a3533d8d064d8dcfc6676d42
+mount_closed=pre-launch head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 13 .claude path(s) left pinned
+claude_md_sha256=09b60211adc497e57cd7e1c309d88bda2479e9a5bd9938bccf18a21d7a65f31f
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

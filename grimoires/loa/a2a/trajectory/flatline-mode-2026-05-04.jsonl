@@ -1,0 +1,380 @@
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:39Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:39Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:39Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:40Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:40Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:13:40Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:24Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-03T14:17:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T12:17:05Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T12:22:33Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T12:29:49Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T12:44:51Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T12:54:06Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T13:22:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T13:39:39Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-05-04T13:59:38Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}

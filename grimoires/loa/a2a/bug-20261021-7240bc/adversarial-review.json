@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/seed-corpus-from-record.sh:sync_labels",
+      "anchor_type": "function",
+      "anchor_line": 389,
+      "scope": "diff",
+      "description": "The labels are overwritten before build_manifest runs, but restoration only happens if that call returns successfully and the serialized manifest differs. Any validation failure or exception during rebuilding bypasses the rollback, violating the documented guarantee that rejected syncs leave labels unchanged.",
+      "failure_mode": "For example, a missing fixture.yaml causes rebuilding to raise after sync has already written the approval header and added rows. The command fails while leaving those changes on disk.",
+      "suggested_fix": "Validate the proposed labels without replacing the original, or wrap writing and rebuilding in exception-safe rollback that also handles SystemExit from validation failures.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/harness/seed-corpus-from-record.sh:sync_labels",
+      "anchor_type": "line",
+      "anchor_line": 387,
+      "anchor_line_end": 392,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The byte-for-byte rebuild verification (`rebuilt != mraw`) only runs inside `if new != raw:`. When every manifest anchor already has a labels row and the approved-by header already matches, sync_labels never calls build_manifest and exits 0 with 'added 0 row(s)' even though the labels may not reproduce the manifest. Realistic no-op divergences: a curator edited a non-anchor field (severity, category, must_match, source) in the manifest; a one-element `anchors` list that build_manifest would omit; an `anchors` list that omits `anchor_line` while the labels still carry that row; a head file that changed since the manifest was built; an editor-added trailing newline. The header comment in this same diff promises the command 'refuses ... when the synced labels would not rebuild the manifest byte for byte', and SC-12 relies on 'added 0 row(s)' as evidence the tracked labels are in sync.",
+      "failure_mode": "Operator runs --sync-labels, sees exit 0, runs --freeze and commits. The labels and curated manifest silently disagree. The next --build-manifest pr-NN (the documented post-curation step) overwrites the curated manifest with a different one, losing the curation that bd-y4pqj was meant to preserve.",
+      "suggested_fix": "Run the rebuild comparison unconditionally. When `new == raw`, call `json.dumps(build_manifest(fx, write=False), indent=2)` against the untouched file and fail with the same message if it differs from `mraw`; only the write/restore branch needs to be conditional on `new != raw`.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/harness/seed-corpus-from-record.sh:sync_labels",
+      "anchor_type": "line",
+      "anchor_line": 389,
+      "anchor_line_end": 392,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new labels content is written to disk before `build_manifest(fx, write=False)` is called, and the original content is restored only when the rebuilt JSON differs. If build_manifest itself calls fail() (via read_labels rejecting a freshly generated must_match, an invalid or generated-path fix row that sync_labels skips without validating, or a missing/malformed fixture.yaml which sync_labels never reads), the process exits with the labels file left in its modified state, contradicting the documented 'refuses (restoring the labels)'.",
+      "failure_mode": "A fixture whose fix row or fixture.yaml is currently invalid gets its labels rewritten (new rows appended, approved-by header replaced) and the command exits non-zero with build_manifest's error, leaving a half-synced file that the operator must revert by hand.",
+      "suggested_fix": "Wrap the write+rebuild in try/except BaseException (or try/finally with a success flag) that restores `raw` before re-raising, or verify against a temporary copy / in-memory labels and only rename into place after the rebuild check passes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/harness/seed-corpus-from-record.sh:resolve_anchor",
+      "anchor_type": "line",
+      "anchor_line": 245,
+      "anchor_line_end": 248,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`resolve_anchor` treats any must_match that starts with `@L` as the line-number grammar and refuses it when the full regex does not match. A head line whose text legitimately begins with `@L` (Java/Kotlin/Spring annotations such as `@Lazy`, `@Log4j2`, `@LoadBalanced`, `@Lob`, `@LastModifiedDate`) can therefore no longer be anchored by text; a curator writing that text gets the misleading error 'is not @L<n> with n a positive integer'. Any pre-existing labels row with such text would also start failing (SC-9 shows the eight tracked fixtures have none today). sync_labels guards its own generated rows with `not t.startswith(\"@L\")`, so it degrades those lines to the less rename-stable `@L<n>` form.",
+      "failure_mode": "Curation of fixtures containing annotation-heavy code produces confusing build-manifest refusals, and the only workaround is the renumber-fragile `@L<n>` form for lines whose text is actually unique.",
+      "suggested_fix": "Only take the `@L<n>` branch when `AT_LINE_RX.fullmatch(must_match)` succeeds; otherwise fall through to the text lookup. `@L0`, `@Lx`, `@L4x` still get refused (as 'is not on exactly one line') so SC-10's assertions remain valid. Keep the sync-side `startswith(\"@L\")` guard so generated rows stay unambiguous.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-268",
+    "timestamp": "2026-10-21T01:40:17Z",
+    "tokens_input": 63547,
+    "tokens_output": 27757,
+    "cost_usd": 0,
+    "latency_ms": 38277,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-bug-268/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-bug-268/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5174daceb3eea0d0065f549aeb80559214746fd6796fc88c1c7f0e6f76edb1c8",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

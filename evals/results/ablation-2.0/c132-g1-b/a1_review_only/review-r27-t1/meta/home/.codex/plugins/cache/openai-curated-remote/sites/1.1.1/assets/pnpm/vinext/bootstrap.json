@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "pnpm_version": "11.25.0",
+  "sha256": {
+    "package.json": "eb7b53ec5bdce1db5a8576b2ffc3b63ddd8c5fdee0f97dcb341674abbf69843a",
+    "package-lock.json": "eedaeab6870c0f70f9db869fcaa24abae9b0f945cbc9acb8a43b6e7ed6bcbfca",
+    ".npmrc": "a3909ac0447c469fda12c57374993be70f47ce73e49fd3124678c7c047f2214d",
+    "pnpm-lock.yaml": "095ba6f301ba3997da2c251dfc4b805c220624bdf0921d905eaceee0d1fb29c9",
+    "pnpm-workspace.yaml": "0d97e98adfc0ff79222d15602031ed6581e44becf49474a8e138f79a392e7df4"
+  }
+}

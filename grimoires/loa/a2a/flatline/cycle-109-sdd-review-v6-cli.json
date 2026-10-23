@@ -1,0 +1,199 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 6,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 9,
+    "model_agreement_percent": 100,
+    "models": 2,
+    "tertiary_items": 0,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Clear documentation defect with safety and automation impact. Cost is very low because it is a table update, and the referenced flows already define the semantics. This should be fixed before consumers rely on exit-code monitoring.",
+      "gpt_score": 930,
+      "opus_score": 880,
+      "tertiary_score": null,
+      "delta": 50,
+      "average_score": 905,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "High-impact compatibility bug. Mixed v1.2/v1.3 logs are likely, and the described denominator behavior would produce materially false health signals. The implementation cost is modest and the operational trust impact is large.",
+      "gpt_score": 940,
+      "opus_score": 870,
+      "tertiary_score": null,
+      "delta": 70,
+      "average_score": 905,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-003",
+      "description": "A contradictory conformance fixture can actively mislead implementation and test authors. The fix is mostly specification clarification, but it protects a core regression case, so the ROI is high.",
+      "gpt_score": 890,
+      "opus_score": 855,
+      "tertiary_score": null,
+      "delta": 35,
+      "average_score": 872.5,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "The prose invariant and validation sketch are inconsistent, and the missing check can corrupt verdict telemetry. The fix is small and directly enforces an already-declared invariant.",
+      "gpt_score": 835,
+      "opus_score": 765,
+      "tertiary_score": null,
+      "delta": 70,
+      "average_score": 800,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Second-stage model and role selection affects reproducibility, cost accounting, and conformance behavior. It requires a design decision rather than just a typo fix, but leaving it ambiguous invites divergent implementations.",
+      "gpt_score": 770,
+      "opus_score": 820,
+      "tertiary_score": null,
+      "delta": 50,
+      "average_score": 795,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Adding an explicit task gives ownership to an enforcement artifact that otherwise risks being skipped. This is valuable process hardening, though less directly runtime-critical than the validation and compatibility issues.",
+      "gpt_score": 735,
+      "opus_score": 715,
+      "tertiary_score": null,
+      "delta": 20,
+      "average_score": 725,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-006",
+      "concern": "Exit-code semantics are inconsistent: exit 8 is used for both `InteractionPending` and manual `recommended_for:[]` kill-switch behavior, while `NoEligibleAdapter` is also listed as exit 11.",
+      "severity": "HIGH",
+      "severity_score": 705,
+      "why_matters": "Consumers and CI gates may misclassify an intentional adapter block as async pending, or vice versa, causing hangs, retries, or false approvals.",
+      "location": "Sections 3.1.4 and 6.1",
+      "recommendation": "Publish one canonical exit-code table, update all examples to match it, and add conformance tests asserting every error envelope uses the canonical code and class.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The `compute_verdict_status` reference implementation contains dead code: the check `if any(d[\"blocker_risk\"] == \"med\" for d in voices_dropped): return \"DEGRADED\"` in the APPROVED-blocking section (§4.4) is unreachable. The producer-side invariant enforces `len(voices_dropped) == voices_planned - voices_succeeded`. Any non-empty `voices_dropped` implies `voices_succeeded < voices_planned`, which means the `if 0 < succeeded < planned: return \"DEGRADED\"` branch fires first, before the `blocker_risk == \"med\"` check is reached. When the code reaches the `blocker_risk == \"med\"` check, `voices_succeeded == voices_planned` and `voices_dropped` is empty by invariant, making `any(...)` permanently False.",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "The §3.2.2 classification table documents that a `blocker_risk == \"med\"` dropped voice blocks APPROVED. The reference implementation silently contradicts this — a developer implementing against the code (not the table) will never trigger the downgrade. If the table is the spec and the code is wrong, future refactors will perpetuate the wrong behavior. If the code is correct, the table is wrong and the contract is misrepresented to consumers.",
+      "location": "§4.4 (compute_verdict_status, APPROVED-blocking section) + §3.2.2 (APPROVED classification contract, APPROVED-blocking conditions)",
+      "recommendation": "Move the `blocker_risk == \"med\"` check into the DEGRADED conditions block, before the `if 0 < succeeded < planned` return, so it evaluates when voices_dropped is non-empty. Add a conformance fixture that specifically tests: `voices_succeeded=2, voices_planned=3, voices_dropped=[{blocker_risk: \"med\"}]` and asserts DEGRADED — this fixture would currently pass vacuously if the branch is dead.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The `consensus_outcome: \"impossible\"` field is schema-declared, required, and load-bearing for the FAILED classification path (§3.2.2 row 3), but the algorithm that sets it is never specified. The schema says it is \"set to `impossible` by classifier when voice findings contradict on BLOCKER class\" — no component, triggering condition, comparison key, contradiction threshold, or data structure is defined anywhere in the SDD. `compute_verdict_status` reads the field and defaults it to `\"consensus\"` if absent, but nothing in the SDD describes who sets it to `\"impossible\"` or when.",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "The entire FAILED-via-consensus-contradiction path is permanently dead without this algorithm. If the field is never set to `\"impossible\"`, the most dangerous failure mode — two voices with contradictory security assessments — silently produces DEGRADED or APPROVED rather than FAILED. This is a gap in a security-facing contract that the SDD claims to close.",
+      "location": "§3.2 (consensus_outcome field definition) + §3.2.2 (classification contract row 3) + §4.4 (compute_verdict_status — reads but never sets the field)",
+      "recommendation": "Add a contradiction-detection specification: define the component responsible (e.g., flatline-orchestrator after collecting all per-voice finding lists), the comparison key (e.g., `(file, line, finding_class)` where one voice emits CRITICAL/HIGH and another emits finding-absent or lower severity), the BLOCKER threshold (severity class triggering contradiction), and the envelope mutation site. Add conformance fixtures covering BLOCKER disagreement vs. LOW-severity disagreement.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "The blocker-risk scoring contract contradicts its own fixture expectations and does not define enough numeric inputs to reproduce results.",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "The same dropped voice can classify as DEGRADED or FAILED depending on unstated scoring choices. This is load-bearing for autonomous approval gates.",
+      "location": "Section 3.2.2 Blocker-risk computation and conformance fixtures",
+      "recommendation": "Define explicit score values for each role, sprint-kind, and KF-prior case; specify fail-closed behavior when `--sprint-kind` or priors are missing; update the cycle-109 fixture so the computed score and expected status match.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "The invariant forbidding a voice from appearing in both successful and dropped sets is unenforceable because the schema does not record successful voice identities.",
+      "severity": "CRITICAL",
+      "severity_score": 825,
+      "why_matters": "A producer can emit only a success count plus dropped IDs, making it impossible to detect duplicate, missing, or substituted voices. Verdict quality can appear complete while the intended reviewer cohort was not actually represented.",
+      "location": "Sections 3.2.2 Producer-side cross-field invariants, 4.4 validate_invariants",
+      "recommendation": "Add a schema field such as `voices_successful:[...]` or pass signed cohort metadata into invariant validation and persist it in the envelope. Test duplicate, missing, substituted, and overlap cases.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "The model-config v3 compatibility rule conflicts with the requirement that all model entries carry the new capability fields.",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "If v3 accepts all v2 documents, the schema cannot enforce required capability metadata. If it rejects v2, the stated forward/backward compatibility claim is false. Either path can leave the pre-flight gate operating on missing or defaulted safety data.",
+      "location": "Sections 3.1.3, 3.6, 5.1.4",
+      "recommendation": "Separate a permissive reader schema for historical v2 input from a strict post-migration v3 schema used in CI. Make runtime defaulting explicit and fail CI if the checked-in config lacks v3 fields.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "The truncation-waiver path is not representable in the declared verdict-quality schema because the classifier depends on `_truncation_waiver_applied`, but the schema has `additionalProperties:false` and does not define that field.",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "A valid waiver either fails schema validation or forces implementers to bypass the single producer path, undermining the core safety contract around chunk truncation.",
+      "location": "Sections 3.2.1, 4.1.3, 4.4",
+      "recommendation": "Replace `_truncation_waiver_applied` with a schema-declared `truncation_waiver` object, or pass waiver context outside the envelope before emitting only schema-valid fields. Add conformance cases proving expired, missing, scope-mismatched, and valid waivers pass through `emit_envelope_with_status`.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "`blocker_risk: \"unknown\"` is explicitly permitted in the APPROVED status path (§3.2.2 APPROVED requires `every voices_dropped[].blocker_risk ∈ {unknown, low}`). The blocker_risk heuristic returns `unknown` when \"insufficient priors\" exist for a (voice, sprint-kind) combination. New models, new sprint-kinds, and models with no KF history always receive `unknown`. This means an APPROVED verdict is achievable when a dropped voice's risk is genuinely unknowable.",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "The `unknown` fallback is structurally indistinguishable from `low` in the APPROVED path — both permit APPROVED. Over time, as the cycle introduces new models and sprint-kinds, the `unknown` path becomes the dominant operational path rather than an edge-case bootstrap state. The safety guarantee 'APPROVED means all voices succeeded or dropped voices posed demonstrably low risk' is weakened to 'APPROVED means all voices succeeded or dropped voices posed low or indeterminate risk'.",
+      "location": "§3.2.2 (APPROVED classification contract) + §3.2 (blocker_risk field definition — 'Default `unknown` for cohorts lacking historical priors') + §3.2.2 (blocker_risk computation)",
+      "recommendation": "Treat `unknown` blocker_risk as a DEGRADED-forcing condition rather than APPROVED-compatible, consistent with a fail-safe posture. Only exempt `unknown` when `single_voice_call: true` (FR-2.9 / IMP-010), where the concept of voice-comparison doesn't apply. Add a migration path: once a (voice, sprint-kind) cohort accumulates N historical runs, `unknown` upgrades automatically to a computed tier.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "`recommended_for` role mismatch falls through to the next chain entry without necessarily degrading verdict quality.",
+      "severity": "HIGH",
+      "severity_score": 735,
+      "why_matters": "A primary or specialized reviewer can be skipped due to capability policy, replaced by a fallback, and still produce `APPROVED` if the chain succeeds. That hides loss of review quality.",
+      "location": "Sections 3.1.4, 1.5.1, 3.2.2",
+      "recommendation": "Represent role-ineligible skips in `verdict_quality`, either as `voices_dropped` with reason `NoEligibleAdapter` and blocker risk, or by forcing `chain_health:degraded` whenever the requested model-role pair is skipped.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "domain": " author architecture designer autonomous",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-13T10:42:06Z",
+  "metrics": {
+    "total_latency_ms": 357000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

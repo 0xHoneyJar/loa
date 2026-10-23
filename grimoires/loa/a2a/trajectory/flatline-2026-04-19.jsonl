@@ -1,0 +1,507 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-19T04:00:36Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 6,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real load-bearing gap. If pull-thread extraction is underspecified, behavior will diverge across implementations and the stated recall metric is not auditable. Concrete regex/parsing rules plus fallback behavior are low-cost and high impact.",
+        "gpt_score": 910,
+        "opus_score": 820,
+        "tertiary_score": 950,
+        "delta": 90,
+        "average_score": 865,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value operational concern. Without dedup/identity semantics, repeated failures can create bead spam and accidental deadlocks, undermining the gating model. Clear merge/linking policy is actionable and should be in the core contract.",
+        "gpt_score": 880,
+        "opus_score": 780,
+        "tertiary_score": 920,
+        "delta": 100,
+        "average_score": 830,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical security and safety gap for an agent loop. Propagating reviewer text into future prompts without explicit trust boundaries and sanitization is a known prompt-injection vector. Threat model, sanitization rules, and untrusted-input handling should be mandatory before rollout.",
+        "gpt_score": 930,
+        "opus_score": 810,
+        "tertiary_score": 980,
+        "delta": 120,
+        "average_score": 870,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Important product/operability issue. A global block on unresolved beads can create broad workflow friction and drive bypass behavior. Resolving scope semantics (or adding TTL/auto-defer) before shipping the hard gate is proportionate and prudent.",
+        "gpt_score": 820,
+        "opus_score": 830,
+        "tertiary_score": 900,
+        "delta": 10,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good architectural clarification. Classification feeds priority, reporting, and policy, so undefined inputs/precedence will cause inconsistent outcomes. Specifying function contract and fallback behavior is moderate effort with solid payoff.",
+        "gpt_score": 760,
+        "opus_score": 720,
+        "tertiary_score": 780,
+        "delta": 40,
+        "average_score": 740,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Strong measurement integrity concern. The document claims adoption/edit/discard metrics but lacks instrumentation mechanics, making success criteria non-verifiable. Adding explicit event and hash/diff capture is actionable and worthwhile.",
+        "gpt_score": 740,
+        "opus_score": 750,
+        "tertiary_score": 960,
+        "delta": 10,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "Auto-drafted SEED creates rubber-stamp dynamic that degrades operator attention",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "The document identifies this risk (Low/High in risk table) but mitigation is weak. When scaffolding 'looks plausible', operators default-accept. Over many cycles, this compounds into automation bias where the operator stops genuinely evaluating intent. The entire autopoietic premise depends on operator judgment remaining sharp, but the feature design actively removes cognitive engagement. 'Editor not author' is a subtle but significant epistemic downgrade.",
+        "location": "Section 1.4 + Risk table row 2",
+        "recommendation": "Require explicit diff confirmation (show what was auto-drafted vs what operator kept) and force operator to type a one-line 'why this cycle' statement that is NOT auto-drafted. Make attention mandatory, not optional.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Failure dependency gate is non-enforceable when beads CLI is unavailable, directly contradicting the 'hard dependency' objective.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "The design says unresolved failures must block next dispatch, but current logic logs a warning and allows progression if `br` is missing. This creates silent policy bypass and undermines the membrane-repair guarantee.",
+        "location": "Part 2.3 Dispatch-time gate; Beads integration dependency",
+        "recommendation": "Define strict modes: (a) hard-fail if enforcement is enabled but beads is unavailable, or (b) disallow enabling enforcement unless dependency health-check passes at startup.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Failure-bead creation is not transactionally guaranteed with circuit-break recording.",
+        "severity": "HIGH",
+        "severity_score": 735,
+        "why_matters": "If `_record_failure` succeeds but bead creation fails (CLI error/network/state issue), the system may halt without creating the artifact required for future gating, causing inconsistent state.",
+        "location": "Part 2.1 circuit-break to bead creation flow",
+        "recommendation": "Use an atomic failure journal with retry/backoff and idempotency keys; require confirmed bead ID persistence before considering escalation complete.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Global blocking of all unresolved failure beads across all future dispatches will create false blocks and workflow deadlocks.",
+        "severity": "HIGH",
+        "severity_score": 770,
+        "why_matters": "The gate queries all open `spiral:circuit-break` beads with no scope binding. Unrelated historical issues can block new work indefinitely, encouraging blanket overrides and reducing trust in the gate.",
+        "location": "OQ-5 Dispatch gate granularity; Part 2.3 unresolved query",
+        "recommendation": "Add explicit scope metadata (repo/path/component/cycle lineage) and only block matching scope, with configurable strictness.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "No validation that `--seed-from-draft` matches expected cycle lineage (stale/wrong draft replay risk).",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Operators can accidentally start cycle N+K using an old or unrelated draft path, causing intent drift and non-reproducible loop behavior.",
+        "location": "Part 1.4 Next-cycle dispatch reads the draft",
+        "recommendation": "Embed and verify metadata (source cycle ID, target cycle ID, hash) before dispatch; block on mismatch unless explicit override flag is provided.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Security model is missing for auto-ingested text that becomes next-cycle SEED context (prompt/intent injection risk).",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "Reviewer/audit artifacts can contain adversarial or malformed content. Auto-drafting and later using that draft as execution seed can propagate poisoned instructions into orchestration behavior.",
+        "location": "Part 1.2 extraction; Part 1.4 seed-from-draft dispatch",
+        "recommendation": "Define sanitization and trust boundaries: strip executable-like directives, cap content, escape markdown, and require explicit human confirmation for high-risk sections.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md",
+    "domain": "spiral orchestrator autopoietic loop SEED seam HARVEST contract failure beads",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-19T04:00:35Z",
+    "metrics": {
+      "total_latency_ms": 105000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-19T04:09:43Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real and actionable gap: hash-based guardrails are brittle without explicit canonicalization and template-version rules, and false mismatches would directly erode trust in the control.",
+        "gpt_score": 860,
+        "opus_score": 850,
+        "tertiary_score": 950,
+        "delta": 10,
+        "average_score": 855,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "High-value security improvement: the sanitizer is a core defense primitive, and without corpus-driven validation, false-positive policy, and update/versioning strategy, it is under-specified for production use.",
+        "gpt_score": 910,
+        "opus_score": 870,
+        "tertiary_score": 920,
+        "delta": 40,
+        "average_score": 890,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Strong contract-level improvement: formal schemas for frontmatter and outcome artifacts are necessary for interoperability, validation, and credible backward-compatibility claims.",
+        "gpt_score": 830,
+        "opus_score": 820,
+        "tertiary_score": 900,
+        "delta": 10,
+        "average_score": 825,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Valuable operational hardening: backlog reconciliation needs bounded behavior and operator controls, though implementation introduces moderate policy complexity.",
+        "gpt_score": 710,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 70,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-003",
+        "description": "Critical reliability concern: append-only journals must define concurrency, crash consistency, and torn-write behavior; otherwise reconciliation semantics and monotonic sequencing are not dependable.",
+        "gpt_score": 890,
+        "opus_score": 550,
+        "tertiary_score": 900,
+        "delta": 340,
+        "average_score": 720,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-005",
+        "concern": "Defer-with-rationale path is weakly enforced and easy to game",
+        "severity": "HIGH",
+        "severity_score": 730,
+        "why_matters": "Any operator can clear blockers by adding `spiral:deferred` label and minimal comment, which can degrade into routine bypass and nullify failure-gate value.",
+        "location": "§2.4 Resolution semantics; §2.3 Dispatch-time gate",
+        "recommendation": "Enforce deferred TTL, mandatory rationale schema, and periodic revalidation/escalation for stale deferred beads.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Hard-dependency claim is undermined by default/warn behavior when beads CLI is missing",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "The RFC frames failure dependencies as load-bearing, but default `warn` mode allows dispatch without enforcement. Teams may assume protection exists when it does not, causing silent process regressions and repeat failures.",
+        "location": "§2.6 Strict-mode enforcement; Goals G2/G4; Interactions + Dependencies",
+        "recommendation": "Require explicit startup banner showing enforcement mode on every dispatch, default new installs to `strict`, and fail configuration if G2 is enabled without verifiable beads availability.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Lineage binding uses hashes but no authenticated signature/trust anchor",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "An attacker (or accidental script) can modify both sidecar and draft then recompute hashes, passing checks. Integrity without authenticity does not defend against tampering.",
+        "location": "§1.7 Lineage binding to prevent stale draft replay",
+        "recommendation": "Sign sidecar/draft metadata with a key controlled by orchestrator runtime and verify signatures at dispatch.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Reconciliation design explicitly allows unresolved escalation to proceed (`ESCALATION_ABANDONED` does not block dispatch)",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "If bead creation repeatedly fails, dispatch can continue despite recorded circuit breaks, breaking the core membrane-repair guarantee and creating split-brain state between journal and gate.",
+        "location": "§2.7 Atomic failure journal with idempotency",
+        "recommendation": "In strict mode, treat `PENDING`, `ESCALATION_FAILED`, and `ESCALATION_ABANDONED` as blocking states until manually resolved.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Sanitizer is pattern/regex-based and likely bypassable by obfuscation or indirect prompt injection",
+        "severity": "CRITICAL",
+        "severity_score": 860,
+        "why_matters": "Instruction-like payloads can survive simple string stripping (Unicode homoglyphs, code fences, nested markdown, base64, split-token phrasing), letting hostile prior artifacts influence next-cycle LLM behavior.",
+        "location": "§1.8 Sanitization for injected HARVEST content",
+        "recommendation": "Add structured parsing + allowlist-based rendering, normalization (Unicode/NFKC), and adversarial test corpus with red-team cases before enabling by default.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md",
+    "domain": "spiral orchestrator autopoietic loop SEED seam HARVEST contract failure beads scope labels sanitizer journal",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-19T04:09:43Z",
+    "metrics": {
+      "total_latency_ms": 217000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-04-19T04:16:56Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real security gap and highly actionable. The current HMAC approach can be dangerously over-trusted without explicit trust boundaries and attacker assumptions; documenting what it does not protect against is essential and low-cost.",
+        "gpt_score": 885,
+        "opus_score": 820,
+        "tertiary_score": 950,
+        "delta": 65,
+        "average_score": 852.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical implementation gap. A sanitizer without a pinned parser/runtime and fail-closed behavior is non-deterministic and brittle across environments. This is concrete, domain-appropriate, and directly tied to security guarantees.",
+        "gpt_score": 915,
+        "opus_score": 880,
+        "tertiary_score": 920,
+        "delta": 35,
+        "average_score": 897.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Highest-value correctness item. If the failure journal is the source of truth, concurrency and lifecycle semantics must be explicit (locking, atomicity, growth/compaction). Without this, transactional claims are weak.",
+        "gpt_score": 940,
+        "opus_score": 830,
+        "tertiary_score": 900,
+        "delta": 110,
+        "average_score": 885,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable quality hardening. Quantified corpus and false-positive targets improve release discipline, though exact thresholds can be costly to tune early and may require iteration.",
+        "gpt_score": 710,
+        "opus_score": 780,
+        "tertiary_score": 880,
+        "delta": 70,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Critical reconciliation logic is underspecified. Decision tables for idempotency, state drift, and corruption handling are necessary for reliable recovery behavior and operator trust.",
+        "gpt_score": 905,
+        "opus_score": 720,
+        "tertiary_score": 890,
+        "delta": 185,
+        "average_score": 812.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-007",
+        "description": "Strong cross-feature consistency concern. TTL revalidation and journal state transitions need explicit semantics to prevent operator confusion and accidental blocking loops.",
+        "gpt_score": 785,
+        "opus_score": 710,
+        "tertiary_score": 750,
+        "delta": 75,
+        "average_score": 747.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "Important real gap because scope-aware gating depends on deterministic scope computation. Edge cases like worktrees/detached HEAD/submodules are common and can break safety guarantees if unspecified.",
+        "gpt_score": 845,
+        "opus_score": 480,
+        "tertiary_score": 790,
+        "delta": 365,
+        "average_score": 662.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Failure journal is not truly atomic under concurrency/crash conditions",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Append-only JSONL with sequential writes can still lose ordering, duplicate records, or corrupt lines under SIGINT, concurrent starts, or partial fsyncs. Reconciliation logic may then misclassify state and either block forever or allow unsafe dispatch.",
+        "location": "§2.7, §2.9, §2.12",
+        "recommendation": "Add file locking, fsync discipline, monotonic transaction IDs, and corruption recovery strategy with deterministic replay tests under crash injection.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "HMAC authenticity model does not protect against local compromise and lacks key-management rigor",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "If an attacker (or another process) can write to `.run/`, they can often read/replace `.spiral-signing-key` and forge valid signatures. There is no hardware-backed secret, no tamper-evident audit for key replacement, and weak guarantees around rotated key archive handling.",
+        "location": "§1.9",
+        "recommendation": "Document explicit threat boundaries, add file ownership/permission verification at runtime, hash-chain key rotation events in immutable logs, and optionally support OS keychain-backed secrets.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "Hard-dependency claim is still not guaranteed in default deployments",
+        "severity": "CRITICAL",
+        "severity_score": 910,
+        "why_matters": "Core promise is that failures block future dispatch, but multiple defaults and escape hatches (`warn` mode, missing beads behavior, `SPIRAL_SKIP_FAILURE_DEPS`, defer labels) mean most real installs may not enforce true blocking. This creates a false sense of safety and silent policy drift.",
+        "location": "§2.6, §2.11, Goals G2/G4, Migration phases",
+        "recommendation": "Define one enforceable policy baseline (e.g., strict-by-default after migration date), require explicit justification for downgrades, and add telemetry/alerts when enforcement is non-strict.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Sanitization policy is internally contradictory and can be disabled",
+        "severity": "CRITICAL",
+        "severity_score": 900,
+        "why_matters": "§1.8 says sanitization cannot be disabled, but §1.10 introduces `sanitizer_mode: none`. That contradiction will lead to insecure configs and defeats the prompt-injection mitigation at the exact trust boundary where prior LLM output is re-ingested.",
+        "location": "§1.8 vs §1.10",
+        "recommendation": "Remove `none` from production modes, keep only `strict` and temporary `compat` mode with hard deprecation deadline; fail startup if insecure mode is used outside test environments.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Scope-aware gating model is brittle and can both over-block and under-block",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Using `<repo>:<branch>` labels assumes stable branch identity and clean mapping. Rebase, branch rename, detached HEAD, forks, or monorepo paths can mis-scope blockers, causing deadlocks or missed dependencies.",
+        "location": "§2.8, OQ-5",
+        "recommendation": "Introduce canonical scope IDs (repo UUID + path/component), store scope snapshot at bead creation, and define fallback behavior when current scope cannot be resolved.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md",
+    "domain": "spiral orchestrator autopoietic SEED HARVEST failure beads scope sanitizer journal HMAC signing defer TTL",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-04-19T04:16:56Z",
+    "metrics": {
+      "total_latency_ms": 222000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

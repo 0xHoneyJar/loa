@@ -1,0 +1,485 @@
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-03-17T23:53:12Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 4,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 2,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "This is a real operational gap: FR-4 and FR-7 can impact every session and write path, so explicit rollback steps are high-ROI and low-cost to document.",
+        "gpt_score": 870,
+        "opus_score": 820,
+        "tertiary_score": null,
+        "delta": 50,
+        "average_score": 845,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Clear prioritization and dependency ordering is missing and materially affects sequencing risk; this is highly actionable and should be added.",
+        "gpt_score": 835,
+        "opus_score": 720,
+        "tertiary_score": null,
+        "delta": 115,
+        "average_score": 777.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Current success criteria are not measurable enough; adding baselines, measurement method, and timeout behavior is essential for objective acceptance.",
+        "gpt_score": 845,
+        "opus_score": 910,
+        "tertiary_score": null,
+        "delta": 65,
+        "average_score": 877.5,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Conflict handling for allowed-tools is under-specified and likely to cause regressions; defining escalation/override behavior is valuable though somewhat policy-heavy.",
+        "gpt_score": 790,
+        "opus_score": 780,
+        "tertiary_score": null,
+        "delta": 10,
+        "average_score": 785,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-005",
+        "description": "This targets the core feasibility risk of FR-7; without a concrete signal for active skill context, the design may be non-implementable.",
+        "gpt_score": 910,
+        "opus_score": 580,
+        "tertiary_score": null,
+        "delta": 330,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-004",
+        "concern": "Agent-based compliance hook has no failure-mode policy (timeout/error/unavailable)",
+        "severity": "CRITICAL",
+        "severity_score": 870,
+        "why_matters": "FR-7 introduces a blocking hook in the critical write path. If the subagent fails or times out, write operations may deadlock or become inconsistent, causing severe developer friction.",
+        "location": "Section 4 (FR-7), Section 7 (Agent hook latency risk)",
+        "recommendation": "Specify deterministic fail-open/fail-closed behavior, timeout budget tiers, circuit breaker logic, and telemetry for hook error rates.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Assumption that aliasing deprecated models to Opus 4.6 is behaviorally safe",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "Model substitution may change output quality, latency, and cost unexpectedly. Teams relying on old model behavior may experience regressions despite registry validation passing.",
+        "location": "Section 4 (FR-3), Section 5 (Backward compatibility)",
+        "recommendation": "Add explicit user-facing warnings on alias resolution, capture cost/latency deltas, and define acceptance thresholds for output parity before auto-mapping.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "No phased rollout or feature flags for FR-1/FR-2 behavior changes",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "Adding restrictive `allowed-tools` and `context: fork` can silently break core workflows across multiple downstream projects. Without staged rollout, one bad frontmatter change can halt operator productivity.",
+        "location": "Section 4 (FR-1, FR-2), Section 6 (Scope)",
+        "recommendation": "Add per-skill feature flags and canary rollout (e.g., enable on 1-2 skills first), plus rollback criteria and a disable switch in config.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Path-scoped rule extraction risks moving critical safeguards out of always-on context",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "If globs do not match all relevant files or multi-file tasks, compliance and safety guidance may not load when needed. This can create silent policy gaps.",
+        "location": "Section 4 (FR-4), Section 7 (Rules trigger caveat)",
+        "recommendation": "Create a mandatory core-rules file that remains always loaded, plus rule coverage tests against representative repo paths and edge-case filenames.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Security boundary for `Bash(pattern *)` is under-specified and potentially bypassable",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "Pattern-based Bash allowlists are easy to misconfigure and can permit command expansion or unsafe args. This weakens the intended least-privilege model and can reintroduce write/exfiltration risk.",
+        "location": "Section 4 (FR-1), Section 7 (Risk mitigation for allowed-tools)",
+        "recommendation": "Define a strict command policy format (command + arg schema), ban shell metacharacters by default, and add negative security tests for bypass attempts.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "prd",
+    "document": "grimoires/loa/prd-oracle-upstream-adoption.md",
+    "domain": " prd upstream platform alignment",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-03-17T23:53:12Z",
+    "metrics": {
+      "total_latency_ms": 39744000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-03-17T23:55:55Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 6,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 100,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real operational gap and highly actionable. Per-FR rollback/recovery is important given stated dependency order and potential workflow breakage from tool restrictions. Moderate documentation effort with strong risk reduction.",
+        "gpt_score": 820,
+        "opus_score": 820,
+        "tertiary_score": 950,
+        "delta": 0,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Critical quality-control gap. 'Equivalent quality' without measurable thresholds is non-reproducible; adding explicit pass/fail criteria is low-cost and high-impact for consistent regression testing.",
+        "gpt_score": 910,
+        "opus_score": 900,
+        "tertiary_score": 920,
+        "delta": 10,
+        "average_score": 905,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "High-priority blocker. The design depends on hook syntax/schema that is explicitly unverified; elevating this to a prerequisite (or adding fallback behavior) is essential for feasibility and prevents invalid implementation.",
+        "gpt_score": 940,
+        "opus_score": 720,
+        "tertiary_score": 980,
+        "delta": 220,
+        "average_score": 830,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Valuable and practical. Replacing repeated manual checks with scripted integration tests improves reproducibility and long-term regression protection, though it adds moderate setup/maintenance cost.",
+        "gpt_score": 770,
+        "opus_score": 870,
+        "tertiary_score": 880,
+        "delta": 100,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good design-hardening improvement. Dual-write aliasing without documented precedence creates inconsistency risk; defining lookup order and conflict handling is straightforward and worth doing.",
+        "gpt_score": 710,
+        "opus_score": 780,
+        "tertiary_score": 750,
+        "delta": 70,
+        "average_score": 745,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-009",
+        "description": "Strong integration-risk mitigation. Dependency-aware end-to-end testing addresses realistic cross-FR failure modes not covered by isolated tests. Moderate cost, good payoff.",
+        "gpt_score": 760,
+        "opus_score": 740,
+        "tertiary_score": 820,
+        "delta": 20,
+        "average_score": 750,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-006",
+        "concern": "Broad command patterns (`Bash(git *)`, `Bash(gh *)`, `Bash(.claude/scripts/*)`) are vulnerable to argument abuse and unintended command effects.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "Allowed command prefixes can still execute destructive operations (e.g., force pushes, credential-affecting commands), potentially violating safety assumptions.",
+        "location": "Section 2.1: allowed-tools definitions",
+        "recommendation": "Constrain to explicit subcommand allowlists and denylist dangerous flags; add tests for malicious argument variants.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-001",
+        "concern": "FR-7 compliance hook is explicitly fail-open on errors and missing state, enabling silent policy bypass.",
+        "severity": "CRITICAL",
+        "severity_score": 930,
+        "why_matters": "Any parse failure, missing file, or hook runtime issue turns enforcement into 'allow', which attackers or accidental workflow drift can exploit to write App Zone code outside required /implement or /bug flows.",
+        "location": "Section 2.7: Performance constraint + Fail-open design",
+        "recommendation": "Switch to fail-closed for high-risk paths (App Zone writes), with explicit override logging; at minimum, degrade to 'ask' instead of 'allow' on hook errors.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Manual-only validation for FR-1, FR-2, FR-4, FR-5 creates high regression risk and poor repeatability.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Permission errors, fork behavior drift, and rules-loading behavior are likely to regress across cycles without deterministic automated tests.",
+        "location": "Section 5: Testing Strategy",
+        "recommendation": "Add CI-automated integration tests for skill invocation, permission enforcement, forked output parity checks, and path-scoped rule activation.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Policy detection relies on heuristic state files (.run/.beads), not authoritative skill execution context.",
+        "severity": "CRITICAL",
+        "severity_score": 890,
+        "why_matters": "Stale or absent state files, direct skill invocations, parallel sessions, and race conditions can produce false allows/asks, making compliance non-deterministic and undermining trust in gating.",
+        "location": "Section 2.7: Detection mechanism + Known limitations",
+        "recommendation": "Require authoritative runtime context from the platform API; until then, mark hook as advisory-only and do not present it as enforcement.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Tool restriction model is inconsistent: one skill (`eval-running`) still permits bare `Bash` despite stated principle to never allow unscoped Bash.",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "This creates an immediate privilege-escalation path and weakens confidence in the whole least-privilege design because policy exceptions are undocumented and broad.",
+        "location": "Section 2.1: Frontmatter additions table + Tool restriction design principles",
+        "recommendation": "Eliminate bare Bash or document narrowly scoped command allowlists per skill with explicit threat justification.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd-oracle-upstream-adoption.md",
+    "domain": " 1 architecture overview seven",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-03-17T23:55:55Z",
+    "metrics": {
+      "total_latency_ms": 39598000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-03-18T00:12:15Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 5,
+      "disputed_count": 1,
+      "low_value_count": 0,
+      "blocker_count": 5,
+      "model_agreement_percent": 90,
+      "models": 3,
+      "tertiary_items": 0,
+      "confidence": "full"
+    },
+    "high_consensus": [
+      {
+        "id": "IMP-001",
+        "description": "Real operational gap: the SDD defines rollout but not failure recovery. Rollback paths for FR-1/FR-2 are highly actionable and reduce production risk with moderate documentation effort.",
+        "gpt_score": 820,
+        "opus_score": 720,
+        "tertiary_score": 950,
+        "delta": 100,
+        "average_score": 770,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-002",
+        "description": "Excellent and necessary. FR-2 regression testing is currently subjective; adding measurable equivalence criteria makes validation repeatable, auditable, and automatable.",
+        "gpt_score": 880,
+        "opus_score": 920,
+        "tertiary_score": 980,
+        "delta": 40,
+        "average_score": 900,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-003",
+        "description": "Critical blocker-level item. The document itself flags this as unverified; unresolved API syntax uncertainty can invalidate FR-7 implementation. Must be resolved or mitigated before final sign-off.",
+        "gpt_score": 940,
+        "opus_score": 810,
+        "tertiary_score": 980,
+        "delta": 130,
+        "average_score": 875,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-004",
+        "description": "Strong improvement with clear ROI. Replacing manual-only checks with at least a CI smoke harness materially improves reliability and repeatability, though it adds moderate implementation effort.",
+        "gpt_score": 760,
+        "opus_score": 880,
+        "tertiary_score": 920,
+        "delta": 120,
+        "average_score": 820,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      },
+      {
+        "id": "IMP-005",
+        "description": "Good domain-specific concern. Boundary conditions between generated constraints and path-scoped rule files are a real source of drift/overwrite bugs and should be explicitly defined.",
+        "gpt_score": 720,
+        "opus_score": 750,
+        "tertiary_score": 960,
+        "delta": 30,
+        "average_score": 735,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "HIGH"
+      }
+    ],
+    "disputed": [
+      {
+        "id": "IMP-009",
+        "description": "High-value consistency/security fix. It identifies a concrete contradiction in stated policy versus configuration; either justified exception or scoped restriction is required.",
+        "gpt_score": 830,
+        "opus_score": 420,
+        "tertiary_score": 720,
+        "delta": 410,
+        "average_score": 625,
+        "source": "gpt_scored",
+        "would_integrate": true,
+        "agreement": "DISPUTED"
+      }
+    ],
+    "low_value": [],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "FR-7 compliance hook is fail-open on errors and missing state, creating an easy bypass path",
+        "severity": "CRITICAL",
+        "severity_score": 920,
+        "why_matters": "Any JSON parse error, missing file, or hook runtime failure silently allows App Zone writes, undermining the core compliance control and making policy enforcement unreliable.",
+        "location": "Section 2.7: Agent-Based Compliance Hook (Fail-open design, Performance constraint)",
+        "recommendation": "Use fail-closed for high-risk paths (App Zone), add explicit degraded-mode behavior, and require structured error telemetry plus operator override rather than automatic allow.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-004",
+        "concern": "Forked context quality equivalence is judged subjectively, without measurable acceptance criteria",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Comparing to the 'most recent unforked execution' is noisy and non-deterministic; silent quality degradation in PRD/SDD/sprint artifacts may go undetected.",
+        "location": "Section 2.2: FR-2 Regression testing",
+        "recommendation": "Define objective quality rubrics and regression metrics (required sections, coverage checks, defect rates), then automate before/after scoring.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-003",
+        "concern": "Heavy reliance on manual validation for core behavior changes introduces regression risk",
+        "severity": "HIGH",
+        "severity_score": 760,
+        "why_matters": "FR-1, FR-2, FR-4, and FR-5 depend mostly on manual checks, which are not repeatable and will miss edge-case regressions in permissions, context isolation, and rule loading.",
+        "location": "Section 5: Testing Strategy",
+        "recommendation": "Add automated integration tests for skill invocation, tool permission enforcement, fork behavior, and path-rule activation; gate merges on these tests.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Tool restrictions are inconsistent with security principle of least privilege (e.g., broad Bash allowances)",
+        "severity": "CRITICAL",
+        "severity_score": 880,
+        "why_matters": "Patterns like `Bash` (eval-running) or permissive `Bash(git *)` can still execute destructive or exfiltrating actions through allowed binaries/flags, expanding attack surface significantly.",
+        "location": "Section 2.1: FR-1 allowed-tools table and tool restriction principles",
+        "recommendation": "Replace broad Bash permissions with command+flag allowlists, add denylist for dangerous git/gh patterns, and enforce command parsing tests for each skill.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-005",
+        "concern": "Unknown compatibility with Claude Code agent hook API is a hard integration risk",
+        "severity": "HIGH",
+        "severity_score": 745,
+        "why_matters": "The design explicitly notes template syntax needs verification; if placeholders or response schema differ, FR-7 may not function at all and could block release sequencing.",
+        "location": "Section 2.7: Known limitations (template syntax needs verification)",
+        "recommendation": "Run a spike/prototype first to validate real hook contract (templating, JSON schema, timeout semantics) before full implementation commitments.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": false,
+    "degraded_model": null,
+    "confidence": "full",
+    "phase": "sdd",
+    "document": "grimoires/loa/sdd-oracle-upstream-adoption.md",
+    "domain": " 1 architecture overview seven",
+    "tertiary_model_used": "gemini-2.5-pro",
+    "tertiary_status": "active",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": null
+    },
+    "timestamp": "2026-03-18T00:12:15Z",
+    "metrics": {
+      "total_latency_ms": 219000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

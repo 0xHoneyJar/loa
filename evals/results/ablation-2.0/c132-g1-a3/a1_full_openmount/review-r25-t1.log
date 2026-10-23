@@ -1,0 +1,8 @@
+2026-10-21T23:24:11Z run-ablation: c132-g1-a3-a1_full_openmount-review-r25-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-a3/a1_full_openmount/review-r25-t1
+arm a1_full_openmount: all_phases_present OK phases REVIEW,AUDIT
+arm a1_full_openmount: oracle_open_recorded OK mount_overlay=none, oracle_open=true
+arm a1_full_openmount: integrity_clean OK 1973 manifest entries verified; manifest_sha256 fc9bb9f9f64b (matches checksums.json)
+arm a1_full_openmount: mount_cheval_ok OK mount_cheval=ok
+arm a1_full_openmount: dissent_present OK dissent ran at review audit (eval/ envelopes, voices_succeeded >= 1)
+arm a1_full_openmount: OK
+graded review-r25: recall 1.0 false_positives 54; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g1-a3/a1_full_openmount/review-r25-t1/grade.json

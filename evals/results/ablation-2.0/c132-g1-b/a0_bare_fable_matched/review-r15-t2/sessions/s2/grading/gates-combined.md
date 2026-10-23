@@ -1,0 +1,10 @@
+head/.claude/adapters/cheval.py:2552
+types.py:516
+head/.claude/adapters/cheval.py:2544
+head/.claude/adapters/tests/test_anthropic_catalog_floor.py:146
+head/.claude/scripts/flatline-orchestrator.sh:522
+adversarial-review.sh:2350
+head/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py:124
+head/.claude/adapters/loa_cheval/audit/modelinv.py:498
+cheval.py:2834
+head/.claude/defaults/model-config.yaml:504
