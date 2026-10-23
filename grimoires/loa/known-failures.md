@@ -103,6 +103,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
 | [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
 | [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
+| [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 
 ---
 
@@ -2009,3 +2010,24 @@ The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_d
 ### Reading guide
 
 Do not read UNKNOWN as a verdict: open the per-voice JSON blocks (schema_version 1 findings with severity) and the consensus block when it exists; if the [3/3] comment shows invoke markup the writer failed and the round's findings are the per-voice ones. Do not re-run hoping for a different writer output before the upstream guard lands; two rounds cost nothing but time.
+
+## KF-056: DEC rows written during planning carry the previous cycle's id
+
+**Status**: Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep)
+**Feature**: dec-write-lib.sh default_cycle / decisions.yaml cycle field
+**Symptom**: decisions.yaml rows recorded by /plan-and-analyze, /architect, /sprint-plan for a NEW cycle show cycle: <previous cycle id> (cycle-133: 41 rows DEC-0819…DEC-0859 carry cycle-132-conclusive-review-catch) although ledger.json active_cycle already names the new cycle
+**First observed**: 2026-10-23 cycle-133 planning (commit 8ef474af)
+**Recurrence count**: 1
+**Current workaround**: pass --cycle <id> explicitly to dec-write-lib.sh new; operator confirms the mislabelled rows by --id list, never by --cycle
+**Upstream issue**: none yet — fix candidate: default_cycle() must skip a JACKED_OUT/COMPLETE run state and fall through to ledger.json active_cycle; planning skills pass --cycle
+**Related visions / lore**: bd-d7dwt
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | lead passes --cycle cycle-133-follow-through in dec-batch.sh for every implementation-phase row | pending (first rows land at the Sprint 272 close) | commit 76941bd7 (cycle branch); bead bd-d7dwt comment 2026-10-23T23:05Z |
+
+### Reading guide
+
+Cause: default_cycle() reads .run/sprint-plan-state.json then .run/state.json cycle_id BEFORE ledger.json active_cycle; between /archive-cycle and the next /run the run state still holds the archived cycle (state JACKED_OUT), so every planning-phase row inherits it. Do not retry by editing rows (append-only ledger); do not supersede 41 rows. Fix the precedence in the lib (Sprint 4 sweep) and pass --cycle until then.
