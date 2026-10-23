@@ -25974,3 +25974,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0800"
+    created_at: "2026-10-23T09:02:40Z"
+    updated_at: "2026-10-23T09:02:40Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Judge run 2: kappa 0.20; one in five grader credits describes the defect in every arm; registered HT recall biased by citations per defect"
+    decision: "Task 2.6 result recorded as registered: strict agreement 0.626 (weighted 0.465), kappa 0.199 [0.160, 0.238]; lenient kappa 0.274; registered Horvitz-Thompson corrected recall a1_full 0.015, a0_bare_matched 0.052 (strict). The report states that the registered estimator removes 1/m of a defect's credit per rejected citation, so it is biased against arms with many citations per defect (mean m 4.30 a1_full vs 2.51 matched bare) and is not an arm comparison; it states the arm-symmetric fact that about 22 percent of grader-credited citations describe the defect in every arm. An exploratory defect-level judge read (all credited citations of a seeded sample of credited cell-defect pairs per arm judged) is declared now for Sprint 271 and labelled post hoc."
+    rationale: "The registered sensitivity must be reported as registered, and its known bias must be stated beside it rather than silently replaced. The defect-level read answers the question the registered estimator was meant to answer, and declaring it before running keeps the forking path visible."
+    alternatives_considered:
+      - option: "fix the 1/m rule under section 12 and re-read"
+        rejected_because: "the rule is the registered design, not an implementation slip; changing it after seeing the result is a forking path; the exploratory read carries the correction openly"
+      - option: "omit the corrected per-arm table"
+        rejected_because: "it is a registered sensitivity; omitting it would hide that the proximity grader inflates every arm"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s2/133c49bf-e983-45d2-af00-3e1a6491b743"
+    commit: "1e521a0b"
+    source: "grimoires/loa/reports/review-catch-c132/judge/result.md (Sprint 270, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T09:02:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s2"
+        evidence: "reports/review-catch-c132/judge/result.json; verdict shares and m per arm in NOTES; judge run 1 archive"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
