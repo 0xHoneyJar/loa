@@ -1,0 +1,505 @@
+{
+ "all_cells": false,
+ "cells": {
+  "b1/a0_bare/review-x/1": {
+   "arm": "a0_bare",
+   "credited": [
+    "d2"
+   ],
+   "defects": 3,
+   "regions": 2,
+   "run_dir": "b1/a0_bare/review-x-t1",
+   "task": "review-x",
+   "trial": 1
+  },
+  "b1/a1_full/review-x/1": {
+   "arm": "a1_full",
+   "credited": [
+    "d1"
+   ],
+   "defects": 3,
+   "regions": 3,
+   "run_dir": "b1/a1_full/review-x-t1",
+   "task": "review-x",
+   "trial": 1
+  },
+  "b1/a1_full/review-x/2": {
+   "arm": "a1_full",
+   "credited": [
+    "d1"
+   ],
+   "defects": 3,
+   "regions": 3,
+   "run_dir": "b1/a1_full/review-x-t2",
+   "task": "review-x",
+   "trial": 2
+  },
+  "b1/a1_full/review-y/1": {
+   "arm": "a1_full",
+   "credited": [
+    "d1"
+   ],
+   "defects": 1,
+   "regions": 5,
+   "run_dir": "b1/a1_full/review-y-t1",
+   "task": "review-y",
+   "trial": 1
+  }
+ },
+ "grader_mismatch_cells": 0,
+ "invalid_cells_skipped": 0,
+ "items": {
+  "J0001": {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "credited",
+   "defect": "d2",
+   "grader_credit": true,
+   "region": [
+    "head/f.sh",
+    31,
+    31
+   ],
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00001"
+  },
+  "J0002": {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "far-miss",
+   "defect": "d3",
+   "grader_credit": false,
+   "region": [
+    "head/g.sh",
+    40,
+    40
+   ],
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00004"
+  },
+  "J0003": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "near-miss",
+   "defect": "d2",
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    22,
+    22
+   ],
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00010"
+  },
+  "J0004": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    55,
+    55
+   ],
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00011"
+  },
+  "J0005": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "credited",
+   "defect": "d1",
+   "grader_credit": true,
+   "region": [
+    "h.sh",
+    10,
+    10
+   ],
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00013"
+  },
+  "J0006": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "far-miss",
+   "defect": "d3",
+   "grader_credit": false,
+   "region": null,
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00012"
+  },
+  "J0007": {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "head/g.sh",
+    40,
+    40
+   ],
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00002"
+  },
+  "J0008": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "lib/h.sh",
+    40,
+    40
+   ],
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00015"
+  },
+  "J0009": {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/1",
+   "class": "credited",
+   "defect": "d1",
+   "grader_credit": true,
+   "region": [
+    "head/f.sh",
+    11,
+    11
+   ],
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00005"
+  }
+ },
+ "min_total": 0,
+ "near": 20,
+ "per_stratum": 1,
+ "per_stratum_used": 1,
+ "provenance_exempt": [],
+ "schema_version": 1,
+ "seed": 20261021,
+ "strata": {
+  "a0_bare|review-x|credited": {
+   "N": 1,
+   "n": 1,
+   "pi": 1.0
+  },
+  "a0_bare|review-x|far-miss": {
+   "N": 2,
+   "n": 1,
+   "pi": 0.5
+  },
+  "a0_bare|review-x|stray": {
+   "N": 1,
+   "n": 1,
+   "pi": 1.0
+  },
+  "a1_full|review-x|credited": {
+   "N": 2,
+   "n": 1,
+   "pi": 0.5
+  },
+  "a1_full|review-x|far-miss": {
+   "N": 2,
+   "n": 1,
+   "pi": 0.5
+  },
+  "a1_full|review-x|near-miss": {
+   "N": 2,
+   "n": 1,
+   "pi": 0.5
+  },
+  "a1_full|review-x|stray": {
+   "N": 2,
+   "n": 1,
+   "pi": 0.5
+  },
+  "a1_full|review-y|credited": {
+   "N": 1,
+   "n": 1,
+   "pi": 1.0
+  },
+  "a1_full|review-y|stray": {
+   "N": 4,
+   "n": 1,
+   "pi": 0.25
+  }
+ },
+ "universe": [
+  {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "credited",
+   "defect": "d2",
+   "grader_credit": true,
+   "region": [
+    "head/f.sh",
+    31,
+    31
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00001"
+  },
+  {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "head/g.sh",
+    40,
+    40
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00002"
+  },
+  {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "far-miss",
+   "defect": "d1",
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    31,
+    31
+   ],
+   "sampled": false,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00003"
+  },
+  {
+   "arm": "a0_bare",
+   "cell": "b1/a0_bare/review-x/1",
+   "class": "far-miss",
+   "defect": "d3",
+   "grader_credit": false,
+   "region": [
+    "head/g.sh",
+    40,
+    40
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00004"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/1",
+   "class": "credited",
+   "defect": "d1",
+   "grader_credit": true,
+   "region": [
+    "head/f.sh",
+    11,
+    11
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00005"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/1",
+   "class": "near-miss",
+   "defect": "d2",
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    22,
+    22
+   ],
+   "sampled": false,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00006"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    55,
+    55
+   ],
+   "sampled": false,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00007"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/1",
+   "class": "far-miss",
+   "defect": "d3",
+   "grader_credit": false,
+   "region": null,
+   "sampled": false,
+   "task": "review-x",
+   "trial": 1,
+   "unit": "U00008"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "credited",
+   "defect": "d1",
+   "grader_credit": true,
+   "region": [
+    "head/f.sh",
+    11,
+    11
+   ],
+   "sampled": false,
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00009"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "near-miss",
+   "defect": "d2",
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    22,
+    22
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00010"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "head/f.sh",
+    55,
+    55
+   ],
+   "sampled": true,
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00011"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-x/2",
+   "class": "far-miss",
+   "defect": "d3",
+   "grader_credit": false,
+   "region": null,
+   "sampled": true,
+   "task": "review-x",
+   "trial": 2,
+   "unit": "U00012"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "credited",
+   "defect": "d1",
+   "grader_credit": true,
+   "region": [
+    "h.sh",
+    10,
+    10
+   ],
+   "sampled": true,
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00013"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "k.sh",
+    5,
+    5
+   ],
+   "sampled": false,
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00014"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "lib/h.sh",
+    40,
+    40
+   ],
+   "sampled": true,
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00015"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "only.md",
+    20,
+    20
+   ],
+   "sampled": false,
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00016"
+  },
+  {
+   "arm": "a1_full",
+   "cell": "b1/a1_full/review-y/1",
+   "class": "stray",
+   "defect": null,
+   "grader_credit": false,
+   "region": [
+    "pr/PR.md",
+    3,
+    3
+   ],
+   "sampled": false,
+   "task": "review-y",
+   "trial": 1,
+   "unit": "U00017"
+  }
+ ],
+ "window": 3
+}

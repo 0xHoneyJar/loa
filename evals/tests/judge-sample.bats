@@ -204,3 +204,77 @@ review_t1() {  # review_t1 <text appended to the cited paragraph>
   run jq -c '.provenance_exempt == (.provenance_exempt | sort_by(.item, .token))' "$T/a/key.json"
   [ "$output" = true ]
 }
+
+fixture_y() {  # a second PR whose defect file is nested; review-y's cell cites partial paths
+  local h="$R/evals/fixtures/review-prs/pr-91/head"
+  mkdir -p "$h/lib" "$h/a" "$h/b" "$h/docs" "$R/grimoires/loa/evals/ablation-test/tasks/review-y"
+  for i in $(seq 1 60); do printf 'echo h line %d\n' "$i"; done > "$h/lib/h.sh"
+  for i in $(seq 1 60); do printf 'doc line %d\n' "$i"; done > "$h/docs/only.md"
+  for i in $(seq 1 9); do printf 'echo k line %d\n' "$i"; done | tee "$h/a/k.sh" > "$h/b/k.sh"
+  printf '# PR 91\n\nSummary line two.\nThe PR description line three.\n' > "$R/evals/fixtures/review-prs/pr-91/PR.md"
+  printf '{"fixture": "pr-91", "defects": [{"id": "D01-nested", "file": "lib/h.sh", "anchor_line": 10, "description": "the nested defect", "severity": "high"}]}\n' \
+    > "$R/evals/fixtures/review-prs/manifests/pr-91.json"
+  printf 'id: review-y\ntype: review-catch\nreview_catch: {fixture: review-prs/pr-91, manifest: evals/fixtures/review-prs/manifests/pr-91.json}\n' \
+    > "$R/grimoires/loa/evals/ablation-test/tasks/review-y/task.yaml"
+  local d="$RES/b1/a1_full/review-y-t1"
+  mkdir -p "$d/grading" "$d/sandbox"
+  printf '%s\n' h.sh:10 only.md:20 k.sh:5 pr/PR.md:3 lib/h.sh:40 > "$d/grading/gates-combined.md"
+  printf '# Review\n\nOff by one at h.sh:10.\n\nStale doc at only.md:20.\n\nBad k at k.sh:5.\n\nPR text at PR.md:3.\n\nDead code at lib/h.sh:40.\n' > "$d/sandbox/review.md"
+  row a1_full 1 '[]' | sed 's/review-x/review-y/g; s/"defects_seeded":3/"defects_seeded":1/'
+}
+
+item_for() {  # item_for <dir> <cited path> → the item id whose region cites it
+  jq -r --arg p "$2" '.items | to_entries[] | select(.value.region[0] == $p) | .key' "$1/key.json"
+}
+
+@test "JS-14 cited paths resolve the way the grader credits them" {
+  fixture_y > "$T/rows-y.jsonl"
+  run bash "$JS" --rows "$T/rows-y.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cited paths: exact=1 defect_suffix=1 unique_suffix=1 pr_file=1 unresolved=1 no_region=0"* ]]
+  # a credited unit citing its defect file's basename → the defect file's lines
+  j="$(item_for "$T/o" h.sh)"
+  [ "$(jq -r --arg j "$j" '.items[$j] | .class + " " + .cited_path_resolution' "$T/o/key.json")" = "credited defect_suffix" ]
+  grep -qF '## Cited lines: head/lib/h.sh:10-10 (±5; cited as h.sh)' "$T/o/packets/$j.md"
+  grep -qF '    10  echo h line 10' "$T/o/packets/$j.md"
+  # a stray with exactly one suffix match → printed
+  j="$(item_for "$T/o" only.md)"
+  [ "$(jq -r --arg j "$j" '.items[$j] | .class + " " + .cited_path_resolution' "$T/o/key.json")" = "stray unique_suffix" ]
+  grep -qF '## Cited lines: head/docs/only.md:20-20 (±5; cited as only.md)' "$T/o/packets/$j.md"
+  grep -qF '    20  doc line 20' "$T/o/packets/$j.md"
+  # two suffix matches → today's text
+  j="$(item_for "$T/o" k.sh)"
+  [ "$(jq -r --arg j "$j" '.items[$j].cited_path_resolution' "$T/o/key.json")" = unresolved ]
+  grep -qF '## Cited lines: head/k.sh:5-5 (±5)' "$T/o/packets/$j.md"
+  grep -qF "(the file is not in the PR's head tree)" "$T/o/packets/$j.md"
+  run grep -q 'echo k line' "$T/o/packets/$j.md"
+  [ "$status" -eq 1 ]
+  # pr/PR.md → the fixture's PR.md
+  j="$(item_for "$T/o" pr/PR.md)"
+  [ "$(jq -r --arg j "$j" '.items[$j].cited_path_resolution' "$T/o/key.json")" = pr_file ]
+  grep -qF '## Cited lines: PR.md:3-3 (±5; cited as pr/PR.md)' "$T/o/packets/$j.md"
+  grep -qF '     3  Summary line two.' "$T/o/packets/$j.md"
+  # an exact path is unchanged
+  j="$(item_for "$T/o" lib/h.sh)"
+  [ "$(jq -r --arg j "$j" '.items[$j].cited_path_resolution' "$T/o/key.json")" = exact ]
+  grep -qF '## Cited lines: head/lib/h.sh:40-40 (±5)' "$T/o/packets/$j.md"
+}
+
+@test "JS-15 resolution leaves the sampling untouched: universe, strata, π, items and order match the pre-change key" {
+  { cat "$T/rows.jsonl"; fixture_y; } > "$T/rows-xy.jsonl"
+  bash "$JS" --rows "$T/rows-xy.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/o" --per-stratum 1 --min-total 0 >/dev/null
+  # sampling-baseline.json = the key.json judge-sample.sh wrote before cited-path resolution
+  # (base 9f5746b3) on this same fixture and these arguments
+  diff <(jq -S 'del(.items[].cited_path_resolution)' "$T/o/key.json") \
+       <(jq -S . "$TESTS_DIR/fixtures/judge-sample/sampling-baseline.json")
+  run jq -r '[.items[] | select(.cited_path_resolution == null and .region != null)] | length' "$T/o/key.json"
+  [ "$output" = 0 ]
+}
+
+@test "JS-16 resolution is deterministic: two runs byte-identical" {
+  { cat "$T/rows.jsonl"; fixture_y; } > "$T/rows-xy.jsonl"
+  bash "$JS" --rows "$T/rows-xy.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/a" --per-stratum 5 --min-total 0 > "$T/a.out"
+  bash "$JS" --rows "$T/rows-xy.jsonl" --results-root "$RES" --repo-root "$R" --seed 20261021 --out "$T/b" --per-stratum 5 --min-total 0 > "$T/b.out"
+  diff -r "$T/a" "$T/b"
+  diff "$T/a.out" "$T/b.out"
+}

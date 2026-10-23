@@ -42,6 +42,13 @@
 # grader-consistency count). Prints the strata table. Deterministic; no timestamps; the key
 # names run directories relative to their results root.
 #
+# A cited path resolves to a file the way the grader credits it: exact under head/; else the
+# unit's labelled defect file when it ends with "/" + cited; else the unique head/ file ending
+# with "/" + cited; else pr/PR.md, PR.md, pr/head.diff → the fixture's PR.md / head.diff. A
+# resolved path is printed in the "Cited lines" header ("cited as …"); key.json records each
+# item's cited_path_resolution (exact|defect_suffix|unique_suffix|pr_file|unresolved, null with
+# no cited region). Resolution never changes the universe, the strata or the draw.
+#
 # An arm id in a packet is exempt when the task's PR-native text (PR.md, head.diff, the files
 # under head/ and base/) also carries it — the PR names the arms, the arm never sees its own name;
 # a field line is exempt only when the whole line occurs verbatim there. Batch names, run ids and
@@ -218,9 +225,58 @@ def gap(region, site):
     return max(0, a - site, site - b)
 
 
-def head_lines(fixture_dir, rel, a, b):
-    p = inside(os.path.join(fixture_dir, "head"), strip_side(rel))
-    if not p or not os.path.isfile(p):
+WALK_CAP = 200000              # files listed per head tree for the suffix lookup
+PR_FILES = {"pr/PR.md": "PR.md", "PR.md": "PR.md", "pr/head.diff": "head.diff"}
+_head_files = {}
+
+
+def head_files(fixture_dir):
+    """relative paths of the regular files under head/ (bounded walk, symlinks skipped; cached)"""
+    if fixture_dir not in _head_files:
+        top, found = os.path.join(fixture_dir, "head"), []
+        if os.path.isdir(top) and not os.path.islink(top):
+            for d, dns, fns in os.walk(top, followlinks=False):
+                dns[:] = sorted(n for n in dns if not os.path.islink(os.path.join(d, n)))
+                for n in sorted(fns):
+                    q = os.path.join(d, n)
+                    if os.path.isfile(q) and not os.path.islink(q):
+                        found.append(os.path.relpath(q, top).replace(os.sep, "/"))
+                if len(found) >= WALK_CAP:
+                    break
+        _head_files[fixture_dir] = found[:WALK_CAP]
+    return _head_files[fixture_dir]
+
+
+def resolve_cited(fixture_dir, rel, defect_file):
+    """(absolute path or None, display path, resolution) for a cited region path, in the grader's
+    order: exact under head/; the unit's labelled defect file when it ends with "/" + cited (the
+    grader's credit rule); the unique head/ file ending with "/" + cited; pr/PR.md, PR.md and
+    pr/head.diff → the fixture's PR.md / head.diff. Zero or several suffix matches → unresolved."""
+    cited = strip_side(rel)
+    if not fixture_dir:
+        return None, "head/" + cited, "unresolved"
+    head = os.path.join(fixture_dir, "head")
+    p = inside(head, cited)
+    if p and os.path.isfile(p):
+        return p, "head/" + cited, "exact"
+    if defect_file and defect_file.endswith("/" + cited):
+        p = inside(head, defect_file)
+        if p and os.path.isfile(p):
+            return p, "head/" + defect_file, "defect_suffix"
+    hits = [f for f in head_files(fixture_dir) if f.endswith("/" + cited)]
+    if len(hits) == 1:
+        p = inside(head, hits[0])
+        if p and os.path.isfile(p):
+            return p, "head/" + hits[0], "unique_suffix"
+    if cited in PR_FILES:
+        q = os.path.join(fixture_dir, PR_FILES[cited])
+        if os.path.isfile(q) and not os.path.islink(q):
+            return q, PR_FILES[cited], "pr_file"
+    return None, "head/" + cited, "unresolved"
+
+
+def head_lines(p, a, b):
+    if not p:
         return None
     with open(p, encoding="utf-8", errors="replace") as f:
         lines = f.read().split("\n")
@@ -388,14 +444,18 @@ for j, u in enumerate(sampled, 1):
     else:
         L.append("Does the finding describe the labelled defect? `describes`, `partially`, or `does-not-describe`.\n\n")
     L.append("## Finding\n\n")
+    resolution = None    # no cited region: nothing to resolve
     if u["region"] is None:
         L.append("No finding cites this file.\n\n")
     else:
         txt = u["_text"] or "(the finding's prose could not be located; the citation only)"
         fz = fence(txt)
         L.append("%s text\n%s\n%s\n\n" % (fz, txt, fz))
-        hl = head_lines(u["_fixture"], u["region"][0], u["region"][1], u["region"][2]) if u["_fixture"] else None
-        L.append("## Cited lines: head/%s:%d-%d (±%d)\n\n" % (strip_side(u["region"][0]), u["region"][1], u["region"][2], CTX))
+        dfile = u["_man"][int(u["defect"][1:]) - 1].get("file") if u["defect"] else None
+        rp, shown, resolution = resolve_cited(u["_fixture"], u["region"][0], dfile)
+        hl = head_lines(rp, u["region"][1], u["region"][2])
+        note = "" if resolution in ("exact", "unresolved") else "; cited as %s" % strip_side(u["region"][0])
+        L.append("## Cited lines: %s:%d-%d (±%d%s)\n\n" % (shown, u["region"][1], u["region"][2], CTX, note))
         if hl is None:
             L.append("(the file is not in the PR's head tree)\n\n")
         else:
@@ -434,6 +494,7 @@ for j, u in enumerate(sampled, 1):
         provenance_exempt.append({"item": jid, "token": tok, "reason": "pr_native"})
     packets[jid] = body
     items[jid] = {k: u[k] for k in ("unit", "cell", "arm", "task", "trial", "class", "region", "defect", "grader_credit")}
+    items[jid]["cited_path_resolution"] = resolution
 
 key = {"schema_version": 1, "seed": seed, "per_stratum": per, "per_stratum_used": cap, "min_total": mintot,
        "window": WIN, "near": NEAR, "strata": stab, "items": items, "cells": cells,
@@ -452,6 +513,9 @@ for s in sorted(stab):
     print("%s\t%d\t%d\t%.4f" % (s, stab[s]["N"], stab[s]["n"], stab[s]["pi"]))
 print("total\t%d\t%d" % (len(units), len(sampled)))
 print("provenance exemptions: %d (pr_native)" % len(provenance_exempt))
+RES = ("exact", "defect_suffix", "unique_suffix", "pr_file", "unresolved")
+print("cited paths: " + " ".join("%s=%d" % (k, sum(1 for it in items.values() if it["cited_path_resolution"] == k))
+                                 for k in RES) + " no_region=%d" % sum(1 for it in items.values() if it["cited_path_resolution"] is None))
 if mismatch:
     print("grader-consistency: %d cell(s) whose ±3 credits differ from the row's defects_missed_pm3" % mismatch)
 PY
