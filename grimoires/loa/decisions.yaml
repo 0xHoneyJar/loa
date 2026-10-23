@@ -26464,3 +26464,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0814"
+    created_at: "2026-10-23T12:01:29Z"
+    updated_at: "2026-10-23T12:01:29Z"
+    phase: "implementation"
+    category: "process"
+    summary: "REGISTRATION-15 (analysis addendum 16) c9d98acb… supersedes 380f7a36…, pin fbd36a0c unchanged; final read re-taken under it, every registered figure identical"
+    decision: "Analysis-only addendum 16 registered as REGISTRATION-15.json (sha256 c9d98acb2668dabb4e7a9e3942bc6f1d880997cfe1e3e8c5cbc25cf42906eeb9, supersedes REGISTRATION-14 380f7a36, pipeline pin fbd36a0c unchanged, analysis tree 528defa5:evals/analysis/c132) by register-addendum-analysis.sh, which asserted the pipeline, suite and fixture trees byte-identical between the pin and HEAD. It adds the registered label-set sensitivities (review_derived_labels and the re-grade procedure), the dominated label and the §5 co-reads to --final, and carries the exploratory judge_defects.py in the hashed tree. The placebo and the final read are re-taken under it before the report is final; every registered primary and secondary figure is byte-identical to the REGISTRATION-14 read, and the reproduction tooling of Task 3.3 will land under a later analysis-only addendum so that the tree hashed here is the one that produced the figures. The register script numbers the file after the addendum (REGISTRATION-16); the file was renamed to REGISTRATION-15 to keep the lineage dense (the content carries no self-reference; registration.py verify passes on the renamed file)."
+    rationale: "The registration binds the analysis tree that produces the reads; taking the registered re-read before the reproduction tooling lands keeps one hashed tree per set of figures, and registering now instead of after implementer C unblocks the report and the sprint close without any forking path (no figure changed)."
+    alternatives_considered:
+      - option: "wait for the reproduction tooling and register one addendum for everything"
+        rejected_because: "the registered re-read and the report would wait on tooling that touches no read; two self-consistent registrations are what the cycle has done at every analysis change"
+      - option: "keep the file name REGISTRATION-16 and leave 15 unused"
+        rejected_because: "a gap in the lineage invites the question of a missing registration; the content is name-independent and verify passes after the rename"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "528defa5"
+    source: "grimoires/loa/evals/ablation-2.0-c132/REGISTRATION-15.json; PREREGISTRATION-addendum-16.md (commit 528defa5; Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T12:01:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/evals/ablation-2.0-c132/REGISTRATION-15.json; PREREGISTRATION-addendum-16.md (commit 528defa5; Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
