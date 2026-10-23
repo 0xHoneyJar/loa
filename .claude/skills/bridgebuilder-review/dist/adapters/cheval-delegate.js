@@ -14,6 +14,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LLMProviderError } from "../ports/llm-provider.js";
+import { toolStanceFor } from "./tool-stance.js";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const SIGKILL_GRACE_MS = 5_000;
 const DEFAULT_AGENT = "reviewing-code";
@@ -168,6 +169,12 @@ export class ChevalDelegateAdapter {
                 // clock (which includes Python startup) when cheval doesn't report.
                 latencyMs: typeof latencyFromCheval === "number" ? latencyFromCheval : wallClockLatency,
                 ...(verdictQuality ? { verdictQuality } : {}),
+                // cycle-133 C-2: the dispatched route's enforced no-tool stance and any tool call the reply carried
+                ...(() => {
+                    const stance = toolStanceFor(this.opts.model, parsed.provider);
+                    return stance ? { toolStance: stance } : {};
+                })(),
+                ...(Array.isArray(parsed.tool_calls) && parsed.tool_calls.length > 0 ? { toolCallsAttempted: parsed.tool_calls.length } : {}),
             };
         }
         finally {

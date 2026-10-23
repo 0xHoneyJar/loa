@@ -1,0 +1,1 @@
+{"version":3,"file":"tool-stance.d.ts","sourceRoot":"","sources":["../../resources/adapters/tool-stance.ts"],"names":[],"mappings":"AAgBA,OAAO,KAAK,EAAE,UAAU,EAAE,MAAM,0BAA0B,CAAC;AAE3D,iGAAiG;AACjG,eAAO,MAAM,mBAAmB,MAAM,CAAC;AAEvC,YAAY,EAAE,UAAU,EAAE,CAAC;AAoB3B;;;GAGG;AACH,wBAAgB,aAAa,CAAC,KAAK,EAAE,MAAM,EAAE,gBAAgB,CAAC,EAAE,MAAM,GAAG,UAAU,GAAG,SAAS,CAuB9F"}

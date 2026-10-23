@@ -27,6 +27,7 @@ export function createLocalAdapters(config, anthropicApiKey) {
     }
     const ghAdapter = new GitHubCLIAdapter({
         reviewMarker: config.reviewMarker,
+        ...(config.ghMaxBufferBytes !== undefined ? { ghMaxBufferBytes: config.ghMaxBufferBytes } : {}),
     });
     // Shared deriveTimeoutMs helper. Sprint-bug-143 #789a granted OpenAI
     // `gpt-*-pro` the 30-min reasoning-class budget; cycle-111 sprint-bug-165

@@ -938,7 +938,14 @@ function changeSize(file) {
     return file.additions + file.deletions;
 }
 function patchBytes(file) {
-    return file.patch ? new TextEncoder().encode(file.patch).byteLength : 0;
+    // cycle-133 C-1: the metadata pass of the two-pass fetch carries the size without the text (`patchBytes`).
+    if (file.patch != null)
+        return new TextEncoder().encode(file.patch).byteLength;
+    return file.patchBytes ?? 0;
+}
+/** cycle-133 C-1: GitHub sent no patch for this file (binary, generated, GitHub-truncated) — text or size. */
+function hasPatch(file) {
+    return file.patch != null || file.patchBytes != null;
 }
 export function truncateFiles(files, config) {
     const patterns = config.excludePatterns ?? [];
@@ -1273,7 +1280,7 @@ export function truncateFiles(files, config) {
     for (const file of capped) {
         const bytes = patchBytes(file);
         // Step 6: Handle patch-optional files (binary/large — GitHub omits patch)
-        if (file.patch == null) {
+        if (!hasPatch(file)) {
             excluded.push({
                 filename: file.filename,
                 stats: `+${file.additions} -${file.deletions} (diff unavailable)`,

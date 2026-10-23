@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-14T23:34:09Z",
-  "source_hash": "234ef9a035037314becc792d0fac6b970747c0494b81babf7a1468664cc33e49",
-  "file_count": 43,
+  "generated_at": "2026-10-23T23:33:23Z",
+  "source_hash": "a4c39d5e3b41d92c8f877c02c57986ff9c539b107c874b5d516a5351300dfa11",
+  "file_count": 50,
   "files": [
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts",
@@ -10,7 +10,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts",
-      "sha256": "bafda4073a3bfd6bd3506a124640135fbd02397f5157bfef7009390861818470"
+      "sha256": "355b01c3364488fe7e20f0ec3d728e7a1fe7f03ce7bfe713371e686f3164c085"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/console-logger.ts",
@@ -22,11 +22,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts",
-      "sha256": "1809eedc1418fc7879361ced5d9ef567af0a71f18bedd00addabd2a6bff3d875"
+      "sha256": "cf728d5744cf00f2dec4bc5144d0d61f95f195e58c8bc4663cc8ae599ab3415a"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/index.ts",
-      "sha256": "e1a864a720d0f6f781b4b35da07b9dd9dac6af5c569b46a8c9bb8f3c3b284875"
+      "sha256": "6df94701400b42111c1092574719fd774023c301b4df29b67bb6c1bb962fed90"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/node-hasher.ts",
@@ -41,16 +41,24 @@
       "sha256": "b3a14d979760b11f546c2ec426a6811375e766eafe51b02f3ab2cf70443db368"
     },
     {
+      "path": ".claude/skills/bridgebuilder-review/resources/adapters/tool-stance.ts",
+      "sha256": "ddef71d72bd02a3761093ad463df6329e36384afb0826321e959d546fd54a030"
+    },
+    {
       "path": ".claude/skills/bridgebuilder-review/resources/config.generated.ts",
       "sha256": "a01c4fa6de6ba9b2e34a7b9c26b489cae716bb06627cd77e6ad1abd7ca656497"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
-      "sha256": "39543c7beef4919f453fb552a6182075f78554a85987b67891ef5f020f21ff2e"
+      "sha256": "df542d5582a778f6b8e3632cef467917a082c63d154285101c221cb96ced7267"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
       "sha256": "8b198aacb3d50f1614999077c48b6aff9fc791a85d8bc532b6eb9604ac6e53ec"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/consensus-findings.ts",
+      "sha256": "95cebb6d924c0934cda4846813c0c5cf29b295844f5e4214e13375bd7504c6e3"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/context.ts",
@@ -69,12 +77,24 @@
       "sha256": "4af42be68cc6db9ff8e2c66fbcd1c17e9dfb74c9b382429ee54d3b83e73b13ae"
     },
     {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/degraded-reason.ts",
+      "sha256": "dae6e3dc05f8d5842bcad90ac002d3a54109bd9a54857948190c3083fc6e9c61"
+    },
+    {
       "path": ".claude/skills/bridgebuilder-review/resources/core/depth-checker.ts",
       "sha256": "fbb258ecf97f974c0c10101eb28783d8745b619f5ec257eacd059e9f1a1611c4"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/ecosystem.ts",
       "sha256": "3c0b1545ea34d01b624426f4278c2db1df9b5157f6a43e14bb2321bb1e1dee2e"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/enrichment-guard.ts",
+      "sha256": "431c56fb1017241b984cde86fcd5a66084a3d36e40a52016767a6e9f2cfa896f"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/finding-canonical.ts",
+      "sha256": "2aeb190efcdd7bdbfd82c2d006733f7067373016b14fa9b9b5e1f899c1b35a58"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/index.ts",
@@ -86,7 +106,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
-      "sha256": "c348469b648438b3a2017f7f77ef18517630de9a252020d6f675230cbe6b00d7"
+      "sha256": "f7c40492b51e7f69d2492770a4f1f75dcdc6801df360d0ad98a8c07e9e74bdc4"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/paged-fetch.ts",
+      "sha256": "c3b4bbef2040f6637c83928af9c2c5a7420355e25afa8f86be3fd46bf32652c3"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -98,15 +122,15 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/review-verdict.ts",
-      "sha256": "819bc7019a60a01564de366ffadb8aa28fe06b2ad906849de773f1af1a44cf4d"
+      "sha256": "4addf1c7dbe6b574c2e8f81d3ad3908f57f216e42fbcb889032b43ae2098d3a0"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",
-      "sha256": "89b94a402f6591836537b0b23c807c0400ff74177bc56ff54435238644d2e01f"
+      "sha256": "c784903b01d6f61504e05faf3678a221556302684138dc663aeb6bf02eaf6e1f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/run-outcome.ts",
-      "sha256": "da5faffcfd99076e1bcfab2e803307f721e089acffb92b20d67bee297c92dfd4"
+      "sha256": "d2ae21531d346efed29a34b36a7f97b8d1f71d9f90758892da783a506bb05760"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/schemas.ts",
@@ -118,7 +142,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/template.ts",
-      "sha256": "9b0163d3aca18196e5701fe27575e5d27249763b42f59ea09680719e978b215f"
+      "sha256": "5a4b9a2eea4c7917d1b552788298fee87b73cfc45320527ea31b386725e9df5e"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
@@ -126,11 +150,15 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts",
-      "sha256": "5ed9bd99a13564cc0a65e2a8117e258e557d002b05f31887398fbec22112b249"
+      "sha256": "289b07fcd333fb542daaf890cfe5a5feab161efabf3dc7084c16fe66e6b857f6"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
-      "sha256": "11cbc1ed7b4e0dca7ef4fdc2c16a34ca7f122709eaf9ac478ebe2dea0cfb1866"
+      "sha256": "fe979bef4bfbc57ff2bc5e0f72fa8535eb884cfe57310282ccb2ddd18c2b0046"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/writer-role.ts",
+      "sha256": "dbe9f6bb2416ee2fdaecede5863fb44f10b90cc6860ba96d68c25f593d87e48f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts",
@@ -142,7 +170,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
-      "sha256": "6db270fc245fff889312487e40488f02cb8841201ecd2f243a16eb76cf5f36a8"
+      "sha256": "1b575a7091f9f3edefbd8a98c6f2730fba5d1c9ab020463315768f95f1da4be9"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",
@@ -150,7 +178,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/git-provider.ts",
-      "sha256": "fe1150762a666f6c09beb204218f284d7a1535c7179ab2c9bc1c839419574b1e"
+      "sha256": "3e207bf4e3495781df5541abe89761fe37e8a4e7c94f1615af934ab377a2ecc9"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/hasher.ts",
@@ -162,7 +190,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/llm-provider.ts",
-      "sha256": "ab33520e606d998c6b2e938ade3d4803ce5768a547e24759f64ccd9f0dddad3f"
+      "sha256": "aa479ce1a85638272fb6e706ae77d4425b20c57dc40556aa9dc97717f350e04d"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/logger.ts",

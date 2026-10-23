@@ -7,6 +7,8 @@ import {
   formatEffectiveConfig,
   resolveRepoRoot,
   loadYamlConfig,
+  DEFAULT_EXCLUDE_PATTERNS,
+  resolveGhMaxBufferBytes,
 } from "../config.js";
 import type { CLIArgs, EnvVars, YamlConfig } from "../config.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -424,7 +426,7 @@ describe("resolveConfig exclude merging", () => {
       {},
       { enabled: true, repos: ["test/repo"], exclude_patterns: ["yaml-pattern"] },
     );
-    assert.deepEqual(config.excludePatterns, ["yaml-pattern", "cli-pattern"]);
+    assert.deepEqual(config.excludePatterns, [...DEFAULT_EXCLUDE_PATTERNS, "yaml-pattern", "cli-pattern"]);
   });
 
   it("CLI exclude only when YAML absent", async () => {
@@ -433,7 +435,7 @@ describe("resolveConfig exclude merging", () => {
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.deepEqual(config.excludePatterns, ["cli-only"]);
+    assert.deepEqual(config.excludePatterns, [...DEFAULT_EXCLUDE_PATTERNS, "cli-only"]);
   });
 
   it("YAML exclude only when CLI absent", async () => {
@@ -442,16 +444,23 @@ describe("resolveConfig exclude merging", () => {
       {},
       { enabled: true, repos: ["test/repo"], exclude_patterns: ["yaml-only"] },
     );
-    assert.deepEqual(config.excludePatterns, ["yaml-only"]);
+    assert.deepEqual(config.excludePatterns, [...DEFAULT_EXCLUDE_PATTERNS, "yaml-only"]);
   });
 
-  it("empty excludePatterns when both absent", async () => {
+  it("only the default excludes when both absent (cycle-133 C-1)", async () => {
     const { config } = await resolve(
       {},
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.deepEqual(config.excludePatterns, []);
+    assert.deepEqual(config.excludePatterns, ["evals/fixtures/review-prs/**", "grimoires/loa/reports/ablation-2.0/*-grades/**"]);
+  });
+
+  it("gh_max_buffer_bytes: default 64 MiB, a valid integer is kept, an out-of-range value falls back (cycle-133 C-1)", async () => {
+    assert.equal((await resolve({}, {}, { enabled: true, repos: ["test/repo"] })).config.ghMaxBufferBytes, 64 * 1024 * 1024);
+    assert.equal((await resolve({}, {}, { enabled: true, repos: ["test/repo"], gh_max_buffer_bytes: 8 * 1024 * 1024 })).config.ghMaxBufferBytes, 8 * 1024 * 1024);
+    assert.equal(resolveGhMaxBufferBytes(1024), 64 * 1024 * 1024);
+    assert.equal(resolveGhMaxBufferBytes(Number.NaN), 64 * 1024 * 1024);
   });
 });
 

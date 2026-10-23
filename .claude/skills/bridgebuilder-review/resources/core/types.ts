@@ -1,4 +1,40 @@
 import type { PullRequest, PullRequestFile } from "../ports/git-provider.js";
+import type { DegradedReason } from "./degraded-reason.js";
+
+/**
+ * cycle-133 C-1: why a listed file's diff was not (fully) reviewed. `excluded_*` and `renamed` never degrade; the
+ * others degrade (and block the merge as incomplete_coverage) when the file is a reviewable code file.
+ */
+export type OmissionReason =
+  | "excluded_loa"
+  | "excluded_pattern"
+  | "excluded_fail_closed"
+  | "file_cap"
+  | "byte_budget"
+  | "no_patch"
+  | "patch_truncated"
+  | "renamed"
+  | "page_incomplete";
+
+/** cycle-133 C-1: the coverage record (summary JSON in full; the posted comment shows counts + the first 20 paths). */
+export interface CoverageRecord {
+  base_sha: string;
+  head_sha: string;
+  /** GitHub's changed_files count for the pinned head. */
+  changed_files: number;
+  /** Distinct files the paged listing returned (≤ 3,000). */
+  listed: number;
+  reviewed: Array<{ file: string; bytes: number; hunks: number }>;
+  /** Named omissions; a patch_truncated file is also in `reviewed` (its retained bytes). */
+  omitted: Array<{ file: string; reason: OmissionReason; reviewable: boolean }>;
+  /** Files GitHub counted but the listing never named (changed_files − listed). */
+  unknown_omitted: number;
+  degraded: boolean;
+  degraded_reasons: DegradedReason[];
+  mergeBlockedReason?: "incomplete_coverage";
+  /** Head/base moves that restarted the fetch (at most 1; a second move degrades as pr_head_moved). */
+  restarts: number;
+}
 
 export interface BridgebuilderConfig {
   repos: Array<{ owner: string; repo: string }>;
@@ -45,6 +81,11 @@ export interface BridgebuilderConfig {
   forceFullReview?: boolean;
   /** Review mode: two-pass (convergence + enrichment) or single-pass (legacy). */
   reviewMode: "two-pass" | "single-pass";
+  /**
+   * cycle-133 C-1 (`bridgebuilder.gh_max_buffer_bytes`): per-call `gh` stdout buffer in bytes (default 64 MiB). One call
+   * receives one page of the files list, so this bounds received bytes per page.
+   */
+  ghMaxBufferBytes?: number;
   /** Path to ecosystem context JSON file for cross-repo pattern hints (Pass 0 prototype). */
   ecosystemContextPath?: string;
   /** Pass 1 convergence cache configuration (Sprint 70). */
@@ -99,6 +140,11 @@ export interface TrustedConfig {
   locality: "hosted" | "local_voices";
   /** `bridgebuilder.exit_on_degraded` (default 3; 0 restores the pre-cycle-129 exit). */
   exitOnDegraded: number;
+  /**
+   * cycle-133 C-2: `bridgebuilder.writer_role_allowlist` from the trusted source only (a PR head cannot widen who
+   * writes the commentary). Undefined = the default; the effective list is always ∩ the proven no-tool routes.
+   */
+  writerRoleAllowlist?: string[];
   /** Lines to log once at startup (read failures, refusals, invalid values). */
   warnings: string[];
   /** `hounfour.aliases` from the trusted source (string targets only) — resolves `fallback_chain` aliases (MEDIUM-A1 (c)). */
@@ -174,6 +220,10 @@ export interface ReviewItem {
   pr: PullRequest;
   files: PullRequestFile[];
   hash: string;
+  /** cycle-133 C-1: the two-pass fetch's coverage record (absent for providers without the paged contract). */
+  coverage?: CoverageRecord;
+  /** cycle-133 C-1: the global selection the fetch made (`included` === `files`); callers reuse it, never re-select. */
+  selection?: TruncationResult;
 }
 
 export type ErrorCategory = "transient" | "permanent" | "unknown";
@@ -219,6 +269,13 @@ export interface ReviewResult {
   verdict?: "REQUEST_CHANGES" | "APPROVE" | "COMMENT" | "UNKNOWN";
   highestSeverity?: string | null;
   mergeBlocked?: boolean;
+  /** cycle-133 C-1/C-2: why the merge is blocked when a degradation, not the verdict, blocks it. */
+  mergeBlockedReason?: string;
+  /** cycle-133 C-1/C-2: the review completed degraded (exit `bridgebuilder.exit_on_degraded`, default 3). */
+  degraded?: boolean;
+  /** cycle-133: the primary degraded reason (first in enumeration order). */
+  degradedReason?: DegradedReason;
+  degradedReasons?: DegradedReason[];
 }
 
 export interface RunSummary {
