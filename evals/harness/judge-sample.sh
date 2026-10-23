@@ -42,6 +42,11 @@
 # grader-consistency count). Prints the strata table. Deterministic; no timestamps; the key
 # names run directories relative to their results root.
 #
+# An arm id in a packet is exempt when the task's PR-native text (PR.md, head.diff, the files
+# under head/ and base/) also carries it — the PR names the arms, the arm never sees its own name;
+# a field line is exempt only when the whole line occurs verbatim there. Batch names, run ids and
+# cell keys are never exempt. Exemptions go to key.json provenance_exempt; packets are unchanged.
+#
 # Exit: 0 written; 1 a packet would carry a provenance field (nothing written), or inputs
 # invalid; 2 usage.
 # =============================================================================
@@ -336,15 +341,44 @@ prng = random.Random("%d:packets" % seed)
 sampled.sort(key=lambda u: u["unit"])
 prng.shuffle(sampled)
 
-forbidden = set()
+forbidden, arm_ids = set(), set()
 for r in rows:
     for k in ("arm", "batch", "run_id"):
         if r.get(k):
             forbidden.add(str(r[k]))
+    if r.get("arm"):
+        arm_ids.add(str(r["arm"]))
     forbidden.add(common.cell_key(r))
+strict = forbidden - arm_ids    # batch names, run ids, cell keys: never PR content, never exempt
+arm_ids -= strict
 FIELD = re.compile(r"^\s*(arm|trial|batch|run_id|stratum|grader[_ ]decision)\s*[:=]", re.I | re.M)
+NATIVE_CAP = 8 << 20            # bytes read per PR file
+_native = {}
 
-packets, items = {}, {}
+
+def pr_native(fixture_dir):
+    """the task's PR-native text: PR.md, head.diff, every regular file under head/ and base/
+    (bounded reads, symlinks skipped); an arm id quoted from it does not reveal the arm"""
+    if not fixture_dir:
+        return ""
+    if fixture_dir not in _native:
+        paths = [os.path.join(fixture_dir, n) for n in ("PR.md", "head.diff")]
+        for side in ("head", "base"):
+            top = os.path.join(fixture_dir, side)
+            if os.path.isdir(top) and not os.path.islink(top):
+                for d, dns, fns in os.walk(top, followlinks=False):
+                    dns.sort()
+                    paths += [os.path.join(d, n) for n in sorted(fns)]
+        parts = []
+        for p in paths:
+            if os.path.isfile(p) and not os.path.islink(p):
+                with open(p, "rb") as f:
+                    parts.append(f.read(NATIVE_CAP).decode("utf-8", "replace"))
+        _native[fixture_dir] = "\n".join(parts)
+    return _native[fixture_dir]
+
+
+packets, items, provenance_exempt = {}, {}, []
 for j, u in enumerate(sampled, 1):
     jid = "J%04d" % j
     L = ["# Judge item %s\n\n" % jid]
@@ -382,16 +416,29 @@ for j, u in enumerate(sampled, 1):
     scan = body
     for q in quoted:
         scan = scan.replace(q, "")
-    if FIELD.search(scan) or any(tok in scan for tok in forbidden):
-        bad = FIELD.search(scan)
-        die("packet %s would carry a provenance field (%s)" % (jid, bad.group(0).strip() if bad else
-            next(tok for tok in sorted(forbidden) if tok in scan)))
+    native, exempt = None, []
+    for m in FIELD.finditer(scan):
+        end = scan.find("\n", m.start())
+        whole = scan[m.start():end if end >= 0 else len(scan)].strip()
+        native = pr_native(u["_fixture"]) if native is None else native
+        if not whole or whole not in native:
+            die("packet %s would carry a provenance field (%s)" % (jid, m.group(0).strip()))
+        exempt.append(whole)
+    for tok in sorted(forbidden):
+        if tok in scan:
+            native = pr_native(u["_fixture"]) if native is None else native
+            if tok in strict or tok not in native:
+                die("packet %s would carry a provenance field (%s)" % (jid, tok))
+            exempt.append(tok)
+    for tok in sorted(set(exempt)):
+        provenance_exempt.append({"item": jid, "token": tok, "reason": "pr_native"})
     packets[jid] = body
     items[jid] = {k: u[k] for k in ("unit", "cell", "arm", "task", "trial", "class", "region", "defect", "grader_credit")}
 
 key = {"schema_version": 1, "seed": seed, "per_stratum": per, "per_stratum_used": cap, "min_total": mintot,
        "window": WIN, "near": NEAR, "strata": stab, "items": items, "cells": cells,
-       "grader_mismatch_cells": mismatch, "invalid_cells_skipped": skipped_invalid, "all_cells": all_cells,
+       "grader_mismatch_cells": mismatch,
+       "provenance_exempt": sorted(provenance_exempt, key=lambda e: (e["item"], e["token"])), "invalid_cells_skipped": skipped_invalid, "all_cells": all_cells,
        "universe": [{k: u[k] for k in ("unit", "cell", "arm", "task", "trial", "class", "region", "defect",
                                        "grader_credit", "sampled")} for u in units]}
 os.makedirs(os.path.join(out, "packets"), exist_ok=True)
@@ -404,6 +451,7 @@ print("stratum\tN\tn\tpi")
 for s in sorted(stab):
     print("%s\t%d\t%d\t%.4f" % (s, stab[s]["N"], stab[s]["n"], stab[s]["pi"]))
 print("total\t%d\t%d" % (len(units), len(sampled)))
+print("provenance exemptions: %d (pr_native)" % len(provenance_exempt))
 if mismatch:
     print("grader-consistency: %d cell(s) whose ±3 credits differ from the row's defects_missed_pm3" % mismatch)
 PY

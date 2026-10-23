@@ -6,7 +6,8 @@
 # task) and synthetic run directories (gates-combined.md + review.md): the universe classes and
 # strata counts, the inclusion probabilities, the min-total raise, determinism by seed, packets
 # without provenance (a provenance-bearing finding refuses with nothing written), the
-# grader-consistency count, the valid-cells universe, usage.
+# grader-consistency count, the valid-cells universe, usage; PR-native arm ids and field lines
+# exempt (recorded in key.json provenance_exempt), batch names and run ids never.
 # =============================================================================
 
 setup() {
@@ -132,4 +133,74 @@ row() {  # row <arm> <trial> <missed json>
   run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 1 --min-total 0 --all-cells
   [ "$status" -eq 0 ]
   [[ "$output" == *$'total\t12\t7'* ]]
+}
+
+review_t1() {  # review_t1 <text appended to the cited paragraph>
+  printf '# Review\n\nThe loop at `head/f.sh:11` is off by one. %s\n' "$1" > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+}
+
+@test "JS-9 an arm id the PR fixture itself carries is exempt and recorded; packets unchanged" {
+  printf '# PR\n\nAdds the a1_full arm to the harness.\n' > "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  review_t1 'The new a1_full arm label is hard-coded.'
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"provenance exemptions: 1 (pr_native)"* ]]
+  run jq -c '.provenance_exempt | map([.token, .reason])' "$T/o/key.json"
+  [ "$output" = '[["a1_full","pr_native"]]' ]
+  jid="$(jq -r '.provenance_exempt[0].item' "$T/o/key.json")"
+  grep -q 'The new a1_full arm label is hard-coded.' "$T/o/packets/$jid.md"
+}
+
+@test "JS-10 an exemption from a file under head/ counts too; absent from the PR, the same id refuses" {
+  echo '# a0_bare a1_full' > "$R/evals/fixtures/review-prs/pr-90/head/arms.txt"
+  review_t1 'The a1_full arm label is hard-coded.'
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  rm "$R/evals/fixtures/review-prs/pr-90/head/arms.txt"
+  ln -s /dev/null "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance field (a1_full)"* ]]
+  [ ! -e "$T/o2" ]
+}
+
+@test "JS-11 a batch name or run id refuses even when the PR fixture carries it" {
+  printf 'b1 b1-a1_full-review-x-t1 a1_full\n' > "$R/evals/fixtures/review-prs/pr-90/head.diff"
+  review_t1 'Seen in run b1-a1_full-review-x-t1.'
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance field (b1"* ]]
+  [ ! -e "$T/o" ]
+  review_t1 'From batch b1 only.'
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance field (b1)"* ]]
+  [ ! -e "$T/o" ]
+}
+
+@test "JS-12 a field line is exempt only when the whole line occurs verbatim in the PR" {
+  printf '# PR\n\n  arm: a1_full\n' > "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  printf '# Review\n\nThe loop at `head/f.sh:11` is off by one; the config says\narm: a1_full\n' > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"provenance exemptions: 2 (pr_native)"* ]]
+  run jq -c '[.provenance_exempt[].token]' "$T/o/key.json"
+  [ "$output" = '["a1_full","arm: a1_full"]' ]
+  printf '# PR\n\narm = a1_full\n' > "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"provenance field (arm:)"* ]]
+  [ ! -e "$T/o2" ]
+}
+
+@test "JS-13 exemptions are deterministic: two runs byte-identical" {
+  printf '# PR\n\narm: a1_full\n' > "$R/evals/fixtures/review-prs/pr-90/PR.md"
+  printf '# Review\n\nThe loop at `head/f.sh:11` is off by one (a1_full).\narm: a1_full\n' | tee "$RES/b1/a1_full/review-x-t1/sandbox/review.md" > "$RES/b1/a1_full/review-x-t2/sandbox/review.md"
+  bash "$JS" "${ARGS[@]}" --out "$T/a" --per-stratum 5 --min-total 0 >/dev/null
+  bash "$JS" "${ARGS[@]}" --out "$T/b" --per-stratum 5 --min-total 0 >/dev/null
+  diff -r "$T/a" "$T/b"
+  run jq -r '.provenance_exempt | length' "$T/a/key.json"
+  [ "$output" = 4 ]
+  run jq -c '.provenance_exempt == (.provenance_exempt | sort_by(.item, .token))' "$T/a/key.json"
+  [ "$output" = true ]
 }
