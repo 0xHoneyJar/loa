@@ -26602,3 +26602,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0818"
+    created_at: "2026-10-23T16:35:24Z"
+    updated_at: "2026-10-23T16:35:24Z"
+    phase: "review"
+    category: "process"
+    summary: "BB round 1 (PR #1289): two harness mediums deferred to the next harness cycle (pinned pipeline); two report lows fixed; the rest to beads; round 2 follows"
+    decision: "The two mediums (fail-open pricing helpers and closerange(3, 65536) in evals/harness/lib/session-exec.sh) are confirmed as written and deferred to bd-wqaj4 for the next harness cycle: evals/harness is the pinned pipeline fbd36a0c that REGISTRATION-8..17, reproduce.sh and the record attest, so a post-hoc change would break the pin attestation and the proof. The two report lows are fixed in 0f4a5f5c: the answer names the v2 key and its key dependence beside the headline (F-008) and a registration timeline from git commit times places every addendum against the looks (F-009), with caveat 9 corrected to say which addenda followed which look. F-002, F-004, F-006, F-007, F-005 and the look-hash anchoring go to beads bd-g2c5i, bd-wqaj4, bd-dt5r8, bd-qxwrm, bd-y1smc; F-010 is refuted (no zero-byte fixture); praise logged. A second round runs on the fixed head."
+    rationale: "A reviewer finding in the pinned harness is real and cheap to fix, but fixing it in this PR would change the pipeline the rows were produced by after the fact; the honest sequence is to ship the measurement on the pin it names and harden the harness in its own cycle. The report fixes change no number and make the pre-registration claim checkable, which is the deliverable."
+    alternatives_considered:
+      - option: "patch session-exec.sh now and re-run the fresh-clone reproduction"
+        rejected_because: "reproduce.sh refuses a HEAD whose evals/harness differs from the pin, REPRODUCE.md names the pin, and the rows were produced by the unpatched copy; the change belongs to a new registration"
+      - option: "defer the two report lows as well"
+        rejected_because: "they cost an hour, change no figure, and the timeline turns a prose claim about pre-registration into a checkable table"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "0f4a5f5c"
+    source: "PR #1289 Bridgebuilder round 1 (bridgebuilder-20261023T161200-02e4; ~/.cache/loa/cycle-132/bb-1289-r1/comments.md; triage comment 6369786246): COMMENT, 2 MEDIUM / 6 LOW / 2 SPECULATION / 1 REFRAME / 5 PRAISE; Task 3.6, 2026-10-23"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T16:35:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "PR #1289 Bridgebuilder round 1 (bridgebuilder-20261023T161200-02e4; ~/.cache/loa/cycle-132/bb-1289-r1/comments.md; triage comment 6369786246): COMMENT, 2 MEDIUM / 6 LOW / 2 SPECULATION / 1 REFRAME / 5 PRAISE; Task 3.6, 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
