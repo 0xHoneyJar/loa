@@ -26532,3 +26532,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0816"
+    created_at: "2026-10-23T15:52:29Z"
+    updated_at: "2026-10-23T15:52:29Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 271 audit APPROVED (0/0/2/6); eight hardening findings filed as follow-up beads, not patched in the proof apparatus before the Bridgebuilder round"
+    decision: "The audit tallies two medium (reproduce.sh attests HEAD against the pin rather than the working tree; the analysis pytest suite is absent from CI) and six low findings (live sample ungated on rc and env check; judge labels bound to the sample by item id only; lstat-keyed digest cache; final.sh sources a cache file and hard-codes a home path; unvalidated symlink target; INDEX-only.json undocumented) and approves. None is patched now: every affected file is part of the proof apparatus whose bytes the stage-1b record and REPRODUCE.md attest, the sprint rule re-runs Task 3.3b for any fix touching the analysis, and the Bridgebuilder round may add more. Fixes filed as beads bd-jat0z, bd-yroj0, bd-161zz, bd-xr3uq, bd-ombvn, bd-o3a5h; the Task 3.6 triage decides what is pulled into this cycle with one reproduction re-run."
+    rationale: "The one-way rule does not force CHANGES_REQUIRED (no critical or high), and each finding was checked against the recorded run: fresh clones with recorded heads, image and pin matched, the aggregation re-derived byte-identically, the chunk directory filled once, the registration sha carried by INPUTS.json. Patching between the proof and the Bridgebuilder round would alter the attested scripts and likely force two re-registrations for one outcome."
+    alternatives_considered:
+      - option: "patch the eight findings now and re-run the fresh-clone reproduction before the PR"
+        rejected_because: "the reproduction and REPRODUCE.md attest the record script bytes; the Bridgebuilder review is likely to add fixes of the same class, so one batched re-run after triage replaces two"
+      - option: "CHANGES_REQUIRED on the medium attestation gap"
+        rejected_because: "the counts decide the verdict and mediums never force it; the two recorded reproductions ran from fresh clones whose heads are recorded, so the attestation they made is true"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3407ba63"
+    source: "grimoires/loa/a2a/sprint-271/adversarial-audit.json (dissent run 2 of 3: gpt-5.5-pro 0 findings, claude-headless 5) and auditor-sprint-feedback.md (Sprint 271 audit, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T15:52:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/a2a/sprint-271/adversarial-audit.json (dissent run 2 of 3: gpt-5.5-pro 0 findings, claude-headless 5) and auditor-sprint-feedback.md (Sprint 271 audit, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
