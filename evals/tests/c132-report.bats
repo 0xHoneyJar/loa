@@ -20,6 +20,7 @@ SOURCES=(
   grimoires/loa/reports/review-catch-c132/batches.md
   grimoires/loa/reports/review-catch-c132/judge-defects/result.md
   grimoires/loa/reports/review-catch-c132/reproduction/report.md
+  grimoires/loa/reports/review-catch-c132/registration-timeline.md
 )
 
 setup() {

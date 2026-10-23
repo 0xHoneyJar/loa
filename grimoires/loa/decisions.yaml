@@ -26566,3 +26566,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0817"
+    created_at: "2026-10-23T16:10:16Z"
+    updated_at: "2026-10-23T16:10:16Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round for PR #1289 runs from a cache copy of the skill with the gh buffer raised (KF-054, bead bd-ra4im); the round is not skipped or substituted"
+    decision: "The stock Bridgebuilder cannot fetch PR #1289 (2,186 files; the files API carries about 22 MB of patches against a fixed 10 MiB child-process buffer in github-cli.ts), so the round runs from a copy of the skill under ~/.cache/loa/cycle-132/bb/ whose only change is that buffer constant (diff -r shows one line), launched through its own entry.sh from the repository with --exclude patterns for the artefact trees so the review budget goes to code. The System Zone is untouched; the defect is filed upstream as bd-ra4im and KF-054 carries the recipe."
+    rationale: "The sprint plan requires a triaged Bridgebuilder round before the merge and the operator rule is that a framework defect met in a cycle is worked around locally and filed upstream, never patched in .claude/. A one-constant copy keeps the real reviewer, its persona, consensus and posting path; skipping the round or replacing it with another tool would lose the gate."
+    alternatives_considered:
+      - option: "skip the Bridgebuilder round because CI is green and two dissent runs passed"
+        rejected_because: "the round is a named gate of Task 3.6 and the post-PR shortcut is a recorded failure pattern (cycle-072); dissent runs saw sprint diffs, not the PR"
+      - option: "substitute adversarial-review.sh --type review on the PR code diff"
+        rejected_because: "a single-shot dissenter is not the multi-voice reviewer with the persona and lore the gate names; it would be a different instrument"
+      - option: "edit maxBuffer in .claude/skills/bridgebuilder-review/dist in the working tree"
+        rejected_because: "the System Zone is never edited in a consumer checkout; the change belongs upstream (bd-ra4im)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8e867b13"
+    source: "~/.cache/loa/cycle-132/logs/bb-1289.err (stock run, Fatal ERR_CHILD_PROCESS_STDIO_MAXBUFFER at 15 s); grimoires/loa/known-failures.md KF-054; Task 3.6 (bd-tdbn6), 2026-10-23"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T16:10:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "~/.cache/loa/cycle-132/logs/bb-1289.err (stock run, Fatal ERR_CHILD_PROCESS_STDIO_MAXBUFFER at 15 s); grimoires/loa/known-failures.md KF-054; Task 3.6 (bd-tdbn6), 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
