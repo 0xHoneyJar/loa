@@ -100,6 +100,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-050](#kf-050-closed-mount-overlay-import-skew-mounted-cheval-importerror-when-a-fix-commit-path-outside-the-pr-is-rewound-beside-pinned-importers-pr-12) | OPEN — design hazard; pr-12 re-grade-only, no batch runs on it | evals/harness/lib/sandbox-mount.sh overlay_answer_paths (cycle-131 FR-1 closed mount) | 2 |
 | [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 2 |
 | [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 2 |
+| [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
 
 ---
 
@@ -1938,3 +1939,24 @@ A refusal fallback is a model-safety event on the review content, not infrastruc
 ### Reading guide
 
 Confirm the cause with 'last -x reboot shutdown' before anything else. Never relaunch the batch under its own name without --resume (duplicate run_id → ROWS INVALID, cycle-132 smoke lesson) and never move or delete its rows or run dirs. After --resume check the first log lines: 'resume: batch <name>, N of M trials rowed' and the relaunched units. If it recurs ≥ 3 times, make the driver a restartable unit instead of relying on manual resume.
+
+## KF-053: took-effect no_audit_rows fails on a BARE session because the agent ran the PR's own hook or audit script, which wrote sandbox/.run/audit.jsonl; the runner pauses the arm and exits with cells unrun
+
+**Status**: OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle
+**Feature**: evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418)
+**Symptom**: batch log: '<session> infrastructure_error valid false … (took-effect: … no_audit_rows FAIL sandbox/.run/audit.jsonl exists)', then 'PAUSED arm a0_bare_matched …' and 'failed: every arm is paused by took-effect (["a0_bare_matched"]); N trials left'; STATUS.json state failed, paused_arms set, skipped_paused > 0
+**First observed**: 2026-10-23T02:06Z cycle-132 Sprint 270 batch c132-g3-a2, review-r20-t2 session s10 (pr-20 modifies the audit chain; its block-destructive-bash hook, run by the bare agent, appended rows with action block / pattern FR-2-AMBIGUOUS)
+**Recurrence count**: 1
+**Current workaround**: Inspect sandbox/.run/audit.jsonl in the failed session: rows written by PR code the agent executed (hook name and pattern ids from the PR) mean no framework ran. Then relaunch the batch with --resume --clear-arm <arm>; the failed session stays invalid, the cell is finalised on its other sessions, the skipped cells run
+**Upstream issue**: candidate for grader/took-effect 1.4: scope no_audit_rows to rows whose hook or writer is the pinned framework (not a PR-content copy), or exempt PRs whose head.diff touches the audit chain, recorded as took_effect_exempt
+**Related visions / lore**: KF-046 (class 7 PR-content exemption), DEC-0791, PREREGISTRATION addenda 1, 4, 7, 8 (guards written for build tasks or framework leakage firing on PRs whose content is the harness itself)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | batch-c132.sh g3-a2 <pin> --resume --clear-arm a0_bare_matched at 02:28Z | in progress: 3 skipped cells relaunched; g3-a3 running concurrently | evals/results/ablation-2.0/c132-g3-a2/STATUS.json paused_arms; …/a0_bare_matched/review-r20-t2/sessions/s10/{meta/took-effect.json,sandbox/.run/audit.jsonl}; ~/.cache/loa/cycle-132/logs/batch-g3-a2-resume.log |
+
+### Reading guide
+
+Do not treat the pause as framework leakage until the audit.jsonl rows are read: a PR that ships hook or audit code will produce rows when the bare agent exercises it. Do not change the rule mid-phase; clear the arm and resume. If the same PR trips several sessions, expect its matched cell to degrade (< ceil(k/2) valid) and the pair to leave the primary; the per-class rows report it.
