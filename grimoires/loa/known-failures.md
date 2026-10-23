@@ -101,6 +101,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 4 |
 | [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 3 |
 | [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
+| [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
+| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
 
 ---
 
@@ -1962,3 +1964,45 @@ Confirm the cause with 'last -x reboot shutdown' before anything else. Never rel
 ### Reading guide
 
 Do not treat the pause as framework leakage until the audit.jsonl rows are read: a PR that ships hook or audit code will produce rows when the bare agent exercises it. Do not change the rule mid-phase; clear the arm and resume. If the same PR trips several sessions, expect its matched cell to degrade (< ceil(k/2) valid) and the pair to leave the primary; the per-class rows report it.
+
+## KF-054: Bridgebuilder aborts on a large PR: gh api pulls/N/files exceeds the adapter's fixed 10 MiB maxBuffer (ERR_CHILD_PROCESS_STDIO_MAXBUFFER) before any exclude or truncation applies
+
+**Status**: OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit)
+**Feature**: .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included)
+**Symptom**: [bridgebuilder:review] Phase: review … [15s] Still working… then '[bridgebuilder] Fatal: gh command failed (code=ERR_CHILD_PROCESS_STDIO_MAXBUFFER)'; no comment posted, no verdict JSON, bb-<pr>.out ends at the lore-loaded line
+**First observed**: 2026-10-23T16:01Z cycle-132 PR #1289 (2,186 files, 617 K additions; the files API returns ~1 MB of patch per 100 files, ~22 MB in total)
+**Recurrence count**: 1
+**Current workaround**: Copy the skill to a cache tree that mirrors .claude/skills/<name>/ (symlink .claude/scripts and node_modules), raise maxBuffer in dist/adapters/github-cli.js, run its entry.sh from the repo with --exclude for the artefact trees (evals/fixtures/**, evals/results/**, grimoires/loa/reports/**); recipe ~/.cache/loa/cycle-132/scripts/bb-large-pr.sh. Never edit .claude/.
+**Upstream issue**: bead bd-ra4im: fetch the file list without patches (--jq map(del(.patch))), apply exclude_patterns/max_files_per_pr, then fetch patches only for the selected files; expose max_buffer_bytes; degraded verdict instead of Fatal
+**Related visions / lore**: KF-036 (BB npm test on a keyless host); feedback_bb_filters_merged_prs; cycle-132 Task 3.6 (bd-tdbn6)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | BRIDGEBUILDER_MODEL=codex-headless entry.sh --pr 1289 (stock skill) | Fatal MAXBUFFER at 15 s into Phase: review; nothing posted | ~/.cache/loa/cycle-132/logs/bb-1289.err; PR #1289 head 8e867b13 |
+
+### Reading guide
+
+The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_diff_bytes act — shrinking those does nothing. Confirm with gh api repos/O/R/pulls/N/files?per_page=100 --jq '[.[]|(.patch//""|length)]|add' per page (×pages > 10 MiB), then use the patched-copy recipe and attach the run to the bead. Do not substitute bridge-orchestrator.sh (no real findings) and do not skip the round.
+
+## KF-055: Bridgebuilder consensus enrichment posts a tool-call transcript instead of the review; the body-derived verdict reads UNKNOWN and mergeBlocked true even when the consensus JSON says COMMENT
+
+**Status**: OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly
+**Feature**: .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON)
+**Symptom**: bb-<pr>.out: '[multi-model] Enrichment complete' with a small enrichedBytes; the posted [3/3] consensus comment contains 'I will check whether the repository is available locally…' and <invoke name="Bash"> blocks instead of ## Summary / ## Findings; summary JSON verdict UNKNOWN, highestSeverity set, mergeBlocked true, voices band APPROVED
+**First observed**: 2026-10-23T16:42Z cycle-132 PR #1289 Bridgebuilder round 2 (comment 6369941557); round 1 on the same PR enriched correctly (34 KB) but still parsed UNKNOWN
+**Recurrence count**: 1
+**Current workaround**: Read the findings from the per-voice <!-- bridge-findings --> JSON blocks and, when present, the consensus block's verdict field; treat the posted markup as the writer's failure, not a review; triage and record the verdict in the PR comment yourself; file the run id.
+**Upstream issue**: bead bd-cpvc6: enrichment writer with tools disabled and an output guard (reject invoke markup / missing findings block, fall back to the un-enriched consensus); verdict from the consensus JSON; exit 3 DEGRADED on enrichment failure
+**Related visions / lore**: KF-054 (large-PR maxBuffer, bd-ra4im); KF-037/KF-038 (claude -p headless companion failures); feedback_post_pr_shortcut
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | bb-large-pr.sh 1289 r2 (patched copy; voices gpt-5.5-pro + claude-headless) | voices fine (13 unique, 0 blocker); enrichment posted tool-call markup; verdict UNKNOWN | ~/.cache/loa/cycle-132/logs/bb-1289-r2.out; PR #1289 comment 6369941557 |
+
+### Reading guide
+
+Do not read UNKNOWN as a verdict: open the per-voice JSON blocks (schema_version 1 findings with severity) and the consensus block when it exists; if the [3/3] comment shows invoke markup the writer failed and the round's findings are the per-voice ones. Do not re-run hoping for a different writer output before the upstream guard lands; two rounds cost nothing but time.
