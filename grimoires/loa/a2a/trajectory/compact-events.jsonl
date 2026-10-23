@@ -2403,3 +2403,23 @@
   "current_phase": "unknown",
   "current_task": "unknown"
 }}
+{"event":"compact_recovery","timestamp":"2026-10-23T15:40:35Z","context":{
+  "timestamp": "2026-10-23T15:33:49Z",
+  "project_root": "/home/merlin/Documents/thj/code/loa",
+  "run_mode": {
+    "active": true,
+    "state": "RUNNING"
+  },
+  "simstim": {
+    "active": true,
+    "phase": "implementation"
+  },
+  "bridge": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "active_skill_doc": ".claude/skills/simstim-workflow/SKILL.md",
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}

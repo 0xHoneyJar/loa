@@ -1,0 +1,26 @@
+{
+  "runId": "bridgebuilder-20261023T161200-02e4",
+  "mode": "multi-model",
+  "items": 1,
+  "verdicts": [
+    {
+      "repo": "0xHoneyJar/loa",
+      "pr": 1289,
+      "headSha": "8e867b13f53f52484df2081c7c1421d60e725068",
+      "verdict": "UNKNOWN",
+      "highestSeverity": "MEDIUM",
+      "mergeBlocked": true,
+      "voices": {
+        "planned": 2,
+        "completed": 2,
+        "band": "APPROVED",
+        "incomplete": [],
+        "degraded": false
+      }
+    }
+  ],
+  "degraded": false,
+  "voicesCompleted": 2,
+  "voicesPlanned": 2,
+  "exitCode": 0
+}

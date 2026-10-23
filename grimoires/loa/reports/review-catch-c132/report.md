@@ -24,6 +24,8 @@ Repeated confidence interval at the stopping look 3: [-0.0936, 0.2879] (b = 2.26
 REML LMM: β 0.0614, 95 % [-0.0540, 0.1767], σu 0.1934, σe 0.1664.
 PR-level permutation: p 0.3711 (exact, 1024).
 
+The headline is read against the v2 key, the blind re-derived labels every arm was graded under (§ Ground truth), and it is not robust to the choice of key: under the seeded review-derived key the sign reverses, and the frozen cycle-131 and v1 keys cover too few PRs to read (§ Sensitivities carries the three side by side).
+
 **The stopping rule did not fire** at any of the three registered looks, and the final look (information fraction 1) reads **INCONCLUSIVE**: the YES statistic z_yes 1.15 is below the O'Brien–Fleming boundary 2.26 and the NO statistic z_no 0.03 is below its boundary, so neither "the pipeline catches more at the MDE" nor "it does not" is established. **The 25 % guard tripped on the full arm** (eleven of twenty-eight planned cells excluded), so by the registration the read is **inconclusive by degradation**. **The placebo on these rows failed its calibration band** (one in ten shuffled intervals excluded zero against the registered eight percent), so, as pre-specified in §8, the decision rests on the simulation-calibrated group-sequential boundary and the PR-level permutation test (p 0.37) rather than on the bootstrap interval alone. **The sign depends on the key:** under the registered review-derived sensitivity key (nine PRs, fifty-seven defects) the matched bundle reads above the pipeline, with an interval that again covers zero.
 
 ## Pre-registered reads (PREREGISTRATION §5)
@@ -270,11 +272,11 @@ Read plainly: a quarter to a third of the pairs the grader credits carry at leas
 | item | USD |
 |---|---|
 | cap (PREREGISTRATION §7, binding) | 4200.00 |
-| run rows since kickoff (arms, smokes, blind sessions; deduplicated by run_id) | 3280.57 |
+| run rows since kickoff (arms, smokes, blind sessions, the reproduction's live rerun; deduplicated by run_id) | 3331.90 |
 | host cost ledger since kickoff (dissents, Flatline, judge-side calls) | 47.39 |
-| cycle meter total | 3327.96 |
-| headroom under the cap | 872.04 |
-| reserves still held (reproduction rerun, dissents) | 250.00 |
+| cycle meter total | 3379.29 |
+| headroom under the cap | 820.71 |
+| reserves still held (dissents) | 250.00 |
 
 No batch was stopped by the cap; the arm allowance and every reserve except the judge's were respected (the judge spent USD 43.1 against a reserve of 30; the contingency covered it).
 
@@ -309,12 +311,91 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 6. **Placebo calibration.** At ten clusters the cluster-t interval is anti-conservative by about two points; the registration anticipated this and bounded it by the simulated size of the whole procedure.
 7. **Judge agreement is low** (κ about 0.2) and the registered correction is biased against arms with many citations per defect (DEC-0800); the exploratory defect-level read puts the describing share at a quarter to a third of credited pairs in every arm, with the arm difference keeping the primary's sign inside a wide interval. The grader stays primary as registered; the semantic question is open.
 8. **Corpus ceiling.** N = 14 is every eligible fixture; the power simulation gave P(YES | MDE) 0.82 and P(NO | 0) 0.75 at that N, and a true null ends INCONCLUSIVE in about one study in seven. pr-11 (2026-09-25) is borderline for model exposure and is flagged; the pr-11-out sensitivity is above.
-9. **Sixteen addenda** corrected defects exposed by smokes, looks, the judge pilot and the first final read, each registered before the data it governs was read; `PREREGISTRATION-sha256.txt` lists the chain. None changed the primary estimand, the arms, the rule or the cap; addendum 16 supplied the missing label-set and co-read branches of the analysis and the `dominated` label.
+9. **Eighteen addenda** corrected defects exposed by smokes, looks, the judge pilot and the first final read; `PREREGISTRATION-sha256.txt` lists the chain and the timeline below places each against the looks. Addenda 1–9 and REGISTRATION-8 (the pin `fbd36a0c`) precede every Phase 1 row. Addenda 10–11 followed look 1 (the positive-control rule with the §5 co-reads, and the supersedes-chain acceptance; look 1 was re-read under them as `look-1-amended`); addenda 12–15 concern the judge packets and the chain validator, 12 before look 3 and 13–15 after it, with the judge's run 2 data produced after them; the analysis addenda 16–18 followed the final read (the label-set sensitivities, the co-reads and the `dominated` label, which enter no decision, and the reproduction tooling), and the final read re-taken under REGISTRATION-15 is byte-identical in every registered figure to the REGISTRATION-14 read. None changed the primary estimand, the arms, the rule, the cap or the pin.
+
+| committed (UTC) | event | file | sha256 (first 12) | pipeline pin |
+|---|---|---|---|---|
+| 2026-10-21T06:35:40Z | pre-registration | `PREREGISTRATION.md` | 4fe396a23966 | — |
+| 2026-10-21T06:35:41Z | registration at kickoff | `REGISTRATION.json` | 7d5200119966 | `622d0043` |
+| 2026-10-21T08:37:15Z | addendum 1 | `PREREGISTRATION-addendum-1.md` | 4b870665589b | — |
+| 2026-10-21T08:37:16Z | registration 1 | `REGISTRATION-1.json` | 277a6effd863 | `664c4516` |
+| 2026-10-21T09:57:34Z | addendum 2 | `PREREGISTRATION-addendum-2.md` | a3e78a0ca7a3 | — |
+| 2026-10-21T09:57:35Z | registration 2 | `REGISTRATION-2.json` | 857669e7c80e | `5af8b80e` |
+| 2026-10-21T10:07:10Z | addendum 3 | `PREREGISTRATION-addendum-3.md` | bae60b0ec75a | — |
+| 2026-10-21T10:07:11Z | registration 3 | `REGISTRATION-3.json` | 573041811eae | `51a55a98` |
+| 2026-10-21T10:52:07Z | addendum 4 | `PREREGISTRATION-addendum-4.md` | ace014eeea77 | — |
+| 2026-10-21T10:52:07Z | registration 4 | `REGISTRATION-4.json` | f2c0e8f99083 | `09fb0900` |
+| 2026-10-21T11:45:59Z | addendum 5 | `PREREGISTRATION-addendum-5.md` | fbd3b41c241e | — |
+| 2026-10-21T11:45:59Z | addendum 6 | `PREREGISTRATION-addendum-6.md` | af79e5d9b33b | — |
+| 2026-10-21T11:46:00Z | registration 5 | `REGISTRATION-5.json` | 6ad2e34e503a | `426c6c3d` |
+| 2026-10-21T12:32:41Z | addendum 7 | `PREREGISTRATION-addendum-7.md` | 3da2805d80df | — |
+| 2026-10-21T12:32:42Z | registration 6 | `REGISTRATION-6.json` | 6205eaf5f1f0 | `3d6f6a40` |
+| 2026-10-21T12:57:21Z | addendum 8 | `PREREGISTRATION-addendum-8.md` | c7a6f65bd7ae | — |
+| 2026-10-21T13:06:50Z | registration 7 | `REGISTRATION-7.json` | a31e59421545 | `9544948b` |
+| 2026-10-21T15:04:14Z | addendum 9 | `PREREGISTRATION-addendum-9.md` | e1e6e413a005 | — |
+| 2026-10-21T15:37:36Z | registration 8 | `REGISTRATION-8.json` | 614bcea50b1f | `fbd36a0c` |
+| 2026-10-22T06:41:05Z | look 1 (data read) | `c132-looks/look-1/` | — | — |
+| 2026-10-22T07:02:02Z | addendum 10 | `PREREGISTRATION-addendum-10.md` | 6c852253bfaf | — |
+| 2026-10-22T07:02:27Z | registration 9 | `REGISTRATION-9.json` | ae0b1da61447 | `fbd36a0c` |
+| 2026-10-22T07:15:27Z | addendum 11 | `PREREGISTRATION-addendum-11.md` | db49889b40f9 | — |
+| 2026-10-22T07:16:03Z | registration 10 | `REGISTRATION-10.json` | 13cbd850f825 | `fbd36a0c` |
+| 2026-10-22T07:17:39Z | look 1 re-read under addendum 10 | `c132-looks/look-1-amended/` | — | — |
+| 2026-10-22T18:12:50Z | look 2 (data read) | `c132-looks/look-2/` | — | — |
+| 2026-10-23T05:27:39Z | addendum 12 | `PREREGISTRATION-addendum-12.md` | 37014fa12438 | — |
+| 2026-10-23T05:28:03Z | registration 11 | `REGISTRATION-11.json` | 2f6909d23efc | `fbd36a0c` |
+| 2026-10-23T07:49:43Z | look 3, the final look (data read) | `c132-looks/look-3/` | — | — |
+| 2026-10-23T08:01:52Z | addendum 13 | `PREREGISTRATION-addendum-13.md` | 9df1ab3189c3 | — |
+| 2026-10-23T08:02:14Z | registration 12 | `REGISTRATION-12.json` | 9a0dda4bcedc | `fbd36a0c` |
+| 2026-10-23T08:37:57Z | addendum 14 | `PREREGISTRATION-addendum-14.md` | a06aea1f4262 | — |
+| 2026-10-23T08:38:25Z | registration 13 | `REGISTRATION-13.json` | 05fa23fe8c69 | `fbd36a0c` |
+| 2026-10-23T09:57:41Z | addendum 15 | `PREREGISTRATION-addendum-15.md` | 46d8f629965d | — |
+| 2026-10-23T09:57:43Z | registration 14 | `REGISTRATION-14.json` | 380f7a3656d3 | `fbd36a0c` |
+| 2026-10-23T11:35:38Z | final read under REGISTRATION-14 | `c132-final/` | — | — |
+| 2026-10-23T11:58:58Z | addendum 16 | `PREREGISTRATION-addendum-16.md` | 01744b114e13 | — |
+| 2026-10-23T12:01:32Z | final read re-taken under REGISTRATION-15 (analysis addendum 16; every registered figure byte-identical) | `reads.md` | — | — |
+| 2026-10-23T12:01:32Z | registration 15 | `REGISTRATION-15.json` | c9d98acb2668 | `fbd36a0c` |
+| 2026-10-23T13:11:12Z | addendum 17 | `PREREGISTRATION-addendum-17.md` | 3cfead4d20a5 | — |
+| 2026-10-23T13:11:46Z | registration 16 | `REGISTRATION-16.json` | d360e0da896d | `fbd36a0c` |
+| 2026-10-23T13:45:13Z | addendum 18 | `PREREGISTRATION-addendum-18.md` | e619e83a1134 | — |
+| 2026-10-23T13:45:14Z | registration 17 | `REGISTRATION-17.json` | f57f04f8a580 | `fbd36a0c` |
+
 10. **Operations.** A host reboot killed the lead session at the start of Sprint 271 (recovered by `/run-resume`); two earlier reboots and one runner kill are recorded in `batches.md`. The Sprint 270 lead ran part of the sprint on Opus 5.5; arm and judge models are pinned in the registration and were unaffected.
 
 ## Proof
 
-- **Reproduction** (FR-10): an Opus 5.5 reproducer, from a fresh clone of the record branch into an empty directory, re-grades every recorded run, re-rows, re-reads and re-runs the registered sample live; the record's stage-1 commit is `b15e546e649f98d81378ad3c6261525925b88a1c` (`record/cycle-132-conclusive-review-catch`); the reproducer's report is `reproduction/report.md` beside this file (and `grimoires/loa/a2a/sprint-271/reproduction/report.md` on the record's stage 2), and `REPRODUCE.md` beside this file carries the exact commands and expected hashes.
+- **Reproduction** (FR-10): an Opus 5.5 reproducer, from a fresh clone of the record branch into an empty directory (no access to the lead's working tree), re-graded every recorded run, re-rowed, re-read and re-ran the registered sample live; the record's stage-1 commit is `b15e546e649f98d81378ad3c6261525925b88a1c` and its stage 1b (one commit on top: the live-rerun flag fix of addendum 18) is `3be895f230aa1eef6137e632bffc26dc274c5e5f` (`record/cycle-132-conclusive-review-catch`); the reproducer's report is `reproduction/report.md` beside this file (and `grimoires/loa/a2a/sprint-271/reproduction/report.md` on the record's stage 2), and `REPRODUCE.md` beside this file carries the exact commands and expected hashes.
+
+### Reproduction result (`reproduction/report.md`, from the fresh clone of stage 1b `3be895f2`)
+
+| artefact class | count | equal | differ |
+|---|---:|---:|---:|
+| session grade.json | 433 | 433 | 0 |
+| session gates-combined.md | 433 | 433 | 0 |
+| pipeline-cell grade.json | 84 | 84 | 0 |
+| pipeline-cell gates-combined.md | 84 | 84 | 0 |
+| union-cell grade.json | 56 | 56 | 0 |
+| union-cell gates-combined.md | 56 | 56 | 0 |
+| INPUTS.json cells[*].grade_sha256 | 140 | 140 | 0 |
+| rows (canonical JSON) | 140 | 140 | 0 |
+| rows (bytes) | 140 | 140 | 0 |
+| not graded in the record (skipped, listed below) | 7 | 7 | 0 |
+| rows.jsonl file sha256 | 1 | 1 | 0 |
+| INPUTS.json | 1 | 1 | 0 |
+| final.md | 1 | 1 | 0 |
+| final.json | 1 | 1 | 0 |
+| placebo-phase1.md | 1 | 1 | 0 |
+| placebo-phase1.json | 1 | 1 | 0 |
+
+Every recorded grade, row and read reproduced byte for byte; the seven run directories the runner never graded are listed in the report, not counted. The live rerun of the registered sample (DEC-0812: review-r24, one trial per arm, USD 51.33, every run completed, none contaminated or oracle-exposed):
+
+| arm | recorded recall_pm3 (trials 1, 2) | recorded range | rerun recall_pm3 | status | inside range |
+|---|---|---|---|---|---|
+| a1_full | 0.8889, 1.0000 | [0.8889, 1.0] | 0.8889 | completed | yes |
+| a0_bare_matched | 1.0000, 1.0000 | [1.0, 1.0] | 0.8889 | completed | NO |
+| a1_review_only | 0.7778, 0.8889 | [0.7778, 0.8889] | 0.6667 | completed | NO |
+
+Read as the registration asks: the full arm's rerun sits inside its recorded range; the matched bundle's and review-only's reruns each fall one defect of nine outside their recorded two-trial ranges (8 of 9 against two perfect trials; 6 of 9 under the proximity rule against 7 and 8 of 9), and are named here as discrepancies. A third draw landing outside a two-point range is a one-in-three event per arm under exchangeability, so two of three outside is within chance; the apparatus ran, graded and rowed exactly as in Phase 1, and nothing in these three cells changes any read.
+
 - **Controls:** the positive control and both placebos above (`placebo-phase1.md`, `placebo-existing/placebo-existing.md`).
 - **Judge:** `judge/result.md`, `judge/result.json`, `judge/key-summary.json`; the exploratory defect-level read in `judge-defects/`.
 - **Dissent records:** plan-stage Flatline reviews of the PRD, SDD, sprint plan and the pre-registration (`grimoires/loa/a2a/flatline/{prd,sdd,sprint,spec}-flatline-*-final_consensus.json`, `grimoires/loa/a2a/sprint-269/flatline-prereg.json`); the review and audit dissent envelopes of Sprints 269, 270 and 271 (`grimoires/loa/a2a/sprint-26{9,70}/adversarial-{review,audit}.json`, `sprint-270/` copied beside this file, `sprint-271/`); the Bridgebuilder round on the cycle PR.
@@ -329,12 +410,13 @@ No batch was stopped by the cap; the arm allowance and every reserve except the 
 | `rows.jsonl` | the 140 Phase 1 rows (groups G1–G3, every registered arm) |
 | `power.md` | the power simulation that set N = 14 and the cap |
 | `PREREGISTRATION-sha256.txt` | the registration chain |
+| `registration-timeline.md` | every pre-registration document, registration and data look in commit order, against the looks (`scripts/registration-timeline.sh`) |
 | `placebo-phase1.md`, `placebo-phase1.json` | the placebo on the Phase 1 rows |
 | `judge/` | the blind judge (Task 2.6) |
 | `ground-truth.md` | the annotation run (Task 1.6) |
 | `spend.md`, `spend.json` | the cycle meter |
 | `batches.md`, `batch-scans.md` | the batch record and the contamination hand-reads |
-| `scripts/` | the lead's drivers (`batch-c132.sh`, `look.sh`, `final.sh`, `register*.sh`, `run-judge.sh`, `report-assemble.py`) |
+| `scripts/` | the lead's drivers (`batch-c132.sh`, `look.sh`, `final.sh`, `register*.sh`, `run-judge.sh`, `registration-timeline.sh`, `report-assemble.py`) |
 | `sprint-270/` | the Sprint 270 gate artefacts (reviewer report, feedback, dissent envelopes) |
 | `REPRODUCE.md`, `reproduction/` | the reproduction instructions and the reproducer's report |
 | `judge-defects/` | the exploratory defect-level judge read |

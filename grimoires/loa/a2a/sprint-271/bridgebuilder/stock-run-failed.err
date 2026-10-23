@@ -1,0 +1,12 @@
+[bridgebuilder] Config: repos=[0xHoneyJar/loa] (auto-detect), model=codex-headless (env), max_prs=10, max_input_tokens=200000 (default), max_output_tokens=32000 (default), max_diff_bytes=512000 (default), dry_run=false (default), sanitizer_mode=default, target_pr=#1289, review_mode=two-pass (default)
+[bridgebuilder] Trusted config: base-ref refs/remotes/origin/main (mode: pull-request); locality: hosted; exit_on_degraded: 3
+[bridgebuilder] Persona: pack:default
+[bridgebuilder] Multi-model: 2 provider(s) available, 0 missing (mode: graceful)
+[bridgebuilder] Not planned (agy opt-in, hounfour.headless.agy_opt_in): google/gemini-3.1-pro-preview
+[bridgebuilder:preflight] [0s] Starting multi-model review pipeline...
+[bridgebuilder:config] [0s] Registered model: anthropic/claude-headless
+[bridgebuilder:config] [0s] Registered model: openai/gpt-5.5-pro
+[bridgebuilder:config] [0s] Registered model: google/gemini-3.1-pro-preview
+[bridgebuilder:review] [0s] Phase: review
+[bridgebuilder:review] [15s] Still working...
+[bridgebuilder] Fatal: gh command failed (code=ERR_CHILD_PROCESS_STDIO_MAXBUFFER)

@@ -1,6 +1,6 @@
 # Release notes: v2.0.0-rc.7 (pre-release) — the conclusive review-catch answer (cycle-132)
 
-Prepared 2026-10-23 by the cycle-132 lead for the post-merge pipeline, which fills the "Release body" section from the merge and finalises the CHANGELOG heading. The full release note is the CHANGELOG `## [Unreleased]` section at the merge; this file states the measurement's answer and its caveats in plain words. **Nothing shipped by default changes in rc.7** (PRD G-7): the release carries the measurement harness, the bug fixes of the three `/bug` micro-sprints, and the report.
+Prepared 2026-10-24 by the cycle-132 lead for the post-merge pipeline, which fills the "Release body" section from the merge and finalises the CHANGELOG heading. The full release note is the CHANGELOG `## [Unreleased]` section at the merge; this file states the measurement's answer and its caveats in plain words. **Nothing shipped by default changes in rc.7** (PRD G-7): the release carries the measurement harness, the bug fixes of the three `/bug` micro-sprints, and the report.
 
 ## What was measured (PRD G-1 … G-6)
 
@@ -16,6 +16,10 @@ Report: `grimoires/loa/reports/review-catch-c132/report.md` (reads, rows, power,
 - **Controls:** the positive control passes (open mount above closed mount with oracle exposure in nine open runs); the placebo fails its calibration band on these rows as it did on the 63 pre-existing rows, so the decision rests on the simulation-calibrated boundary and the permutation test (p 0.37), as pre-specified.
 - **The structural limitation:** nine PRs modify Loa's own `.claude/` files, and the pinned pipeline reads its own fixed copies while reviewing them; such runs are oracle-exposed and excluded from the primary. Re-including them raises the estimate and moves the interval off zero — the registration refused to make that the primary, and so does the report.
 - **The judge:** about one credited citation in five describes the labelled defect, in every arm alike (kappa with the grader 0.20); the mechanical grader stays primary as registered, and the semantic question is open.
+
+## The proof (PRD FR-10)
+
+An Opus 5.5 reproducer, from a fresh clone of the record branch `record/cycle-132-conclusive-review-catch` (stage 1b `3be895f2`) into an empty directory, re-derived every recorded grade (433 session, 84 cell, 56 union), every row (140, canonical and bytes) and every read (INPUTS.json, final and placebo files) byte for byte — zero differences — and re-ran the registered live sample (review-r24 in three arms, USD 51): the full arm's grade inside its recorded range, the matched bundle's and review-only's one defect of nine outside their two-trial ranges, named in the report as the registration requires. `REPRODUCE.md` beside the report carries the commands and the expected hashes.
 
 ## What ships in rc.7
 

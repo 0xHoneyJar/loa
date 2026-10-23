@@ -2710,9 +2710,9 @@
         {
           "global_id": 271,
           "local_label": "sprint-3",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-21T02:27:51Z",
-          "completed": null
+          "completed": "2026-10-23T15:53:22Z"
         }
       ]
     }
@@ -3161,5 +3161,5 @@
     }
   ],
   "next_sprint_number": 272,
-  "last_updated": "2026-10-23T10:00:38Z"
+  "last_updated": "2026-10-23T15:53:22Z"
 }

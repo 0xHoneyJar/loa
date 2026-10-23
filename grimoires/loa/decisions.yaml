@@ -26498,3 +26498,141 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0815"
+    created_at: "2026-10-23T15:04:23Z"
+    updated_at: "2026-10-23T15:04:23Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Reproduction: every hash equal from the fresh clone (stage 1 and 1b); live rerun 1 of 3 inside the range, 2 one defect outside, named; apparatus confirmed"
+    decision: "FR-10 read as registered. From a fresh clone of the stage-1 record (and again of stage 1b after the live-rerun flag fix), the reproducer re-derived 433 of 433 session grades, 84 of 84 pipeline-cell grades, 56 of 56 union grades, 140 of 140 INPUTS cells, 140 of 140 rows (canonical JSON and bytes, rows.jsonl sha256 equal), INPUTS.json, final.md, final.json, placebo-phase1.md and placebo-phase1.json byte for byte; seven never-graded run directories are listed, not counted; the environment matched the registration (image digest, pin tree). The DEC-0812 live sample ran all three cells to completion at the pin (USD 51.33, none contaminated or oracle-exposed): a1_full recall_pm3 0.8889 inside its recorded range [0.8889, 1.0]; a0_bare_matched 0.8889 against [1.0, 1.0]; a1_review_only 0.6667 against [0.7778, 0.8889] — the last two one defect of nine outside their two-trial ranges and named in the report as the rule requires. The lead reads the apparatus as confirmed: it ran, graded and rowed exactly as in Phase 1; a third draw outside a two-point range is a one-in-three event per arm under exchangeability, so two of three outside is within chance; no read changes."
+    rationale: "The registered rule says inside confirms and outside is named; naming two one-defect misses against two-trial ranges states the fact without turning a sample of three cells into a statistic, and the byte-identical re-derivation of every recorded artefact is the proof FR-10 asks for."
+    alternatives_considered:
+      - option: "treat the two outside grades as a failed reproduction"
+        rejected_because: "the reproduction is of the record (grades, rows, reads), which is byte-identical; the live sample tests that the apparatus still runs, and a two-trial range is not an interval"
+      - option: "rerun more trials until the grades fall inside"
+        rejected_because: "a forking path; the registered sample is three cells and the outcome is reported as it fell"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "5602f32f"
+    source: "grimoires/loa/reports/review-catch-c132/reproduction/report.md and live-runs.jsonl (Opus 5.5 reproducer, fresh clones of b15e546e and 3be895f2; Sprint 271, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T15:04:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/reports/review-catch-c132/reproduction/report.md and live-runs.jsonl (Opus 5.5 reproducer, fresh clones of b15e546e and 3be895f2; Sprint 271, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0816"
+    created_at: "2026-10-23T15:52:29Z"
+    updated_at: "2026-10-23T15:52:29Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 271 audit APPROVED (0/0/2/6); eight hardening findings filed as follow-up beads, not patched in the proof apparatus before the Bridgebuilder round"
+    decision: "The audit tallies two medium (reproduce.sh attests HEAD against the pin rather than the working tree; the analysis pytest suite is absent from CI) and six low findings (live sample ungated on rc and env check; judge labels bound to the sample by item id only; lstat-keyed digest cache; final.sh sources a cache file and hard-codes a home path; unvalidated symlink target; INDEX-only.json undocumented) and approves. None is patched now: every affected file is part of the proof apparatus whose bytes the stage-1b record and REPRODUCE.md attest, the sprint rule re-runs Task 3.3b for any fix touching the analysis, and the Bridgebuilder round may add more. Fixes filed as beads bd-jat0z, bd-yroj0, bd-161zz, bd-xr3uq, bd-ombvn, bd-o3a5h; the Task 3.6 triage decides what is pulled into this cycle with one reproduction re-run."
+    rationale: "The one-way rule does not force CHANGES_REQUIRED (no critical or high), and each finding was checked against the recorded run: fresh clones with recorded heads, image and pin matched, the aggregation re-derived byte-identically, the chunk directory filled once, the registration sha carried by INPUTS.json. Patching between the proof and the Bridgebuilder round would alter the attested scripts and likely force two re-registrations for one outcome."
+    alternatives_considered:
+      - option: "patch the eight findings now and re-run the fresh-clone reproduction before the PR"
+        rejected_because: "the reproduction and REPRODUCE.md attest the record script bytes; the Bridgebuilder review is likely to add fixes of the same class, so one batched re-run after triage replaces two"
+      - option: "CHANGES_REQUIRED on the medium attestation gap"
+        rejected_because: "the counts decide the verdict and mediums never force it; the two recorded reproductions ran from fresh clones whose heads are recorded, so the attestation they made is true"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3407ba63"
+    source: "grimoires/loa/a2a/sprint-271/adversarial-audit.json (dissent run 2 of 3: gpt-5.5-pro 0 findings, claude-headless 5) and auditor-sprint-feedback.md (Sprint 271 audit, 2026-10-23)"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T15:52:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "grimoires/loa/a2a/sprint-271/adversarial-audit.json (dissent run 2 of 3: gpt-5.5-pro 0 findings, claude-headless 5) and auditor-sprint-feedback.md (Sprint 271 audit, 2026-10-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0817"
+    created_at: "2026-10-23T16:10:16Z"
+    updated_at: "2026-10-23T16:10:16Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round for PR #1289 runs from a cache copy of the skill with the gh buffer raised (KF-054, bead bd-ra4im); the round is not skipped or substituted"
+    decision: "The stock Bridgebuilder cannot fetch PR #1289 (2,186 files; the files API carries about 22 MB of patches against a fixed 10 MiB child-process buffer in github-cli.ts), so the round runs from a copy of the skill under ~/.cache/loa/cycle-132/bb/ whose only change is that buffer constant (diff -r shows one line), launched through its own entry.sh from the repository with --exclude patterns for the artefact trees so the review budget goes to code. The System Zone is untouched; the defect is filed upstream as bd-ra4im and KF-054 carries the recipe."
+    rationale: "The sprint plan requires a triaged Bridgebuilder round before the merge and the operator rule is that a framework defect met in a cycle is worked around locally and filed upstream, never patched in .claude/. A one-constant copy keeps the real reviewer, its persona, consensus and posting path; skipping the round or replacing it with another tool would lose the gate."
+    alternatives_considered:
+      - option: "skip the Bridgebuilder round because CI is green and two dissent runs passed"
+        rejected_because: "the round is a named gate of Task 3.6 and the post-PR shortcut is a recorded failure pattern (cycle-072); dissent runs saw sprint diffs, not the PR"
+      - option: "substitute adversarial-review.sh --type review on the PR code diff"
+        rejected_because: "a single-shot dissenter is not the multi-voice reviewer with the persona and lore the gate names; it would be a different instrument"
+      - option: "edit maxBuffer in .claude/skills/bridgebuilder-review/dist in the working tree"
+        rejected_because: "the System Zone is never edited in a consumer checkout; the change belongs upstream (bd-ra4im)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8e867b13"
+    source: "~/.cache/loa/cycle-132/logs/bb-1289.err (stock run, Fatal ERR_CHILD_PROCESS_STDIO_MAXBUFFER at 15 s); grimoires/loa/known-failures.md KF-054; Task 3.6 (bd-tdbn6), 2026-10-23"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T16:10:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "~/.cache/loa/cycle-132/logs/bb-1289.err (stock run, Fatal ERR_CHILD_PROCESS_STDIO_MAXBUFFER at 15 s); grimoires/loa/known-failures.md KF-054; Task 3.6 (bd-tdbn6), 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0818"
+    created_at: "2026-10-23T16:35:24Z"
+    updated_at: "2026-10-23T16:35:24Z"
+    phase: "review"
+    category: "process"
+    summary: "BB round 1 (PR #1289): two harness mediums deferred to the next harness cycle (pinned pipeline); two report lows fixed; the rest to beads; round 2 follows"
+    decision: "The two mediums (fail-open pricing helpers and closerange(3, 65536) in evals/harness/lib/session-exec.sh) are confirmed as written and deferred to bd-wqaj4 for the next harness cycle: evals/harness is the pinned pipeline fbd36a0c that REGISTRATION-8..17, reproduce.sh and the record attest, so a post-hoc change would break the pin attestation and the proof. The two report lows are fixed in 0f4a5f5c: the answer names the v2 key and its key dependence beside the headline (F-008) and a registration timeline from git commit times places every addendum against the looks (F-009), with caveat 9 corrected to say which addenda followed which look. F-002, F-004, F-006, F-007, F-005 and the look-hash anchoring go to beads bd-g2c5i, bd-wqaj4, bd-dt5r8, bd-qxwrm, bd-y1smc; F-010 is refuted (no zero-byte fixture); praise logged. A second round runs on the fixed head."
+    rationale: "A reviewer finding in the pinned harness is real and cheap to fix, but fixing it in this PR would change the pipeline the rows were produced by after the fact; the honest sequence is to ship the measurement on the pin it names and harden the harness in its own cycle. The report fixes change no number and make the pre-registration claim checkable, which is the deliverable."
+    alternatives_considered:
+      - option: "patch session-exec.sh now and re-run the fresh-clone reproduction"
+        rejected_because: "reproduce.sh refuses a HEAD whose evals/harness differs from the pin, REPRODUCE.md names the pin, and the rows were produced by the unpatched copy; the change belongs to a new registration"
+      - option: "defer the two report lows as well"
+        rejected_because: "they cost an hour, change no figure, and the timeline turns a prose claim about pre-registration into a checkable table"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-s3/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "0f4a5f5c"
+    source: "PR #1289 Bridgebuilder round 1 (bridgebuilder-20261023T161200-02e4; ~/.cache/loa/cycle-132/bb-1289-r1/comments.md; triage comment 6369786246): COMMENT, 2 MEDIUM / 6 LOW / 2 SPECULATION / 1 REFRAME / 5 PRAISE; Task 3.6, 2026-10-23"
+    cycle: "cycle-132-conclusive-review-catch"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-23T16:35:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-s3"
+        evidence: "PR #1289 Bridgebuilder round 1 (bridgebuilder-20261023T161200-02e4; ~/.cache/loa/cycle-132/bb-1289-r1/comments.md; triage comment 6369786246): COMMENT, 2 MEDIUM / 6 LOW / 2 SPECULATION / 1 REFRAME / 5 PRAISE; Task 3.6, 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
