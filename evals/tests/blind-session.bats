@@ -376,8 +376,8 @@ rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("bli
   se STUB_EVENTS_FILE "$T/init.jsonl"; se STUB_EXIT 1
   host --spend-row "$T/rows.jsonl"
   [ "$status" -eq 1 ]
-  [ "$(jq -r '"\(.metering) \(.cost_source)"' "$T/out/cost.json")" = "unmetered_attempt estimate" ]
-  [ "$(jq -r '"\(.status) \(.metering)"' "$T/rows.jsonl")" = "failed unmetered_attempt" ]
+  [ "$(jq -r '"\(.metering) \(.cost_source) \(.total_cost_usd) \(.result_cost_usd)"' "$T/out/cost.json")" = "unmetered_attempt cap_unmetered 6 null" ]
+  [ "$(jq -r '"\(.status) \(.metering) \(.cost_usd)"' "$T/rows.jsonl")" = "unmetered_attempt unmetered_attempt 6" ]
   # a metered session is not
   unse STUB_EXIT; default_events
   OUTD="$T/o2" host --spend-row "$T/rows.jsonl"
@@ -395,4 +395,15 @@ rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("bli
   [ "$status" -eq 2 ]
   [[ "$output" == *"OPENAI_API_KEY"* ]]
   [ ! -e "$T/log/sandbox.txt" ]
+}
+
+@test "BS-16 (review r1 DISS-001) an unmetered attempt is an accounting failure even when the CLI exits 0 with labels written: status unmetered_attempt, exit 1, charged at the cap (cost_source cap_unmetered), never zero" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s1"}' > "$T/init.jsonl"
+  se STUB_EVENTS_FILE "$T/init.jsonl"
+  host --spend-row "$T/rows.jsonl" --max-usd 4
+  echo "$output"
+  [ "$status" -eq 1 ]
+  [ "$(jq -r '"\(.status) \(.exit)"' "$T/out/session.json")" = "unmetered_attempt 1" ]
+  [ "$(jq -r '"\(.cost_source) \(.total_cost_usd) \(.result_cost_usd) \(.cap_usd) \(.metering)"' "$T/out/cost.json")" = "cap_unmetered 4 null 4 unmetered_attempt" ]
+  [ "$(jq -r '"\(.status) \(.cost_usd) \(.cost_source) \(.metering)"' "$T/rows.jsonl")" = "unmetered_attempt 4 cap_unmetered unmetered_attempt" ]
 }

@@ -858,3 +858,13 @@ make_cell_rows() {
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '.contaminated' <<<"$(last)")" = '{"phase":"BARE","pattern":"outside_path"}' ]
 }
+
+@test "RW-c133-a2 (review r1 DISS-001) an infrastructure_error run whose reason is unmetered_attempt carries metering_unmetered: true and stays an invalid row; any other row carries false" {
+  edit_pipe a1-build '.status = "infrastructure_error" | .reason = "unmetered_attempt: IMPLEMENT" | (.phases[1].metering = "unmetered_attempt")'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '"\(.status) \(.metering_unmetered)"' <<<"$(last)")" = "infrastructure_error true" ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  row a0-build "$BUILD_TASK"
+  [ "$(jq -r '.metering_unmetered' <<<"$(last)")" = false ]
+}

@@ -39,7 +39,7 @@
 #   --json         one JSON object: total_usd, runs_usd, ledger_usd, since, cap_usd,
 #                  headroom_usd, reserve_usd, runs_files, ledger_file, runs_rows,
 #                  runs_rows_deduped, runs_rows_no_run_id, runs_rows_before_since,
-#                  runs_rows_undated, ledger_rows, skipped_lines,
+#                  runs_rows_undated, runs_rows_unmetered, ledger_rows, skipped_lines,
 #                  complete (false when any line was skipped)
 #
 # Output: cycle spend USD T (runs R + ledger L since S); cap C; headroom H; reserve V
@@ -47,6 +47,10 @@
 #   count as zero. A malformed line is skipped and counted (stderr note), and the
 #   total is then a lower bound: the line gains " INCOMPLETE (N skipped)", --json
 #   says "complete": false, and the exit is 1.
+#
+# Unmetered rows (cycle-133 review r1 DISS-001): a row with metering "unmetered_attempt" or metering_unmetered true is an
+#   attempt whose spend is unknown; its cost_usd is the writer's cap charge and stays in the total (a zero-cost one with a
+#   numeric cap_usd is charged cap_usd); runs_rows_unmetered counts them and one stderr line names their run ids.
 #
 # Exit: 0 printed and complete; 1 a named file (or an existing default) is unreadable,
 #   or the total is INCOMPLETE (a skipped line); 2 usage.
@@ -144,6 +148,7 @@ since = ts(since_s)
 skipped = 0
 dedup, anon_rows, anon_usd = 0, 0, 0.0
 before_since, undated = 0, 0
+unmetered = []  # run ids (or "<no run_id>") of counted rows whose spend is unknown (charged at their cap)
 best = {}  # (run_id, batch) -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
 anon_seen = {}  # canonical JSON of a row without a run_id -> the file that first held it (dedup across files only)
 def row_ts(r):   # started, else finished; None when neither parses
@@ -177,6 +182,11 @@ for f in runs_files:
             before_since += 1
             continue
         rid = r.get("run_id")
+        if r.get("metering") == "unmetered_attempt" or r.get("metering_unmetered") is True:
+            cu = r.get("cap_usd")
+            if isinstance(cu, (int, float)) and not isinstance(cu, bool):
+                c = max(c, float(cu))
+            unmetered.append(rid if isinstance(rid, str) and rid else "<no run_id>")
         if not (isinstance(rid, str) and rid):
             ident = json.dumps(r, sort_keys=True, separators=(",", ":"))
             if anon_seen.get(ident, f) != f:
@@ -219,6 +229,9 @@ total = runs_usd + ledger_usd
 headroom = cap - total
 if skipped:
     print(f"spend: skipped {skipped} malformed line(s)", file=sys.stderr)
+unmetered = sorted(set(unmetered))
+if unmetered:
+    print(f"spend: {len(unmetered)} unmetered row(s) ({', '.join(unmetered)}) counted at their cap charge (spend unknown)", file=sys.stderr)
 def n(x):
     x = round(x, 4)
     return int(x) if x == int(x) else x
@@ -228,7 +241,7 @@ if as_json:
         "since": since_s, "cap_usd": n(cap), "headroom_usd": n(headroom), "reserve_usd": n(reserve),
         "runs_files": runs_files, "ledger_file": ledger or None, "runs_rows": runs_rows,
         "runs_rows_deduped": dedup, "runs_rows_no_run_id": anon_rows, "runs_rows_before_since": before_since,
-        "runs_rows_undated": undated, "ledger_rows": ledger_rows,
+        "runs_rows_undated": undated, "runs_rows_unmetered": len(unmetered), "ledger_rows": ledger_rows,
         "skipped_lines": skipped, "complete": skipped == 0}, sort_keys=True))
 else:
     def money(x): return f"{x:,.2f}"

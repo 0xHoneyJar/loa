@@ -174,3 +174,19 @@ spend_tree() {
   [ "$status" -eq 0 ]
   [ "$(jq -r '"\(.runs_usd) \(.runs_files | length)"' <<<"$output")" = "5 2" ]
 }
+
+@test "SP-13 (review r1 DISS-001) unmetered rows (metering unmetered_attempt or metering_unmetered true) count in runs_rows_unmetered, their cap charge stays in the total, one stderr line names them; a zero-cost unmetered row with a numeric cap_usd is charged the cap" {
+  printf '%s\n' \
+    '{"run_id":"a","started":"2026-10-20T00:00:00Z","cost_usd":1}' \
+    '{"run_id":"b","started":"2026-10-20T00:00:00Z","cost_usd":6,"cap_usd":6,"metering":"unmetered_attempt","kind":"blind_session"}' \
+    '{"run_id":"c","started":"2026-10-20T00:00:00Z","cost_usd":12,"metering_unmetered":true}' \
+    '{"run_id":"d","started":"2026-10-20T00:00:00Z","cost_usd":0,"cap_usd":5,"metering":"unmetered_attempt"}' > "$T/u.jsonl"
+  : > "$T/l.jsonl"
+  run "$SPEND" --runs "$T/u.jsonl" --ledger "$T/l.jsonl" --since 2026-10-19 --cap 100 --reserve 0 --json
+  echo "$output"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.runs_usd) \(.runs_rows) \(.runs_rows_unmetered)"' <<<"${lines[-1]}")" = "24 4 3" ]
+  [[ "$output" == *"3 unmetered row(s) (b, c, d)"* ]]
+  run "$SPEND" --runs "$FX/runs.jsonl" --ledger "$FX/cost-ledger.jsonl" --json
+  [ "$(jq -r '.runs_rows_unmetered' <<<"$output")" = 0 ]
+}

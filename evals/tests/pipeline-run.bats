@@ -1555,12 +1555,20 @@ EOF
   [ "$(jq -r '[.phases[] | select(.skipped == false) | "\(.metering):\(.watchdog.priced):\(.watchdog.estimate_usd)"] | unique | join(",")' "$T/run/meta/pipeline.json")" = "metered:true:0" ]
 }
 
-@test "PR-c133-6 a phase that started but produced no usage event and no result cost is recorded as an unmetered_attempt" {
-  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s-um"}' > "$T/init.jsonl"
-  hang_impl "$T/init.jsonl" 1
-  run_pr a1_full "$BUILD" --claude-bin "$T/claude-hang"
-  [ "$status" -eq 1 ]
-  [ "$(jq -r '[.phases[] | select(.label == "IMPLEMENT")][0] | "\(.metering) \(.cost_source)"' "$T/run/meta/pipeline.json")" = "unmetered_attempt watchdog_estimate" ]
+@test "PR-c133-6 (review r1 DISS-001) a phase that started but produced no usage event and no result cost is an accounting failure: infrastructure_error (exit 2), reason unmetered_attempt: <label>, charged at the phase's cap allowance (run cap minus prior spend), whether the CLI exited 1 or 0" {
+  local x p
+  for x in 1 0; do
+    rm -rf "$T/run"
+    printf '%s\n' '{"type":"system","subtype":"init","session_id":"s-um"}' > "$T/init.jsonl"
+    hang_impl "$T/init.jsonl" "$x"
+    run_pr a1_full "$BUILD" --claude-bin "$T/claude-hang"
+    echo "exit $x: $output"
+    [ "$status" -eq 2 ]
+    p="$T/run/meta/pipeline.json"
+    [ "$(jq -r '"\(.status)|\(.reason)|\(.spent_usd)"' "$p")" = "infrastructure_error|unmetered_attempt: IMPLEMENT|12" ]
+    [ "$(jq -r '[.phases[] | select(.label == "IMPLEMENT")][0] | "\(.metering) \(.cost_source) \(.cost_usd)"' "$p")" = "unmetered_attempt cap_unmetered 11.5" ]
+    [ "$(labels)" = "PLAN,IMPLEMENT" ]
+  done
 }
 
 @test "PR-c133-7 a secret-shaped pass-through key outside SECRET_KEYS fails the startup assertion: infrastructure_error (exit 2), no phase" {

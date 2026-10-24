@@ -158,6 +158,9 @@
 #                       rerun-once — the second attempt's row is the cell when it has no fallback, else the cell is invalid
 #                       with both attempts recorded (evals/harness/README.md § Refusal policy mirrors this)
 #   refusal_flagged     true on a kept row (keep with a fallback), else false
+#   metering_unmetered  true when pipeline.json says an attempt ran unmetered (reason `unmetered_attempt: <label>`, or a
+#                       phase with metering unmetered_attempt; such a run is infrastructure_error, already invalid), else
+#                       false — additive, not required by --validate (cycle-133 review r1 DISS-001; spend.sh counts it)
 # --refusal-rate F (a mode beside --validate): per arm, rows, refused (refusal_outcome other than none, else for a row
 # before 1.6 any phases[].refusal_fallbacks entry), refusal_rate = refused / rows (6 decimals) and flagged when the rate
 # is above 0.2: one JSON object {threshold: 0.2, arms: {<arm>: {rows, refused, refusal_rate, flagged}}} on stdout and one
@@ -805,6 +808,8 @@ ROW="$(jq -n -c \
       refusal_denominator: (if (["excluded","rerun_not_run","rerun_refused","rerun_failed"] | index($rout)) != null
                             then "excluded" else "included" end),
       refusal_flagged: ($rout == "kept"),
+      metering_unmetered: (((($p.reason // "") | tostring) | startswith("unmetered_attempt"))
+                           or ([($p.phases // [])[]? | objects | .metering] | index("unmetered_attempt") != null)),
       defect_catch_rate_pm3: (if $rc == null then null else ($rc.recall_pm3 // null) end),
       defect_catch_rate_pm3_v1: (if $rc == null then null else ($rc.recall_pm3_v1 // null) end),
       defects_missed_pm3: (if $rc == null then null else poslist($rc.missed_pm3; $seeded) end),

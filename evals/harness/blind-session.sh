@@ -68,7 +68,9 @@
 #                     subtype, is_error, cap_usd, cap_hit, cap_turn, estimate_usd, watchdog,
 #                     timed_out, cli_exit, model, metering}; cost-ledger.jsonl when the ledger has rows;
 #                     metering metered | incomplete (the stream could not be priced) | unmetered_attempt
-#                     (the session started, no usage event and no result cost: spend unknown, not zero)
+#                     (the session started, no usage event and no result cost: spend unknown, not zero —
+#                     an accounting failure: status unmetered_attempt, exit 1, total_cost_usd = the cap
+#                     (--max-usd), cost_source cap_unmetered, result_cost_usd null; review r1 DISS-001)
 #   taint.json       {tainted, events: [{event, tool, reason, input}], allowed_tools, sandbox}:
 #                    a tool_use of any tool outside Read/Grep/Glob/Write, or a Read/Grep/Glob/Write
 #                    path (file_path, path, an absolute or `..` pattern/glob) outside the sandbox
@@ -80,14 +82,15 @@
 #                    CLI failure, cap, timeout, taint, interrupt): {run_id, kind: "blind_session",
 #                    out (--out as given), model, started, finished (UTC ISO-8601 Z), cost_usd (cost.json
 #                    total_cost_usd; the watchdog estimate when cost.json could not be written),
-#                    status completed|failed|cap_hit|timeout|tainted, cap_hit, metering (as cost.json)};
+#                    status completed|failed|cap_hit|timeout|tainted|unmetered_attempt, cap_hit, metering,
+#                    cost_source (as cost.json), cap_usd};
 #                    run_id = "blind-" + the
 #                    first 12 hex of sha256(<absolute --out> + started); appended under flock on
 #                    FILE.lock when flock exists (the ablation-row.sh pattern). This row is how a blind
 #                    session reaches the cycle meter: pass a run-row file evals/harness/spend.sh counts
 #                    (DEC-0710). Without the flag nothing is appended.
 #
-# Exit: 0 labels written; 1 session failed (CLI error, timeout, cap, interrupted, metering incomplete,
+# Exit: 0 labels written; 1 session failed (CLI error, timeout, cap, interrupted, metering incomplete, unmetered attempt,
 #       no or an invalid labels.json); 2 usage (bad option, packet rule, missing CLI / docker / image,
 #       no valid price for --model, a secret-shaped pass-through key outside SECRET_KEYS);
 #       3 tainted (takes precedence over 1).
@@ -221,18 +224,21 @@ SPEND_PENDING=0 STARTED=""
 spend_row() {
   [[ -n "$SPEND_ROW" && "$SPEND_PENDING" -eq 1 ]] || return 0
   SPEND_PENDING=0
-  local finished cost rid row
+  local finished cost rid row csrc
   finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   cost="$(jq -r '.total_cost_usd // empty' "$OUT/cost.json" 2>/dev/null || true)"
   [[ "$cost" =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] \
     || { local _t m _x; read -r _t m _x <<<"${est:-0 0 0}"
          [[ "$m" =~ ^[0-9]+$ ]] || m=0; cost="$(jq -n --argjson m "$m" '$m / 1000000')"; }
+  csrc="$(jq -r '.cost_source // "estimate"' "$OUT/cost.json" 2>/dev/null || true)"   # the exit-trap path: cost.json may not exist yet
+  [[ "$csrc" =~ ^[a-z_]+$ ]] || csrc=estimate
   rid="blind-$(printf '%s%s' "$OUT" "$STARTED" | python3 -I -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])')"
   row="$(jq -nc --arg run_id "$rid" --arg out "$OUT_GIVEN" --arg model "$MODEL" --arg started "$STARTED" \
           --arg finished "$finished" --argjson cost "$cost" --arg status "$1" --argjson cap_hit "$2" \
-          --arg metering "${METERING:-metered}" \
+          --arg metering "${METERING:-metered}" --arg csrc "$csrc" --argjson cap "$MAX_USD" \
           '{run_id: $run_id, kind: "blind_session", out: $out, model: $model, started: $started,
-            finished: $finished, cost_usd: $cost, status: $status, cap_hit: $cap_hit, metering: $metering}')"
+            finished: $finished, cost_usd: $cost, status: $status, cap_hit: $cap_hit, metering: $metering,
+            cost_source: $csrc, cap_usd: $cap}')"
   mkdir -p "$(dirname "$SPEND_ROW")"
   if command -v flock >/dev/null 2>&1; then
     { flock -x 9; printf '%s\n' "$row" >> "$SPEND_ROW"; } 9>>"$SPEND_ROW.lock"
@@ -482,12 +488,13 @@ ledger_json="$(jq -R -n -c '[inputs | fromjson? | select(type == "object")
       < "$HOME_DIR/.eval/cost-ledger.jsonl")"
 jq -n --argjson r "$result" --argjson l "$ledger_json" --arg model "$MODEL" --argjson cap "$MAX_USD" \
       --argjson cap_hit "$cap_hit" --argjson cap_turn "$cap_turn" --argjson est_micro "${est_micro:-0}" \
-      --argjson watchdog true --arg metering "$METERING" \
+      --argjson watchdog true --arg metering "$METERING" --argjson unmetered "$([[ "$METERING" == unmetered_attempt ]] && echo true || echo false)" \
       --argjson timed_out "$timed_out" --argjson rc "$rc" \
   '(if ($r.total_cost_usd | type) == "number" then $r.total_cost_usd else null end) as $rc_usd
    | {model: $model, result_cost_usd: $rc_usd, ledger_rows: $l.rows, ledger_cost_usd: ($l.micro / 1000000),
-      cost_source: (if $rc_usd != null then "result" else "estimate" end),
-      total_cost_usd: ((($rc_usd // ($est_micro / 1000000)) * 1000000 + $l.micro) | round / 1000000),
+      cost_source: (if $unmetered then "cap_unmetered" elif $rc_usd != null then "result" else "estimate" end),
+      total_cost_usd: (if $unmetered then $cap
+                       else ((($rc_usd // ($est_micro / 1000000)) * 1000000 + $l.micro) | round / 1000000) end),
       num_turns: ($r.num_turns // null), subtype: ($r.subtype // null), is_error: ($r.is_error // null),
       cap_usd: $cap, cap_hit: $cap_hit, cap_turn: (if $cap_turn > 0 then $cap_turn else null end),
       estimate_usd: ($est_micro / 1000000), watchdog: $watchdog, timed_out: $timed_out, cli_exit: $rc,
@@ -499,13 +506,14 @@ status=completed exit_code=0
 if [[ "$TAINTED" == true ]]; then status=tainted exit_code=3
 elif [[ "$INTERRUPTED" -eq 1 ]]; then status=interrupted exit_code=1
 elif [[ "$METERING" == incomplete ]]; then status=metering_incomplete exit_code=1
+elif [[ "$METERING" == unmetered_attempt ]]; then status=unmetered_attempt exit_code=1
 elif [[ "$cap_hit" == true ]]; then status=cap_failure exit_code=1
 elif [[ "$timed_out" == true ]]; then status=timed_out exit_code=1
 elif [[ "$LABEL_STATUS" != ok ]]; then status="labels_$LABEL_STATUS" exit_code=1
 elif [[ $rc -ne 0 && "$subtype" != error_max_turns ]]; then status=agent_error exit_code=1
 fi
 case "$status" in
-  completed|tainted) spend_status="$status" ;;
+  completed|tainted|unmetered_attempt) spend_status="$status" ;;
   cap_failure) spend_status=cap_hit ;;
   timed_out) spend_status=timeout ;;
   *) spend_status=failed ;;

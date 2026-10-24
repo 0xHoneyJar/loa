@@ -119,7 +119,12 @@
 # runs — and the run (infrastructure_error, reason `metering_incomplete: <label> …`, the
 # phase record carries metering: incomplete). Each phase record carries metering
 # metered | incomplete | unmetered_attempt (the phase started, no usage event and no
-# result cost: spend unknown, not zero).
+# result cost: spend unknown, not zero). An unmetered_attempt is an accounting failure
+# (review r1 DISS-001): the run ends infrastructure_error (exit 2), reason
+# `unmetered_attempt: <label>`, and the phase is charged its cap allowance — there is no
+# per-phase USD cap, so the allowance is the run cap minus the spend before the phase
+# (the most the watchdog would have let it spend): cost_usd = that, cost_source
+# cap_unmetered, and spent_usd reaches the run cap.
 #
 # Exit codes:
 #   0  finished (any verdict)                                   status completed
@@ -1135,7 +1140,7 @@ run_phase() {  # run_phase <name> <label>
     --argjson minv_from "$((minv_before + 1))" --argjson minv_to "$minv_after" \
     --argjson ledger_from "$((ledger_before + 1))" --argjson turn_cap_hit "$turn_cap_hit" \
     --argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" \
-    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" --arg metering "$metering" '
+    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" --arg metering "$metering" --argjson budget "$budget" '
     def u(k1; k2): ($result.usage[k1] // $result.usage[k2] // 0);
     {name: $name, label: $label, skipped: false,
      session_id: (if $sid == "" then null else $sid end),
@@ -1146,8 +1151,10 @@ run_phase() {  # run_phase <name> <label>
      tokens_in: u("input_tokens"; "inputTokens"), tokens_out: u("output_tokens"; "outputTokens"),
      cache_read_tokens: u("cache_read_input_tokens"; "cacheReadInputTokens"),
      cache_creation_tokens: u("cache_creation_input_tokens"; "cacheCreationInputTokens"),
-     cost_usd: ($result.total_cost_usd // ($est_micro / 1000000)),
-     cost_source: (if $result.total_cost_usd != null then "result" else "watchdog_estimate" end),
+     cost_usd: (if $metering == "unmetered_attempt" then ([$budget, 0] | max) / 1000000
+                else ($result.total_cost_usd // ($est_micro / 1000000)) end),
+     cost_source: (if $metering == "unmetered_attempt" then "cap_unmetered"
+                   elif $result.total_cost_usd != null then "result" else "watchdog_estimate" end),
      ledger_cost_usd: ($ledger / 1000000),
      duration_ms: ($result.duration_ms // $dur), wall_ms: $dur,
      num_turns: ($result.num_turns // $est_turns), max_turns: $turns, timeout_s: $tsec,
@@ -1168,11 +1175,14 @@ run_phase() {  # run_phase <name> <label>
   # --- account and decide ---
   local cost_micro
   cost_micro="$(jq -r --argjson e "${est_micro:-0}" '(.total_cost_usd // ($e / 1000000)) * 1000000 | round' <<<"$result")"
+  # an unmetered attempt is charged the phase's cap allowance (never zero; DISS-001)
+  if [[ "$metering" == unmetered_attempt ]]; then cost_micro=$(( budget > 0 ? budget : 0 )); fi
   SPENT_MICRO=$(( SPENT_MICRO + cost_micro + ledger_micro ))
   if [[ "$INTERRUPTED" -eq 1 ]]; then finish interrupted 4 "driver received a signal during $label"; fi
   if [[ "$metering" == incomplete ]]; then
     finish infrastructure_error 2 "metering_incomplete: phase $label: the stream cannot be priced (an invalid token count or a completed turn without usage)"
   fi
+  if [[ "$metering" == unmetered_attempt ]]; then finish infrastructure_error 2 "unmetered_attempt: $label"; fi
   if [[ "$killed" -eq 1 ]]; then CAP_PHASE="$label"; CAP_TURN="$cap_turn"; finish cap_failure 3 "watchdog stopped $label at turn $cap_turn"; fi
   if [[ "$timed_out" == false ]] && { [[ $rc -eq 143 ]] || [[ $rc -eq 137 ]] || [[ $rc -eq 129 ]] || [[ $rc -eq 130 ]]; }; then
     finish interrupted 4 "phase $label was killed from outside (exit $rc)"
